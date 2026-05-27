@@ -55,7 +55,7 @@ export default function MyClinicDetail() {
           {data.employees.map((e) => (
             <div key={e.id} className="flex justify-between border-b border-border/30 py-2 font-mono text-sm">
               <span>{e.name} <span className="text-nc-magenta uppercase ml-2">{e.role}</span></span>
-              <Button size="icon" variant="ghost" onClick={() => removeEmp.mutate({ id: rid, empId: e.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+              <Button size="icon" variant="ghost" onClick={() => removeEmp.mutate({ id: rid, employeeId: e.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
             </div>
           ))}
           <div className="flex gap-2 pt-3">

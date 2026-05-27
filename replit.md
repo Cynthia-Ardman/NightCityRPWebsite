@@ -1,45 +1,74 @@
-# [Project name]
+# Night City RP Portal
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Web portal for the Night City RP Cyberpunk Discord community — replaces the legacy NightCityBot bot. Discord OAuth login with role sync, character management (PCs and NPCs), inventory, wallet (UnbelievaBoat as source of truth), shop/clinic management, public directories, Cyberpunk Red character sheets with CS-Approver review flow, dice roller, and an admin panel.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server
+- `pnpm --filter @workspace/ncrp-portal run dev` — run the React portal
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate React Query hooks + Zod schemas from `lib/api-spec/openapi.yaml`
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required secrets: `DATABASE_URL`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_GUILD_ID`
+- Optional: `DISCORD_BOT_TOKEN` (role sync, channel posts), `UNBELIEVABOAT_TOKEN` (wallet sync), `CS_APPROVAL_CHANNEL_ID` (sheet review pings)
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
+- API: Express 5, `express-session` + `connect-pg-simple`, Discord OAuth2 + bot REST
+- Frontend: React 19 + Vite, Tailwind v4, shadcn/ui, wouter, TanStack Query, Orval-generated hooks
 - DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Codegen: Orval (OpenAPI → React Query hooks + Zod)
+- Cron: `node-cron` (cyberware humanity drift, monthly rent, role sync)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- DB schema (source of truth): `lib/db/src/schema/`
+- API contract (source of truth): `lib/api-spec/openapi.yaml` — **regenerate hooks after edits**
+- Generated client: `lib/api-client-react/src/generated/`
+- Backend routes: `artifacts/api-server/src/routes/`
+- Discord/UB clients: `artifacts/api-server/src/lib/`
+- Cron jobs: `artifacts/api-server/src/lib/jobs.ts`
+- Portal pages: `artifacts/ncrp-portal/src/pages/`
+- Layout/HUD: `artifacts/ncrp-portal/src/components/layout/AppLayout.tsx`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **OpenAPI-first**: any API change starts in `openapi.yaml`, then `codegen` regenerates typed hooks consumed by the portal.
+- **UnbelievaBoat = source of truth** for character wallets; we cache to `wallet_txns` and return `source: "unbelievaboat"` when the upstream is reachable, `"local"` otherwise.
+- **Role-gated routes**: middleware checks Discord guild role membership (Admin, Fixer, CS Approver, Ripperdoc, Store Owner). Role IDs come from env-configurable mapping.
+- **Sheets workflow**: cap 11 cyberware slots / 6 humanity points at creation; submission posts an embed to `CS_APPROVAL_CHANNEL_ID` via the bot for human review.
+- **No emojis anywhere in UI** (per product spec). Visual identity is type-driven Cyberpunk neon (Chakra Petch + Space Mono).
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Discord login → role-based feature gating.
+- Personal: dashboard, characters (PC + NPC) with inventory, wallet, status (LOA / attending / open-shop).
+- Sheets: submit Cyberpunk Red sheet for CS-Approver review; approver can approve / reject / request changes.
+- Directories: public read-only lists of stores and ripperdoc clinics (no stock exposed publicly).
+- Management: store owners and ripperdocs edit their own venues, staff, and stock.
+- Fixer Hub: fixers create + manage personal NPC roster, view all NPCs.
+- Catalogs: guns, cyberware, housing rentals.
+- Dice roller with history.
+- Admin panel: user list, role sync, manual job runs, wallet adjustments.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- No emojis in UI copy or component output.
+
+## Deployment / Custom domain
+
+- Target domain: `nightcityroleplay.com`.
+- After publishing: add the domain in the Deployments tab, register the two DNS records (A + TXT) at the registrar, and add `https://nightcityroleplay.com/api/auth/discord/callback` to the Discord developer portal's OAuth2 redirect allowlist.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After editing `openapi.yaml`, you **must** run `pnpm --filter @workspace/api-spec run codegen` or the portal will reference removed/renamed types.
+- After editing `lib/db/src/schema/`, run `pnpm exec tsc -b` inside `lib/db` so dependent packages see the new types.
+- Tailwind v4: any `@import url(...)` for fonts in `index.css` must come **before** `@import "tailwindcss"`; postcss otherwise rejects it.
+- Wallet writes (`/wallet/transfer`, admin adjustments) always go through UnbelievaBoat; only fall back to local on upstream failure.
 
 ## Pointers
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+- See the `deployment` skill before publishing or wiring up the custom domain.

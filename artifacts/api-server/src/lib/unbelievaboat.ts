@@ -1,7 +1,7 @@
 import { logger } from "./logger";
 import { DISCORD_GUILD_ID } from "./discord";
 
-const TOKEN = process.env.UNBELIEVABOAT_API_TOKEN ?? "";
+const TOKEN = process.env.UNBELIEVABOAT_TOKEN ?? process.env.UNBELIEVABOAT_API_TOKEN ?? "";
 const API = "https://unbelievaboat.com/api/v1";
 
 export interface UbBalance {

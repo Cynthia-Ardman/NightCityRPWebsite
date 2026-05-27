@@ -268,8 +268,8 @@ export interface Store {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
-  employees?: Employee[];
-  stock?: StockItem[];
+  employees: Employee[];
+  stock: StockItem[];
 }
 
 export type StoreUpdateKind = typeof StoreUpdateKind[keyof typeof StoreUpdateKind];
@@ -303,8 +303,8 @@ export interface Ripperdoc {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
-  employees?: Employee[];
-  stock?: StockItem[];
+  employees: Employee[];
+  stock: StockItem[];
 }
 
 export interface RipperdocUpdate {
@@ -427,6 +427,7 @@ export const CharacterSheetStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
 } as const;
 
 export interface CharacterSheetCyberwareEntry {
@@ -482,6 +483,11 @@ export interface CharacterSheet {
 }
 
 export interface CharacterSheetInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  name: string;
   /** @nullable */
   characterId?: number | null;
   data: CharacterSheetData;
@@ -493,6 +499,7 @@ export type SheetDecisionInputDecision = typeof SheetDecisionInputDecision[keyof
 export const SheetDecisionInputDecision = {
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
 } as const;
 
 export interface SheetDecisionInput {
@@ -538,9 +545,12 @@ export interface AdminUser {
   isAdmin: boolean;
   isFixer?: boolean;
   isCsApprover?: boolean;
+  isRipperdoc?: boolean;
+  isStoreOwner?: boolean;
   characterCount?: number;
   /** @nullable */
   lastSeenAt?: string | null;
+  characters?: Character[];
 }
 
 export interface WalletAdjustmentInput {

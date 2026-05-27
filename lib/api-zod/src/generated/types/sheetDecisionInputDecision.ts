@@ -12,4 +12,5 @@ export type SheetDecisionInputDecision = typeof SheetDecisionInputDecision[keyof
 export const SheetDecisionInputDecision = {
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
 } as const;

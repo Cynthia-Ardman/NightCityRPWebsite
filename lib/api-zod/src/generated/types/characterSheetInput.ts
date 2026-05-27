@@ -8,6 +8,11 @@
 import type { CharacterSheetData } from './characterSheetData';
 
 export interface CharacterSheetInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  name: string;
   /** @nullable */
   characterId?: number | null;
   data: CharacterSheetData;

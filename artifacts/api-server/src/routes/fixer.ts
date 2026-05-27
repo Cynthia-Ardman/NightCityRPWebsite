@@ -5,12 +5,12 @@ import { requireAuth, requireRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-router.get("/me/fixer-npcs", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
+router.get("/fixer/npcs/mine", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
   const rows = await db.select().from(fixerNpcs).where(eq(fixerNpcs.fixerId, req.user!.id)).orderBy(desc(fixerNpcs.createdAt));
   res.json(rows);
 });
 
-router.get("/fixer-npcs", requireAuth, requireRole("FIXER"), async (_req, res): Promise<void> => {
+router.get("/fixer/npcs", requireAuth, requireRole("FIXER"), async (_req, res): Promise<void> => {
   const rows = await db
     .select({
       id: fixerNpcs.id,
@@ -30,7 +30,7 @@ router.get("/fixer-npcs", requireAuth, requireRole("FIXER"), async (_req, res): 
   res.json(rows);
 });
 
-router.post("/fixer-npcs", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
+router.post("/fixer/npcs", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
   const { name, archetype, district, description, portraitUrl, contact } = req.body ?? {};
   if (!name) {
     res.status(400).json({ error: "name required" });
@@ -51,7 +51,7 @@ router.post("/fixer-npcs", requireAuth, requireRole("FIXER"), async (req, res): 
   res.status(201).json(n);
 });
 
-router.get("/fixer-npcs/:id", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
+router.get("/fixer/npcs/:id", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const [n] = await db.select().from(fixerNpcs).where(eq(fixerNpcs.id, id));
   if (!n) {
@@ -61,7 +61,7 @@ router.get("/fixer-npcs/:id", requireAuth, requireRole("FIXER"), async (req, res
   res.json(n);
 });
 
-router.patch("/fixer-npcs/:id", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
+router.patch("/fixer/npcs/:id", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const [n] = await db.select().from(fixerNpcs).where(and(eq(fixerNpcs.id, id), eq(fixerNpcs.fixerId, req.user!.id)));
   if (!n) {

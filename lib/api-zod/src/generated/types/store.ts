@@ -22,6 +22,6 @@ export interface Store {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
-  employees?: Employee[];
-  stock?: StockItem[];
+  employees: Employee[];
+  stock: StockItem[];
 }

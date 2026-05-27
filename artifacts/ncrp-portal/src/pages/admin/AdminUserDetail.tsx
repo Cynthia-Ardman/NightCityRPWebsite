@@ -20,6 +20,7 @@ export default function AdminUserDetail() {
       onSuccess: () => qc.invalidateQueries({ queryKey: getAdminGetUserQueryKey(userId) }),
     },
   });
+  const chars = user?.characters ?? [];
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING_NETRUNNER...</div>;
   if (!user) return <div className="font-display text-destructive">USER NOT FOUND</div>;
@@ -40,7 +41,7 @@ export default function AdminUserDetail() {
           <p className="text-xs font-mono text-muted-foreground">@{user.username} · {user.discordId}</p>
         </div>
         <Button
-          onClick={() => sync.mutate({ id: userId })}
+          onClick={() => sync.mutate({ userId })}
           disabled={sync.isPending}
           className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
           data-testid="button-sync-roles"
@@ -69,10 +70,10 @@ export default function AdminUserDetail() {
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
-          <CardTitle className="font-display tracking-widest">CHARACTERS ({user.characters.length})</CardTitle>
+          <CardTitle className="font-display tracking-widest">CHARACTERS ({chars.length})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {user.characters.map((c) => (
+          {chars.map((c) => (
             <div key={c.id} className="flex justify-between border-b border-border/50 py-2 text-sm font-mono">
               <span>{c.name}</span>
               <Badge variant="outline" className="rounded-none border-nc-yellow/50 text-nc-yellow uppercase">

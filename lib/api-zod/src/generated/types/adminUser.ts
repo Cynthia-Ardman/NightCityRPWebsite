@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { Character } from './character';
 
 export interface AdminUser {
   id: string;
@@ -18,7 +19,10 @@ export interface AdminUser {
   isAdmin: boolean;
   isFixer?: boolean;
   isCsApprover?: boolean;
+  isRipperdoc?: boolean;
+  isStoreOwner?: boolean;
   characterCount?: number;
   /** @nullable */
   lastSeenAt?: Date | null;
+  characters?: Character[];
 }

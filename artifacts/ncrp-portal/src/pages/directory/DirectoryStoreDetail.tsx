@@ -18,11 +18,10 @@ export default function DirectoryStoreDetail() {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">STAFF</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          {data.employees.length === 0 ? <p className="text-muted-foreground font-mono text-sm">No staff listed.</p> :
-            data.employees.map((e) => (
-              <div key={e.id} className="flex justify-between border-b border-border/30 py-2 text-sm font-mono" data-testid={`row-employee-${e.id}`}>
-                <span>{e.name}</span>
-                <span className="text-nc-cyan uppercase">{e.role}</span>
+          {(data.employeeNames ?? []).length === 0 ? <p className="text-muted-foreground font-mono text-sm">No staff listed.</p> :
+            (data.employeeNames ?? []).map((n, i) => (
+              <div key={i} className="flex justify-between border-b border-border/30 py-2 text-sm font-mono" data-testid={`row-employee-${i}`}>
+                <span>{n}</span>
               </div>
             ))}
         </CardContent>

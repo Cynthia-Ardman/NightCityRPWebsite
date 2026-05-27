@@ -56,6 +56,7 @@ export default function NewSheet() {
     submit.mutate({
       data: {
         name: fullName,
+        characterId: null,
         data: {
           fullName, nickname, archetype, age: Number(age) || 0, gender, appearance, background, notes,
           startingEddies: Number(startingEddies) || 0,

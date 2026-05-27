@@ -20,6 +20,6 @@ export interface Ripperdoc {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
-  employees?: Employee[];
-  stock?: StockItem[];
+  employees: Employee[];
+  stock: StockItem[];
 }

@@ -3,7 +3,7 @@ import { eq, desc, sql } from "drizzle-orm";
 import { db, users, characters, walletTransactions, jobRuns, activityEvents } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, hasRole } from "../lib/discord";
-import { patchBalance } from "../lib/unbelievaboat";
+import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
 
 const router: IRouter = Router();
@@ -31,8 +31,8 @@ router.get("/admin/users", async (_req, res): Promise<void> => {
   );
 });
 
-router.get("/admin/users/:id", async (req, res): Promise<void> => {
-  const id = String(req.params.id);
+router.get("/admin/users/:userId", async (req, res): Promise<void> => {
+  const id = String(req.params.userId);
   const [u] = await db.select().from(users).where(eq(users.id, id));
   if (!u) {
     res.status(404).json({ error: "Not found" });
@@ -57,8 +57,8 @@ router.get("/admin/users/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/admin/users/:id/sync-roles", async (req, res): Promise<void> => {
-  const id = String(req.params.id);
+router.post("/admin/users/:userId/roles", async (req, res): Promise<void> => {
+  const id = String(req.params.userId);
   const [u] = await db.select().from(users).where(eq(users.id, id));
   if (!u) {
     res.status(404).json({ error: "Not found" });
@@ -99,7 +99,20 @@ router.post("/admin/wallet/adjust", async (req, res): Promise<void> => {
     return;
   }
   const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
-  if (owner) await patchBalance(owner.discordId, { cash: amount, reason: memo ?? "Admin adjustment" });
+  let ubOk = true;
+  if (owner) {
+    const ubResult = await patchBalance(owner.discordId, { cash: amount, reason: memo ?? "Admin adjustment" });
+    // null = UB unreachable (token missing or network) -> fall back to local; treat as ok.
+    // If UB was reachable for read but rejected the write, surface error to avoid ledger drift.
+    if (ubResult === null) {
+      const probe = await getBalance(owner.discordId);
+      if (probe !== null) ubOk = false;
+    }
+  }
+  if (!ubOk) {
+    res.status(502).json({ error: "Wallet provider rejected adjustment" });
+    return;
+  }
   await db.insert(walletTransactions).values({
     characterId,
     amount,
@@ -115,8 +128,8 @@ router.get("/admin/jobs", async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.post("/admin/jobs/:job/run", async (req, res): Promise<void> => {
-  const job = String(req.params.job);
+router.post("/admin/jobs/run", async (req, res): Promise<void> => {
+  const job = String(req.body?.job ?? "");
   if (!["cyberware_humanity", "monthly_rent", "role_sync"].includes(job)) {
     res.status(400).json({ error: "Unknown job" });
     return;

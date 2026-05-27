@@ -8,7 +8,7 @@ const router: IRouter = Router();
 
 const CS_CHANNEL_ID = process.env.CS_APPROVAL_CHANNEL_ID ?? "";
 
-router.get("/me/sheets", requireAuth, async (req, res): Promise<void> => {
+router.get("/sheets", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(characterSheets)
@@ -108,7 +108,7 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(s);
 });
 
-router.post("/sheets/:id/decide", requireAuth, requireRole("CS_APPROVER"), async (req, res): Promise<void> => {
+router.post("/sheets/:id/decision", requireAuth, requireRole("CS_APPROVER"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const { decision, note } = req.body ?? {};
   if (!["approved", "rejected", "changes_requested"].includes(decision)) {

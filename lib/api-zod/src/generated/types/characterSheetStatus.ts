@@ -13,4 +13,5 @@ export const CharacterSheetStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
 } as const;

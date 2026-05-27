@@ -415,7 +415,7 @@ export const ListMyStoresResponseItem = zod.object({
   "characterId": zod.number(),
   "name": zod.string(),
   "role": zod.string()
-})).optional(),
+})),
   "stock": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -423,7 +423,7 @@ export const ListMyStoresResponseItem = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish()
-})).optional()
+}))
 })
 export const ListMyStoresResponse = zod.array(ListMyStoresResponseItem)
 
@@ -446,7 +446,7 @@ export const GetStoreResponse = zod.object({
   "characterId": zod.number(),
   "name": zod.string(),
   "role": zod.string()
-})).optional(),
+})),
   "stock": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -454,7 +454,7 @@ export const GetStoreResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish()
-})).optional()
+}))
 })
 
 
@@ -484,7 +484,7 @@ export const UpdateStoreResponse = zod.object({
   "characterId": zod.number(),
   "name": zod.string(),
   "role": zod.string()
-})).optional(),
+})),
   "stock": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -492,7 +492,7 @@ export const UpdateStoreResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish()
-})).optional()
+}))
 })
 
 
@@ -584,7 +584,7 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "characterId": zod.number(),
   "name": zod.string(),
   "role": zod.string()
-})).optional(),
+})),
   "stock": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -592,7 +592,7 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish()
-})).optional()
+}))
 })
 export const ListMyRipperdocsResponse = zod.array(ListMyRipperdocsResponseItem)
 
@@ -614,7 +614,7 @@ export const GetRipperdocResponse = zod.object({
   "characterId": zod.number(),
   "name": zod.string(),
   "role": zod.string()
-})).optional(),
+})),
   "stock": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -622,7 +622,7 @@ export const GetRipperdocResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish()
-})).optional()
+}))
 })
 
 
@@ -650,7 +650,7 @@ export const UpdateRipperdocResponse = zod.object({
   "characterId": zod.number(),
   "name": zod.string(),
   "role": zod.string()
-})).optional(),
+})),
   "stock": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -658,7 +658,7 @@ export const UpdateRipperdocResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish()
-})).optional()
+}))
 })
 
 
@@ -819,7 +819,7 @@ export const ListMySheetsResponseItem = zod.object({
   "ownerName": zod.string().optional(),
   "characterId": zod.number().nullish(),
   "name": zod.string(),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "decisionBy": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
@@ -850,6 +850,8 @@ export const ListMySheetsResponseItem = zod.object({
 export const ListMySheetsResponse = zod.array(ListMySheetsResponseItem)
 
 
+export const submitSheetBodyNameMax = 64;
+
 export const submitSheetBodyDataCyberwareMax = 11;
 
 export const submitSheetBodyDataCyberwarePointsSpentMax = 6;
@@ -857,6 +859,7 @@ export const submitSheetBodyDataCyberwarePointsSpentMax = 6;
 
 
 export const SubmitSheetBody = zod.object({
+  "name": zod.string().min(1).max(submitSheetBodyNameMax),
   "characterId": zod.number().nullish(),
   "data": zod.object({
   "fullName": zod.string(),
@@ -898,7 +901,7 @@ export const ListPendingSheetsResponseItem = zod.object({
   "ownerName": zod.string().optional(),
   "characterId": zod.number().nullish(),
   "name": zod.string(),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "decisionBy": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
@@ -945,7 +948,7 @@ export const GetSheetResponse = zod.object({
   "ownerName": zod.string().optional(),
   "characterId": zod.number().nullish(),
   "name": zod.string(),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "decisionBy": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
@@ -983,7 +986,7 @@ export const DecideSheetParams = zod.object({
 })
 
 export const DecideSheetBody = zod.object({
-  "decision": zod.enum(['approved', 'rejected']),
+  "decision": zod.enum(['approved', 'rejected', 'changes_requested']),
   "note": zod.string().optional()
 })
 
@@ -999,7 +1002,7 @@ export const DecideSheetResponse = zod.object({
   "ownerName": zod.string().optional(),
   "characterId": zod.number().nullish(),
   "name": zod.string(),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "decisionBy": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
@@ -1076,8 +1079,23 @@ export const AdminListUsersResponseItem = zod.object({
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean().optional(),
   "isCsApprover": zod.boolean().optional(),
+  "isRipperdoc": zod.boolean().optional(),
+  "isStoreOwner": zod.boolean().optional(),
   "characterCount": zod.number().optional(),
-  "lastSeenAt": zod.coerce.date().nullish()
+  "lastSeenAt": zod.coerce.date().nullish(),
+  "characters": zod.array(zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "approved": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})).optional()
 })
 export const AdminListUsersResponse = zod.array(AdminListUsersResponseItem)
 
@@ -1096,8 +1114,23 @@ export const AdminGetUserResponse = zod.object({
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean().optional(),
   "isCsApprover": zod.boolean().optional(),
+  "isRipperdoc": zod.boolean().optional(),
+  "isStoreOwner": zod.boolean().optional(),
   "characterCount": zod.number().optional(),
-  "lastSeenAt": zod.coerce.date().nullish()
+  "lastSeenAt": zod.coerce.date().nullish(),
+  "characters": zod.array(zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "approved": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})).optional()
 })
 
 
@@ -1118,8 +1151,23 @@ export const AdminSyncUserRolesResponse = zod.object({
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean().optional(),
   "isCsApprover": zod.boolean().optional(),
+  "isRipperdoc": zod.boolean().optional(),
+  "isStoreOwner": zod.boolean().optional(),
   "characterCount": zod.number().optional(),
-  "lastSeenAt": zod.coerce.date().nullish()
+  "lastSeenAt": zod.coerce.date().nullish(),
+  "characters": zod.array(zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "approved": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})).optional()
 })
 
 

@@ -15,7 +15,7 @@ import { requireAuth } from "../middlewares/auth";
 const router: IRouter = Router();
 
 // ===== Stores =====
-router.get("/me/stores", requireAuth, async (req, res): Promise<void> => {
+router.get("/stores/mine", requireAuth, async (req, res): Promise<void> => {
   const rows = await db.select().from(stores).where(eq(stores.ownerId, req.user!.id));
   res.json(rows);
 });
@@ -75,9 +75,9 @@ router.post("/stores/:id/employees", requireAuth, async (req, res): Promise<void
   res.status(201).json(e);
 });
 
-router.delete("/stores/:id/employees/:empId", requireAuth, async (req, res): Promise<void> => {
+router.delete("/stores/:id/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const empId = parseInt(String(req.params.empId), 10);
+  const empId = parseInt(String(req.params.employeeId), 10);
   const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
   if (!s) {
     res.status(404).json({ error: "Not found" });
@@ -146,7 +146,7 @@ router.delete("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promi
 });
 
 // ===== Ripperdocs =====
-router.get("/me/ripperdocs", requireAuth, async (req, res): Promise<void> => {
+router.get("/ripperdocs/mine", requireAuth, async (req, res): Promise<void> => {
   const rows = await db.select().from(ripperdocs).where(eq(ripperdocs.ownerId, req.user!.id));
   res.json(rows);
 });
@@ -201,9 +201,9 @@ router.post("/ripperdocs/:id/employees", requireAuth, async (req, res): Promise<
   res.status(201).json(e);
 });
 
-router.delete("/ripperdocs/:id/employees/:empId", requireAuth, async (req, res): Promise<void> => {
+router.delete("/ripperdocs/:id/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const empId = parseInt(String(req.params.empId), 10);
+  const empId = parseInt(String(req.params.employeeId), 10);
   const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
   if (!r) {
     res.status(404).json({ error: "Not found" });

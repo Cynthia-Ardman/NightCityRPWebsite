@@ -32,7 +32,7 @@ export default function SheetDetail() {
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING SHEET...</div>;
   if (!sheet) return <div className="font-display text-destructive">SHEET NOT FOUND</div>;
 
-  const data = sheet.data as Record<string, unknown>;
+  const data = sheet.data as unknown as Record<string, unknown>;
   const cw = (data.cyberware as Array<{ slot: string; name: string; points: number; humanityLoss: number }>) ?? [];
 
   return (

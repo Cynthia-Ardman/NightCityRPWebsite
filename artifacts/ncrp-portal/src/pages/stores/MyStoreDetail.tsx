@@ -58,7 +58,7 @@ export default function MyStoreDetail() {
           {store.employees.map((e) => (
             <div key={e.id} className="flex justify-between border-b border-border/30 py-2 font-mono text-sm" data-testid={`row-employee-${e.id}`}>
               <span>{e.name} <span className="text-nc-cyan uppercase ml-2">{e.role}</span></span>
-              <Button size="icon" variant="ghost" onClick={() => removeEmp.mutate({ id: storeId, empId: e.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+              <Button size="icon" variant="ghost" onClick={() => removeEmp.mutate({ id: storeId, employeeId: e.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
             </div>
           ))}
           <div className="flex gap-2 pt-3">

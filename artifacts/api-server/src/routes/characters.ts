@@ -243,10 +243,27 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     return;
   }
   const [toOwner] = await db.select().from(users).where(eq(users.id, to.ownerId));
-  // Move via UB API if both have discord ids
-  await patchBalance(req.user!.discordId, { cash: -amount, reason: memo ?? `Transfer to ${to.name}` });
+  // Sufficient-funds precheck against UB source of truth (when reachable)
+  const senderBal = await getBalance(req.user!.discordId);
+  if (senderBal && senderBal.cash < amount) {
+    res.status(400).json({ error: "Insufficient funds" });
+    return;
+  }
+  // Debit sender via UB; only proceed if sender debit succeeds (or UB unreachable and we fall back to local).
+  const debited = await patchBalance(req.user!.discordId, { cash: -amount, reason: memo ?? `Transfer to ${to.name}` });
+  if (senderBal && !debited) {
+    // UB was reachable for read but rejected the write — surface as error, no local ledger drift
+    res.status(502).json({ error: "Wallet provider rejected debit" });
+    return;
+  }
   if (toOwner) {
-    await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${c.name}` });
+    const credited = await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${c.name}` });
+    if (debited && !credited) {
+      // Compensate: refund sender to keep UB consistent
+      await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${to.name} failed` });
+      res.status(502).json({ error: "Wallet provider rejected credit; sender refunded" });
+      return;
+    }
   }
   await db.insert(walletTransactions).values([
     {
