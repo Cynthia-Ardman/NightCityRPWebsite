@@ -30,6 +30,12 @@ function loadSheet(file: string, sheetName?: string): Row[] {
   return XLSX.utils.sheet_to_json<Row>(sheet, { header: 1, defval: null });
 }
 
+function loadWorkbookSheets(file: string): string[] {
+  const buf = fs.readFileSync(path.join(ASSETS, file));
+  const wb = XLSX.read(buf, { type: "buffer" });
+  return wb.SheetNames;
+}
+
 function toInt(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number" && Number.isFinite(v)) return Math.round(v);
@@ -45,9 +51,8 @@ function str(v: unknown): string | null {
   return s.length === 0 ? null : s;
 }
 
-function buildRent() {
-  const rows = loadSheet(RENT_FILE, "Beastside");
-  const district = "Beastside";
+function buildRentForDistrict(district: string) {
+  const rows = loadSheet(RENT_FILE, district);
   const out: (typeof catalogRent.$inferInsert)[] = [];
   let tier: string | null = null;
   let building: string | null = null;
@@ -84,9 +89,21 @@ function buildRent() {
   return out;
 }
 
+function buildRent() {
+  const districts = loadWorkbookSheets(RENT_FILE);
+  const all: (typeof catalogRent.$inferInsert)[] = [];
+  for (const district of districts) {
+    const rows = buildRentForDistrict(district);
+    console.log(`  ${district}: ${rows.length} listings`);
+    all.push(...rows);
+  }
+  return all;
+}
+
 async function main() {
+  console.log(`Parsing rent listings from ${RENT_FILE}:`);
   const rent = buildRent();
-  console.log(`Parsed ${rent.length} rent listings.`);
+  console.log(`Parsed ${rent.length} rent listings total.`);
   await db.transaction(async (tx) => {
     await tx.delete(catalogRent);
     if (rent.length) await tx.insert(catalogRent).values(rent);
