@@ -7,6 +7,10 @@ import {
   useAddInventoryItem,
   useUpdateInventoryItem,
   useRemoveInventoryItem,
+  useTransferInventoryItem,
+  useGetCharacterHousing,
+  useVacateHousing,
+  getGetCharacterHousingQueryKey,
   useGetCharacterStatus,
   useUpdateCharacterStatus,
   getGetWalletQueryKey,
@@ -20,7 +24,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, AlertTriangle, Send, DollarSign, X, Home } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +106,7 @@ export default function CharacterDetail() {
         <div className="mt-8">
           <TabsContent value="profile" className="space-y-6 outline-none focus:ring-0">
             <SheetSections sections={(char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections} background={char.background} />
+            <HousingCard characterId={char.id} />
             <ImageGallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
             <ImageGallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
           </TabsContent>
@@ -245,7 +250,11 @@ function Stat({ label, value, highlight }: { label: string; value: number; highl
 function InventoryTab({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
   const { data: items, isLoading } = useGetCharacterInventory(characterId);
-  const invalidate = () => qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(characterId) });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(characterId) });
+    qc.invalidateQueries({ queryKey: getGetWalletQueryKey(characterId) });
+    qc.invalidateQueries({ queryKey: getGetWalletTransactionsQueryKey(characterId) });
+  };
   const addItem = useAddInventoryItem({ mutation: { onSuccess: invalidate } });
   const updateItem = useUpdateInventoryItem({ mutation: { onSuccess: invalidate } });
   const deleteItem = useRemoveInventoryItem({ mutation: { onSuccess: invalidate } });
@@ -253,6 +262,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const [category, setCategory] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  const [transferItemId, setTransferItemId] = useState<number | null>(null);
 
   if (isLoading) return <div className="text-nc-cyan font-mono animate-pulse">Scanning personal stash...</div>;
 
@@ -314,10 +324,10 @@ function InventoryTab({ characterId }: { characterId: number }) {
             <div className="space-y-2 font-mono text-sm" data-testid="list-inventory">
               {items.map((it) => (
                 <div key={it.id} className="grid grid-cols-12 gap-2 border border-border/40 p-2 items-center" data-testid={`row-item-${it.id}`}>
-                  <span className="col-span-4 text-foreground">{it.name}</span>
-                  <span className="col-span-2 text-nc-cyan uppercase">{it.category ?? "—"}</span>
+                  <span className="col-span-3 text-foreground">{it.name}</span>
+                  <span className="col-span-2 text-nc-cyan uppercase truncate">{it.category ?? "—"}</span>
                   <span className="col-span-1 text-right">x{it.quantity}</span>
-                  <span className="col-span-3 truncate text-muted-foreground">{it.notes ?? ""}</span>
+                  <span className="col-span-2 truncate text-muted-foreground">{it.notes ?? ""}</span>
                   <label className="col-span-1 flex items-center gap-1 text-xs">
                     <UiSwitch
                       checked={!!it.equipped}
@@ -326,23 +336,239 @@ function InventoryTab({ characterId }: { characterId: number }) {
                     />
                     EQ
                   </label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="col-span-1 text-destructive justify-self-end"
-                    onClick={() => deleteItem.mutate({ id: characterId, itemId: it.id })}
-                    data-testid={`button-delete-item-${it.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="col-span-3 flex justify-end gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-nc-cyan h-8 px-2"
+                      onClick={() => setTransferItemId(it.id)}
+                      data-testid={`button-transfer-item-${it.id}`}
+                    >
+                      <Send className="w-3 h-3 mr-1" /> MOVE
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive h-8 w-8"
+                      onClick={() => deleteItem.mutate({ id: characterId, itemId: it.id })}
+                      data-testid={`button-delete-item-${it.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {transferItemId !== null && (
+        <TransferItemDialog
+          characterId={characterId}
+          item={items?.find((i) => i.id === transferItemId) ?? null}
+          onClose={() => setTransferItemId(null)}
+          onDone={() => {
+            setTransferItemId(null);
+            invalidate();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function TransferItemDialog({
+  characterId,
+  item,
+  onClose,
+  onDone,
+}: {
+  characterId: number;
+  item: { id: number; name: string; quantity: number } | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [mode, setMode] = useState<"give" | "sell">("give");
+  const [toId, setToId] = useState("");
+  const [qty, setQty] = useState(1);
+  const [price, setPrice] = useState(0);
+  const [memo, setMemo] = useState("");
+  const transfer = useTransferInventoryItem({ mutation: { onSuccess: onDone } });
+  if (!item) return null;
+  const errMsg =
+    (transfer.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (transfer.error ? "Transfer failed" : null);
+  return (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-transfer-item">
+      <Card className="rounded-none border-nc-cyan bg-card w-full max-w-lg">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest text-nc-cyan">
+            MOVE: {item.name}
+          </CardTitle>
+          <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-transfer">
+            <X className="w-4 h-4" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4 font-mono text-sm"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const toCharacterId = parseInt(toId, 10);
+              if (!toCharacterId) return;
+              if (mode === "sell" && price <= 0) return;
+              transfer.mutate({
+                id: characterId,
+                itemId: item.id,
+                data: {
+                  toCharacterId,
+                  mode,
+                  quantity: qty,
+                  ...(mode === "sell" ? { price } : {}),
+                  ...(memo ? { memo } : {}),
+                },
+              });
+            }}
+          >
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={() => setMode("give")}
+                className={`flex-1 rounded-none font-display ${mode === "give" ? "bg-nc-cyan text-background" : "bg-transparent border border-border text-muted-foreground"}`}
+                data-testid="button-mode-give"
+              >
+                <Send className="w-4 h-4 mr-2" /> GIVE
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setMode("sell")}
+                className={`flex-1 rounded-none font-display ${mode === "sell" ? "bg-nc-magenta text-background" : "bg-transparent border border-border text-muted-foreground"}`}
+                data-testid="button-mode-sell"
+              >
+                <DollarSign className="w-4 h-4 mr-2" /> SELL
+              </Button>
+            </div>
+            <div>
+              <Label className="text-xs">TO CHARACTER ID</Label>
+              <Input value={toId} onChange={(e) => setToId(e.target.value)} inputMode="numeric" data-testid="input-transfer-target" />
+              <p className="text-xs text-muted-foreground mt-1">
+                Find the recipient&apos;s ID on their character page URL.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">QUANTITY (max {item.quantity})</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={item.quantity}
+                  value={qty}
+                  onChange={(e) => setQty(Math.max(1, Math.min(item.quantity, Number(e.target.value))))}
+                  data-testid="input-transfer-qty"
+                />
+              </div>
+              {mode === "sell" && (
+                <div>
+                  <Label className="text-xs">TOTAL PRICE (€$)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={price || ""}
+                    onChange={(e) => setPrice(Number(e.target.value))}
+                    data-testid="input-transfer-price"
+                  />
+                </div>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs">MEMO (optional)</Label>
+              <Input value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="input-transfer-memo" />
+            </div>
+            {errMsg && (
+              <div className="text-destructive text-xs" data-testid="text-transfer-error">{errMsg}</div>
+            )}
+            <Button
+              type="submit"
+              disabled={transfer.isPending || !toId || (mode === "sell" && price <= 0)}
+              className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+              data-testid="button-confirm-transfer"
+            >
+              {transfer.isPending ? "MOVING..." : mode === "give" ? "CONFIRM GIVE" : "CONFIRM SALE"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function HousingCard({ characterId }: { characterId: number }) {
+  const qc = useQueryClient();
+  const { data: leases, isLoading } = useGetCharacterHousing(characterId);
+  const vacate = useVacateHousing({
+    mutation: {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getGetCharacterHousingQueryKey(characterId) }),
+    },
+  });
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid="card-housing">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="font-display tracking-widest text-nc-cyan flex items-center gap-2">
+          <Home className="w-4 h-4" /> HOUSING
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="font-mono text-muted-foreground animate-pulse">Loading leases...</div>
+        ) : !leases || leases.length === 0 ? (
+          <p className="font-mono text-muted-foreground italic">
+            No active leases. Browse the <a href="/catalog/rent" className="text-nc-cyan underline">housing catalog</a> to sign one.
+          </p>
+        ) : (
+          <ul className="space-y-2 font-mono text-sm">
+            {leases.map((l) => {
+              const paid = l.paidThrough ? new Date(l.paidThrough) : null;
+              return (
+                <li
+                  key={l.id}
+                  className={`flex items-center justify-between gap-3 border p-3 ${l.delinquent ? "border-destructive bg-destructive/10" : "border-border/40"}`}
+                  data-testid={`row-lease-${l.id}`}
+                >
+                  <div>
+                    <div className="text-foreground">{l.address}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {l.tier ? <span className="text-nc-magenta uppercase mr-2">{l.tier}</span> : null}
+                      <span className="text-nc-yellow">€${l.monthlyRent.toLocaleString()}/mo</span>
+                      {paid ? (
+                        <span className={`ml-3 ${l.delinquent ? "text-destructive" : ""}`}>
+                          {l.delinquent ? "DELINQUENT — last paid through " : "Paid through "}
+                          {paid.toLocaleDateString()}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive font-display"
+                    onClick={() => {
+                      if (confirm(`Vacate ${l.address}? Rent billing will stop.`)) vacate.mutate({ id: l.id });
+                    }}
+                    data-testid={`button-vacate-${l.id}`}
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" /> VACATE
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

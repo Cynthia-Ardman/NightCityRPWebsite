@@ -46,9 +46,12 @@ import type {
   FixerNpcInput,
   FixerNpcUpdate,
   HealthStatus,
+  HousingLease,
+  HousingLeaseInput,
   InventoryItem,
   InventoryItemInput,
   InventoryItemUpdate,
+  InventoryTransferInput,
   JobRunInput,
   JobRunResult,
   ListPublicCharactersParams,
@@ -65,6 +68,8 @@ import type {
   StockUpdate,
   Store,
   StorePublic,
+  StoreSaleInput,
+  StoreSaleResult,
   StoreUpdate,
   TransferInput,
   UpcomingBills,
@@ -1290,6 +1295,80 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getRemoveInventoryItemMutationOptions(options));
     }
 
+export const getTransferInventoryItemUrl = (id: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/characters/${id}/inventory/${itemId}/transfer`
+}
+
+/**
+ * @summary Give or sell an inventory item to another character
+ */
+export const transferInventoryItem = async (id: number,
+    itemId: number,
+    inventoryTransferInput: InventoryTransferInput, options?: RequestInit): Promise<InventoryItem> => {
+
+  return customFetch<InventoryItem>(getTransferInventoryItemUrl(id,itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      inventoryTransferInput,)
+  }
+);}
+
+
+
+
+export const getTransferInventoryItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferInventoryItem>>, TError,{id: number;itemId: number;data: BodyType<InventoryTransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof transferInventoryItem>>, TError,{id: number;itemId: number;data: BodyType<InventoryTransferInput>}, TContext> => {
+
+const mutationKey = ['transferInventoryItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof transferInventoryItem>>, {id: number;itemId: number;data: BodyType<InventoryTransferInput>}> = (props) => {
+          const {id,itemId,data} = props ?? {};
+
+          return  transferInventoryItem(id,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TransferInventoryItemMutationResult = NonNullable<Awaited<ReturnType<typeof transferInventoryItem>>>
+    export type TransferInventoryItemMutationBody = BodyType<InventoryTransferInput>
+    export type TransferInventoryItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Give or sell an inventory item to another character
+ */
+export const useTransferInventoryItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferInventoryItem>>, TError,{id: number;itemId: number;data: BodyType<InventoryTransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof transferInventoryItem>>,
+        TError,
+        {id: number;itemId: number;data: BodyType<InventoryTransferInput>},
+        TContext
+      > => {
+      return useMutation(getTransferInventoryItemMutationOptions(options));
+    }
+
 export const getGetWalletUrl = (id: number,) => {
 
 
@@ -2150,6 +2229,289 @@ export function useListRentListings<TData = Awaited<ReturnType<typeof listRentLi
 
 
 
+export const getListMyHousingUrl = () => {
+
+
+
+
+  return `/api/housing/mine`
+}
+
+/**
+ * @summary Active leases across all characters owned by the signed-in user
+ */
+export const listMyHousing = async ( options?: RequestInit): Promise<HousingLease[]> => {
+
+  return customFetch<HousingLease[]>(getListMyHousingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyHousingQueryKey = () => {
+    return [
+    `/api/housing/mine`
+    ] as const;
+    }
+
+
+export const getListMyHousingQueryOptions = <TData = Awaited<ReturnType<typeof listMyHousing>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyHousing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyHousingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyHousing>>> = ({ signal }) => listMyHousing({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyHousing>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyHousingQueryResult = NonNullable<Awaited<ReturnType<typeof listMyHousing>>>
+export type ListMyHousingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Active leases across all characters owned by the signed-in user
+ */
+
+export function useListMyHousing<TData = Awaited<ReturnType<typeof listMyHousing>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyHousing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyHousingQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetCharacterHousingUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/housing`
+}
+
+export const getCharacterHousing = async (id: number, options?: RequestInit): Promise<HousingLease[]> => {
+
+  return customFetch<HousingLease[]>(getGetCharacterHousingUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCharacterHousingQueryKey = (id: number,) => {
+    return [
+    `/api/characters/${id}/housing`
+    ] as const;
+    }
+
+
+export const getGetCharacterHousingQueryOptions = <TData = Awaited<ReturnType<typeof getCharacterHousing>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCharacterHousing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCharacterHousingQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCharacterHousing>>> = ({ signal }) => getCharacterHousing(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCharacterHousing>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCharacterHousingQueryResult = NonNullable<Awaited<ReturnType<typeof getCharacterHousing>>>
+export type GetCharacterHousingQueryError = ErrorType<unknown>
+
+
+
+export function useGetCharacterHousing<TData = Awaited<ReturnType<typeof getCharacterHousing>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCharacterHousing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCharacterHousingQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getLeaseHousingUrl = () => {
+
+
+
+
+  return `/api/housing/lease`
+}
+
+/**
+ * @summary Lease a catalog listing for one of the signed-in user's characters
+ */
+export const leaseHousing = async (housingLeaseInput: HousingLeaseInput, options?: RequestInit): Promise<HousingLease> => {
+
+  return customFetch<HousingLease>(getLeaseHousingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      housingLeaseInput,)
+  }
+);}
+
+
+
+
+export const getLeaseHousingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaseHousing>>, TError,{data: BodyType<HousingLeaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof leaseHousing>>, TError,{data: BodyType<HousingLeaseInput>}, TContext> => {
+
+const mutationKey = ['leaseHousing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof leaseHousing>>, {data: BodyType<HousingLeaseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  leaseHousing(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LeaseHousingMutationResult = NonNullable<Awaited<ReturnType<typeof leaseHousing>>>
+    export type LeaseHousingMutationBody = BodyType<HousingLeaseInput>
+    export type LeaseHousingMutationError = ErrorType<void>
+
+    /**
+ * @summary Lease a catalog listing for one of the signed-in user's characters
+ */
+export const useLeaseHousing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaseHousing>>, TError,{data: BodyType<HousingLeaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof leaseHousing>>,
+        TError,
+        {data: BodyType<HousingLeaseInput>},
+        TContext
+      > => {
+      return useMutation(getLeaseHousingMutationOptions(options));
+    }
+
+export const getVacateHousingUrl = (id: number,) => {
+
+
+
+
+  return `/api/housing/${id}`
+}
+
+export const vacateHousing = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getVacateHousingUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getVacateHousingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vacateHousing>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vacateHousing>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['vacateHousing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vacateHousing>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  vacateHousing(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VacateHousingMutationResult = NonNullable<Awaited<ReturnType<typeof vacateHousing>>>
+
+    export type VacateHousingMutationError = ErrorType<void>
+
+    export const useVacateHousing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vacateHousing>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vacateHousing>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getVacateHousingMutationOptions(options));
+    }
+
 export const getListMyStoresUrl = () => {
 
 
@@ -2494,6 +2856,78 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRemoveStoreEmployeeMutationOptions(options));
+    }
+
+export const getSellStoreItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/sell`
+}
+
+/**
+ * @summary Owner/employee rings up a sale to a buyer character
+ */
+export const sellStoreItem = async (id: number,
+    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<StoreSaleResult> => {
+
+  return customFetch<StoreSaleResult>(getSellStoreItemUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      storeSaleInput,)
+  }
+);}
+
+
+
+
+export const getSellStoreItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sellStoreItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sellStoreItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext> => {
+
+const mutationKey = ['sellStoreItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sellStoreItem>>, {id: number;data: BodyType<StoreSaleInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sellStoreItem(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SellStoreItemMutationResult = NonNullable<Awaited<ReturnType<typeof sellStoreItem>>>
+    export type SellStoreItemMutationBody = BodyType<StoreSaleInput>
+    export type SellStoreItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Owner/employee rings up a sale to a buyer character
+ */
+export const useSellStoreItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sellStoreItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sellStoreItem>>,
+        TError,
+        {id: number;data: BodyType<StoreSaleInput>},
+        TContext
+      > => {
+      return useMutation(getSellStoreItemMutationOptions(options));
     }
 
 export const getAddStoreStockUrl = (id: number,) => {
@@ -3034,6 +3468,78 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRemoveRipperdocEmployeeMutationOptions(options));
+    }
+
+export const getSellRipperdocItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/sell`
+}
+
+/**
+ * @summary Owner/employee installs cyberware on a buyer character
+ */
+export const sellRipperdocItem = async (id: number,
+    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<StoreSaleResult> => {
+
+  return customFetch<StoreSaleResult>(getSellRipperdocItemUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      storeSaleInput,)
+  }
+);}
+
+
+
+
+export const getSellRipperdocItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sellRipperdocItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sellRipperdocItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext> => {
+
+const mutationKey = ['sellRipperdocItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sellRipperdocItem>>, {id: number;data: BodyType<StoreSaleInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sellRipperdocItem(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SellRipperdocItemMutationResult = NonNullable<Awaited<ReturnType<typeof sellRipperdocItem>>>
+    export type SellRipperdocItemMutationBody = BodyType<StoreSaleInput>
+    export type SellRipperdocItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Owner/employee installs cyberware on a buyer character
+ */
+export const useSellRipperdocItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sellRipperdocItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sellRipperdocItem>>,
+        TError,
+        {id: number;data: BodyType<StoreSaleInput>},
+        TContext
+      > => {
+      return useMutation(getSellRipperdocItemMutationOptions(options));
     }
 
 export const getAddRipperdocStockUrl = (id: number,) => {

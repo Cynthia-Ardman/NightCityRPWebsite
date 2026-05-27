@@ -1,4 +1,4 @@
-import { db, users, jobRuns, characters, walletTransactions } from "@workspace/db";
+import { db, users, jobRuns, characters, walletTransactions, housing } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot } from "./discord";
@@ -26,30 +26,51 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         }
       }
     } else if (name === "monthly_rent") {
-      // Charges flat rent to every approved, non-archived PC. UB is
-      // authoritative — only record a local ledger entry after the UB debit
-      // succeeds. Filtering on approved+archived prevents automated debits
-      // from hitting unapproved or retired characters.
-      const chars = await db
-        .select()
-        .from(characters)
-        .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
-      for (const c of chars) {
-        const rent = 500;
+      // Per-lease billing: iterate active housing rows joined to their
+      // approved, non-archived characters. UB is authoritative — record the
+      // local ledger entry and roll paid_through forward only when the debit
+      // succeeds. On UB failure leave paid_through where it is so the lease
+      // shows as delinquent in upcoming-bills until next run.
+      const rows = await db
+        .select({
+          lease: housing,
+          character: characters,
+        })
+        .from(housing)
+        .innerJoin(characters, eq(characters.id, housing.characterId))
+        .where(and(eq(characters.archived, false)));
+      for (const { lease, character: c } of rows) {
+        if (!c.approved) continue;
         if (!c.ownerId) continue;
         const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
         if (!owner) continue;
-        const ub = await patchBalance(owner.discordId, { cash: -rent, reason: "Monthly rent" });
+        const rent = lease.monthlyRent;
+        if (rent <= 0) continue;
+        const ub = await patchBalance(owner.discordId, {
+          cash: -rent,
+          reason: `Rent: ${lease.address}`,
+        });
         if (!ub) {
-          logger.warn({ characterId: c.id }, "monthly_rent UB debit failed; skipping local ledger insert");
+          logger.warn(
+            { characterId: c.id, leaseId: lease.id },
+            "monthly_rent UB debit failed; lease will show delinquent",
+          );
           continue;
         }
         await db.insert(walletTransactions).values({
           characterId: c.id,
           amount: -rent,
           kind: "rent",
-          memo: "Monthly rent",
+          memo: `Rent: ${lease.address}`,
         });
+        // Bump paid_through forward by one month from its previous value (or
+        // from now if it was missing/stale), preserving anchor date when
+        // possible so leases stay on a consistent monthly cadence.
+        const base = lease.paidThrough && lease.paidThrough.getTime() > Date.now() - 86400000
+          ? new Date(lease.paidThrough)
+          : new Date();
+        base.setUTCMonth(base.getUTCMonth() + 1);
+        await db.update(housing).set({ paidThrough: base }).where(eq(housing.id, lease.id));
         affected++;
       }
     } else if (name === "cyberware_humanity") {

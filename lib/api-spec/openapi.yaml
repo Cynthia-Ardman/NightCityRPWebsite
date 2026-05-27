@@ -237,6 +237,29 @@ paths:
       tags: [inventory]
       responses:
         "204": { description: Removed }
+  /characters/{id}/inventory/{itemId}/transfer:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: itemId, required: true, schema: { type: integer } }
+    post:
+      operationId: transferInventoryItem
+      tags: [inventory]
+      summary: Give or sell an inventory item to another character
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryTransferInput" }
+      responses:
+        "200":
+          description: Transferred
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryItem" }
+        "400": { description: Bad request }
+        "404": { description: Not found }
+        "409": { description: Recipient unclaimed or owner missing }
+        "502": { description: Wallet provider unavailable }
 
   # ---------------- WALLET (UnbelievaBoat is source of truth) ----------------
   /characters/{id}/wallet:
@@ -402,6 +425,62 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/CatalogRent" }
 
+  # ---------------- HOUSING (per-character leases) ----------------
+  /housing/mine:
+    get:
+      operationId: listMyHousing
+      tags: [housing]
+      summary: Active leases across all characters owned by the signed-in user
+      responses:
+        "200":
+          description: Leases
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/HousingLease" }
+  /characters/{id}/housing:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getCharacterHousing
+      tags: [housing]
+      responses:
+        "200":
+          description: Active leases for the character
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/HousingLease" }
+  /housing/lease:
+    post:
+      operationId: leaseHousing
+      tags: [housing]
+      summary: Lease a catalog listing for one of the signed-in user's characters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HousingLeaseInput" }
+      responses:
+        "201":
+          description: Leased
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HousingLease" }
+        "400": { description: Bad request }
+        "404": { description: Not found }
+  /housing/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    delete:
+      operationId: vacateHousing
+      tags: [housing]
+      responses:
+        "204": { description: Vacated }
+        "404": { description: Not found }
+
   # ---------------- STORE MANAGEMENT (owner/employee) ----------------
   /stores/mine:
     get:
@@ -468,6 +547,28 @@ paths:
       tags: [stores]
       responses:
         "204": { description: Removed }
+  /stores/{id}/sell:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: sellStoreItem
+      tags: [stores]
+      summary: Owner/employee rings up a sale to a buyer character
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StoreSaleInput" }
+      responses:
+        "200":
+          description: Sold
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoreSaleResult" }
+        "400": { description: Bad request }
+        "404": { description: Not found }
+        "409": { description: Out of stock or buyer unclaimed }
+        "502": { description: Wallet provider unavailable }
   /stores/{id}/stock:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -574,6 +675,28 @@ paths:
       tags: [ripperdocs]
       responses:
         "204": { description: Removed }
+  /ripperdocs/{id}/sell:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: sellRipperdocItem
+      tags: [ripperdocs]
+      summary: Owner/employee installs cyberware on a buyer character
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StoreSaleInput" }
+      responses:
+        "200":
+          description: Sold
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoreSaleResult" }
+        "400": { description: Bad request }
+        "404": { description: Not found }
+        "409": { description: Out of stock or buyer unclaimed }
+        "502": { description: Wallet provider unavailable }
   /ripperdocs/{id}/stock:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1223,6 +1346,16 @@ components:
         notes: { type: string }
         equipped: { type: boolean }
 
+    InventoryTransferInput:
+      type: object
+      required: [toCharacterId, mode]
+      properties:
+        toCharacterId: { type: integer }
+        mode: { type: string, enum: [give, sell] }
+        quantity: { type: integer, minimum: 1, description: "Defaults to 1. Cannot exceed source quantity." }
+        price: { type: integer, minimum: 1, description: "Required when mode=sell. Total price paid by recipient." }
+        memo: { type: string }
+
     Wallet:
       type: object
       required: [characterId, balance, source]
@@ -1395,6 +1528,23 @@ components:
         quantity: { type: integer, minimum: 0 }
         notes: { type: string }
 
+    StoreSaleInput:
+      type: object
+      required: [stockId, buyerCharacterId]
+      properties:
+        stockId: { type: integer }
+        buyerCharacterId: { type: integer }
+        qty: { type: integer, minimum: 1, description: "Defaults to 1." }
+        memo: { type: string }
+
+    StoreSaleResult:
+      type: object
+      required: [stock, inventoryItem]
+      properties:
+        stock: { $ref: "#/components/schemas/StockItem" }
+        inventoryItem: { $ref: "#/components/schemas/InventoryItem" }
+        totalPaid: { type: integer }
+
     StockUpdate:
       type: object
       properties:
@@ -1439,6 +1589,31 @@ components:
         tier: { type: ["string", "null"] }
         monthlyRent: { type: integer }
         description: { type: ["string", "null"] }
+
+    HousingLease:
+      type: object
+      required: [id, characterId, characterName, address, monthlyRent, createdAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        characterName: { type: string }
+        listingId: { type: ["integer", "null"] }
+        address: { type: string }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
+        monthlyRent: { type: integer }
+        paidThrough: { type: ["string", "null"], format: date-time }
+        notes: { type: ["string", "null"] }
+        delinquent: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    HousingLeaseInput:
+      type: object
+      required: [catalogRentId, characterId]
+      properties:
+        catalogRentId: { type: integer }
+        characterId: { type: integer }
+        notes: { type: string }
 
     FixerNpc:
       type: object

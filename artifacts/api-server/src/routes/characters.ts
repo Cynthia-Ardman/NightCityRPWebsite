@@ -221,6 +221,178 @@ router.delete("/characters/:cid/inventory/:itemId", requireAuth, async (req, res
   res.sendStatus(204);
 });
 
+// P2P inventory transfer (give or sell to another character).
+// For mode=sell, UB authoritative debit of recipient + credit of sender must
+// both succeed before the item moves; on credit failure the recipient is
+// refunded so UB stays consistent (same compensation pattern as wallet/transfer).
+router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (req, res): Promise<void> => {
+  const cid = parseInt(String(req.params.cid), 10);
+  const itemId = parseInt(String(req.params.itemId), 10);
+  const sender = await loadOwnedChar(req.user!.id, cid);
+  if (!sender) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (sender.archived) {
+    res.status(400).json({ error: "Cannot transfer from an archived character" });
+    return;
+  }
+  const { toCharacterId, mode, quantity, price, memo } = req.body ?? {};
+  if (!toCharacterId || (mode !== "give" && mode !== "sell")) {
+    res.status(400).json({ error: "toCharacterId and mode (give|sell) required" });
+    return;
+  }
+  if (toCharacterId === cid) {
+    res.status(400).json({ error: "Cannot transfer to the same character" });
+    return;
+  }
+  const qty = Math.max(1, Number(quantity) || 1);
+  const [item] = await db
+    .select()
+    .from(inventoryItems)
+    .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+  if (!item) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
+  if (qty > item.quantity) {
+    res.status(400).json({ error: "Quantity exceeds available stock" });
+    return;
+  }
+  const [to] = await db.select().from(characters).where(eq(characters.id, toCharacterId));
+  if (!to) {
+    res.status(404).json({ error: "Recipient not found" });
+    return;
+  }
+  if (to.archived) {
+    res.status(400).json({ error: "Recipient character is archived" });
+    return;
+  }
+  if (!to.ownerId) {
+    res.status(409).json({ error: "Recipient character is unclaimed (no owner)" });
+    return;
+  }
+  const [toOwner] = await db.select().from(users).where(eq(users.id, to.ownerId));
+  if (!toOwner) {
+    res.status(409).json({ error: "Recipient owner account missing" });
+    return;
+  }
+
+  // Optimistic concurrency: only proceed with the wallet half if the item row
+  // hasn't been mutated between the read and now.
+  let moneyDebited = false;
+  if (mode === "sell") {
+    const amount = Number(price);
+    if (!amount || amount <= 0) {
+      res.status(400).json({ error: "price (positive integer) required for sell" });
+      return;
+    }
+    const buyerBal = await getBalance(toOwner.discordId);
+    if (!buyerBal) {
+      res.status(502).json({ error: "Wallet provider unavailable" });
+      return;
+    }
+    if (buyerBal.cash < amount) {
+      res.status(400).json({ error: "Recipient has insufficient funds" });
+      return;
+    }
+    const debited = await patchBalance(toOwner.discordId, {
+      cash: -amount,
+      reason: memo ?? `Purchase: ${item.name} x${qty} from ${sender.name}`,
+    });
+    if (!debited) {
+      res.status(502).json({ error: "Wallet provider rejected debit" });
+      return;
+    }
+    moneyDebited = true;
+    const credited = await patchBalance(req.user!.discordId, {
+      cash: amount,
+      reason: memo ?? `Sale: ${item.name} x${qty} to ${to.name}`,
+    });
+    if (!credited) {
+      await patchBalance(toOwner.discordId, {
+        cash: amount,
+        reason: `Refund: credit to ${sender.name} failed`,
+      });
+      res.status(502).json({ error: "Wallet provider rejected credit; recipient refunded" });
+      return;
+    }
+    await db.insert(walletTransactions).values([
+      {
+        characterId: cid,
+        counterpartyCharacterId: to.id,
+        counterpartyName: to.name,
+        amount,
+        kind: "shop",
+        memo: memo ?? `Sold ${item.name} x${qty}`,
+      },
+      {
+        characterId: to.id,
+        counterpartyCharacterId: cid,
+        counterpartyName: sender.name,
+        amount: -amount,
+        kind: "shop",
+        memo: memo ?? `Bought ${item.name} x${qty}`,
+      },
+    ]);
+  }
+
+  // Move the item. If sender keeps any (partial transfer) decrement; otherwise delete.
+  try {
+    if (qty === item.quantity) {
+      // Whole stack moves: reassign characterId. Preserve fields.
+      await db
+        .update(inventoryItems)
+        .set({ characterId: to.id })
+        .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+    } else {
+      await db
+        .update(inventoryItems)
+        .set({ quantity: item.quantity - qty })
+        .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+      await db.insert(inventoryItems).values({
+        characterId: to.id,
+        name: item.name,
+        category: item.category,
+        quantity: qty,
+        notes: item.notes,
+        equipped: false,
+        pricePaid: mode === "sell" ? Number(price) : null,
+        acquiredAt: new Date(),
+      });
+    }
+  } catch (err) {
+    // If item move fails after a successful sale, we cannot easily un-debit
+    // (UB credit/debit are not atomic), so log and surface a 500.
+    req.log.error({ err, itemId, cid, toCharacterId }, "inventory transfer DB write failed");
+    if (moneyDebited) {
+      res.status(500).json({ error: "Item move failed after wallet writes; please contact an admin." });
+    } else {
+      res.status(500).json({ error: "Item move failed" });
+    }
+    return;
+  }
+
+  await db.insert(activityEvents).values({
+    kind: "transfer",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message:
+      mode === "sell"
+        ? `${sender.name} sold ${item.name} x${qty} to ${to.name} for €$${price}`
+        : `${sender.name} gave ${item.name} x${qty} to ${to.name}`,
+  });
+
+  const [moved] = await db
+    .select()
+    .from(inventoryItems)
+    .where(and(eq(inventoryItems.characterId, to.id), eq(inventoryItems.name, item.name)))
+    .orderBy(desc(inventoryItems.createdAt))
+    .limit(1);
+  res.json(moved ?? item);
+});
+
 // Wallet
 router.get("/characters/:id/wallet", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);

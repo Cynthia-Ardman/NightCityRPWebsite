@@ -10,6 +10,7 @@ import diceRouter from "./dice";
 import adminRouter from "./admin";
 import dashboardRouter from "./dashboard";
 import storageRouter from "./storage";
+import housingRouter from "./housing";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(diceRouter);
 router.use(adminRouter);
 router.use(dashboardRouter);
 router.use(storageRouter);
+router.use(housingRouter);
 
 export default router;

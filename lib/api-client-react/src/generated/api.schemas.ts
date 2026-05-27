@@ -199,6 +199,30 @@ export interface InventoryItemUpdate {
   equipped?: boolean;
 }
 
+export type InventoryTransferInputMode = typeof InventoryTransferInputMode[keyof typeof InventoryTransferInputMode];
+
+
+export const InventoryTransferInputMode = {
+  give: 'give',
+  sell: 'sell',
+} as const;
+
+export interface InventoryTransferInput {
+  toCharacterId: number;
+  mode: InventoryTransferInputMode;
+  /**
+     * Defaults to 1. Cannot exceed source quantity.
+     * @minimum 1
+     */
+  quantity?: number;
+  /**
+     * Required when mode=sell. Total price paid by recipient.
+     * @minimum 1
+     */
+  price?: number;
+  memo?: string;
+}
+
 export type WalletSource = typeof WalletSource[keyof typeof WalletSource];
 
 
@@ -414,6 +438,23 @@ export interface StockInput {
   notes?: string;
 }
 
+export interface StoreSaleInput {
+  stockId: number;
+  buyerCharacterId: number;
+  /**
+     * Defaults to 1.
+     * @minimum 1
+     */
+  qty?: number;
+  memo?: string;
+}
+
+export interface StoreSaleResult {
+  stock: StockItem;
+  inventoryItem: InventoryItem;
+  totalPaid?: number;
+}
+
 export interface StockUpdate {
   /** @minLength 1 */
   name?: string;
@@ -463,6 +504,32 @@ export interface CatalogRent {
   monthlyRent: number;
   /** @nullable */
   description?: string | null;
+}
+
+export interface HousingLease {
+  id: number;
+  characterId: number;
+  characterName: string;
+  /** @nullable */
+  listingId?: number | null;
+  address: string;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+  monthlyRent: number;
+  /** @nullable */
+  paidThrough?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  delinquent?: boolean;
+  createdAt: string;
+}
+
+export interface HousingLeaseInput {
+  catalogRentId: number;
+  characterId: number;
+  notes?: string;
 }
 
 export interface FixerNpc {

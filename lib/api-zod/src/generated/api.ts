@@ -266,6 +266,37 @@ export const RemoveInventoryItemParams = zod.object({
 
 
 /**
+ * @summary Give or sell an inventory item to another character
+ */
+export const TransferInventoryItemParams = zod.object({
+  "id": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+
+
+
+
+export const TransferInventoryItemBody = zod.object({
+  "toCharacterId": zod.number(),
+  "mode": zod.enum(['give', 'sell']),
+  "quantity": zod.number().min(1).optional().describe('Defaults to 1. Cannot exceed source quantity.'),
+  "price": zod.number().min(1).optional().describe('Required when mode=sell. Total price paid by recipient.'),
+  "memo": zod.string().optional()
+})
+
+export const TransferInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+})
+
+
+/**
  * @summary Live balance from UnbelievaBoat
  */
 export const GetWalletParams = zod.object({
@@ -458,6 +489,62 @@ export const ListRentListingsResponse = zod.array(ListRentListingsResponseItem)
 
 
 /**
+ * @summary Active leases across all characters owned by the signed-in user
+ */
+export const ListMyHousingResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "listingId": zod.number().nullish(),
+  "address": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "paidThrough": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "delinquent": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyHousingResponse = zod.array(ListMyHousingResponseItem)
+
+
+export const GetCharacterHousingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCharacterHousingResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "listingId": zod.number().nullish(),
+  "address": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "paidThrough": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "delinquent": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})
+export const GetCharacterHousingResponse = zod.array(GetCharacterHousingResponseItem)
+
+
+/**
+ * @summary Lease a catalog listing for one of the signed-in user's characters
+ */
+export const LeaseHousingBody = zod.object({
+  "catalogRentId": zod.number(),
+  "characterId": zod.number(),
+  "notes": zod.string().optional()
+})
+
+
+export const VacateHousingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * @summary Stores I own or am employed at
  */
 export const ListMyStoresResponseItem = zod.object({
@@ -571,6 +658,45 @@ export const AddStoreEmployeeBody = zod.object({
 export const RemoveStoreEmployeeParams = zod.object({
   "id": zod.coerce.number(),
   "employeeId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Owner/employee rings up a sale to a buyer character
+ */
+export const SellStoreItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const SellStoreItemBody = zod.object({
+  "stockId": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "qty": zod.number().min(1).optional().describe('Defaults to 1.'),
+  "memo": zod.string().optional()
+})
+
+export const SellStoreItemResponse = zod.object({
+  "stock": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish()
+}),
+  "inventoryItem": zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}),
+  "totalPaid": zod.number().optional()
 })
 
 
@@ -737,6 +863,45 @@ export const AddRipperdocEmployeeBody = zod.object({
 export const RemoveRipperdocEmployeeParams = zod.object({
   "id": zod.coerce.number(),
   "employeeId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Owner/employee installs cyberware on a buyer character
+ */
+export const SellRipperdocItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const SellRipperdocItemBody = zod.object({
+  "stockId": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "qty": zod.number().min(1).optional().describe('Defaults to 1.'),
+  "memo": zod.string().optional()
+})
+
+export const SellRipperdocItemResponse = zod.object({
+  "stock": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish()
+}),
+  "inventoryItem": zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}),
+  "totalPaid": zod.number().optional()
 })
 
 

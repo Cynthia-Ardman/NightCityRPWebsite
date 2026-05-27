@@ -9,9 +9,15 @@ import {
   ripperdocEmployees,
   ripperdocStock,
   characters,
+  inventoryItems,
+  walletTransactions,
+  activityEvents,
+  users,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
+import { getBalance, patchBalance } from "../lib/unbelievaboat";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -161,6 +167,204 @@ router.delete("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promi
   }
   await db.delete(storeStock).where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, id)));
   res.sendStatus(204);
+});
+
+// Atomic-ish sale: validate, debit buyer via UB, credit seller via UB
+// (with compensating refund on credit failure), decrement stock, append
+// buyer inventory item, log ledger + activity. Authorized actors are the
+// venue owner or any character-employee of theirs.
+async function sellFromVenue(opts: {
+  kind: "store" | "ripperdoc";
+  venueId: number;
+  stockId: number;
+  buyerCharacterId: number;
+  qty: number;
+  memo?: string;
+  actor: { id: string; discordId: string; roles: string[]; username: string; avatarUrl: string | null };
+  res: import("express").Response;
+}) {
+  const { kind, venueId, stockId, buyerCharacterId, qty, memo, actor, res } = opts;
+  const venueTable = kind === "store" ? stores : ripperdocs;
+  const stockTable = kind === "store" ? storeStock : ripperdocStock;
+  const stockVenueCol = kind === "store" ? storeStock.storeId : ripperdocStock.ripperdocId;
+  const empTable = kind === "store" ? storeEmployees : ripperdocEmployees;
+  const empVenueCol = kind === "store" ? storeEmployees.storeId : ripperdocEmployees.ripperdocId;
+
+  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
+  if (!venue) {
+    res.status(404).json({ error: "Venue not found" });
+    return;
+  }
+  // Authorization: owner OR employee (via any of actor's characters) OR admin.
+  let authorized = venue.ownerId === actor.id || hasRole(actor.roles, "ADMIN");
+  if (!authorized) {
+    const employed = await db
+      .select()
+      .from(empTable)
+      .innerJoin(characters, eq(characters.id, empTable.characterId))
+      .where(and(eq(empVenueCol, venueId), eq(characters.ownerId, actor.id)));
+    authorized = employed.length > 0;
+  }
+  if (!authorized) {
+    res.status(403).json({ error: "Not authorized to sell from this venue" });
+    return;
+  }
+  const [item] = await db.select().from(stockTable).where(and(eq(stockTable.id, stockId), eq(stockVenueCol, venueId)));
+  if (!item) {
+    res.status(404).json({ error: "Stock item not found" });
+    return;
+  }
+  if (qty > item.quantity) {
+    res.status(409).json({ error: "Insufficient stock" });
+    return;
+  }
+  const totalPaid = item.price * qty;
+  const [buyer] = await db.select().from(characters).where(eq(characters.id, buyerCharacterId));
+  if (!buyer) {
+    res.status(404).json({ error: "Buyer character not found" });
+    return;
+  }
+  if (buyer.archived) {
+    res.status(400).json({ error: "Buyer character is archived" });
+    return;
+  }
+  if (!buyer.ownerId) {
+    res.status(409).json({ error: "Buyer character is unclaimed" });
+    return;
+  }
+  const [buyerOwner] = await db.select().from(users).where(eq(users.id, buyer.ownerId));
+  const [sellerOwner] = await db.select().from(users).where(eq(users.id, venue.ownerId));
+  if (!buyerOwner || !sellerOwner) {
+    res.status(409).json({ error: "Owner account missing" });
+    return;
+  }
+  const buyerBal = await getBalance(buyerOwner.discordId);
+  if (!buyerBal) {
+    res.status(502).json({ error: "Wallet provider unavailable" });
+    return;
+  }
+  if (buyerBal.cash < totalPaid) {
+    res.status(400).json({ error: "Buyer has insufficient funds" });
+    return;
+  }
+  const debited = await patchBalance(buyerOwner.discordId, {
+    cash: -totalPaid,
+    reason: memo ?? `Purchase: ${item.name} x${qty} @ ${venue.name}`,
+  });
+  if (!debited) {
+    res.status(502).json({ error: "Wallet provider rejected debit" });
+    return;
+  }
+  const credited = await patchBalance(sellerOwner.discordId, {
+    cash: totalPaid,
+    reason: memo ?? `Sale: ${item.name} x${qty} @ ${venue.name}`,
+  });
+  if (!credited) {
+    await patchBalance(buyerOwner.discordId, {
+      cash: totalPaid,
+      reason: `Refund: seller credit failed for ${item.name}`,
+    });
+    res.status(502).json({ error: "Wallet provider rejected credit; buyer refunded" });
+    return;
+  }
+  // Decrement stock (delete row if it hits zero).
+  let updatedStock = { ...item, quantity: item.quantity - qty };
+  if (updatedStock.quantity <= 0) {
+    await db.delete(stockTable).where(eq(stockTable.id, stockId));
+  } else {
+    await db.update(stockTable).set({ quantity: updatedStock.quantity }).where(eq(stockTable.id, stockId));
+  }
+  // Insert into buyer inventory.
+  let inserted;
+  try {
+    const [row] = await db
+      .insert(inventoryItems)
+      .values({
+        characterId: buyer.id,
+        ownerId: buyer.ownerId,
+        name: item.name,
+        category: item.category ?? (kind === "ripperdoc" ? "cyberware" : null),
+        quantity: qty,
+        notes: item.notes,
+        pricePaid: totalPaid,
+        acquiredAt: new Date(),
+      })
+      .returning();
+    inserted = row;
+  } catch (err) {
+    logger.error({ err, venueId, stockId, buyerCharacterId }, "sale inventory insert failed after wallet writes");
+    res.status(500).json({ error: "Inventory write failed after wallet writes; contact an admin." });
+    return;
+  }
+  // Ledger entries (cosmetic; UB is authoritative for balance).
+  await db.insert(walletTransactions).values([
+    {
+      characterId: buyer.id,
+      counterpartyName: venue.name,
+      amount: -totalPaid,
+      kind: "shop",
+      memo: memo ?? `Bought ${item.name} x${qty}`,
+    },
+    {
+      characterId: venue.ownerCharacterId ?? null,
+      userId: sellerOwner.id,
+      counterpartyCharacterId: buyer.id,
+      counterpartyName: buyer.name,
+      amount: totalPaid,
+      kind: "shop",
+      memo: memo ?? `Sold ${item.name} x${qty}`,
+    },
+  ]);
+  await db.insert(activityEvents).values({
+    kind: "transfer",
+    actorId: actor.id,
+    actorName: actor.username,
+    actorAvatarUrl: actor.avatarUrl,
+    message: `${venue.name} sold ${item.name} x${qty} to ${buyer.name} for €$${totalPaid}`,
+  });
+  res.json({
+    stock: { id: item.id, name: item.name, category: item.category, price: item.price, quantity: updatedStock.quantity, notes: item.notes },
+    inventoryItem: inserted,
+    totalPaid,
+  });
+}
+
+router.post("/stores/:id/sell", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const { stockId, buyerCharacterId, qty, memo } = req.body ?? {};
+  if (!stockId || !buyerCharacterId) {
+    res.status(400).json({ error: "stockId and buyerCharacterId required" });
+    return;
+  }
+  await sellFromVenue({
+    kind: "store",
+    venueId,
+    stockId: parseInt(String(stockId), 10),
+    buyerCharacterId: parseInt(String(buyerCharacterId), 10),
+    qty: Math.max(1, Number(qty) || 1),
+    memo,
+    actor: req.user!,
+    res,
+  });
+});
+
+router.post("/ripperdocs/:id/sell", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const { stockId, buyerCharacterId, qty, memo } = req.body ?? {};
+  if (!stockId || !buyerCharacterId) {
+    res.status(400).json({ error: "stockId and buyerCharacterId required" });
+    return;
+  }
+  await sellFromVenue({
+    kind: "ripperdoc",
+    venueId,
+    stockId: parseInt(String(stockId), 10),
+    buyerCharacterId: parseInt(String(buyerCharacterId), 10),
+    qty: Math.max(1, Number(qty) || 1),
+    memo,
+    actor: req.user!,
+    res,
+  });
 });
 
 // ===== Ripperdocs =====
