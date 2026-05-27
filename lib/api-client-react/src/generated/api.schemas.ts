@@ -430,6 +430,14 @@ export const CharacterSheetStatus = {
   changes_requested: 'changes_requested',
 } as const;
 
+export type CharacterSheetDataSheetType = typeof CharacterSheetDataSheetType[keyof typeof CharacterSheetDataSheetType];
+
+
+export const CharacterSheetDataSheetType = {
+  PC: 'PC',
+  NPC: 'NPC',
+} as const;
+
 export interface CharacterSheetCyberwareEntry {
   slot: string;
   name: string;
@@ -444,18 +452,33 @@ export type CharacterSheetDataAttributes = {[key: string]: number};
 export type CharacterSheetDataSkills = {[key: string]: number};
 
 export interface CharacterSheetData {
+  sheetType?: CharacterSheetDataSheetType;
   fullName: string;
   /** @nullable */
   nickname?: string | null;
+  /** @nullable */
+  pronouns?: string | null;
+  /** @nullable */
+  occupation?: string | null;
   archetype: string;
   age: number;
   gender: string;
+  /** @nullable */
+  physicalDescription?: string | null;
   appearance: string;
+  /** @nullable */
+  psychProfile?: string | null;
   background: string;
   attributes: CharacterSheetDataAttributes;
   skills: CharacterSheetDataSkills;
   /** @maxItems 11 */
   cyberware: CharacterSheetCyberwareEntry[];
+  /**
+     * Full 11-slot chrome layout (one entry per named slot; install name may be empty).
+     * @minItems 11
+     * @maxItems 11
+     */
+  cyberwareBySlot?: CharacterSheetCyberwareEntry[];
   /** @maximum 6 */
   cyberwarePointsSpent?: number;
   gear: string[];
@@ -645,5 +668,15 @@ export interface ActivityEvent {
 export type DiscordCallbackParams = {
 code?: string;
 state?: string;
+};
+
+export type DeactivateCharacter200 = {
+  success: boolean;
+  archived: boolean;
+};
+
+export type ReactivateCharacter200 = {
+  success: boolean;
+  archived: boolean;
 };
 

@@ -141,6 +141,47 @@ paths:
       summary: Set this character as the user's currently active one
       responses:
         "204": { description: Activated }
+        "400": { description: Archived character cannot be activated }
+
+  /characters/{id}/deactivate:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: deactivateCharacter
+      tags: [characters]
+      summary: Archive a character (cannot be active while archived)
+      responses:
+        "200":
+          description: Archived
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, archived]
+                properties:
+                  success: { type: boolean }
+                  archived: { type: boolean }
+        "404": { description: Not found }
+
+  /characters/{id}/reactivate:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: reactivateCharacter
+      tags: [characters]
+      summary: Restore a previously archived character
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, archived]
+                properties:
+                  success: { type: boolean }
+                  archived: { type: boolean }
+        "404": { description: Not found }
 
   # ---------------- INVENTORY ----------------
   /characters/{id}/inventory:
@@ -1212,12 +1253,19 @@ components:
       type: object
       required: [fullName, archetype, age, gender, appearance, background, attributes, skills, cyberware, gear, startingEddies]
       properties:
+        sheetType:
+          type: string
+          enum: [PC, NPC]
         fullName: { type: string }
         nickname: { type: ["string", "null"] }
+        pronouns: { type: ["string", "null"] }
+        occupation: { type: ["string", "null"] }
         archetype: { type: string }
         age: { type: integer }
         gender: { type: string }
+        physicalDescription: { type: ["string", "null"] }
         appearance: { type: string }
+        psychProfile: { type: ["string", "null"] }
         background: { type: string }
         attributes:
           type: object
@@ -1228,6 +1276,12 @@ components:
         cyberware:
           type: array
           maxItems: 11
+          items: { $ref: "#/components/schemas/CharacterSheetCyberwareEntry" }
+        cyberwareBySlot:
+          type: array
+          minItems: 11
+          maxItems: 11
+          description: Full 11-slot chrome layout (one entry per named slot; install name may be empty).
           items: { $ref: "#/components/schemas/CharacterSheetCyberwareEntry" }
         cyberwarePointsSpent: { type: integer, maximum: 6 }
         gear:

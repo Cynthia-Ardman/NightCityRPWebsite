@@ -44,6 +44,8 @@ export const characters = pgTable("characters", {
   portraitUrl: text("portrait_url"),
   discordChannelId: text("discord_channel_id"),
   approved: boolean("approved").notNull().default(false),
+  archived: boolean("archived").notNull().default(false),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type Character = typeof characters.$inferSelect;
@@ -229,6 +231,45 @@ export const activityEvents = pgTable("activity_events", {
 }, (t) => ({
   createdIdx: index("ae_created_idx").on(t.createdAt),
 }));
+
+export const housing = pgTable("housing", {
+  id: serial("id").primaryKey(),
+  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  listingId: integer("listing_id"),
+  address: text("address").notNull(),
+  monthlyRent: integer("monthly_rent").notNull().default(0),
+  paidThrough: timestamp("paid_through", { withTimezone: true }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const traumaTeamCalls = pgTable("trauma_team_calls", {
+  id: serial("id").primaryKey(),
+  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  tier: text("tier").notNull(),
+  reason: text("reason"),
+  costEddies: integer("cost_eddies").notNull().default(0),
+  outcome: text("outcome"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const missionLog = pgTable("mission_log", {
+  id: serial("id").primaryKey(),
+  characterId: integer("character_id").references(() => characters.id, { onDelete: "cascade" }),
+  fixerId: text("fixer_id").references(() => users.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  summary: text("summary"),
+  payoutEddies: integer("payout_eddies").notNull().default(0),
+  status: text("status").notNull().default("planned"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const botConfig = pgTable("bot_config", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
 
 export const sessionsTable = pgTable("user_sessions", {
   sid: text("sid").primaryKey(),

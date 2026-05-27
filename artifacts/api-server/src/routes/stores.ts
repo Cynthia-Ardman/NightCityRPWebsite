@@ -11,6 +11,7 @@ import {
   characters,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { hasRole } from "../lib/discord";
 
 const router: IRouter = Router();
 
@@ -28,12 +29,19 @@ router.get("/stores/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const emps = await db
-    .select({ id: storeEmployees.id, characterId: characters.id, name: characters.name, role: storeEmployees.role })
+    .select({ id: storeEmployees.id, characterId: characters.id, name: characters.name, role: storeEmployees.role, ownerId: characters.ownerId })
     .from(storeEmployees)
     .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
     .where(eq(storeEmployees.storeId, id));
+  const isOwner = s.ownerId === req.user!.id;
+  const isAdmin = hasRole(req.user!.roles, "ADMIN");
+  const isEmployee = emps.some((e) => e.ownerId === req.user!.id);
+  if (!isOwner && !isAdmin && !isEmployee) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   const stock = await db.select().from(storeStock).where(eq(storeStock.storeId, id));
-  res.json({ ...s, employees: emps, stock });
+  res.json({ ...s, employees: emps.map(({ ownerId: _o, ...e }) => e), stock });
 });
 
 router.patch("/stores/:id", requireAuth, async (req, res): Promise<void> => {
@@ -159,12 +167,19 @@ router.get("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const emps = await db
-    .select({ id: ripperdocEmployees.id, characterId: characters.id, name: characters.name, role: ripperdocEmployees.role })
+    .select({ id: ripperdocEmployees.id, characterId: characters.id, name: characters.name, role: ripperdocEmployees.role, ownerId: characters.ownerId })
     .from(ripperdocEmployees)
     .innerJoin(characters, eq(characters.id, ripperdocEmployees.characterId))
     .where(eq(ripperdocEmployees.ripperdocId, id));
+  const isOwner = r.ownerId === req.user!.id;
+  const isAdmin = hasRole(req.user!.roles, "ADMIN");
+  const isEmployee = emps.some((e) => e.ownerId === req.user!.id);
+  if (!isOwner && !isAdmin && !isEmployee) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   const stock = await db.select().from(ripperdocStock).where(eq(ripperdocStock.ripperdocId, id));
-  res.json({ ...r, employees: emps, stock });
+  res.json({ ...r, employees: emps.map(({ ownerId: _o, ...e }) => e), stock });
 });
 
 router.patch("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {

@@ -109,8 +109,39 @@ router.post("/characters/:id/activate", requireAuth, async (req, res): Promise<v
     res.status(404).json({ error: "Not found" });
     return;
   }
+  if (c.archived) {
+    res.status(400).json({ error: "Cannot activate an archived character" });
+    return;
+  }
   await db.update(users).set({ activeCharacterId: id }).where(eq(users.id, req.user!.id));
   res.json({ success: true, activeCharacterId: id });
+});
+
+router.post("/characters/:id/deactivate", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await db.update(characters).set({ archived: true, archivedAt: new Date() }).where(eq(characters.id, id));
+  // If this was the active character, clear it
+  const [u] = await db.select().from(users).where(eq(users.id, req.user!.id));
+  if (u?.activeCharacterId === id) {
+    await db.update(users).set({ activeCharacterId: null }).where(eq(users.id, req.user!.id));
+  }
+  res.json({ success: true, archived: true });
+});
+
+router.post("/characters/:id/reactivate", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await db.update(characters).set({ archived: false, archivedAt: null }).where(eq(characters.id, id));
+  res.json({ success: true, archived: false });
 });
 
 // Inventory

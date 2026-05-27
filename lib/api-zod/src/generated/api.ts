@@ -138,6 +138,32 @@ export const SetActiveCharacterParams = zod.object({
 })
 
 
+/**
+ * @summary Archive a character (cannot be active while archived)
+ */
+export const DeactivateCharacterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeactivateCharacterResponse = zod.object({
+  "success": zod.boolean(),
+  "archived": zod.boolean()
+})
+
+
+/**
+ * @summary Restore a previously archived character
+ */
+export const ReactivateCharacterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReactivateCharacterResponse = zod.object({
+  "success": zod.boolean(),
+  "archived": zod.boolean()
+})
+
+
 export const GetCharacterInventoryParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -809,6 +835,9 @@ export const UpdateFixerNpcResponse = zod.object({
  */
 export const listMySheetsResponseDataCyberwareMax = 11;
 
+export const listMySheetsResponseDataCyberwareBySlotMin = 11;
+export const listMySheetsResponseDataCyberwareBySlotMax = 11;
+
 export const listMySheetsResponseDataCyberwarePointsSpentMax = 6;
 
 
@@ -825,12 +854,17 @@ export const ListMySheetsResponseItem = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']).optional(),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullish(),
+  "occupation": zod.string().nullish(),
   "archetype": zod.string(),
   "age": zod.number(),
   "gender": zod.string(),
+  "physicalDescription": zod.string().nullish(),
   "appearance": zod.string(),
+  "psychProfile": zod.string().nullish(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()),
   "skills": zod.record(zod.string(), zod.number()),
@@ -841,6 +875,13 @@ export const ListMySheetsResponseItem = zod.object({
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).max(listMySheetsResponseDataCyberwareMax),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).min(listMySheetsResponseDataCyberwareBySlotMin).max(listMySheetsResponseDataCyberwareBySlotMax).optional().describe('Full 11-slot chrome layout (one entry per named slot; install name may be empty).'),
   "cyberwarePointsSpent": zod.number().max(listMySheetsResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
@@ -854,6 +895,9 @@ export const submitSheetBodyNameMax = 64;
 
 export const submitSheetBodyDataCyberwareMax = 11;
 
+export const submitSheetBodyDataCyberwareBySlotMin = 11;
+export const submitSheetBodyDataCyberwareBySlotMax = 11;
+
 export const submitSheetBodyDataCyberwarePointsSpentMax = 6;
 
 
@@ -862,12 +906,17 @@ export const SubmitSheetBody = zod.object({
   "name": zod.string().min(1).max(submitSheetBodyNameMax),
   "characterId": zod.number().nullish(),
   "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']).optional(),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullish(),
+  "occupation": zod.string().nullish(),
   "archetype": zod.string(),
   "age": zod.number(),
   "gender": zod.string(),
+  "physicalDescription": zod.string().nullish(),
   "appearance": zod.string(),
+  "psychProfile": zod.string().nullish(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()),
   "skills": zod.record(zod.string(), zod.number()),
@@ -878,6 +927,13 @@ export const SubmitSheetBody = zod.object({
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).max(submitSheetBodyDataCyberwareMax),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).min(submitSheetBodyDataCyberwareBySlotMin).max(submitSheetBodyDataCyberwareBySlotMax).optional().describe('Full 11-slot chrome layout (one entry per named slot; install name may be empty).'),
   "cyberwarePointsSpent": zod.number().max(submitSheetBodyDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
@@ -890,6 +946,9 @@ export const SubmitSheetBody = zod.object({
  * @summary Pending sheets (CS approvers only)
  */
 export const listPendingSheetsResponseDataCyberwareMax = 11;
+
+export const listPendingSheetsResponseDataCyberwareBySlotMin = 11;
+export const listPendingSheetsResponseDataCyberwareBySlotMax = 11;
 
 export const listPendingSheetsResponseDataCyberwarePointsSpentMax = 6;
 
@@ -907,12 +966,17 @@ export const ListPendingSheetsResponseItem = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']).optional(),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullish(),
+  "occupation": zod.string().nullish(),
   "archetype": zod.string(),
   "age": zod.number(),
   "gender": zod.string(),
+  "physicalDescription": zod.string().nullish(),
   "appearance": zod.string(),
+  "psychProfile": zod.string().nullish(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()),
   "skills": zod.record(zod.string(), zod.number()),
@@ -923,6 +987,13 @@ export const ListPendingSheetsResponseItem = zod.object({
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).max(listPendingSheetsResponseDataCyberwareMax),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).min(listPendingSheetsResponseDataCyberwareBySlotMin).max(listPendingSheetsResponseDataCyberwareBySlotMax).optional().describe('Full 11-slot chrome layout (one entry per named slot; install name may be empty).'),
   "cyberwarePointsSpent": zod.number().max(listPendingSheetsResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
@@ -937,6 +1008,9 @@ export const GetSheetParams = zod.object({
 })
 
 export const getSheetResponseDataCyberwareMax = 11;
+
+export const getSheetResponseDataCyberwareBySlotMin = 11;
+export const getSheetResponseDataCyberwareBySlotMax = 11;
 
 export const getSheetResponseDataCyberwarePointsSpentMax = 6;
 
@@ -954,12 +1028,17 @@ export const GetSheetResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']).optional(),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullish(),
+  "occupation": zod.string().nullish(),
   "archetype": zod.string(),
   "age": zod.number(),
   "gender": zod.string(),
+  "physicalDescription": zod.string().nullish(),
   "appearance": zod.string(),
+  "psychProfile": zod.string().nullish(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()),
   "skills": zod.record(zod.string(), zod.number()),
@@ -970,6 +1049,13 @@ export const GetSheetResponse = zod.object({
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).max(getSheetResponseDataCyberwareMax),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).min(getSheetResponseDataCyberwareBySlotMin).max(getSheetResponseDataCyberwareBySlotMax).optional().describe('Full 11-slot chrome layout (one entry per named slot; install name may be empty).'),
   "cyberwarePointsSpent": zod.number().max(getSheetResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
@@ -992,6 +1078,9 @@ export const DecideSheetBody = zod.object({
 
 export const decideSheetResponseDataCyberwareMax = 11;
 
+export const decideSheetResponseDataCyberwareBySlotMin = 11;
+export const decideSheetResponseDataCyberwareBySlotMax = 11;
+
 export const decideSheetResponseDataCyberwarePointsSpentMax = 6;
 
 
@@ -1008,12 +1097,17 @@ export const DecideSheetResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']).optional(),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullish(),
+  "occupation": zod.string().nullish(),
   "archetype": zod.string(),
   "age": zod.number(),
   "gender": zod.string(),
+  "physicalDescription": zod.string().nullish(),
   "appearance": zod.string(),
+  "psychProfile": zod.string().nullish(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()),
   "skills": zod.record(zod.string(), zod.number()),
@@ -1024,6 +1118,13 @@ export const DecideSheetResponse = zod.object({
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).max(decideSheetResponseDataCyberwareMax),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).min(decideSheetResponseDataCyberwareBySlotMin).max(decideSheetResponseDataCyberwareBySlotMax).optional().describe('Full 11-slot chrome layout (one entry per named slot; install name may be empty).'),
   "cyberwarePointsSpent": zod.number().max(decideSheetResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),

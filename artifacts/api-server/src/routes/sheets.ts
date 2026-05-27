@@ -82,13 +82,21 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
     .returning();
 
   if (CS_CHANNEL_ID) {
-    const msgId = await postToChannel(CS_CHANNEL_ID, `New character sheet pending: **${name}** by ${req.user!.username}`, [
+    const sheetType = characterId ? "PC" : (data.sheetType === "NPC" ? "NPC" : "PC");
+    const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
+    const reviewUrl = portalBase ? `https://${portalBase}/sheets/${s.id}` : `/sheets/${s.id}`;
+    const msgId = await postToChannel(CS_CHANNEL_ID, `New ${sheetType} sheet pending review: **${name}** by ${req.user!.username}`, [
       {
         title: name,
         description: data.background?.slice(0, 500) ?? "",
         fields: [
+          { name: "Type", value: sheetType, inline: true },
+          { name: "Player", value: req.user!.username, inline: true },
           { name: "Archetype", value: data.archetype ?? "—", inline: true },
-          { name: "Cyberware Pts", value: String(points), inline: true },
+          { name: "Pronouns", value: data.pronouns ?? "—", inline: true },
+          { name: "Occupation", value: data.occupation ?? "—", inline: true },
+          { name: "Cyberware Pts", value: `${points}/6`, inline: true },
+          { name: "Review", value: reviewUrl, inline: false },
         ],
       },
     ]);

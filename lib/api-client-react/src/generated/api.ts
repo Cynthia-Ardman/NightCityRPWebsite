@@ -33,6 +33,7 @@ import type {
   CharacterStatusUpdate,
   CharacterUpdate,
   DashboardSummary,
+  DeactivateCharacter200,
   DiceRollInput,
   DiceRollResult,
   DiscordCallbackParams,
@@ -48,6 +49,7 @@ import type {
   JobRunInput,
   JobRunResult,
   Me,
+  ReactivateCharacter200,
   Ripperdoc,
   RipperdocPublic,
   RipperdocUpdate,
@@ -823,7 +825,7 @@ export const setActiveCharacter = async (id: number, options?: RequestInit): Pro
 
 
 
-export const getSetActiveCharacterMutationOptions = <TError = ErrorType<unknown>,
+export const getSetActiveCharacterMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setActiveCharacter>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof setActiveCharacter>>, TError,{id: number}, TContext> => {
 
@@ -852,12 +854,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SetActiveCharacterMutationResult = NonNullable<Awaited<ReturnType<typeof setActiveCharacter>>>
 
-    export type SetActiveCharacterMutationError = ErrorType<unknown>
+    export type SetActiveCharacterMutationError = ErrorType<void>
 
     /**
  * @summary Set this character as the user's currently active one
  */
-export const useSetActiveCharacter = <TError = ErrorType<unknown>,
+export const useSetActiveCharacter = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setActiveCharacter>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof setActiveCharacter>>,
@@ -866,6 +868,146 @@ export const useSetActiveCharacter = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSetActiveCharacterMutationOptions(options));
+    }
+
+export const getDeactivateCharacterUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/deactivate`
+}
+
+/**
+ * @summary Archive a character (cannot be active while archived)
+ */
+export const deactivateCharacter = async (id: number, options?: RequestInit): Promise<DeactivateCharacter200> => {
+
+  return customFetch<DeactivateCharacter200>(getDeactivateCharacterUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getDeactivateCharacterMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deactivateCharacter>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deactivateCharacter>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deactivateCharacter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deactivateCharacter>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deactivateCharacter(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeactivateCharacterMutationResult = NonNullable<Awaited<ReturnType<typeof deactivateCharacter>>>
+
+    export type DeactivateCharacterMutationError = ErrorType<void>
+
+    /**
+ * @summary Archive a character (cannot be active while archived)
+ */
+export const useDeactivateCharacter = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deactivateCharacter>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deactivateCharacter>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeactivateCharacterMutationOptions(options));
+    }
+
+export const getReactivateCharacterUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/reactivate`
+}
+
+/**
+ * @summary Restore a previously archived character
+ */
+export const reactivateCharacter = async (id: number, options?: RequestInit): Promise<ReactivateCharacter200> => {
+
+  return customFetch<ReactivateCharacter200>(getReactivateCharacterUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getReactivateCharacterMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateCharacter>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateCharacter>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['reactivateCharacter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateCharacter>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reactivateCharacter(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateCharacterMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateCharacter>>>
+
+    export type ReactivateCharacterMutationError = ErrorType<void>
+
+    /**
+ * @summary Restore a previously archived character
+ */
+export const useReactivateCharacter = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateCharacter>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateCharacter>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getReactivateCharacterMutationOptions(options));
     }
 
 export const getGetCharacterInventoryUrl = (id: number,) => {
