@@ -69,6 +69,10 @@ const NCRP_SLOTS = [
   "Skeleton & Torso Musculature",
   "Universal Muscular (Arms/Legs/Tail)",
 ] as const;
+// NCRP-required identity / narrative fields. Backstory is documented in the
+// template but is OPTIONAL per the NCRP creation guidelines, so it's not in
+// this list. Affiliations, RP hooks, reference images and additional notes
+// are also optional.
 const REQUIRED_SHEET_FIELDS = [
   "sheetType",
   "fullName",
@@ -76,7 +80,6 @@ const REQUIRED_SHEET_FIELDS = [
   "occupation",
   "psychProfile",
   "physicalDescription",
-  "background",
 ] as const;
 
 router.post("/sheets", requireAuth, async (req, res): Promise<void> => {

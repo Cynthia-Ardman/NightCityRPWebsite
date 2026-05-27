@@ -16,9 +16,19 @@ import { hasRole } from "../lib/discord";
 const router: IRouter = Router();
 
 // ===== Stores =====
+// Returns stores the user owns OR is an employee at (via any of their characters).
 router.get("/stores/mine", requireAuth, async (req, res): Promise<void> => {
-  const rows = await db.select().from(stores).where(eq(stores.ownerId, req.user!.id));
-  res.json(rows);
+  const owned = await db.select().from(stores).where(eq(stores.ownerId, req.user!.id));
+  const employedRows = await db
+    .selectDistinct({ store: stores })
+    .from(stores)
+    .innerJoin(storeEmployees, eq(storeEmployees.storeId, stores.id))
+    .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
+    .where(eq(characters.ownerId, req.user!.id));
+  const employed = employedRows.map((r) => r.store);
+  const seen = new Set<number>();
+  const merged = [...owned, ...employed].filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)));
+  res.json(merged);
 });
 
 router.get("/stores/:id", requireAuth, async (req, res): Promise<void> => {
@@ -154,9 +164,19 @@ router.delete("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promi
 });
 
 // ===== Ripperdocs =====
+// Returns clinics the user owns OR is an employee at (via any of their characters).
 router.get("/ripperdocs/mine", requireAuth, async (req, res): Promise<void> => {
-  const rows = await db.select().from(ripperdocs).where(eq(ripperdocs.ownerId, req.user!.id));
-  res.json(rows);
+  const owned = await db.select().from(ripperdocs).where(eq(ripperdocs.ownerId, req.user!.id));
+  const employedRows = await db
+    .selectDistinct({ doc: ripperdocs })
+    .from(ripperdocs)
+    .innerJoin(ripperdocEmployees, eq(ripperdocEmployees.ripperdocId, ripperdocs.id))
+    .innerJoin(characters, eq(characters.id, ripperdocEmployees.characterId))
+    .where(eq(characters.ownerId, req.user!.id));
+  const employed = employedRows.map((r) => r.doc);
+  const seen = new Set<number>();
+  const merged = [...owned, ...employed].filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+  res.json(merged);
 });
 
 router.get("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {

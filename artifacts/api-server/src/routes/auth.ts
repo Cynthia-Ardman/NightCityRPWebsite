@@ -75,7 +75,7 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
 
 router.post("/auth/logout", (req, res): void => {
   req.session.destroy(() => {
-    res.json({ success: true });
+    res.sendStatus(204);
   });
 });
 
