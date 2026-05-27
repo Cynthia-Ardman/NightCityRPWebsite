@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
+import CatalogPicker from "@/components/CatalogPicker";
 
 export default function MyStoreDetail() {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +34,7 @@ export default function MyStoreDetail() {
   const [empCharId, setEmpCharId] = useState("");
   const [empRole, setEmpRole] = useState("clerk");
   const [stockName, setStockName] = useState("");
+  const [stockCategory, setStockCategory] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
   const [stockQty, setStockQty] = useState(1);
 
@@ -81,11 +83,41 @@ export default function MyStoreDetail() {
               <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: storeId, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
             </div>
           ))}
-          <div className="grid grid-cols-12 gap-2 pt-3">
-            <Input className="col-span-5" placeholder="Item name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-stock-name" />
-            <Input className="col-span-3" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
-            <Input className="col-span-2" type="number" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
-            <Button className="col-span-2 rounded-none bg-nc-cyan text-background font-display" onClick={() => stockName && addStock.mutate({ id: storeId, data: { name: stockName, price: stockPrice, quantity: stockQty } })} data-testid="button-add-stock"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
+          <div className="pt-3 space-y-2">
+            <div className="flex justify-end">
+              <CatalogPicker
+                kind="guns"
+                onPick={(item) => {
+                  setStockName(item.name);
+                  setStockCategory(item.category ?? "");
+                  setStockPrice(item.price);
+                  if (stockQty < 1) setStockQty(1);
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-12 gap-2">
+              <Input className="col-span-4" placeholder="Item name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-stock-name" />
+              <Input className="col-span-3" placeholder="Category" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
+              <Input className="col-span-2" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
+              <Input className="col-span-1" type="number" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
+              <Button
+                className="col-span-2 rounded-none bg-nc-cyan text-background font-display"
+                onClick={() => {
+                  if (!stockName) return;
+                  addStock.mutate({
+                    id: storeId,
+                    data: { name: stockName, category: stockCategory || undefined, price: stockPrice, quantity: stockQty },
+                  });
+                  setStockName("");
+                  setStockCategory("");
+                  setStockPrice(0);
+                  setStockQty(1);
+                }}
+                data-testid="button-add-stock"
+              >
+                <Plus className="w-4 h-4 mr-1" /> ADD
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

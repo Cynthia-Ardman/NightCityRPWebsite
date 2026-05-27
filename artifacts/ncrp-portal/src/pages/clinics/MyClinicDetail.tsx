@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
+import CatalogPicker from "@/components/CatalogPicker";
 
 export default function MyClinicDetail() {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +32,7 @@ export default function MyClinicDetail() {
   const [empCharId, setEmpCharId] = useState("");
   const [empRole, setEmpRole] = useState("doc");
   const [stockName, setStockName] = useState("");
+  const [stockCategory, setStockCategory] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
@@ -75,10 +77,36 @@ export default function MyClinicDetail() {
               <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: rid, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
             </div>
           ))}
-          <div className="flex gap-2 pt-3">
-            <Input className="flex-1" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
-            <Input className="w-32" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
-            <Button onClick={() => stockName && addStock.mutate({ id: rid, data: { name: stockName, price: stockPrice, quantity: 1 } })} className="rounded-none bg-nc-magenta text-background font-display" data-testid="button-add-cyber"><Plus className="w-4 h-4" /></Button>
+          <div className="pt-3 space-y-2">
+            <div className="flex justify-end">
+              <CatalogPicker
+                kind="cyberware"
+                triggerClassName="rounded-none font-display border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background"
+                onPick={(item) => {
+                  setStockName(item.name);
+                  setStockCategory(item.category ?? "");
+                  setStockPrice(item.price);
+                }}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Input className="flex-1" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
+              <Input className="w-32" placeholder="Slot" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-cyber-slot" />
+              <Input className="w-32" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
+              <Button
+                onClick={() => {
+                  if (!stockName) return;
+                  addStock.mutate({ id: rid, data: { name: stockName, category: stockCategory || undefined, price: stockPrice, quantity: 1 } });
+                  setStockName("");
+                  setStockCategory("");
+                  setStockPrice(0);
+                }}
+                className="rounded-none bg-nc-magenta text-background font-display"
+                data-testid="button-add-cyber"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
