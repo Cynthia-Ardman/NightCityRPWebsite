@@ -53,21 +53,31 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(s);
 });
 
-// NCRP foundational chrome template — must match the client sheet form.
+// NCRP canonical chrome taxonomy (matches client form / NCRP creation guidelines).
 const NCRP_SLOTS = [
-  "Cyberaudio Suite",
-  "Cybereyes",
-  "Neural Link",
-  "Cyberarm (Left)",
-  "Cyberarm (Right)",
-  "Cyberhand (Left)",
-  "Cyberhand (Right)",
-  "Cyberleg (Left)",
-  "Cyberleg (Right)",
-  "Cyberfoot (Left)",
-  "Cyberfoot (Right)",
+  "Arms & Arm Attachments (Left)",
+  "Arms & Arm Attachments (Right)",
+  "Auditory System",
+  "Circulatory & Immune Systems",
+  "Hands",
+  "Feet",
+  "Integumentary System",
+  "Legs & Mobility (Left)",
+  "Legs & Mobility (Right)",
+  "Neural",
+  "Ocular System",
+  "Skeleton & Torso Musculature",
+  "Universal Muscular (Arms/Legs/Tail)",
 ] as const;
-const REQUIRED_SHEET_FIELDS = ["sheetType", "fullName", "archetype"] as const;
+const REQUIRED_SHEET_FIELDS = [
+  "sheetType",
+  "fullName",
+  "pronouns",
+  "occupation",
+  "psychProfile",
+  "physicalDescription",
+  "background",
+] as const;
 
 router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
   const { name, data, characterId } = req.body ?? {};
@@ -75,7 +85,7 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "name and data required" });
     return;
   }
-  // Required identity fields
+  // Required identity / narrative fields per NCRP template
   for (const f of REQUIRED_SHEET_FIELDS) {
     if (typeof (data as Record<string, unknown>)[f] !== "string" || !(data as Record<string, string>)[f].trim()) {
       res.status(400).json({ error: `Missing required field: ${f}` });
@@ -86,12 +96,27 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "sheetType must be PC or NPC" });
     return;
   }
+  if (typeof (data as { age?: unknown }).age !== "number" || (data as { age: number }).age <= 0) {
+    res.status(400).json({ error: "Missing required field: age (positive integer)" });
+    return;
+  }
+  // Skills + Equipment are required per NCRP template.
+  const skillsObj = (data as { skills?: unknown }).skills;
+  if (!skillsObj || typeof skillsObj !== "object" || Object.keys(skillsObj as object).length === 0) {
+    res.status(400).json({ error: "Missing required field: skills (at least one)" });
+    return;
+  }
+  const gearList = (data as { gear?: unknown }).gear;
+  if (!Array.isArray(gearList) || gearList.filter((g) => typeof g === "string" && g.trim()).length === 0) {
+    res.status(400).json({ error: "Missing required field: gear/equipment (at least one entry)" });
+    return;
+  }
   // Foundational chrome template — exact 11 slots, in order, named correctly.
   const bySlot = Array.isArray((data as { cyberwareBySlot?: unknown }).cyberwareBySlot)
     ? ((data as { cyberwareBySlot: unknown[] }).cyberwareBySlot as Array<{ slot?: string }>)
     : null;
   if (!bySlot || bySlot.length !== NCRP_SLOTS.length) {
-    res.status(400).json({ error: `cyberwareBySlot must contain exactly ${NCRP_SLOTS.length} entries (one per NCRP foundational slot)` });
+    res.status(400).json({ error: `cyberwareBySlot must contain exactly ${NCRP_SLOTS.length} entries in the canonical NCRP order` });
     return;
   }
   for (let i = 0; i < NCRP_SLOTS.length; i++) {

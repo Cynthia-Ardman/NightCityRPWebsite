@@ -452,12 +452,14 @@ export type CharacterSheetDataAttributes = {[key: string]: number};
 export type CharacterSheetDataSkills = {[key: string]: number};
 
 /**
- * NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 11
-entries in the canonical NCRP foundational order (Cyberaudio Suite,
-Cybereyes, Neural Link, Cyberarm L/R, Cyberhand L/R, Cyberleg L/R,
-Cyberfoot L/R). `cyberwareMisc` is unbounded for fashionware,
-internal/external, borgware, cyberweapons. Total points across all
-chrome (foundational + misc) is capped at 6 humanity points at creation.
+ * NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13
+entries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &
+Arm Attachments (Right), Auditory System, Circulatory & Immune Systems,
+Hands, Feet, Integumentary System, Legs & Mobility (Left), Legs &
+Mobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,
+Universal Muscular (Arms/Legs/Tail). `cyberwareMisc` is unlimited (per
+NCRP Miscellaneous slot). Total humanity points across all chrome
+(foundational + misc) is capped at 6 at character creation.
 
  */
 export interface CharacterSheetData {
@@ -466,28 +468,27 @@ export interface CharacterSheetData {
   /** @nullable */
   nickname?: string | null;
   /** @nullable */
-  pronouns?: string | null;
+  pronouns: string | null;
   /** @nullable */
-  occupation?: string | null;
-  archetype: string;
+  occupation: string | null;
+  archetype?: string;
   age: number;
-  gender: string;
+  gender?: string;
   /** @nullable */
-  physicalDescription?: string | null;
-  appearance: string;
+  physicalDescription: string | null;
+  appearance?: string;
   /** @nullable */
-  psychProfile?: string | null;
+  psychProfile: string | null;
   background: string;
-  attributes: CharacterSheetDataAttributes;
+  attributes?: CharacterSheetDataAttributes;
   skills: CharacterSheetDataSkills;
-  /** @maxItems 11 */
   cyberware: CharacterSheetCyberwareEntry[];
   /**
      * Full 11-slot foundational chrome layout. One entry per named NCRP slot,
   in canonical order. Leave `name` empty to mark a slot unused.
 
-     * @minItems 11
-     * @maxItems 11
+     * @minItems 13
+     * @maxItems 13
      */
   cyberwareBySlot: CharacterSheetCyberwareEntry[];
   /** Unlimited list for fashionware, internal/external, borgware, cyberweapons. */

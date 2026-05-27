@@ -229,15 +229,13 @@ router.get("/characters/:id/wallet", requireAuth, async (req, res): Promise<void
     res.status(404).json({ error: "Not found" });
     return;
   }
+  // UB is the source of truth — never fall back to a local-sum read.
   const ub = await getBalance(req.user!.discordId);
-  if (ub) {
-    res.json({ balance: ub.total, cash: ub.cash, bank: ub.bank, source: "unbelievaboat" });
+  if (!ub) {
+    res.status(502).json({ error: "Wallet provider unavailable" });
     return;
   }
-  // local fallback: sum from transactions
-  const txs = await db.select().from(walletTransactions).where(eq(walletTransactions.characterId, id));
-  const total = txs.reduce((s, t) => s + t.amount, 0);
-  res.json({ balance: total, cash: total, bank: 0, source: "local" });
+  res.json({ balance: ub.total, cash: ub.cash, bank: ub.bank, source: "unbelievaboat" });
 });
 
 router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res): Promise<void> => {
@@ -274,28 +272,32 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     return;
   }
   const [toOwner] = await db.select().from(users).where(eq(users.id, to.ownerId));
-  // Sufficient-funds precheck against UB source of truth (when reachable)
+  // UB is authoritative — require a successful balance read before attempting writes.
   const senderBal = await getBalance(req.user!.discordId);
-  if (senderBal && senderBal.cash < amount) {
+  if (!senderBal) {
+    res.status(502).json({ error: "Wallet provider unavailable" });
+    return;
+  }
+  if (senderBal.cash < amount) {
     res.status(400).json({ error: "Insufficient funds" });
     return;
   }
-  // Debit sender via UB; only proceed if sender debit succeeds (or UB unreachable and we fall back to local).
+  // Debit sender via UB — must succeed.
   const debited = await patchBalance(req.user!.discordId, { cash: -amount, reason: memo ?? `Transfer to ${to.name}` });
-  if (senderBal && !debited) {
-    // UB was reachable for read but rejected the write — surface as error, no local ledger drift
+  if (!debited) {
     res.status(502).json({ error: "Wallet provider rejected debit" });
     return;
   }
   if (toOwner) {
     const credited = await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${c.name}` });
-    if (debited && !credited) {
-      // Compensate: refund sender to keep UB consistent
+    if (!credited) {
+      // Compensate: refund sender to keep UB consistent.
       await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${to.name} failed` });
       res.status(502).json({ error: "Wallet provider rejected credit; sender refunded" });
       return;
     }
   }
+  // Only after confirmed UB writes do we record local history.
   await db.insert(walletTransactions).values([
     {
       characterId: id,
@@ -315,7 +317,7 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     },
   ]);
   const ub = await getBalance(req.user!.discordId);
-  res.json(ub ?? { balance: 0, cash: 0, bank: 0, source: "local" });
+  res.json(ub ?? { cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
 });
 
 // Status

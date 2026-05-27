@@ -99,18 +99,14 @@ router.post("/admin/wallet/adjust", async (req, res): Promise<void> => {
     return;
   }
   const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
-  let ubOk = true;
-  if (owner) {
-    const ubResult = await patchBalance(owner.discordId, { cash: amount, reason: memo ?? "Admin adjustment" });
-    // null = UB unreachable (token missing or network) -> fall back to local; treat as ok.
-    // If UB was reachable for read but rejected the write, surface error to avoid ledger drift.
-    if (ubResult === null) {
-      const probe = await getBalance(owner.discordId);
-      if (probe !== null) ubOk = false;
-    }
+  if (!owner) {
+    res.status(404).json({ error: "Character owner not found" });
+    return;
   }
-  if (!ubOk) {
-    res.status(502).json({ error: "Wallet provider rejected adjustment" });
+  // UB is authoritative — do not write a local ledger entry unless UB write succeeds.
+  const ubResult = await patchBalance(owner.discordId, { cash: amount, reason: memo ?? "Admin adjustment" });
+  if (!ubResult) {
+    res.status(502).json({ error: "Wallet provider unavailable or rejected adjustment" });
     return;
   }
   await db.insert(walletTransactions).values({

@@ -833,10 +833,8 @@ export const UpdateFixerNpcResponse = zod.object({
 /**
  * @summary My submitted character sheets
  */
-export const listMySheetsResponseDataCyberwareMax = 11;
-
-export const listMySheetsResponseDataCyberwareBySlotMin = 11;
-export const listMySheetsResponseDataCyberwareBySlotMax = 11;
+export const listMySheetsResponseDataCyberwareBySlotMin = 13;
+export const listMySheetsResponseDataCyberwareBySlotMax = 13;
 
 export const listMySheetsResponseDataCyberwarePointsSpentMax = 6;
 
@@ -857,16 +855,16 @@ export const ListMySheetsResponseItem = zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
-  "pronouns": zod.string().nullish(),
-  "occupation": zod.string().nullish(),
-  "archetype": zod.string(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
   "age": zod.number(),
-  "gender": zod.string(),
-  "physicalDescription": zod.string().nullish(),
-  "appearance": zod.string(),
-  "psychProfile": zod.string().nullish(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
   "background": zod.string(),
-  "attributes": zod.record(zod.string(), zod.number()),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.record(zod.string(), zod.number()),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
@@ -874,7 +872,7 @@ export const ListMySheetsResponseItem = zod.object({
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).max(listMySheetsResponseDataCyberwareMax),
+})),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
@@ -893,17 +891,15 @@ export const ListMySheetsResponseItem = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 11\nentries in the canonical NCRP foundational order (Cyberaudio Suite,\nCybereyes, Neural Link, Cyberarm L\/R, Cyberhand L\/R, Cyberleg L\/R,\nCyberfoot L\/R). `cyberwareMisc` is unbounded for fashionware,\ninternal\/external, borgware, cyberweapons. Total points across all\nchrome (foundational + misc) is capped at 6 humanity points at creation.\n')
+}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
 })
 export const ListMySheetsResponse = zod.array(ListMySheetsResponseItem)
 
 
 export const submitSheetBodyNameMax = 64;
 
-export const submitSheetBodyDataCyberwareMax = 11;
-
-export const submitSheetBodyDataCyberwareBySlotMin = 11;
-export const submitSheetBodyDataCyberwareBySlotMax = 11;
+export const submitSheetBodyDataCyberwareBySlotMin = 13;
+export const submitSheetBodyDataCyberwareBySlotMax = 13;
 
 export const submitSheetBodyDataCyberwarePointsSpentMax = 6;
 
@@ -916,16 +912,16 @@ export const SubmitSheetBody = zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
-  "pronouns": zod.string().nullish(),
-  "occupation": zod.string().nullish(),
-  "archetype": zod.string(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
   "age": zod.number(),
-  "gender": zod.string(),
-  "physicalDescription": zod.string().nullish(),
-  "appearance": zod.string(),
-  "psychProfile": zod.string().nullish(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
   "background": zod.string(),
-  "attributes": zod.record(zod.string(), zod.number()),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.record(zod.string(), zod.number()),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
@@ -933,7 +929,7 @@ export const SubmitSheetBody = zod.object({
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).max(submitSheetBodyDataCyberwareMax),
+})),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
@@ -952,17 +948,15 @@ export const SubmitSheetBody = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 11\nentries in the canonical NCRP foundational order (Cyberaudio Suite,\nCybereyes, Neural Link, Cyberarm L\/R, Cyberhand L\/R, Cyberleg L\/R,\nCyberfoot L\/R). `cyberwareMisc` is unbounded for fashionware,\ninternal\/external, borgware, cyberweapons. Total points across all\nchrome (foundational + misc) is capped at 6 humanity points at creation.\n')
+}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
 })
 
 
 /**
  * @summary Pending sheets (CS approvers only)
  */
-export const listPendingSheetsResponseDataCyberwareMax = 11;
-
-export const listPendingSheetsResponseDataCyberwareBySlotMin = 11;
-export const listPendingSheetsResponseDataCyberwareBySlotMax = 11;
+export const listPendingSheetsResponseDataCyberwareBySlotMin = 13;
+export const listPendingSheetsResponseDataCyberwareBySlotMax = 13;
 
 export const listPendingSheetsResponseDataCyberwarePointsSpentMax = 6;
 
@@ -983,16 +977,16 @@ export const ListPendingSheetsResponseItem = zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
-  "pronouns": zod.string().nullish(),
-  "occupation": zod.string().nullish(),
-  "archetype": zod.string(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
   "age": zod.number(),
-  "gender": zod.string(),
-  "physicalDescription": zod.string().nullish(),
-  "appearance": zod.string(),
-  "psychProfile": zod.string().nullish(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
   "background": zod.string(),
-  "attributes": zod.record(zod.string(), zod.number()),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.record(zod.string(), zod.number()),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
@@ -1000,7 +994,7 @@ export const ListPendingSheetsResponseItem = zod.object({
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).max(listPendingSheetsResponseDataCyberwareMax),
+})),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
@@ -1019,7 +1013,7 @@ export const ListPendingSheetsResponseItem = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 11\nentries in the canonical NCRP foundational order (Cyberaudio Suite,\nCybereyes, Neural Link, Cyberarm L\/R, Cyberhand L\/R, Cyberleg L\/R,\nCyberfoot L\/R). `cyberwareMisc` is unbounded for fashionware,\ninternal\/external, borgware, cyberweapons. Total points across all\nchrome (foundational + misc) is capped at 6 humanity points at creation.\n')
+}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
 })
 export const ListPendingSheetsResponse = zod.array(ListPendingSheetsResponseItem)
 
@@ -1028,10 +1022,8 @@ export const GetSheetParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const getSheetResponseDataCyberwareMax = 11;
-
-export const getSheetResponseDataCyberwareBySlotMin = 11;
-export const getSheetResponseDataCyberwareBySlotMax = 11;
+export const getSheetResponseDataCyberwareBySlotMin = 13;
+export const getSheetResponseDataCyberwareBySlotMax = 13;
 
 export const getSheetResponseDataCyberwarePointsSpentMax = 6;
 
@@ -1052,16 +1044,16 @@ export const GetSheetResponse = zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
-  "pronouns": zod.string().nullish(),
-  "occupation": zod.string().nullish(),
-  "archetype": zod.string(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
   "age": zod.number(),
-  "gender": zod.string(),
-  "physicalDescription": zod.string().nullish(),
-  "appearance": zod.string(),
-  "psychProfile": zod.string().nullish(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
   "background": zod.string(),
-  "attributes": zod.record(zod.string(), zod.number()),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.record(zod.string(), zod.number()),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
@@ -1069,7 +1061,7 @@ export const GetSheetResponse = zod.object({
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).max(getSheetResponseDataCyberwareMax),
+})),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
@@ -1088,7 +1080,7 @@ export const GetSheetResponse = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 11\nentries in the canonical NCRP foundational order (Cyberaudio Suite,\nCybereyes, Neural Link, Cyberarm L\/R, Cyberhand L\/R, Cyberleg L\/R,\nCyberfoot L\/R). `cyberwareMisc` is unbounded for fashionware,\ninternal\/external, borgware, cyberweapons. Total points across all\nchrome (foundational + misc) is capped at 6 humanity points at creation.\n')
+}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
 })
 
 
@@ -1104,10 +1096,8 @@ export const DecideSheetBody = zod.object({
   "note": zod.string().optional()
 })
 
-export const decideSheetResponseDataCyberwareMax = 11;
-
-export const decideSheetResponseDataCyberwareBySlotMin = 11;
-export const decideSheetResponseDataCyberwareBySlotMax = 11;
+export const decideSheetResponseDataCyberwareBySlotMin = 13;
+export const decideSheetResponseDataCyberwareBySlotMax = 13;
 
 export const decideSheetResponseDataCyberwarePointsSpentMax = 6;
 
@@ -1128,16 +1118,16 @@ export const DecideSheetResponse = zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
   "nickname": zod.string().nullish(),
-  "pronouns": zod.string().nullish(),
-  "occupation": zod.string().nullish(),
-  "archetype": zod.string(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
   "age": zod.number(),
-  "gender": zod.string(),
-  "physicalDescription": zod.string().nullish(),
-  "appearance": zod.string(),
-  "psychProfile": zod.string().nullish(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
   "background": zod.string(),
-  "attributes": zod.record(zod.string(), zod.number()),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.record(zod.string(), zod.number()),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
@@ -1145,7 +1135,7 @@ export const DecideSheetResponse = zod.object({
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).max(decideSheetResponseDataCyberwareMax),
+})),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
@@ -1164,7 +1154,7 @@ export const DecideSheetResponse = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 11\nentries in the canonical NCRP foundational order (Cyberaudio Suite,\nCybereyes, Neural Link, Cyberarm L\/R, Cyberhand L\/R, Cyberleg L\/R,\nCyberfoot L\/R). `cyberwareMisc` is unbounded for fashionware,\ninternal\/external, borgware, cyberweapons. Total points across all\nchrome (foundational + misc) is capped at 6 humanity points at creation.\n')
+}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
 })
 
 

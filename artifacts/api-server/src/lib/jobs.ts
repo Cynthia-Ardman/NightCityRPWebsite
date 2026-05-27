@@ -26,12 +26,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         }
       }
     } else if (name === "monthly_rent") {
-      // Placeholder: charges flat rent to every approved PC. Real logic uses character housing.
+      // Charges flat rent to every approved PC. UB is authoritative — only
+      // record a local ledger entry after the UB debit succeeds.
       const chars = await db.select().from(characters).where(eq(characters.kind, "pc"));
       for (const c of chars) {
         const rent = 500;
         const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
-        if (owner) await patchBalance(owner.discordId, { cash: -rent, reason: "Monthly rent" });
+        if (!owner) continue;
+        const ub = await patchBalance(owner.discordId, { cash: -rent, reason: "Monthly rent" });
+        if (!ub) {
+          logger.warn({ characterId: c.id }, "monthly_rent UB debit failed; skipping local ledger insert");
+          continue;
+        }
         await db.insert(walletTransactions).values({
           characterId: c.id,
           amount: -rent,
@@ -68,10 +74,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         if (totalHL <= 0) continue;
         const charge = totalHL * RATE_PER_HL;
         const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
+        if (!owner) continue;
+        // UB is authoritative — only insert a local ledger entry after a
+        // confirmed UB debit. Skip cleanly on UB unavailability.
+        const ub = await patchBalance(owner.discordId, {
+          cash: -charge,
+          reason: `Cyberpsychosis meds (${totalHL} HL)`,
+        });
+        if (!ub) {
+          logger.warn({ characterId: c.id }, "cyberware_humanity UB debit failed; skipping local ledger insert");
+          continue;
+        }
         try {
-          if (owner) {
-            await patchBalance(owner.discordId, { cash: -charge, reason: `Cyberpsychosis meds (${totalHL} HL)` });
-          }
           await db.insert(walletTransactions).values({
             characterId: c.id,
             amount: -charge,
@@ -80,7 +94,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           });
           affected++;
         } catch (err) {
-          logger.warn({ err, characterId: c.id }, "cyberware_humanity charge failed");
+          logger.warn({ err, characterId: c.id }, "cyberware_humanity ledger insert failed");
         }
       }
     }

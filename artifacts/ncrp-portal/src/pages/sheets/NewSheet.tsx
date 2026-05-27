@@ -12,21 +12,23 @@ import { Plus, Trash2 } from "lucide-react";
 interface Pair { name: string; value: number }
 interface CW { slot: string; name: string; points: number; humanityLoss: number; notes: string }
 
-// NCRP Cyberpunk Red foundational chrome slots — per-arm and per-leg semantics.
-// Players also have an unlimited "Misc" list for fashionware, internal/external,
-// borgware, cyberweapons, and other implants that don't occupy a foundational slot.
+// NCRP canonical chrome taxonomy (per NCRP creation guidelines):
+// 1 slot per arm, 1 slot per leg; Hands & Feet = 2 slots; everything else 1 slot.
+// "Miscellaneous" is unlimited and lives in a separate list below.
 const SLOTS = [
-  "Cyberaudio Suite",
-  "Cybereyes",
-  "Neural Link",
-  "Cyberarm (Left)",
-  "Cyberarm (Right)",
-  "Cyberhand (Left)",
-  "Cyberhand (Right)",
-  "Cyberleg (Left)",
-  "Cyberleg (Right)",
-  "Cyberfoot (Left)",
-  "Cyberfoot (Right)",
+  "Arms & Arm Attachments (Left)",
+  "Arms & Arm Attachments (Right)",
+  "Auditory System",
+  "Circulatory & Immune Systems",
+  "Hands",
+  "Feet",
+  "Integumentary System",
+  "Legs & Mobility (Left)",
+  "Legs & Mobility (Right)",
+  "Neural",
+  "Ocular System",
+  "Skeleton & Torso Musculature",
+  "Universal Muscular (Arms/Legs/Tail)",
 ] as const;
 
 export default function NewSheet() {
