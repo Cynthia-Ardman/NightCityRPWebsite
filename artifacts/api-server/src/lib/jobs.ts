@@ -26,9 +26,14 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         }
       }
     } else if (name === "monthly_rent") {
-      // Charges flat rent to every approved PC. UB is authoritative — only
-      // record a local ledger entry after the UB debit succeeds.
-      const chars = await db.select().from(characters).where(eq(characters.kind, "pc"));
+      // Charges flat rent to every approved, non-archived PC. UB is
+      // authoritative — only record a local ledger entry after the UB debit
+      // succeeds. Filtering on approved+archived prevents automated debits
+      // from hitting unapproved or retired characters.
+      const chars = await db
+        .select()
+        .from(characters)
+        .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
       for (const c of chars) {
         const rent = 500;
         const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
