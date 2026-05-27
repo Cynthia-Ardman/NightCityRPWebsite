@@ -1022,7 +1022,7 @@ components:
 
     Store:
       type: object
-      required: [id, name, kind, ownerId]
+      required: [id, name, kind, ownerId, employees, stock]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -1050,7 +1050,7 @@ components:
 
     Ripperdoc:
       type: object
-      required: [id, name, ownerId]
+      required: [id, name, ownerId, employees, stock]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -1201,7 +1201,7 @@ components:
         ownerName: { type: string }
         characterId: { type: ["integer", "null"] }
         name: { type: string }
-        status: { type: string, enum: [pending, approved, rejected] }
+        status: { type: string, enum: [pending, approved, rejected, changes_requested] }
         decisionBy: { type: ["string", "null"] }
         decisionNote: { type: ["string", "null"] }
         decidedAt: { type: ["string", "null"], format: date-time }
@@ -1248,8 +1248,9 @@ components:
 
     CharacterSheetInput:
       type: object
-      required: [data]
+      required: [name, data]
       properties:
+        name: { type: string, minLength: 1, maxLength: 64 }
         characterId: { type: ["integer", "null"] }
         data: { $ref: "#/components/schemas/CharacterSheetData" }
 
@@ -1257,7 +1258,7 @@ components:
       type: object
       required: [decision]
       properties:
-        decision: { type: string, enum: [approved, rejected] }
+        decision: { type: string, enum: [approved, rejected, changes_requested] }
         note: { type: string }
 
     DiceRollInput:
@@ -1299,8 +1300,13 @@ components:
         isAdmin: { type: boolean }
         isFixer: { type: boolean }
         isCsApprover: { type: boolean }
+        isRipperdoc: { type: boolean }
+        isStoreOwner: { type: boolean }
         characterCount: { type: integer }
         lastSeenAt: { type: ["string", "null"], format: date-time }
+        characters:
+          type: array
+          items: { $ref: "#/components/schemas/Character" }
 
     WalletAdjustmentInput:
       type: object

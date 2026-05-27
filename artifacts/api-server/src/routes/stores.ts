@@ -1,0 +1,243 @@
+import { Router, type IRouter } from "express";
+import { eq, and } from "drizzle-orm";
+import {
+  db,
+  stores,
+  storeEmployees,
+  storeStock,
+  ripperdocs,
+  ripperdocEmployees,
+  ripperdocStock,
+  characters,
+} from "@workspace/db";
+import { requireAuth } from "../middlewares/auth";
+
+const router: IRouter = Router();
+
+// ===== Stores =====
+router.get("/me/stores", requireAuth, async (req, res): Promise<void> => {
+  const rows = await db.select().from(stores).where(eq(stores.ownerId, req.user!.id));
+  res.json(rows);
+});
+
+router.get("/stores/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [s] = await db.select().from(stores).where(eq(stores.id, id));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const emps = await db
+    .select({ id: storeEmployees.id, characterId: characters.id, name: characters.name, role: storeEmployees.role })
+    .from(storeEmployees)
+    .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
+    .where(eq(storeEmployees.storeId, id));
+  const stock = await db.select().from(storeStock).where(eq(storeStock.storeId, id));
+  res.json({ ...s, employees: emps, stock });
+});
+
+router.patch("/stores/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { name, kind, location, description, bannerUrl, ownerCharacterId } = req.body ?? {};
+  const [u] = await db
+    .update(stores)
+    .set({
+      ...(name !== undefined ? { name } : {}),
+      ...(kind !== undefined ? { kind } : {}),
+      ...(location !== undefined ? { location } : {}),
+      ...(description !== undefined ? { description } : {}),
+      ...(bannerUrl !== undefined ? { bannerUrl } : {}),
+      ...(ownerCharacterId !== undefined ? { ownerCharacterId } : {}),
+    })
+    .where(eq(stores.id, id))
+    .returning();
+  res.json(u);
+});
+
+router.post("/stores/:id/employees", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { characterId, role } = req.body ?? {};
+  if (!characterId) {
+    res.status(400).json({ error: "characterId required" });
+    return;
+  }
+  const [e] = await db.insert(storeEmployees).values({ storeId: id, characterId, role: role ?? "clerk" }).returning();
+  res.status(201).json(e);
+});
+
+router.delete("/stores/:id/employees/:empId", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const empId = parseInt(String(req.params.empId), 10);
+  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await db.delete(storeEmployees).where(and(eq(storeEmployees.id, empId), eq(storeEmployees.storeId, id)));
+  res.sendStatus(204);
+});
+
+router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { name, category, price, quantity, notes } = req.body ?? {};
+  if (!name) {
+    res.status(400).json({ error: "name required" });
+    return;
+  }
+  const [it] = await db
+    .insert(storeStock)
+    .values({ storeId: id, name, category: category ?? null, price: price ?? 0, quantity: quantity ?? 0, notes: notes ?? null })
+    .returning();
+  res.status(201).json(it);
+});
+
+router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const stockId = parseInt(String(req.params.stockId), 10);
+  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { name, category, price, quantity, notes } = req.body ?? {};
+  const [u] = await db
+    .update(storeStock)
+    .set({
+      ...(name !== undefined ? { name } : {}),
+      ...(category !== undefined ? { category } : {}),
+      ...(price !== undefined ? { price } : {}),
+      ...(quantity !== undefined ? { quantity } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+    })
+    .where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, id)))
+    .returning();
+  if (!u) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(u);
+});
+
+router.delete("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const stockId = parseInt(String(req.params.stockId), 10);
+  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await db.delete(storeStock).where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, id)));
+  res.sendStatus(204);
+});
+
+// ===== Ripperdocs =====
+router.get("/me/ripperdocs", requireAuth, async (req, res): Promise<void> => {
+  const rows = await db.select().from(ripperdocs).where(eq(ripperdocs.ownerId, req.user!.id));
+  res.json(rows);
+});
+
+router.get("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [r] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, id));
+  if (!r) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const emps = await db
+    .select({ id: ripperdocEmployees.id, characterId: characters.id, name: characters.name, role: ripperdocEmployees.role })
+    .from(ripperdocEmployees)
+    .innerJoin(characters, eq(characters.id, ripperdocEmployees.characterId))
+    .where(eq(ripperdocEmployees.ripperdocId, id));
+  const stock = await db.select().from(ripperdocStock).where(eq(ripperdocStock.ripperdocId, id));
+  res.json({ ...r, employees: emps, stock });
+});
+
+router.patch("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
+  if (!r) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { name, location, description, bannerUrl, ownerCharacterId } = req.body ?? {};
+  const [u] = await db
+    .update(ripperdocs)
+    .set({
+      ...(name !== undefined ? { name } : {}),
+      ...(location !== undefined ? { location } : {}),
+      ...(description !== undefined ? { description } : {}),
+      ...(bannerUrl !== undefined ? { bannerUrl } : {}),
+      ...(ownerCharacterId !== undefined ? { ownerCharacterId } : {}),
+    })
+    .where(eq(ripperdocs.id, id))
+    .returning();
+  res.json(u);
+});
+
+router.post("/ripperdocs/:id/employees", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
+  if (!r) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { characterId, role } = req.body ?? {};
+  const [e] = await db.insert(ripperdocEmployees).values({ ripperdocId: id, characterId, role: role ?? "doc" }).returning();
+  res.status(201).json(e);
+});
+
+router.delete("/ripperdocs/:id/employees/:empId", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const empId = parseInt(String(req.params.empId), 10);
+  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
+  if (!r) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await db.delete(ripperdocEmployees).where(and(eq(ripperdocEmployees.id, empId), eq(ripperdocEmployees.ripperdocId, id)));
+  res.sendStatus(204);
+});
+
+router.post("/ripperdocs/:id/stock", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
+  if (!r) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { name, category, price, quantity, notes } = req.body ?? {};
+  const [it] = await db
+    .insert(ripperdocStock)
+    .values({ ripperdocId: id, name, category: category ?? null, price: price ?? 0, quantity: quantity ?? 0, notes: notes ?? null })
+    .returning();
+  res.status(201).json(it);
+});
+
+router.delete("/ripperdocs/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const stockId = parseInt(String(req.params.stockId), 10);
+  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
+  if (!r) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await db.delete(ripperdocStock).where(and(eq(ripperdocStock.id, stockId), eq(ripperdocStock.ripperdocId, id)));
+  res.sendStatus(204);
+});
+
+export default router;
