@@ -53,21 +53,73 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(s);
 });
 
+// NCRP foundational chrome template — must match the client sheet form.
+const NCRP_SLOTS = [
+  "Cyberaudio Suite",
+  "Cybereyes",
+  "Neural Link",
+  "Cyberarm (Left)",
+  "Cyberarm (Right)",
+  "Cyberhand (Left)",
+  "Cyberhand (Right)",
+  "Cyberleg (Left)",
+  "Cyberleg (Right)",
+  "Cyberfoot (Left)",
+  "Cyberfoot (Right)",
+] as const;
+const REQUIRED_SHEET_FIELDS = ["sheetType", "fullName", "archetype"] as const;
+
 router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
   const { name, data, characterId } = req.body ?? {};
-  if (!name || !data) {
+  if (!name || !data || typeof data !== "object") {
     res.status(400).json({ error: "name and data required" });
     return;
   }
-  // Validate cyberware caps
-  const cw = Array.isArray(data.cyberware) ? data.cyberware : [];
-  if (cw.length > 11) {
-    res.status(400).json({ error: "Max 11 cyberware slots" });
+  // Required identity fields
+  for (const f of REQUIRED_SHEET_FIELDS) {
+    if (typeof (data as Record<string, unknown>)[f] !== "string" || !(data as Record<string, string>)[f].trim()) {
+      res.status(400).json({ error: `Missing required field: ${f}` });
+      return;
+    }
+  }
+  if (!["PC", "NPC"].includes((data as { sheetType: string }).sheetType)) {
+    res.status(400).json({ error: "sheetType must be PC or NPC" });
     return;
   }
-  const points = typeof data.cyberwarePointsSpent === "number" ? data.cyberwarePointsSpent : 0;
+  // Foundational chrome template — exact 11 slots, in order, named correctly.
+  const bySlot = Array.isArray((data as { cyberwareBySlot?: unknown }).cyberwareBySlot)
+    ? ((data as { cyberwareBySlot: unknown[] }).cyberwareBySlot as Array<{ slot?: string }>)
+    : null;
+  if (!bySlot || bySlot.length !== NCRP_SLOTS.length) {
+    res.status(400).json({ error: `cyberwareBySlot must contain exactly ${NCRP_SLOTS.length} entries (one per NCRP foundational slot)` });
+    return;
+  }
+  for (let i = 0; i < NCRP_SLOTS.length; i++) {
+    if (bySlot[i]?.slot !== NCRP_SLOTS[i]) {
+      res.status(400).json({ error: `cyberwareBySlot[${i}].slot must be "${NCRP_SLOTS[i]}"` });
+      return;
+    }
+  }
+  // Misc chrome is unlimited but each entry must have at least slot+name+points.
+  const miscEntries = Array.isArray((data as { cyberwareMisc?: unknown }).cyberwareMisc)
+    ? ((data as { cyberwareMisc: unknown[] }).cyberwareMisc as Array<{ slot?: string; name?: string }>)
+    : [];
+  for (const m of miscEntries) {
+    if (!m?.slot || !m?.name) {
+      res.status(400).json({ error: "Each misc chrome entry requires slot (category) and name" });
+      return;
+    }
+  }
+  // Server-recomputed point cap (don't trust client).
+  const filledFoundational = bySlot.filter((c) => typeof (c as { name?: string }).name === "string" && ((c as { name: string }).name).trim().length > 0);
+  const allChrome = [...filledFoundational, ...miscEntries] as Array<{ points?: number }>;
+  const points = allChrome.reduce((s, c) => s + (Number(c.points) || 0), 0);
   if (points > 6) {
-    res.status(400).json({ error: "Max 6 cyberware points at creation" });
+    res.status(400).json({ error: "Max 6 cyberware humanity points at creation" });
+    return;
+  }
+  if (filledFoundational.length > NCRP_SLOTS.length) {
+    res.status(400).json({ error: `Max ${NCRP_SLOTS.length} foundational chrome slots` });
     return;
   }
   const [s] = await db
@@ -82,7 +134,7 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
     .returning();
 
   if (CS_CHANNEL_ID) {
-    const sheetType = characterId ? "PC" : (data.sheetType === "NPC" ? "NPC" : "PC");
+    const sheetType = (data as { sheetType: string }).sheetType;
     const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
     const reviewUrl = portalBase ? `https://${portalBase}/sheets/${s.id}` : `/sheets/${s.id}`;
     const msgId = await postToChannel(CS_CHANNEL_ID, `New ${sheetType} sheet pending review: **${name}** by ${req.user!.username}`, [

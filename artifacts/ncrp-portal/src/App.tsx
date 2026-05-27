@@ -40,7 +40,7 @@ const queryClient = new QueryClient({
 });
 
 function AppRoutes() {
-  const { data: user, isLoading, error } = useGetMe();
+  const { isLoading } = useGetMe();
 
   if (isLoading) {
     return (
@@ -54,42 +54,39 @@ function AppRoutes() {
   }
 
   return (
-    <div className="crt-overlay pointer-events-none fixed inset-0 z-50">
-      <div className="scanline" />
-    </div>
-  );
-}
-
-function Router() {
-  return (
-    <AppLayout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/characters" component={CharactersList} />
-        <Route path="/characters/:id" component={CharacterDetail} />
-        <Route path="/sheets" component={SheetsList} />
-        <Route path="/sheets/new" component={NewSheet} />
-        <Route path="/sheets/pending" component={PendingSheets} />
-        <Route path="/sheets/:id" component={SheetDetail} />
-        <Route path="/directory/stores" component={DirectoryStores} />
-        <Route path="/directory/stores/:id" component={DirectoryStoreDetail} />
-        <Route path="/directory/ripperdocs" component={DirectoryRipperdocs} />
-        <Route path="/directory/ripperdocs/:id" component={DirectoryRipperdocDetail} />
-        <Route path="/catalog/guns" component={CatalogGuns} />
-        <Route path="/catalog/cyberware" component={CatalogCyberware} />
-        <Route path="/catalog/rent" component={CatalogRent} />
-        <Route path="/stores" component={MyStores} />
-        <Route path="/stores/:id" component={MyStoreDetail} />
-        <Route path="/clinics" component={MyClinics} />
-        <Route path="/clinics/:id" component={MyClinicDetail} />
-        <Route path="/fixer" component={FixerHub} />
-        <Route path="/fixer/npcs/:id" component={FixerNpcDetail} />
-        <Route path="/dice" component={DiceRoller} />
-        <Route path="/admin" component={AdminDashboard} />
-        <Route path="/admin/users/:userId" component={AdminUserDetail} />
-        <Route component={NotFound} />
-      </Switch>
-    </AppLayout>
+    <>
+      <AppLayout>
+        <Switch>
+          <Route path="/" component={Home} />
+          <Route path="/characters" component={CharactersList} />
+          <Route path="/characters/:id" component={CharacterDetail} />
+          <Route path="/sheets" component={SheetsList} />
+          <Route path="/sheets/new" component={NewSheet} />
+          <Route path="/sheets/pending" component={PendingSheets} />
+          <Route path="/sheets/:id" component={SheetDetail} />
+          <Route path="/directory/stores" component={DirectoryStores} />
+          <Route path="/directory/stores/:id" component={DirectoryStoreDetail} />
+          <Route path="/directory/ripperdocs" component={DirectoryRipperdocs} />
+          <Route path="/directory/ripperdocs/:id" component={DirectoryRipperdocDetail} />
+          <Route path="/catalog/guns" component={CatalogGuns} />
+          <Route path="/catalog/cyberware" component={CatalogCyberware} />
+          <Route path="/catalog/rent" component={CatalogRent} />
+          <Route path="/stores" component={MyStores} />
+          <Route path="/stores/:id" component={MyStoreDetail} />
+          <Route path="/clinics" component={MyClinics} />
+          <Route path="/clinics/:id" component={MyClinicDetail} />
+          <Route path="/fixer" component={FixerHub} />
+          <Route path="/fixer/npcs/:id" component={FixerNpcDetail} />
+          <Route path="/dice" component={DiceRoller} />
+          <Route path="/admin" component={AdminDashboard} />
+          <Route path="/admin/users/:userId" component={AdminUserDetail} />
+          <Route component={NotFound} />
+        </Switch>
+      </AppLayout>
+      <div className="crt-overlay pointer-events-none fixed inset-0 z-50">
+        <div className="scanline" />
+      </div>
+    </>
   );
 }
 
@@ -99,7 +96,6 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AppRoutes />
-          <Router />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

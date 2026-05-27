@@ -12,8 +12,22 @@ import { Plus, Trash2 } from "lucide-react";
 interface Pair { name: string; value: number }
 interface CW { slot: string; name: string; points: number; humanityLoss: number; notes: string }
 
-const SLOTS = ["Head", "Eyes", "Arms", "Hands", "Operating System", "Nervous System",
-  "Circulatory System", "Skin", "Skeleton", "Legs", "Internal Organs"] as const;
+// NCRP Cyberpunk Red foundational chrome slots — per-arm and per-leg semantics.
+// Players also have an unlimited "Misc" list for fashionware, internal/external,
+// borgware, cyberweapons, and other implants that don't occupy a foundational slot.
+const SLOTS = [
+  "Cyberaudio Suite",
+  "Cybereyes",
+  "Neural Link",
+  "Cyberarm (Left)",
+  "Cyberarm (Right)",
+  "Cyberhand (Left)",
+  "Cyberhand (Right)",
+  "Cyberleg (Left)",
+  "Cyberleg (Right)",
+  "Cyberfoot (Left)",
+  "Cyberfoot (Right)",
+] as const;
 
 export default function NewSheet() {
   const qc = useQueryClient();
@@ -43,16 +57,21 @@ export default function NewSheet() {
   const [startingEddies, setStartingEddies] = useState(0);
   const [attributes, setAttributes] = useState<Pair[]>([{ name: "", value: 0 }]);
   const [skills, setSkills] = useState<Pair[]>([{ name: "", value: 0 }]);
-  // Fixed-by-slot: one row per named chrome slot (11 total); user fills in install or leaves empty.
+  // Fixed-by-slot: one row per named foundational chrome slot (11 total).
   const [chrome, setChrome] = useState<CW[]>(
     SLOTS.map((s) => ({ slot: s, name: "", points: 0, humanityLoss: 0, notes: "" })),
   );
+  // Misc: unlimited list for fashionware, internal/external/borgware/cyberweapons.
+  const [misc, setMisc] = useState<CW[]>([]);
   const [gear, setGear] = useState<string[]>([""]);
 
   const filledChrome = chrome.filter((c) => c.name.trim().length > 0);
-  const pointsSpent = filledChrome.reduce((s, c) => s + (Number(c.points) || 0), 0);
+  const filledMisc = misc.filter((c) => c.name.trim().length > 0);
+  const pointsSpent =
+    filledChrome.reduce((s, c) => s + (Number(c.points) || 0), 0) +
+    filledMisc.reduce((s, c) => s + (Number(c.points) || 0), 0);
   const overCap = pointsSpent > 6;
-  const overSlots = filledChrome.length > 11;
+  const overSlots = filledChrome.length > SLOTS.length;
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,8 +88,9 @@ export default function NewSheet() {
           startingEddies: Number(startingEddies) || 0,
           attributes: attributes.filter((a) => a.name).reduce((o, a) => ({ ...o, [a.name]: Number(a.value) }), {}),
           skills: skills.filter((s) => s.name).reduce((o, s) => ({ ...o, [s.name]: Number(s.value) }), {}),
-          cyberware: filledChrome,
+          cyberware: [...filledChrome, ...filledMisc],
           cyberwareBySlot: chrome,
+          cyberwareMisc: filledMisc,
           cyberwarePointsSpent: pointsSpent,
           gear: gear.filter(Boolean),
         },
@@ -133,10 +153,10 @@ export default function NewSheet() {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
           <CardTitle className="font-display tracking-widest">
-            CYBERWARE — 11 CHROME SLOTS <span className={overSlots ? "text-destructive" : "text-nc-cyan"}>({filledChrome.length}/11)</span>
+            FOUNDATIONAL CHROME — {SLOTS.length} SLOTS <span className={overSlots ? "text-destructive" : "text-nc-cyan"}>({filledChrome.length}/{SLOTS.length})</span>
             <span className={`ml-4 ${overCap ? "text-destructive" : "text-nc-yellow"}`}>HUM PTS: {pointsSpent}/6</span>
           </CardTitle>
-          <p className="text-xs font-mono text-muted-foreground mt-1">Each named slot can hold one install. Leave NAME blank to mark slot as empty.</p>
+          <p className="text-xs font-mono text-muted-foreground mt-1">One install per named slot (per-arm, per-leg semantics). Leave INSTALL blank to mark slot empty.</p>
         </CardHeader>
         <CardContent className="space-y-3">
           {chrome.map((cw, i) => (
@@ -149,6 +169,29 @@ export default function NewSheet() {
               <div className="col-span-1"><Label className="text-xs font-mono">PTS</Label><Input type="number" min={0} value={cw.points} onChange={(e) => setChrome(chrome.map((c, j) => j === i ? { ...c, points: Number(e.target.value) } : c))} /></div>
               <div className="col-span-1"><Label className="text-xs font-mono">HL</Label><Input type="number" min={0} value={cw.humanityLoss} onChange={(e) => setChrome(chrome.map((c, j) => j === i ? { ...c, humanityLoss: Number(e.target.value) } : c))} /></div>
               <div className="col-span-3"><Label className="text-xs font-mono">NOTES</Label><Input value={cw.notes} onChange={(e) => setChrome(chrome.map((c, j) => j === i ? { ...c, notes: e.target.value } : c))} /></div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest">
+            MISC CHROME — UNLIMITED <span className="text-nc-cyan">({filledMisc.length})</span>
+          </CardTitle>
+          <Button type="button" onClick={() => setMisc([...misc, { slot: "Misc", name: "", points: 0, humanityLoss: 0, notes: "" }])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-misc"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs font-mono text-muted-foreground">Fashionware, internal/external, borgware, cyberweapons, other implants. Counted toward the 6 humanity-pt cap at creation.</p>
+          {misc.length === 0 && <p className="text-muted-foreground font-mono text-sm">No misc chrome.</p>}
+          {misc.map((cw, i) => (
+            <div key={i} className="grid grid-cols-12 gap-2 items-end border border-border/50 p-3" data-testid={`row-misc-${i}`}>
+              <div className="col-span-2"><Label className="text-xs font-mono">CATEGORY</Label><Input value={cw.slot} placeholder="Fashionware" onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, slot: e.target.value } : c))} /></div>
+              <div className="col-span-4"><Label className="text-xs font-mono">INSTALL</Label><Input value={cw.name} onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, name: e.target.value } : c))} data-testid={`input-misc-name-${i}`} /></div>
+              <div className="col-span-1"><Label className="text-xs font-mono">PTS</Label><Input type="number" min={0} value={cw.points} onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, points: Number(e.target.value) } : c))} /></div>
+              <div className="col-span-1"><Label className="text-xs font-mono">HL</Label><Input type="number" min={0} value={cw.humanityLoss} onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, humanityLoss: Number(e.target.value) } : c))} /></div>
+              <div className="col-span-3"><Label className="text-xs font-mono">NOTES</Label><Input value={cw.notes} onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, notes: e.target.value } : c))} /></div>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setMisc(misc.filter((_, j) => j !== i))} className="text-destructive" data-testid={`button-remove-misc-${i}`}><Trash2 className="w-4 h-4" /></Button>
             </div>
           ))}
         </CardContent>

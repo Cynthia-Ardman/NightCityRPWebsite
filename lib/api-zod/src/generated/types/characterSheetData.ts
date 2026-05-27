@@ -10,8 +10,17 @@ import type { CharacterSheetDataAttributes } from './characterSheetDataAttribute
 import type { CharacterSheetDataSheetType } from './characterSheetDataSheetType';
 import type { CharacterSheetDataSkills } from './characterSheetDataSkills';
 
+/**
+ * NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 11
+entries in the canonical NCRP foundational order (Cyberaudio Suite,
+Cybereyes, Neural Link, Cyberarm L/R, Cyberhand L/R, Cyberleg L/R,
+Cyberfoot L/R). `cyberwareMisc` is unbounded for fashionware,
+internal/external, borgware, cyberweapons. Total points across all
+chrome (foundational + misc) is capped at 6 humanity points at creation.
+
+ */
 export interface CharacterSheetData {
-  sheetType?: CharacterSheetDataSheetType;
+  sheetType: CharacterSheetDataSheetType;
   fullName: string;
   /** @nullable */
   nickname?: string | null;
@@ -33,11 +42,15 @@ export interface CharacterSheetData {
   /** @maxItems 11 */
   cyberware: CharacterSheetCyberwareEntry[];
   /**
-     * Full 11-slot chrome layout (one entry per named slot; install name may be empty).
+     * Full 11-slot foundational chrome layout. One entry per named NCRP slot,
+  in canonical order. Leave `name` empty to mark a slot unused.
+
      * @minItems 11
      * @maxItems 11
      */
-  cyberwareBySlot?: CharacterSheetCyberwareEntry[];
+  cyberwareBySlot: CharacterSheetCyberwareEntry[];
+  /** Unlimited list for fashionware, internal/external, borgware, cyberweapons. */
+  cyberwareMisc?: CharacterSheetCyberwareEntry[];
   /** @maximum 6 */
   cyberwarePointsSpent?: number;
   gear: string[];

@@ -1,5 +1,5 @@
 import { db, users, jobRuns, characters, walletTransactions } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot } from "./discord";
 import { patchBalance } from "./unbelievaboat";
@@ -41,8 +41,48 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         affected++;
       }
     } else if (name === "cyberware_humanity") {
-      // Placeholder: would compute humanity loss from installed cyberware.
-      message = "No-op placeholder";
+      // Weekly cyberpsychosis-meds charge. For each approved (non-archived) character
+      // with an approved sheet, sum total humanity loss across all chrome (foundational
+      // slots + Misc) and charge meds = HL * RATE_PER_HL.
+      const RATE_PER_HL = 50; // eddies per humanity loss point per week
+      const { characterSheets } = await import("@workspace/db");
+      const approvedChars = await db
+        .select()
+        .from(characters)
+        .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
+      for (const c of approvedChars) {
+        const [sheet] = await db
+          .select()
+          .from(characterSheets)
+          .where(and(eq(characterSheets.characterId, c.id), eq(characterSheets.status, "approved")))
+          .orderBy(desc(characterSheets.createdAt))
+          .limit(1);
+        if (!sheet) continue;
+        const data = (sheet.data ?? {}) as Record<string, unknown>;
+        const bySlot = Array.isArray(data.cyberwareBySlot) ? data.cyberwareBySlot : [];
+        const misc = Array.isArray(data.cyberwareMisc) ? data.cyberwareMisc : [];
+        const allChrome = [...bySlot, ...misc] as Array<{ name?: string; humanityLoss?: number }>;
+        const totalHL = allChrome
+          .filter((cw) => (cw?.name ?? "").trim().length > 0)
+          .reduce((s, cw) => s + (Number(cw.humanityLoss) || 0), 0);
+        if (totalHL <= 0) continue;
+        const charge = totalHL * RATE_PER_HL;
+        const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
+        try {
+          if (owner) {
+            await patchBalance(owner.discordId, { cash: -charge, reason: `Cyberpsychosis meds (${totalHL} HL)` });
+          }
+          await db.insert(walletTransactions).values({
+            characterId: c.id,
+            amount: -charge,
+            kind: "meds",
+            memo: `Weekly cyberpsychosis maintenance for ${totalHL} HL of chrome`,
+          });
+          affected++;
+        } catch (err) {
+          logger.warn({ err, characterId: c.id }, "cyberware_humanity charge failed");
+        }
+      }
     }
   } catch (err) {
     status = "failed";
@@ -65,7 +105,8 @@ export function startCron() {
     cron.schedule("0 */6 * * *", () => {
       runJob("role_sync").catch((err) => logger.error({ err }, "role_sync cron"));
     });
-    cron.schedule("0 5 * * *", () => {
+    // Weekly cyberpsychosis-meds charge: Mondays at 05:00.
+    cron.schedule("0 5 * * 1", () => {
       runJob("cyberware_humanity").catch((err) => logger.error({ err }, "cyberware_humanity cron"));
     });
     logger.info("Cron jobs scheduled");
