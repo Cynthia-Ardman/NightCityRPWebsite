@@ -14,10 +14,12 @@ import { resolve } from "path";
  *   pnpm --filter @workspace/scripts run import-character-sheets -- --forum-channel-id <id>
  *
  * Flags:
- *   --forum-channel-id <id>   Required. The Discord forum channel id.
- *   --list-channels           List all forum channels in the guild, then exit.
- *   --limit <n>               Only process the first n threads (handy for testing).
- *   --no-classify             Skip Anthropic image classification.
+ *   --forum-channel-id <id>     Required (or pass --forum-channel-ids).
+ *   --forum-channel-ids a,b,c   Comma-separated list of forum channel ids.
+ *   --list-channels             List all forum channels in the guild, then exit.
+ *   --limit <n>                 Only process the first n threads per channel.
+ *   --no-classify               Skip Anthropic image classification.
+ *   --classify-concurrency <n>  Parallel image classification calls (default 4).
  *
  * Required env:
  *   DISCORD_BOT_TOKEN, DISCORD_GUILD_ID
@@ -89,15 +91,23 @@ if (hasFlag("--list-channels")) {
   process.exit(0);
 }
 
-const channelId = arg("--forum-channel-id");
-if (!channelId) {
+const channelIds = (() => {
+  const list = arg("--forum-channel-ids");
+  if (list) return list.split(",").map((s) => s.trim()).filter(Boolean);
+  const single = arg("--forum-channel-id");
+  return single ? [single] : [];
+})();
+if (channelIds.length === 0) {
   console.error(
-    "Pass --forum-channel-id <id>, or run with --list-channels to discover ids.",
+    "Pass --forum-channel-id <id>, --forum-channel-ids a,b,c, or --list-channels.",
   );
   process.exit(1);
 }
 const limit = arg("--limit") ? Number(arg("--limit")) : Infinity;
 const noClassify = hasFlag("--no-classify");
+const classifyConcurrency = arg("--classify-concurrency")
+  ? Number(arg("--classify-concurrency"))
+  : 4;
 
 // ---------- threads ----------
 type Thread = {
@@ -339,54 +349,79 @@ if (!noClassify) {
   if (baseURL && apiKey) {
     try {
       const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      const client = new Anthropic({ baseURL, apiKey });
+      // maxRetries: 1 so a 429 doesn't trigger 10-minute exponential backoff.
+      // Per-call timeout enforced via AbortController below.
+      const client = new Anthropic({ baseURL, apiKey, maxRetries: 1 });
+      const CLASSIFY_TIMEOUT_MS = 25_000;
       classifyImage = async (url: string) => {
         try {
-          const imgRes = await fetch(url);
-          if (!imgRes.ok) throw new Error(`download ${imgRes.status}`);
-          const ct = imgRes.headers.get("content-type") ?? "image/png";
-          const mediaType = (
-            ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(ct)
-              ? ct
-              : "image/png"
-          ) as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
-          const buf = Buffer.from(await imgRes.arrayBuffer());
-          // Anthropic's vision API rejects images > 5MB (decoded). Cap at
-          // 4.5MB to leave headroom and avoid wasted round-trips. Very large
-          // sheet images get tagged "other" — they're rare enough that it's
-          // fine to hand-classify them later.
+          // 1. Download image with hard 15s timeout.
+          const dlCtl = new AbortController();
+          const dlTimer = setTimeout(() => dlCtl.abort(), 15_000);
+          let buf: Buffer;
+          let mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+          try {
+            const imgRes = await fetch(url, { signal: dlCtl.signal });
+            if (!imgRes.ok) throw new Error(`download ${imgRes.status}`);
+            const ct = imgRes.headers.get("content-type") ?? "image/png";
+            mediaType = (
+              ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(ct)
+                ? ct
+                : "image/png"
+            ) as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+            buf = Buffer.from(await imgRes.arrayBuffer());
+          } finally {
+            clearTimeout(dlTimer);
+          }
+          // 2. Skip if too large for the Vertex/Anthropic image cap.
           if (buf.length > 4_500_000) return "other";
           const b64 = buf.toString("base64");
-          const resp = await client.messages.create({
-            model: "claude-haiku-4-5",
-            max_tokens: 16,
-            messages: [
+          // 3. Classify with hard 25s timeout via AbortController.
+          const apiCtl = new AbortController();
+          const apiTimer = setTimeout(
+            () => apiCtl.abort(),
+            CLASSIFY_TIMEOUT_MS,
+          );
+          let resp;
+          try {
+            resp = await client.messages.create(
               {
-                role: "user",
-                content: [
+                model: "claude-haiku-4-5",
+                max_tokens: 16,
+                messages: [
                   {
-                    type: "image",
-                    source: { type: "base64", media_type: mediaType, data: b64 },
-                  },
-                  {
-                    type: "text",
-                    text: 'This image is from a character sheet for a Cyberpunk roleplay community. Classify it as exactly one of: STATS, PORTRAIT, OTHER. STATS = a VRChat or game-engine performance/stats panel showing labels like "DOWNLOAD SIZE", "TEXTURE MEMORY", "TRIANGLES", "BONES", "PHYSBONE", "MATERIAL SLOTS", "MESHES". PORTRAIT = a screenshot of a character avatar, outfit, or face. OTHER = anything else (logos, memes, maps, equipment shots). Reply with one word only.',
+                    role: "user",
+                    content: [
+                      {
+                        type: "image",
+                        source: {
+                          type: "base64",
+                          media_type: mediaType,
+                          data: b64,
+                        },
+                      },
+                      {
+                        type: "text",
+                        text: 'This image is from a character sheet for a Cyberpunk roleplay community. Classify it as exactly one of: STATS, PORTRAIT, OTHER. STATS = a VRChat or game-engine performance/stats panel showing labels like "DOWNLOAD SIZE", "TEXTURE MEMORY", "TRIANGLES", "BONES", "PHYSBONE", "MATERIAL SLOTS", "MESHES". PORTRAIT = a screenshot of a character avatar, outfit, or face. OTHER = anything else (logos, memes, maps, equipment shots). Reply with one word only.',
+                      },
+                    ],
                   },
                 ],
               },
-            ],
-          });
+              { signal: apiCtl.signal, timeout: CLASSIFY_TIMEOUT_MS },
+            );
+          } finally {
+            clearTimeout(apiTimer);
+          }
           const block = resp.content[0];
-          const text =
-            block && block.type === "text" ? block.text : "";
+          const text = block && block.type === "text" ? block.text : "";
           const up = text.trim().toUpperCase();
           if (up.startsWith("STATS")) return "stats";
           if (up.startsWith("PORTRAIT")) return "portrait";
           return "other";
         } catch (err) {
-          console.warn(
-            `  classify failed for ${url}: ${(err as Error).message}`,
-          );
+          // Silent fallback to "other" per the user's preference — they'll
+          // hand-classify the rare failures later.
           return "other";
         }
       };
@@ -417,6 +452,8 @@ type ImageRecord = {
 type ThreadRecord = {
   threadId: string;
   threadTitle: string;
+  sourceChannelId: string;
+  sourceChannelName: string;
   archived: boolean;
   parsedName: string;
   parsedUsername: string | null;
@@ -427,6 +464,28 @@ type ThreadRecord = {
   images: ImageRecord[];
   warnings: string[];
 };
+
+// Simple bounded-concurrency parallel map.
+async function pMapBounded<T, R>(
+  items: T[],
+  fn: (item: T, idx: number) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (true) {
+        const i = next++;
+        if (i >= items.length) return;
+        out[i] = await fn(items[i], i);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
+}
 
 function extractImages(messages: Message[]): ImageRecord[] {
   const out: ImageRecord[] = [];
@@ -470,65 +529,90 @@ function extractImages(messages: Message[]): ImageRecord[] {
   return out;
 }
 
-console.log(`Fetching threads in channel ${channelId}...`);
-const threads = (await fetchAllThreads(channelId)).slice(0, limit);
-console.log(`Found ${threads.length} thread(s) (active + archived).`);
+// Cache channel names for nicer output.
+const channelNameById = new Map<string, string>();
+{
+  const allChannels = await discord<Channel[]>(`/guilds/${GUILD}/channels`);
+  for (const c of allChannels) channelNameById.set(c.id, c.name);
+}
 
 const records: ThreadRecord[] = [];
-let i = 0;
-for (const t of threads) {
-  i += 1;
-  process.stdout.write(`[${i}/${threads.length}] ${t.name} ... `);
-  const warnings: string[] = [];
-  const { name, username } = parseTitle(t.name);
-  if (!username) warnings.push("Could not parse username from title");
 
-  let resolved: DiscordUser | null = null;
-  if (username) {
-    resolved = await resolveUser(username);
-    if (!resolved)
-      warnings.push(`Username "${username}" not found in guild (unclaimed)`);
-  }
-
-  let messages: Message[] = [];
-  try {
-    messages = await fetchAllMessages(t.id);
-  } catch (err) {
-    warnings.push(`Failed to fetch messages: ${(err as Error).message}`);
-  }
-  const opMsg = messages[0];
-  const sheet = opMsg ? parseSheet(opMsg.content) : null;
-  if (!opMsg) warnings.push("No OP message");
-  else if (sheet && Object.keys(sheet.sections).length < 3)
-    warnings.push(
-      `Only ${Object.keys(sheet.sections).length} labeled section(s) parsed`,
-    );
-
-  const images = extractImages(messages);
-
-  if (classifyImage && images.length > 0) {
-    for (const img of images) {
-      img.kind = await classifyImage(img.url);
-    }
-  }
-
-  records.push({
-    threadId: t.id,
-    threadTitle: t.name,
-    archived: !!t.thread_metadata?.archived,
-    parsedName: name,
-    parsedUsername: username,
-    resolvedDiscordId: resolved?.id ?? null,
-    resolvedDisplayName: resolved?.global_name ?? resolved?.username ?? null,
-    posterUsername: opMsg?.author.username ?? "(unknown)",
-    sheet,
-    images,
-    warnings,
-  });
-
+for (const channelId of channelIds) {
+  const channelName = channelNameById.get(channelId) ?? channelId;
   console.log(
-    `${resolved ? "linked" : "unclaimed"}, ${images.length} image(s), ${warnings.length} warning(s)`,
+    `\nFetching threads in #${channelName} (${channelId})...`,
   );
+  const threads = (await fetchAllThreads(channelId)).slice(0, limit);
+  console.log(`Found ${threads.length} thread(s) in #${channelName}.`);
+
+  let i = 0;
+  for (const t of threads) {
+    i += 1;
+    const tag = `[#${channelName} ${i}/${threads.length}]`;
+    process.stdout.write(`${tag} ${t.name} ... `);
+    const warnings: string[] = [];
+    const { name, username } = parseTitle(t.name);
+    if (!username) warnings.push("Could not parse username from title");
+
+    let resolved: DiscordUser | null = null;
+    if (username) {
+      resolved = await resolveUser(username);
+      if (!resolved)
+        warnings.push(
+          `Username "${username}" not found in guild (unclaimed)`,
+        );
+    }
+
+    let messages: Message[] = [];
+    try {
+      messages = await fetchAllMessages(t.id);
+    } catch (err) {
+      warnings.push(`Failed to fetch messages: ${(err as Error).message}`);
+    }
+    const opMsg = messages[0];
+    const sheet = opMsg ? parseSheet(opMsg.content) : null;
+    if (!opMsg) warnings.push("No OP message");
+    else if (sheet && Object.keys(sheet.sections).length < 3)
+      warnings.push(
+        `Only ${Object.keys(sheet.sections).length} labeled section(s) parsed`,
+      );
+
+    const images = extractImages(messages);
+
+    if (classifyImage && images.length > 0) {
+      const classifier = classifyImage;
+      await pMapBounded(
+        images,
+        async (img) => {
+          img.kind = await classifier(img.url);
+        },
+        classifyConcurrency,
+      );
+    }
+
+    records.push({
+      threadId: t.id,
+      threadTitle: t.name,
+      sourceChannelId: channelId,
+      sourceChannelName: channelName,
+      archived: !!t.thread_metadata?.archived,
+      parsedName: name,
+      parsedUsername: username,
+      resolvedDiscordId: resolved?.id ?? null,
+      resolvedDisplayName: resolved?.global_name ?? resolved?.username ?? null,
+      posterUsername: opMsg?.author.username ?? "(unknown)",
+      sheet,
+      images,
+      warnings,
+    });
+
+    const stats = images.filter((im) => im.kind === "stats").length;
+    const ports = images.filter((im) => im.kind === "portrait").length;
+    console.log(
+      `${resolved ? "linked" : "unclaimed"}, ${images.length} img (${ports}p/${stats}s), ${warnings.length} warn`,
+    );
+  }
 }
 
 // ---------- output ----------
@@ -625,7 +709,7 @@ ${records
   <div class="meta">
     Parsed: <b>${esc(r.parsedName)}</b> — username <b>${esc(r.parsedUsername ?? "(none)")}</b><br>
     Resolved: <b>${esc(r.resolvedDisplayName ?? "UNCLAIMED")}</b> (id: ${esc(r.resolvedDiscordId ?? "—")})<br>
-    Posted by: ${esc(r.posterUsername)} • Thread id: ${esc(r.threadId)}${r.archived ? " • archived" : ""}
+    From: <b>#${esc(r.sourceChannelName)}</b> • Posted by: ${esc(r.posterUsername)} • Thread id: ${esc(r.threadId)}${r.archived ? " • archived" : ""}
   </div>
   ${r.warnings.map((w) => `<div class="warn">! ${esc(w)}</div>`).join("")}
   ${r.sheet?.preamble ? `<details><summary>Pre-amble (unlabeled lines above first section)</summary><div class="section-body">${esc(r.sheet.preamble)}</div></details>` : ""}

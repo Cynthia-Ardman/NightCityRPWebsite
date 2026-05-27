@@ -1,1 +1,3 @@
-- [react-query auth loop](react-query-auth-loop.md) — `useGetMe`-style root gate + errored 401 + default `retryOnMount:true` causes 1Hz mount/unmount refetch loop; set `retryOnMount:false`.
+- [Long-running scripts on Replit](long-running-scripts.md) — nohup+setsid get reaped; register a temporary workflow with outputType "console" and poll via getWorkflowStatus.
+- [Anthropic SDK timeouts](anthropic-sdk-timeouts.md) — default per-call timeout is 10 min and SDK retries silently; wrap with AbortController + set maxRetries:1 for batch jobs.
+- [Discord forwarded messages](discord-forwarded-messages.md) — content/attachments/embeds live under message_snapshots[*].message, not the top-level message; must dive in.
