@@ -1464,6 +1464,7 @@ export const ListPublicCharactersResponseItem = zod.object({
   "kind": zod.string(),
   "archetype": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()).optional(),
   "claimed": zod.boolean(),
   "archived": zod.boolean(),
   "legacyDiscordUsername": zod.string().nullish(),

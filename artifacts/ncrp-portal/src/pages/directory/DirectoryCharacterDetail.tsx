@@ -19,7 +19,7 @@ export default function DirectoryCharacterDetail() {
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
       <div className="flex flex-col md:flex-row gap-6 items-start md:items-end border-b border-border pb-6">
         <Avatar className="h-32 w-32 border-2 border-nc-cyan rounded-none shadow-[0_0_20px_rgba(0,255,255,0.2)] bg-card p-1">
-          <AvatarImage src={char.portraitUrl || ""} className="object-cover rounded-none" />
+          <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ""} className="object-cover rounded-none" />
           <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-4xl">
             {char.name.substring(0, 2).toUpperCase()}
           </AvatarFallback>

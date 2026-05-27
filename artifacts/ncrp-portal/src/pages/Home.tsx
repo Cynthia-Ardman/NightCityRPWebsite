@@ -78,7 +78,7 @@ function Dashboard() {
                 <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan/50 hover:bg-card transition-all cursor-pointer group" data-testid={`card-dashboard-char-${char.id}`}>
                   <CardHeader className="flex flex-row items-center gap-4 pb-2">
                     <Avatar className="h-12 w-12 border border-border rounded-none group-hover:border-nc-cyan transition-colors">
-                      <AvatarImage src={char.portraitUrl || ''} />
+                      <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} />
                       <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-lg">
                         {char.name.substring(0, 2).toUpperCase()}
                       </AvatarFallback>

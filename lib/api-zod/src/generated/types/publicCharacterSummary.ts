@@ -14,6 +14,7 @@ export interface PublicCharacterSummary {
   archetype?: string | null;
   /** @nullable */
   portraitUrl?: string | null;
+  portraitUrls?: string[];
   claimed: boolean;
   archived: boolean;
   /** @nullable */

@@ -145,7 +145,7 @@ export default function CharactersList() {
               <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan hover:shadow-[0_0_15px_rgba(0,255,255,0.1)] transition-all cursor-pointer group h-full flex flex-col" data-testid={`card-character-${char.id}`}>
                 <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2">
                   <Avatar className="h-16 w-16 border border-border rounded-none group-hover:border-nc-cyan transition-colors shadow-sm">
-                    <AvatarImage src={char.portraitUrl || ''} className="object-cover" />
+                    <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} className="object-cover" />
                     <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-2xl">
                       {char.name.substring(0, 2).toUpperCase()}
                     </AvatarFallback>

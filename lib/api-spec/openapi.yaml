@@ -1076,6 +1076,7 @@ components:
         kind: { type: string }
         archetype: { type: ["string", "null"] }
         portraitUrl: { type: ["string", "null"] }
+        portraitUrls: { type: array, items: { type: string } }
         claimed: { type: boolean }
         archived: { type: boolean }
         legacyDiscordUsername: { type: ["string", "null"] }
