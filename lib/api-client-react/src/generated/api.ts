@@ -67,6 +67,7 @@ import type {
   StorePublic,
   StoreUpdate,
   TransferInput,
+  UpcomingBills,
   UploadUrlRequest,
   UploadUrlResponse,
   Wallet,
@@ -5322,6 +5323,83 @@ export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDash
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDashboardSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetUpcomingBillsUrl = () => {
+
+
+
+
+  return `/api/dashboard/upcoming-bills`
+}
+
+/**
+ * @summary Projected rent and cyberpsychosis-meds charges for the signed-in user
+ */
+export const getUpcomingBills = async ( options?: RequestInit): Promise<UpcomingBills> => {
+
+  return customFetch<UpcomingBills>(getGetUpcomingBillsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUpcomingBillsQueryKey = () => {
+    return [
+    `/api/dashboard/upcoming-bills`
+    ] as const;
+    }
+
+
+export const getGetUpcomingBillsQueryOptions = <TData = Awaited<ReturnType<typeof getUpcomingBills>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBills>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUpcomingBillsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUpcomingBills>>> = ({ signal }) => getUpcomingBills({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBills>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUpcomingBillsQueryResult = NonNullable<Awaited<ReturnType<typeof getUpcomingBills>>>
+export type GetUpcomingBillsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Projected rent and cyberpsychosis-meds charges for the signed-in user
+ */
+
+export function useGetUpcomingBills<TData = Awaited<ReturnType<typeof getUpcomingBills>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBills>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUpcomingBillsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

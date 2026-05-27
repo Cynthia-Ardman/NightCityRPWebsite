@@ -1,7 +1,7 @@
-import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useGetUpcomingBills } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
-import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull } from "lucide-react";
+import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -109,6 +109,7 @@ function Dashboard() {
         </div>
 
         <div className="space-y-6">
+          <UpcomingBillsCard />
           <h2 className="text-2xl font-display font-bold text-foreground" data-testid="text-system-logs-title">SYSTEM_LOGS</h2>
           <Card className="rounded-none border-border bg-card/50 min-h-[300px]">
             <CardContent className="p-0">
@@ -133,6 +134,146 @@ function Dashboard() {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+function formatDueDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const days = Math.max(0, Math.round((d.getTime() - now.getTime()) / 86_400_000));
+  const dateStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (days === 0) return `today (${dateStr})`;
+  if (days === 1) return `in 1 day (${dateStr})`;
+  return `in ${days} days (${dateStr})`;
+}
+
+function UpcomingBillsCard() {
+  const { data, isLoading } = useGetUpcomingBills();
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-display font-bold text-foreground flex items-center gap-2" data-testid="text-bills-title">
+          <Receipt className="w-5 h-5 text-nc-yellow" /> UPCOMING_BILLS
+        </h2>
+      </div>
+      <Card className="rounded-none border-border bg-card/50">
+        <CardContent className="p-4 space-y-4">
+          {isLoading ? (
+            <div className="font-mono text-sm text-nc-cyan animate-pulse">CALCULATING...</div>
+          ) : !data ? (
+            <div className="font-mono text-sm text-muted-foreground">No bill data.</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2 text-center border border-border/50 p-3 bg-background/40">
+                <div>
+                  <div className="text-xs font-mono text-muted-foreground uppercase">Next Rent</div>
+                  <div className="font-display text-lg text-nc-yellow" data-testid="text-bills-next-rent">€${data.totals.nextRent.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-mono text-muted-foreground uppercase">Meds / wk</div>
+                  <div className="font-display text-lg text-destructive" data-testid="text-bills-meds-weekly">€${data.totals.nextMedsWeekly.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-mono text-muted-foreground uppercase">~ / mo</div>
+                  <div className="font-display text-lg text-foreground" data-testid="text-bills-monthly-estimate">€${data.totals.monthlyEstimate.toLocaleString()}</div>
+                </div>
+              </div>
+
+              <BillSection
+                icon={HomeIcon}
+                color="text-nc-yellow"
+                title="MONTHLY RENT"
+                emptyHint="No PCs eligible for monthly rent."
+                items={data.rent.map((r) => ({
+                  key: `rent-${r.characterId}`,
+                  primary: r.characterName,
+                  secondary: `Due ${formatDueDate(r.dueAt)}`,
+                  amount: r.amount,
+                  to: `/characters/${r.characterId}`,
+                }))}
+              />
+
+              <BillSection
+                icon={Syringe}
+                color="text-destructive"
+                title="CYBERPSYCHOSIS MEDS (WEEKLY)"
+                emptyHint="No chrome on file — no meds owed."
+                items={data.meds.map((m) => ({
+                  key: `meds-${m.characterId}`,
+                  primary: m.characterName,
+                  secondary: `${m.totalHL} HL · due ${formatDueDate(m.dueAt)}`,
+                  amount: m.amount,
+                  to: `/characters/${m.characterId}`,
+                }))}
+              />
+
+              {data.leases.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-mono text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                    <HomeIcon className="w-3 h-3" /> ACTIVE LEASES
+                  </div>
+                  <div className="text-[10px] font-mono text-muted-foreground/70 italic">
+                    Listed for reference. Auto-billing currently uses the flat rent above, not per-lease pricing.
+                  </div>
+                  {data.leases.map((l) => (
+                    <Link key={l.id} href={`/characters/${l.characterId}`}>
+                      <div className="flex justify-between items-center text-sm font-mono border border-border/40 px-3 py-2 hover:border-nc-cyan/60 cursor-pointer" data-testid={`row-lease-${l.id}`}>
+                        <div className="min-w-0">
+                          <div className="truncate text-foreground">{l.address}</div>
+                          <div className="text-xs text-muted-foreground truncate">{l.characterName}</div>
+                        </div>
+                        <div className="text-nc-yellow whitespace-nowrap">€${l.monthlyRent.toLocaleString()}/mo</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              <div className="text-[10px] font-mono text-muted-foreground/60 pt-2 border-t border-border/30">
+                Rent posts 1st of the month · meds post Mondays 05:00 UTC.
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function BillSection({
+  icon: Icon,
+  color,
+  title,
+  items,
+  emptyHint,
+}: {
+  icon: any;
+  color: string;
+  title: string;
+  items: Array<{ key: string; primary: string; secondary: string; amount: number; to: string }>;
+  emptyHint: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className={`text-xs font-mono uppercase tracking-widest flex items-center gap-2 ${color}`}>
+        <Icon className="w-3 h-3" /> {title}
+      </div>
+      {items.length === 0 ? (
+        <div className="text-xs font-mono text-muted-foreground italic">{emptyHint}</div>
+      ) : (
+        items.map((it) => (
+          <Link key={it.key} href={it.to}>
+            <div className="flex justify-between items-center text-sm font-mono border border-border/40 px-3 py-2 hover:border-nc-cyan/60 cursor-pointer" data-testid={`row-${it.key}`}>
+              <div className="min-w-0">
+                <div className="truncate text-foreground">{it.primary}</div>
+                <div className="text-xs text-muted-foreground truncate">{it.secondary}</div>
+              </div>
+              <div className={`whitespace-nowrap ${color}`}>€${it.amount.toLocaleString()}</div>
+            </div>
+          </Link>
+        ))
+      )}
     </div>
   );
 }

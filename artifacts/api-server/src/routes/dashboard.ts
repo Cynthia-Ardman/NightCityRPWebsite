@@ -8,9 +8,33 @@ import {
   activityEvents,
   fixerNpcs,
   users,
+  housing,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
+
+// Keep these in sync with `lib/jobs.ts` — they define the formulas the cron
+// jobs actually use, so the projection on the dashboard is honest.
+const RENT_PER_PC_PER_MONTH = 500;
+const MEDS_RATE_PER_HL_PER_WEEK = 50;
+
+// monthly_rent cron runs 04:00 UTC on the 1st of every month.
+function nextMonthlyRunDate(now: Date = new Date()): Date {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 4, 0, 0));
+  if (d.getTime() <= now.getTime()) d.setUTCMonth(d.getUTCMonth() + 1);
+  return d;
+}
+
+// cyberware_humanity cron runs 05:00 UTC on Mondays.
+function nextWeeklyRunDate(now: Date = new Date()): Date {
+  const d = new Date(now.getTime());
+  d.setUTCHours(5, 0, 0, 0);
+  const dow = d.getUTCDay(); // 0=Sun..6=Sat; Monday=1
+  const daysUntilMon = (1 - dow + 7) % 7;
+  d.setUTCDate(d.getUTCDate() + daysUntilMon);
+  if (d.getTime() <= now.getTime()) d.setUTCDate(d.getUTCDate() + 7);
+  return d;
+}
 
 const router: IRouter = Router();
 
@@ -65,6 +89,86 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     pendingSheets: pending,
     topFixers,
     recentArrivals,
+  });
+});
+
+router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<void> => {
+  const ownerId = req.user!.id;
+  const myChars = await db.select().from(characters).where(eq(characters.ownerId, ownerId));
+  const billable = myChars.filter((c) => c.kind === "pc" && c.approved && !c.archived);
+
+  const now = new Date();
+  const rentDueAt = nextMonthlyRunDate(now).toISOString();
+  const medsDueAt = nextWeeklyRunDate(now).toISOString();
+
+  const rent = billable.map((c) => ({
+    characterId: c.id,
+    characterName: c.name,
+    amount: RENT_PER_PC_PER_MONTH,
+    dueAt: rentDueAt,
+  }));
+
+  // Meds projection: only PCs with an approved sheet contribute. Sum HL across
+  // foundational + misc chrome the same way the cron does.
+  const meds: Array<{ characterId: number; characterName: string; totalHL: number; amount: number; dueAt: string }> = [];
+  for (const c of billable) {
+    const [sheet] = await db
+      .select()
+      .from(characterSheets)
+      .where(and(eq(characterSheets.characterId, c.id), eq(characterSheets.status, "approved")))
+      .orderBy(desc(characterSheets.createdAt))
+      .limit(1);
+    if (!sheet) continue;
+    const data = (sheet.data ?? {}) as Record<string, unknown>;
+    const bySlot = Array.isArray(data.cyberwareBySlot) ? data.cyberwareBySlot : [];
+    const misc = Array.isArray(data.cyberwareMisc) ? data.cyberwareMisc : [];
+    const allChrome = [...bySlot, ...misc] as Array<{ name?: string; humanityLoss?: number }>;
+    const totalHL = allChrome
+      .filter((cw) => (cw?.name ?? "").trim().length > 0)
+      .reduce((s, cw) => s + (Number(cw.humanityLoss) || 0), 0);
+    if (totalHL <= 0) continue;
+    meds.push({
+      characterId: c.id,
+      characterName: c.name,
+      totalHL,
+      amount: totalHL * MEDS_RATE_PER_HL_PER_WEEK,
+      dueAt: medsDueAt,
+    });
+  }
+
+  // Active leases (informational — automated rent currently charges the flat
+  // RENT_PER_PC_PER_MONTH per PC; per-lease billing is not yet wired up).
+  const charIds = myChars.map((c) => c.id);
+  const leases = charIds.length === 0 ? [] : await db
+    .select({
+      id: housing.id,
+      characterId: housing.characterId,
+      characterName: characters.name,
+      address: housing.address,
+      monthlyRent: housing.monthlyRent,
+      paidThrough: housing.paidThrough,
+    })
+    .from(housing)
+    .innerJoin(characters, eq(characters.id, housing.characterId))
+    .where(sql`${housing.characterId} = ANY(${charIds})`);
+
+  const nextRentTotal = rent.reduce((s, r) => s + r.amount, 0);
+  const nextMedsTotal = meds.reduce((s, m) => s + m.amount, 0);
+  // Rough monthly estimate = next rent + (weekly meds * ~4.33 weeks).
+  const monthlyEstimate = nextRentTotal + Math.round(nextMedsTotal * 4.33);
+
+  res.json({
+    rent,
+    meds,
+    leases: leases.map((l) => ({
+      ...l,
+      paidThrough: l.paidThrough ? l.paidThrough.toISOString() : null,
+    })),
+    totals: {
+      nextRent: nextRentTotal,
+      nextMedsWeekly: nextMedsTotal,
+      monthlyEstimate,
+    },
   });
 });
 

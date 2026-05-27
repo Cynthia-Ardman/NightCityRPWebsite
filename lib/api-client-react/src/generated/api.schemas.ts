@@ -762,6 +762,44 @@ export interface DashboardSummary {
   recentArrivals?: Character[];
 }
 
+export type UpcomingBillsRentItem = {
+  characterId: number;
+  characterName: string;
+  amount: number;
+  dueAt: string;
+};
+
+export type UpcomingBillsMedsItem = {
+  characterId: number;
+  characterName: string;
+  totalHL: number;
+  amount: number;
+  dueAt: string;
+};
+
+export type UpcomingBillsLeasesItem = {
+  id: number;
+  characterId: number;
+  characterName: string;
+  address: string;
+  monthlyRent: number;
+  /** @nullable */
+  paidThrough?: string | null;
+};
+
+export type UpcomingBillsTotals = {
+  nextRent: number;
+  nextMedsWeekly: number;
+  monthlyEstimate: number;
+};
+
+export interface UpcomingBills {
+  rent: UpcomingBillsRentItem[];
+  meds: UpcomingBillsMedsItem[];
+  leases: UpcomingBillsLeasesItem[];
+  totals: UpcomingBillsTotals;
+}
+
 export type ActivityEventKind = typeof ActivityEventKind[keyof typeof ActivityEventKind];
 
 

@@ -91,7 +91,11 @@ function SidebarContent() {
         <NavItem href="/directory/characters" icon={Users} label="Character Archive" />
         <NavItem href="/directory/stores" icon={Store} label="Stores" />
         <NavItem href="/directory/ripperdocs" icon={Syringe} label="Ripperdocs" />
-        <NavItem href="/catalog/guns" icon={Skull} label="Catalogs" />
+
+        <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Catalogs</div>
+        <NavItem href="/catalog/guns" icon={Skull} label="Guns" />
+        <NavItem href="/catalog/cyberware" icon={Syringe} label="Cyberware" />
+        <NavItem href="/catalog/rent" icon={Store} label="Housing" />
 
         {user && (user.isStoreOwner || user.isRipperdoc || user.isFixer || user.isCsApprover || user.isAdmin) && (
           <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Authorized Access</div>

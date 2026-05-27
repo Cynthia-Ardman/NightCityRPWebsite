@@ -1021,6 +1021,17 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DashboardSummary" }
+  /dashboard/upcoming-bills:
+    get:
+      operationId: getUpcomingBills
+      tags: [dashboard]
+      summary: Projected rent and cyberpsychosis-meds charges for the signed-in user
+      responses:
+        "200":
+          description: Upcoming bills
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpcomingBills" }
   /dashboard/activity:
     get:
       operationId: getRecentActivity
@@ -1660,6 +1671,51 @@ components:
         recentArrivals:
           type: array
           items: { $ref: "#/components/schemas/Character" }
+
+    UpcomingBills:
+      type: object
+      required: [rent, meds, leases, totals]
+      properties:
+        rent:
+          type: array
+          items:
+            type: object
+            required: [characterId, characterName, amount, dueAt]
+            properties:
+              characterId: { type: integer }
+              characterName: { type: string }
+              amount: { type: integer }
+              dueAt: { type: string, format: date-time }
+        meds:
+          type: array
+          items:
+            type: object
+            required: [characterId, characterName, totalHL, amount, dueAt]
+            properties:
+              characterId: { type: integer }
+              characterName: { type: string }
+              totalHL: { type: integer }
+              amount: { type: integer }
+              dueAt: { type: string, format: date-time }
+        leases:
+          type: array
+          items:
+            type: object
+            required: [id, characterId, characterName, address, monthlyRent]
+            properties:
+              id: { type: integer }
+              characterId: { type: integer }
+              characterName: { type: string }
+              address: { type: string }
+              monthlyRent: { type: integer }
+              paidThrough: { type: ["string", "null"], format: date-time }
+        totals:
+          type: object
+          required: [nextRent, nextMedsWeekly, monthlyEstimate]
+          properties:
+            nextRent: { type: integer }
+            nextMedsWeekly: { type: integer }
+            monthlyEstimate: { type: integer }
 
     LeaderboardEntry:
       type: object

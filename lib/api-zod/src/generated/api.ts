@@ -1858,6 +1858,39 @@ export const GetDashboardSummaryResponse = zod.object({
 })
 
 
+/**
+ * @summary Projected rent and cyberpsychosis-meds charges for the signed-in user
+ */
+export const GetUpcomingBillsResponse = zod.object({
+  "rent": zod.array(zod.object({
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "amount": zod.number(),
+  "dueAt": zod.coerce.date()
+})),
+  "meds": zod.array(zod.object({
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "totalHL": zod.number(),
+  "amount": zod.number(),
+  "dueAt": zod.coerce.date()
+})),
+  "leases": zod.array(zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "address": zod.string(),
+  "monthlyRent": zod.number(),
+  "paidThrough": zod.coerce.date().nullish()
+})),
+  "totals": zod.object({
+  "nextRent": zod.number(),
+  "nextMedsWeekly": zod.number(),
+  "monthlyEstimate": zod.number()
+})
+})
+
+
 export const GetRecentActivityResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['login', 'transfer', 'sheet_submitted', 'sheet_approved', 'sheet_rejected', 'status_change', 'shop_opened', 'job_run', 'admin_adjust', 'character_created']),
