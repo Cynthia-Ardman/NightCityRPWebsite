@@ -90,8 +90,16 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
 });
 
 router.post("/auth/logout", (req, res): void => {
-  req.session.destroy(() => {
-    res.sendStatus(204);
+  req.session.destroy((err) => {
+    if (err) {
+      req.log.error({ err }, "Session destroy failed during logout");
+      const detail = err instanceof Error ? err.name : "session_destroy";
+      const params = new URLSearchParams({ reason: "session", detail });
+      res.redirect(`/logout/error?${params.toString()}`);
+      return;
+    }
+    res.clearCookie("connect.sid");
+    res.redirect("/");
   });
 });
 
