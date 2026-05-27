@@ -8,9 +8,11 @@
     "import-prod": "tsx ./src/import-prod.ts",
     "seed-catalogs": "tsx ./src/seed-catalogs.ts",
     "sync-from-prod": "tsx ./src/sync-from-prod.ts",
+    "import-character-sheets": "tsx ./src/import-character-sheets.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.98.0",
     "@workspace/db": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "^8.20.0",

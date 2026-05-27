@@ -204,11 +204,6 @@ export const catalogGuns = pgTable("catalog_guns", {
   powerLevel: text("power_level"),
   weaponType: text("weapon_type"),
   notes: text("notes"),
-  wholesalePrice: integer("wholesale_price"),
-  restriction: text("restriction"),
-  status: text("status"),
-  powerLevel: text("power_level"),
-  weaponType: text("weapon_type"),
 });
 
 export const catalogCyberware = pgTable("catalog_cyberware", {
@@ -221,8 +216,6 @@ export const catalogCyberware = pgTable("catalog_cyberware", {
   wholesalePrice: integer("wholesale_price"),
   installCost: integer("install_cost"),
   description: text("description"),
-  cwp: text("cwp"),
-  wholesalePrice: integer("wholesale_price"),
 });
 
 export const catalogRent = pgTable("catalog_rent", {
