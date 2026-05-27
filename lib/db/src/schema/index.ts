@@ -62,18 +62,27 @@ export const characterStatus = pgTable("character_status", {
 
 export const inventoryItems = pgTable("inventory_items", {
   id: serial("id").primaryKey(),
-  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  // characterId is nullable so legacy/migrated items can sit under a player's account
+  // without being assigned to a specific character. The player picks the character later.
+  characterId: integer("character_id").references(() => characters.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   category: text("category"),
   quantity: integer("quantity").notNull().default(1),
   notes: text("notes"),
   equipped: boolean("equipped").notNull().default(false),
+  pricePaid: integer("price_paid"),
+  acquiredAt: timestamp("acquired_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const walletTransactions = pgTable("wallet_transactions", {
   id: serial("id").primaryKey(),
-  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  // Either characterId OR userId must be set. characterId is used for character-scoped
+  // transfers; userId-only rows are historical/account-level deltas (e.g. legacy bot
+  // balance_history rows that pre-date the character split).
+  characterId: integer("character_id").references(() => characters.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
   counterpartyCharacterId: integer("counterparty_character_id"),
   counterpartyName: text("counterparty_name"),
   amount: integer("amount").notNull(),
@@ -82,6 +91,7 @@ export const walletTransactions = pgTable("wallet_transactions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   charIdx: index("wt_char_idx").on(t.characterId),
+  userIdx: index("wt_user_idx").on(t.userId),
 }));
 
 export const stores = pgTable("stores", {
@@ -188,6 +198,11 @@ export const catalogGuns = pgTable("catalog_guns", {
   damage: text("damage"),
   magSize: integer("mag_size"),
   price: integer("price").notNull().default(0),
+  wholesalePrice: integer("wholesale_price"),
+  restriction: text("restriction"),
+  status: text("status"),
+  powerLevel: text("power_level"),
+  weaponType: text("weapon_type"),
   notes: text("notes"),
 });
 
@@ -196,7 +211,9 @@ export const catalogCyberware = pgTable("catalog_cyberware", {
   name: text("name").notNull(),
   slot: text("slot").notNull(),
   humanityLoss: integer("humanity_loss").notNull().default(0),
+  cwp: text("cwp"),
   price: integer("price").notNull().default(0),
+  wholesalePrice: integer("wholesale_price"),
   installCost: integer("install_cost"),
   description: text("description"),
 });

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 import {
   db,
   characters,
@@ -245,10 +245,17 @@ router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res):
     res.status(404).json({ error: "Not found" });
     return;
   }
+  // Return character-scoped rows plus account-level history rows for the
+  // owner (imported legacy ledger has userId set / characterId null).
   const rows = await db
     .select()
     .from(walletTransactions)
-    .where(eq(walletTransactions.characterId, id))
+    .where(
+      or(
+        eq(walletTransactions.characterId, id),
+        eq(walletTransactions.userId, req.user!.id),
+      ),
+    )
     .orderBy(desc(walletTransactions.createdAt))
     .limit(100);
   res.json(rows);
