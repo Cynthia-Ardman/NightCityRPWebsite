@@ -296,6 +296,17 @@ type Message = {
   attachments: Attachment[];
   embeds: Embed[];
   timestamp: string;
+  // Discord message forwarding (introduced 2024): the original message's
+  // content / attachments / embeds live inside message_snapshots[*].message,
+  // and the outer message has empty content+attachments+embeds. We have to
+  // dive into snapshots to find images attached to a forwarded post.
+  message_snapshots?: Array<{
+    message: {
+      content?: string;
+      attachments?: Attachment[];
+      embeds?: Embed[];
+    };
+  }>;
 };
 
 async function fetchAllMessages(threadId: string): Promise<Message[]> {
@@ -340,9 +351,11 @@ if (!noClassify) {
               : "image/png"
           ) as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
           const buf = Buffer.from(await imgRes.arrayBuffer());
-          // Skip anything over ~4MB to keep request size sane; classifier
-          // doesn't need full resolution to tell a stats panel from a portrait.
-          if (buf.length > 4 * 1024 * 1024) return "other";
+          // Anthropic's vision API rejects images > 5MB (decoded). Cap at
+          // 4.5MB to leave headroom and avoid wasted round-trips. Very large
+          // sheet images get tagged "other" — they're rare enough that it's
+          // fine to hand-classify them later.
+          if (buf.length > 4_500_000) return "other";
           const b64 = buf.toString("base64");
           const resp = await client.messages.create({
             model: "claude-haiku-4-5",
@@ -417,31 +430,41 @@ type ThreadRecord = {
 
 function extractImages(messages: Message[]): ImageRecord[] {
   const out: ImageRecord[] = [];
-  for (const m of messages) {
-    for (const a of m.attachments) {
-      if ((a.content_type ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(a.filename)) {
-        out.push({
-          url: a.url,
-          proxyUrl: a.proxy_url,
-          filename: a.filename,
-          width: a.width,
-          height: a.height,
-          fromMessageId: m.id,
-          kind: "unclassified",
-        });
-      }
+  const pushAttachment = (a: Attachment, messageId: string) => {
+    if (
+      (a.content_type ?? "").startsWith("image/") ||
+      /\.(png|jpe?g|gif|webp)$/i.test(a.filename)
+    ) {
+      out.push({
+        url: a.url,
+        proxyUrl: a.proxy_url,
+        filename: a.filename,
+        width: a.width,
+        height: a.height,
+        fromMessageId: messageId,
+        kind: "unclassified",
+      });
     }
-    for (const e of m.embeds) {
-      const img = e.image ?? e.thumbnail;
-      if (img?.url) {
-        out.push({
-          url: img.url,
-          proxyUrl: img.proxy_url,
-          filename: img.url.split("/").pop()?.split("?")[0] ?? "embed",
-          fromMessageId: m.id,
-          kind: "unclassified",
-        });
-      }
+  };
+  const pushEmbed = (e: Embed, messageId: string) => {
+    const img = e.image ?? e.thumbnail;
+    if (img?.url) {
+      out.push({
+        url: img.url,
+        proxyUrl: img.proxy_url,
+        filename: img.url.split("/").pop()?.split("?")[0] ?? "embed",
+        fromMessageId: messageId,
+        kind: "unclassified",
+      });
+    }
+  };
+  for (const m of messages) {
+    for (const a of m.attachments) pushAttachment(a, m.id);
+    for (const e of m.embeds) pushEmbed(e, m.id);
+    // Forwarded messages: dive into snapshots.
+    for (const snap of m.message_snapshots ?? []) {
+      for (const a of snap.message.attachments ?? []) pushAttachment(a, m.id);
+      for (const e of snap.message.embeds ?? []) pushEmbed(e, m.id);
     }
   }
   return out;
