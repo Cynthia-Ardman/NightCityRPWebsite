@@ -1,0 +1,1 @@
+- [react-query auth loop](react-query-auth-loop.md) — `useGetMe`-style root gate + errored 401 + default `retryOnMount:true` causes 1Hz mount/unmount refetch loop; set `retryOnMount:false`.

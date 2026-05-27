@@ -1,4 +1,5 @@
-import { useGetMe, useGetDashboardSummary, useGetRecentActivity, useListMyCharacters } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters } from "@workspace/api-client-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
 import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function Home() {
-  const { data: user, isLoading: userLoading } = useGetMe();
+  const { data: user, isLoading: userLoading } = useAuthMe();
 
   if (userLoading) {
     return <div className="h-full flex items-center justify-center text-nc-cyan animate-pulse font-display text-2xl">LOADING_SYS_DATA...</div>;

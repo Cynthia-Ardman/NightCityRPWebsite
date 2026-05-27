@@ -3,10 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSheet,
   useDecideSheet,
-  useGetMe,
   getGetSheetQueryKey,
   getListPendingSheetsQueryKey,
 } from "@workspace/api-client-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +18,7 @@ export default function SheetDetail() {
   const sheetId = Number(id);
   const qc = useQueryClient();
   const { data: sheet, isLoading } = useGetSheet(sheetId);
-  const { data: me } = useGetMe();
+  const { data: me } = useAuthMe();
   const [note, setNote] = useState("");
   const decide = useDecideSheet({
     mutation: {

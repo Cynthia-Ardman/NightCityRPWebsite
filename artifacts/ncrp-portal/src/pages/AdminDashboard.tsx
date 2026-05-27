@@ -1,4 +1,5 @@
-import { useGetMe, useAdminListUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, getAdminListJobsQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, getAdminListJobsQueryKey } from "@workspace/api-client-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
 import { Shield, Users, Database, Zap, Activity } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminDashboard() {
-  const { data: user, isLoading: userLoading } = useGetMe();
+  const { data: user, isLoading: userLoading } = useAuthMe();
 
   if (userLoading) {
     return <div className="p-8 text-nc-cyan font-display animate-pulse">AUTH_VERIFICATION...</div>;

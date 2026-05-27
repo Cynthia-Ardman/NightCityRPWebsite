@@ -2,7 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useGetMe } from "@workspace/api-client-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 
 import AppLayout from "@/components/layout/AppLayout";
 import NotFound from "@/pages/not-found";
@@ -40,7 +40,7 @@ const queryClient = new QueryClient({
 });
 
 function AppRoutes() {
-  const { isLoading } = useGetMe();
+  const { isLoading } = useAuthMe();
 
   if (isLoading) {
     return (

@@ -1,13 +1,14 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetMe, useGetWallet, getGetWalletQueryKey } from "@workspace/api-client-react";
+import { useGetWallet, getGetWalletQueryKey } from "@workspace/api-client-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
-  const { data: user } = useGetMe();
+  const { data: user } = useAuthMe();
   
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-background">
@@ -43,7 +44,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 }
 
 function SidebarContent() {
-  const { data: user } = useGetMe();
+  const { data: user } = useAuthMe();
   const [location] = useLocation();
 
   const NavItem = ({ href, icon: Icon, label, disabled }: { href: string, icon: any, label: string, disabled?: boolean }) => {
@@ -124,7 +125,7 @@ function SidebarContent() {
 }
 
 function TopBar() {
-  const { data: user } = useGetMe();
+  const { data: user } = useAuthMe();
   const activeCharId = user?.activeCharacterId;
   
   const { data: wallet } = useGetWallet(activeCharId || 0, { 
