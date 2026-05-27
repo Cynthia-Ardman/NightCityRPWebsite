@@ -16,6 +16,11 @@ export const ROLE_NAMES = {
 };
 
 export function getRedirectUri(): string {
+  // In production, PUBLIC_BASE_URL pins the OAuth callback to the custom
+  // domain (e.g. https://nightcityroleplay.com) regardless of which Replit
+  // hostname REPLIT_DOMAINS happens to list first.
+  const pinned = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, "");
+  if (pinned) return `${pinned}/api/auth/discord/callback`;
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
   if (!domain) return "http://localhost:5000/api/auth/discord/callback";
   return `https://${domain}/api/auth/discord/callback`;

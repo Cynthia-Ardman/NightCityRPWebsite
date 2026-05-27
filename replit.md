@@ -59,7 +59,13 @@ Web portal for the Night City RP Cyberpunk Discord community — replaces the le
 ## Deployment / Custom domain
 
 - Target domain: `nightcityroleplay.com`.
-- After publishing: add the domain in the Deployments tab, register the two DNS records (A + TXT) at the registrar, and add `https://nightcityroleplay.com/api/auth/discord/callback` to the Discord developer portal's OAuth2 redirect allowlist.
+- Deployment target: **Reserved VM** (always-on; the API server hosts the cron jobs in `lib/jobs.ts` — Autoscale would put them to sleep between requests).
+- Production secrets that must be set on the deployment (in addition to the dev set): `SESSION_SECRET`, `DISCORD_BOT_TOKEN`, `UNBELIEVABOAT_TOKEN`, `CS_APPROVAL_CHANNEL_ID`, and `PUBLIC_BASE_URL=https://nightcityroleplay.com`.
+- After publishing:
+  1. Open the Deployments tab → **Custom domains** → add `nightcityroleplay.com`.
+  2. Add the A and TXT records Replit shows at the domain registrar; wait for "Verified".
+  3. In the Discord developer portal → OAuth2 → add `https://nightcityroleplay.com/api/auth/discord/callback` to the redirect allowlist (keep the dev `.replit.dev` callback too so local login keeps working).
+- `getRedirectUri()` in `artifacts/api-server/src/lib/discord.ts` prefers `PUBLIC_BASE_URL` when set, so the callback always matches the live domain regardless of which Replit hostname is first in `REPLIT_DOMAINS`.
 
 ## Gotchas
 
