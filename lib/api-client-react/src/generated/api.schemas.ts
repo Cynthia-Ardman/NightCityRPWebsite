@@ -867,25 +867,74 @@ export interface UpcomingBills {
   totals: UpcomingBillsTotals;
 }
 
-export type ActivityEventKind = typeof ActivityEventKind[keyof typeof ActivityEventKind];
+export type MissionStatus = typeof MissionStatus[keyof typeof MissionStatus];
 
 
-export const ActivityEventKind = {
-  login: 'login',
-  transfer: 'transfer',
-  sheet_submitted: 'sheet_submitted',
-  sheet_approved: 'sheet_approved',
-  sheet_rejected: 'sheet_rejected',
-  status_change: 'status_change',
-  shop_opened: 'shop_opened',
-  job_run: 'job_run',
-  admin_adjust: 'admin_adjust',
-  character_created: 'character_created',
+export const MissionStatus = {
+  planned: 'planned',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
 } as const;
+
+export interface Mission {
+  id: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  fixerId?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  title: string;
+  /** @nullable */
+  summary?: string | null;
+  payoutEddies: number;
+  status: MissionStatus;
+  /** @nullable */
+  occurredAt?: string | null;
+  createdAt: string;
+}
+
+export type MissionInputStatus = typeof MissionInputStatus[keyof typeof MissionInputStatus];
+
+
+export const MissionInputStatus = {
+  planned: 'planned',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface MissionInput {
+  /** @minLength 1 */
+  title: string;
+  characterId?: number;
+  summary?: string;
+  /** @minimum 0 */
+  payoutEddies?: number;
+  status?: MissionInputStatus;
+  occurredAt?: string;
+  /** If true, also debit fixer and credit character via UnbelievaBoat. */
+  pay?: boolean;
+}
+
+export interface BotConfigEntry {
+  key: string;
+  value: unknown;
+  updatedAt: string;
+}
+
+export interface BotConfigUpdate {
+  value: unknown;
+}
 
 export interface ActivityEvent {
   id: number;
-  kind: ActivityEventKind;
+  kind: string;
+  /** @nullable */
+  actorId?: string | null;
   /** @nullable */
   actorName?: string | null;
   /** @nullable */
@@ -907,6 +956,21 @@ export type DeactivateCharacter200 = {
 export type ReactivateCharacter200 = {
   success: boolean;
   archived: boolean;
+};
+
+export type ListMissionsParams = {
+characterId?: number;
+limit?: number;
+};
+
+export type AdminListAuditParams = {
+kind?: string;
+actorId?: string;
+since?: string;
+/**
+ * @maximum 500
+ */
+limit?: number;
 };
 
 export type ListPublicCharactersParams = {

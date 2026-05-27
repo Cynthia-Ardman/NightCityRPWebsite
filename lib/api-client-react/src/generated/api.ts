@@ -22,8 +22,11 @@ import type {
 import type {
   ActivityEvent,
   AdminCharacterSummary,
+  AdminListAuditParams,
   AdminUser,
   AssignOwnerInput,
+  BotConfigEntry,
+  BotConfigUpdate,
   CatalogCyberware,
   CatalogGun,
   CatalogRent,
@@ -54,8 +57,11 @@ import type {
   InventoryTransferInput,
   JobRunInput,
   JobRunResult,
+  ListMissionsParams,
   ListPublicCharactersParams,
   Me,
+  Mission,
+  MissionInput,
   PublicCharacter,
   PublicCharacterSummary,
   ReactivateCharacter200,
@@ -3468,6 +3474,440 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRemoveRipperdocEmployeeMutationOptions(options));
+    }
+
+export const getListMissionsUrl = (params?: ListMissionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/fixer/missions?${stringifiedParams}` : `/api/fixer/missions`
+}
+
+/**
+ * @summary List recent missions (fixer view).
+ */
+export const listMissions = async (params?: ListMissionsParams, options?: RequestInit): Promise<Mission[]> => {
+
+  return customFetch<Mission[]>(getListMissionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMissionsQueryKey = (params?: ListMissionsParams,) => {
+    return [
+    `/api/fixer/missions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMissionsQueryOptions = <TData = Awaited<ReturnType<typeof listMissions>>, TError = ErrorType<unknown>>(params?: ListMissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMissionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMissions>>> = ({ signal }) => listMissions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listMissions>>>
+export type ListMissionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recent missions (fixer view).
+ */
+
+export function useListMissions<TData = Awaited<ReturnType<typeof listMissions>>, TError = ErrorType<unknown>>(
+ params?: ListMissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMissionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateMissionUrl = () => {
+
+
+
+
+  return `/api/fixer/missions`
+}
+
+export const createMission = async (missionInput: MissionInput, options?: RequestInit): Promise<Mission> => {
+
+  return customFetch<Mission>(getCreateMissionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      missionInput,)
+  }
+);}
+
+
+
+
+export const getCreateMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionInput>}, TContext> => {
+
+const mutationKey = ['createMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMission>>, {data: BodyType<MissionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMission(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMissionMutationResult = NonNullable<Awaited<ReturnType<typeof createMission>>>
+    export type CreateMissionMutationBody = BodyType<MissionInput>
+    export type CreateMissionMutationError = ErrorType<void>
+
+    export const useCreateMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMission>>,
+        TError,
+        {data: BodyType<MissionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateMissionMutationOptions(options));
+    }
+
+export const getAdminListAuditUrl = (params?: AdminListAuditParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/audit?${stringifiedParams}` : `/api/admin/audit`
+}
+
+/**
+ * @summary Filtered audit feed (recent activity events).
+ */
+export const adminListAudit = async (params?: AdminListAuditParams, options?: RequestInit): Promise<ActivityEvent[]> => {
+
+  return customFetch<ActivityEvent[]>(getAdminListAuditUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListAuditQueryKey = (params?: AdminListAuditParams,) => {
+    return [
+    `/api/admin/audit`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminListAuditQueryOptions = <TData = Awaited<ReturnType<typeof adminListAudit>>, TError = ErrorType<unknown>>(params?: AdminListAuditParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListAudit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListAuditQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListAudit>>> = ({ signal }) => adminListAudit(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListAudit>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListAuditQueryResult = NonNullable<Awaited<ReturnType<typeof adminListAudit>>>
+export type AdminListAuditQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Filtered audit feed (recent activity events).
+ */
+
+export function useAdminListAudit<TData = Awaited<ReturnType<typeof adminListAudit>>, TError = ErrorType<unknown>>(
+ params?: AdminListAuditParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListAudit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListAuditQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminListBotConfigUrl = () => {
+
+
+
+
+  return `/api/admin/bot-config`
+}
+
+export const adminListBotConfig = async ( options?: RequestInit): Promise<BotConfigEntry[]> => {
+
+  return customFetch<BotConfigEntry[]>(getAdminListBotConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListBotConfigQueryKey = () => {
+    return [
+    `/api/admin/bot-config`
+    ] as const;
+    }
+
+
+export const getAdminListBotConfigQueryOptions = <TData = Awaited<ReturnType<typeof adminListBotConfig>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListBotConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListBotConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListBotConfig>>> = ({ signal }) => adminListBotConfig({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListBotConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListBotConfigQueryResult = NonNullable<Awaited<ReturnType<typeof adminListBotConfig>>>
+export type AdminListBotConfigQueryError = ErrorType<unknown>
+
+
+
+export function useAdminListBotConfig<TData = Awaited<ReturnType<typeof adminListBotConfig>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListBotConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListBotConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminSetBotConfigUrl = (key: string,) => {
+
+
+
+
+  return `/api/admin/bot-config/${key}`
+}
+
+export const adminSetBotConfig = async (key: string,
+    botConfigUpdate: BotConfigUpdate, options?: RequestInit): Promise<BotConfigEntry> => {
+
+  return customFetch<BotConfigEntry>(getAdminSetBotConfigUrl(key),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      botConfigUpdate,)
+  }
+);}
+
+
+
+
+export const getAdminSetBotConfigMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetBotConfig>>, TError,{key: string;data: BodyType<BotConfigUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSetBotConfig>>, TError,{key: string;data: BodyType<BotConfigUpdate>}, TContext> => {
+
+const mutationKey = ['adminSetBotConfig'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSetBotConfig>>, {key: string;data: BodyType<BotConfigUpdate>}> = (props) => {
+          const {key,data} = props ?? {};
+
+          return  adminSetBotConfig(key,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSetBotConfigMutationResult = NonNullable<Awaited<ReturnType<typeof adminSetBotConfig>>>
+    export type AdminSetBotConfigMutationBody = BodyType<BotConfigUpdate>
+    export type AdminSetBotConfigMutationError = ErrorType<unknown>
+
+    export const useAdminSetBotConfig = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetBotConfig>>, TError,{key: string;data: BodyType<BotConfigUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSetBotConfig>>,
+        TError,
+        {key: string;data: BodyType<BotConfigUpdate>},
+        TContext
+      > => {
+      return useMutation(getAdminSetBotConfigMutationOptions(options));
+    }
+
+export const getAdminDeleteBotConfigUrl = (key: string,) => {
+
+
+
+
+  return `/api/admin/bot-config/${key}`
+}
+
+export const adminDeleteBotConfig = async (key: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getAdminDeleteBotConfigUrl(key),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeleteBotConfigMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteBotConfig>>, TError,{key: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteBotConfig>>, TError,{key: string}, TContext> => {
+
+const mutationKey = ['adminDeleteBotConfig'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteBotConfig>>, {key: string}> = (props) => {
+          const {key} = props ?? {};
+
+          return  adminDeleteBotConfig(key,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteBotConfigMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteBotConfig>>>
+
+    export type AdminDeleteBotConfigMutationError = ErrorType<unknown>
+
+    export const useAdminDeleteBotConfig = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteBotConfig>>, TError,{key: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteBotConfig>>,
+        TError,
+        {key: string},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteBotConfigMutationOptions(options));
     }
 
 export const getSellRipperdocItemUrl = (id: number,) => {

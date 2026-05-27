@@ -867,6 +867,103 @@ export const RemoveRipperdocEmployeeParams = zod.object({
 
 
 /**
+ * @summary List recent missions (fixer view).
+ */
+export const listMissionsQueryLimitDefault = 100;
+
+export const ListMissionsQueryParams = zod.object({
+  "characterId": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().default(listMissionsQueryLimitDefault)
+})
+
+export const ListMissionsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "title": zod.string(),
+  "summary": zod.string().nullish(),
+  "payoutEddies": zod.number(),
+  "status": zod.enum(['planned', 'completed', 'failed', 'cancelled']),
+  "occurredAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMissionsResponse = zod.array(ListMissionsResponseItem)
+
+
+
+export const createMissionBodyPayoutEddiesMin = 0;
+
+
+
+export const CreateMissionBody = zod.object({
+  "title": zod.string().min(1),
+  "characterId": zod.number().optional(),
+  "summary": zod.string().optional(),
+  "payoutEddies": zod.number().min(createMissionBodyPayoutEddiesMin).optional(),
+  "status": zod.enum(['planned', 'completed', 'failed', 'cancelled']).optional(),
+  "occurredAt": zod.coerce.date().optional(),
+  "pay": zod.boolean().optional().describe('If true, also debit fixer and credit character via UnbelievaBoat.')
+})
+
+
+/**
+ * @summary Filtered audit feed (recent activity events).
+ */
+export const adminListAuditQueryLimitDefault = 100;
+export const adminListAuditQueryLimitMax = 500;
+
+
+
+export const AdminListAuditQueryParams = zod.object({
+  "kind": zod.coerce.string().optional(),
+  "actorId": zod.coerce.string().optional(),
+  "since": zod.date().optional(),
+  "limit": zod.coerce.number().max(adminListAuditQueryLimitMax).default(adminListAuditQueryLimitDefault)
+})
+
+export const AdminListAuditResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.string(),
+  "actorId": zod.string().nullish(),
+  "actorName": zod.string().nullish(),
+  "actorAvatarUrl": zod.string().nullish(),
+  "message": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const AdminListAuditResponse = zod.array(AdminListAuditResponseItem)
+
+
+export const AdminListBotConfigResponseItem = zod.object({
+  "key": zod.string(),
+  "value": zod.unknown(),
+  "updatedAt": zod.coerce.date()
+})
+export const AdminListBotConfigResponse = zod.array(AdminListBotConfigResponseItem)
+
+
+export const AdminSetBotConfigParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+export const AdminSetBotConfigBody = zod.object({
+  "value": zod.unknown()
+})
+
+export const AdminSetBotConfigResponse = zod.object({
+  "key": zod.string(),
+  "value": zod.unknown(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const AdminDeleteBotConfigParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+
+/**
  * @summary Owner/employee installs cyberware on a buyer character
  */
 export const SellRipperdocItemParams = zod.object({
@@ -2058,7 +2155,8 @@ export const GetUpcomingBillsResponse = zod.object({
 
 export const GetRecentActivityResponseItem = zod.object({
   "id": zod.number(),
-  "kind": zod.enum(['login', 'transfer', 'sheet_submitted', 'sheet_approved', 'sheet_rejected', 'status_change', 'shop_opened', 'job_run', 'admin_adjust', 'character_created']),
+  "kind": zod.string(),
+  "actorId": zod.string().nullish(),
   "actorName": zod.string().nullish(),
   "actorAvatarUrl": zod.string().nullish(),
   "message": zod.string(),

@@ -15,8 +15,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
+import SellStockDialog from "@/components/SellStockDialog";
 
 export default function MyStoreDetail() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +38,7 @@ export default function MyStoreDetail() {
   const [stockCategory, setStockCategory] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
   const [stockQty, setStockQty] = useState(1);
+  const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!store) return <div className="font-display text-destructive">NOT FOUND</div>;
@@ -79,7 +81,16 @@ export default function MyStoreDetail() {
               <Input className="col-span-4" defaultValue={s.name} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { name: e.target.value } })} />
               <Input className="col-span-2" type="number" defaultValue={s.price} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { price: Number(e.target.value) } })} />
               <Input className="col-span-2" type="number" defaultValue={s.quantity} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { quantity: Number(e.target.value) } })} />
-              <Input className="col-span-3" defaultValue={s.category ?? ""} placeholder="Category" onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { category: e.target.value } })} />
+              <Input className="col-span-2" defaultValue={s.category ?? ""} placeholder="Category" onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { category: e.target.value } })} />
+              <Button
+                size="sm"
+                onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
+                disabled={s.quantity <= 0}
+                className="col-span-1 rounded-none bg-nc-cyan text-background font-display text-xs"
+                data-testid={`button-sell-${s.id}`}
+              >
+                <DollarSign className="w-3 h-3" />
+              </Button>
               <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: storeId, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
             </div>
           ))}
@@ -121,6 +132,18 @@ export default function MyStoreDetail() {
           </div>
         </CardContent>
       </Card>
+      {sellTarget && (
+        <SellStockDialog
+          kind="store"
+          venueId={storeId}
+          stock={sellTarget}
+          onClose={() => setSellTarget(null)}
+          onDone={() => {
+            invalidate();
+            setSellTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }

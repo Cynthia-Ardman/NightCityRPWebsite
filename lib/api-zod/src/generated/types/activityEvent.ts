@@ -5,11 +5,12 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
-import type { ActivityEventKind } from './activityEventKind';
 
 export interface ActivityEvent {
   id: number;
-  kind: ActivityEventKind;
+  kind: string;
+  /** @nullable */
+  actorId?: string | null;
   /** @nullable */
   actorName?: string | null;
   /** @nullable */

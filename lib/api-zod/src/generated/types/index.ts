@@ -7,10 +7,12 @@
  */
 
 export * from './activityEvent';
-export * from './activityEventKind';
 export * from './adminCharacterSummary';
+export * from './adminListAuditParams';
 export * from './adminUser';
 export * from './assignOwnerInput';
+export * from './botConfigEntry';
+export * from './botConfigUpdate';
 export * from './catalogCyberware';
 export * from './catalogGun';
 export * from './catalogRent';
@@ -54,9 +56,14 @@ export * from './jobRunInputJob';
 export * from './jobRunResult';
 export * from './jobRunResultStatus';
 export * from './leaderboardEntry';
+export * from './listMissionsParams';
 export * from './listPublicCharactersParams';
 export * from './listPublicCharactersScope';
 export * from './me';
+export * from './mission';
+export * from './missionInput';
+export * from './missionInputStatus';
+export * from './missionStatus';
 export * from './publicCharacter';
 export * from './publicCharacterSummary';
 export * from './reactivateCharacter200';

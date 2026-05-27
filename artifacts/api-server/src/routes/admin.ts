@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql } from "drizzle-orm";
-import { db, users, characters, walletTransactions, jobRuns, activityEvents } from "@workspace/db";
+import { eq, desc, sql, and, gte } from "drizzle-orm";
+import { db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig } from "@workspace/db";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, hasRole } from "../lib/discord";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
@@ -207,6 +207,66 @@ router.post("/admin/jobs/run", async (req, res): Promise<void> => {
 router.get("/admin/activity", async (_req, res): Promise<void> => {
   const rows = await db.select().from(activityEvents).orderBy(desc(activityEvents.createdAt)).limit(100);
   res.json(rows);
+});
+
+router.get("/admin/audit", adminOnly, async (req, res): Promise<void> => {
+  const kind = req.query.kind ? String(req.query.kind) : null;
+  const actorId = req.query.actorId ? String(req.query.actorId) : null;
+  const since = req.query.since ? new Date(String(req.query.since)) : null;
+  const limit = Math.min(500, parseInt(String(req.query.limit ?? "100"), 10) || 100);
+  const conds = [
+    kind ? eq(activityEvents.kind, kind) : null,
+    actorId ? eq(activityEvents.actorId, actorId) : null,
+    since && !isNaN(since.getTime()) ? gte(activityEvents.createdAt, since) : null,
+  ].filter(Boolean) as ReturnType<typeof eq>[];
+  const rows = conds.length
+    ? await db.select().from(activityEvents).where(and(...conds)).orderBy(desc(activityEvents.createdAt)).limit(limit)
+    : await db.select().from(activityEvents).orderBy(desc(activityEvents.createdAt)).limit(limit);
+  res.json(rows);
+});
+
+router.get("/admin/bot-config", adminOnly, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(botConfig).orderBy(botConfig.key);
+  res.json(rows);
+});
+
+router.put("/admin/bot-config/:key", adminOnly, async (req, res): Promise<void> => {
+  const key = String(req.params.key);
+  if (!key) {
+    res.status(400).json({ error: "key required" });
+    return;
+  }
+  const { value } = req.body ?? {};
+  if (value === undefined) {
+    res.status(400).json({ error: "value required" });
+    return;
+  }
+  const [row] = await db
+    .insert(botConfig)
+    .values({ key, value })
+    .onConflictDoUpdate({ target: botConfig.key, set: { value, updatedAt: new Date() } })
+    .returning();
+  await db.insert(activityEvents).values({
+    kind: "bot_config_set",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${req.user!.username} updated bot_config.${key}`,
+  });
+  res.json(row);
+});
+
+router.delete("/admin/bot-config/:key", adminOnly, async (req, res): Promise<void> => {
+  const key = String(req.params.key);
+  await db.delete(botConfig).where(eq(botConfig.key, key));
+  await db.insert(activityEvents).values({
+    kind: "bot_config_delete",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${req.user!.username} removed bot_config.${key}`,
+  });
+  res.sendStatus(204);
 });
 
 router.get("/admin/stats", async (_req, res): Promise<void> => {

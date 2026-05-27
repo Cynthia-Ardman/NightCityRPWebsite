@@ -675,6 +675,93 @@ paths:
       tags: [ripperdocs]
       responses:
         "204": { description: Removed }
+  /fixer/missions:
+    get:
+      operationId: listMissions
+      tags: [fixer]
+      summary: List recent missions (fixer view).
+      parameters:
+        - { in: query, name: characterId, schema: { type: integer } }
+        - { in: query, name: limit, schema: { type: integer, default: 100 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Mission" }
+    post:
+      operationId: createMission
+      tags: [fixer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MissionInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Mission" }
+        "400": { description: Bad request }
+        "502": { description: Wallet provider unavailable }
+
+  /admin/audit:
+    get:
+      operationId: adminListAudit
+      tags: [admin]
+      summary: Filtered audit feed (recent activity events).
+      parameters:
+        - { in: query, name: kind, schema: { type: string } }
+        - { in: query, name: actorId, schema: { type: string } }
+        - { in: query, name: since, schema: { type: string, format: date-time } }
+        - { in: query, name: limit, schema: { type: integer, default: 100, maximum: 500 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActivityEvent" }
+
+  /admin/bot-config:
+    get:
+      operationId: adminListBotConfig
+      tags: [admin]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BotConfigEntry" }
+  /admin/bot-config/{key}:
+    parameters:
+      - { in: path, name: key, required: true, schema: { type: string } }
+    put:
+      operationId: adminSetBotConfig
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BotConfigUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BotConfigEntry" }
+    delete:
+      operationId: adminDeleteBotConfig
+      tags: [admin]
+      responses:
+        "204": { description: Deleted }
+
   /ripperdocs/{id}/sell:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1892,6 +1979,48 @@ components:
             nextMedsWeekly: { type: integer }
             monthlyEstimate: { type: integer }
 
+    Mission:
+      type: object
+      required: [id, title, payoutEddies, status, createdAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
+        fixerId: { type: ["string", "null"] }
+        fixerName: { type: ["string", "null"] }
+        title: { type: string }
+        summary: { type: ["string", "null"] }
+        payoutEddies: { type: integer }
+        status: { type: string, enum: [planned, completed, failed, cancelled] }
+        occurredAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    MissionInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1 }
+        characterId: { type: integer }
+        summary: { type: string }
+        payoutEddies: { type: integer, minimum: 0 }
+        status: { type: string, enum: [planned, completed, failed, cancelled] }
+        occurredAt: { type: string, format: date-time }
+        pay: { type: boolean, description: "If true, also debit fixer and credit character via UnbelievaBoat." }
+
+    BotConfigEntry:
+      type: object
+      required: [key, value, updatedAt]
+      properties:
+        key: { type: string }
+        value: {}
+        updatedAt: { type: string, format: date-time }
+
+    BotConfigUpdate:
+      type: object
+      required: [value]
+      properties:
+        value: {}
+
     LeaderboardEntry:
       type: object
       required: [name, value]
@@ -1905,7 +2034,8 @@ components:
       required: [id, kind, message, createdAt]
       properties:
         id: { type: integer }
-        kind: { type: string, enum: [login, transfer, sheet_submitted, sheet_approved, sheet_rejected, status_change, shop_opened, job_run, admin_adjust, character_created] }
+        kind: { type: string }
+        actorId: { type: ["string", "null"] }
         actorName: { type: ["string", "null"] }
         actorAvatarUrl: { type: ["string", "null"] }
         message: { type: string }

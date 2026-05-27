@@ -14,8 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
+import SellStockDialog from "@/components/SellStockDialog";
 
 export default function MyClinicDetail() {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +35,7 @@ export default function MyClinicDetail() {
   const [stockName, setStockName] = useState("");
   const [stockCategory, setStockCategory] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
+  const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">NOT FOUND</div>;
@@ -72,9 +74,20 @@ export default function MyClinicDetail() {
         <CardHeader><CardTitle className="font-display tracking-widest">CYBERWARE STOCK</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {data.stock.map((s) => (
-            <div key={s.id} className="flex justify-between border-b border-border/30 py-2 font-mono text-sm">
+            <div key={s.id} className="flex justify-between items-center border-b border-border/30 py-2 font-mono text-sm">
               <span>{s.name} <span className="text-nc-yellow ml-2">{s.price.toLocaleString()} €$</span> <span className="text-muted-foreground ml-2">x{s.quantity}</span></span>
-              <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: rid, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
+                  disabled={s.quantity <= 0}
+                  className="rounded-none bg-nc-magenta text-background font-display text-xs"
+                  data-testid={`button-install-${s.id}`}
+                >
+                  <DollarSign className="w-3 h-3 mr-1" /> INSTALL
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: rid, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+              </div>
             </div>
           ))}
           <div className="pt-3 space-y-2">
@@ -110,6 +123,18 @@ export default function MyClinicDetail() {
           </div>
         </CardContent>
       </Card>
+      {sellTarget && (
+        <SellStockDialog
+          kind="ripperdoc"
+          venueId={rid}
+          stock={sellTarget}
+          onClose={() => setSellTarget(null)}
+          onDone={() => {
+            invalidate();
+            setSellTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }

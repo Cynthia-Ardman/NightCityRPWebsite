@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, getAdminListJobsQueryKey, getAdminListCharactersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListBotConfigQueryKey } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -52,7 +53,7 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs defaultValue={isFixerOnly ? "characters" : "users"} className="w-full">
-        <TabsList className={`bg-card border border-border rounded-none p-0 h-auto grid ${isFixerOnly ? "grid-cols-1 max-w-xs" : "grid-cols-2 md:grid-cols-4 max-w-3xl"} w-full`}>
+        <TabsList className={`bg-card border border-border rounded-none p-0 h-auto grid ${isFixerOnly ? "grid-cols-1 max-w-xs" : "grid-cols-2 md:grid-cols-6 max-w-5xl"} w-full`}>
           {!isFixerOnly && (
             <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
           )}
@@ -62,6 +63,12 @@ export default function AdminDashboard() {
           )}
           {!isFixerOnly && (
             <TabsTrigger value="jobs" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-jobs">Cron Jobs</TabsTrigger>
+          )}
+          {!isFixerOnly && (
+            <TabsTrigger value="audit" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-audit">Audit</TabsTrigger>
+          )}
+          {!isFixerOnly && (
+            <TabsTrigger value="flags" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-flags">System Flags</TabsTrigger>
           )}
         </TabsList>
 
@@ -78,9 +85,214 @@ export default function AdminDashboard() {
           <TabsContent value="jobs">
             <JobsTab />
           </TabsContent>
+          <TabsContent value="audit">
+            <AuditTab />
+          </TabsContent>
+          <TabsContent value="flags">
+            <FlagsTab />
+          </TabsContent>
         </div>
       </Tabs>
     </div>
+  );
+}
+
+function AuditTab() {
+  const [kind, setKind] = useState("");
+  const [actorId, setActorId] = useState("");
+  const [since, setSince] = useState("");
+  const params = {
+    ...(kind ? { kind } : {}),
+    ...(actorId ? { actorId } : {}),
+    ...(since ? { since: new Date(since).toISOString() } : {}),
+    limit: 200,
+  };
+  const { data: rows, isLoading, refetch } = useAdminListAudit(params);
+  const qc = useQueryClient();
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display text-nc-cyan">Audit Feed</CardTitle>
+        <CardDescription className="font-mono">Activity events across the portal. Filter by kind / actor / since.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 font-mono text-xs">
+          <Input className="md:col-span-3" placeholder="kind (e.g. transfer)" value={kind} onChange={(e) => setKind(e.target.value)} data-testid="input-audit-kind" />
+          <Input className="md:col-span-4" placeholder="actor user id" value={actorId} onChange={(e) => setActorId(e.target.value)} data-testid="input-audit-actor" />
+          <Input className="md:col-span-3" type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} data-testid="input-audit-since" />
+          <Button
+            className="md:col-span-2 rounded-none bg-nc-cyan text-background font-display"
+            onClick={() => {
+              qc.invalidateQueries({ queryKey: getAdminListAuditQueryKey() });
+              refetch();
+            }}
+            data-testid="button-audit-apply"
+          >
+            APPLY
+          </Button>
+        </div>
+        {isLoading ? (
+          <div className="text-nc-cyan font-mono animate-pulse">Loading events...</div>
+        ) : (
+          <div className="rounded-md border border-border">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-display text-nc-cyan w-40">When</TableHead>
+                  <TableHead className="font-display text-nc-cyan w-44">Kind</TableHead>
+                  <TableHead className="font-display text-nc-cyan w-40">Actor</TableHead>
+                  <TableHead className="font-display text-nc-cyan">Message</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="font-mono text-xs">
+                {rows?.map((e) => (
+                  <TableRow key={e.id} className="hover:bg-muted/50 border-border" data-testid={`row-audit-${e.id}`}>
+                    <TableCell className="text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="rounded-none border-nc-magenta text-nc-magenta text-[10px] px-1 py-0">
+                        {e.kind}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-nc-cyan">{e.actorName ?? "—"}</TableCell>
+                    <TableCell className="text-foreground">{e.message}</TableCell>
+                  </TableRow>
+                ))}
+                {!rows?.length && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground h-24">NO EVENTS</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FlagsTab() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: getAdminListBotConfigQueryKey() });
+  const { data: rows, isLoading } = useAdminListBotConfig();
+  const set = useAdminSetBotConfig({ mutation: { onSuccess: invalidate } });
+  const del = useAdminDeleteBotConfig({ mutation: { onSuccess: invalidate } });
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const parseValue = (raw: string): unknown => {
+    const t = raw.trim();
+    if (t === "") return "";
+    try {
+      return JSON.parse(t);
+    } catch {
+      return raw;
+    }
+  };
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display text-nc-cyan">System Flags</CardTitle>
+        <CardDescription className="font-mono">
+          Key/value bot_config flags. Values are JSON — bare strings are stored as strings.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 font-mono text-sm">
+        <div className="grid grid-cols-12 gap-2 items-end border-b border-border/40 pb-3">
+          <div className="col-span-4">
+            <Label className="text-xs">NEW KEY</Label>
+            <Input value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="e.g. trauma_team.enabled" data-testid="input-flag-key" />
+          </div>
+          <div className="col-span-6">
+            <Label className="text-xs">VALUE (JSON)</Label>
+            <Input value={newValue} onChange={(e) => setNewValue(e.target.value)} placeholder='true / 42 / "string"' data-testid="input-flag-value" />
+          </div>
+          <Button
+            className="col-span-2 rounded-none bg-nc-cyan text-background font-display"
+            disabled={!newKey.trim() || set.isPending}
+            onClick={() => {
+              set.mutate(
+                { key: newKey.trim(), data: { value: parseValue(newValue) } },
+                {
+                  onSuccess: () => {
+                    setNewKey("");
+                    setNewValue("");
+                  },
+                },
+              );
+            }}
+            data-testid="button-flag-create"
+          >
+            SET
+          </Button>
+        </div>
+        {isLoading ? (
+          <div className="text-nc-cyan font-mono animate-pulse">Loading flags...</div>
+        ) : (
+          <div className="rounded-md border border-border">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-display text-nc-cyan">Key</TableHead>
+                  <TableHead className="font-display text-nc-cyan">Value</TableHead>
+                  <TableHead className="font-display text-nc-cyan w-48">Updated</TableHead>
+                  <TableHead className="font-display text-nc-cyan w-40">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="text-xs">
+                {rows?.map((r) => {
+                  const current = drafts[r.key] ?? JSON.stringify(r.value);
+                  return (
+                    <TableRow key={r.key} className="hover:bg-muted/50 border-border" data-testid={`row-flag-${r.key}`}>
+                      <TableCell className="text-nc-cyan">{r.key}</TableCell>
+                      <TableCell>
+                        <Input
+                          value={current}
+                          onChange={(e) => setDrafts((d) => ({ ...d, [r.key]: e.target.value }))}
+                          className="h-8"
+                          data-testid={`input-flag-edit-${r.key}`}
+                        />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{new Date(r.updatedAt).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            className="rounded-none bg-nc-cyan text-background font-display text-xs"
+                            onClick={() => set.mutate({ key: r.key, data: { value: parseValue(drafts[r.key] ?? JSON.stringify(r.value)) } })}
+                            data-testid={`button-flag-save-${r.key}`}
+                          >
+                            SAVE
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-none border-destructive text-destructive font-display text-xs"
+                            onClick={() => {
+                              if (confirm(`Delete bot_config.${r.key}?`)) del.mutate({ key: r.key });
+                            }}
+                            data-testid={`button-flag-delete-${r.key}`}
+                          >
+                            DEL
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {!rows?.length && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground h-24">NO FLAGS</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
