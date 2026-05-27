@@ -17,6 +17,8 @@ export interface CharacterSheet {
   name: string;
   status: CharacterSheetStatus;
   /** @nullable */
+  discordMessageId?: string | null;
+  /** @nullable */
   decisionBy?: string | null;
   /** @nullable */
   decisionNote?: string | null;

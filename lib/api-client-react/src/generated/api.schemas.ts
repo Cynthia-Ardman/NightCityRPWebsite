@@ -507,6 +507,7 @@ export type CharacterSheetStatus = typeof CharacterSheetStatus[keyof typeof Char
 
 
 export const CharacterSheetStatus = {
+  draft: 'draft',
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
@@ -593,6 +594,8 @@ export interface CharacterSheet {
   name: string;
   status: CharacterSheetStatus;
   /** @nullable */
+  discordMessageId?: string | null;
+  /** @nullable */
   decisionBy?: string | null;
   /** @nullable */
   decisionNote?: string | null;
@@ -602,6 +605,17 @@ export interface CharacterSheet {
   data: CharacterSheetData;
 }
 
+/**
+ * draft skips validation and Discord; defaults to pending
+ */
+export type CharacterSheetInputStatus = typeof CharacterSheetInputStatus[keyof typeof CharacterSheetInputStatus];
+
+
+export const CharacterSheetInputStatus = {
+  draft: 'draft',
+  pending: 'pending',
+} as const;
+
 export interface CharacterSheetInput {
   /**
      * @minLength 1
@@ -610,7 +624,20 @@ export interface CharacterSheetInput {
   name: string;
   /** @nullable */
   characterId?: number | null;
+  /** draft skips validation and Discord; defaults to pending */
+  status?: CharacterSheetInputStatus;
   data: CharacterSheetData;
+}
+
+export interface CharacterSheetPatchInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  name?: string;
+  /** @nullable */
+  characterId?: number | null;
+  data?: CharacterSheetData;
 }
 
 export type SheetDecisionInputDecision = typeof SheetDecisionInputDecision[keyof typeof SheetDecisionInputDecision];

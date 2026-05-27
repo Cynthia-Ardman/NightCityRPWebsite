@@ -31,6 +31,7 @@ import type {
   CharacterInput,
   CharacterSheet,
   CharacterSheetInput,
+  CharacterSheetPatchInput,
   CharacterStatus,
   CharacterStatusUpdate,
   CharacterUpdate,
@@ -3811,6 +3812,218 @@ export function useGetSheet<TData = Awaited<ReturnType<typeof getSheet>>, TError
 
 
 
+
+export const getUpdateSheetUrl = (id: number,) => {
+
+
+
+
+  return `/api/sheets/${id}`
+}
+
+/**
+ * @summary Owner updates a draft or changes_requested sheet
+ */
+export const updateSheet = async (id: number,
+    characterSheetPatchInput: CharacterSheetPatchInput, options?: RequestInit): Promise<CharacterSheet> => {
+
+  return customFetch<CharacterSheet>(getUpdateSheetUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      characterSheetPatchInput,)
+  }
+);}
+
+
+
+
+export const getUpdateSheetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSheet>>, TError,{id: number;data: BodyType<CharacterSheetPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSheet>>, TError,{id: number;data: BodyType<CharacterSheetPatchInput>}, TContext> => {
+
+const mutationKey = ['updateSheet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSheet>>, {id: number;data: BodyType<CharacterSheetPatchInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateSheet(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSheetMutationResult = NonNullable<Awaited<ReturnType<typeof updateSheet>>>
+    export type UpdateSheetMutationBody = BodyType<CharacterSheetPatchInput>
+    export type UpdateSheetMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Owner updates a draft or changes_requested sheet
+ */
+export const useUpdateSheet = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSheet>>, TError,{id: number;data: BodyType<CharacterSheetPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSheet>>,
+        TError,
+        {id: number;data: BodyType<CharacterSheetPatchInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateSheetMutationOptions(options));
+    }
+
+export const getDeleteSheetUrl = (id: number,) => {
+
+
+
+
+  return `/api/sheets/${id}`
+}
+
+/**
+ * @summary Owner deletes a draft
+ */
+export const deleteSheet = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteSheetUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteSheetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSheet>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSheet>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteSheet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSheet>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteSheet(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteSheetMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSheet>>>
+
+    export type DeleteSheetMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Owner deletes a draft
+ */
+export const useDeleteSheet = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSheet>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteSheet>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteSheetMutationOptions(options));
+    }
+
+export const getSubmitDraftSheetUrl = (id: number,) => {
+
+
+
+
+  return `/api/sheets/${id}/submit`
+}
+
+/**
+ * @summary Promote a draft (or changes_requested) sheet to pending review
+ */
+export const submitDraftSheet = async (id: number, options?: RequestInit): Promise<CharacterSheet> => {
+
+  return customFetch<CharacterSheet>(getSubmitDraftSheetUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSubmitDraftSheetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitDraftSheet>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitDraftSheet>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['submitDraftSheet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitDraftSheet>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  submitDraftSheet(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitDraftSheetMutationResult = NonNullable<Awaited<ReturnType<typeof submitDraftSheet>>>
+
+    export type SubmitDraftSheetMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Promote a draft (or changes_requested) sheet to pending review
+ */
+export const useSubmitDraftSheet = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitDraftSheet>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitDraftSheet>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitDraftSheetMutationOptions(options));
+    }
 
 export const getDecideSheetUrl = (id: number,) => {
 

@@ -25,6 +25,8 @@ export * from './characterSheetDataAttributes';
 export * from './characterSheetDataSheetType';
 export * from './characterSheetDataSkills';
 export * from './characterSheetInput';
+export * from './characterSheetInputStatus';
+export * from './characterSheetPatchInput';
 export * from './characterSheetStatus';
 export * from './characterStatus';
 export * from './characterStatusUpdate';

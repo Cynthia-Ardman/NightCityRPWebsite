@@ -879,7 +879,8 @@ export const ListMySheetsResponseItem = zod.object({
   "ownerName": zod.string().optional(),
   "characterId": zod.number().nullish(),
   "name": zod.string(),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
+  "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
@@ -941,6 +942,7 @@ export const submitSheetBodyDataCyberwarePointsSpentMax = 6;
 export const SubmitSheetBody = zod.object({
   "name": zod.string().min(1).max(submitSheetBodyNameMax),
   "characterId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'pending']).optional().describe('draft skips validation and Discord; defaults to pending'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
@@ -1001,7 +1003,8 @@ export const ListPendingSheetsResponseItem = zod.object({
   "ownerName": zod.string().optional(),
   "characterId": zod.number().nullish(),
   "name": zod.string(),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
+  "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
@@ -1068,7 +1071,8 @@ export const GetSheetResponse = zod.object({
   "ownerName": zod.string().optional(),
   "characterId": zod.number().nullish(),
   "name": zod.string(),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
+  "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
@@ -1118,6 +1122,209 @@ export const GetSheetResponse = zod.object({
 
 
 /**
+ * @summary Owner updates a draft or changes_requested sheet
+ */
+export const UpdateSheetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateSheetBodyNameMax = 64;
+
+export const updateSheetBodyDataCyberwareBySlotMin = 13;
+export const updateSheetBodyDataCyberwareBySlotMax = 13;
+
+export const updateSheetBodyDataCyberwarePointsSpentMax = 6;
+
+
+
+export const UpdateSheetBody = zod.object({
+  "name": zod.string().min(1).max(updateSheetBodyNameMax).optional(),
+  "characterId": zod.number().nullish(),
+  "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']),
+  "fullName": zod.string(),
+  "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
+  "age": zod.number(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
+  "background": zod.string(),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
+  "skills": zod.record(zod.string(), zod.number()),
+  "cyberware": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).min(updateSheetBodyDataCyberwareBySlotMin).max(updateSheetBodyDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+  "cyberwareMisc": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+  "cyberwarePointsSpent": zod.number().max(updateSheetBodyDataCyberwarePointsSpentMax).optional(),
+  "gear": zod.array(zod.string()),
+  "startingEddies": zod.number(),
+  "notes": zod.string().nullish()
+}).optional().describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+})
+
+export const updateSheetResponseDataCyberwareBySlotMin = 13;
+export const updateSheetResponseDataCyberwareBySlotMax = 13;
+
+export const updateSheetResponseDataCyberwarePointsSpentMax = 6;
+
+
+
+export const UpdateSheetResponse = zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string(),
+  "ownerName": zod.string().optional(),
+  "characterId": zod.number().nullish(),
+  "name": zod.string(),
+  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
+  "discordMessageId": zod.string().nullish(),
+  "decisionBy": zod.string().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']),
+  "fullName": zod.string(),
+  "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
+  "age": zod.number(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
+  "background": zod.string(),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
+  "skills": zod.record(zod.string(), zod.number()),
+  "cyberware": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).min(updateSheetResponseDataCyberwareBySlotMin).max(updateSheetResponseDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+  "cyberwareMisc": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+  "cyberwarePointsSpent": zod.number().max(updateSheetResponseDataCyberwarePointsSpentMax).optional(),
+  "gear": zod.array(zod.string()),
+  "startingEddies": zod.number(),
+  "notes": zod.string().nullish()
+}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+})
+
+
+/**
+ * @summary Owner deletes a draft
+ */
+export const DeleteSheetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Promote a draft (or changes_requested) sheet to pending review
+ */
+export const SubmitDraftSheetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const submitDraftSheetResponseDataCyberwareBySlotMin = 13;
+export const submitDraftSheetResponseDataCyberwareBySlotMax = 13;
+
+export const submitDraftSheetResponseDataCyberwarePointsSpentMax = 6;
+
+
+
+export const SubmitDraftSheetResponse = zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string(),
+  "ownerName": zod.string().optional(),
+  "characterId": zod.number().nullish(),
+  "name": zod.string(),
+  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
+  "discordMessageId": zod.string().nullish(),
+  "decisionBy": zod.string().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']),
+  "fullName": zod.string(),
+  "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
+  "age": zod.number(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
+  "background": zod.string(),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
+  "skills": zod.record(zod.string(), zod.number()),
+  "cyberware": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).min(submitDraftSheetResponseDataCyberwareBySlotMin).max(submitDraftSheetResponseDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+  "cyberwareMisc": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+  "cyberwarePointsSpent": zod.number().max(submitDraftSheetResponseDataCyberwarePointsSpentMax).optional(),
+  "gear": zod.array(zod.string()),
+  "startingEddies": zod.number(),
+  "notes": zod.string().nullish()
+}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+})
+
+
+/**
  * @summary Approve or reject a pending sheet (CS approvers only)
  */
 export const DecideSheetParams = zod.object({
@@ -1142,7 +1349,8 @@ export const DecideSheetResponse = zod.object({
   "ownerName": zod.string().optional(),
   "characterId": zod.number().nullish(),
   "name": zod.string(),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
+  "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),

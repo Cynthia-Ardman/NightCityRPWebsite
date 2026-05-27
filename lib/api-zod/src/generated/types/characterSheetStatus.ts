@@ -10,6 +10,7 @@ export type CharacterSheetStatus = typeof CharacterSheetStatus[keyof typeof Char
 
 
 export const CharacterSheetStatus = {
+  draft: 'draft',
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',

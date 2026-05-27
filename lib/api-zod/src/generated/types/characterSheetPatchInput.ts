@@ -6,17 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CharacterSheetData } from './characterSheetData';
-import type { CharacterSheetInputStatus } from './characterSheetInputStatus';
 
-export interface CharacterSheetInput {
+export interface CharacterSheetPatchInput {
   /**
      * @minLength 1
      * @maxLength 64
      */
-  name: string;
+  name?: string;
   /** @nullable */
   characterId?: number | null;
-  /** draft skips validation and Discord; defaults to pending */
-  status?: CharacterSheetInputStatus;
-  data: CharacterSheetData;
+  data?: CharacterSheetData;
 }

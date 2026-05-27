@@ -722,6 +722,40 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CharacterSheet" }
+    patch:
+      operationId: updateSheet
+      tags: [sheets]
+      summary: Owner updates a draft or changes_requested sheet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CharacterSheetPatchInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterSheet" }
+    delete:
+      operationId: deleteSheet
+      tags: [sheets]
+      summary: Owner deletes a draft
+      responses:
+        "204": { description: Deleted }
+  /sheets/{id}/submit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: submitDraftSheet
+      tags: [sheets]
+      summary: Promote a draft (or changes_requested) sheet to pending review
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterSheet" }
   /sheets/{id}/decision:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1440,7 +1474,8 @@ components:
         ownerName: { type: string }
         characterId: { type: ["integer", "null"] }
         name: { type: string }
-        status: { type: string, enum: [pending, approved, rejected, changes_requested] }
+        status: { type: string, enum: [draft, pending, approved, rejected, changes_requested] }
+        discordMessageId: { type: ["string", "null"] }
         decisionBy: { type: ["string", "null"] }
         decisionNote: { type: ["string", "null"] }
         decidedAt: { type: ["string", "null"], format: date-time }
@@ -1515,6 +1550,14 @@ components:
     CharacterSheetInput:
       type: object
       required: [name, data]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 64 }
+        characterId: { type: ["integer", "null"] }
+        status: { type: string, enum: [draft, pending], description: "draft skips validation and Discord; defaults to pending" }
+        data: { $ref: "#/components/schemas/CharacterSheetData" }
+
+    CharacterSheetPatchInput:
+      type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 64 }
         characterId: { type: ["integer", "null"] }

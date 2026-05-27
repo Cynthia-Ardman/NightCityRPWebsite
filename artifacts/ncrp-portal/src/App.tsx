@@ -12,10 +12,10 @@ import CharacterDetail from "@/pages/CharacterDetail";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminUserDetail from "@/pages/admin/AdminUserDetail";
 import DiceRoller from "@/pages/DiceRoller";
-import SheetsList from "@/pages/sheets/SheetsList";
 import NewSheet from "@/pages/sheets/NewSheet";
 import SheetDetail from "@/pages/sheets/SheetDetail";
 import PendingSheets from "@/pages/sheets/PendingSheets";
+import { Redirect } from "wouter";
 import DirectoryStores from "@/pages/directory/DirectoryStores";
 import DirectoryStoreDetail from "@/pages/directory/DirectoryStoreDetail";
 import DirectoryRipperdocs from "@/pages/directory/DirectoryRipperdocs";
@@ -66,9 +66,10 @@ function AppRoutes() {
           <Route path="/logout/error" component={LogoutError} />
           <Route path="/characters" component={CharactersList} />
           <Route path="/characters/:id" component={CharacterDetail} />
-          <Route path="/sheets" component={SheetsList} />
+          <Route path="/sheets"><Redirect to="/characters" /></Route>
           <Route path="/sheets/new" component={NewSheet} />
           <Route path="/sheets/pending" component={PendingSheets} />
+          <Route path="/sheets/:id/edit" component={NewSheet} />
           <Route path="/sheets/:id" component={SheetDetail} />
           <Route path="/directory/stores" component={DirectoryStores} />
           <Route path="/directory/stores/:id" component={DirectoryStoreDetail} />

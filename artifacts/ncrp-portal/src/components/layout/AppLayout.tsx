@@ -85,7 +85,6 @@ function SidebarContent() {
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-4 uppercase tracking-widest">Personal</div>
         <NavItem href="/" icon={User} label="Dashboard" />
         <NavItem href="/characters" icon={Users} label="Characters" />
-        <NavItem href="/sheets" icon={FileText} label="My Sheets" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
 
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Directory</div>
