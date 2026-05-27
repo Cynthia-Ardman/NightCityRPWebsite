@@ -31,6 +31,7 @@ import MyClinics from "@/pages/clinics/MyClinics";
 import MyClinicDetail from "@/pages/clinics/MyClinicDetail";
 import FixerHub from "@/pages/fixer/FixerHub";
 import FixerNpcDetail from "@/pages/fixer/FixerNpcDetail";
+import LoginError from "@/pages/LoginError";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +61,7 @@ function AppRoutes() {
       <AppLayout>
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/login/error" component={LoginError} />
           <Route path="/characters" component={CharactersList} />
           <Route path="/characters/:id" component={CharacterDetail} />
           <Route path="/sheets" component={SheetsList} />

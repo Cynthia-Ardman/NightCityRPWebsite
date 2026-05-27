@@ -22,11 +22,17 @@ router.get("/auth/discord/login", (req, res): void => {
   res.redirect(buildAuthUrl(state));
 });
 
+function loginErrorRedirect(reason: string, detail?: string): string {
+  const params = new URLSearchParams({ reason });
+  if (detail) params.set("detail", detail);
+  return `/login/error?${params.toString()}`;
+}
+
 router.get("/auth/discord/callback", async (req, res): Promise<void> => {
   const code = typeof req.query.code === "string" ? req.query.code : undefined;
   const state = typeof req.query.state === "string" ? req.query.state : undefined;
   if (!code || !state || state !== req.session.oauthState) {
-    res.status(400).send("Invalid OAuth state");
+    res.redirect(loginErrorRedirect("state"));
     return;
   }
   req.session.oauthState = undefined;
@@ -72,20 +78,14 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Discord OAuth callback failed");
     if (err instanceof DiscordConfigError) {
-      res.status(500).type("text/plain").send(
-        `Login is misconfigured on the server.\n\n${err.message}\n\nPlease contact an administrator.`,
-      );
+      res.redirect(loginErrorRedirect("config", err.message));
       return;
     }
     if (err instanceof DiscordUpstreamError) {
-      res.status(502).type("text/plain").send(
-        `Discord returned an error during login (HTTP ${err.status}). Please try again in a moment.`,
-      );
+      res.redirect(loginErrorRedirect("upstream", String(err.status)));
       return;
     }
-    res.status(500).type("text/plain").send(
-      "Unexpected error completing Discord login. Please try again; if the problem persists, contact an administrator.",
-    );
+    res.redirect(loginErrorRedirect("unknown"));
   }
 });
 
