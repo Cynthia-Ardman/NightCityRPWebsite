@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface LeaderboardEntry {
+  name: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+  value: number;
 }

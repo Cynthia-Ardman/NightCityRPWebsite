@@ -1,36 +1,1366 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Night City RP Portal API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: auth
+  - name: characters
+  - name: inventory
+  - name: wallet
+  - name: status
+  - name: directory
+  - name: catalog
+  - name: stores
+  - name: ripperdocs
+  - name: fixer
+  - name: sheets
+  - name: dice
+  - name: admin
+  - name: dashboard
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
           content:
             application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+
+  # ---------------- AUTH ----------------
+  /auth/discord/login:
+    get:
+      operationId: discordLogin
+      tags: [auth]
+      summary: Redirect to Discord OAuth2
+      responses:
+        "302": { description: Redirect to Discord }
+  /auth/discord/callback:
+    get:
+      operationId: discordCallback
+      tags: [auth]
+      summary: Discord OAuth2 callback
+      parameters:
+        - { in: query, name: code, schema: { type: string } }
+        - { in: query, name: state, schema: { type: string } }
+      responses:
+        "302": { description: Redirect after login }
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      responses:
+        "204": { description: Logged out }
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Current session user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { description: Not logged in }
+
+  # ---------------- CHARACTERS ----------------
+  /characters:
+    get:
+      operationId: listMyCharacters
+      tags: [characters]
+      summary: List the current user's characters (PC + NPC)
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                type: array
+                items: { $ref: "#/components/schemas/Character" }
+    post:
+      operationId: createCharacter
+      tags: [characters]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CharacterInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+  /characters/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getCharacter
+      tags: [characters]
+      responses:
+        "200":
+          description: Character
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+    patch:
+      operationId: updateCharacter
+      tags: [characters]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CharacterUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+    delete:
+      operationId: deleteCharacter
+      tags: [characters]
+      responses:
+        "204": { description: Deleted }
+  /characters/{id}/activate:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: setActiveCharacter
+      tags: [characters]
+      summary: Set this character as the user's currently active one
+      responses:
+        "204": { description: Activated }
+
+  # ---------------- INVENTORY ----------------
+  /characters/{id}/inventory:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getCharacterInventory
+      tags: [inventory]
+      responses:
+        "200":
+          description: Inventory
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InventoryItem" }
+    post:
+      operationId: addInventoryItem
+      tags: [inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryItemInput" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryItem" }
+  /characters/{id}/inventory/{itemId}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: itemId, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateInventoryItem
+      tags: [inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryItemUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryItem" }
+    delete:
+      operationId: removeInventoryItem
+      tags: [inventory]
+      responses:
+        "204": { description: Removed }
+
+  # ---------------- WALLET (UnbelievaBoat is source of truth) ----------------
+  /characters/{id}/wallet:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getWallet
+      tags: [wallet]
+      summary: Live balance from UnbelievaBoat
+      responses:
+        "200":
+          description: Wallet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wallet" }
+  /characters/{id}/wallet/transfer:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: transferEddies
+      tags: [wallet]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransferInput" }
+      responses:
+        "200":
+          description: Transferred
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wallet" }
+  /characters/{id}/wallet/transactions:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getWalletTransactions
+      tags: [wallet]
+      responses:
+        "200":
+          description: Transaction history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WalletTransaction" }
+
+  # ---------------- STATUS (LOA / Attend / Open Shop) ----------------
+  /characters/{id}/status:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getCharacterStatus
+      tags: [status]
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterStatus" }
+    patch:
+      operationId: updateCharacterStatus
+      tags: [status]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CharacterStatusUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterStatus" }
+
+  # ---------------- PUBLIC DIRECTORIES ----------------
+  /directory/ripperdocs:
+    get:
+      operationId: listRipperdocs
+      tags: [directory]
+      summary: Public list of ripperdoc clinics (no stock)
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RipperdocPublic" }
+  /directory/ripperdocs/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getRipperdocPublic
+      tags: [directory]
+      responses:
+        "200":
+          description: Ripperdoc
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RipperdocPublic" }
+  /directory/stores:
+    get:
+      operationId: listStores
+      tags: [directory]
+      summary: Public list of stores (no stock)
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StorePublic" }
+  /directory/stores/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getStorePublic
+      tags: [directory]
+      responses:
+        "200":
+          description: Store
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StorePublic" }
+
+  # ---------------- CATALOGS (read-only public) ----------------
+  /catalog/guns:
+    get:
+      operationId: listGuns
+      tags: [catalog]
+      responses:
+        "200":
+          description: Gun catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CatalogGun" }
+  /catalog/cyberware:
+    get:
+      operationId: listCyberware
+      tags: [catalog]
+      responses:
+        "200":
+          description: Cyberware catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CatalogCyberware" }
+  /catalog/rent:
+    get:
+      operationId: listRentListings
+      tags: [catalog]
+      responses:
+        "200":
+          description: Rent and leases
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CatalogRent" }
+
+  # ---------------- STORE MANAGEMENT (owner/employee) ----------------
+  /stores/mine:
+    get:
+      operationId: listMyStores
+      tags: [stores]
+      summary: Stores I own or am employed at
+      responses:
+        "200":
+          description: Stores
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Store" }
+  /stores/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getStore
+      tags: [stores]
+      responses:
+        "200":
+          description: Store with stock
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Store" }
+    patch:
+      operationId: updateStore
+      tags: [stores]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StoreUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Store" }
+  /stores/{id}/employees:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: addStoreEmployee
+      tags: [stores]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmployeeInput" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Employee" }
+  /stores/{id}/employees/{employeeId}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: employeeId, required: true, schema: { type: integer } }
+    delete:
+      operationId: removeStoreEmployee
+      tags: [stores]
+      responses:
+        "204": { description: Removed }
+  /stores/{id}/stock:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: addStoreStock
+      tags: [stores]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockInput" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockItem" }
+  /stores/{id}/stock/{stockId}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: stockId, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateStoreStock
+      tags: [stores]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockItem" }
+    delete:
+      operationId: removeStoreStock
+      tags: [stores]
+      responses:
+        "204": { description: Removed }
+
+  # ---------------- RIPPERDOC MANAGEMENT ----------------
+  /ripperdocs/mine:
+    get:
+      operationId: listMyRipperdocs
+      tags: [ripperdocs]
+      responses:
+        "200":
+          description: Clinics
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Ripperdoc" }
+  /ripperdocs/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getRipperdoc
+      tags: [ripperdocs]
+      responses:
+        "200":
+          description: Clinic with stock
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ripperdoc" }
+    patch:
+      operationId: updateRipperdoc
+      tags: [ripperdocs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RipperdocUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ripperdoc" }
+  /ripperdocs/{id}/employees:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: addRipperdocEmployee
+      tags: [ripperdocs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmployeeInput" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Employee" }
+  /ripperdocs/{id}/employees/{employeeId}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: employeeId, required: true, schema: { type: integer } }
+    delete:
+      operationId: removeRipperdocEmployee
+      tags: [ripperdocs]
+      responses:
+        "204": { description: Removed }
+  /ripperdocs/{id}/stock:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: addRipperdocStock
+      tags: [ripperdocs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockInput" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockItem" }
+  /ripperdocs/{id}/stock/{stockId}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: stockId, required: true, schema: { type: integer } }
+    delete:
+      operationId: removeRipperdocStock
+      tags: [ripperdocs]
+      responses:
+        "204": { description: Removed }
+
+  # ---------------- FIXER HUB ----------------
+  /fixer/npcs/mine:
+    get:
+      operationId: listMyFixerNpcs
+      tags: [fixer]
+      summary: NPCs created by the current fixer
+      responses:
+        "200":
+          description: NPCs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FixerNpc" }
+  /fixer/npcs:
+    get:
+      operationId: listAllFixerNpcs
+      tags: [fixer]
+      summary: All fixer NPCs (visible to fixers)
+      responses:
+        "200":
+          description: NPCs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FixerNpc" }
+    post:
+      operationId: createFixerNpc
+      tags: [fixer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FixerNpcInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FixerNpc" }
+  /fixer/npcs/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getFixerNpc
+      tags: [fixer]
+      responses:
+        "200":
+          description: NPC detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FixerNpc" }
+    patch:
+      operationId: updateFixerNpc
+      tags: [fixer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FixerNpcUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FixerNpc" }
+
+  # ---------------- CHARACTER SHEETS ----------------
+  /sheets:
+    get:
+      operationId: listMySheets
+      tags: [sheets]
+      summary: My submitted character sheets
+      responses:
+        "200":
+          description: Sheets
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CharacterSheet" }
+    post:
+      operationId: submitSheet
+      tags: [sheets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CharacterSheetInput" }
+      responses:
+        "201":
+          description: Submitted; CS Approvers notified on Discord
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterSheet" }
+  /sheets/pending:
+    get:
+      operationId: listPendingSheets
+      tags: [sheets]
+      summary: Pending sheets (CS approvers only)
+      responses:
+        "200":
+          description: Pending
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CharacterSheet" }
+  /sheets/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getSheet
+      tags: [sheets]
+      responses:
+        "200":
+          description: Sheet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterSheet" }
+  /sheets/{id}/decision:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: decideSheet
+      tags: [sheets]
+      summary: Approve or reject a pending sheet (CS approvers only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SheetDecisionInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterSheet" }
+
+  # ---------------- DICE ----------------
+  /dice/roll:
+    post:
+      operationId: rollDice
+      tags: [dice]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DiceRollInput" }
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiceRollResult" }
+  /dice/history:
+    get:
+      operationId: getDiceHistory
+      tags: [dice]
+      responses:
+        "200":
+          description: Recent rolls
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DiceRollResult" }
+
+  # ---------------- ADMIN ----------------
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminUser" }
+  /admin/users/{userId}:
+    parameters:
+      - { in: path, name: userId, required: true, schema: { type: string } }
+    get:
+      operationId: adminGetUser
+      tags: [admin]
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/users/{userId}/roles:
+    parameters:
+      - { in: path, name: userId, required: true, schema: { type: string } }
+    post:
+      operationId: adminSyncUserRoles
+      tags: [admin]
+      summary: Re-sync this user's roles from Discord
+      responses:
+        "200":
+          description: Synced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/characters:
+    get:
+      operationId: adminListCharacters
+      tags: [admin]
+      responses:
+        "200":
+          description: All characters
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Character" }
+  /admin/wallet/adjust:
+    post:
+      operationId: adminAdjustWallet
+      tags: [admin]
+      summary: Manual eddie adjustment (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WalletAdjustmentInput" }
+      responses:
+        "200":
+          description: Adjusted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wallet" }
+  /admin/jobs/run:
+    post:
+      operationId: adminRunJob
+      tags: [admin]
+      summary: Manually trigger a cron job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobRunInput" }
+      responses:
+        "200":
+          description: Job triggered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobRunResult" }
+  /admin/jobs:
+    get:
+      operationId: adminListJobs
+      tags: [admin]
+      responses:
+        "200":
+          description: Recent job runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/JobRunResult" }
+
+  # ---------------- DASHBOARD ----------------
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Top-level dashboard counts and recent activity
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardSummary" }
+  /dashboard/activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      responses:
+        "200":
+          description: Recent activity events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActivityEvent" }
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
+        status: { type: string }
 
+    Me:
+      type: object
+      required: [id, discordId, username, avatarUrl, roles, isAdmin, isFixer, isCsApprover, isRipperdoc, isStoreOwner]
+      properties:
+        id: { type: string }
+        discordId: { type: string }
+        username: { type: string }
+        globalName: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        roles:
+          type: array
+          items: { type: string }
+        isAdmin: { type: boolean }
+        isFixer: { type: boolean }
+        isCsApprover: { type: boolean }
+        isRipperdoc: { type: boolean }
+        isStoreOwner: { type: boolean }
+        activeCharacterId: { type: ["integer", "null"] }
+
+    Character:
+      type: object
+      required: [id, ownerId, name, kind, createdAt]
+      properties:
+        id: { type: integer }
+        ownerId: { type: string }
+        name: { type: string }
+        kind: { type: string, enum: [pc, npc] }
+        archetype: { type: ["string", "null"] }
+        background: { type: ["string", "null"] }
+        portraitUrl: { type: ["string", "null"] }
+        discordChannelId: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        approved: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    CharacterInput:
+      type: object
+      required: [name, kind]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 64 }
+        kind: { type: string, enum: [pc, npc] }
+        archetype: { type: string }
+        background: { type: string }
+        portraitUrl: { type: string }
+
+    CharacterUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 64 }
+        archetype: { type: string }
+        background: { type: string }
+        portraitUrl: { type: string }
+
+    InventoryItem:
+      type: object
+      required: [id, characterId, name, quantity]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        name: { type: string }
+        category: { type: ["string", "null"] }
+        quantity: { type: integer }
+        notes: { type: ["string", "null"] }
+        equipped: { type: boolean }
+
+    InventoryItemInput:
+      type: object
+      required: [name, quantity]
+      properties:
+        name: { type: string, minLength: 1 }
+        category: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        notes: { type: string }
+        equipped: { type: boolean }
+
+    InventoryItemUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        category: { type: string }
+        quantity: { type: integer, minimum: 0 }
+        notes: { type: string }
+        equipped: { type: boolean }
+
+    Wallet:
+      type: object
+      required: [characterId, balance, source]
+      properties:
+        characterId: { type: integer }
+        balance: { type: integer }
+        bank: { type: integer }
+        cash: { type: integer }
+        source: { type: string, enum: [unbelievaboat, local] }
+        updatedAt: { type: string, format: date-time }
+
+    TransferInput:
+      type: object
+      required: [toCharacterId, amount]
+      properties:
+        toCharacterId: { type: integer }
+        amount: { type: integer, minimum: 1 }
+        memo: { type: string }
+
+    WalletTransaction:
+      type: object
+      required: [id, characterId, amount, kind, createdAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        amount: { type: integer }
+        kind: { type: string, enum: [transfer_in, transfer_out, payout, rent, cyberware, admin, shop, other] }
+        memo: { type: ["string", "null"] }
+        counterpartyName: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    CharacterStatus:
+      type: object
+      required: [characterId, loa, attending, openShop, updatedAt]
+      properties:
+        characterId: { type: integer }
+        loa: { type: boolean }
+        loaReturnsAt: { type: ["string", "null"], format: date-time }
+        attending: { type: boolean }
+        openShop: { type: boolean }
+        statusMessage: { type: ["string", "null"] }
+        updatedAt: { type: string, format: date-time }
+
+    CharacterStatusUpdate:
+      type: object
+      properties:
+        loa: { type: boolean }
+        loaReturnsAt: { type: string, format: date-time }
+        attending: { type: boolean }
+        openShop: { type: boolean }
+        statusMessage: { type: string }
+
+    RipperdocPublic:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        ownerName: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        bannerUrl: { type: ["string", "null"] }
+        employeeNames:
+          type: array
+          items: { type: string }
+
+    StorePublic:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        ownerName: { type: ["string", "null"] }
+        kind: { type: string, enum: [guns, gear, clothing, mixed, other] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        bannerUrl: { type: ["string", "null"] }
+        employeeNames:
+          type: array
+          items: { type: string }
+
+    Store:
+      type: object
+      required: [id, name, kind, ownerId]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        ownerId: { type: string }
+        ownerCharacterId: { type: ["integer", "null"] }
+        kind: { type: string, enum: [guns, gear, clothing, mixed, other] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        bannerUrl: { type: ["string", "null"] }
+        employees:
+          type: array
+          items: { $ref: "#/components/schemas/Employee" }
+        stock:
+          type: array
+          items: { $ref: "#/components/schemas/StockItem" }
+
+    StoreUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [guns, gear, clothing, mixed, other] }
+        location: { type: string }
+        description: { type: string }
+        bannerUrl: { type: string }
+
+    Ripperdoc:
+      type: object
+      required: [id, name, ownerId]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        ownerId: { type: string }
+        ownerCharacterId: { type: ["integer", "null"] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        bannerUrl: { type: ["string", "null"] }
+        employees:
+          type: array
+          items: { $ref: "#/components/schemas/Employee" }
+        stock:
+          type: array
+          items: { $ref: "#/components/schemas/StockItem" }
+
+    RipperdocUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        location: { type: string }
+        description: { type: string }
+        bannerUrl: { type: string }
+
+    Employee:
+      type: object
+      required: [id, characterId, name, role]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        name: { type: string }
+        role: { type: string }
+
+    EmployeeInput:
+      type: object
+      required: [characterId, role]
+      properties:
+        characterId: { type: integer }
+        role: { type: string, minLength: 1 }
+
+    StockItem:
+      type: object
+      required: [id, name, price, quantity]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        category: { type: ["string", "null"] }
+        price: { type: integer }
+        quantity: { type: integer }
+        notes: { type: ["string", "null"] }
+
+    StockInput:
+      type: object
+      required: [name, price, quantity]
+      properties:
+        name: { type: string, minLength: 1 }
+        category: { type: string }
+        price: { type: integer, minimum: 0 }
+        quantity: { type: integer, minimum: 0 }
+        notes: { type: string }
+
+    StockUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        category: { type: string }
+        price: { type: integer, minimum: 0 }
+        quantity: { type: integer, minimum: 0 }
+        notes: { type: string }
+
+    CatalogGun:
+      type: object
+      required: [id, name, price]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        category: { type: ["string", "null"] }
+        manufacturer: { type: ["string", "null"] }
+        damage: { type: ["string", "null"] }
+        magSize: { type: ["integer", "null"] }
+        price: { type: integer }
+        notes: { type: ["string", "null"] }
+
+    CatalogCyberware:
+      type: object
+      required: [id, name, price, slot, humanityLoss]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slot: { type: string }
+        humanityLoss: { type: integer }
+        price: { type: integer }
+        installCost: { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+
+    CatalogRent:
+      type: object
+      required: [id, name, monthlyRent]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
+        monthlyRent: { type: integer }
+        description: { type: ["string", "null"] }
+
+    FixerNpc:
+      type: object
+      required: [id, name, fixerId, fixerName, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        archetype: { type: ["string", "null"] }
+        district: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        portraitUrl: { type: ["string", "null"] }
+        contact: { type: ["string", "null"] }
+        fixerId: { type: string }
+        fixerName: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    FixerNpcInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        archetype: { type: string }
+        district: { type: string }
+        description: { type: string }
+        portraitUrl: { type: string }
+        contact: { type: string }
+
+    FixerNpcUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        archetype: { type: string }
+        district: { type: string }
+        description: { type: string }
+        portraitUrl: { type: string }
+        contact: { type: string }
+
+    CharacterSheet:
+      type: object
+      required: [id, ownerId, name, status, createdAt, data]
+      properties:
+        id: { type: integer }
+        ownerId: { type: string }
+        ownerName: { type: string }
+        characterId: { type: ["integer", "null"] }
+        name: { type: string }
+        status: { type: string, enum: [pending, approved, rejected] }
+        decisionBy: { type: ["string", "null"] }
+        decisionNote: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        data: { $ref: "#/components/schemas/CharacterSheetData" }
+
+    CharacterSheetData:
+      type: object
+      required: [fullName, archetype, age, gender, appearance, background, attributes, skills, cyberware, gear, startingEddies]
+      properties:
+        fullName: { type: string }
+        nickname: { type: ["string", "null"] }
+        archetype: { type: string }
+        age: { type: integer }
+        gender: { type: string }
+        appearance: { type: string }
+        background: { type: string }
+        attributes:
+          type: object
+          additionalProperties: { type: integer }
+        skills:
+          type: object
+          additionalProperties: { type: integer }
+        cyberware:
+          type: array
+          maxItems: 11
+          items: { $ref: "#/components/schemas/CharacterSheetCyberwareEntry" }
+        cyberwarePointsSpent: { type: integer, maximum: 6 }
+        gear:
+          type: array
+          items: { type: string }
+        startingEddies: { type: integer }
+        notes: { type: ["string", "null"] }
+
+    CharacterSheetCyberwareEntry:
+      type: object
+      required: [slot, name, points]
+      properties:
+        slot: { type: string }
+        name: { type: string }
+        points: { type: integer }
+        humanityLoss: { type: integer }
+        notes: { type: ["string", "null"] }
+
+    CharacterSheetInput:
+      type: object
+      required: [data]
+      properties:
+        characterId: { type: ["integer", "null"] }
+        data: { $ref: "#/components/schemas/CharacterSheetData" }
+
+    SheetDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approved, rejected] }
+        note: { type: string }
+
+    DiceRollInput:
+      type: object
+      required: [expression]
+      properties:
+        expression: { type: string, minLength: 1, maxLength: 64, description: "e.g. 1d20+5, 4d6kh3" }
+        label: { type: string }
+        characterId: { type: integer }
+
+    DiceRollResult:
+      type: object
+      required: [id, expression, total, rolls, createdAt]
+      properties:
+        id: { type: integer }
+        expression: { type: string }
+        label: { type: ["string", "null"] }
+        characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
+        rolls:
+          type: array
+          items: { type: integer }
+        modifier: { type: integer }
+        total: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    AdminUser:
+      type: object
+      required: [id, discordId, username, roles, isAdmin]
+      properties:
+        id: { type: string }
+        discordId: { type: string }
+        username: { type: string }
+        globalName: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        roles:
+          type: array
+          items: { type: string }
+        isAdmin: { type: boolean }
+        isFixer: { type: boolean }
+        isCsApprover: { type: boolean }
+        characterCount: { type: integer }
+        lastSeenAt: { type: ["string", "null"], format: date-time }
+
+    WalletAdjustmentInput:
+      type: object
+      required: [characterId, amount, reason]
+      properties:
+        characterId: { type: integer }
+        amount: { type: integer, description: "positive or negative" }
+        reason: { type: string, minLength: 1 }
+
+    JobRunInput:
+      type: object
+      required: [job]
+      properties:
+        job: { type: string, enum: [cyberware_humanity, monthly_rent, role_sync] }
+
+    JobRunResult:
+      type: object
+      required: [id, job, status, startedAt]
+      properties:
+        id: { type: integer }
+        job: { type: string }
+        status: { type: string, enum: [running, success, failed] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: ["string", "null"], format: date-time }
+        message: { type: ["string", "null"] }
+        affectedCount: { type: ["integer", "null"] }
+
+    DashboardSummary:
+      type: object
+      required: [characterCount, activeCharacterCount, totalEddies, openShops, attendingCount, loaCount, pendingSheets]
+      properties:
+        characterCount: { type: integer }
+        activeCharacterCount: { type: integer }
+        totalEddies: { type: integer }
+        openShops: { type: integer }
+        attendingCount: { type: integer }
+        loaCount: { type: integer }
+        pendingSheets: { type: integer }
+        topFixers:
+          type: array
+          items: { $ref: "#/components/schemas/LeaderboardEntry" }
+        recentArrivals:
+          type: array
+          items: { $ref: "#/components/schemas/Character" }
+
+    LeaderboardEntry:
+      type: object
+      required: [name, value]
+      properties:
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        value: { type: integer }
+
+    ActivityEvent:
+      type: object
+      required: [id, kind, message, createdAt]
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [login, transfer, sheet_submitted, sheet_approved, sheet_rejected, status_change, shop_opened, job_run, admin_adjust, character_created] }
+        actorName: { type: ["string", "null"] }
+        actorAvatarUrl: { type: ["string", "null"] }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }

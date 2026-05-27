@@ -5,7 +5,8 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { JobRunInputJob } from './jobRunInputJob';
 
-export interface HealthStatus {
-  status: string;
+export interface JobRunInput {
+  job: JobRunInputJob;
 }
