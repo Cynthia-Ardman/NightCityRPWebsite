@@ -6,16 +6,19 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "import-prod": "tsx ./src/import-prod.ts",
+    "seed-catalogs": "tsx ./src/seed-catalogs.ts",
+    "sync-from-prod": "tsx ./src/sync-from-prod.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
     "drizzle-orm": "catalog:",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/pg": "^8.20.0",
+    "@types/pg": "^8.11.10",
     "tsx": "catalog:"
   }
 }
