@@ -859,7 +859,7 @@ paths:
       summary: Public list of imported character sheets.
       parameters:
         - { in: query, name: q, schema: { type: string }, description: Filter by name. }
-        - { in: query, name: scope, schema: { type: string, enum: [all, active, retired, unclaimed] } }
+        - { in: query, name: scope, schema: { type: string, enum: [all, active, retired, unclaimed, pc, npc] } }
       responses:
         "200":
           description: List

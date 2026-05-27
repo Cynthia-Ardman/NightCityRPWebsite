@@ -1,16 +1,21 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, users, characters, walletTransactions, jobRuns, activityEvents } from "@workspace/db";
-import { requireAuth, requireRole } from "../middlewares/auth";
+import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, hasRole } from "../lib/discord";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
 
 const router: IRouter = Router();
 
-router.use(requireAuth, requireRole("ADMIN"));
+// Most /admin routes are ADMIN-only, but the character listing + owner
+// assign/clear endpoints are also exposed to FIXER (the in-fiction canon
+// enforcer role). Auth is required for everything.
+router.use(requireAuth);
+const adminOnly = requireRole("ADMIN");
+const adminOrFixer = requireAnyRole(["ADMIN", "FIXER"]);
 
-router.get("/admin/users", async (_req, res): Promise<void> => {
+router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(users).orderBy(desc(users.lastSeenAt));
   res.json(
     rows.map((u) => ({
@@ -31,7 +36,7 @@ router.get("/admin/users", async (_req, res): Promise<void> => {
   );
 });
 
-router.get("/admin/users/:userId", async (req, res): Promise<void> => {
+router.get("/admin/users/:userId", adminOnly, async (req, res): Promise<void> => {
   const id = String(req.params.userId);
   const [u] = await db.select().from(users).where(eq(users.id, id));
   if (!u) {
@@ -57,7 +62,7 @@ router.get("/admin/users/:userId", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/admin/users/:userId/roles", async (req, res): Promise<void> => {
+router.post("/admin/users/:userId/roles", adminOnly, async (req, res): Promise<void> => {
   const id = String(req.params.userId);
   const [u] = await db.select().from(users).where(eq(users.id, id));
   if (!u) {
@@ -69,7 +74,7 @@ router.post("/admin/users/:userId/roles", async (req, res): Promise<void> => {
   res.json({ roles, rolesSyncedAt: new Date() });
 });
 
-router.get("/admin/characters", async (_req, res): Promise<void> => {
+router.get("/admin/characters", adminOrFixer, async (_req, res): Promise<void> => {
   const rows = await db
     .select({
       id: characters.id,
@@ -94,7 +99,7 @@ router.get("/admin/characters", async (_req, res): Promise<void> => {
 // Assign or reassign the ownerId of an imported character. Used by the
 // admin/fixer UI to claim an unclaimed sheet for a player who returned to
 // the server under a different account.
-router.put("/admin/characters/:id/owner", async (req, res): Promise<void> => {
+router.put("/admin/characters/:id/owner", adminOrFixer, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const { ownerId } = (req.body ?? {}) as { ownerId?: string };
   if (!ownerId) {
@@ -126,7 +131,7 @@ router.put("/admin/characters/:id/owner", async (req, res): Promise<void> => {
   res.json({ ...updated, isActive: false });
 });
 
-router.delete("/admin/characters/:id/owner", async (req, res): Promise<void> => {
+router.delete("/admin/characters/:id/owner", adminOrFixer, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const [c] = await db.select().from(characters).where(eq(characters.id, id));
   if (!c) {

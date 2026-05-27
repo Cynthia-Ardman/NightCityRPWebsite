@@ -101,6 +101,7 @@ function SidebarContent() {
         {user?.isStoreOwner && <NavItem href="/stores" icon={Store} label="Manage Stores" />}
         {user?.isRipperdoc && <NavItem href="/clinics" icon={Syringe} label="Manage Clinics" />}
         {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
+        {user?.isFixer && !user?.isAdmin && <NavItem href="/admin" icon={Shield} label="Character Console" />}
         {user?.isCsApprover && <NavItem href="/sheets/pending" icon={FileText} label="Pending Sheets" />}
         {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" />}
       </div>

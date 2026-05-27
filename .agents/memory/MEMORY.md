@@ -4,3 +4,4 @@
 - [Object-storage public images](object-storage-public-images.md) — uploads via request-url have no ACL metadata; treat absent policy as public-read in /storage/objects/*.
 - [Importer upsert idempotency](importer-upsert-idempotency.md) — never clobber admin-assigned ownerId on rerun; use coalesce(existing, excluded).
 - [Nullable ownerId guards](nullable-owner-guards.md) — characters.ownerId is nullable; every wallet/jobs/transfer path must guard, and transfers to unclaimed must 4xx before debit.
+- [Prod-import legacy tags](prod-import-legacy-tags.md) — characters.background may contain `[legacy:<uuid>]` anchors; scrub before any UI display.

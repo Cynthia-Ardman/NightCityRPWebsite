@@ -97,9 +97,20 @@ const channelIds = (() => {
   const single = arg("--forum-channel-id");
   return single ? [single] : [];
 })();
+// NPC forums are imported the same way but their threads are stamped with
+// kind="npc" so the directory + fixer UI can filter them. They are added
+// to the channelIds set automatically — pass them only via the npc flag.
+const npcChannelIds = (() => {
+  const list = arg("--npc-forum-channel-ids");
+  if (list) return new Set(list.split(",").map((s) => s.trim()).filter(Boolean));
+  return new Set<string>();
+})();
+for (const id of npcChannelIds) {
+  if (!channelIds.includes(id)) channelIds.push(id);
+}
 if (channelIds.length === 0) {
   console.error(
-    "Pass --forum-channel-id <id>, --forum-channel-ids a,b,c, or --list-channels.",
+    "Pass --forum-channel-id <id>, --forum-channel-ids a,b,c, --npc-forum-channel-ids a,b, or --list-channels.",
   );
   process.exit(1);
 }
@@ -875,7 +886,7 @@ if (applyToDb) {
       claimed: ownerId !== null,
       legacyDiscordUsername: r.parsedUsername,
       name: r.parsedName.slice(0, 64),
-      kind: "pc" as const,
+      kind: (npcChannelIds.has(r.sourceChannelId) ? "npc" : "pc") as "pc" | "npc",
       archetype,
       background,
       portraitUrl: primaryPortrait,

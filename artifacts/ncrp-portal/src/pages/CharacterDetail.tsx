@@ -443,7 +443,10 @@ function SheetSections({
   background?: string | null;
 }) {
   const entries = sections ? Object.entries(sections).filter(([, v]) => v && v.trim().length > 0) : [];
-  if (entries.length === 0 && !background) {
+  // Strip internal [legacy:<uuid>] anchors stamped by the prod importer —
+  // they are mapping IDs, not story content, and must never reach the UI.
+  const cleanBg = (background ?? "").replace(/\[legacy:[^\]]+\]/g, "").trim() || null;
+  if (entries.length === 0 && !cleanBg) {
     return (
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
@@ -463,7 +466,7 @@ function SheetSections({
         </CardHeader>
         <CardContent>
           <div className="prose prose-invert prose-p:font-mono max-w-none prose-headings:font-display whitespace-pre-wrap">
-            {background}
+            {cleanBg}
           </div>
         </CardContent>
       </Card>

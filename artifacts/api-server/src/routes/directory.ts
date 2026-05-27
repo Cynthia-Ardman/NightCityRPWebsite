@@ -15,6 +15,14 @@ import {
 
 const router: IRouter = Router();
 
+// Strip internal `[legacy:<uuid>]` tags that the prod importer stamps into
+// background. They are mapping anchors, not story content.
+function cleanBackground(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const cleaned = s.replace(/\[legacy:[^\]]+\]/g, "").trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 // Public character directory: anyone (even unauthenticated visitors) can
 // browse the imported sheets. The list endpoint supports a simple name
 // filter and a scope filter (all / active / retired / unclaimed).
@@ -27,6 +35,8 @@ router.get("/directory/characters", async (req, res): Promise<void> => {
   if (scope === "active") conds.push(eq(characters.archived, false));
   else if (scope === "retired") conds.push(eq(characters.archived, true));
   else if (scope === "unclaimed") conds.push(isNull(characters.ownerId) as unknown as ReturnType<typeof eq>);
+  else if (scope === "pc") conds.push(eq(characters.kind, "pc"));
+  else if (scope === "npc") conds.push(eq(characters.kind, "npc"));
 
   const rows = await db
     .select({
@@ -44,7 +54,7 @@ router.get("/directory/characters", async (req, res): Promise<void> => {
     .leftJoin(users, eq(users.id, characters.ownerId))
     .where(conds.length > 0 ? and(...conds) : undefined)
     .orderBy(desc(characters.createdAt))
-    .limit(500);
+    .limit(2000);
 
   res.json(rows);
 });
@@ -79,7 +89,7 @@ router.get("/directory/characters/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json(row);
+  res.json({ ...row, background: cleanBackground(row.background) });
 });
 
 router.get("/directory/ripperdocs", async (_req, res): Promise<void> => {

@@ -23,7 +23,11 @@ export default function AdminDashboard() {
     return <div className="p-8 text-nc-cyan font-display animate-pulse">AUTH_VERIFICATION...</div>;
   }
 
-  if (!user?.isAdmin) {
+  // Fixers get a scoped view (Characters tab only) so they can run the
+  // canon-enforcement claim workflow without exposing the full admin
+  // surface (users / wallets / jobs).
+  const isFixerOnly = !user?.isAdmin && !!user?.isFixer;
+  if (!user?.isAdmin && !user?.isFixer) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-4">
         <Shield className="w-24 h-24 text-destructive opacity-80" />
@@ -37,18 +41,28 @@ export default function AdminDashboard() {
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
       <div>
         <h1 className="text-4xl font-display font-bold text-foreground flex items-center gap-3" data-testid="text-admin-title">
-          <Shield className="w-8 h-8 text-destructive" /> 
-          SYSTEM_ADMIN
+          <Shield className="w-8 h-8 text-destructive" />
+          {isFixerOnly ? "FIXER_CONSOLE" : "SYSTEM_ADMIN"}
         </h1>
-        <p className="text-muted-foreground font-mono mt-2">God mode enabled. Proceed with caution.</p>
+        <p className="text-muted-foreground font-mono mt-2">
+          {isFixerOnly
+            ? "Canon enforcement. Assign owners to unclaimed sheets."
+            : "God mode enabled. Proceed with caution."}
+        </p>
       </div>
 
-      <Tabs defaultValue="users" className="w-full">
-        <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-4 w-full max-w-3xl">
-          <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
+      <Tabs defaultValue={isFixerOnly ? "characters" : "users"} className="w-full">
+        <TabsList className={`bg-card border border-border rounded-none p-0 h-auto grid ${isFixerOnly ? "grid-cols-1 max-w-xs" : "grid-cols-2 md:grid-cols-4 max-w-3xl"} w-full`}>
+          {!isFixerOnly && (
+            <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
+          )}
           <TabsTrigger value="characters" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-chars">Characters</TabsTrigger>
-          <TabsTrigger value="wallet" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-wallet">Wallets</TabsTrigger>
-          <TabsTrigger value="jobs" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-jobs">Cron Jobs</TabsTrigger>
+          {!isFixerOnly && (
+            <TabsTrigger value="wallet" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-wallet">Wallets</TabsTrigger>
+          )}
+          {!isFixerOnly && (
+            <TabsTrigger value="jobs" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-jobs">Cron Jobs</TabsTrigger>
+          )}
         </TabsList>
 
         <div className="mt-8">

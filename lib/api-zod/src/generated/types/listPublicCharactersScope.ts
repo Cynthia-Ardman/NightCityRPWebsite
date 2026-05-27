@@ -14,4 +14,6 @@ export const ListPublicCharactersScope = {
   active: 'active',
   retired: 'retired',
   unclaimed: 'unclaimed',
+  pc: 'pc',
+  npc: 'npc',
 } as const;

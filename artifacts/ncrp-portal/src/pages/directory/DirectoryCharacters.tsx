@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
-type Scope = "all" | "active" | "retired" | "unclaimed";
+type Scope = "all" | "active" | "retired" | "unclaimed" | "pc" | "npc";
 
 export default function DirectoryCharacters() {
   const [q, setQ] = useState("");
@@ -37,7 +37,7 @@ export default function DirectoryCharacters() {
             />
           </div>
           <div className="sm:col-span-6 flex flex-wrap gap-2">
-            {(["all", "active", "retired", "unclaimed"] as Scope[]).map((s) => (
+            {(["all", "pc", "npc", "active", "retired", "unclaimed"] as Scope[]).map((s) => (
               <button
                 key={s}
                 type="button"

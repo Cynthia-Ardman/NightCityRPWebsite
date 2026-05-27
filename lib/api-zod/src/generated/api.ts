@@ -1455,7 +1455,7 @@ export const AdminClearCharacterOwnerResponse = zod.object({
  */
 export const ListPublicCharactersQueryParams = zod.object({
   "q": zod.coerce.string().optional().describe('Filter by name.'),
-  "scope": zod.enum(['all', 'active', 'retired', 'unclaimed']).optional()
+  "scope": zod.enum(['all', 'active', 'retired', 'unclaimed', 'pc', 'npc']).optional()
 })
 
 export const ListPublicCharactersResponseItem = zod.object({

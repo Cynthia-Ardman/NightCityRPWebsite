@@ -40,3 +40,21 @@ export function requireRole(group: keyof typeof ROLE_NAMES) {
     next();
   };
 }
+
+// Allow access when the caller holds ANY of the listed role groups.
+// Used for endpoints shared between e.g. ADMIN and FIXER (canon enforcers
+// can run the character claim workflow without full admin privileges).
+export function requireAnyRole(groups: Array<keyof typeof ROLE_NAMES>) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    const ok = groups.some((g) => hasRole(req.user!.roles, g));
+    if (!ok) {
+      res.status(403).json({ error: `Requires one of: ${groups.join(", ")}` });
+      return;
+    }
+    next();
+  };
+}
