@@ -38,7 +38,28 @@ export function buildAuthUrl(state: string): string {
   return `https://discord.com/oauth2/authorize?${params}`;
 }
 
+export class DiscordConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DiscordConfigError";
+  }
+}
+
+export class DiscordUpstreamError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "DiscordUpstreamError";
+    this.status = status;
+  }
+}
+
 export async function exchangeCode(code: string) {
+  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
+    throw new DiscordConfigError(
+      "Discord OAuth is not configured: DISCORD_CLIENT_ID and/or DISCORD_CLIENT_SECRET is missing.",
+    );
+  }
   const body = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
     client_secret: DISCORD_CLIENT_SECRET,
@@ -51,7 +72,20 @@ export async function exchangeCode(code: string) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
-  if (!res.ok) throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    const text = await res.text();
+    if (res.status === 401 && text.includes("invalid_client")) {
+      throw new DiscordConfigError(
+        "Discord rejected the OAuth client credentials (invalid_client). The DISCORD_CLIENT_SECRET likely does not match the DISCORD_CLIENT_ID for this Discord application. Note: the OAuth2 client secret is NOT the bot token — generate it under OAuth2 → Reset Secret in the Discord Developer Portal.",
+      );
+    }
+    if (res.status === 400 && text.includes("invalid_grant")) {
+      throw new DiscordConfigError(
+        `Discord rejected the OAuth authorization code (invalid_grant). The redirect URI registered on the Discord application must exactly match ${getRedirectUri()}.`,
+      );
+    }
+    throw new DiscordUpstreamError(res.status, `Token exchange failed: ${res.status} ${text}`);
+  }
   return (await res.json()) as {
     access_token: string;
     refresh_token: string;
@@ -64,7 +98,7 @@ export async function fetchUser(accessToken: string) {
   const res = await fetch(`${API}/users/@me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) throw new Error(`Discord user fetch failed: ${res.status}`);
+  if (!res.ok) throw new DiscordUpstreamError(res.status, `Discord user fetch failed: ${res.status}`);
   return (await res.json()) as {
     id: string;
     username: string;

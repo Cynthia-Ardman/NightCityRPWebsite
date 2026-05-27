@@ -9,6 +9,8 @@ import {
   fetchGuildMemberRoles,
   avatarUrl,
   hasRole,
+  DiscordConfigError,
+  DiscordUpstreamError,
 } from "../lib/discord";
 import { requireAuth } from "../middlewares/auth";
 
@@ -69,7 +71,21 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
     res.redirect("/");
   } catch (err) {
     req.log.error({ err }, "Discord OAuth callback failed");
-    res.status(500).send("Login failed");
+    if (err instanceof DiscordConfigError) {
+      res.status(500).type("text/plain").send(
+        `Login is misconfigured on the server.\n\n${err.message}\n\nPlease contact an administrator.`,
+      );
+      return;
+    }
+    if (err instanceof DiscordUpstreamError) {
+      res.status(502).type("text/plain").send(
+        `Discord returned an error during login (HTTP ${err.status}). Please try again in a moment.`,
+      );
+      return;
+    }
+    res.status(500).type("text/plain").send(
+      "Unexpected error completing Discord login. Please try again; if the problem persists, contact an administrator.",
+    );
   }
 });
 
