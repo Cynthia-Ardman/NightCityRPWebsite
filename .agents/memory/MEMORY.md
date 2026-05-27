@@ -1,3 +1,6 @@
-- [Long-running scripts on Replit](long-running-scripts.md) — nohup+setsid get reaped; register a temporary workflow with outputType "console" and poll via getWorkflowStatus.
-- [Anthropic SDK timeouts](anthropic-sdk-timeouts.md) — default per-call timeout is 10 min and SDK retries silently; wrap with AbortController + set maxRetries:1 for batch jobs.
-- [Discord forwarded messages](discord-forwarded-messages.md) — content/attachments/embeds live under message_snapshots[*].message, not the top-level message; must dive in.
+- [Long-running scripts](long-running-scripts.md) — Anthropic SDK calls, fetches, Discord pagination need explicit AbortSignal.timeout or they hang.
+- [Anthropic SDK timeouts](anthropic-sdk-timeouts.md) — pass `{ timeout: ms }` per call; default is much longer than you expect.
+- [Discord forwarded messages](discord-forwarded-messages.md) — OP message_reference can hide the real first post; resolve via referenced_message.
+- [Object-storage public images](object-storage-public-images.md) — uploads via request-url have no ACL metadata; treat absent policy as public-read in /storage/objects/*.
+- [Importer upsert idempotency](importer-upsert-idempotency.md) — never clobber admin-assigned ownerId on rerun; use coalesce(existing, excluded).
+- [Nullable ownerId guards](nullable-owner-guards.md) — characters.ownerId is nullable; every wallet/jobs/transfer path must guard, and transfers to unclaimed must 4xx before debit.

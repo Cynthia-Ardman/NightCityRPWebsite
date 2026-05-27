@@ -78,6 +78,10 @@ router.get("/admin/characters", async (_req, res): Promise<void> => {
       kind: characters.kind,
       archetype: characters.archetype,
       approved: characters.approved,
+      archived: characters.archived,
+      claimed: characters.claimed,
+      legacyDiscordUsername: characters.legacyDiscordUsername,
+      importedFromChannelName: characters.importedFromChannelName,
       createdAt: characters.createdAt,
       ownerName: users.username,
     })
@@ -85,6 +89,63 @@ router.get("/admin/characters", async (_req, res): Promise<void> => {
     .leftJoin(users, eq(users.id, characters.ownerId))
     .orderBy(desc(characters.createdAt));
   res.json(rows);
+});
+
+// Assign or reassign the ownerId of an imported character. Used by the
+// admin/fixer UI to claim an unclaimed sheet for a player who returned to
+// the server under a different account.
+router.put("/admin/characters/:id/owner", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const { ownerId } = (req.body ?? {}) as { ownerId?: string };
+  if (!ownerId) {
+    res.status(400).json({ error: "ownerId required" });
+    return;
+  }
+  const [c] = await db.select().from(characters).where(eq(characters.id, id));
+  if (!c) {
+    res.status(404).json({ error: "Character not found" });
+    return;
+  }
+  const [u] = await db.select().from(users).where(eq(users.id, ownerId));
+  if (!u) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const [updated] = await db
+    .update(characters)
+    .set({ ownerId, claimed: true })
+    .where(eq(characters.id, id))
+    .returning();
+  await db.insert(activityEvents).values({
+    kind: "character_claimed",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${req.user!.username} assigned ${c.name} to ${u.username}`,
+  });
+  res.json({ ...updated, isActive: false });
+});
+
+router.delete("/admin/characters/:id/owner", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [c] = await db.select().from(characters).where(eq(characters.id, id));
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const [updated] = await db
+    .update(characters)
+    .set({ ownerId: null, claimed: false })
+    .where(eq(characters.id, id))
+    .returning();
+  await db.insert(activityEvents).values({
+    kind: "character_unclaimed",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${req.user!.username} cleared ownership of ${c.name}`,
+  });
+  res.json({ ...updated, isActive: false });
 });
 
 router.post("/admin/wallet/adjust", async (req, res): Promise<void> => {
@@ -96,6 +157,10 @@ router.post("/admin/wallet/adjust", async (req, res): Promise<void> => {
   const [c] = await db.select().from(characters).where(eq(characters.id, characterId));
   if (!c) {
     res.status(404).json({ error: "Character not found" });
+    return;
+  }
+  if (!c.ownerId) {
+    res.status(400).json({ error: "Character has no owner (unclaimed)" });
     return;
   }
   const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));

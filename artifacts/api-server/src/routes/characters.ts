@@ -278,7 +278,17 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     res.status(404).json({ error: "Recipient not found" });
     return;
   }
+  // Refuse to transfer into an unclaimed character — there is no UB account
+  // to credit, so the sender's debit would have no offsetting credit.
+  if (!to.ownerId) {
+    res.status(409).json({ error: "Recipient character is unclaimed (no owner)" });
+    return;
+  }
   const [toOwner] = await db.select().from(users).where(eq(users.id, to.ownerId));
+  if (!toOwner) {
+    res.status(409).json({ error: "Recipient owner account missing" });
+    return;
+  }
   // UB is authoritative — require a successful balance read before attempting writes.
   const senderBal = await getBalance(req.user!.discordId);
   if (!senderBal) {
@@ -295,14 +305,12 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     res.status(502).json({ error: "Wallet provider rejected debit" });
     return;
   }
-  if (toOwner) {
-    const credited = await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${c.name}` });
-    if (!credited) {
-      // Compensate: refund sender to keep UB consistent.
-      await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${to.name} failed` });
-      res.status(502).json({ error: "Wallet provider rejected credit; sender refunded" });
-      return;
-    }
+  const credited = await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${c.name}` });
+  if (!credited) {
+    // Compensate: refund sender to keep UB consistent.
+    await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${to.name} failed` });
+    res.status(502).json({ error: "Wallet provider rejected credit; sender refunded" });
+    return;
   }
   // Only after confirmed UB writes do we record local history.
   await db.insert(walletTransactions).values([

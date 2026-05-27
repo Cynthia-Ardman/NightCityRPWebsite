@@ -22,6 +22,8 @@ tags:
   - name: dice
   - name: admin
   - name: dashboard
+  - name: storage
+    description: Object storage upload and serving endpoints.
 
 paths:
   /healthz:
@@ -817,7 +819,117 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/Character" }
+                items: { $ref: "#/components/schemas/AdminCharacterSummary" }
+  /admin/characters/{id}/owner:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    put:
+      operationId: adminAssignCharacterOwner
+      tags: [admin]
+      summary: Assign or reassign the ownerId of an imported (unclaimed) character.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignOwnerInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+        "404": { description: Character or user not found }
+    delete:
+      operationId: adminClearCharacterOwner
+      tags: [admin]
+      summary: Clear ownerId on an imported character (mark it unclaimed again).
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+        "404": { description: Not found }
+
+  # ---------------- DIRECTORY (public character sheets) ----------------
+  /directory/characters:
+    get:
+      operationId: listPublicCharacters
+      tags: [directory]
+      summary: Public list of imported character sheets.
+      parameters:
+        - { in: query, name: q, schema: { type: string }, description: Filter by name. }
+        - { in: query, name: scope, schema: { type: string, enum: [all, active, retired, unclaimed] } }
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PublicCharacterSummary" }
+  /directory/characters/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getPublicCharacter
+      tags: [directory]
+      summary: Full sheet data for a single imported character (public).
+      responses:
+        "200":
+          description: Character sheet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCharacter" }
+        "404": { description: Not found }
+
+  # ---------------- STORAGE ----------------
+  /storage/uploads/request-url:
+    post:
+      tags: [storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadUrlRequest" }
+      responses:
+        "200":
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadUrlResponse" }
+        "400": { description: Missing or invalid required fields. }
+        "500": { description: Failed to generate upload URL. }
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      parameters:
+        - { in: path, name: filePath, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema: { type: string, format: binary }
+        "404": { description: File not found. }
+  /storage/objects/{objectPath}:
+    get:
+      tags: [storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - { in: path, name: objectPath, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema: { type: string, format: binary }
+        "404": { description: Object not found. }
   /admin/wallet/adjust:
     post:
       operationId: adminAdjustWallet
@@ -917,19 +1029,104 @@ components:
 
     Character:
       type: object
-      required: [id, ownerId, name, kind, createdAt]
+      required: [id, name, kind, createdAt, claimed, archived, portraitUrls, statsImageUrls]
       properties:
         id: { type: integer }
-        ownerId: { type: string }
+        ownerId: { type: ["string", "null"] }
+        claimed: { type: boolean }
+        legacyDiscordUsername: { type: ["string", "null"] }
         name: { type: string }
         kind: { type: string, enum: [pc, npc] }
         archetype: { type: ["string", "null"] }
         background: { type: ["string", "null"] }
         portraitUrl: { type: ["string", "null"] }
+        portraitUrls:
+          type: array
+          items: { type: string }
+        statsImageUrls:
+          type: array
+          items: { type: string }
+        sheetData:
+          oneOf:
+            - { type: "null" }
+            - { $ref: "#/components/schemas/SheetData" }
+        importedFromThreadId: { type: ["string", "null"] }
+        importedFromChannelName: { type: ["string", "null"] }
         discordChannelId: { type: ["string", "null"] }
         isActive: { type: boolean }
         approved: { type: boolean }
+        archived: { type: boolean }
         createdAt: { type: string, format: date-time }
+
+    SheetData:
+      type: object
+      required: [preamble, sections]
+      properties:
+        preamble: { type: string }
+        sections:
+          type: object
+          additionalProperties: { type: string }
+
+    PublicCharacterSummary:
+      type: object
+      required: [id, name, kind, claimed, archived]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        archetype: { type: ["string", "null"] }
+        portraitUrl: { type: ["string", "null"] }
+        claimed: { type: boolean }
+        archived: { type: boolean }
+        legacyDiscordUsername: { type: ["string", "null"] }
+        ownerName: { type: ["string", "null"] }
+
+    PublicCharacter:
+      allOf:
+        - $ref: "#/components/schemas/Character"
+        - type: object
+          properties:
+            ownerName: { type: ["string", "null"] }
+            ownerAvatarUrl: { type: ["string", "null"] }
+
+    AdminCharacterSummary:
+      type: object
+      required: [id, name, kind, claimed, archived, createdAt]
+      properties:
+        id: { type: integer }
+        ownerId: { type: ["string", "null"] }
+        ownerName: { type: ["string", "null"] }
+        name: { type: string }
+        kind: { type: string }
+        archetype: { type: ["string", "null"] }
+        approved: { type: boolean }
+        archived: { type: boolean }
+        claimed: { type: boolean }
+        legacyDiscordUsername: { type: ["string", "null"] }
+        importedFromChannelName: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    AssignOwnerInput:
+      type: object
+      required: [ownerId]
+      properties:
+        ownerId: { type: string, description: "Internal users.id of the new owner." }
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1 }
+        size: { type: integer, minimum: 1 }
+        contentType: { type: string, minLength: 1 }
+
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+        metadata: { $ref: "#/components/schemas/UploadUrlRequest" }
 
     CharacterInput:
       type: object

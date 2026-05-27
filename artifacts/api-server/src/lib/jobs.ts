@@ -36,6 +36,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
       for (const c of chars) {
         const rent = 500;
+        if (!c.ownerId) continue;
         const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
         if (!owner) continue;
         const ub = await patchBalance(owner.discordId, { cash: -rent, reason: "Monthly rent" });
@@ -78,6 +79,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           .reduce((s, cw) => s + (Number(cw.humanityLoss) || 0), 0);
         if (totalHL <= 0) continue;
         const charge = totalHL * RATE_PER_HL;
+        if (!c.ownerId) continue;
         const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
         if (!owner) continue;
         // UB is authoritative — only insert a local ledger entry after a

@@ -9,6 +9,7 @@ import sheetsRouter from "./sheets";
 import diceRouter from "./dice";
 import adminRouter from "./admin";
 import dashboardRouter from "./dashboard";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(sheetsRouter);
 router.use(diceRouter);
 router.use(adminRouter);
 router.use(dashboardRouter);
+router.use(storageRouter);
 
 export default router;

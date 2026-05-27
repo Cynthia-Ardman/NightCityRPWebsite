@@ -20,6 +20,8 @@ import DirectoryStores from "@/pages/directory/DirectoryStores";
 import DirectoryStoreDetail from "@/pages/directory/DirectoryStoreDetail";
 import DirectoryRipperdocs from "@/pages/directory/DirectoryRipperdocs";
 import DirectoryRipperdocDetail from "@/pages/directory/DirectoryRipperdocDetail";
+import DirectoryCharacters from "@/pages/directory/DirectoryCharacters";
+import DirectoryCharacterDetail from "@/pages/directory/DirectoryCharacterDetail";
 import CatalogGuns from "@/pages/catalog/CatalogGuns";
 import CatalogCyberware from "@/pages/catalog/CatalogCyberware";
 import CatalogRent from "@/pages/catalog/CatalogRent";
@@ -68,6 +70,8 @@ function AppRoutes() {
           <Route path="/directory/stores/:id" component={DirectoryStoreDetail} />
           <Route path="/directory/ripperdocs" component={DirectoryRipperdocs} />
           <Route path="/directory/ripperdocs/:id" component={DirectoryRipperdocDetail} />
+          <Route path="/directory/characters" component={DirectoryCharacters} />
+          <Route path="/directory/characters/:id" component={DirectoryCharacterDetail} />
           <Route path="/catalog/guns" component={CatalogGuns} />
           <Route path="/catalog/cyberware" component={CatalogCyberware} />
           <Route path="/catalog/rent" component={CatalogRent} />

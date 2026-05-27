@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and, or, ilike, isNull, desc, sql } from "drizzle-orm";
 import {
   db,
   ripperdocs,
@@ -7,12 +7,80 @@ import {
   ripperdocEmployees,
   storeEmployees,
   characters,
+  users,
   catalogGuns,
   catalogCyberware,
   catalogRent,
 } from "@workspace/db";
 
 const router: IRouter = Router();
+
+// Public character directory: anyone (even unauthenticated visitors) can
+// browse the imported sheets. The list endpoint supports a simple name
+// filter and a scope filter (all / active / retired / unclaimed).
+router.get("/directory/characters", async (req, res): Promise<void> => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
+
+  const conds = [] as Array<ReturnType<typeof eq>>;
+  if (q.length > 0) conds.push(ilike(characters.name, `%${q}%`) as unknown as ReturnType<typeof eq>);
+  if (scope === "active") conds.push(eq(characters.archived, false));
+  else if (scope === "retired") conds.push(eq(characters.archived, true));
+  else if (scope === "unclaimed") conds.push(isNull(characters.ownerId) as unknown as ReturnType<typeof eq>);
+
+  const rows = await db
+    .select({
+      id: characters.id,
+      name: characters.name,
+      kind: characters.kind,
+      archetype: characters.archetype,
+      portraitUrl: characters.portraitUrl,
+      claimed: characters.claimed,
+      archived: characters.archived,
+      legacyDiscordUsername: characters.legacyDiscordUsername,
+      ownerName: users.username,
+    })
+    .from(characters)
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .orderBy(desc(characters.createdAt))
+    .limit(500);
+
+  res.json(rows);
+});
+
+router.get("/directory/characters/:id", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  // Explicit projection only — never spread the full row. Internal fields
+  // like ownerId, discordChannelId, importedFromThreadId, approval flags,
+  // and timestamps must not leak through the public endpoint.
+  const [row] = await db
+    .select({
+      id: characters.id,
+      name: characters.name,
+      kind: characters.kind,
+      archetype: characters.archetype,
+      background: characters.background,
+      portraitUrl: characters.portraitUrl,
+      portraitUrls: characters.portraitUrls,
+      statsImageUrls: characters.statsImageUrls,
+      sheetData: characters.sheetData,
+      claimed: characters.claimed,
+      archived: characters.archived,
+      legacyDiscordUsername: characters.legacyDiscordUsername,
+      importedFromChannelName: characters.importedFromChannelName,
+      ownerName: users.username,
+      ownerAvatarUrl: users.avatarUrl,
+    })
+    .from(characters)
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .where(eq(characters.id, id));
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(row);
+});
 
 router.get("/directory/ripperdocs", async (_req, res): Promise<void> => {
   const rows = await db.select().from(ripperdocs);

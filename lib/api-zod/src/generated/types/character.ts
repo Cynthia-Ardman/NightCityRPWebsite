@@ -6,10 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CharacterKind } from './characterKind';
+import type { SheetData } from './sheetData';
 
 export interface Character {
   id: number;
-  ownerId: string;
+  /** @nullable */
+  ownerId?: string | null;
+  claimed: boolean;
+  /** @nullable */
+  legacyDiscordUsername?: string | null;
   name: string;
   kind: CharacterKind;
   /** @nullable */
@@ -18,9 +23,17 @@ export interface Character {
   background?: string | null;
   /** @nullable */
   portraitUrl?: string | null;
+  portraitUrls: string[];
+  statsImageUrls: string[];
+  sheetData?: null | SheetData;
+  /** @nullable */
+  importedFromThreadId?: string | null;
+  /** @nullable */
+  importedFromChannelName?: string | null;
   /** @nullable */
   discordChannelId?: string | null;
   isActive?: boolean;
   approved?: boolean;
+  archived: boolean;
   createdAt: Date;
 }

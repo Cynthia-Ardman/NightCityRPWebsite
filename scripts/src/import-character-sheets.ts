@@ -108,6 +108,11 @@ const noClassify = hasFlag("--no-classify");
 const classifyConcurrency = arg("--classify-concurrency")
   ? Number(arg("--classify-concurrency"))
   : 4;
+const applyToDb = hasFlag("--apply");
+const apiBase = arg("--api-base") ?? process.env.PUBLIC_BASE_URL ?? "http://localhost:5000";
+const rehostConcurrency = arg("--rehost-concurrency")
+  ? Number(arg("--rehost-concurrency"))
+  : 4;
 
 // ---------- threads ----------
 type Thread = {
@@ -730,3 +735,198 @@ console.log("");
 console.log(
   `Summary: ${summary.linked} linked, ${summary.unclaimed} unclaimed, ${summary.withWarnings} with warnings, ${summary.totalImages} images (${summary.portraitImages} portraits, ${summary.statsImages} stats).`,
 );
+
+// ============================================================
+// --apply mode: rehost images to object storage and upsert
+// character rows by importedFromThreadId. Idempotent: re-running
+// updates existing rows in place rather than duplicating.
+// ============================================================
+if (applyToDb) {
+  console.log("\n--apply mode: rehosting images and writing to DB...");
+  const { db, characters, users, characterStatus } = await import("@workspace/db");
+  const { eq, sql } = await import("drizzle-orm");
+
+  // Rehost one Discord CDN image -> /objects/<id> on our bucket. Returns
+  // the stored path, or null on failure (caller drops the image).
+  async function rehostImage(url: string, filename: string): Promise<string | null> {
+    try {
+      const dlCtl = new AbortController();
+      const dlTimer = setTimeout(() => dlCtl.abort(), 20_000);
+      let buf: Buffer;
+      let contentType: string;
+      try {
+        const r = await fetch(url, { signal: dlCtl.signal });
+        if (!r.ok) return null;
+        contentType = r.headers.get("content-type") ?? "image/png";
+        buf = Buffer.from(await r.arrayBuffer());
+      } finally {
+        clearTimeout(dlTimer);
+      }
+      if (buf.length === 0) return null;
+      // Request a presigned upload URL from our API server.
+      const reqRes = await fetch(`${apiBase}/api/storage/uploads/request-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: filename, size: buf.length, contentType }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!reqRes.ok) {
+        console.warn(`  request-url failed (${reqRes.status}) for ${filename}`);
+        return null;
+      }
+      const { uploadURL, objectPath } = (await reqRes.json()) as {
+        uploadURL: string;
+        objectPath: string;
+      };
+      // PUT the image bytes to the presigned URL.
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: buf,
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!putRes.ok) {
+        console.warn(`  PUT failed (${putRes.status}) for ${filename}`);
+        return null;
+      }
+      return objectPath;
+    } catch (err) {
+      console.warn(`  rehost error for ${filename}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  // For each character record:
+  //   1) Ensure a User row exists for the resolved Discord owner (if any).
+  //   2) Rehost portraits + stats images in parallel (bounded).
+  //   3) Upsert characters row by importedFromThreadId.
+  //   4) Insert characterStatus row for new characters.
+  let applied = 0;
+  let skipped = 0;
+  for (const r of records) {
+    if (!r.sheet || Object.keys(r.sheet.sections).length === 0) {
+      skipped++;
+      continue;
+    }
+    // Owner resolution: if the Discord user is in the guild, ensure a users
+    // row exists. If not, ownerId stays null (unclaimed).
+    let ownerId: string | null = null;
+    if (r.resolvedDiscordId) {
+      const internalId = `discord:${r.resolvedDiscordId}`;
+      const [existing] = await db
+        .select()
+        .from(users)
+        .where(eq(users.discordId, r.resolvedDiscordId));
+      if (existing) {
+        ownerId = existing.id;
+      } else {
+        // Best-effort placeholder; the user will hydrate full fields on
+        // their first OAuth login. discordId is the lookup key.
+        await db
+          .insert(users)
+          .values({
+            id: internalId,
+            discordId: r.resolvedDiscordId,
+            username: r.parsedUsername ?? r.resolvedDisplayName ?? "unknown",
+            globalName: r.resolvedDisplayName,
+          })
+          .onConflictDoNothing();
+        ownerId = internalId;
+      }
+    }
+
+    // Rehost portraits and stats images (bounded concurrency).
+    const portraits = r.images.filter((i) => i.kind === "portrait");
+    const statsImgs = r.images.filter((i) => i.kind === "stats");
+    const portraitUrls: string[] = [];
+    const statsImageUrls: string[] = [];
+    await pMapBounded(
+      portraits,
+      async (img) => {
+        const p = await rehostImage(img.url, img.filename);
+        if (p) portraitUrls.push(p);
+      },
+      rehostConcurrency,
+    );
+    await pMapBounded(
+      statsImgs,
+      async (img) => {
+        const p = await rehostImage(img.url, img.filename);
+        if (p) statsImageUrls.push(p);
+      },
+      rehostConcurrency,
+    );
+
+    // Pick a "primary" portrait so legacy single-portrait UIs still work.
+    const primaryPortrait = portraitUrls[0] ?? null;
+
+    // Extract a couple of convenience fields out of parsed sections.
+    const sections = r.sheet.sections;
+    const archetype =
+      (sections["Occupation"] ?? "").split(/\r?\n/)[0]?.trim().slice(0, 200) || null;
+    const background =
+      (sections["Backstory"] ?? sections["Psychological Profile"] ?? null)?.slice(0, 8000) ??
+      null;
+
+    const isRetired = r.sourceChannelName.toLowerCase().includes("retired");
+
+    const values = {
+      ownerId,
+      claimed: ownerId !== null,
+      legacyDiscordUsername: r.parsedUsername,
+      name: r.parsedName.slice(0, 64),
+      kind: "pc" as const,
+      archetype,
+      background,
+      portraitUrl: primaryPortrait,
+      portraitUrls,
+      statsImageUrls,
+      sheetData: r.sheet,
+      importedFromThreadId: r.threadId,
+      importedFromChannelName: r.sourceChannelName,
+      discordChannelId: r.threadId,
+      approved: true,
+      archived: isRetired,
+      archivedAt: isRetired ? new Date() : null,
+    };
+
+    const [inserted] = await db
+      .insert(characters)
+      .values(values)
+      .onConflictDoUpdate({
+        target: characters.importedFromThreadId,
+        set: {
+          // Never clobber an existing owner on rerun: an admin may have
+          // assigned the character since the first import. Only adopt the
+          // resolved owner if the row currently has none.
+          ownerId: sql`coalesce(${characters.ownerId}, excluded.owner_id)`,
+          claimed: sql`(${characters.ownerId} is not null) or excluded.claimed`,
+          legacyDiscordUsername: values.legacyDiscordUsername,
+          name: values.name,
+          archetype: values.archetype,
+          background: values.background,
+          portraitUrl: sql`coalesce(${characters.portraitUrl}, excluded.portrait_url)`,
+          portraitUrls: sql`case when array_length(${characters.portraitUrls}, 1) is null or array_length(${characters.portraitUrls}, 1) = 0 then excluded.portrait_urls else ${characters.portraitUrls} end`,
+          statsImageUrls: sql`case when array_length(${characters.statsImageUrls}, 1) is null or array_length(${characters.statsImageUrls}, 1) = 0 then excluded.stats_image_urls else ${characters.statsImageUrls} end`,
+          sheetData: values.sheetData,
+          importedFromChannelName: values.importedFromChannelName,
+          archived: values.archived,
+        },
+      })
+      .returning({ id: characters.id });
+
+    // Ensure a characterStatus row exists.
+    if (inserted) {
+      await db
+        .insert(characterStatus)
+        .values({ characterId: inserted.id })
+        .onConflictDoNothing();
+    }
+
+    applied++;
+    if (applied % 20 === 0) {
+      console.log(`  applied ${applied}/${records.length}...`);
+    }
+  }
+  console.log(`\nApply complete: ${applied} upserted, ${skipped} skipped (no sheet).`);
+}

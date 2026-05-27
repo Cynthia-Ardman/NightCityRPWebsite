@@ -35,9 +35,20 @@ export const CharacterKind = {
   npc: 'npc',
 } as const;
 
+export type SheetDataSections = {[key: string]: string};
+
+export interface SheetData {
+  preamble: string;
+  sections: SheetDataSections;
+}
+
 export interface Character {
   id: number;
-  ownerId: string;
+  /** @nullable */
+  ownerId?: string | null;
+  claimed: boolean;
+  /** @nullable */
+  legacyDiscordUsername?: string | null;
   name: string;
   kind: CharacterKind;
   /** @nullable */
@@ -46,11 +57,82 @@ export interface Character {
   background?: string | null;
   /** @nullable */
   portraitUrl?: string | null;
+  portraitUrls: string[];
+  statsImageUrls: string[];
+  sheetData?: null | SheetData;
+  /** @nullable */
+  importedFromThreadId?: string | null;
+  /** @nullable */
+  importedFromChannelName?: string | null;
   /** @nullable */
   discordChannelId?: string | null;
   isActive?: boolean;
   approved?: boolean;
+  archived: boolean;
   createdAt: string;
+}
+
+export interface PublicCharacterSummary {
+  id: number;
+  name: string;
+  kind: string;
+  /** @nullable */
+  archetype?: string | null;
+  /** @nullable */
+  portraitUrl?: string | null;
+  claimed: boolean;
+  archived: boolean;
+  /** @nullable */
+  legacyDiscordUsername?: string | null;
+  /** @nullable */
+  ownerName?: string | null;
+}
+
+export type PublicCharacter = Character & ({
+  /** @nullable */
+  ownerName?: string | null;
+  /** @nullable */
+  ownerAvatarUrl?: string | null;
+});
+
+export interface AdminCharacterSummary {
+  id: number;
+  /** @nullable */
+  ownerId?: string | null;
+  /** @nullable */
+  ownerName?: string | null;
+  name: string;
+  kind: string;
+  /** @nullable */
+  archetype?: string | null;
+  approved?: boolean;
+  archived: boolean;
+  claimed: boolean;
+  /** @nullable */
+  legacyDiscordUsername?: string | null;
+  /** @nullable */
+  importedFromChannelName?: string | null;
+  createdAt: string;
+}
+
+export interface AssignOwnerInput {
+  /** Internal users.id of the new owner. */
+  ownerId: string;
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata?: UploadUrlRequest;
 }
 
 export type CharacterInputKind = typeof CharacterInputKind[keyof typeof CharacterInputKind];
@@ -693,4 +775,22 @@ export type ReactivateCharacter200 = {
   success: boolean;
   archived: boolean;
 };
+
+export type ListPublicCharactersParams = {
+/**
+ * Filter by name.
+ */
+q?: string;
+scope?: ListPublicCharactersScope;
+};
+
+export type ListPublicCharactersScope = typeof ListPublicCharactersScope[keyof typeof ListPublicCharactersScope];
+
+
+export const ListPublicCharactersScope = {
+  all: 'all',
+  active: 'active',
+  retired: 'retired',
+  unclaimed: 'unclaimed',
+} as const;
 

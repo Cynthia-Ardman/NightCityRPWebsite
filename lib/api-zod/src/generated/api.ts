@@ -49,15 +49,26 @@ export const GetMeResponse = zod.object({
  */
 export const ListMyCharactersResponseItem = zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
 export const ListMyCharactersResponse = zod.array(ListMyCharactersResponseItem)
@@ -82,15 +93,26 @@ export const GetCharacterParams = zod.object({
 
 export const GetCharacterResponse = zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
 
@@ -112,15 +134,26 @@ export const UpdateCharacterBody = zod.object({
 
 export const UpdateCharacterResponse = zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
 
@@ -1211,15 +1244,26 @@ export const AdminListUsersResponseItem = zod.object({
   "lastSeenAt": zod.coerce.date().nullish(),
   "characters": zod.array(zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -1246,15 +1290,26 @@ export const AdminGetUserResponse = zod.object({
   "lastSeenAt": zod.coerce.date().nullish(),
   "characters": zod.array(zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -1283,15 +1338,26 @@ export const AdminSyncUserRolesResponse = zod.object({
   "lastSeenAt": zod.coerce.date().nullish(),
   "characters": zod.array(zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -1299,18 +1365,193 @@ export const AdminSyncUserRolesResponse = zod.object({
 
 export const AdminListCharactersResponseItem = zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "ownerName": zod.string().nullish(),
+  "name": zod.string(),
+  "kind": zod.string(),
+  "archetype": zod.string().nullish(),
+  "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const AdminListCharactersResponse = zod.array(AdminListCharactersResponseItem)
+
+
+/**
+ * @summary Assign or reassign the ownerId of an imported (unclaimed) character.
+ */
+export const AdminAssignCharacterOwnerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AdminAssignCharacterOwnerBody = zod.object({
+  "ownerId": zod.string().describe('Internal users.id of the new owner.')
+})
+
+export const AdminAssignCharacterOwnerResponse = zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
-export const AdminListCharactersResponse = zod.array(AdminListCharactersResponseItem)
+
+
+/**
+ * @summary Clear ownerId on an imported character (mark it unclaimed again).
+ */
+export const AdminClearCharacterOwnerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AdminClearCharacterOwnerResponse = zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Public list of imported character sheets.
+ */
+export const ListPublicCharactersQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Filter by name.'),
+  "scope": zod.enum(['all', 'active', 'retired', 'unclaimed']).optional()
+})
+
+export const ListPublicCharactersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "kind": zod.string(),
+  "archetype": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "archived": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "ownerName": zod.string().nullish()
+})
+export const ListPublicCharactersResponse = zod.array(ListPublicCharactersResponseItem)
+
+
+/**
+ * @summary Full sheet data for a single imported character (public).
+ */
+export const GetPublicCharacterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPublicCharacterResponse = zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "ownerName": zod.string().nullish(),
+  "ownerAvatarUrl": zod.string().nullish()
+}))
+
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+
+
+
+
+
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
+})
+
+
+
+
+
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string().url(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
+}).optional()
+})
+
+
+/**
+ * @summary Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+ */
+export const GetPublicObjectParams = zod.object({
+  "filePath": zod.coerce.string()
+})
+
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
 
 
 /**
@@ -1383,15 +1624,26 @@ export const GetDashboardSummaryResponse = zod.object({
 })).optional(),
   "recentArrivals": zod.array(zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
 })).optional()
 })

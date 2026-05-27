@@ -21,7 +21,9 @@ import type {
 
 import type {
   ActivityEvent,
+  AdminCharacterSummary,
   AdminUser,
+  AssignOwnerInput,
   CatalogCyberware,
   CatalogGun,
   CatalogRent,
@@ -48,7 +50,10 @@ import type {
   InventoryItemUpdate,
   JobRunInput,
   JobRunResult,
+  ListPublicCharactersParams,
   Me,
+  PublicCharacter,
+  PublicCharacterSummary,
   ReactivateCharacter200,
   Ripperdoc,
   RipperdocPublic,
@@ -61,6 +66,8 @@ import type {
   StorePublic,
   StoreUpdate,
   TransferInput,
+  UploadUrlRequest,
+  UploadUrlResponse,
   Wallet,
   WalletAdjustmentInput,
   WalletTransaction
@@ -4233,9 +4240,9 @@ export const getAdminListCharactersUrl = () => {
   return `/api/admin/characters`
 }
 
-export const adminListCharacters = async ( options?: RequestInit): Promise<Character[]> => {
+export const adminListCharacters = async ( options?: RequestInit): Promise<AdminCharacterSummary[]> => {
 
-  return customFetch<Character[]>(getAdminListCharactersUrl(),
+  return customFetch<AdminCharacterSummary[]>(getAdminListCharactersUrl(),
   {
     ...options,
     method: 'GET'
@@ -4284,6 +4291,534 @@ export function useAdminListCharacters<TData = Awaited<ReturnType<typeof adminLi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminListCharactersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminAssignCharacterOwnerUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/characters/${id}/owner`
+}
+
+/**
+ * @summary Assign or reassign the ownerId of an imported (unclaimed) character.
+ */
+export const adminAssignCharacterOwner = async (id: number,
+    assignOwnerInput: AssignOwnerInput, options?: RequestInit): Promise<Character> => {
+
+  return customFetch<Character>(getAdminAssignCharacterOwnerUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      assignOwnerInput,)
+  }
+);}
+
+
+
+
+export const getAdminAssignCharacterOwnerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminAssignCharacterOwner>>, TError,{id: number;data: BodyType<AssignOwnerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminAssignCharacterOwner>>, TError,{id: number;data: BodyType<AssignOwnerInput>}, TContext> => {
+
+const mutationKey = ['adminAssignCharacterOwner'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminAssignCharacterOwner>>, {id: number;data: BodyType<AssignOwnerInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminAssignCharacterOwner(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminAssignCharacterOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof adminAssignCharacterOwner>>>
+    export type AdminAssignCharacterOwnerMutationBody = BodyType<AssignOwnerInput>
+    export type AdminAssignCharacterOwnerMutationError = ErrorType<void>
+
+    /**
+ * @summary Assign or reassign the ownerId of an imported (unclaimed) character.
+ */
+export const useAdminAssignCharacterOwner = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminAssignCharacterOwner>>, TError,{id: number;data: BodyType<AssignOwnerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminAssignCharacterOwner>>,
+        TError,
+        {id: number;data: BodyType<AssignOwnerInput>},
+        TContext
+      > => {
+      return useMutation(getAdminAssignCharacterOwnerMutationOptions(options));
+    }
+
+export const getAdminClearCharacterOwnerUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/characters/${id}/owner`
+}
+
+/**
+ * @summary Clear ownerId on an imported character (mark it unclaimed again).
+ */
+export const adminClearCharacterOwner = async (id: number, options?: RequestInit): Promise<Character> => {
+
+  return customFetch<Character>(getAdminClearCharacterOwnerUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminClearCharacterOwnerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminClearCharacterOwner>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminClearCharacterOwner>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['adminClearCharacterOwner'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminClearCharacterOwner>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminClearCharacterOwner(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminClearCharacterOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof adminClearCharacterOwner>>>
+
+    export type AdminClearCharacterOwnerMutationError = ErrorType<void>
+
+    /**
+ * @summary Clear ownerId on an imported character (mark it unclaimed again).
+ */
+export const useAdminClearCharacterOwner = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminClearCharacterOwner>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminClearCharacterOwner>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getAdminClearCharacterOwnerMutationOptions(options));
+    }
+
+export const getListPublicCharactersUrl = (params?: ListPublicCharactersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/directory/characters?${stringifiedParams}` : `/api/directory/characters`
+}
+
+/**
+ * @summary Public list of imported character sheets.
+ */
+export const listPublicCharacters = async (params?: ListPublicCharactersParams, options?: RequestInit): Promise<PublicCharacterSummary[]> => {
+
+  return customFetch<PublicCharacterSummary[]>(getListPublicCharactersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicCharactersQueryKey = (params?: ListPublicCharactersParams,) => {
+    return [
+    `/api/directory/characters`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPublicCharactersQueryOptions = <TData = Awaited<ReturnType<typeof listPublicCharacters>>, TError = ErrorType<unknown>>(params?: ListPublicCharactersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicCharactersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicCharacters>>> = ({ signal }) => listPublicCharacters(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicCharacters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPublicCharactersQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicCharacters>>>
+export type ListPublicCharactersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Public list of imported character sheets.
+ */
+
+export function useListPublicCharacters<TData = Awaited<ReturnType<typeof listPublicCharacters>>, TError = ErrorType<unknown>>(
+ params?: ListPublicCharactersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPublicCharactersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPublicCharacterUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/characters/${id}`
+}
+
+/**
+ * @summary Full sheet data for a single imported character (public).
+ */
+export const getPublicCharacter = async (id: number, options?: RequestInit): Promise<PublicCharacter> => {
+
+  return customFetch<PublicCharacter>(getGetPublicCharacterUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicCharacterQueryKey = (id: number,) => {
+    return [
+    `/api/directory/characters/${id}`
+    ] as const;
+    }
+
+
+export const getGetPublicCharacterQueryOptions = <TData = Awaited<ReturnType<typeof getPublicCharacter>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicCharacter>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicCharacterQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicCharacter>>> = ({ signal }) => getPublicCharacter(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicCharacter>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicCharacterQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicCharacter>>>
+export type GetPublicCharacterQueryError = ErrorType<void>
+
+
+/**
+ * @summary Full sheet data for a single imported character (public).
+ */
+
+export function useGetPublicCharacter<TData = Awaited<ReturnType<typeof getPublicCharacter>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicCharacter>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicCharacterQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getRequestUploadUrlUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/request-url`
+}
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+export const requestUploadUrl = async (uploadUrlRequest: UploadUrlRequest, options?: RequestInit): Promise<UploadUrlResponse> => {
+
+  return customFetch<UploadUrlResponse>(getRequestUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      uploadUrlRequest,)
+  }
+);}
+
+
+
+
+export const getRequestUploadUrlMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext> => {
+
+const mutationKey = ['requestUploadUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestUploadUrl>>, {data: BodyType<UploadUrlRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestUploadUrl>>>
+    export type RequestUploadUrlMutationBody = BodyType<UploadUrlRequest>
+    export type RequestUploadUrlMutationError = ErrorType<void>
+
+    /**
+ * @summary Request a presigned URL for file upload
+ */
+export const useRequestUploadUrl = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestUploadUrl>>,
+        TError,
+        {data: BodyType<UploadUrlRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestUploadUrlMutationOptions(options));
+    }
+
+export const getGetPublicObjectUrl = (filePath: string,) => {
+
+
+
+
+  return `/api/storage/public-objects/${filePath}`
+}
+
+/**
+ * @summary Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+ */
+export const getPublicObject = async (filePath: string, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetPublicObjectUrl(filePath),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicObjectQueryKey = (filePath: string,) => {
+    return [
+    `/api/storage/public-objects/${filePath}`
+    ] as const;
+    }
+
+
+export const getGetPublicObjectQueryOptions = <TData = Awaited<ReturnType<typeof getPublicObject>>, TError = ErrorType<void>>(filePath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicObjectQueryKey(filePath);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicObject>>> = ({ signal }) => getPublicObject(filePath, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(filePath), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicObject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicObjectQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicObject>>>
+export type GetPublicObjectQueryError = ErrorType<void>
+
+
+/**
+ * @summary Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+ */
+
+export function useGetPublicObject<TData = Awaited<ReturnType<typeof getPublicObject>>, TError = ErrorType<void>>(
+ filePath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicObjectQueryOptions(filePath,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetStorageObjectUrl = (objectPath: string,) => {
+
+
+
+
+  return `/api/storage/objects/${objectPath}`
+}
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+export const getStorageObject = async (objectPath: string, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetStorageObjectUrl(objectPath),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStorageObjectQueryKey = (objectPath: string,) => {
+    return [
+    `/api/storage/objects/${objectPath}`
+    ] as const;
+    }
+
+
+export const getGetStorageObjectQueryOptions = <TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<void>>(objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStorageObjectQueryKey(objectPath);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageObject>>> = ({ signal }) => getStorageObject(objectPath, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(objectPath), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStorageObjectQueryResult = NonNullable<Awaited<ReturnType<typeof getStorageObject>>>
+export type GetStorageObjectQueryError = ErrorType<void>
+
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+
+export function useGetStorageObject<TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<void>>(
+ objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStorageObjectQueryOptions(objectPath,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

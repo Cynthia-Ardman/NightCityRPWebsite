@@ -101,20 +101,9 @@ export default function CharacterDetail() {
 
         <div className="mt-8">
           <TabsContent value="profile" className="space-y-6 outline-none focus:ring-0">
-            <Card className="rounded-none border-border bg-card/50">
-              <CardHeader>
-                <CardTitle className="font-display text-nc-cyan">DOSSIER</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {char.background ? (
-                  <div className="prose prose-invert prose-p:font-mono max-w-none prose-headings:font-display whitespace-pre-wrap">
-                    {char.background}
-                  </div>
-                ) : (
-                  <div className="text-muted-foreground font-mono italic">No background data recorded.</div>
-                )}
-              </CardContent>
-            </Card>
+            <SheetSections sections={(char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections} background={char.background} />
+            <ImageGallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
+            <ImageGallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
           </TabsContent>
 
           <TabsContent value="wallet" className="outline-none focus:ring-0">
@@ -440,6 +429,82 @@ function StatusTab({ characterId }: { characterId: number }) {
 
         <div className="text-xs text-muted-foreground">
           Last updated: {new Date(status.updatedAt).toLocaleString()}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SheetSections({
+  sections,
+  background,
+}: {
+  sections?: Record<string, string>;
+  background?: string | null;
+}) {
+  const entries = sections ? Object.entries(sections).filter(([, v]) => v && v.trim().length > 0) : [];
+  if (entries.length === 0 && !background) {
+    return (
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader>
+          <CardTitle className="font-display text-nc-cyan">DOSSIER</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-muted-foreground font-mono italic">No background data recorded.</div>
+        </CardContent>
+      </Card>
+    );
+  }
+  if (entries.length === 0) {
+    return (
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader>
+          <CardTitle className="font-display text-nc-cyan">DOSSIER</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="prose prose-invert prose-p:font-mono max-w-none prose-headings:font-display whitespace-pre-wrap">
+            {background}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      {entries.map(([heading, body]) => (
+        <Card key={heading} className="rounded-none border-border bg-card/50" data-testid={`section-${heading}`}>
+          <CardHeader>
+            <CardTitle className="font-display text-nc-cyan tracking-widest text-base">{heading.toUpperCase()}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="whitespace-pre-wrap font-mono text-sm text-foreground/90">{body}</div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function ImageGallery({ title, urls }: { title: string; urls: string[] }) {
+  if (!urls || urls.length === 0) return null;
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid={`gallery-${title}`}>
+      <CardHeader>
+        <CardTitle className="font-display text-nc-cyan tracking-widest text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-3">
+          {urls.map((u, i) => (
+            <a
+              key={`${u}-${i}`}
+              href={u}
+              target="_blank"
+              rel="noreferrer"
+              className="block border border-border bg-background p-1 hover:border-nc-cyan transition"
+            >
+              <img src={u} alt={`${title} ${i + 1}`} loading="lazy" className="max-h-56 object-contain" />
+            </a>
+          ))}
         </div>
       </CardContent>
     </Card>
