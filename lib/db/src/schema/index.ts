@@ -36,18 +36,47 @@ export type User = typeof users.$inferSelect;
 
 export const characters = pgTable("characters", {
   id: serial("id").primaryKey(),
-  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // ownerId is nullable to support "unclaimed" characters imported from the
+  // legacy bot whose Discord owner has left the server. A fixer/admin can
+  // later assign or reassign the ownerId via the admin UI.
+  ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
+  // True once a user (or admin) has claimed this character. Imported
+  // unclaimed sheets land with claimed=false even when ownerId is set
+  // (admin-assigned) until the actual user confirms or logs in. Default true
+  // for any character created through the normal "create character" flow.
+  claimed: boolean("claimed").notNull().default(true),
+  // The Discord username on the sheet at import time. Preserved even after
+  // ownerId is filled so we can audit who the sheet "originally belongs to".
+  legacyDiscordUsername: text("legacy_discord_username"),
   name: text("name").notNull(),
   kind: text("kind").notNull(),
   archetype: text("archetype"),
   background: text("background"),
+  // Primary portrait (legacy single-image field). New sheets use
+  // portraitUrls / statsImageUrls arrays.
   portraitUrl: text("portrait_url"),
+  // All sheet portraits, in display order, re-hosted on object storage as
+  // /objects/<id> paths (Discord CDN URLs expire on signed-URL refresh).
+  portraitUrls: text("portrait_urls").array().notNull().default([]),
+  // VRChat / engine performance-panel screenshots, separated from portraits
+  // by the AI classifier at import time. Same /objects/ path format.
+  statsImageUrls: text("stats_image_urls").array().notNull().default([]),
+  // Parsed sheet sections: { preamble: string, sections: { [label]: string } }.
+  sheetData: jsonb("sheet_data"),
+  // The Discord forum thread this character was imported from. Used as the
+  // idempotency key so re-running the importer upserts rather than dupes.
+  importedFromThreadId: text("imported_from_thread_id"),
+  // Source channel name at import time (e.g. "character-sheets" or
+  // "retired-character-sheets"). Used to mark retired imports as archived.
+  importedFromChannelName: text("imported_from_channel_name"),
   discordChannelId: text("discord_channel_id"),
   approved: boolean("approved").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  importedThreadIdx: uniqueIndex("characters_imported_thread_idx").on(t.importedFromThreadId),
+}));
 export type Character = typeof characters.$inferSelect;
 
 export const characterStatus = pgTable("character_status", {
