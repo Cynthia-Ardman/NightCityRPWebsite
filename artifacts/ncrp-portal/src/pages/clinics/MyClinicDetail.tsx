@@ -17,7 +17,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
 import SellStockDialog from "@/components/SellStockDialog";
+import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
+import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import { useAuthMe } from "@/hooks/useAuthMe";
 
 export default function MyClinicDetail() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +40,9 @@ export default function MyClinicDetail() {
   const [stockCategory, setStockCategory] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
+  const [restockOpen, setRestockOpen] = useState(false);
+  const { data: me } = useAuthMe();
+  const canRestock = !!me && (me.isFixer || me.isAdmin);
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">NOT FOUND</div>;
@@ -83,7 +89,19 @@ export default function MyClinicDetail() {
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
-        <CardHeader><CardTitle className="font-display tracking-widest">CYBERWARE STOCK</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest">CYBERWARE STOCK</CardTitle>
+          {canRestock && (
+            <Button
+              size="sm"
+              onClick={() => setRestockOpen(true)}
+              className="rounded-none bg-nc-magenta text-background font-display"
+              data-testid="button-open-restock"
+            >
+              <Plus className="w-3 h-3 mr-1" /> RESTOCK FROM WHOLESALER
+            </Button>
+          )}
+        </CardHeader>
         <CardContent className="space-y-2">
           {data.stock.map((s) => (
             <div key={s.id} className="flex justify-between items-center border-b border-border/30 py-2 font-mono text-sm">
@@ -135,6 +153,7 @@ export default function MyClinicDetail() {
           </div>
         </CardContent>
       </Card>
+      <WholesalerOrdersPanel kind="ripperdoc" venueId={rid} />
       {sellTarget && (
         <SellStockDialog
           kind="ripperdoc"
@@ -144,6 +163,17 @@ export default function MyClinicDetail() {
           onDone={() => {
             invalidate();
             setSellTarget(null);
+          }}
+        />
+      )}
+      {restockOpen && (
+        <WholesalerRestockDialog
+          kind="ripperdoc"
+          venueId={rid}
+          onClose={() => setRestockOpen(false)}
+          onDone={() => {
+            invalidate();
+            setRestockOpen(false);
           }}
         />
       )}

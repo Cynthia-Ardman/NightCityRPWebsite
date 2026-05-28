@@ -311,6 +311,43 @@ export const missionLog = pgTable("mission_log", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const wholesalerItems = pgTable("wholesaler_items", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category"),
+  // Tier this item belongs to: "store" (sold from store_stock) or
+  // "ripperdoc" (sold from ripperdoc_stock). Determines which kind of
+  // venue can restock it.
+  tier: text("tier").notNull().default("store"),
+  wholesalePrice: integer("wholesale_price").notNull().default(0),
+  // Optional MSRP shown to fixers as guidance for retail markup. Does not
+  // affect store_stock.price (set by the venue at restock time).
+  suggestedRetailPrice: integer("suggested_retail_price"),
+  // Optional total units the wholesaler will ever supply. Null = unlimited.
+  // Bump the cap (or null it) to "reset the period" — orders are summed
+  // against this cap.
+  cap: integer("cap"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const wholesalerOrders = pgTable("wholesaler_orders", {
+  id: serial("id").primaryKey(),
+  wholesalerItemId: integer("wholesaler_item_id").notNull().references(() => wholesalerItems.id, { onDelete: "restrict" }),
+  fixerId: text("fixer_id").notNull().references(() => users.id, { onDelete: "set null" }),
+  // Where the units landed. Exactly one of storeId / ripperdocId is set.
+  storeId: integer("store_id").references(() => stores.id, { onDelete: "set null" }),
+  ripperdocId: integer("ripperdoc_id").references(() => ripperdocs.id, { onDelete: "set null" }),
+  quantity: integer("quantity").notNull(),
+  unitWholesalePrice: integer("unit_wholesale_price").notNull(),
+  totalCost: integer("total_cost").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  itemIdx: index("wo_item_idx").on(t.wholesalerItemId),
+}));
+
 export const botConfig = pgTable("bot_config", {
   key: text("key").primaryKey(),
   value: jsonb("value").notNull(),

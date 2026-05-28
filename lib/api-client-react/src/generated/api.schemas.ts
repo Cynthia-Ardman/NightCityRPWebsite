@@ -993,6 +993,124 @@ export interface BotConfigUpdate {
   value: unknown;
 }
 
+export type WholesalerItemTier = typeof WholesalerItemTier[keyof typeof WholesalerItemTier];
+
+
+export const WholesalerItemTier = {
+  store: 'store',
+  ripperdoc: 'ripperdoc',
+} as const;
+
+export interface WholesalerItem {
+  id: number;
+  name: string;
+  /** @nullable */
+  category?: string | null;
+  tier: WholesalerItemTier;
+  wholesalePrice: number;
+  /** @nullable */
+  suggestedRetailPrice?: number | null;
+  /**
+     * Total units the wholesaler will ever supply. Null = unlimited.
+     * @nullable
+     */
+  cap?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  archived: boolean;
+  unitsOrdered?: number;
+  /** @nullable */
+  unitsRemaining?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WholesalerItemInputTier = typeof WholesalerItemInputTier[keyof typeof WholesalerItemInputTier];
+
+
+export const WholesalerItemInputTier = {
+  store: 'store',
+  ripperdoc: 'ripperdoc',
+} as const;
+
+export interface WholesalerItemInput {
+  /** @minLength 1 */
+  name: string;
+  category?: string;
+  tier?: WholesalerItemInputTier;
+  /** @minimum 0 */
+  wholesalePrice: number;
+  /** @minimum 0 */
+  suggestedRetailPrice?: number;
+  /** @minimum 0 */
+  cap?: number;
+  notes?: string;
+}
+
+export type WholesalerItemPatchTier = typeof WholesalerItemPatchTier[keyof typeof WholesalerItemPatchTier];
+
+
+export const WholesalerItemPatchTier = {
+  store: 'store',
+  ripperdoc: 'ripperdoc',
+} as const;
+
+export interface WholesalerItemPatch {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  category?: string | null;
+  tier?: WholesalerItemPatchTier;
+  /** @minimum 0 */
+  wholesalePrice?: number;
+  /** @nullable */
+  suggestedRetailPrice?: number | null;
+  /** @nullable */
+  cap?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  archived?: boolean;
+}
+
+export type WholesalerRestockInputTargetKind = typeof WholesalerRestockInputTargetKind[keyof typeof WholesalerRestockInputTargetKind];
+
+
+export const WholesalerRestockInputTargetKind = {
+  store: 'store',
+  ripperdoc: 'ripperdoc',
+} as const;
+
+export interface WholesalerRestockInput {
+  wholesalerItemId: number;
+  /** @minimum 1 */
+  quantity: number;
+  targetKind: WholesalerRestockInputTargetKind;
+  targetStoreId: number;
+}
+
+export type WholesalerRestockResultStock = { [key: string]: unknown };
+
+export interface WholesalerRestockResult {
+  totalCost: number;
+  venueOwnerId?: string;
+  stock?: WholesalerRestockResultStock;
+}
+
+export interface WholesalerOrder {
+  id: number;
+  wholesalerItemId: number;
+  /** @nullable */
+  itemName?: string | null;
+  /** @nullable */
+  fixerId?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  quantity: number;
+  unitWholesalePrice: number;
+  totalCost: number;
+  createdAt: string;
+}
+
 export interface ActivityEvent {
   id: number;
   kind: string;
@@ -1054,5 +1172,25 @@ export const ListPublicCharactersScope = {
   unclaimed: 'unclaimed',
   pc: 'pc',
   npc: 'npc',
+} as const;
+
+export type ListWholesalerItemsParams = {
+/**
+ * Include archived items (admin UI).
+ */
+all?: boolean;
+};
+
+export type ListWholesalerOrdersParams = {
+kind: ListWholesalerOrdersKind;
+venueId: number;
+};
+
+export type ListWholesalerOrdersKind = typeof ListWholesalerOrdersKind[keyof typeof ListWholesalerOrdersKind];
+
+
+export const ListWholesalerOrdersKind = {
+  store: 'store',
+  ripperdoc: 'ripperdoc',
 } as const;
 

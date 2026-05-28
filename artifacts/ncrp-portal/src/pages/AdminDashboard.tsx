@@ -53,6 +53,14 @@ export default function AdminDashboard() {
         </p>
       </div>
 
+      {!isFixerOnly && (
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/wholesaler" className="px-4 py-2 border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background font-display text-xs tracking-widest" data-testid="link-admin-wholesaler">
+            WHOLESALER CATALOG →
+          </Link>
+        </div>
+      )}
+
       <Tabs defaultValue={isFixerOnly ? "characters" : "users"} className="w-full">
         <TabsList className={`bg-card border border-border rounded-none p-0 h-auto grid ${isFixerOnly ? "grid-cols-1 max-w-xs" : "grid-cols-2 md:grid-cols-6 max-w-5xl"} w-full`}>
           {!isFixerOnly && (

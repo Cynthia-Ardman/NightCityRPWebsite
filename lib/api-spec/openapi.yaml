@@ -1258,6 +1258,108 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UpcomingBills" }
+  # ---------------- WHOLESALER ----------------
+  /wholesaler/items:
+    get:
+      operationId: listWholesalerItems
+      tags: [wholesaler]
+      summary: Wholesaler catalog (fixer-visible)
+      parameters:
+        - in: query
+          name: all
+          schema: { type: boolean }
+          description: Include archived items (admin UI).
+      responses:
+        "200":
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WholesalerItem" }
+  /admin/wholesaler/items:
+    post:
+      operationId: adminCreateWholesalerItem
+      tags: [wholesaler]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WholesalerItemInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WholesalerItem" }
+  /admin/wholesaler/items/{id}:
+    patch:
+      operationId: adminUpdateWholesalerItem
+      tags: [wholesaler]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WholesalerItemPatch" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WholesalerItem" }
+    delete:
+      operationId: adminArchiveWholesalerItem
+      tags: [wholesaler]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Archived }
+  /wholesaler/restock:
+    post:
+      operationId: wholesalerRestock
+      tags: [wholesaler]
+      summary: Fixer buys units from the wholesaler and pushes them into a venue's stock.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WholesalerRestockInput" }
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WholesalerRestockResult" }
+  /wholesaler/orders:
+    get:
+      operationId: listWholesalerOrders
+      tags: [wholesaler]
+      parameters:
+        - in: query
+          name: kind
+          required: true
+          schema: { type: string, enum: [store, ripperdoc] }
+        - in: query
+          name: venueId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WholesalerOrder" }
+
   /dashboard/activity:
     get:
       operationId: getRecentActivity
@@ -2108,6 +2210,81 @@ components:
         name: { type: string }
         avatarUrl: { type: ["string", "null"] }
         value: { type: integer }
+
+    WholesalerItem:
+      type: object
+      required: [id, name, tier, wholesalePrice, archived, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        category: { type: ["string", "null"] }
+        tier: { type: string, enum: [store, ripperdoc] }
+        wholesalePrice: { type: integer }
+        suggestedRetailPrice: { type: ["integer", "null"] }
+        cap: { type: ["integer", "null"], description: "Total units the wholesaler will ever supply. Null = unlimited." }
+        notes: { type: ["string", "null"] }
+        archived: { type: boolean }
+        unitsOrdered: { type: integer }
+        unitsRemaining: { type: ["integer", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    WholesalerItemInput:
+      type: object
+      required: [name, wholesalePrice]
+      properties:
+        name: { type: string, minLength: 1 }
+        category: { type: string }
+        tier: { type: string, enum: [store, ripperdoc] }
+        wholesalePrice: { type: integer, minimum: 0 }
+        suggestedRetailPrice: { type: integer, minimum: 0 }
+        cap: { type: integer, minimum: 0 }
+        notes: { type: string }
+
+    WholesalerItemPatch:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        category: { type: ["string", "null"] }
+        tier: { type: string, enum: [store, ripperdoc] }
+        wholesalePrice: { type: integer, minimum: 0 }
+        suggestedRetailPrice: { type: ["integer", "null"] }
+        cap: { type: ["integer", "null"] }
+        notes: { type: ["string", "null"] }
+        archived: { type: boolean }
+
+    WholesalerRestockInput:
+      type: object
+      required: [wholesalerItemId, quantity, targetKind, targetStoreId]
+      properties:
+        wholesalerItemId: { type: integer }
+        quantity: { type: integer, minimum: 1 }
+        targetKind: { type: string, enum: [store, ripperdoc] }
+        targetStoreId: { type: integer }
+
+    WholesalerRestockResult:
+      type: object
+      required: [totalCost]
+      properties:
+        totalCost: { type: integer }
+        venueOwnerId: { type: string }
+        stock:
+          type: object
+          additionalProperties: true
+
+    WholesalerOrder:
+      type: object
+      required: [id, wholesalerItemId, quantity, unitWholesalePrice, totalCost, createdAt]
+      properties:
+        id: { type: integer }
+        wholesalerItemId: { type: integer }
+        itemName: { type: ["string", "null"] }
+        fixerId: { type: ["string", "null"] }
+        fixerName: { type: ["string", "null"] }
+        quantity: { type: integer }
+        unitWholesalePrice: { type: integer }
+        totalCost: { type: integer }
+        createdAt: { type: string, format: date-time }
 
     ActivityEvent:
       type: object

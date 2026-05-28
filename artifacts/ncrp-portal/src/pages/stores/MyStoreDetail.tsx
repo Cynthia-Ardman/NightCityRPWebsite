@@ -18,7 +18,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
 import SellStockDialog from "@/components/SellStockDialog";
+import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
+import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import { useAuthMe } from "@/hooks/useAuthMe";
 
 export default function MyStoreDetail() {
   const { id } = useParams<{ id: string }>();
@@ -40,6 +43,9 @@ export default function MyStoreDetail() {
   const [stockPrice, setStockPrice] = useState(0);
   const [stockQty, setStockQty] = useState(1);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
+  const [restockOpen, setRestockOpen] = useState(false);
+  const { data: me } = useAuthMe();
+  const canRestock = !!me && (me.isFixer || me.isAdmin);
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!store) return <div className="font-display text-destructive">NOT FOUND</div>;
@@ -86,7 +92,19 @@ export default function MyStoreDetail() {
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
-        <CardHeader><CardTitle className="font-display tracking-widest">STOCK</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest">STOCK</CardTitle>
+          {canRestock && (
+            <Button
+              size="sm"
+              onClick={() => setRestockOpen(true)}
+              className="rounded-none bg-nc-magenta text-background font-display"
+              data-testid="button-open-restock"
+            >
+              <Plus className="w-3 h-3 mr-1" /> RESTOCK FROM WHOLESALER
+            </Button>
+          )}
+        </CardHeader>
         <CardContent className="space-y-2">
           {store.stock.map((s) => (
             <div key={s.id} className="grid grid-cols-12 gap-2 items-center border-b border-border/30 py-2" data-testid={`row-stock-${s.id}`}>
@@ -144,6 +162,7 @@ export default function MyStoreDetail() {
           </div>
         </CardContent>
       </Card>
+      <WholesalerOrdersPanel kind="store" venueId={storeId} />
       {sellTarget && (
         <SellStockDialog
           kind="store"
@@ -153,6 +172,17 @@ export default function MyStoreDetail() {
           onDone={() => {
             invalidate();
             setSellTarget(null);
+          }}
+        />
+      )}
+      {restockOpen && (
+        <WholesalerRestockDialog
+          kind="store"
+          venueId={storeId}
+          onClose={() => setRestockOpen(false)}
+          onDone={() => {
+            invalidate();
+            setRestockOpen(false);
           }}
         />
       )}

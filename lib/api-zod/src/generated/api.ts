@@ -2158,6 +2158,132 @@ export const GetUpcomingBillsResponse = zod.object({
 })
 
 
+/**
+ * @summary Wholesaler catalog (fixer-visible)
+ */
+export const ListWholesalerItemsQueryParams = zod.object({
+  "all": zod.coerce.boolean().optional().describe('Include archived items (admin UI).')
+})
+
+export const ListWholesalerItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "tier": zod.enum(['store', 'ripperdoc']),
+  "wholesalePrice": zod.number(),
+  "suggestedRetailPrice": zod.number().nullish(),
+  "cap": zod.number().nullish().describe('Total units the wholesaler will ever supply. Null = unlimited.'),
+  "notes": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "unitsOrdered": zod.number().optional(),
+  "unitsRemaining": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListWholesalerItemsResponse = zod.array(ListWholesalerItemsResponseItem)
+
+
+
+export const adminCreateWholesalerItemBodyWholesalePriceMin = 0;
+
+export const adminCreateWholesalerItemBodySuggestedRetailPriceMin = 0;
+
+export const adminCreateWholesalerItemBodyCapMin = 0;
+
+
+
+export const AdminCreateWholesalerItemBody = zod.object({
+  "name": zod.string().min(1),
+  "category": zod.string().optional(),
+  "tier": zod.enum(['store', 'ripperdoc']).optional(),
+  "wholesalePrice": zod.number().min(adminCreateWholesalerItemBodyWholesalePriceMin),
+  "suggestedRetailPrice": zod.number().min(adminCreateWholesalerItemBodySuggestedRetailPriceMin).optional(),
+  "cap": zod.number().min(adminCreateWholesalerItemBodyCapMin).optional(),
+  "notes": zod.string().optional()
+})
+
+
+export const AdminUpdateWholesalerItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const adminUpdateWholesalerItemBodyWholesalePriceMin = 0;
+
+
+
+export const AdminUpdateWholesalerItemBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "category": zod.string().nullish(),
+  "tier": zod.enum(['store', 'ripperdoc']).optional(),
+  "wholesalePrice": zod.number().min(adminUpdateWholesalerItemBodyWholesalePriceMin).optional(),
+  "suggestedRetailPrice": zod.number().nullish(),
+  "cap": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "archived": zod.boolean().optional()
+})
+
+export const AdminUpdateWholesalerItemResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "tier": zod.enum(['store', 'ripperdoc']),
+  "wholesalePrice": zod.number(),
+  "suggestedRetailPrice": zod.number().nullish(),
+  "cap": zod.number().nullish().describe('Total units the wholesaler will ever supply. Null = unlimited.'),
+  "notes": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "unitsOrdered": zod.number().optional(),
+  "unitsRemaining": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const AdminArchiveWholesalerItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Fixer buys units from the wholesaler and pushes them into a venue's stock.
+ */
+
+
+
+export const WholesalerRestockBody = zod.object({
+  "wholesalerItemId": zod.number(),
+  "quantity": zod.number().min(1),
+  "targetKind": zod.enum(['store', 'ripperdoc']),
+  "targetStoreId": zod.number()
+})
+
+export const WholesalerRestockResponse = zod.object({
+  "totalCost": zod.number(),
+  "venueOwnerId": zod.string().optional(),
+  "stock": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+
+export const ListWholesalerOrdersQueryParams = zod.object({
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "venueId": zod.coerce.number()
+})
+
+export const ListWholesalerOrdersResponseItem = zod.object({
+  "id": zod.number(),
+  "wholesalerItemId": zod.number(),
+  "itemName": zod.string().nullish(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitWholesalePrice": zod.number(),
+  "totalCost": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+export const ListWholesalerOrdersResponse = zod.array(ListWholesalerOrdersResponseItem)
+
+
 export const GetRecentActivityResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.string(),
