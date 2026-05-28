@@ -632,11 +632,65 @@ function WalletTab() {
   );
 }
 
+// Keep in sync with AUTOBILL_FLAGS in api-server/src/lib/jobs.ts.
+const HOUSING_AUTOBILL_KEY = "housing_autobill_enabled";
+const CYBERWARE_AUTOBILL_KEY = "cyberware_autobill_enabled";
+
+function AutobillSwitch({
+  configKey,
+  label,
+  description,
+  rows,
+  onToggle,
+  pending,
+}: {
+  configKey: string;
+  label: string;
+  description: string;
+  rows: Array<{ key: string; value: unknown }> | undefined;
+  onToggle: (next: boolean) => void;
+  pending: boolean;
+}) {
+  const row = rows?.find((r) => r.key === configKey);
+  const enabled = row?.value === true;
+  return (
+    <div className="flex items-center justify-between gap-4 border border-border bg-card/30 p-3" data-testid={`autobill-${configKey}`}>
+      <div>
+        <div className="font-display text-sm text-foreground">{label}</div>
+        <div className="font-mono text-[11px] text-muted-foreground">{description}</div>
+        <div className="font-mono text-[11px] mt-1">
+          State:{" "}
+          <span className={enabled ? "text-nc-cyan" : "text-destructive"}>
+            {enabled ? "ENABLED" : "DISABLED"}
+          </span>
+        </div>
+      </div>
+      <Button
+        size="sm"
+        disabled={pending}
+        onClick={() => onToggle(!enabled)}
+        className={`rounded-none font-display text-xs ${enabled ? "bg-destructive text-background" : "bg-nc-cyan text-background"}`}
+        data-testid={`button-autobill-toggle-${configKey}`}
+      >
+        {enabled ? "DISABLE" : "ENABLE"}
+      </Button>
+    </div>
+  );
+}
+
 function JobsTab() {
   const { data: jobs, isLoading } = useAdminListJobs();
   const runJob = useAdminRunJob();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: flagRows } = useAdminListBotConfig();
+  const setFlag = useAdminSetBotConfig({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getAdminListBotConfigQueryKey() }),
+      onError: (err: any) => toast({ title: "Flag update failed", description: err.message, variant: "destructive" }),
+    },
+  });
 
   const handleRunJob = (jobId: "cyberware_humanity" | "monthly_rent" | "role_sync") => {
     runJob.mutate({ data: { job: jobId } }, {
@@ -654,9 +708,30 @@ function JobsTab() {
     <Card className="rounded-none border-border bg-card/50">
       <CardHeader>
         <CardTitle className="font-display text-nc-cyan">System Jobs</CardTitle>
-        <CardDescription className="font-mono">Manually trigger background processes.</CardDescription>
+        <CardDescription className="font-mono">
+          Kill switches gate the scheduled cron. Manual buttons below always run regardless of switch state.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <AutobillSwitch
+            configKey={HOUSING_AUTOBILL_KEY}
+            label="Housing + Lifestyle Autobill"
+            description="Gates the monthly_rent cron (housing rent + monthly lifestyle costs). 04:00 UTC on the 1st."
+            rows={flagRows}
+            pending={setFlag.isPending}
+            onToggle={(next) => setFlag.mutate({ key: HOUSING_AUTOBILL_KEY, data: { value: next } })}
+          />
+          <AutobillSwitch
+            configKey={CYBERWARE_AUTOBILL_KEY}
+            label="Cyberware Autobill"
+            description="Gates the cyberware_humanity cron (weekly cyberpsychosis meds). Mondays 05:00 UTC."
+            rows={flagRows}
+            pending={setFlag.isPending}
+            onToggle={(next) => setFlag.mutate({ key: CYBERWARE_AUTOBILL_KEY, data: { value: next } })}
+          />
+        </div>
+
         <div className="flex gap-4">
           <Button onClick={() => handleRunJob("cyberware_humanity")} disabled={runJob.isPending} className="rounded-none font-display border border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background" variant="outline" data-testid="btn-job-cyberware">
             Update Humanity

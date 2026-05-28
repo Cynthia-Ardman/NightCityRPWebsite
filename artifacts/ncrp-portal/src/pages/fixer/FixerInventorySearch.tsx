@@ -103,7 +103,7 @@ export default function FixerInventorySearch() {
                   <div className="text-muted-foreground font-mono italic">No past-owner events match.</div>
                 ) : (
                   <div className="space-y-2 font-mono text-sm" data-testid="list-past-events">
-                    {data.pastOwners.map(({ event, liveItem }) => (
+                    {data.pastOwners.map(({ event, liveItem }: { event: any; liveItem: any }) => (
                       <Link key={event.id} href={`/items/${event.instanceUuid}`}>
                         <a className="block border border-border/40 hover:border-nc-cyan p-2 cursor-pointer" data-testid={`row-event-${event.id}`}>
                           <div className="flex flex-wrap items-baseline justify-between gap-2">

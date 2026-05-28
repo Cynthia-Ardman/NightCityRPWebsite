@@ -1,8 +1,35 @@
-import { db, users, jobRuns, characters, walletTransactions, housing, lifestyleTiers, activityEvents } from "@workspace/db";
+import { db, users, jobRuns, characters, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot } from "./discord";
 import { patchBalance } from "./unbelievaboat";
+
+// Kill-switch flags stored in bot_config. Both default to OFF so freshly
+// deployed environments never silently start charging players until an
+// admin explicitly flips the switch in the System Flags / Jobs UI.
+//   - housing_autobill_enabled gates the monthly_rent cron (housing
+//     leases + lifestyle cycle, which fire together).
+//   - cyberware_autobill_enabled gates the cyberware_humanity cron.
+// Manual /admin/jobs/run is intentionally NOT gated — admin pressing
+// the button is an explicit action and is the supported way to test
+// while the cron is disabled.
+export const AUTOBILL_FLAGS = {
+  housing: "housing_autobill_enabled",
+  cyberware: "cyberware_autobill_enabled",
+} as const;
+
+export async function isAutobillEnabled(key: string): Promise<boolean> {
+  try {
+    const [row] = await db.select().from(botConfig).where(eq(botConfig.key, key));
+    // Treat the column as a JSON value; only the literal `true` enables the
+    // job. Anything else (missing row, false, null, "", numbers, strings)
+    // keeps the switch off — fail-safe.
+    return row?.value === true;
+  } catch (err) {
+    logger.warn({ err, key }, "isAutobillEnabled read failed; treating as OFF");
+    return false;
+  }
+}
 
 export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync";
 
@@ -187,14 +214,22 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
 export function startCron() {
   // node-cron expressions: monthly_rent on the 1st at 04:00; role_sync every 6h; cyberware_humanity daily 05:00
   import("node-cron").then(({ default: cron }) => {
-    cron.schedule("0 4 1 * *", () => {
+    cron.schedule("0 4 1 * *", async () => {
+      if (!(await isAutobillEnabled(AUTOBILL_FLAGS.housing))) {
+        logger.info({ flag: AUTOBILL_FLAGS.housing }, "monthly_rent cron skipped (kill switch off)");
+        return;
+      }
       runJob("monthly_rent").catch((err) => logger.error({ err }, "monthly_rent cron"));
     });
     cron.schedule("0 */6 * * *", () => {
       runJob("role_sync").catch((err) => logger.error({ err }, "role_sync cron"));
     });
     // Weekly cyberpsychosis-meds charge: Mondays at 05:00.
-    cron.schedule("0 5 * * 1", () => {
+    cron.schedule("0 5 * * 1", async () => {
+      if (!(await isAutobillEnabled(AUTOBILL_FLAGS.cyberware))) {
+        logger.info({ flag: AUTOBILL_FLAGS.cyberware }, "cyberware_humanity cron skipped (kill switch off)");
+        return;
+      }
       runJob("cyberware_humanity").catch((err) => logger.error({ err }, "cyberware_humanity cron"));
     });
     logger.info("Cron jobs scheduled");
