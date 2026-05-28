@@ -12,7 +12,7 @@ import {
   catalogCyberware,
   catalogRent,
 } from "@workspace/db";
-import { requireAuth, requireAnyRole } from "../middlewares/auth";
+import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 
 const router: IRouter = Router();
@@ -20,11 +20,15 @@ const router: IRouter = Router();
 // Character sheets contain IC backstory, contacts, and chrome loadouts that
 // players and staff have agreed should NOT be visible to the wider community.
 // Visibility rules:
-//   - The list endpoint is a roster tool for canon enforcement — fixers and
-//     admins only.
-//   - A given sheet's detail is viewable by its owner (so a player can read
-//     their own claimed dossier from the archive route), plus fixers and
-//     admins. Everyone else gets 403, including other logged-in players.
+//   - The list endpoint returns ONLY roster metadata (name, kind, archetype,
+//     portrait, claim/retired flags, owner handle). It does not include any
+//     sheet body fields. Any authenticated user may query it, because the
+//     character picker for wallet/inventory transfers, store/clinic sells,
+//     and fixer missions all need to look up a recipient character by name.
+//   - A given sheet's detail (background, sheetData, stats images, …) is
+//     viewable only by its owner, fixers, and admins. Everyone else who
+//     clicks through from the roster gets 403.
+//   - Anonymous (unauthenticated) callers cannot hit either endpoint.
 // Stores, ripperdocs, and the gun/cyberware/rent catalogs remain public.
 
 // Strip internal `[legacy:<uuid>]` tags that the prod importer stamps into
@@ -35,10 +39,11 @@ function cleanBackground(s: string | null | undefined): string | null {
   return cleaned.length > 0 ? cleaned : null;
 }
 
-// Roster of all character sheets. Fixers and admins only — used to enforce
-// canon, resolve claims, and run mission paperwork. Regular players see
-// their own characters under /characters, not here.
-router.get("/directory/characters", requireAnyRole(["ADMIN", "FIXER"]), async (req, res): Promise<void> => {
+// Roster of all character sheets. Auth-only so anonymous scrapers can't
+// crawl the player list, but open to any logged-in player — every recipient
+// picker in the portal (transfers, sells, missions) calls this. The
+// projection below is strictly roster-tile fields; no sheet body leaks here.
+router.get("/directory/characters", requireAuth, async (req, res): Promise<void> => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
 

@@ -88,9 +88,12 @@ function SidebarContent() {
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
 
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Directory</div>
-        {/* Character Archive shows every sheet in the city and is restricted
-            to canon staff (fixers + admins). Regular players manage their own
-            characters from /characters. */}
+        {/* Character Archive lists rosters of every sheet. Sheet bodies
+            (background, etc.) are owner/staff-only — see directory.ts — so
+            clicking a row a non-owner doesn't own will 403 unless they're
+            a fixer or admin. Surface the link only to staff to avoid that
+            dead-end UX for regular players, who manage their own characters
+            from /characters anyway. */}
         {user && (user.isFixer || user.isAdmin) && (
           <NavItem href="/directory/characters" icon={Users} label="Character Archive" />
         )}
