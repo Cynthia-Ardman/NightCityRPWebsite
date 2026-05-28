@@ -32,7 +32,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History } from "lucide-react";
+import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
@@ -138,6 +138,9 @@ export default function CharacterDetail() {
           <TabsTrigger value="inventory" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-inv">
             <Package className="w-4 h-4 mr-2 hidden sm:inline" /> Inventory
           </TabsTrigger>
+          <TabsTrigger value="cyberware" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-cyberware">
+            <Cpu className="w-4 h-4 mr-2 hidden sm:inline" /> Cyberware
+          </TabsTrigger>
           <TabsTrigger value="status" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-status">
             <Activity className="w-4 h-4 mr-2 hidden sm:inline" /> Status
           </TabsTrigger>
@@ -166,6 +169,10 @@ export default function CharacterDetail() {
 
           <TabsContent value="inventory" className="outline-none focus:ring-0">
             <InventoryTab characterId={char.id} />
+          </TabsContent>
+
+          <TabsContent value="cyberware" className="outline-none focus:ring-0">
+            <CyberwareTab characterId={char.id} />
           </TabsContent>
 
           <TabsContent value="status" className="outline-none focus:ring-0">
@@ -335,6 +342,180 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function CyberwareTab({ characterId }: { characterId: number }) {
+  const { data: char, isLoading: charLoading } = useGetCharacter(characterId);
+  const { data: items, isLoading: itemsLoading } = useGetCharacterInventory(characterId);
+
+  if (charLoading || itemsLoading) {
+    return <div className="text-nc-cyan font-mono animate-pulse">Scanning chrome subnet...</div>;
+  }
+  if (!char) return null;
+
+  // Pull cyberware items out of the per-character inventory. We match on
+  // category case-insensitively so legacy "Cyberware" / "cyberware" both
+  // surface. Items with no category but a name that obviously reads as
+  // chrome (e.g. "Mantis Blades") aren't auto-tagged here — set their
+  // category in the inventory tab if you want them to appear.
+  const chromeItems = (items ?? []).filter(
+    (it) => (it.category ?? "").toLowerCase() === "cyberware",
+  );
+
+  // Try to find the cyberware section in the imported character sheet.
+  const sections = (char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections ?? {};
+  const cyberwareSheet = Object.entries(sections).find(([heading]) => isCyberwareHeading(heading));
+
+  const level = (char.cyberwareLevel ?? "none").toLowerCase();
+  const levelStyle =
+    level === "extreme" ? "border-destructive text-destructive"
+    : level === "high" ? "border-nc-magenta text-nc-magenta"
+    : level === "medium" ? "border-nc-yellow text-nc-yellow"
+    : "border-border text-muted-foreground";
+  const isOrganic = !!char.isOrganic;
+
+  // Group chrome items by slot if the inventory notes embed a "slot: X"
+  // hint; otherwise lump under "OTHER". This is intentionally cheap —
+  // the canonical slot data lives in the bot's player_inventory mirror,
+  // and the sheet section above is the pretty version. This grid is the
+  // "what the portal actually has on this character" view.
+  const grouped = new Map<string, typeof chromeItems>();
+  for (const it of chromeItems) {
+    const slotMatch = (it.notes ?? "").match(/slot\s*[:=]\s*([^,;\n]+)/i);
+    const slot = (slotMatch?.[1] ?? "Other").trim().toUpperCase();
+    const list = grouped.get(slot) ?? [];
+    list.push(it);
+    grouped.set(slot, list);
+  }
+  const slotOrder = Array.from(grouped.keys()).sort((a, b) => {
+    if (a === "OTHER") return 1;
+    if (b === "OTHER") return -1;
+    return a.localeCompare(b);
+  });
+
+  return (
+    <div className="space-y-6">
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
+          <CardTitle className="font-display tracking-widest flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-nc-cyan" /> CHROME STATUS
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {isOrganic ? (
+              <Badge variant="outline" className="rounded-none border-nc-cyan/60 text-nc-cyan font-display tracking-widest">
+                ORGANIC
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className={`rounded-none font-display tracking-widest ${levelStyle}`}
+                data-testid="badge-cyberware-level"
+              >
+                RISK: {level.toUpperCase()}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="font-mono text-xs text-muted-foreground space-y-1">
+          <div>
+            Risk band drives the weekly meds cap: <span className="text-foreground">none</span> →
+            no charge, <span className="text-foreground">medium</span> → 2k cap,
+            {" "}<span className="text-foreground">high</span> → 5k cap,
+            {" "}<span className="text-foreground">extreme</span> → 10k cap. Set by a ripperdoc on
+            checkup.
+          </div>
+          <div>
+            Checkup streak is per-household, not per-character — any of your characters visiting
+            a ripperdoc resets it.
+          </div>
+        </CardContent>
+      </Card>
+
+      <CheckupStreakCard characterId={characterId} />
+
+      {cyberwareSheet ? (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest">SHEET: {cyberwareSheet[0].toUpperCase()}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CyberwareSection body={cyberwareSheet[1]} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader>
+          <CardTitle className="font-display tracking-widest">
+            INSTALLED CHROME ({chromeItems.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {chromeItems.length === 0 ? (
+            <div className="text-muted-foreground font-mono italic" data-testid="empty-cyberware">
+              {isOrganic
+                ? "Marked organic — no chrome on record."
+                : "No cyberware items recorded in inventory. Add items in the Inventory tab with category \"cyberware\" to see them here."}
+            </div>
+          ) : (
+            <div className="space-y-4 font-mono text-sm" data-testid="list-cyberware">
+              {slotOrder.map((slot) => {
+                const list = grouped.get(slot) ?? [];
+                return (
+                  <div key={slot} className="border border-border/60 bg-background/30">
+                    <div className="flex items-center justify-between border-b border-border/60 bg-card/40 px-3 py-1.5">
+                      <span className="font-display text-xs tracking-widest text-nc-cyan">{slot}</span>
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {list.length} ITEM{list.length === 1 ? "" : "S"}
+                      </span>
+                    </div>
+                    <ul className="divide-y divide-border/40">
+                      {list.map((it) => (
+                        <li
+                          key={it.id}
+                          className="flex items-start gap-3 px-3 py-2"
+                          data-testid={`row-cyberware-${it.id}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-foreground">
+                              {it.name}
+                              {it.quantity > 1 ? (
+                                <span className="text-muted-foreground"> ×{it.quantity}</span>
+                              ) : null}
+                              {it.equipped ? (
+                                <Badge variant="outline" className="ml-2 rounded-none border-nc-cyan/60 text-nc-cyan text-[10px] py-0">
+                                  EQUIPPED
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {it.notes ? (
+                              <div className="mt-0.5 text-xs text-muted-foreground truncate">{it.notes}</div>
+                            ) : null}
+                          </div>
+                          <Link href={`/items/${it.instanceUuid}`}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-nc-cyan h-8 px-2"
+                              title="View chain of custody"
+                              data-testid={`button-cyberware-history-${it.id}`}
+                            >
+                              <History className="w-3 h-3" />
+                            </Button>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
