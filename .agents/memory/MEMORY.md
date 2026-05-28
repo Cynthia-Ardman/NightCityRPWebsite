@@ -16,3 +16,4 @@
 - [Auto-claim on login](auto-claim-legacy-username.md) — back-fill characters.ownerId from legacy_discord_username on Discord OAuth callback; guard with isNull(ownerId).
 - [Autobill kill switches](autobill-kill-switches.md) — housing + cyberware crons gated on bot_config flags defaulting OFF; manual admin runs bypass by design.
 - [Autobill parity](autobill-parity.md) — monthly_rent runs 6 bill types in one job; LOA-skip rules differ per type; period guard via paid_through (rent) or wallet kind+month set (personal fees).
+- [Drizzle ANY array spread](drizzle-any-array-spread.md) — `sql\`= ANY(${arr})\`` spreads into N params and 500s; use `inArray(col, arr)`.

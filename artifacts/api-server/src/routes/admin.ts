@@ -1283,7 +1283,13 @@ router.get(
     type Row = (typeof rows)[number];
     const groups = new Map<string, Row[]>();
     for (const r of rows) {
-      const key = `${r.kind}::${r.name.trim().toLowerCase()}`;
+      // Normalize aggressively: import flows leave trailing tags like
+      // " (NPC)" / "(PC)", smart-quote drift, double spaces, and case
+      // mismatches on stop-words ("Alias" vs "alias"). Without this,
+      // "Alex Graves (alias: Drew Camden)" and
+      // "Alex Graves (Alias: Drew Camden) (NPC)" hash to different
+      // keys and the admin never sees the pair.
+      const key = `${r.kind}::${normalizeNameForDupes(r.name)}`;
       const list = groups.get(key) ?? [];
       list.push(r);
       groups.set(key, list);
@@ -1307,6 +1313,15 @@ router.get(
     res.json({ groupCount: dupes.length, totalDuplicateRows: dupes.reduce((s, g) => s + g.count, 0), groups: dupes });
   },
 );
+
+function normalizeNameForDupes(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201c\u201d]/g, "'") // smart quotes -> '
+    .replace(/\s*\((?:npc|pc)\)\s*$/i, "")      // trailing kind tag
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function pickSuggestedKeep<T extends {
   id: number;

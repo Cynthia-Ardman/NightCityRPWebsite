@@ -51,7 +51,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     const statuses = await db
       .select()
       .from(characterStatus)
-      .where(sql`${characterStatus.characterId} = ANY(${characterIds})`);
+      .where(inArray(characterStatus.characterId, characterIds));
     for (const s of statuses) {
       if (s.openShop) openShops++;
       if (s.attending) attendingCount++;
@@ -165,7 +165,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     })
     .from(housing)
     .innerJoin(characters, eq(characters.id, housing.characterId))
-    .where(sql`${housing.characterId} = ANY(${charIds})`);
+    .where(inArray(housing.characterId, charIds));
 
   const nextRentTotal = rent.reduce((s, r) => s + r.amount, 0);
   const nextMedsTotal = meds.reduce((s, m) => s + m.amount, 0);
@@ -220,7 +220,7 @@ router.get("/me/system-log", requireAuth, async (req, res): Promise<void> => {
     conds.push(
       and(
         eq(auditLog.targetType, "character"),
-        sql`${auditLog.targetId} = ANY(${charIdStrs})`,
+        inArray(auditLog.targetId, charIdStrs),
       ) as ReturnType<typeof eq>,
     );
   }
