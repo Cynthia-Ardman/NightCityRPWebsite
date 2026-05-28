@@ -458,7 +458,7 @@ function UpcomingBillsCard() {
                 icon={Syringe}
                 color="text-destructive"
                 title="CYBERPSYCHOSIS MEDS (WEEKLY)"
-                emptyHint="No character has 7+ CWP — no meds owed."
+                emptyHint={medsEmptyHint(data.cyberwareStatus)}
                 items={data.meds.map((m) => ({
                   key: `meds-${m.anchorCharacterId ?? "player"}`,
                   primary: `Household bill${m.anchorCharacterName ? ` · top: ${m.anchorCharacterName}` : ""}`,
@@ -521,6 +521,20 @@ type CyberwareStatusShape = {
   breakdown: Array<{ characterId: number; characterName: string; chromeCount: number; band: string }>;
 };
 
+// Explain WHY no meds are owed this week so the player doesn't think
+// the system is broken. Priority: recent checkup > nobody at risk >
+// generic fallback.
+function medsEmptyHint(status: CyberwareStatusShape): string {
+  const anyAtRisk = status.breakdown.some((b) => b.chromeCount >= 7);
+  if (status.weeksUnpaid <= 1 && status.lastCheckupAt) {
+    return "Last checkup within the week — no meds owed.";
+  }
+  if (!anyAtRisk) {
+    return "No character has 7+ CWP — no meds owed.";
+  }
+  return "No meds owed this week.";
+}
+
 function bandLabel(band: string): string {
   if (band === "none") return "None";
   return band.charAt(0).toUpperCase() + band.slice(1);
@@ -536,10 +550,15 @@ function bandColorClass(band: string): string {
 }
 
 function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
-  const billable = status.breakdown.filter((b) => b.chromeCount >= 7);
+  // Show every PC that has ANY chrome, sorted hi→lo. Each row is colored
+  // by its own band so the player can see at a glance which characters
+  // are in the danger zone, instead of having to mouse over a cramped
+  // tooltip. Anyone <7 CWP is dimmed but still listed for context.
+  const rows = [...status.breakdown].sort((a, b) => b.chromeCount - a.chromeCount);
+
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="space-y-2 border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm font-mono">
+      <div className="space-y-3 border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm font-mono">
         <div className="text-xs uppercase tracking-widest text-destructive">
           Cyberware Status
         </div>
@@ -547,52 +566,102 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
         <StatRow
           label="Last Checkup"
           value={status.lastCheckupAt ? formatDueDate(status.lastCheckupAt) : "never"}
-          tooltip="Checkups are done by Ripperdocs either in RP or via Text RP. Any of your characters getting a checkup resets the streak for your whole household."
+          tooltip={
+            <>
+              <p className="font-semibold text-nc-cyan">How checkups work</p>
+              <p>
+                Ripperdoc checkups (RP or Text RP) reset the streak for
+                <span className="text-foreground"> your whole household</span> —
+                one visit on any character covers everyone.
+              </p>
+            </>
+          }
         />
 
         <StatRow
           label="Weeks Without Checkup"
           value={String(status.weeksUnpaid)}
-          tooltip={`Number of weeks since your last checkup. Drives the weekly cyberware bill: charge = floor((bandCap / 128) × 2^(weeks − 1)), clamped to the band cap, then × household multiplier${status.multiplier > 1 ? ` (currently ×${status.multiplier})` : ""}. Capped at 12 weeks.`}
-        />
-
-        <StatRow
-          label="Characters with Cyberware Above 6"
-          value={
-            <>
-              {status.household}
-              {status.multiplier > 1 ? <span className="text-muted-foreground"> · ×{status.multiplier}</span> : null}
-            </>
-          }
           tooltip={
-            billable.length === 0 ? (
-              <span>No PC is over the 7 CWP threshold yet.</span>
-            ) : (
-              <div className="space-y-1">
-                <div className="font-semibold">Billable characters (≥ 7 CWP):</div>
-                {billable.map((b) => (
-                  <div key={b.characterId} className="flex justify-between gap-3">
-                    <span>{b.characterName}</span>
-                    <span className="text-muted-foreground">
-                      {b.chromeCount} CWP · {bandLabel(b.band)}
-                    </span>
-                  </div>
-                ))}
-                {status.multiplier > 1 ? (
-                  <div className="pt-1 border-t border-border/40 text-muted-foreground">
-                    Household multiplier ×{status.multiplier} (+25% per extra billable PC).
-                  </div>
-                ) : null}
-              </div>
-            )
+            <>
+              <p className="font-semibold text-nc-cyan">Weekly bill formula</p>
+              <p>
+                <span className="text-foreground">charge = floor((bandCap / 128) × 2<sup>weeks − 1</sup>)</span>,
+                clamped to the band cap, then × household multiplier.
+              </p>
+              <p className="text-muted-foreground">
+                Doubles every week without a checkup. Capped at 12 weeks.
+              </p>
+            </>
           }
         />
 
         <StatRow
           label="Top Cyberware Band"
-          value={<span className={bandColorClass(status.topBand)}>{bandLabel(status.topBand)}</span>}
-          tooltip="Medium is 7-9 Cyberware Points, High is 10-12 Cyberware Points, and Extreme is 13-15 Cyberware Points. The bill is driven by whichever of your characters has the highest CWP total. NPCs do not count."
+          value={<span className={`font-semibold ${bandColorClass(status.topBand)}`}>{bandLabel(status.topBand)}</span>}
+          tooltip={
+            <>
+              <p className="font-semibold text-nc-cyan">Cyberware bands</p>
+              <ul className="space-y-0.5">
+                <li><span className="text-nc-yellow">Medium</span> — 7-9 CWP</li>
+                <li><span className="text-nc-magenta">High</span> — 10-12 CWP</li>
+                <li><span className="text-destructive">Extreme</span> — 13+ CWP</li>
+              </ul>
+              <p className="text-muted-foreground">
+                Driven by your highest-CWP character. NPCs don't count.
+              </p>
+            </>
+          }
         />
+
+        {status.multiplier > 1 ? (
+          <StatRow
+            label="Household Multiplier"
+            value={<span className="font-semibold text-foreground">×{status.multiplier}</span>}
+            tooltip={
+              <>
+                <p className="font-semibold text-nc-cyan">Household scaling</p>
+                <p>
+                  +25% per extra PC at <span className="text-foreground">7+ CWP</span>.
+                  More chrome under one roof = more risk.
+                </p>
+              </>
+            }
+          />
+        ) : null}
+
+        {/* Inline per-character breakdown — promoted out of a tooltip so it's
+            always readable. Each row colored by its own band. */}
+        <div className="pt-2 border-t border-destructive/20">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1.5">
+            Your Characters · {status.household} billable
+          </div>
+          {rows.length === 0 ? (
+            <div className="text-xs text-muted-foreground italic">
+              No PC has any cyberware yet — no meds owed.
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {rows.map((b) => {
+                const billable = b.chromeCount >= 7;
+                return (
+                  <div key={b.characterId} className="flex justify-between items-baseline gap-3 text-xs">
+                    <span className={billable ? "text-foreground" : "text-muted-foreground"}>
+                      {b.characterName}
+                    </span>
+                    <span className="flex items-baseline gap-2 whitespace-nowrap">
+                      <span className={billable ? "text-foreground font-semibold" : "text-muted-foreground"}>
+                        {b.chromeCount} CWP
+                      </span>
+                      <span className={`text-[10px] uppercase tracking-wider ${bandColorClass(b.band)}`}>
+                        {bandLabel(b.band)}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </TooltipProvider>
   );
@@ -611,14 +680,17 @@ function StatRow({
     <div className="flex justify-between items-start gap-3 text-muted-foreground">
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="inline-flex items-center gap-1 cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2">
+          <span className="inline-flex items-center gap-1 cursor-help">
             {label}
             <HelpCircle className="w-3 h-3 opacity-60" />
           </span>
         </TooltipTrigger>
         <TooltipContent
-          side="top"
-          className="max-w-xs bg-background border border-nc-cyan/60 text-foreground font-mono text-xs px-3 py-2 leading-relaxed"
+          side="left"
+          align="start"
+          sideOffset={8}
+          collisionPadding={16}
+          className="w-[320px] max-w-[calc(100vw-2rem)] bg-background border border-nc-cyan/60 text-foreground font-mono text-sm px-4 py-3 leading-relaxed space-y-2 shadow-lg shadow-nc-cyan/10"
         >
           {tooltip}
         </TooltipContent>
