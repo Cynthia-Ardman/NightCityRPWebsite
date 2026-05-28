@@ -1,5 +1,5 @@
 {
-  "_comment": "Maps cyberware spreadsheet entries to existing character IDs. Used by import-cyberware-inventory.ts. Sheet entries not in this map fall back to case-insensitive exact-name matching. Entries with action='organic' mark the character as is_organic=true and skip any chrome insert. Entries with action='match' insert chrome rows under the given characterId. Never auto-creates new characters — if a sheet entry has no plausible target it must be added here or skipped.",
+  "_comment": "Maps cyberware spreadsheet entries to existing character IDs. Used by import-cyberware-inventory.ts. Sheet entries not in this map fall back to case-insensitive exact-name matching. Entries with action='organic' mark the character as is_organic=true and skip any chrome insert. Entries with action='match' insert chrome rows under the given characterId. Never auto-creates new characters — if a sheet entry has no plausible target it must be added here or left unmatched.",
   "pc": {
     "Jayce Talos": { "action": "match", "characterId": 398 },
     "M.C.": { "action": "match", "characterId": 361 },
@@ -27,10 +27,42 @@
     "Damion (Militech call sign: Deimos) (Dead)": { "action": "match", "characterId": 315 },
     "Jasmin 'Jaz' Mechanica (Retired)": { "action": "match", "characterId": 454 },
     "Sarah Richard": { "action": "match", "characterId": 405 },
+
+    "Anastasia \"Persona\" Aran.": { "action": "match", "characterId": 143 },
+    "Biella Brecken (Retired)": { "action": "match", "characterId": 455 },
+    "Carl “Stinger” Nemo (Dead)": { "action": "match", "characterId": 301 },
+    "Reven “holo” reed / Hazel Asher (Dead)": { "action": "match", "characterId": 344 },
+    "Circe": { "action": "match", "characterId": 373 },
+    "Justine Novák - “Ifrit Pale” (DEAD)": { "action": "match", "characterId": 364 },
+    "Cassian 'Hadal' Knox": { "action": "match", "characterId": 258 },
+    "Mesirah \"Messy Mes\" Lidha": { "action": "match", "characterId": 22 },
+    "Inez Aramov": { "action": "match", "characterId": 199 },
+    "Min-jae [min-jeh] \"Mikey\" Hyun [h-yoon]": { "action": "match", "characterId": 248 },
+    "Max Donovan/Ryan Weyland": { "action": "match", "characterId": 352 },
+    "Melody “Mel” Jackson (dead)": { "action": "match", "characterId": 383 },
+    "Sebastian Hook (dead)": { "action": "match", "characterId": 467 },
+    "Juniper \"junebug\" Mcleary (Retired)": { "action": "match", "characterId": 456 },
+    "Riley Watson / Arlo Watson": { "action": "match", "characterId": 388 },
+    "Alan 'Owl/Weeping Crow' Autarch Jr (Retired)": { "action": "match", "characterId": 457 },
+    "Rafael “Rafi” Alvarez": { "action": "match", "characterId": 116 },
+    "M+I-R~I^S": { "action": "match", "characterId": 102 },
+    "Athleta Jacksawn (Jacks) (Retired)": { "action": "match", "characterId": 460 },
+    "Lilly Raptor (Dead)": { "action": "match", "characterId": 422 },
+    "Noah Halloway": { "action": "match", "characterId": 221 },
+
+    "Jonah Pike": { "action": "match", "characterId": 138 },
+    "Ender": { "action": "match", "characterId": 196 },
+    "Lena Hernandez": { "action": "match", "characterId": 242 },
+    "Alexandria \"Chitters\" Dubcord": { "action": "match", "characterId": 222 },
+    "Giovanni \"Bandit\" Romero": { "action": "match", "characterId": 424 },
+    "Vanessa Belmonte": { "action": "match", "characterId": 146 },
+    "Ignis": { "action": "match", "characterId": 134 },
+    "Hound": { "action": "match", "characterId": 359 },
+    "Mochi": { "action": "match", "characterId": 156 },
+    "Luna": { "action": "match", "characterId": 193 },
+
     "Adam ‘snow’ Donovan.": { "action": "organic", "characterId": 393 },
-    "John Nolan (NPC)": { "action": "organic", "characterId": 385 },
-    "Mira Mercer (DEAD)": { "action": "organic" },
-    "Jared Castorian": { "action": "organic" }
+    "John Nolan (NPC)": { "action": "organic", "characterId": 385 }
   },
   "npc": {}
 }

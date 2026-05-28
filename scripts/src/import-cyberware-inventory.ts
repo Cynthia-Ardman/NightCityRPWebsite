@@ -233,7 +233,10 @@ async function resolveAliasTargetId(
     const id = alias.characterId!;
     const check = await validateAliasTarget(kind, id);
     if (check === "missing") return { error: `alias points at #${id} but no such character row exists` };
-    if (check === "wrong_kind") return { error: `alias points at #${id} but it's not a ${kind}` };
+    // Wrong-kind is allowed: operator may intentionally map an NPC-sheet
+    // entry onto a PC row (or vice versa) when the legacy data was
+    // mislabelled. We trust an explicit alias; only the auto-name-lookup
+    // path enforces matching kinds.
     return { id };
   }
   // Organic alias without explicit id — fall back to name lookup.
