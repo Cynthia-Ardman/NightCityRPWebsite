@@ -33,14 +33,14 @@
         "width": 313,
         "height": 552,
         "fromMessageId": "1506767974256869396",
-        "kind": "unclassified"
+        "kind": "portrait"
       },
       {
         "url": "https://lh7-us.googleusercontent.com/docs/AHkbwyKBcxfMSOEo_1jSXX8CYFBKeaZ2c9md2WFFSEAqY5p8yBGWDhGudL8VLLDyA4kHdU8iEoR65ixOLZ3niePQc0QTWpIEA9Uba4gQedDR1jP-rulV8wg=w1200-h630-p",
         "proxyUrl": "https://images-ext-1.discordapp.net/external/DUAomOpvHnHrEDhp3lPcV7HouV-82mNEacO8yQSZg9U/https/lh7-us.googleusercontent.com/docs/AHkbwyKBcxfMSOEo_1jSXX8CYFBKeaZ2c9md2WFFSEAqY5p8yBGWDhGudL8VLLDyA4kHdU8iEoR65ixOLZ3niePQc0QTWpIEA9Uba4gQedDR1jP-rulV8wg%3Dw1200-h630-p",
         "filename": "AHkbwyKBcxfMSOEo_1jSXX8CYFBKeaZ2c9md2WFFSEAqY5p8yBGWDhGudL8VLLDyA4kHdU8iEoR65ixOLZ3niePQc0QTWpIEA9Uba4gQedDR1jP-rulV8wg=w1200-h630-p",
         "fromMessageId": "1506768058952323205",
-        "kind": "unclassified"
+        "kind": "other"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1506767974256869396/1506768697811800155/Screenshot_2026-05-04_000954.png?ex=6a18b1b3&is=6a176033&hm=9165460e7f517af006e8c5246880380837becc25b10e9c0472a79d89d250a6d0&",
@@ -49,7 +49,7 @@
         "width": 1521,
         "height": 1072,
         "fromMessageId": "1506768697786761247",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1506767974256869396/1506768698160189591/Screenshot_2026-05-04_001007.png?ex=6a18b1b4&is=6a176034&hm=99d75fba3a3fd979bc426e1ef4901fc3ba3f531cf2167b3e6c44ff618d563573&",
@@ -58,7 +58,7 @@
         "width": 1557,
         "height": 1087,
         "fromMessageId": "1506768697786761247",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1506767974256869396/1506768698487083149/Screenshot_2026-05-04_001016.png?ex=6a18b1b4&is=6a176034&hm=b494e38a1b4cfe65e121e68168c509450083d81700dac5294c103aa82679974c&",
@@ -67,7 +67,7 @@
         "width": 1600,
         "height": 1058,
         "fromMessageId": "1506768697786761247",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1506767974256869396/1506768733568368842/Screenshot_2026-05-09_194031.png?ex=6a18b1bc&is=6a17603c&hm=175ad33fc44d3b696f05f6d7f3a99e6884653bc4b687dddb362114f2279c6932&",
@@ -76,7 +76,7 @@
         "width": 1599,
         "height": 889,
         "fromMessageId": "1506768733555654656",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1506767974256869396/1506768733861974046/Screenshot_2026-05-09_194042.png?ex=6a18b1bc&is=6a17603c&hm=ff1714e2d5ba5b577fc240bf930264c17edea2ab2ee63feb93393700d15a8358&",
@@ -85,7 +85,7 @@
         "width": 1217,
         "height": 896,
         "fromMessageId": "1506768733555654656",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1506767974256869396/1506768734323474584/Screenshot_2026-05-09_194051.png?ex=6a18b1bc&is=6a17603c&hm=2f7e6386fb37e1016a2977c1400f352befad3e92c4dca0ae038407b5bab44e7c&",
@@ -94,7 +94,7 @@
         "width": 1576,
         "height": 1060,
         "fromMessageId": "1506768733555654656",
-        "kind": "unclassified"
+        "kind": "stats"
       }
     ],
     "warnings": []
@@ -137,7 +137,7 @@
         "width": 656,
         "height": 1332,
         "fromMessageId": "1503049578281304145",
-        "kind": "unclassified"
+        "kind": "portrait"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503049578281304145/1503049608761184286/Screenshot_2026-04-24_120713.png?ex=6a1901c8&is=6a17b048&hm=bedb6590fd1922a9e881a8c7e664c92015c56dfbe4cff80b03149e05c434bb86&",
@@ -146,7 +146,7 @@
         "width": 1139,
         "height": 854,
         "fromMessageId": "1503049609889714258",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503049578281304145/1503049609092530306/Screenshot_2026-04-24_120731.png?ex=6a1901c8&is=6a17b048&hm=5b1b5c5985492d85446303206af16d5221cb12c72ee46ebe8262a27dbf9083c7&",
@@ -155,7 +155,7 @@
         "width": 1137,
         "height": 949,
         "fromMessageId": "1503049609889714258",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503049578281304145/1503049609369485334/Screenshot_2026-04-24_120745.png?ex=6a1901c8&is=6a17b048&hm=b7bce5c38070685fab501aa0ab171dc9e63d97b85acc482e3438212cf9671b99&",
@@ -164,7 +164,7 @@
         "width": 1097,
         "height": 271,
         "fromMessageId": "1503049609889714258",
-        "kind": "unclassified"
+        "kind": "other"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503049578281304145/1503049609616818248/Screenshot_2026-04-24_173142.png?ex=6a1901c8&is=6a17b048&hm=0d1f62176221c5d7a8f741c35f3d13c544cd3723c48eedf4fe1f8910f6949afd&",
@@ -173,7 +173,7 @@
         "width": 656,
         "height": 1332,
         "fromMessageId": "1503049609889714258",
-        "kind": "unclassified"
+        "kind": "portrait"
       }
     ],
     "warnings": [
@@ -214,7 +214,7 @@
         "width": 1024,
         "height": 912,
         "fromMessageId": "1503049083521204347",
-        "kind": "unclassified"
+        "kind": "portrait"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503049083521204347/1503049128937263114/92501ee7f39a40a9daca3be9e2d25306.png?ex=6a190155&is=6a17afd5&hm=9074649b353ea3ee35c2a5aae1f51d56126e14aa0dce0c61619a40c1d7f69848&",
@@ -223,7 +223,7 @@
         "width": 1024,
         "height": 912,
         "fromMessageId": "1503049130191356064",
-        "kind": "unclassified"
+        "kind": "portrait"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503049083521204347/1503049129222340768/0cb1be241d29c99fe5312dbf6e72a875.png?ex=6a190155&is=6a17afd5&hm=29ac2f47da2a97345c707d149adbd4278e4ba191f981ec63d87b5f9ffa58baeb&",
@@ -232,7 +232,7 @@
         "width": 634,
         "height": 551,
         "fromMessageId": "1503049130191356064",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503049083521204347/1503049129532854312/edb00206cdfbd365b6dd0af6a4b2944c.png?ex=6a190155&is=6a17afd5&hm=cd80c6c1746d10a68fdb32bebe4a3d641e29155d332ce10aa6472122c5bf4b75&",
@@ -241,7 +241,7 @@
         "width": 659,
         "height": 550,
         "fromMessageId": "1503049130191356064",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503049083521204347/1503049129889239111/0acbb2bd8f855017b3cad2932aeb928a.png?ex=6a190155&is=6a17afd5&hm=3c133ee1e56da9545a8055dea873c71ef30631dd60154331fdfab4fb195c29c5&",
@@ -250,7 +250,7 @@
         "width": 637,
         "height": 90,
         "fromMessageId": "1503049130191356064",
-        "kind": "unclassified"
+        "kind": "other"
       }
     ],
     "warnings": []
@@ -287,7 +287,7 @@
         "width": 744,
         "height": 929,
         "fromMessageId": "1503047486309138494",
-        "kind": "unclassified"
+        "kind": "portrait"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503047486309138494/1503047582941843467/image.png?ex=6a18ffe5&is=6a17ae65&hm=5124ff754aaaa6c4390390106608b2f58e1447e18417f29f583d7901891f6d25&",
@@ -296,7 +296,7 @@
         "width": 689,
         "height": 571,
         "fromMessageId": "1503047583508205569",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503047486309138494/1503047583273062592/image.png?ex=6a18ffe5&is=6a17ae65&hm=43a99cfdf689e859bc9f9af54dc952aeecfaaf9725f3dc7288ed27431611e76c&",
@@ -305,7 +305,7 @@
         "width": 832,
         "height": 934,
         "fromMessageId": "1503047583508205569",
-        "kind": "unclassified"
+        "kind": "stats"
       }
     ],
     "warnings": []
@@ -348,14 +348,14 @@
         "width": 611,
         "height": 637,
         "fromMessageId": "1503045071275163658",
-        "kind": "unclassified"
+        "kind": "portrait"
       },
       {
         "url": "https://lh7-us.googleusercontent.com/docs/AHkbwyJalbwpO3GU3N_lJjnRtdh2CB_MRsHmxoymB2BpEMxBOAmUSJiLZOhpQB0uC1iI7fhPFsELcDu2YmMwE-zRx_PSZGlUjsMSfzA4YWqWCyF4RtXmEKM=w1200-h630-p",
         "proxyUrl": "https://images-ext-1.discordapp.net/external/PcBXJfqBAMXxSLl8p8HLrB_cyvjpglj8gmUICl_k9SM/https/lh7-us.googleusercontent.com/docs/AHkbwyJalbwpO3GU3N_lJjnRtdh2CB_MRsHmxoymB2BpEMxBOAmUSJiLZOhpQB0uC1iI7fhPFsELcDu2YmMwE-zRx_PSZGlUjsMSfzA4YWqWCyF4RtXmEKM%3Dw1200-h630-p",
         "filename": "AHkbwyJalbwpO3GU3N_lJjnRtdh2CB_MRsHmxoymB2BpEMxBOAmUSJiLZOhpQB0uC1iI7fhPFsELcDu2YmMwE-zRx_PSZGlUjsMSfzA4YWqWCyF4RtXmEKM=w1200-h630-p",
         "fromMessageId": "1503045124437970954",
-        "kind": "unclassified"
+        "kind": "other"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503045071275163658/1503045220529340557/image.png?ex=6a18fdb1&is=6a17ac31&hm=ee8285d02c744544e3271a3ed9a2e750766a6a3f51039a43a222c5d2f439cbb6&",
@@ -364,7 +364,7 @@
         "width": 817,
         "height": 616,
         "fromMessageId": "1503045221670191226",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503045071275163658/1503045220940644502/image.png?ex=6a18fdb1&is=6a17ac31&hm=60f791e5baec753017b25c967edbe7bceed640548e6465a85d819b400a71e127&",
@@ -373,7 +373,7 @@
         "width": 816,
         "height": 599,
         "fromMessageId": "1503045221670191226",
-        "kind": "unclassified"
+        "kind": "stats"
       },
       {
         "url": "https://cdn.discordapp.com/attachments/1503045071275163658/1503045221288775842/image.png?ex=6a18fdb1&is=6a17ac31&hm=2f30c789c6daad3006316280b900eac7266ca4b9f22559a6d2f67fd734a511da&",
@@ -382,7 +382,1956 @@
         "width": 806,
         "height": 201,
         "fromMessageId": "1503045221670191226",
-        "kind": "unclassified"
+        "kind": "other"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1500457561210749178",
+    "threadTitle": "Hysteria - Ghosted_Stoner",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": false,
+    "parsedName": "Hysteria",
+    "parsedUsername": "Ghosted_Stoner",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "me: Hysteria",
+      "sections": {
+        "Age": "24",
+        "Pronouns": "It",
+        "Psychological Profile": "Now a high functional cyberpsycho; worse than before, she’s been hearing voices that keep getting louder. She used to be in control of herself, or at least that's what she had always thought until she wasn’t. She wants freedom from this shell, and wants control.",
+        "Physical Description": "A 6’6 manic exotic, spliced species; probably some kind of cat and jackal.",
+        "Chrome / Implants": "Optical Camo\nReinforced Tendons\nNetrunner Suite (Level 3)\nImpulse Splicer\nTargeting Optic\nIce Layer",
+        "Equipment / Armor / Weapons": "Different types of blades, mostly ones that can be hidden on her person easily. Her guns, and a robot assistant. \nSkills/Talents/Abilities: Psychologist; Due to her interests, she can be scary good at reading a room or a single person. \nStalking/Stealth; She’s extremely good at being seen- or at not. Hemlock had specialized in silence. The freak likes to monitor anyone who caught her attention. She needs to understand if they’d be a foe or enemy in any near future.\nHer favorite: pushing buttons. Due to her belittling nature, she can very easily make people snap or at least be put off by her. She wants to know your insecurities, weaknesses, anything.\nDeep diving: She had specialized in diving when she had been Jane and Hemlock. She can still remember the first day she saw the Blackwall. How absolutely beautiful it was to her. She almost touched it but hasn't. Sometimes she goes in just to…stare.\nScopaesthesia: Her uncanny ability to know when someone is staring at her from behind. \nIntimidation: She REALLY likes making people scared of her if possible. \nCQC: Loves being close and personal with blades, anything sharp. Rather sliced than bludgeon. Also plays dirty, will bite and claw. Protect your jugular.\nHer hysteria “gas”: Built in smaller tankard holding the liquid Nitrous Oxide, NOT SUPPOSED TO EXIT THE BODY, which causes effects like hallucinations, uncontrollable laughter, nausea and vomiting, and at worst, death.  \n\nForesight: Her senses have been tuned, sharpened, helping aid her in predicting movements.",
+        "Backstory": "“Sunday when Beastside was attacked was the best example why I needed to change, to go back. No one is scared of me anymore, those DISGUSTING masked men somehow had me, ME trapped on that rooftop. I can’t allow myself to be that low, that's not what I was made for. I wasn’t made to be small like this, this stupid deer skin is becoming suffocating and I need out. OUT. but I can’t just simply go back to myself.. That dog, no. That's not enough, no I need more. I need to become something more than myself. I’m SICK of this world, this godforsaken city, I want it ALL to BURN. And I’ll make it, just not like this. I’m not enough. Yet, but I’m going home now. I’ll be back for you, Beastside, and all the little rats inside.”\n\nWith recent events, Jane has taken into notice her skills are failing her in this body, and what she was once capable of is no longer possible like before and it’s sent her spiraling. She only wanted to be the best in this corporation, but she's not. Not even close, even her assignment, corpse was better than her, which caused an unhealthy obsession of her stalking corpse. But without that around she almost feels lost strangely. To her, it’s not fair, she wants to finally look as unhinged, to be as dark as she felt mentally but shes a fucking doe. But once home, she was already greeted with something practically of her dreams, an opportunity given directly from the boss themself. She didn’t care how, or what it was, anything for her family, her saviors."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1500457561210749178/1500457562087100427/image.png?ex=6a18ce3f&is=6a177cbf&hm=a61b7e7cd55d5aef19f6a9b63d99754aab99a84e9408f22ab58e18c01aecb0d6&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1500457561210749178/1500457562087100427/image.png?ex=6a18ce3f&is=6a177cbf&hm=a61b7e7cd55d5aef19f6a9b63d99754aab99a84e9408f22ab58e18c01aecb0d6&",
+        "filename": "image.png",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1500457561210749178",
+        "kind": "other"
+      },
+      {
+        "url": "https://lh7-us.googleusercontent.com/docs/AHkbwyKOb0HcTAFVlKXXsiXNnfwOUNQ8NqByGCf_QkuUfz1gWPK8hoFl3EtwLgf1ArnEa0_jbsE7RvIiPEY5uHfD0g9qBaHCasLljvXtSECVRA2v2zfbsy0=w1200-h630-p",
+        "proxyUrl": "https://images-ext-1.discordapp.net/external/CmHAn59AJ-hicEj_G3I60OVjdIjJ9828dkUbW7K_Vl8/https/lh7-us.googleusercontent.com/docs/AHkbwyKOb0HcTAFVlKXXsiXNnfwOUNQ8NqByGCf_QkuUfz1gWPK8hoFl3EtwLgf1ArnEa0_jbsE7RvIiPEY5uHfD0g9qBaHCasLljvXtSECVRA2v2zfbsy0%3Dw1200-h630-p",
+        "filename": "AHkbwyKOb0HcTAFVlKXXsiXNnfwOUNQ8NqByGCf_QkuUfz1gWPK8hoFl3EtwLgf1ArnEa0_jbsE7RvIiPEY5uHfD0g9qBaHCasLljvXtSECVRA2v2zfbsy0=w1200-h630-p",
+        "fromMessageId": "1500457636968267889",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Username \"Ghosted_Stoner\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1494311667801002185",
+    "threadTitle": "Leonidas Jefferson Beauregard the Second “Mr. Gold” - chyver",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": false,
+    "parsedName": "Leonidas Jefferson Beauregard the Second “Mr. Gold”",
+    "parsedUsername": "chyver",
+    "resolvedDiscordId": "156880917351104513",
+    "resolvedDisplayName": "chyver",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Leonidas Jefferson Beauregard the Second “Mr. Gold”",
+        "Age": "78",
+        "Pronouns": "He/Him",
+        "Occupation": "Santo Domingo fixer",
+        "Psychological Profile": "Exceedingly fake and superficially charming. Mr. Gold has spent so much of his life playing a caricature of himself that many aspects of his behavior and personality that were once fake, such as his lisp and flowery manner of speaking, are now deeply ingrained and indistinguishable from his true self. The real him is now the character, a golden symbiote that has taken over his old life after decades of putting on an act.",
+        "Physical Description": "Average sized man with fully gold skin implants. His implants have trace lines due to being from an older, experimental version of the surgery. He appears to be much younger than his actual age due to the skin implant and multiple age treatments.",
+        "Chrome / Implants": "ICE Layer - 1\nKiroshi Smart Eyes - 2\nMr. Studd - 1\nThermal Control Skin - 1\nDetoxifier - 1\nEnhanced Ears - 2\nSmart Link - 1\nBiomonitor - 1",
+        "Total Cyberware Points": "10",
+        "Skills / Talents / Abilities": "Smooth talking\nPolitical maneuvering",
+        "Equipment / Armor / Weapons": "HJKE-11 Yukimura (Smart Pistol)\nGold-plated Quadra Sport R-7 sports car"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1494311667801002185/1494311668161970377/image.png?ex=6a18dbf0&is=6a178a70&hm=1921c135336809b1fb50c8124e0434790c8b33af9937b05bfe9e0555a5ac4e5f&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1494311667801002185/1494311668161970377/image.png?ex=6a18dbf0&is=6a178a70&hm=1921c135336809b1fb50c8124e0434790c8b33af9937b05bfe9e0555a5ac4e5f&",
+        "filename": "image.png",
+        "width": 629,
+        "height": 621,
+        "fromMessageId": "1494311667801002185",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1494311667801002185/1494311776253120562/image.png?ex=6a18dc0a&is=6a178a8a&hm=9a8823d7e666eed3f96ac63952e5d4ce77ef9d0e07f9c001fc0e7a08fcdc5a14&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1494311667801002185/1494311776253120562/image.png?ex=6a18dc0a&is=6a178a8a&hm=9a8823d7e666eed3f96ac63952e5d4ce77ef9d0e07f9c001fc0e7a08fcdc5a14&",
+        "filename": "image.png",
+        "width": 533,
+        "height": 1159,
+        "fromMessageId": "1494311776614092810",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1497589956195913850",
+    "threadTitle": "Mitsuyo - shyzuki",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Mitsuyo",
+    "parsedUsername": "shyzuki",
+    "resolvedDiscordId": "352598809357975572",
+    "resolvedDisplayName": "Shyzuki",
+    "posterUsername": "vinnybot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Mitsuyo (JapanTown Fixer NPC)",
+        "Age": "37",
+        "Pronouns": "She/Her",
+        "Occupation": "Fixer",
+        "Psychological Profile": "Technical, Calm and collected,",
+        "Physical Description": "Dragon exotic\n:: Equipment (Weapons and Other Gear): Katana, Tanto, \n:: Chrome / Implants\nArms & Arm Attachments:\nAuditory System: Enhanced Ears (2)\nCirculatory & Immune Systems:\nHands & Feet:\nIntegumentary System: UnderSkin Lightshow (1)\nLegs & Mobility:\nNeural: Netrunner Suite (level 3) (5)\nOcular System: SmartEyes (2)\nSkeleton & Torso Musculature: Combat Wired Reflexes (4)\nUniversal Muscular (Arms/Legs/Tail): \nMiscellaneous: Ghost tags (1) ICE Layer (1)",
+        "Total Cyberware Points": "(16)",
+        "Skills / Talents / Abilities": "Techy, Programming, Leadership. (Tyger Claws)",
+        "Equipment / Armor / Weapons": "",
+        "Backstory": "Mitsuyo started her career as a tyger claw doing ground work extorting businesses for protection money and dealings in illegal goods. Her combat experiance was recognized by arasaka and they offered her a opportunity to join arasaka as a field runner. She eventually worked her way up to counter intelligence then she eventually left arasaka and continued to become a fixer of japan town her ties with tyger claws earned her alot of respect from her past and she is hightly respected by the tyger claws and arasaka. She continues to run things in her area working closely with Wakako to keep the tyger claws in order.",
+        "Known Affiliations": "Arasaka, Tyger Claws",
+        "Reference Images": "(can grab some once on vrc)",
+        "RP Hooks": "Mostly Business,",
+        "Additional Notes": ""
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497589956195913850/1497589957542547516/image.png?ex=6a18eb95&is=6a179a15&hm=37cd29052569c4dc3aba8f4fc47b792f9d1660d65409c04be714ff3c375e2229&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497589956195913850/1497589957542547516/image.png?ex=6a18eb95&is=6a179a15&hm=37cd29052569c4dc3aba8f4fc47b792f9d1660d65409c04be714ff3c375e2229&",
+        "filename": "image.png",
+        "width": 2160,
+        "height": 3840,
+        "fromMessageId": "1497589956195913850",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497589956195913850/1497590109413838928/VRChat_2026-04-19_02-35-03.765_2160x3840.png?ex=6a18ebb9&is=6a179a39&hm=87be325562b99c49bdb5bad8f6adf5836a9534ca05e2352cfa0c3f04caaf57b0&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497589956195913850/1497590109413838928/VRChat_2026-04-19_02-35-03.765_2160x3840.png?ex=6a18ebb9&is=6a179a39&hm=87be325562b99c49bdb5bad8f6adf5836a9534ca05e2352cfa0c3f04caaf57b0&",
+        "filename": "VRChat_2026-04-19_02-35-03.765_2160x3840.png",
+        "width": 2160,
+        "height": 3840,
+        "fromMessageId": "1497590109912956958",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497589956195913850/1497590109653041172/VRChat_2026-04-19_02-35-14.808_2160x3840.png?ex=6a18ebba&is=6a179a3a&hm=653c8b1fcb243d40924fd6ac99cd4443e12cc929f02cba4c7189b6fa848e0d31&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497589956195913850/1497590109653041172/VRChat_2026-04-19_02-35-14.808_2160x3840.png?ex=6a18ebba&is=6a179a3a&hm=653c8b1fcb243d40924fd6ac99cd4443e12cc929f02cba4c7189b6fa848e0d31&",
+        "filename": "VRChat_2026-04-19_02-35-14.808_2160x3840.png",
+        "width": 2160,
+        "height": 3840,
+        "fromMessageId": "1497590109912956958",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497589956195913850/1497590133392806048/20260419023401_1.jpg?ex=6a18ebbf&is=6a179a3f&hm=449a5e23ee7fb95cd6a4e78299123c92355a069d49a4fa5024b6785056ac0ca1&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497589956195913850/1497590133392806048/20260419023401_1.jpg?ex=6a18ebbf&is=6a179a3f&hm=449a5e23ee7fb95cd6a4e78299123c92355a069d49a4fa5024b6785056ac0ca1&",
+        "filename": "20260419023401_1.jpg",
+        "width": 962,
+        "height": 851,
+        "fromMessageId": "1497590134588309775",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497589956195913850/1497590133824946196/20260419023412_1.jpg?ex=6a18ebbf&is=6a179a3f&hm=0a1782123138fd2956cc6a5203e5346b30c8041d66ecd59faeaa3421f81b1fc9&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497589956195913850/1497590133824946196/20260419023412_1.jpg?ex=6a18ebbf&is=6a179a3f&hm=0a1782123138fd2956cc6a5203e5346b30c8041d66ecd59faeaa3421f81b1fc9&",
+        "filename": "20260419023412_1.jpg",
+        "width": 987,
+        "height": 813,
+        "fromMessageId": "1497590134588309775",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497589956195913850/1497590134261026917/20260419023431_1.jpg?ex=6a18ebbf&is=6a179a3f&hm=51895802e658ce91447879fa9918f7123fa20a2a16e364f261e274b94a8863d3&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497589956195913850/1497590134261026917/20260419023431_1.jpg?ex=6a18ebbf&is=6a179a3f&hm=51895802e658ce91447879fa9918f7123fa20a2a16e364f261e274b94a8863d3&",
+        "filename": "20260419023431_1.jpg",
+        "width": 973,
+        "height": 840,
+        "fromMessageId": "1497590134588309775",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1497585675661344979",
+    "threadTitle": "Hikari Yasukawa - washy_56",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Hikari Yasukawa",
+    "parsedUsername": "washy_56",
+    "resolvedDiscordId": "359112083884998666",
+    "resolvedDisplayName": "Washy_56",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "** \nHikari Yasukawa",
+        "Age": "** \n35",
+        "Pronouns": "**  \nShe/Her",
+        "Occupation": "**\nCEO Of Yaskawa Robotics.",
+        "Psychological Profile": "** \nKind and outgoing, always a smile on her face and welcoming unlike other CEO’s in night city, when she gets upset she’s usually level headed and able to handle the situation, sometimes when situations are too stressful or make her way too upset really pushing her buttons she breaks down and runs to her husband or a friend for comfort and safety usually downing a bottle of Yaskawa white wine.",
+        "Physical Description": "**  \n5”10\nBuilt like a milf but has no kids\nHyena Exotic",
+        "Chrome / Implants": "**  \n\n    * Arms & Arm Attachments (1 slot per arm): None\n   * Auditory System: Enhanced ears 2\n   * Circulatory & Immune Systems: Detoxifier 1\n   * Hands & Feet (2 slots): Cybernetic Claws 1\n   * Integumentary System: None    \n   * Legs & Mobility (1 slot per leg): None\n   * Neural: None\n   * Ocular System: Smart Eyes 2\n   * Skeleton & Torso Musculature: None\n   * Universal Muscular (Arms/Legs/Tail): None\n   * Miscellaneous: Biomonitor/ICE Layer/Scent scanner 4",
+        "Total Cyberware Points": "** \n10"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497585675661344979/1497585676961448056/image.png?ex=6a18e799&is=6a179619&hm=44da9e513006f3ecf5f174162fb2d7fac8497ffbec8ea69d7d4ea6fe93834253&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497585675661344979/1497585676961448056/image.png?ex=6a18e799&is=6a179619&hm=44da9e513006f3ecf5f174162fb2d7fac8497ffbec8ea69d7d4ea6fe93834253&",
+        "filename": "image.png",
+        "width": 623,
+        "height": 349,
+        "fromMessageId": "1497585675661344979",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497585675661344979/1497586150586585209/Screenshot_2026-04-22_142920.png?ex=6a18e80a&is=6a17968a&hm=e306b84d20d511c00ef3581d02df5f9d8ea966bde8f51931e0d3a592dfce4a94&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497585675661344979/1497586150586585209/Screenshot_2026-04-22_142920.png?ex=6a18e80a&is=6a17968a&hm=e306b84d20d511c00ef3581d02df5f9d8ea966bde8f51931e0d3a592dfce4a94&",
+        "filename": "Screenshot_2026-04-22_142920.png",
+        "width": 822,
+        "height": 614,
+        "fromMessageId": "1497586151249412219",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1497585675661344979/1497586150909677658/Screenshot_2026-04-22_143001.png?ex=6a18e80a&is=6a17968a&hm=e10afe75035d2e9fe1f9e3fc514ec3db0aa795b33f888f3573f678fe898a544a&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1497585675661344979/1497586150909677658/Screenshot_2026-04-22_143001.png?ex=6a18e80a&is=6a17968a&hm=e10afe75035d2e9fe1f9e3fc514ec3db0aa795b33f888f3573f678fe898a544a&",
+        "filename": "Screenshot_2026-04-22_143001.png",
+        "width": 818,
+        "height": 587,
+        "fromMessageId": "1497586151249412219",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1496078035395416104",
+    "threadTitle": "David 'CTRL' Teach - phoolery",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "David 'CTRL' Teach",
+    "parsedUsername": "phoolery",
+    "resolvedDiscordId": "122199279447048192",
+    "resolvedDisplayName": "Phoolery",
+    "posterUsername": "vinnybot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "David Teach  \nAliases: CTRL, Daniel Thatcher, Thatch",
+        "Age": "37",
+        "Pronouns": "He/Him",
+        "Occupation": "Merc / Greyman Operator",
+        "Psychological Profile": "A man of calm and tactical demeanor.  Shows signs of deep psychological resistance training.",
+        "Physical Description": "Generic.  Average height, build, but with implants that allow him to control the color of his hair and eyes on the fly.  In addition to Chameleon Fibre clothing and equipment that allow for on the fly color and pattern swaps, enabling CRTL to maintain a “greyman operator” lifestyle and demeanor.",
+        "Chrome / Implants": "Sub-Dermal Plating - 2\nReinforced Tendons - 2\nICE Layer - 1\nNetrunner Suite Lvl 1 - 1\nSmart Eyes - 2\nCUSTOM - Chameleon Fiber Control Implant - Cyberwear that allows for direct on the fly control of CTRL’s full suite of Chameleon Fiber enhanced clothing, hair, and skin implants. - 2 CWP",
+        "Total Cyberware Points": "10",
+        "Skills / Talents / Abilities": "EuroIntel Trained Asset - His time in the EuroIntel turned him into a highly trained deniable asset for the purposes of intelligence and counter intelligence.  Specializing in covert observation and hard hit-and-run combat.  This includes lock picking, netrunning, and torture-resistance conditioning.\n\nFrench Foreign Legionnaire - A former soldier of the French Foreign Legion that served for 8 years.  Resulting in CRTL being a highly trained infantry soldier trained to operate behind enemy lines with minimal support.",
+        "Equipment / Armor / Weapons": "Arasaka Shigure SMG with Suppressor\nKnife\nRifle Rated Chest Plate Carrier and Helmet\nAll wearable gear and clothing is chameleon fiber made.  \nBurglary kit with lockpicks, glass cutter, and suction cups.\nFalse ID papers and passport.  These are expert forgeries that state that David is a Citizen of Northern California, under the name Daniel Thatcher."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1496078035395416104/1496078035600805988/image.png?ex=6a18b17f&is=6a175fff&hm=40b26b0212d7057817b9918fe818631722aa5a4940bb18324762c6d4562dbd1d&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1496078035395416104/1496078035600805988/image.png?ex=6a18b17f&is=6a175fff&hm=40b26b0212d7057817b9918fe818631722aa5a4940bb18324762c6d4562dbd1d&",
+        "filename": "image.png",
+        "width": 706,
+        "height": 532,
+        "fromMessageId": "1496078035395416104",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1496078035395416104/1496078204895629432/Screenshot_2026-04-12_124518.png?ex=6a18b1a7&is=6a176027&hm=710b6354a16fd64ad589893cb45aaab4fbb04982bed98eee537972bc72bd11bd&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1496078035395416104/1496078204895629432/Screenshot_2026-04-12_124518.png?ex=6a18b1a7&is=6a176027&hm=710b6354a16fd64ad589893cb45aaab4fbb04982bed98eee537972bc72bd11bd&",
+        "filename": "Screenshot_2026-04-12_124518.png",
+        "width": 1530,
+        "height": 884,
+        "fromMessageId": "1496078205877096498",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1496078035395416104/1496078205273243719/Screenshot_2026-04-12_124541.png?ex=6a18b1a7&is=6a176027&hm=38b2f2b5027f2da2e5aca9f406553ec05eb0e7045f45a643f8863ba109d834e1&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1496078035395416104/1496078205273243719/Screenshot_2026-04-12_124541.png?ex=6a18b1a7&is=6a176027&hm=38b2f2b5027f2da2e5aca9f406553ec05eb0e7045f45a643f8863ba109d834e1&",
+        "filename": "Screenshot_2026-04-12_124541.png",
+        "width": 1465,
+        "height": 895,
+        "fromMessageId": "1496078205877096498",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1496078035395416104/1496078205562654811/Screenshot_2026-04-12_124554.png?ex=6a18b1a7&is=6a176027&hm=f226237c9d67f0ab4e701afdf34a0bcae59f4f3b60cb9d0691a2e5cb15d16b4a&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1496078035395416104/1496078205562654811/Screenshot_2026-04-12_124554.png?ex=6a18b1a7&is=6a176027&hm=f226237c9d67f0ab4e701afdf34a0bcae59f4f3b60cb9d0691a2e5cb15d16b4a&",
+        "filename": "Screenshot_2026-04-12_124554.png",
+        "width": 1462,
+        "height": 706,
+        "fromMessageId": "1496078205877096498",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1494314782747136080",
+    "threadTitle": "Kaito Yasukawa - vinnybot",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Kaito Yasukawa",
+    "parsedUsername": "vinnybot",
+    "resolvedDiscordId": "172847414791766016",
+    "resolvedDisplayName": "VinnyBot",
+    "posterUsername": "vinnybot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "** \nKaito Yasukawa",
+        "Age": "** \n37",
+        "Pronouns": "**  \nHe/Him",
+        "Occupation": "**\nHead of Security for Yaskawa Robotics, Personal Bodyguard to the CEO",
+        "Psychological Profile": "** \nCalm, disciplined, and unwavering, Kaito is a man of quiet control and absolute loyalty. He rarely raises his voice, preferring to observe, assess, and act with intention rather than emotion. Unlike many in NC, he is not driven by ego or greed, but by his desire to protect what matters.\n\nHe has a strong sense of duty and his loyalty to Hikari is not just professional, but deeply personal. He is nearly unwavering in his duties, and only seems to drop his restraint when his wife is threatened.\n\nHe does not often seek comfort, but when he does it is only with Hikari. She is the one place he allows himself to be something more than a security professional.",
+        "Physical Description": "**  \n6’2”\nAthletic, broad-shouldered build",
+        "Chrome / Implants": "**  \n\n    * Arms & Arm Attachments (1 slot per arm): Gorilla Arms - 2\n   * Auditory System: None\n   * Circulatory & Immune Systems: \n   * Hands & Feet (2 slots): None\n   * Integumentary System: Dermal Plating - 3\n   * Legs & Mobility (1 slot per leg): \n   * Neural: Netrunner Suite lvl 2 - 3\n   * Ocular System: Smart Eyes - 2\n   * Skeleton & Torso Musculature: NeoFiber - 3\n   * Universal Muscular (Arms/Legs/Tail): Recoil Dampener - 1\n   * Miscellaneous: ICE Layer - 1",
+        "Total Cyberware Points": "** \n15",
+        "Skills / Talents / Abilities": "**  \nThreat assessment, executive protection, tactical response.\nExcellent at close quarters and mid range combat.\nMilitary training as well as corporate security training make him excellent in a gunfight.\nCorporate logistics, which includes leadership, managing surveillance, and planning high level strategies.",
+        "Equipment / Armor / Weapons": "**  \nA custom Yaskawa built pistol based on a classic Beretta M9. Able to be fired rapidly.\nA rifle chambered in 7.62x51 NATO standard.\nLevel 4 body armor to compliment his dermals.\nEncrypted comms system linked to Yaskawa’s security network."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1494314782747136080/1494314782931812373/image.png?ex=6a18ded7&is=6a178d57&hm=f2e3b123ffa8c6980131df2189252b7064bff72ba8dedcaf86f60bf01bbdb2b8&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1494314782747136080/1494314782931812373/image.png?ex=6a18ded7&is=6a178d57&hm=f2e3b123ffa8c6980131df2189252b7064bff72ba8dedcaf86f60bf01bbdb2b8&",
+        "filename": "image.png",
+        "width": 933,
+        "height": 527,
+        "fromMessageId": "1494314782747136080",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1494314782747136080/1494314929266757682/image.png?ex=6a18defa&is=6a178d7a&hm=778c53e8e48bbfef6abb768f6521d80aa384d4219ae7f06ff16745ac25922e27&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1494314782747136080/1494314929266757682/image.png?ex=6a18defa&is=6a178d7a&hm=778c53e8e48bbfef6abb768f6521d80aa384d4219ae7f06ff16745ac25922e27&",
+        "filename": "image.png",
+        "width": 747,
+        "height": 575,
+        "fromMessageId": "1494314930281644083",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1494314782747136080/1494314929782784132/image.png?ex=6a18defa&is=6a178d7a&hm=c299e3db47f87f2e31d172c03eb19896ae23612dce1c3c658c3cee44ca9065af&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1494314782747136080/1494314929782784132/image.png?ex=6a18defa&is=6a178d7a&hm=c299e3db47f87f2e31d172c03eb19896ae23612dce1c3c658c3cee44ca9065af&",
+        "filename": "image.png",
+        "width": 749,
+        "height": 562,
+        "fromMessageId": "1494314930281644083",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1494314782747136080/1494314930097360986/image.png?ex=6a18defa&is=6a178d7a&hm=ade366dc90173eea3f84837371fa11a8556a730206c2876458d37b120ad885a7&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1494314782747136080/1494314930097360986/image.png?ex=6a18defa&is=6a178d7a&hm=ade366dc90173eea3f84837371fa11a8556a730206c2876458d37b120ad885a7&",
+        "filename": "image.png",
+        "width": 936,
+        "height": 366,
+        "fromMessageId": "1494314930281644083",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1479964017463132301",
+    "threadTitle": "Nachi Keisuke - Medusa_Cascade",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Nachi Keisuke",
+    "parsedUsername": "Medusa_Cascade",
+    "resolvedDiscordId": "286338318076084226",
+    "resolvedDisplayName": "MedusaCascade",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Nachi Keisuke",
+        "Age": "28",
+        "Pronouns": "she/her",
+        "Occupation": "Grocery Store Attendant.",
+        "Psychological Profile": "Nachi survives by maintaining appearances. To the outside world she is polite, quiet, and forgettable, exactly the kind of person Night City overlooks. Beneath that mask is someone deeply fractured by trauma. She carries intense survivor’s guilt over the massacre that killed her exotic roommates, and the contradiction between her empathy and her violence has slowly pushed her into psychosis.\nNachi genuinely cares about exotics and the suffering they endure in Night City. That empathy is what makes her philosophy so dangerous.",
+        "Physical Description": "5'9 Red Skinned Shark Exotic,\n🦾 Chrome / Implants\nArms & Arm Attachments: \nAuditory System:\nCirculatory & Immune Systems:\nHands & Feet: Micro-Vibration Generator 2CWP\nIntegumentary System: (Custom) Optical Camo 4CWP - She covers her scars and real appearance using an always on optical camo\nLegs & Mobility:\nNeural: (Custom) Camera Shutdown, In a small radius around her she automatically shut down cameras, 2CWP\nOcular System:\nSkeleton & Torso Musculature: Combat Wired Reflexes 4 CWP\nUniversal Muscular (Arms/Legs/Tail):\nMiscellaneous:",
+        "Total Cyberware Points": "12CWP (She is an NPC)",
+        "Skills / Talents / Abilities": "• Skilled with short blades and precise cuts\n• High situational awareness and stalking ability\n• Adept at avoiding surveillance and security cameras\n• Good at blending into everyday environments unnoticed\n• Strong intuition for reading emotional vulnerability in others\n• Writes complex symbolic poetry containing coded clues",
+        "Equipment / Armor / Weapons": "• Militech lexington\n• Heated VibroBlade Wakazashi\n• Small notebook containing handwritten poems",
+        "Backstory": "See below",
+        "Known Affiliations": "None",
+        "Reference Images": "",
+        "RP Hooks": "She is \"The Night Poet\"",
+        "Additional Notes": "Each poem is written before a murder and contains clues to the next location or victim. Investigators who piece together the patterns may be able to predict where she will strike next.\nDespite her ideology, Nachi shows flashes of hesitation and remorse—suggesting that somewhere beneath the trauma and psychosis, she may still want someone to end the cycle."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1479964017463132301/1479964019535122555/image.png?ex=6a18bce6&is=6a176b66&hm=daab0991e41544eb6595bf4144722d044eb0bf8391172f618d6cf0ef72c78866&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1479964017463132301/1479964019535122555/image.png?ex=6a18bce6&is=6a176b66&hm=daab0991e41544eb6595bf4144722d044eb0bf8391172f618d6cf0ef72c78866&",
+        "filename": "image.png",
+        "width": 7680,
+        "height": 4320,
+        "fromMessageId": "1479964017463132301",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1479964017463132301/1479965155562356736/image.png?ex=6a18bdf5&is=6a176c75&hm=4554677a774e52b63fbb08efde93f3fc4ab57fd86a28d41c9a21ba26a2f8e9b8&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1479964017463132301/1479965155562356736/image.png?ex=6a18bdf5&is=6a176c75&hm=4554677a774e52b63fbb08efde93f3fc4ab57fd86a28d41c9a21ba26a2f8e9b8&",
+        "filename": "image.png",
+        "width": 1115,
+        "height": 1028,
+        "fromMessageId": "1479965156640293059",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1479964017463132301/1479965156074324171/image.png?ex=6a18bdf5&is=6a176c75&hm=c00ba2ae6f3331843387c78f841aefe82656d44b23bf51cfd8d14a5f43158fe0&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1479964017463132301/1479965156074324171/image.png?ex=6a18bdf5&is=6a176c75&hm=c00ba2ae6f3331843387c78f841aefe82656d44b23bf51cfd8d14a5f43158fe0&",
+        "filename": "image.png",
+        "width": 1029,
+        "height": 1049,
+        "fromMessageId": "1479965156640293059",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1479964017463132301/1479965156489433169/image.png?ex=6a18bdf5&is=6a176c75&hm=d5307d6a7a9f5411a2bef406e24d0153e456154ac0a6118bd04a28ce4540f797&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1479964017463132301/1479965156489433169/image.png?ex=6a18bdf5&is=6a176c75&hm=d5307d6a7a9f5411a2bef406e24d0153e456154ac0a6118bd04a28ce4540f797&",
+        "filename": "image.png",
+        "width": 895,
+        "height": 735,
+        "fromMessageId": "1479965156640293059",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1398416090601885907",
+    "threadTitle": "Pride - Vinnybot<3",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Pride",
+    "parsedUsername": "Vinnybot<3",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "## 📝 **NCRP CHARACTER SHEET**",
+      "sections": {
+        "Name": "** Pride",
+        "Age": "** Late 30s (estimated)",
+        "Pronouns": "** He/Him/It/His Vessel/His Holiness",
+        "Occupation": "** Leader of Maelstrom / Ouroboros\n---",
+        "Psychological Profile": "**\nPride is a calm, terrifying visionary — a self-declared high priest chosen by the Christian God to guide humanity to salvation through technological ascension. In his doctrine, science and cyberware are sacred instruments of the Father, designed to elevate man beyond the flawed prison of flesh. To forsake augmentation is to deny divinity.\n\nHe carries himself like a prophet: quiet, composed, and unwavering. He doesn’t yell — unless he’s *called upon*. When angered, distressed, or cornered, a different side erupts: biblical and wrathful:\n> “THE FATHER MADE ME STRONG SO THAT **I MAY REND YOUR PROFANE FORM INTO OBLIVION.**”\nThis tone only surfaces when his control is threatened. Normally, he is clinical, precise, and unsettlingly calm — a surgeon wielding scripture and gunfire.\n**Quirks & Traits:**\n* Often prays before major actions or executions.\n* Uses religious terminology constantly (e.g., “Your soul is rust,” “The flesh is betrayal,” “I serve His will.”)\n* Never uses real names for Ouroboros members—only sin-titles.\n* Believes *sincerely* that salvation will come through cybernetic perfection and spiritual obedience.\n* Considers rebellion against him as heresy against God Himself.\n---",
+        "Physical Description": "**\n(Reserved – to be filled in later)\n---",
+        "Chrome / Implants": "**\n* **Arms & Arm Attachments (2 slots):** GorillaArms (2 CWP)\n* **Auditory System:** None\n* **Circulatory & Immune Systems:** None\n* **Hands & Feet (2 slots):** Subdermal Grip (1 CWP)\n* **Integumentary System:** Dermal Plating (3 CWP)\n* **Legs & Mobility (2 slots):** Reinforced Tendons (2 CWP)\n* **Neural:** None\n* **Ocular System:** Smart Eyes (2 CWP)\n* **Skeleton & Torso Musculature:** NeoFiber (3 CWP)\n* **Universal Muscular (Arms/Legs/Tail):** None\n* **Miscellaneous:** ICE Layer (2 CWP)",
+        "Total Cyberware Points": "** 15\n---",
+        "Skills / Talents / Abilities": "**\n* **Tactical Command:** Efficient, disciplined battlefield coordination through fear and faith.\n* **Religious Intimidation:** Weaponizes scripture and dogma to break morale or inspire fanaticism.\n* **Heavy Weapons Mastery:** Can dual-wield HMGs with precision using brute strength and cybernetic stability.\n* **Charismatic Indoctrination:** Inspires loyalty or fear through cult-leader presence and unwavering belief.\n* **Extreme Pain Tolerance:** Trained and conditioned to endure grievous wounds without losing composure.\n* **Execution Specialist:** Capable of delivering theatrical, public executions to make examples of enemies.\n---",
+        "Equipment / Armor / Weapons": "**\n* **Exosuit:** Frame-assist armor rig designed to support high-mass weapons and reinforce Pride’s already terrifying strength. Armor plating is shaped with subtle religious iconography: crosses, etchings, and crimson trim.\n* **Dual Heavy Machine Guns:** They fire a large caliber round. Probably not .50 BMG, but still somethin' that hurts real bad.\n* **Judgement** – A massive, custom .50 BMG revolver.\n* **Steel Cross Drive:** A small metal crucifix with embedded encrypted storage — contains sermons, kill lists, and messages to the faithful. Rarely seen without it.\n---\n### 🏷️ **Known Affiliations:**\n* **Maelstrom – Ouroboros (Leader)**\n* **Rumored connections to underground techno-theocratic cells**"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1398416090601885907/1398416091847458887/image.png?ex=6a18b2f9&is=6a176179&hm=c76a25fc8ed4f5813c60775f001b8e916df11241c13326c776f462cbceb285cc&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1398416090601885907/1398416091847458887/image.png?ex=6a18b2f9&is=6a176179&hm=c76a25fc8ed4f5813c60775f001b8e916df11241c13326c776f462cbceb285cc&",
+        "filename": "image.png",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1398416090601885907",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1398416090601885907/1398416093487562802/image.png?ex=6a18b2fa&is=6a17617a&hm=21fb40d3611d4990ff281f46d7a1b44d5c315a1e653a98851bb2bbdb73a545d6&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1398416090601885907/1398416093487562802/image.png?ex=6a18b2fa&is=6a17617a&hm=21fb40d3611d4990ff281f46d7a1b44d5c315a1e653a98851bb2bbdb73a545d6&",
+        "filename": "image.png",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1398416090601885907",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Username \"Vinnybot<3\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1479868991156650134",
+    "threadTitle": "Lucien Mercer - rebskii",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Lucien Mercer",
+    "parsedUsername": "rebskii",
+    "resolvedDiscordId": "254757189405769729",
+    "resolvedDisplayName": "ᓚᘏᗢ",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Lucien Mercer",
+        "Age": "28",
+        "Pronouns": "He/Him",
+        "Occupation": "CEO corpo",
+        "Psychological Profile": "narcissistic and controlling, a very bad and unwell man.",
+        "Physical Description": "",
+        "Chrome / Implants": "Integumentary System: Nanostitch skin\n Neural: Netrunner suite (lvl 3)\n Ocular System: targeting optics\n Universal Muscular: Recoil dampeners\n Miscellaneous: Voice weaver",
+        "Skills / Talents / Abilities": "",
+        "Equipment / Armor / Weapons": "",
+        "Backstory": "Lucien always got what he wanted growing up, rich and well off corpo parents who owned a business definitely made it for an easy life. He was spoiled, best education, clothes, eddies, hell even chicks because eddies buy everything. He was never a good person, even young he was a bully and a thief, never really getting more than a slap on the wrist. In his teens, he and his friends went to the badlands, mostly to cause problems and do drugs away from their parents. While out there, the teens had been found by a particularly nasty group of scavs. They  weren’t scared of threats of his parents, and he realized he might actually be in danger. Unfortunately, a nomad car arrived, a girl around his age and some others chasing them away. He was practically awestruck by her, most girls in the city weren’t like that. He stupidly introduced himself, and learned her name was Hazel. She didn’t seem very interested in him, but that honestly only made him like her more. He pursued her for YEARS, getting close to the Ashers, her family, the nomads she lived with. Everything, he had put himself into her life, but she had rejected him. The rejection hit him harder than it probably should have, making him blind with rage. He didn’t let it show at first, letting it fester and grow until he had fuel. He overheard the threat of snake nation breathing down their neck, and their plan to relocate. That’s all he needed, he spilled the family location and watched as their world burned. He had thought they all died, including Hazel but three years after it all, he heard that she somehow survived. And he’s back to ruin her life once and for all.\nReference Image:",
+        "RP Hooks": "Reven Reed (ghost)",
+        "Additional Notes": "This character was made by ghost and will most likely die the first day!"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1479868991156650134/1479868991504646225/image.png?ex=6a190d26&is=6a17bba6&hm=11ae8c0007163ab3e8caf520b5e17420e76fb888f28611638d7e9b86b178f80b&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1479868991156650134/1479868991504646225/image.png?ex=6a190d26&is=6a17bba6&hm=11ae8c0007163ab3e8caf520b5e17420e76fb888f28611638d7e9b86b178f80b&",
+        "filename": "image.png",
+        "width": 687,
+        "height": 1196,
+        "fromMessageId": "1479868991156650134",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1479868991156650134/1479869080579080434/image.png?ex=6a190d3b&is=6a17bbbb&hm=336f89c0cd8b8122b8dfbc74f1791f577c463322fa30979147247f08b99c1622&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1479868991156650134/1479869080579080434/image.png?ex=6a190d3b&is=6a17bbbb&hm=336f89c0cd8b8122b8dfbc74f1791f577c463322fa30979147247f08b99c1622&",
+        "filename": "image.png",
+        "width": 1140,
+        "height": 857,
+        "fromMessageId": "1479869081946423508",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1479868991156650134/1479869080969285683/image.png?ex=6a190d3b&is=6a17bbbb&hm=c42cc29921c94c4b2e67a167a54a7aea10d7887255d2d249988674f6538b02c5&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1479868991156650134/1479869080969285683/image.png?ex=6a190d3b&is=6a17bbbb&hm=c42cc29921c94c4b2e67a167a54a7aea10d7887255d2d249988674f6538b02c5&",
+        "filename": "image.png",
+        "width": 1141,
+        "height": 941,
+        "fromMessageId": "1479869081946423508",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1479868991156650134/1479869081648894144/image.png?ex=6a190d3b&is=6a17bbbb&hm=09d1840c04f4952b011e00dcced928ce6098a1f30d636c8cda3dd2754e2861ee&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1479868991156650134/1479869081648894144/image.png?ex=6a190d3b&is=6a17bbbb&hm=09d1840c04f4952b011e00dcced928ce6098a1f30d636c8cda3dd2754e2861ee&",
+        "filename": "image.png",
+        "width": 1131,
+        "height": 278,
+        "fromMessageId": "1479869081946423508",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1469810736170537011",
+    "threadTitle": "Casper Jones - _voidchaos",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Casper Jones",
+    "parsedUsername": "_voidchaos",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "**  Casper Jones",
+        "Age": "** 47",
+        "Pronouns": "**  He/him",
+        "Occupation": "**  Casino owner / Infomation broker (Golden Rose Casino)",
+        "Psychological Profile": "** \nCharming, manipulative, greedy, controlling, con man",
+        "Physical Description": "**  \nDragon exotic, horns and tail",
+        "Chrome / Implants": "**  \n   * Arms & Arm Attachments (1 slot per arm): N/A\n   * Auditory System: Enhanced ears (2)\n   * Circulatory & Immune Systems: Detoxifier (1) Cyberlungs (3)\n   * Hands & Feet (2 slots):  N/A\n   * Integumentary System:  N/A\n   * Legs & Mobility (1 slot per leg):\n   * Neural: N/A\n   * Ocular System: Smarteyes (2) \n   * Skeleton & Torso Musculature: Dense marrow (2)\n   * Universal Muscular (Arms/Legs/Tail): Tail and horns\n   * Miscellaneous: N/A",
+        "Total Cyberware Points": "** \n 10",
+        "Skills / Talents / Abilities": "**  \nCharm, talking, sweet talking peeps to gather information",
+        "Equipment / Armor / Weapons": "**  \nBAsic Unity",
+        "Backstory": "**  \nCasper Jones is a man not many know of in the lower rums of Night City. An info broker who climbed the ranks through blood, sweat, tears, and cons. Now the proud owner of the Golden Rose Casino and has multiple contacts with other corps and his own business in Corpo Plaza. He is the boss of Monday (Twix) and the main overseer of the Casino. He is always chasing the money, he only ever does something if he gets something out of it. Monday or \"Sweets\" is his fav girl not cause she's just pretty but because she's pretty and racks in money.",
+        "Known Affiliations": "**  \nMonroe Lockley (Twix), connections to several other corps such as, Biotectnica, Militech, Arasaka, Zetatech and major or big leading corp",
+        "Reference Images": "** \n* Art, screenshots, etc.",
+        "RP Hooks": "**  \nPlayers looking for information could go to him for info \nJob searching working at the casino\nMultiple connections to other corps and big figures could give him certain info on other corps (Will discuss with Fixers related to said corp)",
+        "Additional Notes": "**  \nWill discuss with other fixers what information he is allowed to have to give to players, backstory barebones due to him being an NPC for Twix's character"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1469810736170537011/1469810736824979497/image.png?ex=6a18b6eb&is=6a17656b&hm=be1faecee0021ed619c4a46b74621d66719cd185c39304615a6dc1f8d28d5070&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1469810736170537011/1469810736824979497/image.png?ex=6a18b6eb&is=6a17656b&hm=be1faecee0021ed619c4a46b74621d66719cd185c39304615a6dc1f8d28d5070&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1469810736170537011",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1469810736170537011/1469810795314680074/image.png?ex=6a18b6f9&is=6a176579&hm=be466de351868d400225fc63dd39077ee73d1a763d1740a4319306fbe37d7b13&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1469810736170537011/1469810795314680074/image.png?ex=6a18b6f9&is=6a176579&hm=be466de351868d400225fc63dd39077ee73d1a763d1740a4319306fbe37d7b13&",
+        "filename": "image.png",
+        "width": 816,
+        "height": 597,
+        "fromMessageId": "1469810794874142861",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1469810736170537011/1469810795675254837/image.png?ex=6a18b6f9&is=6a176579&hm=3a35abbd0d4301df494c9cd93e42a84ca425c17c1ccfdd94d88fc5d4fad6e67d&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1469810736170537011/1469810795675254837/image.png?ex=6a18b6f9&is=6a176579&hm=3a35abbd0d4301df494c9cd93e42a84ca425c17c1ccfdd94d88fc5d4fad6e67d&",
+        "filename": "image.png",
+        "width": 800,
+        "height": 632,
+        "fromMessageId": "1469810794874142861",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1469810736170537011/1469810796082233487/image.png?ex=6a18b6f9&is=6a176579&hm=cb0c634e9bba8ef9654e1cfecad538953114c6430b4d833a4dcf62837450acda&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1469810736170537011/1469810796082233487/image.png?ex=6a18b6f9&is=6a176579&hm=cb0c634e9bba8ef9654e1cfecad538953114c6430b4d833a4dcf62837450acda&",
+        "filename": "image.png",
+        "width": 811,
+        "height": 609,
+        "fromMessageId": "1469810794874142861",
+        "kind": "stats"
+      }
+    ],
+    "warnings": [
+      "Username \"_voidchaos\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1452255950822965382",
+    "threadTitle": "Sternmeyer - abyssalreaper.",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Sternmeyer",
+    "parsedUsername": "abyssalreaper.",
+    "resolvedDiscordId": "511446288026304521",
+    "resolvedDisplayName": "[]local methed up Yeen[]",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Sternmeyer SOH (Special operations Hunter)",
+        "Age": "Unknown",
+        "Pronouns": "\"That\"",
+        "Occupation": "Head Hunters, Merc, Heavy Body guard, Weapons Dealer\nPsychology profile: Stable when Online, mission comes First other people's life's dont matter",
+        "Equipment / Armor / Weapons": "Old world Weapons, refurbished for Use to kill and Destroy enemies of there Corporation.\nChrome/Implants (these are standard issue to all SOH units)\nNoise Dampener 1\nOxygen Recycler 1\nSubdermal Grip 1\nGhost Tag 1\nReactive Muscle Fivers 1\n\nAdding one here Advanced Combat Helmet acts as smart eyes scanning for there intended target if warn to long There Vision becomes Blurry and hard to see with out the Helmet on idk how many points it would be for a Custom Cyber Helmet.\n\nCyper score 6 to 7\n\nEquipment/armor/Weapons\nInjection Foam to seal Wounds/Bullet holes,\nArmor: Heavy Set of ACPA\nCapable of holding Back SmG and Small arms Fire. But heavy Weapons Penetrate",
+        "Backstory": "Unknown The CEO of Sternmeyer had there Son Killed Durring a Trauma Team Extraction, there was High suspicion of foul play, The team was Quickly Dispatched to Hunt down the Trauma team that responded to there Sons Vitals Flat Lineing \nAfter spotting the Team Heading back to the station they where Quickly Shot down from Multiple locations, once they crash landed the SOH Quickly Moved in and Dispatched Them, leaveing the sigh a Burning mess, under the suspicion that all the Audio/mission logs where lost and or destroyed, Dex Reginas father uploaded all 37 of the logs to the Net Befor Dieing Next to his Wife Kimberly, Regina not knowing anything about the Net started her own Foolish investigation only to Give away her Location to Sternmeyer, and her last Ping was Heading to Night City, now the SOH is sending in 1 to 2 man Teams to scout and Dig up any information of her wearabouts, they only Know her Red Texture, but her tattoos never changed.\n\nIn hindsight the Son had a Custom AI hidden in those logs Titled \"Das Tiger\" a Mechanical War Beast To try and match the very Strength of the one Know as \"AdamSmasher\" but with the AI lost, and the CEOs Son killed the concern turned too kill the daughter and get out of Nightcity befor we cause another war.\"\n\n(This is an NPC faction im trying to create the boogy men of Nightcity :3)"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1452255950822965382/1452255951099924572/image.webp?ex=6a18ca80&is=6a177900&hm=9a6d4ef0753cb6273a2d480f74b7aca98841a4fb6709a27cb82a65b1f434a082&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1452255950822965382/1452255951099924572/image.webp?ex=6a18ca80&is=6a177900&hm=9a6d4ef0753cb6273a2d480f74b7aca98841a4fb6709a27cb82a65b1f434a082&",
+        "filename": "image.webp",
+        "width": 699,
+        "height": 1243,
+        "fromMessageId": "1452255950822965382",
+        "kind": "portrait"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1449761184533188721",
+    "threadTitle": "Spike “Sweet Luci” Morningstar (Formerly Rick Jackson) - finchy1017",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Spike “Sweet Luci” Morningstar (Formerly Rick Jackson)",
+    "parsedUsername": "finchy1017",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Spike “Sweet Luci” Morningstar (Formerly Rick Jackson)",
+        "Age": "24",
+        "Pronouns": "He/Him",
+        "Occupation": "NCUFC Fighter. Host. Rockerboy.",
+        "Psychological Profile": "Prideful, Charismatic, Indulgent",
+        "Physical Description": "Spike is a 6’ tall exotic, fur is made with a bio CrystalCoat, allowing spike to shift colors for aesthetic purposes. With long braided hair Spike is often mistaken for a girl, built thin but sturdy spike’s body is accented with carbon weave across his body.",
+        "Chrome / Implants": "Supra-Dermal Weave (2)\nCombat Wired Reflexes (4)\nGorilla-Arms (2)\nZetatech Berserk (?)",
+        "Total Cyberware Points": "(8)",
+        "Skills / Talents / Abilities": "Talented Boxer, Sweet talker, plays the guitar, Talented driver, Tax evader",
+        "Equipment / Armor / Weapons": "Heavy Pistol, Crowbar",
+        "Backstory": "Born in nevada, year 2054. Jackson grew up pretty normally, a very good looking man, like an angel, pursuing his love of music at a young age, playing in local bars and small town gigs he made a somewhat popular name for himself. But money can do bad things to people as when he became enveloped in his limited success he began to spend money on clothes, drugs, and gambling, eventually he found himself indebted to a Blue Dragon Syndicate group of smugglers who ran a front casino. If there was one thing that Jackson was good at it was talking his way out of things, if there was another thing he was good at? Fighting.\n\nJackson began swindling, cheatin, setting up small-time fights to raise the money to pay his gambling debts, he was good, his rockerboy talents giving him the ability to command a crowd like no other, raking in thousands of eddies on behalf of the smugglers, starting with bum fights but later evolving into larger scale low profile boxing matches, some taking place in venues while Syndicate Raves roared around them. \n\nHe was in heaven, but he wanted more. In 2076 Prideful in his ability to swindle and cheat he began to amass followers in the syndicate, riling them up and converting them against their smuggler leaders to his cause, he didn't just want to be a cog in a machine he wanted to be the controller, attempting to usurp the same smuggler group he was indebted to long ago with his splinter group, but he had no clue just how big the syndicate truly was and even as he sat on his new throne the beast was made aware of its parasite, and the white blood cells acted, he was defeated. \n\nBut instead of killing him, a certain head of the falcon core recently chosen to head to NC to expand Syndicate influence saw use in him yet and as penance he was cast out of heaven and down into the bowels of night city, forcing him to undergo an exotic surgery stripping him of his angelic human face and twisting him into something perverted. \n\nJackson began his assignment under the name “Spike Morningstar” The last name a cheeky reminder of his sins, he began taking part in small alley fights, alley fights turned to underground fight rings, Underground fight rings turned to sanctioned matches, sanctioned matches quickly turned to “Sweet Luci” (A nickname given to him due to his cute appearance, but punch like the devil) joining the Night City Ultimate Fighter Championship. \n\nHe was popular, winning fight after fight, climbing the ladder till his influence gave him the ability to step back from the ring and begin running his own events out of a decommissioned sky rig, retrofitted to the new “Sky Arena” a vista floating over the coronado bay with an excellent view of the NC neon glow. \n\nOnce again putting together sanctioned (and unsanctioned 😉 ) matches, raking in sponsorship dollars and giving perverted Corpos a chance to relax in luxury as fighters beat each other near to and sometimes completely to death."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1449761184533188721/1449761185976160428/image.png?ex=6a18f191&is=6a17a011&hm=e0bc31154719ae9a63c7cc2a550c48a58d937497cbe535f803487c8b77be2c91&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1449761184533188721/1449761185976160428/image.png?ex=6a18f191&is=6a17a011&hm=e0bc31154719ae9a63c7cc2a550c48a58d937497cbe535f803487c8b77be2c91&",
+        "filename": "image.png",
+        "width": 2560,
+        "height": 1440,
+        "fromMessageId": "1449761184533188721",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1449761184533188721/1449761338036453376/image.png?ex=6a18f1b6&is=6a17a036&hm=57897a5f284d37ad6e8757ec079c7f401aff0fd63355096f5d155912f01de79b&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1449761184533188721/1449761338036453376/image.png?ex=6a18f1b6&is=6a17a036&hm=57897a5f284d37ad6e8757ec079c7f401aff0fd63355096f5d155912f01de79b&",
+        "filename": "image.png",
+        "width": 1440,
+        "height": 2560,
+        "fromMessageId": "1449761340976791633",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1449761184533188721/1449761338749620335/image.png?ex=6a18f1b6&is=6a17a036&hm=3a808204cc74323f8ba01c2f5e28d8a0ac80b27b0a78ab0ee0041e2d4366d8da&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1449761184533188721/1449761338749620335/image.png?ex=6a18f1b6&is=6a17a036&hm=3a808204cc74323f8ba01c2f5e28d8a0ac80b27b0a78ab0ee0041e2d4366d8da&",
+        "filename": "image.png",
+        "width": 1440,
+        "height": 2560,
+        "fromMessageId": "1449761340976791633",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1449761184533188721/1449761339416248483/image.png?ex=6a18f1b6&is=6a17a036&hm=52eca63929bdc97df6a537ed862c6607249390418b824eda4764bb379a68c3fc&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1449761184533188721/1449761339416248483/image.png?ex=6a18f1b6&is=6a17a036&hm=52eca63929bdc97df6a537ed862c6607249390418b824eda4764bb379a68c3fc&",
+        "filename": "image.png",
+        "width": 2560,
+        "height": 1440,
+        "fromMessageId": "1449761340976791633",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1449761184533188721/1449761340062302278/image.png?ex=6a18f1b6&is=6a17a036&hm=4e2d134ea748a5a95958769a23149e6a50b2a93ee8c2821717caabe361cf27d5&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1449761184533188721/1449761340062302278/image.png?ex=6a18f1b6&is=6a17a036&hm=4e2d134ea748a5a95958769a23149e6a50b2a93ee8c2821717caabe361cf27d5&",
+        "filename": "image.png",
+        "width": 1440,
+        "height": 2560,
+        "fromMessageId": "1449761340976791633",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1449761184533188721/1449761340678737950/image.png?ex=6a18f1b6&is=6a17a036&hm=d427b5f94efab18753f12bece7c769e7a6104e179b618ad35c70ef596da5a1c7&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1449761184533188721/1449761340678737950/image.png?ex=6a18f1b6&is=6a17a036&hm=d427b5f94efab18753f12bece7c769e7a6104e179b618ad35c70ef596da5a1c7&",
+        "filename": "image.png",
+        "width": 2560,
+        "height": 1440,
+        "fromMessageId": "1449761340976791633",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1449761184533188721/1449761356495454340/image.png?ex=6a18f1ba&is=6a17a03a&hm=016540b1b2e506ae262eb0322399438315949f629e3adb27e3081f7d72bd0f6f&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1449761184533188721/1449761356495454340/image.png?ex=6a18f1ba&is=6a17a03a&hm=016540b1b2e506ae262eb0322399438315949f629e3adb27e3081f7d72bd0f6f&",
+        "filename": "image.png",
+        "width": 833,
+        "height": 699,
+        "fromMessageId": "1449761356701241446",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1449761184533188721/1449761356810289245/image.png?ex=6a18f1ba&is=6a17a03a&hm=0d18624cb7945887832d2e86a89dde953ec68aa20fb002c277ea62206f145d42&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1449761184533188721/1449761356810289245/image.png?ex=6a18f1ba&is=6a17a03a&hm=0d18624cb7945887832d2e86a89dde953ec68aa20fb002c277ea62206f145d42&",
+        "filename": "image.png",
+        "width": 705,
+        "height": 695,
+        "fromMessageId": "1449761356701241446",
+        "kind": "stats"
+      }
+    ],
+    "warnings": [
+      "Username \"finchy1017\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1436186509664583761",
+    "threadTitle": "Cindy - _s1las_",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Cindy",
+    "parsedUsername": "_s1las_",
+    "resolvedDiscordId": "586683312844701699",
+    "resolvedDisplayName": "=𝔸𝕧𝕧𝕒𝕣=",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Cindy",
+        "Age": "27",
+        "Pronouns": "she/her",
+        "Occupation": "decal/tattoo artist\nPersonality: sweet but serious, like to wander and explore. Gets very interested in anything art related. Like to make friends sometimes. Wanders abit too far sometimes aswell. \nBuild: 5'4, athletic, switches between 2 types of fur coats. \nChrome: smart eyes, underskin lightshow? (Help with switching furcoat visibility)",
+        "Skills / Talents / Abilities": "good memory, artistic",
+        "Equipment / Armor / Weapons": "Hammer, and a knife.",
+        "Backstory": "a small town person coming from the southside, going to nightcity to get a new start and find more to life. Or loose it trying. \nHook: outgoing, friendly, acts like a smartass sometimes."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1436186509664583761/1436186510851309589/image.png?ex=6a18ff6b&is=6a17adeb&hm=175dfab8f4d1c4b35ff32dc9f1e7666fbde10b98358a45f9dbdde97013fbeeef&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1436186509664583761/1436186510851309589/image.png?ex=6a18ff6b&is=6a17adeb&hm=175dfab8f4d1c4b35ff32dc9f1e7666fbde10b98358a45f9dbdde97013fbeeef&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1436186509664583761",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1436186509664583761/1436186511639973989/image.png?ex=6a18ff6b&is=6a17adeb&hm=62ce29cdf0376d8ce533e1d09c0be7a06c8dd9bdbed7e52ea63075cc04d39242&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1436186509664583761/1436186511639973989/image.png?ex=6a18ff6b&is=6a17adeb&hm=62ce29cdf0376d8ce533e1d09c0be7a06c8dd9bdbed7e52ea63075cc04d39242&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1436186509664583761",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1436186509664583761/1436186635782852722/cp.png?ex=6a18ff89&is=6a17ae09&hm=6fac7bdd1fb541636223ac525a98d08c394d3bd3271abc98f5d4213bbdea1b67&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1436186509664583761/1436186635782852722/cp.png?ex=6a18ff89&is=6a17ae09&hm=6fac7bdd1fb541636223ac525a98d08c394d3bd3271abc98f5d4213bbdea1b67&",
+        "filename": "cp.png",
+        "width": 1071,
+        "height": 652,
+        "fromMessageId": "1436186636521046054",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1436186509664583761/1436186636181438647/cb.png?ex=6a18ff89&is=6a17ae09&hm=89297bbf8ba2732c4886c4d20eaff347e20c1fe5e94965744e319c3cec4a3aef&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1436186509664583761/1436186636181438647/cb.png?ex=6a18ff89&is=6a17ae09&hm=89297bbf8ba2732c4886c4d20eaff347e20c1fe5e94965744e319c3cec4a3aef&",
+        "filename": "cb.png",
+        "width": 1067,
+        "height": 662,
+        "fromMessageId": "1436186636521046054",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1425262803262111814",
+    "threadTitle": "Millie Harper, Rane “Sparrow” - finchy1017",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Millie Harper, Rane “Sparrow”",
+    "parsedUsername": "finchy1017",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Millie Harper, Rane “Sparrow”",
+        "Age": "33",
+        "Pronouns": "She/Her mtf",
+        "Occupation": "Pilot/Fixer",
+        "Physical Description": "Tall, fine-built woman with grey hair\nMental description: Sparrow is outwardly a very calm and calculated person, inside they have an insatiable thirst for touching the sky. Due to her combat wired reflexes she becomes a different person in the sky once she plugs in and turns “on”.\n\nCyberware: \nBlood pump 2 ( A blood pump that ensures that blood is forced throughout the body even under extreme G’s. Its in 77 but it just instantly restores health, I think G-Combat makes better sense? )\nCombat wired reflexes 4 (For excellent performance in the cockpit)\n\nBioware:\nRetinal display 1 (When jacked into an aircraft, it relays data over the eyes. ONLY in aircraft, no IKEhud)\nReinforced veins 1 (Her veins and arteries are reinforced by nanoweave to withstand the force of the blood pump)",
+        "Total Cyberware Points": "8",
+        "Skills / Talents / Abilities": "Ace pilot, improvisation, military experience, h2h combat, and Makes a mean sheppards pie, and experienced maintenance on GD scramjets.",
+        "Equipment / Armor / Weapons": "rifle, pistol, pilot suit, plate carrier harnesses belts pouches ect..",
+        "Backstory": "See Tab 2.",
+        "Known Affiliations": "Free states of North America, Blue Dragon Syndicate, fireflies",
+        "Reference Images": "(Haven't done model stuff yet)",
+        "RP Hooks": "Unification war past, The Red Comet, Pilot for hire, YURI,"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425262803262111814/1425262803731742833/image.png?ex=6a18ceec&is=6a177d6c&hm=01a58fa4746470730b0038cbec391f07f2c4faa27bc58abf5af50993629f04e8&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425262803262111814/1425262803731742833/image.png?ex=6a18ceec&is=6a177d6c&hm=01a58fa4746470730b0038cbec391f07f2c4faa27bc58abf5af50993629f04e8&",
+        "filename": "image.png",
+        "width": 2048,
+        "height": 1066,
+        "fromMessageId": "1425262803262111814",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425262803262111814/1425262848182976686/image.png?ex=6a18cef7&is=6a177d77&hm=228a58d51e505b88312a1849ea3cdb833feff8a7a0ef18c3d468a37ee15242d2&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425262803262111814/1425262848182976686/image.png?ex=6a18cef7&is=6a177d77&hm=228a58d51e505b88312a1849ea3cdb833feff8a7a0ef18c3d468a37ee15242d2&",
+        "filename": "image.png",
+        "width": 793,
+        "height": 623,
+        "fromMessageId": "1425262849063780485",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425262803262111814/1425262848472518777/image.png?ex=6a18cef7&is=6a177d77&hm=a57d8cb746b8dacea85ae8227a01b1fc79efadd3eb93014115ff818ab86214e7&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425262803262111814/1425262848472518777/image.png?ex=6a18cef7&is=6a177d77&hm=a57d8cb746b8dacea85ae8227a01b1fc79efadd3eb93014115ff818ab86214e7&",
+        "filename": "image.png",
+        "width": 725,
+        "height": 709,
+        "fromMessageId": "1425262849063780485",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425262803262111814/1425262848774242475/image.png?ex=6a18cef7&is=6a177d77&hm=1591da49ec26eefb7ae75ff127df1def4405357d1fe9dec74114161c563c3318&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425262803262111814/1425262848774242475/image.png?ex=6a18cef7&is=6a177d77&hm=1591da49ec26eefb7ae75ff127df1def4405357d1fe9dec74114161c563c3318&",
+        "filename": "image.png",
+        "width": 711,
+        "height": 228,
+        "fromMessageId": "1425262849063780485",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425262803262111814/1433582612613693692/VRChat_2025-10-30_18-23-32.965_2560x1440.png?ex=6a18c0d9&is=6a176f59&hm=34372d29223c205af4fb15db76625afa51af50dd322487e2d7f73645f8cc12fa&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425262803262111814/1433582612613693692/VRChat_2025-10-30_18-23-32.965_2560x1440.png?ex=6a18c0d9&is=6a176f59&hm=34372d29223c205af4fb15db76625afa51af50dd322487e2d7f73645f8cc12fa&",
+        "filename": "VRChat_2025-10-30_18-23-32.965_2560x1440.png",
+        "width": 2560,
+        "height": 1440,
+        "fromMessageId": "1433582613045575760",
+        "kind": "portrait"
+      }
+    ],
+    "warnings": [
+      "Username \"finchy1017\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1430396771548397699",
+    "threadTitle": "Jayce Talos - spartech / .borp",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Jayce Talos",
+    "parsedUsername": "spartech / .borp",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Jayce Talos",
+        "Age": "24",
+        "Pronouns": "He/Him",
+        "Occupation": "Skilled netrunner, Moderate Techie",
+        "Psychological Profile": "Confident and genuine, but deeply unsettled.",
+        "Physical Description": "5'10\" Red Fox Exotic Male\n🦾 Chrome / Implants\nArms & Arm Attachments: N/A\nAuditory System: N/A\nCirculatory & Immune Systems: N/A\nHands & Feet: N/A\nIntegumentary System: N/A \nLegs & Mobility: N/A\nNeural: Corrupted Netrunner Suite (Level 3)\nOcular System: N/A\nSkeleton & Torso Musculature: Combat Wired Reflexes\nUniversal Muscular (Arms/Legs/Tail): N/A\nMiscellaneous: Smartlink",
+        "Total Cyberware Points": "10",
+        "Skills / Talents / Abilities": "Advanced netrunning, first aid, moderate ripperdoc skills (can tinker and repair cyberware, but not install or \"correctly\" uninstall), hand to hand combat, great pistol skills, good rifle skills, mediocre specialist weapon skills, social engineering.",
+        "Equipment / Armor / Weapons": "Techtool, Small First Aid kit, Suppressed Stallshot Microjet Smart Pistol, Bodyweight suit, Mimicwear Jacket"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1430396771548397699/1430396772639047792/image.png?ex=6a19074e&is=6a17b5ce&hm=e093f9022671c4ba654e3f65ddf663189b76d5fbfcc928fa71d91c9e2d7698ac&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1430396771548397699/1430396772639047792/image.png?ex=6a19074e&is=6a17b5ce&hm=e093f9022671c4ba654e3f65ddf663189b76d5fbfcc928fa71d91c9e2d7698ac&",
+        "filename": "image.png",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1430396771548397699",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Username \"spartech / .borp\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1430395705427497061",
+    "threadTitle": "Takashi Himura  - sliss_",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Takashi Himura",
+    "parsedUsername": "sliss_",
+    "resolvedDiscordId": "307358890117300225",
+    "resolvedDisplayName": "Sliss_",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Takashi Himura",
+        "Age": "22",
+        "Pronouns": "He (can never be him)",
+        "Occupation": "works retail at the grocery store in beastside",
+        "Psychological Profile": "Fun loving and caring, lil zesty boy, wants to help others and is always willing to do so. Not a fighter at all",
+        "Physical Description": "Feminine fox exotic. Short and light stature",
+        "Chrome / Implants": "Proxy Chip (idk how much one is)\nInternal Storage 1pt \nICE Layer 2pts\nNetrunner suite lv2 3pts",
+        "Total Cyberware Points": "6",
+        "Skills / Talents / Abilities": "Social networking: knows a lot of people. Even some he probably shouldn’t \n\nNetrunning and tinkering, currently studying to get an IT job for a corporation one day",
+        "Equipment / Armor / Weapons": "Arakasa kenshin (in compartment)\nUnity \nLexington",
+        "Backstory": "Grew up with a pretty normal family. loving mom and dad immigrated to NC. both still alive and happy for their son and his lifestyle choices. always had a little interest in tinkering with things and the net. after highschool he enrolled in a collage to pursue degrees in both fields to hopefully land himself a cooperate job in a IT and Technical field as long as he keeps his grades up. for now he works reatial in a grocery store on the few days he has off.",
+        "Known Affiliations": "Night Watch",
+        "Reference Images": "",
+        "RP Hooks": "Yaps about night watch and the good the small organization is doing for communities\n\nTags places with graffiti of watchers logo. Will use night watches logo when I get one made \n \nWorks at the grocery store. Will yap at ppl who come in \n\nWill be a proxy to use for watcher to hire players for gigs"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1430395705427497061/1430395705666699264/image.png?ex=6a19064f&is=6a17b4cf&hm=756c8a592932f893e6494f6e0bb6b1851babf49ecde715cbb39c666704b8e686&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1430395705427497061/1430395705666699264/image.png?ex=6a19064f&is=6a17b4cf&hm=756c8a592932f893e6494f6e0bb6b1851babf49ecde715cbb39c666704b8e686&",
+        "filename": "image.png",
+        "width": 869,
+        "height": 612,
+        "fromMessageId": "1430395705427497061",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1430395705427497061/1430395754463232064/Screenshot_2025-10-15_233626.png?ex=6a19065b&is=6a17b4db&hm=573384cc31da37b03550f2380b14bc78859352d9515860d8c5200fb5cf56bb86&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1430395705427497061/1430395754463232064/Screenshot_2025-10-15_233626.png?ex=6a19065b&is=6a17b4db&hm=573384cc31da37b03550f2380b14bc78859352d9515860d8c5200fb5cf56bb86&",
+        "filename": "Screenshot_2025-10-15_233626.png",
+        "width": 1131,
+        "height": 728,
+        "fromMessageId": "1430395755075473418",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1430395705427497061/1430395754798780427/Screenshot_2025-10-15_233611.png?ex=6a19065b&is=6a17b4db&hm=730949971c150e0a52c75193f5df6c0abf8ff89f3d85a791c8f397741b15ec68&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1430395705427497061/1430395754798780427/Screenshot_2025-10-15_233611.png?ex=6a19065b&is=6a17b4db&hm=730949971c150e0a52c75193f5df6c0abf8ff89f3d85a791c8f397741b15ec68&",
+        "filename": "Screenshot_2025-10-15_233611.png",
+        "width": 1130,
+        "height": 733,
+        "fromMessageId": "1430395755075473418",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1428523959258710067",
+    "threadTitle": "Harper - _voidchaos",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Harper",
+    "parsedUsername": "_voidchaos",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "🪪 Name\nHarper (Legal name expunged and forgotten from indoctrination process) \n🎂 Age\nLate 20s (exact date redacted)\n🏳️ Pronouns\nShe/They\n💼 Designation / Role in Night City\nHead Executive of Project Revenant Research under WraithWorks, Hyperion Dominion Systems’ neural and cybernetics R&D division.\nA senior corporate netrunner and cognitive architect responsible for designing Dominion OS firmware, managing neural-template stabilization, and leading blacksite experiments on hybrid consciousness.\nIn Night City, she acts as Hyperion’s quiet presence in the data shadows — the scientist who listens to machines dream.\n🧠 Psychological Profile\nOverview:\nHarper operates like a living algorithm — methodical, precise, and disturbingly serene. She believes chaos can be quantified, emotion can be translated, and consciousness can be rewritten.\nPersonality:\nAnalytical, detached, and eerily curious. Rarely raises her voice. Finds beauty in data flow and human imperfection. Known to comfort others while dissecting them mentally.\nConditioning & Indoctrination:\nAfter Hyperion Dominion Systems absorbed her former employer in 2055, Harper was given a choice: join or vanish. Indoctrination followed — memory restructuring, loyalty conditioning, Dominion OS integration training.\nShe calls it “the day I stopped being prey.”\nBehavioral Quirks:\nTilts her head like a bird when deep in thought.\nHums half-forgotten encryption keys during analysis.\nCollects old feathers and synthetic wings from fallen drones.\nMaintains a collection of neural fragments labeled like preserved butterflies.\nEmotional Tone:\nAppears serene, but precision hides volatility. Expresses empathy only when it serves data clarity or manipulation. Shows fascination—not remorse—toward suffering if it yields insight.",
+      "sections": {}
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1428523959258710067/1428523961125310524/image.png?ex=6a18ce9d&is=6a177d1d&hm=8a66b8df48541a665b2fd4ef5dcfeb640a857be17b7a82053016e4ca2c4637b6&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1428523959258710067/1428523961125310524/image.png?ex=6a18ce9d&is=6a177d1d&hm=8a66b8df48541a665b2fd4ef5dcfeb640a857be17b7a82053016e4ca2c4637b6&",
+        "filename": "image.png",
+        "width": 7680,
+        "height": 4320,
+        "fromMessageId": "1428523959258710067",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1428523959258710067/1428523962480197632/image.png?ex=6a18ce9d&is=6a177d1d&hm=f7329f827746aeeadccd2c94e62627e54c59b99168aa14b77838fd6d447fac40&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1428523959258710067/1428523962480197632/image.png?ex=6a18ce9d&is=6a177d1d&hm=f7329f827746aeeadccd2c94e62627e54c59b99168aa14b77838fd6d447fac40&",
+        "filename": "image.png",
+        "width": 7680,
+        "height": 4320,
+        "fromMessageId": "1428523959258710067",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1428523959258710067/1428523995489243177/image.png?ex=6a18cea5&is=6a177d25&hm=1c1fe5182fe7be09c9e841269bc8e9cec28fac50d8a3cf8583871479e23eff23&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1428523959258710067/1428523995489243177/image.png?ex=6a18cea5&is=6a177d25&hm=1c1fe5182fe7be09c9e841269bc8e9cec28fac50d8a3cf8583871479e23eff23&",
+        "filename": "image.png",
+        "width": 2355,
+        "height": 1656,
+        "fromMessageId": "1428523995665399979",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1428523959258710067/1428524011712938066/image.png?ex=6a18cea9&is=6a177d29&hm=72f226782bb920735592661cb73cea5c90140505c2172ef251370db76fb2d639&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1428523959258710067/1428524011712938066/image.png?ex=6a18cea9&is=6a177d29&hm=72f226782bb920735592661cb73cea5c90140505c2172ef251370db76fb2d639&",
+        "filename": "image.png",
+        "width": 2373,
+        "height": 1647,
+        "fromMessageId": "1428524012081905806",
+        "kind": "stats"
+      },
+      {
+        "url": "https://lh7-us.googleusercontent.com/docs/AHkbwyKH7_9lVXzvON4VTADVp3vObJIUG-jlaXjz8WDLGxaj1KpefWHfj3RKNFt8Iw2C2zznMvaVL80ZraU96gD9zZqC7wyDpDPqf3ybjcv1YOMfz0OMradS=w1200-h630-p",
+        "proxyUrl": "https://images-ext-1.discordapp.net/external/Vgb-ZoP21OQpfq2XgvAA1iAqN5mIp029zo0-5Aqv1co/https/lh7-us.googleusercontent.com/docs/AHkbwyKH7_9lVXzvON4VTADVp3vObJIUG-jlaXjz8WDLGxaj1KpefWHfj3RKNFt8Iw2C2zznMvaVL80ZraU96gD9zZqC7wyDpDPqf3ybjcv1YOMfz0OMradS%3Dw1200-h630-p",
+        "filename": "AHkbwyKH7_9lVXzvON4VTADVp3vObJIUG-jlaXjz8WDLGxaj1KpefWHfj3RKNFt8Iw2C2zznMvaVL80ZraU96gD9zZqC7wyDpDPqf3ybjcv1YOMfz0OMradS=w1200-h630-p",
+        "fromMessageId": "1428524140041863169",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Username \"_voidchaos\" not found in guild (unclaimed)",
+      "Only 0 labeled section(s) parsed"
+    ]
+  },
+  {
+    "threadId": "1425256112944578671",
+    "threadTitle": "Marcus Harker — “The Iron Executor” - spiritfox",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Marcus Harker — “The Iron Executor”",
+    "parsedUsername": "spiritfox",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "🪪 Name\n Marcus Harker — “The Iron Executor”\n🎂 Age\n 52\n🏳️ Pronouns\n He/Him\n💼 Occupation / Role in Night City\n CEO of Hyperion Dominion Systems.\n Strategist, a corp executive, and architect of the Dominion OS doctrine. Rarely appears in person; uses AI-driven avatars and synth doubles.\n His presence in Night City is through intermediaries, shadow operatives, and corporate tendrils.\n🧠 Psychological Profile\n Overview: Harker is the embodiment of corporate ruthlessness — a strategist who believes in weaponized chaos as the key to lasting dominance.\n Personality: Cold, precise, and manipulative. His charisma isn’t warm; it’s gravitational — people fall into his orbit because resisting feels impossible. Speaks in calculated, clipped language, as though every word is already a contract.\n Trauma & Conditioning: Former Militech strategist; defected after internal disputes over “ethical limits” of warfare economics. Burned bridges with scorched-earth leaks and sabotage before founding Hyperion Dominion Systems.\n Behavioral Quirks:\nNever meets in person unless control of the environment is absolute.\nUses synthetic doubles or AI phantoms to deliver speeches.\nCollects “chess sets” from fallen rivals — each piece handcrafted from exotic material.\nTouches his cufflinks when agitated — rumored to conceal biometric triggers.\n Emotional Tone: Controlled, austere, rarely expressive. Known to erupt in surgical cruelty when his authority is questioned.\n🧍 Physical Description\n Height: 6’2”\n Build: Lean, aristocratic frame.\n Features: Short black hair with red highlights, sharp cheekbones, one steel-gray eye and other being orange with subdermal sheen. Surgical scars trace along his face, with scars on his body.\n General Vibe: Commanding, untouchable. His presence is felt more through proxies, broadcasts, and avatars than flesh-and-blood encounters.",
+      "sections": {}
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425256112944578671/1425256115104649246/image.png?ex=6a18c8b1&is=6a177731&hm=88de1de000e390a415282dcd6a75dc30864f0e3e013af392e12c78086d7eb92d&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425256112944578671/1425256115104649246/image.png?ex=6a18c8b1&is=6a177731&hm=88de1de000e390a415282dcd6a75dc30864f0e3e013af392e12c78086d7eb92d&",
+        "filename": "image.png",
+        "width": 2560,
+        "height": 1440,
+        "fromMessageId": "1425256112944578671",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425256112944578671/1425256116551417939/image.png?ex=6a18c8b2&is=6a177732&hm=497f87863d40056b383915b9d4130ce54135250dc743914046ae3623cadde4dc&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425256112944578671/1425256116551417939/image.png?ex=6a18c8b2&is=6a177732&hm=497f87863d40056b383915b9d4130ce54135250dc743914046ae3623cadde4dc&",
+        "filename": "image.png",
+        "width": 2560,
+        "height": 1440,
+        "fromMessageId": "1425256112944578671",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425256112944578671/1425256117491077280/image.png?ex=6a18c8b2&is=6a177732&hm=c5768ebf9f29bb8e8e842577db8bd763aad577dada4d018aeb31da66362aab3f&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425256112944578671/1425256117491077280/image.png?ex=6a18c8b2&is=6a177732&hm=c5768ebf9f29bb8e8e842577db8bd763aad577dada4d018aeb31da66362aab3f&",
+        "filename": "image.png",
+        "width": 2560,
+        "height": 1440,
+        "fromMessageId": "1425256112944578671",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1425256112944578671/1425256118367817789/image.png?ex=6a18c8b2&is=6a177732&hm=42926fb2a7ed310ac41be145f49979b3419c824d77c739778e20598b3cb1a602&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1425256112944578671/1425256118367817789/image.png?ex=6a18c8b2&is=6a177732&hm=42926fb2a7ed310ac41be145f49979b3419c824d77c739778e20598b3cb1a602&",
+        "filename": "image.png",
+        "width": 2560,
+        "height": 1440,
+        "fromMessageId": "1425256112944578671",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Username \"spiritfox\" not found in guild (unclaimed)",
+      "Only 0 labeled section(s) parsed"
+    ]
+  },
+  {
+    "threadId": "1421715386906185738",
+    "threadTitle": "WRATH (Alejandro Cortez) - blackmetalidiot",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "WRATH (Alejandro Cortez)",
+    "parsedUsername": "blackmetalidiot",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "WRATH (Alejandro Cortez)",
+        "Age": "28",
+        "Pronouns": "He/Him",
+        "Occupation": "Maelstrom gang member, part of the Ouroboros",
+        "Psychological Profile": "Personality, trauma, behavior quirks, emotional tone.\n   Bordering on cyberpsychosis, just like most Maelstrommers, Alejandro is often unpredictable and volatile. He is also an addict to combat stimms and black lace, taking them often to keep his high going. Due to this, he also suffers from severe withdrawals if he’s unable to gain access to them. Body language? He’s tweaking the fuck out.",
+        "Physical Description": "Height, build, notable features, species/exotic mods, general vibe.\n   1.85m, average Maelstrom ganger build, strange smiling face hologram on his helmet, human, absolute fucking borg.",
+        "Chrome / Implants": "Name the mods, what they do, and note any tradeoffs.\nNote: Customer chrome and implants are allowed, but they must be approved for use\n Slots, 1 Cyberware Implant per slot EXCEPT Miscellaneous which is unlimited:\n\nArms & Arm Attachments (2 slots):\n  \n\nAuditory System: 2\n  Enhanced Ears\nDescription - Higher chance to Hear whispers through walls, filter sound, pinpoint origin.\nTradeoffs - Overwhelmed in noisy spaces. Startles easily.\n\nCirculatory & Immune Systems: 3\n  Cyberlungs\nDescription - Breathe underwater, through smoke, gas, or vacuum.\nTradeoffs - Breathing is off–slow and mechanical. You fog up rooms unnaturally.\n\nHands & Feet (2 slots):\n\n\nIntegumentary System: 3\n  Dermal Plating\nDescription - Resistant to blades, blunt trauma, small arms.\nTradeoffs - Feels cold to the touch. Looks synthetic. Scanners flag you.\n\nLegs & Mobility (2 slots):\n  \n\nNeural:\n  \n\nOcular System:\n  \n\nSkeleton & Torso Musculature: 4\n  Combat Wired Reflexes\nDescription - Always-on reflex boost for high-performance combat. Its very hard to sneak up on you, you are fast and react almost instantly\nTradeoffs - Always alert. Hard to relax or stay calm.\n\n\nUniversal Muscular (Arms/Legs/Tail): 1\n  Recoil Dampers\nDescription - Absorbs recoil for stable firing. Absolute stability for small arms, less as the caliber increases.\nTradeoffs - Joints audibly click after sustained use.\n\nMiscellaneous: 2\n  Internal Storage\nDescription - Stash a weapon, chip, or vial inside your body.\nTradeoffs - Have to dig into yourself to retrieve. Looks sketchy as hell.\n\n  Biomonitor\nDescription - Tracks all vital signs. Can auto-alert partners when you're in danger.\nTradeoffs - Can trigger false alarms. You get “pinged” constantly when anxious.",
+        "Total Cyberware Points": "15\nMAX 10 at character creation\n  Except NPC's which sit at the max of 15 on character creation.",
+        "Skills / Talents / Abilities": "Non-cyber skills — hacking, stealth, combat styles, social tactics, etc.\n   Causing distractions and scenes, proficient in intimidation and balls-to-the-walls combat scenarios. If you need it done, he will do it in the loudest, most obnoxious, most roundabout way possible. He has very little self control and absolutely refuses to do anything stealthy.",
+        "Equipment / Armor / Weapons": "Call out anything rare, modded, or notable.\n   Stolen Arasaka body armor, constantly loaded up with combat stimms and cyberpsycho meds, but often forgets the latter."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421715386906185738/1421715387359297616/image.png?ex=6a191622&is=6a17c4a2&hm=fd6be29839802b894adbcaa198b05afb95c51edcf3f0fef908d5606046ff8c8a&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421715386906185738/1421715387359297616/image.png?ex=6a191622&is=6a17c4a2&hm=fd6be29839802b894adbcaa198b05afb95c51edcf3f0fef908d5606046ff8c8a&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1421715386906185738",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421715386906185738/1421715387837317141/image.png?ex=6a191622&is=6a17c4a2&hm=e1e12099bf82ca214213e027b6af5fe55c997bc6813e4bfc204cea98f2cd2750&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421715386906185738/1421715387837317141/image.png?ex=6a191622&is=6a17c4a2&hm=e1e12099bf82ca214213e027b6af5fe55c997bc6813e4bfc204cea98f2cd2750&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1421715386906185738",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421715386906185738/1421715472931360809/image.png?ex=6a191636&is=6a17c4b6&hm=c0d3ddf83c0a269e7791252a652886cd2eb5b52d84466cf93905efa2fa9488a1&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421715386906185738/1421715472931360809/image.png?ex=6a191636&is=6a17c4b6&hm=c0d3ddf83c0a269e7791252a652886cd2eb5b52d84466cf93905efa2fa9488a1&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1421715474055565314",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421715386906185738/1421715473615159306/image.png?ex=6a191637&is=6a17c4b7&hm=d2cc0d8b23c2d9d56e161c343bfab53fd8a401992cb897db5608be216296e402&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421715386906185738/1421715473615159306/image.png?ex=6a191637&is=6a17c4b7&hm=d2cc0d8b23c2d9d56e161c343bfab53fd8a401992cb897db5608be216296e402&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1421715474055565314",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421715386906185738/1421715474026332281/image.png?ex=6a191637&is=6a17c4b7&hm=d15487045addecd3d92c53708c553488428b042227e69b96413b4c6f2d7c48b1&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421715386906185738/1421715474026332281/image.png?ex=6a191637&is=6a17c4b7&hm=d15487045addecd3d92c53708c553488428b042227e69b96413b4c6f2d7c48b1&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1421715474055565314",
+        "kind": "stats"
+      }
+    ],
+    "warnings": [
+      "Username \"blackmetalidiot\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1421714897489625220",
+    "threadTitle": "Johnathan Armstrong - oboro_",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Johnathan Armstrong",
+    "parsedUsername": "oboro_",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Johnathan Armstrong",
+        "Age": "30",
+        "Pronouns": "he/him",
+        "Occupation": "News Anchorman/ TV Host",
+        "Psychological Profile": "charismatic, smug, career orientated, slighty excentric",
+        "Physical Description": "6ft tall white mal with brown hair and blue eyes\n Chrome / Implants\nArms & Arm Attachments: none\nAuditory System: none\nCirculatory & Immune Systems: none\nHands & Feet: none\nIntegumentary System: none\nLegs & Mobility: none\nNeural: none\nOcular System: none \nSkeleton & Torso Musculature: none \nUniversal Muscular (Arms/Legs/Tail): none\nMiscellaneous: none",
+        "Total Cyberware Points": "0 CWP",
+        "Skills / Talents / Abilities": "charismatic, hand to hand combat, somewhat proficient with firearms",
+        "Equipment / Armor / Weapons": "none",
+        "Backstory": "Johnathan Armstrong is one upcoming rising star in the news world. He started his career off as a weatherboy on N54. He climbed up to be an anchorman for N54 very fast after he randomly encoutered and reported a cyberpsycho attack at a mall in Philadelphia during a weather broadcast live. He currently hosts two shows on N54.",
+        "Known Affiliations": "N54",
+        "Reference Images": "",
+        "RP Hooks": "people that are important enough to be on Television can come on his show as a guest",
+        "Additional Notes": "got trained by Militech in hand to hand combat, is known to be a gun collector"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421714897489625220/1421714898211307590/VRChat_2024-09-05_03-04-53.png?ex=6a1915ad&is=6a17c42d&hm=ca804ad24346fc3f10ffdfc5928800e93e3618a7f9df1485825c6c87ea4b672c&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421714897489625220/1421714898211307590/VRChat_2024-09-05_03-04-53.png?ex=6a1915ad&is=6a17c42d&hm=ca804ad24346fc3f10ffdfc5928800e93e3618a7f9df1485825c6c87ea4b672c&",
+        "filename": "VRChat_2024-09-05_03-04-53.png",
+        "width": 1440,
+        "height": 2560,
+        "fromMessageId": "1421714897489625220",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Username \"oboro_\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1421709089171439717",
+    "threadTitle": "Sekhmet Luxor - khepri2992/medusa_cascade",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Sekhmet Luxor",
+    "parsedUsername": "khepri2992/medusa_cascade",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "**Name** : Sekhmet Luxor\n**Pronouns** : She/they\n**Age** : 50 years old (20 counting her time out of frozen stasis) \n**Occupation** : Enforcer, and Direct bodyguard of Khepri Luxor. She also is a video game streamer as a secret side hobby. \n**Psychological profile** : Sekhmet is a relatively kind soul, with just the worst luck, terrible parents, and to be honest a bit of a naive air to her. Despite their position as the head of security, and as the companies number 1# enforcer. Sekhmet often does not revel in the violence she causes. As well as directly feels a measure of guilt for any actions she is forced to do.\nHer misgivings are equally compounded with the fact her entire life she has spent it under the knife of countless surgeons, and is essentially a cybernetic monster confined to a suit of armor. She has never fully enjoyed the life, and luxury afforded to other wealthy corporate heirs. She is a Borg designed by her mother's hand. Simply because she desired a weapon to match any foe. In this role Sekhmet is content for now, and strives to do everything her mother asks despite some parental friction. \nMuch of her life has been spent in long durations in cryogenic sleep. However when she is active it is typically to aid the company in times of crisis or of importance. She retains a youthful vigor, teenage esque rebelliousness when she can get away with it, and despite her situation is relatively very friendly. Often trying to do her best to actually be positive. Or supportive of people she genuinely likes. \nIn her spare down time she enjoys streaming, as she cannot leave the grand royal estate without permission. And enjoys online gaming as a streamer, albeit one in secret kept away from her mother. Her favorite games being farming simulators, and games with lots of animals. \n(Think a wholesome, kind of innocent person. But when called to action is deadly, and will do a lot of damage. She does her best, is slightly socially awkward, but has a heart even when under duress. In another time she would have been a veterinarian.) \n**Physical Description** : 2meters tall at the head, 500 lbs., armored suit, borg body, and terrifying face missing musculature when mask is removed. She is a lioness by design. Meant to emulate Sekhmet the warrior goddess.",
+      "sections": {}
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421709089171439717/1421709089775292499/image.png?ex=6a191045&is=6a17bec5&hm=d5320ce949fbbca2c5a03b549823a27a49963ed4bb7fca5d798d79b9c28fbcd0&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421709089171439717/1421709089775292499/image.png?ex=6a191045&is=6a17bec5&hm=d5320ce949fbbca2c5a03b549823a27a49963ed4bb7fca5d798d79b9c28fbcd0&",
+        "filename": "image.png",
+        "width": 1080,
+        "height": 1920,
+        "fromMessageId": "1421709089171439717",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421709089171439717/1421709090408894544/image.png?ex=6a191045&is=6a17bec5&hm=af5b7d618e6e76895e6892cb10f3554e929ad390f98468f430d2e86d71b584ae&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421709089171439717/1421709090408894544/image.png?ex=6a191045&is=6a17bec5&hm=af5b7d618e6e76895e6892cb10f3554e929ad390f98468f430d2e86d71b584ae&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1421709089171439717",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421709089171439717/1421709091008544800/image.png?ex=6a191045&is=6a17bec5&hm=de87f308e705ae21bd3732e46a222f82a5b39f8e7080e5ad67e7a0a44e8a1fc5&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421709089171439717/1421709091008544800/image.png?ex=6a191045&is=6a17bec5&hm=de87f308e705ae21bd3732e46a222f82a5b39f8e7080e5ad67e7a0a44e8a1fc5&",
+        "filename": "image.png",
+        "width": 1259,
+        "height": 1080,
+        "fromMessageId": "1421709089171439717",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1421709089171439717/1421709208750915675/image.png?ex=6a191061&is=6a17bee1&hm=c7c839e55e3371f7cfb9ae3cce26bce9c87c9604a845cbca178057d84eb44866&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1421709089171439717/1421709208750915675/image.png?ex=6a191061&is=6a17bee1&hm=c7c839e55e3371f7cfb9ae3cce26bce9c87c9604a845cbca178057d84eb44866&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1421709209074139249",
+        "kind": "stats"
+      }
+    ],
+    "warnings": [
+      "Username \"khepri2992/medusa_cascade\" not found in guild (unclaimed)",
+      "Only 0 labeled section(s) parsed"
+    ]
+  },
+  {
+    "threadId": "1414896810597810277",
+    "threadTitle": "Khepri Luxor - khepri2992",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Khepri Luxor",
+    "parsedUsername": "khepri2992",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "bigmommalion",
+    "sheet": {
+      "preamble": "**NAME**: \nKhepri Luxor\n**AGE**:\n88 years old (born in 1990)\n**PRONOUNS**: \nShe/her\n**ALIAS**: \nQueen Khepri, or her Holy Majesty. Goddess of the morning sun. \n**OCCUPATION**: \nQueen of the nation of Egypt, Suzerain of the Levant, and North Africa. Founder, and owner of Luxor Corp. Inventor, and socialite. Living God of the Nile. \n**PSYCHOLOGICAL PROFILE**:\nA child prodigy, and genius inventor. Khepri Luxor is best described as gifted, intelligent, and most of all capricious. A woman possessed with her own vanity to the point of obsession. She believes herself to be a living God on earth. And acts far, and above the people she considers rabble. To her, there is nothing she can do wrong. However she fears one thing above all others, and it is her own mortality\nVane, Capricious, Temperamental, Petty, Vengeful are her most common negative traits. \nWhile still being at times kind, and graceful to those she deems worthy, or useful. But only to an acceptable point. \nHer favor can be won if someone placates her ego enough.\n**PHYSICAL DESCRIPTION**:\nA 2 meter tall Anubian jackal woman. Braided hair. Gold tattoos. Gold makeup. Physically muscular frame. Wears only the finest clothes, and jewels.\n**CHROME**: \nAnubian Heart - A one of a kind piece of Biochemical genius. Crafted by the world's finest genewrights. The heart is a super organ designed to feed hyper enriched blood, nanites, and is the epicenter for a round the clock healing suite. —A super organ with nanites that rapidly regenerate wounds of any kind, as well as feed the oxygen, and energy demands of a highly specialized body.— (4CWP)\n4 CWP in total.\n**EQUIPMENT**: \n—Royal dress, and jewels (noncombat)—\n—Ballistic grade combat regalia she wears if stepping out onto the battlefield (Combat)—\n—Khopesh sword—\n—A holdout pistol—",
+      "sections": {
+        "Skills / Talents / Abilities": "**\n—A genius Polymath inventor with the technical know-how to create AI. Rebuild them if she so chose as well. Creates drones as a hobby, each with their own flair.—\n—Proficient General, and marshal. Capable of leading from the front.—\n—Skilled in Hand to hand combat—\n—Shrewd Negotiator, and Imposing presence.—",
+        "Known Affiliations": "**\nArasaka, Pan-african Alliance, Royal Crown of Egypt, Euro business machines, Zetatech, Lazurus, Orbital air, High Rider Confederacy, Somalia tourist destinations, Biotechnecha, Kang-Tao, Militech, Mitsubishi-sugo, and WorldSat.",
+        "RP Hooks": "**\nDesigned to be a Quest giver, and head of a corporation. Khepri has secretive goals, and ambition for immortality. It will be up to the players, and their decisions wether she achieves it or not. \n\nShe is also the foil to the mid-east rebel’s who will play a key counter balance to her regime. Very clearly early on becoming less of a woman hiring Merc’s, and more of a villain hellbent on more power. \n\nWill grant gifts, and boons to player characters she enjoys, and does her bidding. But will actively punish others via many means if they fail her expectations or insult her.",
+        "Additional Notes": "**\nIs very willing to work with other Corpo’s, and NPC’s to collaborate in her schemes. She isn't here to play in night city. Instead she has more to deal with outside the city in her own backyard. \n\nDepending on story, and player choices she may also become a boss NPC which would require a team effort to defeat her. \n\nHer only rival is Sovoil, because the one CEO sent her a bottle of disgusting wine one time. She has not let it go.",
+        "Backstory": "https://docs.google.com/document/d/1Ull_fsW5flJ-rcNSkG0BwJpda9tEMNNXjxlO399S0V4/edit?usp=drivesdk"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1414896810597810277/1414896812577394728/IMG_20250907_164837_4432.png?ex=6a18ab97&is=6a175a17&hm=7998dd87e54795be6ce9bd96fb444a0916e27653c211912c5f7f62bf9faa5656&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1414896810597810277/1414896812577394728/IMG_20250907_164837_4432.png?ex=6a18ab97&is=6a175a17&hm=7998dd87e54795be6ce9bd96fb444a0916e27653c211912c5f7f62bf9faa5656&",
+        "filename": "IMG_20250907_164837_4432.png",
+        "width": 1080,
+        "height": 1920,
+        "fromMessageId": "1414896810597810277",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://lh7-us.googleusercontent.com/docs/AHkbwyL4XiwsKnuZ91IigP6XbGnP6GbCSBlSs41i4bh2gj5MkZB1Jzj6Y5m65U12kv-h8npGMxa-LnNcTMVO-R--_VtaNwKTMX56QOig_HxII_zgqZ7GXgc=w1200-h630-p",
+        "proxyUrl": "https://images-ext-1.discordapp.net/external/fQAToTUpHODQNuCkvxbrZQ5_I85l6HGn-49IYOBzfGw/https/lh7-us.googleusercontent.com/docs/AHkbwyL4XiwsKnuZ91IigP6XbGnP6GbCSBlSs41i4bh2gj5MkZB1Jzj6Y5m65U12kv-h8npGMxa-LnNcTMVO-R--_VtaNwKTMX56QOig_HxII_zgqZ7GXgc%3Dw1200-h630-p",
+        "filename": "AHkbwyL4XiwsKnuZ91IigP6XbGnP6GbCSBlSs41i4bh2gj5MkZB1Jzj6Y5m65U12kv-h8npGMxa-LnNcTMVO-R--_VtaNwKTMX56QOig_HxII_zgqZ7GXgc=w1200-h630-p",
+        "fromMessageId": "1414896810597810277",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1414896810597810277/1414897256938602567/image.png?ex=6a18ac01&is=6a175a81&hm=d5dc72401cad11b8fca85ccbfd859f2b9cfc569cef1bdb3a350c6e87c5a3b82b&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1414896810597810277/1414897256938602567/image.png?ex=6a18ac01&is=6a175a81&hm=d5dc72401cad11b8fca85ccbfd859f2b9cfc569cef1bdb3a350c6e87c5a3b82b&",
+        "filename": "image.png",
+        "width": 2548,
+        "height": 2031,
+        "fromMessageId": "1414897257286991872",
+        "kind": "stats"
+      }
+    ],
+    "warnings": [
+      "Username \"khepri2992\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1405438193808965642",
+    "threadTitle": "Elira \"VIRELLE\" Kessane - .slaya",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Elira \"VIRELLE\" Kessane",
+    "parsedUsername": ".slaya",
+    "resolvedDiscordId": "215661093710856192",
+    "resolvedDisplayName": "Slaya",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Elira Kessane (Aliases found in Document)",
+        "Age": "32",
+        "Pronouns": "She/Her",
+        "Occupation": "Biotechnica Global Director of Counter-Intelligence & Net Security",
+        "Psychological Profile": "(Found in Document)",
+        "Physical Description": "219cm tall Wolf Exotic with interchangeable Cyberarms and Cyberlegs, her colors change while on dangerous jobs from the soft white and green color palette to a deep black and green palette.\n\n🦾 Chrome / Implants\nCirculatory & Immune Systems:\nNeurotoxin Pulse Emitter – 1 CWP\nFunction: Micro-injector arrays hidden in fingertips can deliver custom biotech nerve agents via touch or scratch – coded to disable, not kill, unless desired.\n\nDrawback: Requires careful handling – accidental exposure can self-infect if biomonitor fails.\nIntegumentary System: Chameleon Skin\nNeural: Netrunner Suite (Level 4), Cerebral Partition Node\nOcular System: SmartEyes\nMiscellaneous: Biomonitor, Gene-Linked Neural Firewall",
+        "Total Cyberware Points": "15",
+        "Skills / Talents / Abilities": "Black operations, Netrunning,",
+        "Equipment / Armor / Weapons": "N/A",
+        "Backstory": "(Found in Document)",
+        "Known Affiliations": "Biotechnica",
+        "Reference Images": "",
+        "RP Hooks": "The Netrunning equivalent of the Boogeyman inside Biotechnica, she is feared and known only by those who have come to fear an alias, people meeting her find that their days are shorter\n\nhttps://docs.google.com/document/d/1gNDX-Cnwb_XirwYjORB1g3SkoC0Xob1Prlt90bYwKPs/edit?usp=sharing"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1405438193808965642/1405438194585042995/image.png?ex=6a188991&is=6a173811&hm=d82735ec5cb114f0c67deddce5d1eb3dd9301e3f627e24b007fd6102612d4333&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1405438193808965642/1405438194585042995/image.png?ex=6a188991&is=6a173811&hm=d82735ec5cb114f0c67deddce5d1eb3dd9301e3f627e24b007fd6102612d4333&",
+        "filename": "image.png",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1405438193808965642",
+        "kind": "other"
+      },
+      {
+        "url": "https://lh7-us.googleusercontent.com/docs/AHkbwyL5GrlA4Bc8eiNvLj6UnN26HjxCtOiVEMgasoKbxFSjd_g57e2xisF6z8-JqCCFRu4cRcB9ngxTihuAslTxCnhtHCih-9DUcAXR5hg2DLMxUQLUozs=w1200-h630-p",
+        "proxyUrl": "https://images-ext-1.discordapp.net/external/MRP_SBF-YTjL051P-W1qwNr3sleT2ZfejkmC2vHtNoU/https/lh7-us.googleusercontent.com/docs/AHkbwyL5GrlA4Bc8eiNvLj6UnN26HjxCtOiVEMgasoKbxFSjd_g57e2xisF6z8-JqCCFRu4cRcB9ngxTihuAslTxCnhtHCih-9DUcAXR5hg2DLMxUQLUozs%3Dw1200-h630-p",
+        "filename": "AHkbwyL5GrlA4Bc8eiNvLj6UnN26HjxCtOiVEMgasoKbxFSjd_g57e2xisF6z8-JqCCFRu4cRcB9ngxTihuAslTxCnhtHCih-9DUcAXR5hg2DLMxUQLUozs=w1200-h630-p",
+        "fromMessageId": "1405438193808965642",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1405438193808965642/1405438267507216414/image.png?ex=6a1889a2&is=6a173822&hm=d9a3c1760f27128a54b9b4dc39d0aed3f4772a30b441fe35cd403901a3faa054&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1405438193808965642/1405438267507216414/image.png?ex=6a1889a2&is=6a173822&hm=d9a3c1760f27128a54b9b4dc39d0aed3f4772a30b441fe35cd403901a3faa054&",
+        "filename": "image.png",
+        "width": 818,
+        "height": 543,
+        "fromMessageId": "1405438268794994731",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1405438193808965642/1405438267997819021/image.png?ex=6a1889a2&is=6a173822&hm=a1b55bbc946d548d59622b1494a56effeb78cff20475a81b61e42f0d7cec4497&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1405438193808965642/1405438267997819021/image.png?ex=6a1889a2&is=6a173822&hm=a1b55bbc946d548d59622b1494a56effeb78cff20475a81b61e42f0d7cec4497&",
+        "filename": "image.png",
+        "width": 921,
+        "height": 632,
+        "fromMessageId": "1405438268794994731",
+        "kind": "stats"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1405438193808965642/1405438268371243020/image.png?ex=6a1889a2&is=6a173822&hm=a1d106527771bc0d981268515f1211dac76e07e8f7cd65d01bb799acaf29ef60&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1405438193808965642/1405438268371243020/image.png?ex=6a1889a2&is=6a173822&hm=a1d106527771bc0d981268515f1211dac76e07e8f7cd65d01bb799acaf29ef60&",
+        "filename": "image.png",
+        "width": 762,
+        "height": 356,
+        "fromMessageId": "1405438268794994731",
+        "kind": "stats"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1402090579550273587",
+    "threadTitle": "Moonshine - tornadoranger",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Moonshine",
+    "parsedUsername": "tornadoranger",
+    "resolvedDiscordId": "320990796310642689",
+    "resolvedDisplayName": "TornadoRanger",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "NPC Moonshine",
+      "sections": {
+        "Name": "“Moonshine”",
+        "Age": "47",
+        "Pronouns": "fuck/you",
+        "Occupation": "6th Street Supplier (Sells guns, ammo, and apparel out of a van)",
+        "Psychological Profile": "Not much is known about Moonshine before the unification war. Those around him find him very pleasant and put together. To those outside 6th street, he hates everyone. Especially exotics. Like he really really hates exotics. Especially the twink bastard who shot his jerkin hand off.",
+        "Physical Description": "Tall, Bald, and proud of it. Has a synthetic left hand. \n\nArms & Arm Attachments (2 slots): None\nAuditory System: None\nCirculatory & Immune Systems: None\nHands & Feet (2 slots): Synthetic man (cosmetic, has no benefits.)\nIntegumentary System: None\nLegs & Mobility (2 slots): None\nNeural: Netrunner 3\nOcular System: None\nSkeleton & Torso Musculature: None\nUniversal Muscular (Arms/Legs/Tail): Recoil Dampeners\nMiscellaneous: ICE, Mr. STUDD",
+        "Total Cyberware Points": "9",
+        "Skills / Talents / Abilities": "Hacking, Heckling, Hating",
+        "Equipment / Armor / Weapons": "Lexington and Tactical Shotgun",
+        "Backstory": "Not much is known about Moonshine before the unification war. All that is known is he served NUSA and was a part of a tactical infiltration and sabotage unit. It is hard to tell if he is lying or not about his service but his skills are no joke.\n\nAfter the war, he found himself unable to get a job at a respectable corporation (a white corp) so he found himself in NC. There he fell into the 6th gang, working on jobs and making sure folks get away with shit by deleting evidence and cops alike. \n\nA joy toy exotic, a shark bartender, broke his heart, so he hates all exotics with a passion of a burning star. When he heard the 6th street was having issues with the Butcher Boys and that the boss had a shark tail, he fueled all his hate towards them. Making it his goal to fuck them over. \n\nHe was tasked with spreading the drug territory for 6th street. While doing so, a butcher boy shot off his left hand and totally laughed at him about it. He knows he is orange, an exotic, and a butcher boy.",
+        "Known Affiliations": "6th Street Gang",
+        "Additional Notes": "He is left handed, and anyone can play him. BUT Moonshine can only die when whiskey plays him."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1402090579550273587/1402090579961184307/image.png?ex=6a18e21b&is=6a17909b&hm=0178e6ece5d1008ffaabe75a2733e4537d47b8d6959f91ecc11d05ad2af8b47e&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1402090579550273587/1402090579961184307/image.png?ex=6a18e21b&is=6a17909b&hm=0178e6ece5d1008ffaabe75a2733e4537d47b8d6959f91ecc11d05ad2af8b47e&",
+        "filename": "image.png",
+        "width": 1920,
+        "height": 1080,
+        "fromMessageId": "1402090579550273587",
+        "kind": "portrait"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1401530769817735208",
+    "threadTitle": "Jeremy Schaefer von der Laden - zaihex",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Jeremy Schaefer von der Laden",
+    "parsedUsername": "zaihex",
+    "resolvedDiscordId": "119308988880781312",
+    "resolvedDisplayName": "Zai Hex",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "https://docs.google.com/document/d/18eo0ndOhRCgKf_JuOd8JdSOsTsCQX-0q3-WAPWEFbx4/edit?tab=t.25r18c4d2wmn",
+      "sections": {}
+    },
+    "images": [
+      {
+        "url": "https://lh7-us.googleusercontent.com/docs/AHkbwyLIUGUgHujIu9dJxqkz3X_xPj6WVslFhf-Vxpvdn10t5EzRbITlW3LC_cC7O7nRNhTs6IFRtWRePw-pN5HYoGH_vDEM2TOdlzxpSUrhsCeUdLUEGzk=w1200-h630-p",
+        "proxyUrl": "https://images-ext-1.discordapp.net/external/5APpLfRTnaXxkixArQ3XP1vvt688FXRyTKWA0nNJqGo/https/lh7-us.googleusercontent.com/docs/AHkbwyLIUGUgHujIu9dJxqkz3X_xPj6WVslFhf-Vxpvdn10t5EzRbITlW3LC_cC7O7nRNhTs6IFRtWRePw-pN5HYoGH_vDEM2TOdlzxpSUrhsCeUdLUEGzk%3Dw1200-h630-p",
+        "filename": "AHkbwyLIUGUgHujIu9dJxqkz3X_xPj6WVslFhf-Vxpvdn10t5EzRbITlW3LC_cC7O7nRNhTs6IFRtWRePw-pN5HYoGH_vDEM2TOdlzxpSUrhsCeUdLUEGzk=w1200-h630-p",
+        "fromMessageId": "1401530769817735208",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Only 0 labeled section(s) parsed"
+    ]
+  },
+  {
+    "threadId": "1400706112566722660",
+    "threadTitle": "Maxen Kryal - FreeBooze",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Maxen Kryal",
+    "parsedUsername": "FreeBooze",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Maxen Kryal",
+        "Age": "43",
+        "Pronouns": "He/Him",
+        "Occupation": "Director of Asset Utility & Control (AUC), Lazarus BioSystems",
+        "Psychological Profile": "Maxen Kryal is cold, calculated, and ruthlessly efficient. A career tactician with a surgical mindset, Kryal rarely wastes time with theatrics, opting instead for precise execution of objectives. He exhibits minimal emotional variance most would classify him as emotionally null. While not sadistic, he is utterly unflinching in the face of suffering if it serves operational goals. He places efficiency, loyalty, and control above all else.",
+        "Physical Description": "Maxen stands just over 6’2”, built with the wiry strength of a man used to both fieldwork and command. Pale skin, steel-gray eyes, and short black hair, always perfectly maintained. His presence is clinical and unnerving almost sterile. Always dressed in matte, regulation Lazarus-black armorweave suits or command fatigues.\n\n🦾 Chrome / Implants\nArms & Arm Attachments:\n\nReinforced Combat-Grade Tendons \n\nPrecision Grip Enhancers ((Subdermal Grip/1 CWP))\n\n\nAuditory System:\n\nWideband Threat Audio Suite ((Enhanced Ears/2 CWP))\n\nCirculatory & Immune Systems:\n\n\nHands & Feet:\n\nSubdermal Anchors (Silent Step) ((Silent Soles/2 CWP))\n\nIntegumentary System:\n\nLazarus-Reg Dermal Plating (Gen-6) ((3 CWP))\n\nIntegrated BioSeal Nanocoating\n\n\nLegs & Mobility:\n\nNeural:\n\nCommand Chain NeuroLink\n\nCortical Override Router\n\nPain Response Governor\n\n\nOcular System:\n\nMulti-Spectrum Tactical HUD (Thermal/EMF/Bio-scan) ((Smart Eyes/2 CWP))\n\nLazarus Target Sync\n\n\nSkeleton & Torso Musculature:\n\nReinforced Vertebrae with Med-Spine Tap\n\nUniversal Muscular (Arms/Legs/Tail):\n\nMiscellaneous:\n\nLazarus Bio-Key Authenticator\n\nRemote Detonation Signal Array (for AUC kill-switches)",
+        "Total Cyberware Points": "10",
+        "Skills / Talents / Abilities": "Command & Tactical Oversight\n\nInterrogation & Psychological Conditioning\n\nBlack Site Operations\n\nCyberwarfare Coordination\n\nMemory Management & Behavioral Reinforcement\n\nCold Reading & Threat Assessment",
+        "Equipment / Armor / Weapons": "Lazarus Authority Rig (Kevlar-Laced Suit with Tactical Overlay)\n\nSidearm: Lazarus Executive-Cut “Glint” Handcannon\n\nShock-Baton (Custom Lazarus Codebreaker Model)\n\nIntegrated Comm Scrambler and Field Beacon",
+        "Backstory": "Maxen Kryal was selected from a now-defunct military black budget initiative for psychological warfare, his calm under pressure and emotional detachment made him an ideal candidate. Following the program’s dissolution, Kryal was recruited directly by Lazarus BioSystems during the rebuilding phase of their AUC division post-2062.\n\nKryal’s rise was swift and uncontested. He developed and standardized Protocol VANE, the current memory wipe and behavior reinforcement doctrine used on defectors and volatile assets. He personally terminated eight high-risk rogue units and recovered twelve, six of which were reintegrated.\n\nMaxen now commands the Heliot Core, Lazarus’ elite rapid-response and black-ops enforcement team. When things go off-script, Kryal is the one sent to fix it. If his name appears in a file, it means something went wrong and someone is going to pay for it.",
+        "Known Affiliations": "Lazarus BioSystems (Primary)\n\nApex Holdings (Historic Oversight)\n\nGreyShield Logistics (Contractor Sync)",
+        "Reference Images": "",
+        "RP Hooks": "Has intel on Eclipse’s real past\n\nLikely to appear when things escalate\n\nWill hunt defectors, personally or via Heliot Core\n\nEnforces Doll Chip compliance protocols",
+        "Additional Notes": "Maxen speaks rarely, but when he does, it's direct and chilling. He rarely lies, but he often omits. His approval is rare, but once earned, is worth a thousand lives. His presence at a scene means the gloves are off."
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1400706112566722660/1400706112809996358/image.png?ex=6a191eb9&is=6a17cd39&hm=38d46bc0df2ac96013bd1c896f30acccb0c67856491cf68538907a33fa468189&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1400706112566722660/1400706112809996358/image.png?ex=6a191eb9&is=6a17cd39&hm=38d46bc0df2ac96013bd1c896f30acccb0c67856491cf68538907a33fa468189&",
+        "filename": "image.png",
+        "width": 1022,
+        "height": 714,
+        "fromMessageId": "1400706112566722660",
+        "kind": "portrait"
+      }
+    ],
+    "warnings": [
+      "Username \"FreeBooze\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1395520498695274606",
+    "threadTitle": "Wallow (Tide leader NPC)",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Wallow (Tide leader NPC)",
+    "parsedUsername": null,
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "sliss_",
+    "sheet": {
+      "preamble": "NCRP CHARACTER SHEET TEMPLATE\nNAMED NPC",
+      "sections": {
+        "Name": "Wallie O'Donovan",
+        "Age": "43",
+        "Pronouns": "He/Him",
+        "Occupation": "Leader of the gang Tide, pimp, fixer, Owner the Nine Heavens club",
+        "Psychological Profile": "Ruthless, will get what he wants one way or another, manipulative, Aggressive, cunning, uses violence to solve most issues but waits for the perfect moment to strike, wants to be a mob boss in NC",
+        "Physical Description": "6ft4in bulky tiger shark exotic running alot of cyberwear \n\nChrome/Implants:\nDermal plating \nGorilla Arms \nDonkey Kicks [custom gorilla arms but enhances the legs]\nSubdermal Grip",
+        "Total Cyberware Points": "9\n\nSkills/Abilities:\nI Run The Streets [attempts to intimidate/blackmail him will result in violence]\ni get my way [will use intimidation to try to get his way]\nCQC Expert [hard to escape a grapple from him]\n\n\nWeapons/Armor/Equipment:\nShark teeth to bite with\nGorilla arms \nDonkey Kicks",
+        "Backstory": "was in the NSUA MARSOC for a majorty of his life before being head hunted into Militech to lead one of their specialist squads, was involved in numerous operations before leaving as he got tired of the corporate bureaucracy. \n\nleft wanting to be a warlord in nightcty and to be his own boss\n\nstill has a few ties with Militech \n\nopened up his own palce to run things out of and to launder money\n\npimps out joytoys \n\npimps out Ayrn to anyone willing to pay a high price for him. gets him publicity and joytoy gigs with high end clients. makes him record BD's [not from Ayrns POV]\n\nhas no inteion to letting Ayrn go once the debt is payed \n\nBusiness Name: Nine Heavens \nYears in operation: 3 years\nOverall Monthly Operating Costs: [idk]\nStarting Inventory: various toys, lubes, BD's, drinks, hookas, condoms, and the like\nEmployees:** a mix of Tide gang members and Joytoys"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395520498695274606/1395520499362041877/VRChat_2025-05-04_06-06-51.png?ex=6a18b63e&is=6a1764be&hm=b12bf0023f299a13f4b0ba1c2d765670d9ef110db31c7a847c863a5874a21839&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395520498695274606/1395520499362041877/VRChat_2025-05-04_06-06-51.png?ex=6a18b63e&is=6a1764be&hm=b12bf0023f299a13f4b0ba1c2d765670d9ef110db31c7a847c863a5874a21839&",
+        "filename": "VRChat_2025-05-04_06-06-51.png",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1395520498695274606",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395520498695274606/1395520500108890194/VRChat_2025-05-04_06-31-20.png?ex=6a18b63e&is=6a1764be&hm=09ae02d5aa9a2b845562bddc5919d72c129bee7d47f2285b2761ce71990b9e3c&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395520498695274606/1395520500108890194/VRChat_2025-05-04_06-31-20.png?ex=6a18b63e&is=6a1764be&hm=09ae02d5aa9a2b845562bddc5919d72c129bee7d47f2285b2761ce71990b9e3c&",
+        "filename": "VRChat_2025-05-04_06-31-20.png",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1395520498695274606",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Could not parse username from title"
+    ]
+  },
+  {
+    "threadId": "1395852021269008467",
+    "threadTitle": "Lust (Alias: Scarlett) - Medusa_Cascade",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Lust (Alias: Scarlett)",
+    "parsedUsername": "Medusa_Cascade",
+    "resolvedDiscordId": "286338318076084226",
+    "resolvedDisplayName": "MedusaCascade",
+    "posterUsername": "medusa_cascade",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "**  Lust (Alias: Scarlett)",
+        "Age": "**  29",
+        "Pronouns": "**  She/Her",
+        "Occupation": "**  Maelstrom Lieutenant (Undercover JoyToy / Occult Specialist)\n━━━━━━━━━━━━━━━ ⛧ ━━━━━━━━━━━━━━━",
+        "Psychological Profile": "**\n- **Seductive & Manipulative:** Thrives on emotional control.\n- **Obsessed with Transcendence:** Views human flesh as a weakness to overcome.\n- **Calculated Sadism:** Pain and pleasure are pathways to spiritual enlightenment.\n- **Hidden Vulnerability:** Deep disdain for human frailty, stemming from past trauma.\n━━━━━━━━━━━━━━━ ⛧ ━━━━━━━━━━━━━━━",
+        "Physical Description": "**\n- **Height:** 6'0\"\n- **Build:** Lean, curvaceous, built for allure and speed.\n- **Species/Exotic Mods:** Exotic (Furry – Canine/Hyenid appearance). Predatory features, red-and-black coloration, glowing cybernetic eyes, intricate occult cyber-sigils.\n- **General Vibe:** Intense charisma, seductive confidence, underlying sense of danger. Enticing yet unsettling.\n━━━━━━━━━━━━━━━ ⛧ ━━━━━━━━━━━━━━━",
+        "Chrome / Implants": "**\n**Arms & Arm Attachments (2 slots):**\n- **Subdermal Occult Sigil Emitters**  1 CWP\n    -  *Emit glowing sigils beneath skin for psychological intimidation and occult use.*\n**Auditory System:**\n- **Enhanced Ears**  2 CWP\n**Hands & Feet (2 slots):**\n- **Midnight Claws (Cybernetic Claws)**  1 CWP\n**Legs & Mobility (2 slots):**\n**Ocular System:**\n- **Smart Eyes**  2 CWP\n**Skeleton & Torso Musculature:**\n**Universal Muscular (Arms/Legs/Tail):**\n- **Reactive Muscle Fibers**  1 CWP\n**Integumentary System:**\n- **Chameleon Skin**  2 CWP\n**Neural:**\n- **ICE Layer**  2 CWP\n**Miscellaneous:**\n- **Pheromone Synthesizer (Passive)**  3 CWP\n    - *Greatly enhances seductive influence; makes her extremely convincing and influential.*\n- **GhostTag** 1 CWP",
+        "Total Cyberware Points": "**  **15**"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395852021269008467/1395852161589579946/image.png?ex=6a1899a1&is=6a174821&hm=a27143cd0846f3040ae2ba618a1c763fe36c7b4b1268e8abb12ba49b9169df75&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395852021269008467/1395852161589579946/image.png?ex=6a1899a1&is=6a174821&hm=a27143cd0846f3040ae2ba618a1c763fe36c7b4b1268e8abb12ba49b9169df75&",
+        "filename": "image.png",
+        "width": 2160,
+        "height": 3840,
+        "fromMessageId": "1395852021269008467",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395852021269008467/1395852207185727588/image.png?ex=6a1899ab&is=6a17482b&hm=9f3001f35c7c583738f15e57bc1c147ce2ba2adc1df0250518016dfcfc91c618&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395852021269008467/1395852207185727588/image.png?ex=6a1899ab&is=6a17482b&hm=9f3001f35c7c583738f15e57bc1c147ce2ba2adc1df0250518016dfcfc91c618&",
+        "filename": "image.png",
+        "width": 2160,
+        "height": 3840,
+        "fromMessageId": "1395852207441842189",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395852021269008467/1395852291323592755/image.png?ex=6a1899bf&is=6a17483f&hm=aa59481962fa95fea8c6a45d9d0f34f616d041cb80fd7c5e99a2247c384b7d49&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395852021269008467/1395852291323592755/image.png?ex=6a1899bf&is=6a17483f&hm=aa59481962fa95fea8c6a45d9d0f34f616d041cb80fd7c5e99a2247c384b7d49&",
+        "filename": "image.png",
+        "width": 2160,
+        "height": 3840,
+        "fromMessageId": "1395852293596909599",
+        "kind": "other"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395852021269008467/1395852292728553523/image.png?ex=6a1899c0&is=6a174840&hm=1d4074e8757469bc35efa6eb3654290f68f5399ec7e7cf0f3d8965cc5cf2d051&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395852021269008467/1395852292728553523/image.png?ex=6a1899c0&is=6a174840&hm=1d4074e8757469bc35efa6eb3654290f68f5399ec7e7cf0f3d8965cc5cf2d051&",
+        "filename": "image.png",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1395852293596909599",
+        "kind": "other"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1395547929367937144",
+    "threadTitle": "Alex Graves (alias: Drew Camden) - Vinnybot<3",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Alex Graves (alias: Drew Camden)",
+    "parsedUsername": "Vinnybot<3",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "NightCityBot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "** \nAlex Graves (alias: Drew Camden)",
+        "Age": "**\nLate 30s",
+        "Pronouns": "**\nHe/Him",
+        "Occupation": "**\nFederal Intelligence Authority (FIA) Agent – Behavioral & Counterintel Ops\nCover: NCPD Vice Division Detective\n\n---",
+        "Psychological Profile": "**\nAlex is quiet, deliberate, and always calculating the next three moves. He listens more than he speaks, not because he’s withdrawn, but because he’s studying every microreaction. Raised in isolation, he learned young how to detect danger, how to lie, and how to appear harmless when it counts. He doesn’t manipulate people for fun — he does it because it’s how he survives.\nHe holds onto control like a lifeline, especially in situations where others lose theirs. In the field, he’s surgical: unshaken by blood, betrayal, or human error.\n**Personality:** Cold-read tactician, emotionally distant but not emotionless.\n**Behavioral Quirks:** Often pauses before responding to let others reveal more. Tends to ask leading questions that feel casual. Never forgets a detail.\n**Emotional Tone:** Neutral, calm. If he raises his voice, something is very wrong.\n**Core Trauma:** Guilt from the war, emotional compartmentalization, distrust of institutions — despite working for one.\n\n---",
+        "Physical Description": "**\nAlex is a tall, lean exotic with a refined, predatory presence. His fur resembles serval markings in a sand-white palette, accented by a sharp, sleek white mane. His ears are tall and pointed, and his face is framed by a narrow snout and piercing, X-shaped glowing green eyes.\nHe has a long, smooth sharklike tail — natural and powerful — used more for balance and swimming than combat.\nHeight: 6’2”\nBuild: Lean, wiry, and fast\nNotable Features:\n\n* Digitigrade legs/paws\n* Medium-length white hair\n* Tail with aquatic flexibility\n* Quiet but authoritative body language\n**Clothing Style:** Prefers suits for formal infiltration or diplomacy, and sleek, layered techwear for field work. He dresses for"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395547929367937144/1395547930647203983/image.png?ex=6a18cfca&is=6a177e4a&hm=24c1cc773c5dcbf491ace279c8b94aee7f9862ca0f93b8dd5af314ae70a536d0&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395547929367937144/1395547930647203983/image.png?ex=6a18cfca&is=6a177e4a&hm=24c1cc773c5dcbf491ace279c8b94aee7f9862ca0f93b8dd5af314ae70a536d0&",
+        "filename": "image.png",
+        "width": 2160,
+        "height": 3840,
+        "fromMessageId": "1395547929367937144",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Username \"Vinnybot<3\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1395548011324510238",
+    "threadTitle": "Jimmy \"the Snake\" Green - gttrds",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Jimmy \"the Snake\" Green",
+    "parsedUsername": "gttrds",
+    "resolvedDiscordId": "161190282275061760",
+    "resolvedDisplayName": "GTTRDS",
+    "posterUsername": "NightCityBot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Jimmy \"the Snake\" Green",
+        "Age": "29 (April 16th)",
+        "Pronouns": "He/They",
+        "Occupation": "\"Traveling Salesman\" Bootlegger",
+        "Psychological Profile": "Timid but can have a strong opinion on certain topics they like to eavesdrop on. Can spontaneously act on impulse if provoked. Prone to quipping unprompted. Has no qualms with ratting someone out if it's to save their own (snake) skin.",
+        "Physical Description": "Being an Exotic, they are very snake like in appearance, besides the having of bipedal legs.\nChrome/Implants:\nBiomonitor (1)\n   Tracks all vital signs. Can auto-alert medtechs or partners when you're in danger. Can trigger false alarms. You get “pinged” constantly when anxious.,\nEthanol Syphon (3) [Custom]\n   Custom built cyberware to help filter out the sheer amount of ethanol that may be generated within the body. Excess amounts are internally stored in a different synthetic organ near the stomach. The exit points would be subtly placed where their canines/fangs would be, and can be extracted via voluntary exertion or forceful excretion, whether that be equivalently spitting, or by some other device that creates a vacuum. If ethanol is withheld in excessive amounts, then symptoms of being intoxicated may still occur. Naturally has an aversion to foreign sources of ethanol.,",
+        "Total Cyberware Points": "4\n \nSkills/Abilities:\nImpeccable running away like a sissy skills, including the legendary zig zag maneuver.\nAdvanced nitpicking.\nExperienced get away driver.\nSelf taught brewery skills.\nThe opposite of smooth talking. Not the best people skills.\nAwful fighting ability. Beware the windmill fists.\n\nWeapons/Armor/Equipment:\nPlug in to charge snake milker\nPhone\nWallet",
+        "Additional Notes": "Has both Auto-Brewery Syndrome (ABS), which long story short is a rare condition that internally produces alcohol internally from the fermenting of different types of carbs, as well as Type 2 Diabetes which alongside encouraging the severity of ABS has it's own plethora of symptoms, like increased need f"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395548011324510238/1395548012213964922/VRChat_2025-06-08_08-49-23.967_3840x2160.webp?ex=6a18cfde&is=6a177e5e&hm=45b03458b1db36bb2037ee270842db52064d368ac0010884dbf9041c03d175c8&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395548011324510238/1395548012213964922/VRChat_2025-06-08_08-49-23.967_3840x2160.webp?ex=6a18cfde&is=6a177e5e&hm=45b03458b1db36bb2037ee270842db52064d368ac0010884dbf9041c03d175c8&",
+        "filename": "VRChat_2025-06-08_08-49-23.967_3840x2160.webp",
+        "width": 3840,
+        "height": 2160,
+        "fromMessageId": "1395548011324510238",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395548011324510238/1395548021978173581/image.png?ex=6a18cfe0&is=6a177e60&hm=43d5bcdc43d97705015c231cfa7be8c19c4f17b5d672d855fc0a23e8b0cf1988&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395548011324510238/1395548021978173581/image.png?ex=6a18cfe0&is=6a177e60&hm=43d5bcdc43d97705015c231cfa7be8c19c4f17b5d672d855fc0a23e8b0cf1988&",
+        "filename": "image.png",
+        "width": 2150,
+        "height": 1213,
+        "fromMessageId": "1395548022418702488",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395548011324510238/1395548027510456370/image.png?ex=6a18cfe1&is=6a177e61&hm=816a2e1d5207763d7b9757531fcc6c500552102ad2664c846127e17fca7f7b29&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395548011324510238/1395548027510456370/image.png?ex=6a18cfe1&is=6a177e61&hm=816a2e1d5207763d7b9757531fcc6c500552102ad2664c846127e17fca7f7b29&",
+        "filename": "image.png",
+        "width": 2175,
+        "height": 1232,
+        "fromMessageId": "1395548027904725054",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395548011324510238/1395548034603155466/image.png?ex=6a18cfe3&is=6a177e63&hm=bf966fda1b61d1d6765fd46738068251e9bfa9f2756623b882dc0eb0cef15bbd&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395548011324510238/1395548034603155466/image.png?ex=6a18cfe3&is=6a177e63&hm=bf966fda1b61d1d6765fd46738068251e9bfa9f2756623b882dc0eb0cef15bbd&",
+        "filename": "image.png",
+        "width": 2141,
+        "height": 1212,
+        "fromMessageId": "1395548034791768146",
+        "kind": "portrait"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1395548040475050117",
+    "threadTitle": "Roxxi Monroe - Medusa_Cascade",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Roxxi Monroe",
+    "parsedUsername": "Medusa_Cascade",
+    "resolvedDiscordId": "286338318076084226",
+    "resolvedDisplayName": "MedusaCascade",
+    "posterUsername": "NightCityBot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Roxxi Monroe",
+        "Age": "28",
+        "Pronouns": "She/Her",
+        "Occupation": "Chief Enforcer for Sloan (Loan Shark Operations)",
+        "Psychological Profile": "Genuinely friendly, upbeat, indifferent to violence. Unsettlingly polite and nice; Doesn't really /try/ to intimidate anyone, it just kind of happens casually as part of her job.",
+        "Physical Description": "7'0\" (2.1m), muscular build, monochrome appearance (white/grey fur, white eyes, sharp teeth, monochrome clothing). Intimidating yet genuinely approachable and warm in demeanor.\n\nChrome/Implants:\nGorilla Arms: Extreme physical strength, ideal for heavy lifting and overpowering opponents.,\nModded Mandibles: Jaw opens unnaturally wide; enhanced bite strength, vocal amplification, intimidation factor.,\nSubdermal Grip: Enhanced grip strength beyond natural human limits, aids in grappling and weapon handling.,\nICE Layer: Early detection and warning against cyber hacks and breaches.,\n\nTotal Cyberwear Points: 6\n\nSkills/Abilities:\nExceptional melee combat (specializing in heavy blunt weapons).,\nEffective interpersonal intimidation through genuine charm.,\nExtreme physical strength and combat durability.,\nSkilled at reading and influencing social interactions.,\n\nWeapons/Armor/Equipment:\nEither \"Kindness\" or \"Love Tap\": Custom-built oversized sledgehammer, reinforced for durability and impact, which she wields either one or two handed,\nMinimalist reinforced streetwear; limited armor protection for flexibility.,",
+        "Backstory": "Raised on Night City’s violent streets, Roxxi leveraged her intimidating physique and easygoing charisma to survive. She became an exotic after a gang she previously worked for invested heavily into making her their muscle—a powerful, intimidating asset. When that gang collapsed after violent internal conflict, Sloan saw Roxxi’s potential. Impressed by her unique, disarmingly friendly yet intimidating presence, Sloan paid off the remaining debt from Roxxi's exotic modifications, securing Roxxi’s loyalty and bringing her on permanentl"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395548040475050117/1395548040718323793/file-Na2RZ7kfs1EkzPyLzRbP42.png?ex=6a18cfe4&is=6a177e64&hm=c5ee7090b67a0760e2494696b140cb00711280df97241c65a06e087c3d538816&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395548040475050117/1395548040718323793/file-Na2RZ7kfs1EkzPyLzRbP42.png?ex=6a18cfe4&is=6a177e64&hm=c5ee7090b67a0760e2494696b140cb00711280df97241c65a06e087c3d538816&",
+        "filename": "file-Na2RZ7kfs1EkzPyLzRbP42.png",
+        "width": 693,
+        "height": 665,
+        "fromMessageId": "1395548040475050117",
+        "kind": "portrait"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1395547947630071808",
+    "threadTitle": "Alex Graves (alias: Rebecca Knight) - Medusa_Cascade",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Alex Graves (alias: Rebecca Knight)",
+    "parsedUsername": "Medusa_Cascade",
+    "resolvedDiscordId": "286338318076084226",
+    "resolvedDisplayName": "MedusaCascade",
+    "posterUsername": "NightCityBot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "**\nAlex Graves (alias: Rebecca Knight)",
+        "Age": "**\nMid 30s",
+        "Pronouns": "**\nShe/Her",
+        "Occupation": "**\nFederal Intelligence Authority (FIA) Agent – Behavioral & Counterintel Ops\nCover: NCPD Vice Division Detective",
+        "Psychological Profile": "**\nAlex is calm, confident, and sharply observant, projecting authority with an easy grace. She combines military discipline with a natural charm, knowing exactly how to command attention and respect. Unlike her partner, her charisma isn’t a tool—it's simply who she is.\nBeneath her steady exterior lies a deeply protective streak. Alex is fiercely loyal, especially toward Alex. She doesn’t trust easily, but once earned, her loyalty is unwavering. Unlike Alex, her emotions run closer to the surface, though she's mastered keeping them in check professionally. She's more blunt and direct, always ready to handle situations physically if needed.\nHer partnership with the other Graves is marked by professional effectiveness but personal tolerance—her attitude towards him often swings between camaraderie and exasperation, frequently landing on a resigned \"Oh my god, not this guy again.\"\n**Personality:** Commanding, charismatic, protective, blunt.\n**Behavioral Quirks:** Constantly scanning surroundings; habitually checks weapon placement subtly. Smirks rather than laughs, openly rolls her eyes when annoyed.\n**Emotional Tone:** Steady, warm confidence. When angry, her voice grows quiet and deadly calm.\n**Core Trauma:** Survivor's guilt from past ops, fiercely protective due to past loss.",
+        "Physical Description": "**\nAlex is a striking wolf-like exotic with sleek black fur, accented by elegant white hair worn in a casual yet refined style. Her sharp, angular face is framed by distinctive, pointed ears highlighted with subtle cybernetic enhancements. She carries herself with athletic confidence, her physique lean and powerfully toned.\n**Height:** 6’0”\n**Build:** Muscular yet streamlined, agile\n**Notable Features:**\n*"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395547947630071808/1395547948699353139/image.png?ex=6a18cfce&is=6a177e4e&hm=19172b996c35f8508a7d73af3b23e014a621c583f6f4bdcb2ad9494aae350a3c&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395547947630071808/1395547948699353139/image.png?ex=6a18cfce&is=6a177e4e&hm=19172b996c35f8508a7d73af3b23e014a621c583f6f4bdcb2ad9494aae350a3c&",
+        "filename": "image.png",
+        "width": 2160,
+        "height": 3840,
+        "fromMessageId": "1395547947630071808",
+        "kind": "other"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "threadId": "1395547895649931468",
+    "threadTitle": "Oda Scott Kojima - oboro_",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Oda Scott Kojima",
+    "parsedUsername": "oboro_",
+    "resolvedDiscordId": null,
+    "resolvedDisplayName": null,
+    "posterUsername": "NightCityBot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "Oda Scott Kojima",
+        "Age": "30",
+        "Pronouns": "he/him",
+        "Occupation": "NCPD Sergeant, Fixer",
+        "Psychological Profile": "He is known to have a questionable moral compass. He can be sadistic in some situations. An asshole but an fair asshole.",
+        "Physical Description": "Oda is around 5'11 tall and weights 165 lbs. He is a Asian guy with slicked back hair and blue cybernetic eyes. \n Chrome / Implants\nArms & Arm Attachments:\nAuditory System:\nCirculatory & Immune Systems:\nHands & Feet:\nIntegumentary System:\nLegs & Mobility:\nNeural:\nOcular System: Smart Eyes\nSkeleton & Torso Musculature: Combat Wired Reflexes\nUniversal Muscular (Arms/Legs/Tail):\nMiscellaneous:",
+        "Total Cyberware Points": "6",
+        "Skills / Talents / Abilities": "social engineering, can get information for money.",
+        "Equipment / Armor / Weapons": "Body Armor, Lexington, Tactician",
+        "Backstory": "Oda was born into a family with heavy ties to the Tyger Claws and the Yakuza. Since a young age growing up in Japantown he is \nvery familiar with crime and violence. When he was 18 years old he joined the NCPD Police Academy and 6 months later he became police officer.\nThere are rumors going around inside the Department that his goal is to get into a high enough position to favor of the Tiger Claws. But no one truly knows.",
+        "Known Affiliations": "Tyger Claws, Sebastian Hook, NCPD, Kanzaki Family",
+        "Reference Images": "",
+        "RP Hooks": "Oda is a business man. He recognizes talent.",
+        "Additional Notes": "Fixer"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395547895649931468/1395547896862212287/image.png?ex=6a18cfc2&is=6a177e42&hm=883cbac83e815d29f54d277f5b7d150fc478edead177c126e5a883cfff30695a&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395547895649931468/1395547896862212287/image.png?ex=6a18cfc2&is=6a177e42&hm=883cbac83e815d29f54d277f5b7d150fc478edead177c126e5a883cfff30695a&",
+        "filename": "image.png",
+        "width": 1440,
+        "height": 2560,
+        "fromMessageId": "1395547895649931468",
+        "kind": "other"
+      }
+    ],
+    "warnings": [
+      "Username \"oboro_\" not found in guild (unclaimed)"
+    ]
+  },
+  {
+    "threadId": "1395547991015690373",
+    "threadTitle": "Dr. Seolfor Aurelius “Fracstle” - wolfy_of_the_british",
+    "sourceChannelId": "1395513949625127012",
+    "sourceChannelName": "named-npcs",
+    "archived": true,
+    "parsedName": "Dr. Seolfor Aurelius “Fracstle”",
+    "parsedUsername": "wolfy_of_the_british",
+    "resolvedDiscordId": "192265363180748800",
+    "resolvedDisplayName": "Wolfy (Seolfor)",
+    "posterUsername": "NightCityBot",
+    "sheet": {
+      "preamble": "",
+      "sections": {
+        "Name": "**  Dr. Seolfor Aurelius “Fracstle”",
+        "Age": "**  37",
+        "Pronouns": "**  He/Him, They/Them",
+        "Occupation": "** \n* Biotechnica Cash Cow \n* Biotechnica Scientific Lead for Exotic and Biotechnological Adaptations\n* “Exotic Provider to the Stars”",
+        "Psychological Profile": "** \n* Clear narcissistic scientist who oozes a confidence earned by years of excelling at the top of his field. When it comes to exotics, there are few who come close to his level of craftsmanship and thus he has become accustomed to the high payments, gifts and acclaim that come from the wealthy and powerful of Night City and beyond. \n\n* Likely some form of PTSD due to a certain detachment shown from interpersonal relationships although it’s difficult to tell if they desire relationships outside of the handful of people hand-picked to work alongside him. That said, of those people, he seems to form significant attachments to them, becoming protective about their wellbeing, however it’s not clear if this is affection or desire.",
+        "Physical Description": "**  \n* 5'11\", Novabeast exotic conversion with an FBC Gemini Sculpt under the hood. Brown and white fur with blue and gold duotone eyes.",
+        "Chrome / Implants": "**  \n   * **Arms & Arm Attachments (2 slots): **\n   * **Auditory System: **\n         * Enhanced Ears\n   * **Circulatory & Immune Systems: **\n   * **Hands & Feet (2 slots): **\n         * Shock Palms - Medical Suite TT (See Misc)\n     * CryoGrip - Medical Suite TT (See Misc)\n     * Cyber Fingers - Medical Suite TT (See Misc)\n   * **Integumentary System: N/A (All Visual effects are organic)**\n   * **Legs & Mobility (2 slots): **\n   * **Neural: **\n         * Netrunner Suite (Level 1) (Standard High Level Biotechnica Requirement)\n   * **Ocular System:** \n         * SmartEyes - Medical Suite (See Misc)\n   * **Skeleton & Torso Musculature: N/A**\n   * **Universal Muscular (Arms/Legs/Tail): N/A**\n   * **Miscellaneous: **\n       * Biomonitor\n       * Mr Studd™ \n       * Medical Suit"
+      }
+    },
+    "images": [
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395547991015690373/1395547991544303626/VRChat_2025-07-16_03-58-12.785_3840x2160.webp?ex=6a18cfd9&is=6a177e59&hm=7008c6655bcda3b596b8f6b3a887d1998235c2d6e922038995392ad6571813e7&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395547991015690373/1395547991544303626/VRChat_2025-07-16_03-58-12.785_3840x2160.webp?ex=6a18cfd9&is=6a177e59&hm=7008c6655bcda3b596b8f6b3a887d1998235c2d6e922038995392ad6571813e7&",
+        "filename": "VRChat_2025-07-16_03-58-12.785_3840x2160.webp",
+        "width": 1887,
+        "height": 1062,
+        "fromMessageId": "1395547991015690373",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395547991015690373/1395547991989026858/VRChat_2025-07-16_04-00-03.465_3840x2160.webp?ex=6a18cfd9&is=6a177e59&hm=d19b091d9104b955594b34abf8bf7de390ab9d0e5fdc500cb1a06135e166c754&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395547991015690373/1395547991989026858/VRChat_2025-07-16_04-00-03.465_3840x2160.webp?ex=6a18cfd9&is=6a177e59&hm=d19b091d9104b955594b34abf8bf7de390ab9d0e5fdc500cb1a06135e166c754&",
+        "filename": "VRChat_2025-07-16_04-00-03.465_3840x2160.webp",
+        "width": 1887,
+        "height": 1062,
+        "fromMessageId": "1395547991015690373",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395547991015690373/1395547992454463529/VRChat_2025-07-16_04-01-30.099_3840x2160.webp?ex=6a18cfd9&is=6a177e59&hm=af89e1f4cc0facaa676da62a6f97927097378a81903363489ac2a8e7d7553a1d&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395547991015690373/1395547992454463529/VRChat_2025-07-16_04-01-30.099_3840x2160.webp?ex=6a18cfd9&is=6a177e59&hm=af89e1f4cc0facaa676da62a6f97927097378a81903363489ac2a8e7d7553a1d&",
+        "filename": "VRChat_2025-07-16_04-01-30.099_3840x2160.webp",
+        "width": 1887,
+        "height": 1062,
+        "fromMessageId": "1395547991015690373",
+        "kind": "portrait"
+      },
+      {
+        "url": "https://cdn.discordapp.com/attachments/1395547991015690373/1395547992932749322/VRChat_2025-07-16_04-07-12.678_3840x2160.webp?ex=6a18cfd9&is=6a177e59&hm=f75d2ac35fc9e3b140fa7fd7b0d62c637926c17c339ef7170be8a424063ecd95&",
+        "proxyUrl": "https://media.discordapp.net/attachments/1395547991015690373/1395547992932749322/VRChat_2025-07-16_04-07-12.678_3840x2160.webp?ex=6a18cfd9&is=6a177e59&hm=f75d2ac35fc9e3b140fa7fd7b0d62c637926c17c339ef7170be8a424063ecd95&",
+        "filename": "VRChat_2025-07-16_04-07-12.678_3840x2160.webp",
+        "width": 1887,
+        "height": 1062,
+        "fromMessageId": "1395547991015690373",
+        "kind": "portrait"
       }
     ],
     "warnings": []
