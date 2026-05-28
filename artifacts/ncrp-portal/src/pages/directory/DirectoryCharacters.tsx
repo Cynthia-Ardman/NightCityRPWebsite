@@ -155,11 +155,11 @@ export default function DirectoryCharacters() {
                 className="border border-border bg-card/50 hover:border-nc-cyan transition p-3 flex gap-3"
                 data-testid={`row-public-character-${c.id}`}
               >
-                <div className="w-16 h-16 border border-border bg-background flex-shrink-0">
+                <div className="w-24 h-24 border border-border bg-background flex-shrink-0">
                   {(c.portraitUrl || c.portraitUrls?.[0]) ? (
                     <img src={c.portraitUrl || c.portraitUrls![0]} alt={c.name} className="w-full h-full object-cover" loading="lazy" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center font-display text-nc-cyan/40 text-lg">
+                    <div className="w-full h-full flex items-center justify-center font-display text-nc-cyan/40 text-2xl">
                       {c.name.substring(0, 2).toUpperCase()}
                     </div>
                   )}

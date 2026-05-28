@@ -78,9 +78,9 @@ function Dashboard() {
               <Link key={char.id} href={`/characters/${char.id}`}>
                 <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan/50 hover:bg-card transition-all cursor-pointer group" data-testid={`card-dashboard-char-${char.id}`}>
                   <CardHeader className="flex flex-row items-center gap-4 pb-2">
-                    <Avatar className="h-12 w-12 border border-border rounded-none group-hover:border-nc-cyan transition-colors">
-                      <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} />
-                      <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-lg">
+                    <Avatar className="h-20 w-20 border border-border rounded-none group-hover:border-nc-cyan transition-colors shadow-sm">
+                      <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} className="object-cover" />
+                      <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-2xl">
                         {char.name.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
@@ -272,9 +272,9 @@ function NpcConsolePanel() {
               {items.map((npc) => (
                 <Link key={npc.id} href={`/characters/${npc.id}`}>
                   <div className="p-3 flex items-center gap-3 hover:bg-nc-magenta/5 cursor-pointer" data-testid={`row-npc-${npc.id}`}>
-                    <Avatar className="h-9 w-9 border border-border rounded-none">
-                      <AvatarImage src={npc.portraitUrl || npc.portraitUrls?.[0] || ""} />
-                      <AvatarFallback className="bg-background text-nc-magenta rounded-none font-display text-xs">
+                    <Avatar className="h-14 w-14 border border-border rounded-none">
+                      <AvatarImage src={npc.portraitUrl || npc.portraitUrls?.[0] || ""} className="object-cover" />
+                      <AvatarFallback className="bg-background text-nc-magenta rounded-none font-display text-lg">
                         {npc.name.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>

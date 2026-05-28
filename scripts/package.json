@@ -11,6 +11,7 @@
     "import-character-sheets": "tsx ./src/import-character-sheets.ts",
     "import-rent-leases": "tsx ./src/import-rent-leases.ts",
     "import-npcs-cyberware": "tsx ./src/import-npcs-cyberware.ts",
+    "import-cyberware-inventory": "tsx ./src/import-cyberware-inventory.ts",
     "backfill-mission-runners": "tsx ./src/backfill-mission-runners.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
