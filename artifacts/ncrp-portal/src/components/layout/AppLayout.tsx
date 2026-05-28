@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMyWallet, getGetMyWalletQueryKey } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -85,6 +85,7 @@ function SidebarContent() {
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-4 uppercase tracking-widest">Personal</div>
         <NavItem href="/" icon={User} label="Dashboard" />
         <NavItem href="/characters" icon={Users} label="Characters" />
+        <NavItem href="/missions" icon={Briefcase} label="Missions" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
 
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Directory</div>

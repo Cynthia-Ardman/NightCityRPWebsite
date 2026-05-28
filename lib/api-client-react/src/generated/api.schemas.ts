@@ -966,6 +966,73 @@ export interface Mission {
   createdAt: string;
 }
 
+export type MissionGroupSummaryMyCharactersItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  portraitUrl?: string | null;
+  payoutEddies: number;
+};
+
+export interface MissionGroupSummary {
+  /** Opaque group id; pass to GET /missions/{id}. */
+  id: string;
+  title: string;
+  /** @nullable */
+  summary?: string | null;
+  status: string;
+  /** @nullable */
+  occurredAt?: string | null;
+  createdAt: string;
+  /** @nullable */
+  fixerId?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  /** @nullable */
+  fixerAvatarUrl?: string | null;
+  participantCount: number;
+  totalPayoutEddies: number;
+  /**
+     * Total paid to the caller's characters on this mission. Null on global views.
+     * @nullable
+     */
+  myPayoutEddies?: number | null;
+  myCharacters: MissionGroupSummaryMyCharactersItem[];
+}
+
+export type MissionDetailParticipantsItem = {
+  entryId: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  characterPortraitUrl?: string | null;
+  payoutEddies: number;
+  status: string;
+  /** @nullable */
+  summary?: string | null;
+};
+
+export interface MissionDetail {
+  id: string;
+  title: string;
+  /** @nullable */
+  summary?: string | null;
+  status: string;
+  /** @nullable */
+  occurredAt?: string | null;
+  createdAt: string;
+  /** @nullable */
+  fixerId?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  /** @nullable */
+  fixerAvatarUrl?: string | null;
+  totalPayoutEddies: number;
+  participants: MissionDetailParticipantsItem[];
+}
+
 export type MissionInputStatus = typeof MissionInputStatus[keyof typeof MissionInputStatus];
 
 
@@ -1147,6 +1214,10 @@ export type ReactivateCharacter200 = {
 
 export type ListMissionsParams = {
 characterId?: number;
+limit?: number;
+};
+
+export type ListAllMissionsParams = {
 limit?: number;
 };
 

@@ -922,6 +922,94 @@ export const CreateMissionBody = zod.object({
 
 
 /**
+ * @summary Missions any of the caller's characters participated in.
+ */
+export const ListMyMissionsResponseItem = zod.object({
+  "id": zod.string().describe('Opaque group id; pass to GET \/missions\/{id}.'),
+  "title": zod.string(),
+  "summary": zod.string().nullish(),
+  "status": zod.string(),
+  "occurredAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "participantCount": zod.number(),
+  "totalPayoutEddies": zod.number(),
+  "myPayoutEddies": zod.number().nullish().describe('Total paid to the caller\'s characters on this mission. Null on global views.'),
+  "myCharacters": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish(),
+  "payoutEddies": zod.number()
+}))
+})
+export const ListMyMissionsResponse = zod.array(ListMyMissionsResponseItem)
+
+
+/**
+ * @summary Every mission, grouped. Fixer/admin only.
+ */
+export const listAllMissionsQueryLimitDefault = 1000;
+
+export const ListAllMissionsQueryParams = zod.object({
+  "limit": zod.coerce.number().default(listAllMissionsQueryLimitDefault)
+})
+
+export const ListAllMissionsResponseItem = zod.object({
+  "id": zod.string().describe('Opaque group id; pass to GET \/missions\/{id}.'),
+  "title": zod.string(),
+  "summary": zod.string().nullish(),
+  "status": zod.string(),
+  "occurredAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "participantCount": zod.number(),
+  "totalPayoutEddies": zod.number(),
+  "myPayoutEddies": zod.number().nullish().describe('Total paid to the caller\'s characters on this mission. Null on global views.'),
+  "myCharacters": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish(),
+  "payoutEddies": zod.number()
+}))
+})
+export const ListAllMissionsResponse = zod.array(ListAllMissionsResponseItem)
+
+
+/**
+ * @summary Mission detail (all participants, fixer, payouts). Restricted to participants, the fixer, and admins.
+ */
+export const GetMissionParams = zod.object({
+  "id": zod.coerce.string().describe('Opaque base64url group id from list responses.')
+})
+
+export const GetMissionResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "summary": zod.string().nullish(),
+  "status": zod.string(),
+  "occurredAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "totalPayoutEddies": zod.number(),
+  "participants": zod.array(zod.object({
+  "entryId": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "payoutEddies": zod.number(),
+  "status": zod.string(),
+  "summary": zod.string().nullish()
+}))
+})
+
+
+/**
  * @summary Filtered audit feed (recent activity events).
  */
 export const adminListAuditQueryLimitDefault = 100;

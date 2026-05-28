@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMissions,
@@ -151,17 +152,44 @@ export default function FixerMissions() {
                 </tr>
               </thead>
               <tbody>
-                {missions.map((m) => (
-                  <tr key={m.id} className="border-b border-border/30 hover:bg-card/80" data-testid={`row-mission-${m.id}`}>
-                    <td className="p-2 text-muted-foreground text-xs">{new Date(m.createdAt).toLocaleDateString()}</td>
-                    <td className="p-2 text-foreground">
-                      <div>{m.title}</div>
-                      {m.summary && <div className="text-xs text-muted-foreground">{m.summary}</div>}
+                {missions.map((m) => {
+                  // Group id must match the server's scheme in routes/missions.ts:
+                  //   key = `${fixerId ?? "_"}|${title}|${YYYY-MM-DD UTC of (occurredAt ?? createdAt)}`
+                  //   id  = base64url(key)
+                  // Compute it here so a row click navigates to the grouped detail.
+                  const whenISO = (m.occurredAt ?? m.createdAt).slice(0, 10);
+                  const groupKey = `${m.fixerId ?? "_"}|${m.title}|${whenISO}`;
+                  // btoa works on Latin-1; encodeURIComponent + unescape handles non-ASCII titles.
+                  const groupId = btoa(unescape(encodeURIComponent(groupKey)))
+                    .replace(/\+/g, "-")
+                    .replace(/\//g, "_")
+                    .replace(/=+$/, "");
+                  const href = `/missions/${groupId}`;
+                  return (
+                  <tr key={m.id} className="border-b border-border/30 hover:bg-card/80 cursor-pointer" data-testid={`row-mission-${m.id}`}>
+                    <td className="p-0">
+                      <Link href={href} className="block p-2 text-muted-foreground text-xs">
+                        {new Date(m.createdAt).toLocaleDateString()}
+                      </Link>
                     </td>
-                    <td className="p-2">{m.characterName ?? <span className="text-muted-foreground">—</span>}</td>
-                    <td className="p-2 text-nc-magenta">{m.fixerName ?? "—"}</td>
-                    <td className="p-2 text-right text-nc-yellow">
-                      {m.payoutEddies ? `€$${m.payoutEddies.toLocaleString()}` : "—"}
+                    <td className="p-0">
+                      <Link href={href} className="block p-2 text-foreground">
+                        <div>{m.title}</div>
+                        {m.summary && <div className="text-xs text-muted-foreground">{m.summary}</div>}
+                      </Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={href} className="block p-2">
+                        {m.characterName ?? <span className="text-muted-foreground">—</span>}
+                      </Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={href} className="block p-2 text-nc-magenta">{m.fixerName ?? "—"}</Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={href} className="block p-2 text-right text-nc-yellow">
+                        {m.payoutEddies ? `€$${m.payoutEddies.toLocaleString()}` : "—"}
+                      </Link>
                     </td>
                     <td className="p-2">
                       <Badge
@@ -180,7 +208,8 @@ export default function FixerMissions() {
                       </Badge>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}

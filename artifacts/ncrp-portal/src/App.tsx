@@ -33,6 +33,8 @@ import MyClinicDetail from "@/pages/clinics/MyClinicDetail";
 import FixerHub from "@/pages/fixer/FixerHub";
 import FixerNpcDetail from "@/pages/fixer/FixerNpcDetail";
 import FixerMissions from "@/pages/fixer/FixerMissions";
+import Missions from "@/pages/Missions";
+import MissionDetail from "@/pages/MissionDetail";
 import LoginError from "@/pages/LoginError";
 import LogoutError from "@/pages/LogoutError";
 
@@ -90,6 +92,8 @@ function AppRoutes() {
           <Route path="/fixer/missions" component={FixerMissions} />
           <Route path="/fixer/npcs/:id" component={FixerNpcDetail} />
           <Route path="/dice" component={DiceRoller} />
+          <Route path="/missions" component={Missions} />
+          <Route path="/missions/:id" component={MissionDetail} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/users/:userId" component={AdminUserDetail} />
           <Route path="/admin/wholesaler" component={AdminWholesaler} />

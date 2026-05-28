@@ -708,6 +708,53 @@ paths:
         "400": { description: Bad request }
         "502": { description: Wallet provider unavailable }
 
+  # ---------------- MISSIONS (grouped view: one logical mission = many mission_log rows) ----------------
+  /missions/mine:
+    get:
+      operationId: listMyMissions
+      tags: [missions]
+      summary: Missions any of the caller's characters participated in.
+      responses:
+        "200":
+          description: List of mission group summaries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MissionGroupSummary" }
+  /missions/all:
+    get:
+      operationId: listAllMissions
+      tags: [missions]
+      summary: Every mission, grouped. Fixer/admin only.
+      parameters:
+        - { in: query, name: limit, schema: { type: integer, default: 1000 } }
+      responses:
+        "200":
+          description: List of mission group summaries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MissionGroupSummary" }
+        "403": { description: Insufficient role. }
+  /missions/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string }, description: "Opaque base64url group id from list responses." }
+    get:
+      operationId: getMission
+      tags: [missions]
+      summary: Mission detail (all participants, fixer, payouts). Restricted to participants, the fixer, and admins.
+      responses:
+        "200":
+          description: Mission detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Malformed id. }
+        "403": { description: Not a participant. }
+        "404": { description: Not found. }
+
   /admin/audit:
     get:
       operationId: adminListAudit
@@ -2200,6 +2247,61 @@ components:
         status: { type: string, enum: [planned, completed, failed, cancelled] }
         occurredAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+
+    MissionGroupSummary:
+      type: object
+      required: [id, title, status, createdAt, participantCount, totalPayoutEddies, myCharacters]
+      properties:
+        id: { type: string, description: "Opaque group id; pass to GET /missions/{id}." }
+        title: { type: string }
+        summary: { type: ["string", "null"] }
+        status: { type: string }
+        occurredAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        fixerId: { type: ["string", "null"] }
+        fixerName: { type: ["string", "null"] }
+        fixerAvatarUrl: { type: ["string", "null"] }
+        participantCount: { type: integer }
+        totalPayoutEddies: { type: integer }
+        myPayoutEddies: { type: ["integer", "null"], description: "Total paid to the caller's characters on this mission. Null on global views." }
+        myCharacters:
+          type: array
+          items:
+            type: object
+            required: [id, name, payoutEddies]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              portraitUrl: { type: ["string", "null"] }
+              payoutEddies: { type: integer }
+
+    MissionDetail:
+      type: object
+      required: [id, title, status, createdAt, totalPayoutEddies, participants]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        summary: { type: ["string", "null"] }
+        status: { type: string }
+        occurredAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        fixerId: { type: ["string", "null"] }
+        fixerName: { type: ["string", "null"] }
+        fixerAvatarUrl: { type: ["string", "null"] }
+        totalPayoutEddies: { type: integer }
+        participants:
+          type: array
+          items:
+            type: object
+            required: [entryId, payoutEddies, status]
+            properties:
+              entryId: { type: integer }
+              characterId: { type: ["integer", "null"] }
+              characterName: { type: ["string", "null"] }
+              characterPortraitUrl: { type: ["string", "null"] }
+              payoutEddies: { type: integer }
+              status: { type: string }
+              summary: { type: ["string", "null"] }
 
     MissionInput:
       type: object

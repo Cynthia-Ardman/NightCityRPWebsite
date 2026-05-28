@@ -59,12 +59,15 @@ import type {
   InventoryTransferInput,
   JobRunInput,
   JobRunResult,
+  ListAllMissionsParams,
   ListMissionsParams,
   ListPublicCharactersParams,
   ListWholesalerItemsParams,
   ListWholesalerOrdersParams,
   Me,
   Mission,
+  MissionDetail,
+  MissionGroupSummary,
   MissionInput,
   PublicCharacter,
   PublicCharacterSummary,
@@ -3635,6 +3638,244 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getCreateMissionMutationOptions(options));
     }
+
+export const getListMyMissionsUrl = () => {
+
+
+
+
+  return `/api/missions/mine`
+}
+
+/**
+ * @summary Missions any of the caller's characters participated in.
+ */
+export const listMyMissions = async ( options?: RequestInit): Promise<MissionGroupSummary[]> => {
+
+  return customFetch<MissionGroupSummary[]>(getListMyMissionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyMissionsQueryKey = () => {
+    return [
+    `/api/missions/mine`
+    ] as const;
+    }
+
+
+export const getListMyMissionsQueryOptions = <TData = Awaited<ReturnType<typeof listMyMissions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyMissionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyMissions>>> = ({ signal }) => listMyMissions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyMissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyMissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyMissions>>>
+export type ListMyMissionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Missions any of the caller's characters participated in.
+ */
+
+export function useListMyMissions<TData = Awaited<ReturnType<typeof listMyMissions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyMissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListAllMissionsUrl = (params?: ListAllMissionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/missions/all?${stringifiedParams}` : `/api/missions/all`
+}
+
+/**
+ * @summary Every mission, grouped. Fixer/admin only.
+ */
+export const listAllMissions = async (params?: ListAllMissionsParams, options?: RequestInit): Promise<MissionGroupSummary[]> => {
+
+  return customFetch<MissionGroupSummary[]>(getListAllMissionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAllMissionsQueryKey = (params?: ListAllMissionsParams,) => {
+    return [
+    `/api/missions/all`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAllMissionsQueryOptions = <TData = Awaited<ReturnType<typeof listAllMissions>>, TError = ErrorType<void>>(params?: ListAllMissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAllMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAllMissionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAllMissions>>> = ({ signal }) => listAllMissions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAllMissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAllMissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listAllMissions>>>
+export type ListAllMissionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Every mission, grouped. Fixer/admin only.
+ */
+
+export function useListAllMissions<TData = Awaited<ReturnType<typeof listAllMissions>>, TError = ErrorType<void>>(
+ params?: ListAllMissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAllMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAllMissionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetMissionUrl = (id: string,) => {
+
+
+
+
+  return `/api/missions/${id}`
+}
+
+/**
+ * @summary Mission detail (all participants, fixer, payouts). Restricted to participants, the fixer, and admins.
+ */
+export const getMission = async (id: string, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getGetMissionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMissionQueryKey = (id: string,) => {
+    return [
+    `/api/missions/${id}`
+    ] as const;
+    }
+
+
+export const getGetMissionQueryOptions = <TData = Awaited<ReturnType<typeof getMission>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMissionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMission>>> = ({ signal }) => getMission(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMission>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMissionQueryResult = NonNullable<Awaited<ReturnType<typeof getMission>>>
+export type GetMissionQueryError = ErrorType<void>
+
+
+/**
+ * @summary Mission detail (all participants, fixer, payouts). Restricted to participants, the fixer, and admins.
+ */
+
+export function useGetMission<TData = Awaited<ReturnType<typeof getMission>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMissionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getAdminListAuditUrl = (params?: AdminListAuditParams,) => {
   const normalizedParams = new URLSearchParams();
