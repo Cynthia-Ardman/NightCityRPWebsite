@@ -175,7 +175,11 @@ export interface CharacterUpdate {
   name?: string;
   archetype?: string;
   background?: string;
-  portraitUrl?: string;
+  /** @nullable */
+  portraitUrl?: string | null;
+  portraitUrls?: string[];
+  statsImageUrls?: string[];
+  sheetData?: SheetData;
 }
 
 export interface InventoryItem {

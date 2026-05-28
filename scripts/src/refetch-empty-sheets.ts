@@ -13,6 +13,19 @@ import { db, characters } from "@workspace/db";
 import { eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 const DRY = process.argv.includes("--dry-run");
+// --all: re-parse every imported character (including ones that already have
+// some sections). Used to fix characters whose previous parse swallowed
+// subsections into a previous section because the player used emoji-prefixed
+// headings without trailing ":".
+const REPARSE_ALL = process.argv.includes("--all");
+function argInt(name: string, fallback: number): number {
+  const a = process.argv.find((s) => s.startsWith(`--${name}=`));
+  if (!a) return fallback;
+  const n = parseInt(a.split("=")[1], 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+const OFFSET = argInt("offset", 0);
+const LIMIT = argInt("limit", Number.POSITIVE_INFINITY);
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 if (!TOKEN) {
   console.error("DISCORD_BOT_TOKEN missing");
@@ -80,10 +93,15 @@ const SECTION_LABELS = [
   "Reference Image(s)", "Reference Images",
   "RP Hooks", "Additional Notes",
 ];
+// Matches lines like:
+//   "Backstory:" or "Backstory: some text"
+//   "🦾 Chrome / Implants"            (no colon, label alone on line)
+//   "🔧 Equipment (Weapons and Other Gear):"  (parenthetical annotation)
+// Up to 8 leading non-letter chars covers emoji + space prefixes.
 const LABEL_RE = new RegExp(
   `^[^\\p{L}\\n]{0,8}(${SECTION_LABELS.map((l) =>
     l.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&"),
-  ).join("|")})\\s*:\\s*(.*)$`,
+  ).join("|")})(?:\\s*\\([^)]*\\))?\\s*(?::\\s*(.*)|\\s*)$`,
   "iu",
 );
 function canonicalLabel(label: string): string {
@@ -153,23 +171,30 @@ const empties = await db
   })
   .from(characters)
   .where(
-    sql`${characters.importedFromThreadId} IS NOT NULL
+    REPARSE_ALL
+      ? sql`${characters.importedFromThreadId} IS NOT NULL`
+      : sql`${characters.importedFromThreadId} IS NOT NULL
         AND (${characters.sheetData} IS NULL
              OR ${characters.sheetData} = '{"preamble":"","sections":{}}'::jsonb
              OR (${characters.sheetData}->>'preamble' = ''
                  AND (SELECT count(*) FROM jsonb_object_keys(${characters.sheetData}->'sections')) = 0))`,
   );
 
-console.log(`Found ${empties.length} characters with empty sheets.`);
+console.log(`Found ${empties.length} characters to ${REPARSE_ALL ? "re-parse" : "recover"}.`);
+
+// Stable order so --offset/--limit slices are reproducible across runs.
+empties.sort((a, b) => a.id - b.id);
+const slice = empties.slice(OFFSET, OFFSET + LIMIT);
+console.log(`Processing slice offset=${OFFSET} limit=${LIMIT === Number.POSITIVE_INFINITY ? "all" : LIMIT} -> ${slice.length} characters.`);
 
 let recovered = 0;
 let parsedSections = 0;
 let noText = 0;
 let errors = 0;
 
-for (let i = 0; i < empties.length; i++) {
-  const c = empties[i];
-  const tag = `[${i + 1}/${empties.length}] #${c.id} "${c.name}"`;
+for (let i = 0; i < slice.length; i++) {
+  const c = slice[i];
+  const tag = `[${i + 1}/${slice.length} abs=${OFFSET + i + 1}] #${c.id} "${c.name}"`;
   try {
     const msgs = await fetchAllMessages(c.threadId!);
     if (msgs.length === 0) {

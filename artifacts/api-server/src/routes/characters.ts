@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq, and, desc, or } from "drizzle-orm";
 import {
   db,
@@ -70,6 +71,22 @@ router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {
   res.json({ ...c, isActive: c.id === req.user!.activeCharacterId });
 });
 
+const CharacterUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    archetype: z.string().nullable(),
+    background: z.string().nullable(),
+    portraitUrl: z.string().nullable(),
+    portraitUrls: z.array(z.string()),
+    statsImageUrls: z.array(z.string()),
+    sheetData: z.object({
+      preamble: z.string(),
+      sections: z.record(z.string(), z.string()),
+    }),
+  })
+  .partial()
+  .strict();
+
 router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const c = await loadOwnedChar(req.user!.id, id);
@@ -77,18 +94,26 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const { name, archetype, background, portraitUrl } = req.body ?? {};
-  const [u] = await db
+  const parsed = CharacterUpdateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid update", details: parsed.error.issues });
+    return;
+  }
+  const u: Record<string, unknown> = {};
+  const d = parsed.data;
+  if (d.name !== undefined) u.name = d.name;
+  if (d.archetype !== undefined) u.archetype = d.archetype || null;
+  if (d.background !== undefined) u.background = d.background || null;
+  if (d.portraitUrl !== undefined) u.portraitUrl = d.portraitUrl || null;
+  if (d.portraitUrls !== undefined) u.portraitUrls = d.portraitUrls;
+  if (d.statsImageUrls !== undefined) u.statsImageUrls = d.statsImageUrls;
+  if (d.sheetData !== undefined) u.sheetData = d.sheetData;
+  const [updated] = await db
     .update(characters)
-    .set({
-      ...(name !== undefined ? { name } : {}),
-      ...(archetype !== undefined ? { archetype } : {}),
-      ...(background !== undefined ? { background } : {}),
-      ...(portraitUrl !== undefined ? { portraitUrl } : {}),
-    })
+    .set(u)
     .where(eq(characters.id, id))
     .returning();
-  res.json({ ...u, isActive: u.id === req.user!.activeCharacterId });
+  res.json({ ...updated, isActive: updated.id === req.user!.activeCharacterId });
 });
 
 router.delete("/characters/:id", requireAuth, async (req, res): Promise<void> => {

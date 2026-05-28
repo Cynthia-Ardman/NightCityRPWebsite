@@ -1,14 +1,17 @@
 import { Link } from "wouter";
-import { useListMyCharacters, useListMySheets } from "@workspace/api-client-react";
-import { Users, Plus, Shield, ShieldAlert, FileText, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { useListMyCharacters, useListMySheets, type Character } from "@workspace/api-client-react";
+import { Users, Plus, Shield, ShieldAlert, FileText, Clock, AlertCircle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import EditCharacterDialog from "@/components/EditCharacterDialog";
 
 export default function CharactersList() {
   const { data: characters, isLoading: charsLoading } = useListMyCharacters();
   const { data: sheets, isLoading: sheetsLoading } = useListMySheets();
+  const [editing, setEditing] = useState<Character | null>(null);
 
   const drafts = (sheets ?? []).filter((s) => s.status === "draft" || s.status === "changes_requested");
   const pendingSheets = (sheets ?? []).filter((s) => s.status === "pending");
@@ -110,7 +113,22 @@ export default function CharactersList() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {characters?.map(char => (
-              <Link key={char.id} href={`/characters/${char.id}`}>
+              <div key={char.id} className="relative">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="absolute top-2 right-2 z-10 rounded-none border-nc-cyan/40 text-nc-cyan hover:bg-nc-cyan hover:text-background h-7 px-2 font-display tracking-widest text-xs"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setEditing(char);
+                  }}
+                  data-testid={`button-edit-character-${char.id}`}
+                >
+                  <Pencil className="w-3 h-3 mr-1" /> EDIT
+                </Button>
+                <Link href={`/characters/${char.id}`}>
                 <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan hover:shadow-[0_0_15px_rgba(0,255,255,0.1)] transition-all cursor-pointer group h-full flex flex-col" data-testid={`card-character-${char.id}`}>
                   <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2">
                     <Avatar className="h-16 w-16 border border-border rounded-none group-hover:border-nc-cyan transition-colors shadow-sm">
@@ -147,14 +165,20 @@ export default function CharactersList() {
                     </div>
                   </CardContent>
                 </Card>
-              </Link>
+                </Link>
+              </div>
             ))}
           </div>
         )}
       </section>
 
-      {/* unused imports kept out: CheckCircle/XCircle were for older status icons */}
-      <span className="hidden">{CheckCircle.name}{XCircle.name}</span>
+      {editing && (
+        <EditCharacterDialog
+          character={editing}
+          open={!!editing}
+          onOpenChange={(o) => { if (!o) setEditing(null); }}
+        />
+      )}
     </div>
   );
 }

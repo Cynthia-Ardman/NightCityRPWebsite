@@ -129,7 +129,13 @@ export const UpdateCharacterBody = zod.object({
   "name": zod.string().min(1).max(updateCharacterBodyNameMax).optional(),
   "archetype": zod.string().optional(),
   "background": zod.string().optional(),
-  "portraitUrl": zod.string().optional()
+  "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()).optional(),
+  "statsImageUrls": zod.array(zod.string()).optional(),
+  "sheetData": zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+}).optional()
 })
 
 export const UpdateCharacterResponse = zod.object({

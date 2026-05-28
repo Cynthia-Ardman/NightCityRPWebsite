@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { SheetData } from './sheetData';
 
 export interface CharacterUpdate {
   /**
@@ -14,5 +15,9 @@ export interface CharacterUpdate {
   name?: string;
   archetype?: string;
   background?: string;
-  portraitUrl?: string;
+  /** @nullable */
+  portraitUrl?: string | null;
+  portraitUrls?: string[];
+  statsImageUrls?: string[];
+  sheetData?: SheetData;
 }

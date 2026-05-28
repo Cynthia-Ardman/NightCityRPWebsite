@@ -1553,7 +1553,15 @@ components:
         name: { type: string, minLength: 1, maxLength: 64 }
         archetype: { type: string }
         background: { type: string }
-        portraitUrl: { type: string }
+        portraitUrl: { type: ["string", "null"] }
+        portraitUrls:
+          type: array
+          items: { type: string }
+        statsImageUrls:
+          type: array
+          items: { type: string }
+        sheetData:
+          $ref: "#/components/schemas/SheetData"
 
     InventoryItem:
       type: object

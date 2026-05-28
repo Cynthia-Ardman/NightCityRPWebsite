@@ -23,7 +23,8 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home } from "lucide-react";
+import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil } from "lucide-react";
+import EditCharacterDialog from "@/components/EditCharacterDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ export default function CharacterDetail() {
   const charId = Number(id);
 
   const { data: char, isLoading: charLoading } = useGetCharacter(charId);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (charLoading) return <div className="p-8 text-nc-cyan font-display text-xl animate-pulse">DECRYPTING_IDENTITY...</div>;
   if (!char) return <div className="p-8 text-destructive font-display text-xl">ERROR: IDENTITY_NOT_FOUND</div>;
@@ -85,7 +87,18 @@ export default function CharacterDetail() {
             </div>
           </div>
         </div>
+
+        <Button
+          type="button"
+          onClick={() => setEditOpen(true)}
+          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+          data-testid="button-edit-character"
+        >
+          <Pencil className="w-4 h-4 mr-2" /> EDIT
+        </Button>
       </div>
+
+      <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} />
 
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="bg-card border border-border rounded-none p-0 h-auto flex overflow-x-auto w-full max-w-full no-scrollbar">
