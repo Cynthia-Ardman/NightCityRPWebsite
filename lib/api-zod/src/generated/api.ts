@@ -70,6 +70,16 @@ export const ListMyCharactersResponseItem = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 })
 export const ListMyCharactersResponse = zod.array(ListMyCharactersResponseItem)
@@ -115,6 +125,16 @@ export const GetCharacterResponse = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -167,6 +187,16 @@ export const UpdateCharacterResponse = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -376,7 +406,7 @@ export const GetWalletTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "amount": zod.number(),
-  "kind": zod.enum(['transfer_in', 'transfer_out', 'payout', 'rent', 'cyberware', 'admin', 'shop', 'other']),
+  "kind": zod.enum(['transfer_in', 'transfer_out', 'payout', 'rent', 'lifestyle', 'cyberware', 'admin', 'shop', 'other']),
   "memo": zod.string().nullish(),
   "counterpartyName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
@@ -419,6 +449,54 @@ export const UpdateCharacterStatusResponse = zod.object({
   "openShop": zod.boolean(),
   "statusMessage": zod.string().nullish(),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Set or clear the character's monthly lifestyle tier (owner only)
+ */
+export const SetCharacterLifestyleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SetCharacterLifestyleBody = zod.object({
+  "lifestyleTierId": zod.number().nullish()
+})
+
+export const SetCharacterLifestyleResponse = zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
+  "createdAt": zod.coerce.date()
 })
 
 
@@ -555,6 +633,21 @@ export const ListRentListingsResponseItem = zod.object({
   "description": zod.string().nullish()
 })
 export const ListRentListingsResponse = zod.array(ListRentListingsResponseItem)
+
+
+/**
+ * @summary Active lifestyle tiers (monthly cost surcharges charged alongside rent)
+ */
+export const ListLifestyleTiersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLifestyleTiersResponse = zod.array(ListLifestyleTiersResponseItem)
 
 
 /**
@@ -1892,6 +1985,16 @@ export const AdminListUsersResponseItem = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -1939,6 +2042,16 @@ export const AdminGetUserResponse = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -2002,6 +2115,16 @@ export const AdminSyncUserRolesResponse = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -2059,6 +2182,16 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -2093,6 +2226,16 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -2161,6 +2304,16 @@ export const GetPublicCharacterResponse = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "ownerName": zod.string().nullish(),
@@ -2351,6 +2504,65 @@ export const ListWholesalerItemsResponseItem = zod.object({
 export const ListWholesalerItemsResponse = zod.array(ListWholesalerItemsResponseItem)
 
 
+/**
+ * @summary List all lifestyle tiers (including archived)
+ */
+export const AdminListLifestyleTiersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const AdminListLifestyleTiersResponse = zod.array(AdminListLifestyleTiersResponseItem)
+
+
+
+export const adminCreateLifestyleTierBodyMonthlyCostMin = 0;
+
+
+
+export const AdminCreateLifestyleTierBody = zod.object({
+  "name": zod.string().min(1),
+  "monthlyCost": zod.number().min(adminCreateLifestyleTierBodyMonthlyCostMin),
+  "description": zod.string().optional()
+})
+
+
+export const AdminUpdateLifestyleTierParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const adminUpdateLifestyleTierBodyMonthlyCostMin = 0;
+
+
+
+export const AdminUpdateLifestyleTierBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "monthlyCost": zod.number().min(adminUpdateLifestyleTierBodyMonthlyCostMin).optional(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean().optional()
+})
+
+export const AdminUpdateLifestyleTierResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const AdminArchiveLifestyleTierParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
 
 export const adminCreateWholesalerItemBodyWholesalePriceMin = 0;
 
@@ -2482,7 +2694,7 @@ export const GetMyWalletTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "amount": zod.number(),
-  "kind": zod.enum(['transfer_in', 'transfer_out', 'payout', 'rent', 'cyberware', 'admin', 'shop', 'other']),
+  "kind": zod.enum(['transfer_in', 'transfer_out', 'payout', 'rent', 'lifestyle', 'cyberware', 'admin', 'shop', 'other']),
   "memo": zod.string().nullish(),
   "counterpartyName": zod.string().nullish(),
   "createdAt": zod.coerce.date()

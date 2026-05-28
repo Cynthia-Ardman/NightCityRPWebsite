@@ -10,6 +10,7 @@ import {
   walletTransactions,
   users,
   activityEvents,
+  lifestyleTiers,
   type Character,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
@@ -69,7 +70,51 @@ router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json({ ...c, isActive: c.id === req.user!.activeCharacterId });
+  let lifestyleTier = null;
+  if (c.lifestyleTierId != null) {
+    const [t] = await db.select().from(lifestyleTiers).where(eq(lifestyleTiers.id, c.lifestyleTierId));
+    lifestyleTier = t ?? null;
+  }
+  res.json({ ...c, lifestyleTier, isActive: c.id === req.user!.activeCharacterId });
+});
+
+router.put("/characters/:id/lifestyle", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const raw = (req.body ?? {}).lifestyleTierId;
+  let tierId: number | null = null;
+  if (raw !== null && raw !== undefined && raw !== "") {
+    const parsed = parseInt(String(raw), 10);
+    if (!Number.isFinite(parsed)) {
+      res.status(400).json({ error: "lifestyleTierId must be an integer or null" });
+      return;
+    }
+    const [t] = await db.select().from(lifestyleTiers).where(eq(lifestyleTiers.id, parsed));
+    if (!t) {
+      res.status(404).json({ error: "Lifestyle tier not found" });
+      return;
+    }
+    if (t.archived) {
+      res.status(400).json({ error: "Lifestyle tier is archived" });
+      return;
+    }
+    tierId = parsed;
+  }
+  const [u] = await db
+    .update(characters)
+    .set({ lifestyleTierId: tierId })
+    .where(eq(characters.id, id))
+    .returning();
+  let lifestyleTier = null;
+  if (u.lifestyleTierId != null) {
+    const [t] = await db.select().from(lifestyleTiers).where(eq(lifestyleTiers.id, u.lifestyleTierId));
+    lifestyleTier = t ?? null;
+  }
+  res.json({ ...u, lifestyleTier, isActive: u.id === req.user!.activeCharacterId });
 });
 
 const LIFE_STATUSES = ["active", "dead", "missing", "loa", "retired"] as const;

@@ -14,6 +14,7 @@ export const WalletTransactionKind = {
   transfer_out: 'transfer_out',
   payout: 'payout',
   rent: 'rent',
+  lifestyle: 'lifestyle',
   cyberware: 'cyberware',
   admin: 'admin',
   shop: 'shop',

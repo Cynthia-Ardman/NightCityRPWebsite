@@ -33,6 +33,7 @@ import type {
   CatalogRent,
   Character,
   CharacterInput,
+  CharacterLifestyleInput,
   CharacterSheet,
   CharacterSheetInput,
   CharacterSheetPatchInput,
@@ -61,6 +62,9 @@ import type {
   InventoryTransferInput,
   JobRunInput,
   JobRunResult,
+  LifestyleTier,
+  LifestyleTierInput,
+  LifestyleTierPatch,
   ListAllMissionsParams,
   ListMissionsParams,
   ListPublicCharactersParams,
@@ -1819,6 +1823,78 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getUpdateCharacterStatusMutationOptions(options));
     }
 
+export const getSetCharacterLifestyleUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/lifestyle`
+}
+
+/**
+ * @summary Set or clear the character's monthly lifestyle tier (owner only)
+ */
+export const setCharacterLifestyle = async (id: number,
+    characterLifestyleInput: CharacterLifestyleInput, options?: RequestInit): Promise<Character> => {
+
+  return customFetch<Character>(getSetCharacterLifestyleUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      characterLifestyleInput,)
+  }
+);}
+
+
+
+
+export const getSetCharacterLifestyleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCharacterLifestyle>>, TError,{id: number;data: BodyType<CharacterLifestyleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCharacterLifestyle>>, TError,{id: number;data: BodyType<CharacterLifestyleInput>}, TContext> => {
+
+const mutationKey = ['setCharacterLifestyle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCharacterLifestyle>>, {id: number;data: BodyType<CharacterLifestyleInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setCharacterLifestyle(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCharacterLifestyleMutationResult = NonNullable<Awaited<ReturnType<typeof setCharacterLifestyle>>>
+    export type SetCharacterLifestyleMutationBody = BodyType<CharacterLifestyleInput>
+    export type SetCharacterLifestyleMutationError = ErrorType<void>
+
+    /**
+ * @summary Set or clear the character's monthly lifestyle tier (owner only)
+ */
+export const useSetCharacterLifestyle = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCharacterLifestyle>>, TError,{id: number;data: BodyType<CharacterLifestyleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setCharacterLifestyle>>,
+        TError,
+        {id: number;data: BodyType<CharacterLifestyleInput>},
+        TContext
+      > => {
+      return useMutation(getSetCharacterLifestyleMutationOptions(options));
+    }
+
 export const getListRipperdocsUrl = () => {
 
 
@@ -2387,6 +2463,83 @@ export function useListRentListings<TData = Awaited<ReturnType<typeof listRentLi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListRentListingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListLifestyleTiersUrl = () => {
+
+
+
+
+  return `/api/catalog/lifestyle`
+}
+
+/**
+ * @summary Active lifestyle tiers (monthly cost surcharges charged alongside rent)
+ */
+export const listLifestyleTiers = async ( options?: RequestInit): Promise<LifestyleTier[]> => {
+
+  return customFetch<LifestyleTier[]>(getListLifestyleTiersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLifestyleTiersQueryKey = () => {
+    return [
+    `/api/catalog/lifestyle`
+    ] as const;
+    }
+
+
+export const getListLifestyleTiersQueryOptions = <TData = Awaited<ReturnType<typeof listLifestyleTiers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLifestyleTiers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLifestyleTiersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLifestyleTiers>>> = ({ signal }) => listLifestyleTiers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLifestyleTiers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLifestyleTiersQueryResult = NonNullable<Awaited<ReturnType<typeof listLifestyleTiers>>>
+export type ListLifestyleTiersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Active lifestyle tiers (monthly cost surcharges charged alongside rent)
+ */
+
+export function useListLifestyleTiers<TData = Awaited<ReturnType<typeof listLifestyleTiers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLifestyleTiers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLifestyleTiersQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -6991,6 +7144,278 @@ export function useListWholesalerItems<TData = Awaited<ReturnType<typeof listWho
 
 
 
+
+export const getAdminListLifestyleTiersUrl = () => {
+
+
+
+
+  return `/api/admin/lifestyle-tiers`
+}
+
+/**
+ * @summary List all lifestyle tiers (including archived)
+ */
+export const adminListLifestyleTiers = async ( options?: RequestInit): Promise<LifestyleTier[]> => {
+
+  return customFetch<LifestyleTier[]>(getAdminListLifestyleTiersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListLifestyleTiersQueryKey = () => {
+    return [
+    `/api/admin/lifestyle-tiers`
+    ] as const;
+    }
+
+
+export const getAdminListLifestyleTiersQueryOptions = <TData = Awaited<ReturnType<typeof adminListLifestyleTiers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListLifestyleTiers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListLifestyleTiersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListLifestyleTiers>>> = ({ signal }) => adminListLifestyleTiers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListLifestyleTiers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListLifestyleTiersQueryResult = NonNullable<Awaited<ReturnType<typeof adminListLifestyleTiers>>>
+export type AdminListLifestyleTiersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all lifestyle tiers (including archived)
+ */
+
+export function useAdminListLifestyleTiers<TData = Awaited<ReturnType<typeof adminListLifestyleTiers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListLifestyleTiers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListLifestyleTiersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminCreateLifestyleTierUrl = () => {
+
+
+
+
+  return `/api/admin/lifestyle-tiers`
+}
+
+export const adminCreateLifestyleTier = async (lifestyleTierInput: LifestyleTierInput, options?: RequestInit): Promise<LifestyleTier> => {
+
+  return customFetch<LifestyleTier>(getAdminCreateLifestyleTierUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      lifestyleTierInput,)
+  }
+);}
+
+
+
+
+export const getAdminCreateLifestyleTierMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateLifestyleTier>>, TError,{data: BodyType<LifestyleTierInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreateLifestyleTier>>, TError,{data: BodyType<LifestyleTierInput>}, TContext> => {
+
+const mutationKey = ['adminCreateLifestyleTier'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateLifestyleTier>>, {data: BodyType<LifestyleTierInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreateLifestyleTier(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreateLifestyleTierMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateLifestyleTier>>>
+    export type AdminCreateLifestyleTierMutationBody = BodyType<LifestyleTierInput>
+    export type AdminCreateLifestyleTierMutationError = ErrorType<unknown>
+
+    export const useAdminCreateLifestyleTier = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateLifestyleTier>>, TError,{data: BodyType<LifestyleTierInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreateLifestyleTier>>,
+        TError,
+        {data: BodyType<LifestyleTierInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreateLifestyleTierMutationOptions(options));
+    }
+
+export const getAdminUpdateLifestyleTierUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/lifestyle-tiers/${id}`
+}
+
+export const adminUpdateLifestyleTier = async (id: number,
+    lifestyleTierPatch: LifestyleTierPatch, options?: RequestInit): Promise<LifestyleTier> => {
+
+  return customFetch<LifestyleTier>(getAdminUpdateLifestyleTierUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      lifestyleTierPatch,)
+  }
+);}
+
+
+
+
+export const getAdminUpdateLifestyleTierMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateLifestyleTier>>, TError,{id: number;data: BodyType<LifestyleTierPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateLifestyleTier>>, TError,{id: number;data: BodyType<LifestyleTierPatch>}, TContext> => {
+
+const mutationKey = ['adminUpdateLifestyleTier'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateLifestyleTier>>, {id: number;data: BodyType<LifestyleTierPatch>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminUpdateLifestyleTier(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdateLifestyleTierMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateLifestyleTier>>>
+    export type AdminUpdateLifestyleTierMutationBody = BodyType<LifestyleTierPatch>
+    export type AdminUpdateLifestyleTierMutationError = ErrorType<unknown>
+
+    export const useAdminUpdateLifestyleTier = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateLifestyleTier>>, TError,{id: number;data: BodyType<LifestyleTierPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdateLifestyleTier>>,
+        TError,
+        {id: number;data: BodyType<LifestyleTierPatch>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdateLifestyleTierMutationOptions(options));
+    }
+
+export const getAdminArchiveLifestyleTierUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/lifestyle-tiers/${id}`
+}
+
+export const adminArchiveLifestyleTier = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getAdminArchiveLifestyleTierUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminArchiveLifestyleTierMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminArchiveLifestyleTier>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminArchiveLifestyleTier>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['adminArchiveLifestyleTier'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminArchiveLifestyleTier>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminArchiveLifestyleTier(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminArchiveLifestyleTierMutationResult = NonNullable<Awaited<ReturnType<typeof adminArchiveLifestyleTier>>>
+
+    export type AdminArchiveLifestyleTierMutationError = ErrorType<unknown>
+
+    export const useAdminArchiveLifestyleTier = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminArchiveLifestyleTier>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminArchiveLifestyleTier>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getAdminArchiveLifestyleTierMutationOptions(options));
+    }
 
 export const getAdminCreateWholesalerItemUrl = () => {
 

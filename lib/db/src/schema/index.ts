@@ -83,6 +83,9 @@ export const characters = pgTable("characters", {
   approved: boolean("approved").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
+  // Optional monthly lifestyle tier (Street/Standard/Affluent/Luxury). Debited
+  // alongside rent by the monthly_rent cron. Null = no lifestyle billing.
+  lifestyleTierId: integer("lifestyle_tier_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   importedThreadIdx: uniqueIndex("characters_imported_thread_idx").on(t.importedFromThreadId),
@@ -376,6 +379,18 @@ export const botConfig = pgTable("bot_config", {
   value: jsonb("value").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+export const lifestyleTiers = pgTable("lifestyle_tiers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  // Eddies debited monthly alongside rent. 0 is allowed (e.g. Street).
+  monthlyCost: integer("monthly_cost").notNull().default(0),
+  description: text("description"),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+export type LifestyleTier = typeof lifestyleTiers.$inferSelect;
 
 export const sessionsTable = pgTable("user_sessions", {
   sid: text("sid").primaryKey(),

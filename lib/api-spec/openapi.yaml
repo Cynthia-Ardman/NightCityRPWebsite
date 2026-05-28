@@ -349,6 +349,25 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CharacterStatus" }
+  /characters/{id}/lifestyle:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    put:
+      operationId: setCharacterLifestyle
+      tags: [characters]
+      summary: Set or clear the character's monthly lifestyle tier (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CharacterLifestyleInput" }
+      responses:
+        "200":
+          description: Updated character
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+        "404": { description: Not found }
 
   # ---------------- PUBLIC DIRECTORIES ----------------
   /directory/ripperdocs:
@@ -462,6 +481,19 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CatalogRent" }
+  /catalog/lifestyle:
+    get:
+      operationId: listLifestyleTiers
+      tags: [catalog]
+      summary: Active lifestyle tiers (monthly cost surcharges charged alongside rent)
+      responses:
+        "200":
+          description: Lifestyle tiers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LifestyleTier" }
 
   # ---------------- HOUSING (per-character leases) ----------------
   /housing/mine:
@@ -1377,6 +1409,55 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/WholesalerItem" }
+  /admin/lifestyle-tiers:
+    get:
+      operationId: adminListLifestyleTiers
+      tags: [lifestyle]
+      summary: List all lifestyle tiers (including archived)
+      responses:
+        "200":
+          description: Lifestyle tiers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LifestyleTier" }
+    post:
+      operationId: adminCreateLifestyleTier
+      tags: [lifestyle]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LifestyleTierInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LifestyleTier" }
+  /admin/lifestyle-tiers/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: adminUpdateLifestyleTier
+      tags: [lifestyle]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LifestyleTierPatch" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LifestyleTier" }
+    delete:
+      operationId: adminArchiveLifestyleTier
+      tags: [lifestyle]
+      responses:
+        "204": { description: Archived }
   /admin/wholesaler/items:
     post:
       operationId: adminCreateWholesalerItem
@@ -1557,6 +1638,11 @@ components:
           type: string
           enum: [active, dead, missing, loa, retired]
           description: "Headline character status shown on sheets. Editable by the owner via PATCH /characters/{id}."
+        lifestyleTierId: { type: ["integer", "null"] }
+        lifestyleTier:
+          oneOf:
+            - { type: "null" }
+            - { $ref: "#/components/schemas/LifestyleTier" }
         createdAt: { type: string, format: date-time }
 
     SheetData:
@@ -1770,7 +1856,7 @@ components:
         id: { type: integer }
         characterId: { type: integer }
         amount: { type: integer }
-        kind: { type: string, enum: [transfer_in, transfer_out, payout, rent, cyberware, admin, shop, other] }
+        kind: { type: string, enum: [transfer_in, transfer_out, payout, rent, lifestyle, cyberware, admin, shop, other] }
         memo: { type: ["string", "null"] }
         counterpartyName: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
@@ -2411,6 +2497,39 @@ components:
         name: { type: string }
         avatarUrl: { type: ["string", "null"] }
         value: { type: integer }
+
+    LifestyleTier:
+      type: object
+      required: [id, name, monthlyCost, archived, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        monthlyCost: { type: integer }
+        description: { type: ["string", "null"] }
+        archived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    LifestyleTierInput:
+      type: object
+      required: [name, monthlyCost]
+      properties:
+        name: { type: string, minLength: 1 }
+        monthlyCost: { type: integer, minimum: 0 }
+        description: { type: string }
+
+    LifestyleTierPatch:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        monthlyCost: { type: integer, minimum: 0 }
+        description: { type: ["string", "null"] }
+        archived: { type: boolean }
+
+    CharacterLifestyleInput:
+      type: object
+      properties:
+        lifestyleTierId: { type: ["integer", "null"] }
 
     WholesalerItem:
       type: object

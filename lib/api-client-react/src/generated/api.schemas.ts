@@ -56,6 +56,17 @@ export interface SheetData {
   sections: SheetDataSections;
 }
 
+export interface LifestyleTier {
+  id: number;
+  name: string;
+  monthlyCost: number;
+  /** @nullable */
+  description?: string | null;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Character {
   id: number;
   /** @nullable */
@@ -85,6 +96,9 @@ export interface Character {
   archived: boolean;
   /** Headline character status shown on sheets. Editable by the owner via PATCH /characters/{id}. */
   lifeStatus?: CharacterLifeStatus;
+  /** @nullable */
+  lifestyleTierId?: number | null;
+  lifestyleTier?: null | LifestyleTier;
   createdAt: string;
 }
 
@@ -358,6 +372,7 @@ export const WalletTransactionKind = {
   transfer_out: 'transfer_out',
   payout: 'payout',
   rent: 'rent',
+  lifestyle: 'lifestyle',
   cyberware: 'cyberware',
   admin: 'admin',
   shop: 'shop',
@@ -1156,6 +1171,29 @@ export interface BotConfigEntry {
 
 export interface BotConfigUpdate {
   value: unknown;
+}
+
+export interface LifestyleTierInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 0 */
+  monthlyCost: number;
+  description?: string;
+}
+
+export interface LifestyleTierPatch {
+  /** @minLength 1 */
+  name?: string;
+  /** @minimum 0 */
+  monthlyCost?: number;
+  /** @nullable */
+  description?: string | null;
+  archived?: boolean;
+}
+
+export interface CharacterLifestyleInput {
+  /** @nullable */
+  lifestyleTierId?: number | null;
 }
 
 export type WholesalerItemTier = typeof WholesalerItemTier[keyof typeof WholesalerItemTier];

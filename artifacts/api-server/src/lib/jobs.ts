@@ -1,5 +1,5 @@
-import { db, users, jobRuns, characters, walletTransactions, housing } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { db, users, jobRuns, characters, walletTransactions, housing, lifestyleTiers, activityEvents } from "@workspace/db";
+import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot } from "./discord";
 import { patchBalance } from "./unbelievaboat";
@@ -71,6 +71,52 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           : new Date();
         base.setUTCMonth(base.getUTCMonth() + 1);
         await db.update(housing).set({ paidThrough: base }).where(eq(housing.id, lease.id));
+        affected++;
+      }
+      // Monthly lifestyle charge — independent of housing, iterates approved
+      // non-archived PCs that have selected a (non-archived) lifestyle tier.
+      // UB is authoritative; on debit failure we log an activity event but do
+      // NOT evict the tier or write a ledger row.
+      const lifestyleRows = await db
+        .select({ character: characters, tier: lifestyleTiers })
+        .from(characters)
+        .innerJoin(lifestyleTiers, eq(lifestyleTiers.id, characters.lifestyleTierId))
+        .where(and(
+          eq(characters.kind, "pc"),
+          eq(characters.approved, true),
+          eq(characters.archived, false),
+          eq(lifestyleTiers.archived, false),
+          isNotNull(characters.lifestyleTierId),
+        ));
+      for (const { character: c, tier } of lifestyleRows) {
+        const cost = tier.monthlyCost;
+        if (cost <= 0) continue;
+        if (!c.ownerId) continue;
+        const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
+        if (!owner) continue;
+        const ub = await patchBalance(owner.discordId, {
+          cash: -cost,
+          reason: `Lifestyle: ${tier.name} (${c.name})`,
+        });
+        if (!ub) {
+          logger.warn(
+            { characterId: c.id, tierId: tier.id },
+            "monthly_rent lifestyle UB debit failed; logging unpaid event",
+          );
+          await db.insert(activityEvents).values({
+            kind: "lifestyle_unpaid",
+            actorId: c.ownerId,
+            message: `${c.name} could not pay ${tier.name} lifestyle (€$${cost})`,
+          });
+          continue;
+        }
+        await db.insert(walletTransactions).values({
+          characterId: c.id,
+          userId: c.ownerId,
+          amount: -cost,
+          kind: "lifestyle",
+          memo: `Lifestyle: ${tier.name}`,
+        });
         affected++;
       }
     } else if (name === "cyberware_humanity") {

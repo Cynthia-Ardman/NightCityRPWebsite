@@ -7,6 +7,7 @@
  */
 import type { CharacterKind } from './characterKind';
 import type { CharacterLifeStatus } from './characterLifeStatus';
+import type { LifestyleTier } from './lifestyleTier';
 import type { SheetData } from './sheetData';
 
 export interface Character {
@@ -38,5 +39,8 @@ export interface Character {
   archived: boolean;
   /** Headline character status shown on sheets. Editable by the owner via PATCH /characters/{id}. */
   lifeStatus?: CharacterLifeStatus;
+  /** @nullable */
+  lifestyleTierId?: number | null;
+  lifestyleTier?: null | LifestyleTier;
   createdAt: Date;
 }

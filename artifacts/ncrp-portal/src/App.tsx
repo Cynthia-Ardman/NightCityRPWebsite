@@ -12,6 +12,7 @@ import CharacterDetail from "@/pages/CharacterDetail";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminUserDetail from "@/pages/admin/AdminUserDetail";
 import AdminWholesaler from "@/pages/admin/AdminWholesaler";
+import AdminLifestyle from "@/pages/admin/AdminLifestyle";
 import DiceRoller from "@/pages/DiceRoller";
 import NewSheet from "@/pages/sheets/NewSheet";
 import SheetDetail from "@/pages/sheets/SheetDetail";
@@ -97,6 +98,7 @@ function AppRoutes() {
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/users/:userId" component={AdminUserDetail} />
           <Route path="/admin/wholesaler" component={AdminWholesaler} />
+          <Route path="/admin/lifestyle" component={AdminLifestyle} />
           <Route component={NotFound} />
         </Switch>
       </AppLayout>

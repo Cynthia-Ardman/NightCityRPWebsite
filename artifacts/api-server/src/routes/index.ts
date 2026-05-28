@@ -13,6 +13,7 @@ import dashboardRouter from "./dashboard";
 import storageRouter from "./storage";
 import housingRouter from "./housing";
 import wholesalerRouter from "./wholesaler";
+import lifestyleRouter from "./lifestyle";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(dashboardRouter);
 router.use(storageRouter);
 router.use(housingRouter);
 router.use(wholesalerRouter);
+router.use(lifestyleRouter);
 
 export default router;
