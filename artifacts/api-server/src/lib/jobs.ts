@@ -3,6 +3,7 @@ import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
 import { patchBalance } from "./unbelievaboat";
+import { sumCwpByCharacter } from "./cyberware";
 
 const EVICTION_CHANNEL_ID = process.env.EVICTION_CHANNEL_ID ?? "";
 const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
@@ -554,15 +555,12 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .from(characters)
         .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
 
-      // Chrome counts per character (inventory_items category='cyberware').
+      // Per-character CWP totals (sum of "CWP n" parsed from each
+      // cyberware item's notes, not a row count). Bands (7/10/13) are
+      // defined in CWP, so a single item worth 7 CWP can trigger meds
+      // on its own while five 1-CWP trinkets total only 5.
       const approvedIds = approvedChars.map((c) => c.id);
-      const chromeRows = approvedIds.length === 0 ? [] : await db
-        .select({ characterId: inventoryItems.characterId, count: sql<number>`count(*)::int` })
-        .from(inventoryItems)
-        .where(and(inArray(inventoryItems.characterId, approvedIds), eq(inventoryItems.category, "cyberware")))
-        .groupBy(inventoryItems.characterId);
-      const chromeByChar = new Map<number, number>();
-      for (const r of chromeRows) if (r.characterId != null) chromeByChar.set(r.characterId, r.count);
+      const chromeByChar = await sumCwpByCharacter(approvedIds);
 
       // Group chars by owner so we can compute the household multiplier
       // and the per-user "last checkup across all chars" streak.

@@ -458,11 +458,11 @@ function UpcomingBillsCard() {
                 icon={Syringe}
                 color="text-destructive"
                 title="CYBERPSYCHOSIS MEDS (WEEKLY)"
-                emptyHint="No character has 7+ chrome — no meds owed."
+                emptyHint="No character has 7+ CWP — no meds owed."
                 items={data.meds.map((m) => ({
                   key: `meds-${m.anchorCharacterId ?? "player"}`,
                   primary: `Household bill${m.anchorCharacterName ? ` · top: ${m.anchorCharacterName}` : ""}`,
-                  secondary: `${m.level} band · ${m.maxChromeCount} chrome · week ${m.weeksUnpaid}${m.multiplier > 1 ? ` · household x${m.multiplier}` : ""} · due ${formatDueDate(m.dueAt)}`,
+                  secondary: `${m.level} band · ${m.maxChromeCount} CWP · week ${m.weeksUnpaid}${m.multiplier > 1 ? ` · household x${m.multiplier}` : ""} · due ${formatDueDate(m.dueAt)}`,
                   amount: m.amount,
                   to: m.anchorCharacterId ? `/characters/${m.anchorCharacterId}` : undefined,
                 }))}
@@ -564,15 +564,15 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
           }
           tooltip={
             billable.length === 0 ? (
-              <span>No PC is over the 7-chrome threshold yet.</span>
+              <span>No PC is over the 7 CWP threshold yet.</span>
             ) : (
               <div className="space-y-1">
-                <div className="font-semibold">Billable characters (≥ 7 chrome):</div>
+                <div className="font-semibold">Billable characters (≥ 7 CWP):</div>
                 {billable.map((b) => (
                   <div key={b.characterId} className="flex justify-between gap-3">
                     <span>{b.characterName}</span>
                     <span className="text-muted-foreground">
-                      {b.chromeCount} chrome · {bandLabel(b.band)}
+                      {b.chromeCount} CWP · {bandLabel(b.band)}
                     </span>
                   </div>
                 ))}
@@ -589,7 +589,7 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
         <StatRow
           label="Top Cyberware Band"
           value={<span className={bandColorClass(status.topBand)}>{bandLabel(status.topBand)}</span>}
-          tooltip="Medium is 7-9 Cyberware Points, High is 10-12 Cyberware points, and Extreme is 13-15 Cyberware Points. The bill is driven by your highest-chrome character."
+          tooltip="Medium is 7-9 Cyberware Points, High is 10-12 Cyberware Points, and Extreme is 13-15 Cyberware Points. The bill is driven by whichever of your characters has the highest CWP total. NPCs do not count."
         />
       </div>
     </TooltipProvider>

@@ -19,6 +19,7 @@ import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
 import { hasRole } from "../lib/discord";
 import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand } from "../lib/jobs";
+import { sumCwpByCharacter } from "../lib/cyberware";
 
 // Keep this in sync with `lib/jobs.ts` — it's the rent the monthly_rent cron
 // actually debits per approved PC. Meds use a different formula keyed on
@@ -134,16 +135,13 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // scales the bill by +25% per extra billable character (chrome >= 7).
   // Calls the same helper the cyberware_humanity cron uses so the
   // displayed number is exactly what gets debited.
+  // chromeCount is the per-character CWP TOTAL (sum of "CWP n" parsed from
+  // each cyberware item's notes), not a row count. "Fully Organic" items
+  // count as 0; un-tagged items fall back to 1 per piece. Bands (7-9
+  // medium, 10-12 high, 13+ extreme) are defined in CWP, so a player with
+  // 5 items totalling 10 CWP is correctly High, not None.
   const billableIds = billable.map((c) => c.id);
-  const chromeCountsRaw = billableIds.length === 0 ? [] : await db
-    .select({ characterId: inventoryItems.characterId, count: sql<number>`count(*)::int` })
-    .from(inventoryItems)
-    .where(and(inArray(inventoryItems.characterId, billableIds), eq(inventoryItems.category, "cyberware")))
-    .groupBy(inventoryItems.characterId);
-  const chromeCounts = new Map<number, number>();
-  for (const r of chromeCountsRaw) {
-    if (r.characterId != null) chromeCounts.set(r.characterId, r.count);
-  }
+  const chromeCounts = await sumCwpByCharacter(billableIds);
   // Per-user checkup state. The portal stores characters.lastCheckupAt per
   // character, but the legacy bot (and current weekly cron) track checkups
   // PER USER — one ripperdoc visit on any character resets the streak for
