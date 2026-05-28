@@ -12,8 +12,11 @@ import {
   users,
   activityEvents,
   lifestyleTiers,
+  housing,
+  shopOpens,
   type Character,
 } from "@workspace/db";
+import { gte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { createPendingEdit } from "./pending-edits";
@@ -886,6 +889,118 @@ router.patch("/characters/:id/status", requireAuth, async (req, res): Promise<vo
     });
   }
   res.json(result);
+});
+
+// Open-shop: a character with an active `business` lease can press this
+// once per UTC day. The button drives passive income on the next
+// monthly_rent run — see SHOP_T0_PAYOUTS / SHOP_TIER_PLUS_MULT in
+// lib/jobs.ts. The UNIQUE (characterId, openedOn) index in `shop_opens`
+// is the idempotency guarantee; we still pre-count in this month so the
+// UI can honestly show "X / 4 paying opens this month" without round-trip
+// math on the client.
+router.get("/characters/:id/shop", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const leases = await db
+    .select()
+    .from(housing)
+    .where(and(eq(housing.characterId, id), eq(housing.kind, "business")));
+  // Start of current UTC month.
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const opens = await db
+    .select()
+    .from(shopOpens)
+    .where(and(eq(shopOpens.characterId, id), gte(shopOpens.openedAt, monthStart)))
+    .orderBy(desc(shopOpens.openedAt));
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    .toISOString()
+    .slice(0, 10);
+  const openedToday = opens.some((o) => o.openedOn === today);
+  res.json({
+    characterId: id,
+    businessLeases: leases.map((l) => ({
+      id: l.id,
+      listingId: l.listingId,
+      address: l.address,
+      monthlyRent: l.monthlyRent,
+    })),
+    canOpen: leases.length > 0,
+    openedToday,
+    opensThisMonth: opens.length,
+    opensCountedForIncome: Math.min(opens.length, 4),
+    history: opens.slice(0, 12).map((o) => ({
+      openedOn: o.openedOn,
+      openedAt: o.openedAt,
+      listingId: o.listingId,
+    })),
+  });
+});
+
+router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const leases = await db
+    .select()
+    .from(housing)
+    .where(and(eq(housing.characterId, id), eq(housing.kind, "business")));
+  if (leases.length === 0) {
+    res.status(403).json({ error: "Character has no active business lease" });
+    return;
+  }
+  // If the body specifies a leaseId, validate it belongs to this character;
+  // otherwise default to the first business lease.
+  const requestedLeaseId = Number(req.body?.leaseId);
+  const lease = requestedLeaseId
+    ? leases.find((l) => l.id === requestedLeaseId)
+    : leases[0];
+  if (!lease) {
+    res.status(400).json({ error: "Lease not owned by this character" });
+    return;
+  }
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    .toISOString()
+    .slice(0, 10);
+  try {
+    const [row] = await db
+      .insert(shopOpens)
+      .values({
+        characterId: id,
+        listingId: lease.listingId,
+        openedOn: today,
+        notes: typeof req.body?.notes === "string" ? req.body.notes : null,
+      })
+      .returning();
+    await db.insert(activityEvents).values({
+      kind: "shop_opened",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorAvatarUrl: req.user!.avatarUrl,
+      message: `${c.name} opened shop at ${lease.address}`,
+    });
+    res.json({
+      characterId: id,
+      openedOn: row.openedOn,
+      openedAt: row.openedAt,
+      leaseAddress: lease.address,
+    });
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    if (code === "23505") {
+      res.status(409).json({ error: "Shop already opened today", openedOn: today });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;

@@ -26,7 +26,7 @@ import {
   useListMyMissions,
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -835,6 +835,14 @@ function StatusTab({ characterId }: { characterId: number }) {
           testid="switch-openshop"
         />
 
+        {/* Daily "press to open shop" button — separate from the visible
+            OPEN SHOP toggle above. The toggle is just a status flag; this
+            button is what actually drives passive income on the next
+            monthly_rent run. The endpoint enforces "owner of an active
+            business lease" + "one click per UTC day" so a character with
+            no lease never sees the action enabled. */}
+        <ShopOpenSection characterId={characterId} />
+
         {status.loa && (
           <div className="grid grid-cols-12 gap-2 items-end">
             <div className="col-span-8">
@@ -882,6 +890,88 @@ function StatusTab({ characterId }: { characterId: number }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+interface ShopOpenInfo {
+  characterId: number;
+  canOpen: boolean;
+  openedToday: boolean;
+  opensThisMonth: number;
+  opensCountedForIncome: number;
+  businessLeases: Array<{ id: number; address: string; monthlyRent: number }>;
+  history: Array<{ openedOn: string; openedAt: string }>;
+}
+
+// Card slot inside StatusTab for the OPEN SHOP TODAY action. Hidden
+// entirely when the character has no active business lease — there's no
+// useful UI for "you can't open a shop you don't own."
+function ShopOpenSection({ characterId }: { characterId: number }) {
+  const qc = useQueryClient();
+  const queryKey = ["character-shop", characterId] as const;
+  const { data, isLoading } = useQuery<ShopOpenInfo>({
+    queryKey,
+    queryFn: async () => {
+      const r = await fetch(`/api/characters/${characterId}/shop`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load shop status");
+      return r.json();
+    },
+  });
+  const open = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/characters/${characterId}/open-shop`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!r.ok && r.status !== 409) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${r.status}`);
+      }
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
+  });
+
+  if (isLoading || !data) return null;
+  if (!data.canOpen) return null;
+
+  const lease = data.businessLeases[0];
+  // The cron caps paying opens at 4/month — anything past that is still
+  // recorded for history but doesn't add to income. Surface both numbers
+  // so a 6-open month doesn't read as a bug.
+  const capped = data.opensThisMonth > data.opensCountedForIncome;
+  const disabled = data.openedToday || open.isPending;
+
+  return (
+    <div className="border border-nc-magenta/40 bg-nc-magenta/5 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="font-display tracking-widest text-nc-magenta text-sm">SHOP STATUS</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            {lease ? `${lease.address} · €$${lease.monthlyRent.toLocaleString()}/mo` : "Business lease"}
+          </div>
+        </div>
+        <Button
+          type="button"
+          disabled={disabled}
+          onClick={() => open.mutate()}
+          className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest disabled:opacity-50"
+          data-testid="button-open-shop-today"
+        >
+          {data.openedToday ? "OPENED TODAY ✓" : open.isPending ? "OPENING..." : "OPEN SHOP TODAY"}
+        </Button>
+      </div>
+      <div className="text-xs font-mono text-muted-foreground">
+        OPENS_THIS_MONTH: <span className="text-nc-cyan">{data.opensCountedForIncome}/4</span>
+        {capped && <span className="text-nc-yellow"> (+{data.opensThisMonth - data.opensCountedForIncome} past cap)</span>}
+        {" · "}NEXT_CHARGE: monthly rent cycle
+      </div>
+      {open.error instanceof Error && (
+        <div className="text-xs font-mono text-destructive">ERR: {open.error.message}</div>
+      )}
+    </div>
   );
 }
 

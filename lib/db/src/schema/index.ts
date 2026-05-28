@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   index,
   uuid,
+  date,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable(
@@ -105,6 +106,16 @@ export const characters = pgTable("characters", {
   // skipping checkups gets exponentially more expensive (matches
   // NightCityBot's missed-checkup multiplier behavior, but linear).
   checkupStreak: integer("checkup_streak").notNull().default(0),
+  // Cyberware-risk band assigned by a ripperdoc (or admin) — matches the
+  // NightCityBot's medium/high/extreme Discord-role gating. Drives the
+  // weekly meds cap in the cyberware_humanity cron:
+  //   none    → no meds charge
+  //   medium  → cap 2000 eddies/week
+  //   high    → cap 5000 eddies/week
+  //   extreme → cap 10000 eddies/week
+  // Default is 'none' so existing characters aren't auto-billed until a
+  // ripperdoc gives them a checkup and stamps a level.
+  cyberwareLevel: text("cyberware_level").notNull().default("none"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   importedThreadIdx: uniqueIndex("characters_imported_thread_idx").on(t.importedFromThreadId),
@@ -548,6 +559,44 @@ export const pendingEditApprovals = pgTable("pending_edit_approvals", {
   oneVotePerVoterIdx: uniqueIndex("pending_edit_vote_unique_idx").on(t.editId, t.voterId),
 }));
 export type PendingEditApproval = typeof pendingEditApprovals.$inferSelect;
+
+// Per-character shop opens — one row per "the owner opened their venue
+// today" event. The monthly_rent cron counts rows in the current month to
+// scale a business lease's passive income. The UNIQUE (characterId, day)
+// index makes the user-facing button idempotent: clicking twice on the
+// same UTC day is a no-op. listingId is the housing lease the shop ran
+// out of; nullable so we don't lose history if the lease is later deleted.
+export const shopOpens = pgTable("shop_opens", {
+  id: serial("id").primaryKey(),
+  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  listingId: integer("listing_id"),
+  // UTC date the shop was opened (YYYY-MM-DD). Stored as a `date` column
+  // — not a timestamp — so the unique index does the day-bucketing for us
+  // without timezone surprises.
+  openedOn: date("opened_on").notNull(),
+  openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+  notes: text("notes"),
+}, (t) => ({
+  oneOpenPerDayIdx: uniqueIndex("shop_opens_one_per_day_idx").on(t.characterId, t.openedOn),
+  charMonthIdx: index("shop_opens_char_month_idx").on(t.characterId, t.openedAt),
+}));
+export type ShopOpen = typeof shopOpens.$inferSelect;
+
+// Per-user weekly attendance claims. One row = "user collected their
+// €$250 weekly attend bonus for the ISO week starting Monday." The
+// UNIQUE (userId, weekStart) index is the entire correctness story —
+// claim handler is just: insert, on conflict return 409.
+export const attendanceClaims = pgTable("attendance_claims", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Monday 00:00 UTC of the ISO week the claim applies to.
+  weekStart: date("week_start").notNull(),
+  amount: integer("amount").notNull().default(250),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  oneClaimPerWeekIdx: uniqueIndex("attendance_one_per_week_idx").on(t.userId, t.weekStart),
+}));
+export type AttendanceClaim = typeof attendanceClaims.$inferSelect;
 
 export const sessionsTable = pgTable("user_sessions", {
   sid: text("sid").primaryKey(),

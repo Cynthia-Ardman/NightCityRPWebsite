@@ -112,6 +112,7 @@ function SidebarContent() {
         
         {user?.isStoreOwner && <NavItem href="/stores" icon={Store} label="Manage Stores" />}
         {user?.isRipperdoc && <NavItem href="/clinics" icon={Syringe} label="Manage Clinics" />}
+        {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Syringe} label="Ripperdoc Console" />}
         {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
         {user?.isFixer && <NavItem href="/fixer/items" icon={Search} label="Item Trace" />}
         {user?.isFixer && !user?.isAdmin && <NavItem href="/admin" icon={Shield} label="Character Console" />}

@@ -15,6 +15,7 @@ import storageRouter from "./storage";
 import housingRouter from "./housing";
 import wholesalerRouter from "./wholesaler";
 import lifestyleRouter from "./lifestyle";
+import attendanceRouter from "./attendance";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(storageRouter);
 router.use(housingRouter);
 router.use(wholesalerRouter);
 router.use(lifestyleRouter);
+router.use(attendanceRouter);
 
 export default router;

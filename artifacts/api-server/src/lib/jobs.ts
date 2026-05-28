@@ -1,4 +1,4 @@
-import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig } from "@workspace/db";
+import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig, shopOpens } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
@@ -12,12 +12,44 @@ const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
 // always falls back here so a fresh deploy is internally consistent.
 const DEFAULT_BASELINE_LIVING_COST = 500;
 const DEFAULT_XANADU_GOLD_COST = 500;
+// Aligned with NightCityBot's trauma_team_costs config: 1k / 2k / 4k / 10k.
+// Admins can still override these by writing to bot_config["trauma_team_costs"];
+// these defaults are what a fresh deploy or a malformed config row falls back to.
 const DEFAULT_TRAUMA_TEAM_COSTS: Record<string, number> = {
-  silver: 500,
-  gold: 1000,
-  platinum: 2000,
-  diamond: 5000,
+  silver: 1000,
+  gold: 2000,
+  platinum: 4000,
+  diamond: 10000,
 };
+
+// Cyberware meds caps by ripperdoc-assigned risk band. Matches the bot's
+// medium/high/extreme role tiers. The weekly charge for a non-"none"
+// character is (cap/128) * 2^(streak-1), clamped to the cap — meaning the
+// charge starts trivial and doubles each missed checkup until it hits the
+// ceiling at streak 8.
+const CYBERWARE_LEVEL_CAPS: Record<string, number> = {
+  none: 0,
+  medium: 2000,
+  high: 5000,
+  extreme: 10000,
+};
+
+// Passive-income table for opened businesses.
+//   T0 (tier 0 / micro): flat eddies by # of opens this month.
+//   T1+ (everything else): rent × multiplier.
+// Bot caps payout at 4 opens / month; opens beyond 4 don't increase income.
+const SHOP_T0_PAYOUTS = [0, 150, 250, 350, 500]; // index = opens (0..4)
+const SHOP_TIER_PLUS_MULT = [0, 0.25, 0.4, 0.6, 0.8]; // index = opens (0..4)
+const SHOP_OPENS_CAP = 4;
+
+// Best-effort tier detection from a housing.address / catalogRent.tier label.
+// Bot uses an explicit tier on the catalog row; here we keep it permissive:
+// anything that looks like tier 0 / micro / micro-business uses the T0 flat
+// schedule, everything else uses the rent-multiplier schedule.
+function isShopTierZero(addr: string, leaseKind: string): boolean {
+  if (leaseKind !== "business") return false;
+  return /\bT?0\b|micro/i.test(addr);
+}
 
 async function readConfigNumber(key: string, fallback: number): Promise<number> {
   try {
@@ -146,7 +178,12 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // before debiting so a manual rerun in the same month is a no-op.
       // Housing leases use their own rolling paid_through guard instead.
       const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      const TRACKED_PERSONAL_KINDS = ["lifestyle", "baseline", "trauma_team", "xanadu_gold"] as const;
+      // Include `shop_income` in the preload so a rerun after a rent debit
+      // failure (which leaves paid_through unchanged) cannot re-credit the
+      // monthly shop payout. Credits are still keyed by characterId only —
+      // a character only ever owns one shop lease at a time in practice,
+      // and the per-character cap matches the bot.
+      const TRACKED_PERSONAL_KINDS = ["lifestyle", "baseline", "trauma_team", "xanadu_gold", "shop_income"] as const;
       const alreadyBilled = new Set<string>();
       const existingBills = await db
         .select({ characterId: walletTransactions.characterId, kind: walletTransactions.kind })
@@ -175,6 +212,50 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         const rent = lease.monthlyRent;
         if (rent <= 0) continue;
         const reasonLabel = isBusiness ? "Business rent" : "Rent";
+
+        // ----- 2a. Passive income for businesses -----------------------------
+        // Credit BEFORE the rent debit so a profitable shop can fund its own
+        // rent. The income amount is driven by how many days the owner
+        // pressed OPEN SHOP during the period (capped at SHOP_OPENS_CAP).
+        // T0 (micro) leases use a flat schedule; everything else uses a
+        // rent-multiplier curve. Skipped silently on UB failure — we'd
+        // rather lose passive income than corrupt the rent flow.
+        if (isBusiness && !billedThisRun(c.id, "shop_income")) {
+          const opensThisMonth = await db
+            .select({ n: sql<number>`count(*)` })
+            .from(shopOpens)
+            .where(and(eq(shopOpens.characterId, c.id), gte(shopOpens.openedAt, periodStart)));
+          const opens = Math.min(Number(opensThisMonth[0]?.n ?? 0), SHOP_OPENS_CAP);
+          let income = 0;
+          if (opens > 0) {
+            income = isShopTierZero(lease.address, lease.kind)
+              ? SHOP_T0_PAYOUTS[opens]
+              : Math.floor(rent * SHOP_TIER_PLUS_MULT[opens]);
+          }
+          if (income > 0) {
+            const ubCredit = await patchBalance(owner.discordId, {
+              cash: income,
+              reason: `Shop income: ${lease.address} (${opens} day${opens === 1 ? "" : "s"})`,
+            });
+            if (ubCredit) {
+              await db.insert(walletTransactions).values({
+                characterId: c.id,
+                userId: c.ownerId,
+                amount: income,
+                kind: "shop_income",
+                memo: `Shop income: ${lease.address} (${opens} day${opens === 1 ? "" : "s"})`,
+              });
+              markBilled(c.id, "shop_income");
+              affected++;
+            } else {
+              logger.warn(
+                { characterId: c.id, leaseId: lease.id, income },
+                "monthly_rent shop_income UB credit failed; skipping ledger row",
+              );
+            }
+          }
+        }
+
         const ub = await patchBalance(owner.discordId, {
           cash: -rent,
           reason: `${reasonLabel}: ${lease.address}`,
@@ -368,12 +449,19 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         }
       }
     } else if (name === "cyberware_humanity") {
-      // Weekly cyberpsychosis-meds charge. For each approved (non-archived) character
-      // with an approved sheet, sum total humanity loss across all chrome (foundational
-      // slots + Misc) and charge meds = HL * RATE_PER_HL.
-      const RATE_PER_HL = 50; // eddies per humanity loss point per week
-      const MAX_STREAK_MULTIPLIER = 10; // cap on missed-checkup streak penalty
-      const { characterSheets } = await import("@workspace/db");
+      // Weekly cyberpsychosis-meds charge — matches NightCityBot's formula:
+      //   weeklyCost = (CAP[level] / 128) * 2^(streak - 1), clamped to CAP.
+      // CAP is keyed by the ripperdoc-assigned `cyberwareLevel`:
+      //   none    → 0 (no charge)
+      //   medium  → 2000
+      //   high    → 5000
+      //   extreme → 10000
+      // Streak starts at 1 the cron tick after the most recent checkup and
+      // doubles weekly until it caps. Players with cyberwareLevel='none'
+      // are never charged regardless of how much chrome they carry — that's
+      // intentional: a ripperdoc has to certify the risk band first, just
+      // like assigning the Discord role in the bot.
+      const MAX_STREAK = 12; // safety cap so the exponent can't overflow
       // Weekly idempotency: skip any character who already has a 'meds' debit in
       // the last 6 days so a manual rerun (or two cron ticks in the same week)
       // can't double-charge or double-bump the streak.
@@ -389,27 +477,16 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
       for (const c of approvedChars) {
         if (recentMedsSet.has(c.id)) continue;
-        const [sheet] = await db
-          .select()
-          .from(characterSheets)
-          .where(and(eq(characterSheets.characterId, c.id), eq(characterSheets.status, "approved")))
-          .orderBy(desc(characterSheets.createdAt))
-          .limit(1);
-        if (!sheet) continue;
-        const data = (sheet.data ?? {}) as Record<string, unknown>;
-        const bySlot = Array.isArray(data.cyberwareBySlot) ? data.cyberwareBySlot : [];
-        const misc = Array.isArray(data.cyberwareMisc) ? data.cyberwareMisc : [];
-        const allChrome = [...bySlot, ...misc] as Array<{ name?: string; humanityLoss?: number }>;
-        const totalHL = allChrome
-          .filter((cw) => (cw?.name ?? "").trim().length > 0)
-          .reduce((s, cw) => s + (Number(cw.humanityLoss) || 0), 0);
-        if (totalHL <= 0) continue;
-        // Missed-checkup streak penalty. Increment every cron tick; the
-        // admin /admin/characters/:id/checkup endpoint resets it to 0.
-        // Capped so the bill can't run away on a long-absent player.
-        const nextStreak = Math.min((c.checkupStreak ?? 0) + 1, MAX_STREAK_MULTIPLIER);
-        const multiplier = nextStreak;
-        const charge = totalHL * RATE_PER_HL * multiplier;
+        const level = (c.cyberwareLevel ?? "none").toLowerCase();
+        const cap = CYBERWARE_LEVEL_CAPS[level] ?? 0;
+        if (cap <= 0) continue; // 'none' or unknown band → no charge
+        const nextStreak = Math.min((c.checkupStreak ?? 0) + 1, MAX_STREAK);
+        // (cap/128) * 2^(streak-1), capped at the cap. floor() so we never
+        // bill fractional eddies.
+        const base = cap / 128;
+        const raw = Math.floor(base * Math.pow(2, nextStreak - 1));
+        const charge = Math.min(raw, cap);
+        if (charge <= 0) continue;
         if (!c.ownerId) continue;
         const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
         if (!owner) continue;
@@ -417,7 +494,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         // confirmed UB debit. Skip cleanly on UB unavailability.
         const ub = await patchBalance(owner.discordId, {
           cash: -charge,
-          reason: `Cyberpsychosis meds (${totalHL} HL × week ${multiplier})`,
+          reason: `Cyberpsychosis meds (${level}, week ${nextStreak})`,
         });
         if (!ub) {
           logger.warn({ characterId: c.id }, "cyberware_humanity UB debit failed; skipping local ledger insert");
@@ -428,7 +505,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             characterId: c.id,
             amount: -charge,
             kind: "meds",
-            memo: `Weekly cyberpsychosis maintenance for ${totalHL} HL of chrome (week ${multiplier} of missed checkups)`,
+            memo: `Weekly cyberpsychosis meds (${level} — week ${nextStreak} since last checkup)`,
           });
           // Bump the streak after a successful debit so a UB failure doesn't
           // also burn the player's streak counter — they get a clean retry.

@@ -1,4 +1,5 @@
 import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useGetUpcomingBills } from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
 import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe } from "lucide-react";
@@ -109,6 +110,7 @@ function Dashboard() {
         </div>
 
         <div className="space-y-6">
+          <AttendCard />
           <UpcomingBillsCard />
           <h2 className="text-2xl font-display font-bold text-foreground" data-testid="text-system-logs-title">SYSTEM_LOGS</h2>
           <Card className="rounded-none border-border bg-card/50 min-h-[300px]">
@@ -135,6 +137,83 @@ function Dashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+interface AttendInfo {
+  weekStart: string;
+  payout: number;
+  claimed: boolean;
+  claimedAt: string | null;
+  history: Array<{ weekStart: string; amount: number; claimedAt: string }>;
+}
+
+// Weekly attendance claim card on the home dashboard. The button is just
+// a thin wrapper over POST /attendance/claim — the server is the source
+// of truth for whether the user has already claimed this week (the
+// UNIQUE (userId, weekStart) index in attendance_claims enforces it),
+// the UI just disables the button on the obvious case so users don't
+// burn UB roundtrips clicking 'CLAIM' five times in a row.
+function AttendCard() {
+  const qc = useQueryClient();
+  const queryKey = ["attendance-me"] as const;
+  const { data, isLoading } = useQuery<AttendInfo>({
+    queryKey,
+    queryFn: async () => {
+      const r = await fetch("/api/attendance/me", { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load attendance");
+      return r.json();
+    },
+  });
+  const claim = useMutation({
+    mutationFn: async () => {
+      const r = await fetch("/api/attendance/claim", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok && r.status !== 409) throw new Error(body.error ?? `HTTP ${r.status}`);
+      return body;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
+  });
+
+  if (isLoading) return null;
+  if (!data) return null;
+
+  const disabled = data.claimed || claim.isPending;
+  return (
+    <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="font-display tracking-widest text-nc-yellow text-sm">WEEKLY ATTENDANCE</div>
+            <div className="text-xs text-muted-foreground font-mono mt-1">
+              WEEK_OF {data.weekStart} · €${data.payout.toLocaleString()}
+            </div>
+          </div>
+          <Button
+            type="button"
+            disabled={disabled}
+            onClick={() => claim.mutate()}
+            className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest disabled:opacity-50"
+            data-testid="button-attend-claim"
+          >
+            {data.claimed ? "CLAIMED ✓" : claim.isPending ? "CLAIMING..." : "CLAIM"}
+          </Button>
+        </div>
+        {data.claimedAt && (
+          <div className="text-xs font-mono text-muted-foreground">
+            LAST_CLAIM: {new Date(data.claimedAt).toLocaleString()}
+          </div>
+        )}
+        {claim.error instanceof Error && (
+          <div className="text-xs font-mono text-destructive">ERR: {claim.error.message}</div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
