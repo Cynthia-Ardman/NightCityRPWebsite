@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { PublicCharacterSummaryLifeStatus } from './publicCharacterSummaryLifeStatus';
 
 export interface PublicCharacterSummary {
   id: number;
@@ -23,4 +24,5 @@ export interface PublicCharacterSummary {
   ownerName?: string | null;
   /** Discord forum tags applied to the source thread, resolved to display names. */
   appliedTags?: string[];
+  lifeStatus?: PublicCharacterSummaryLifeStatus;
 }

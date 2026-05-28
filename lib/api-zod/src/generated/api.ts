@@ -69,6 +69,7 @@ export const ListMyCharactersResponseItem = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 })
 export const ListMyCharactersResponse = zod.array(ListMyCharactersResponseItem)
@@ -113,6 +114,7 @@ export const GetCharacterResponse = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -135,7 +137,8 @@ export const UpdateCharacterBody = zod.object({
   "sheetData": zod.object({
   "preamble": zod.string(),
   "sections": zod.record(zod.string(), zod.string())
-}).optional()
+}).optional(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional()
 })
 
 export const UpdateCharacterResponse = zod.object({
@@ -160,6 +163,7 @@ export const UpdateCharacterResponse = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -1835,6 +1839,7 @@ export const AdminListUsersResponseItem = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -1881,6 +1886,7 @@ export const AdminGetUserResponse = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -1943,6 +1949,7 @@ export const AdminSyncUserRolesResponse = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -1958,6 +1965,7 @@ export const AdminListCharactersResponseItem = zod.object({
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "claimed": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
   "legacyDiscordUsername": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
@@ -1998,6 +2006,7 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -2031,6 +2040,7 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -2056,7 +2066,8 @@ export const ListPublicCharactersResponseItem = zod.object({
   "archived": zod.boolean(),
   "legacyDiscordUsername": zod.string().nullish(),
   "ownerName": zod.string().nullish(),
-  "appliedTags": zod.array(zod.string()).optional().describe('Discord forum tags applied to the source thread, resolved to display names.')
+  "appliedTags": zod.array(zod.string()).optional().describe('Discord forum tags applied to the source thread, resolved to display names.'),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional()
 })
 export const ListPublicCharactersResponse = zod.array(ListPublicCharactersResponseItem)
 
@@ -2097,6 +2108,7 @@ export const GetPublicCharacterResponse = zod.object({
   "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "ownerName": zod.string().nullish(),

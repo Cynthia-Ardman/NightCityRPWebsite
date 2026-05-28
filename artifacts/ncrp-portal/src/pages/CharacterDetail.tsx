@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
+import LifeStatusPill from "@/components/LifeStatusPill";
 import Markdown from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,10 +82,7 @@ export default function CharacterDetail() {
             )}
             <div className="flex items-center gap-2">
               <span className="text-foreground">STATUS:</span>
-              <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${char.isActive ? "bg-nc-cyan shadow-[0_0_5px_currentColor]" : "bg-muted"}`} />
-                {char.isActive ? "ACTIVE" : "STANDBY"}
-              </span>
+              <LifeStatusPill status={char.lifeStatus ?? "active"} />
             </div>
           </div>
         </div>

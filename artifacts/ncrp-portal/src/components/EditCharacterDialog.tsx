@@ -55,6 +55,7 @@ export default function EditCharacterDialog({
   const [portraitUrl, setPortraitUrl] = useState<string | null>(character.portraitUrl ?? null);
   const [portraitUrls, setPortraitUrls] = useState<string[]>(character.portraitUrls ?? []);
   const [statsImageUrls, setStatsImageUrls] = useState<string[]>(character.statsImageUrls ?? []);
+  const [lifeStatus, setLifeStatus] = useState<string>(character.lifeStatus ?? "active");
 
   // Reset form state every time we re-open with a different character or after
   // server-side changes (avoids leaking stale form state across opens).
@@ -68,6 +69,7 @@ export default function EditCharacterDialog({
     setPortraitUrl(character.portraitUrl ?? null);
     setPortraitUrls(character.portraitUrls ?? []);
     setStatsImageUrls(character.statsImageUrls ?? []);
+    setLifeStatus(character.lifeStatus ?? "active");
   }, [open, character]);
 
   const update = useUpdateCharacter({
@@ -104,6 +106,7 @@ export default function EditCharacterDialog({
         portraitUrls,
         statsImageUrls,
         sheetData: { preamble, sections: rowsToSections(rows) },
+        lifeStatus: lifeStatus as "active" | "dead" | "missing" | "loa" | "retired",
       },
     });
   }
@@ -140,6 +143,22 @@ export default function EditCharacterDialog({
                 data-testid="input-edit-archetype"
               />
             </div>
+          </div>
+
+          <div>
+            <Label className="text-xs">STATUS</Label>
+            <select
+              value={lifeStatus}
+              onChange={(e) => setLifeStatus(e.target.value)}
+              className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm font-mono uppercase tracking-widest text-nc-cyan focus:outline-none focus:ring-1 focus:ring-nc-cyan"
+              data-testid="select-edit-life-status"
+            >
+              <option value="active">Active</option>
+              <option value="dead">Dead</option>
+              <option value="missing">Missing</option>
+              <option value="loa">LOA</option>
+              <option value="retired">Retired</option>
+            </select>
           </div>
 
           {/* Background */}

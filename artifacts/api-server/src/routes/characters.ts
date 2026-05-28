@@ -71,6 +71,8 @@ router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {
   res.json({ ...c, isActive: c.id === req.user!.activeCharacterId });
 });
 
+const LIFE_STATUSES = ["active", "dead", "missing", "loa", "retired"] as const;
+
 const CharacterUpdateSchema = z
   .object({
     name: z.string().trim().min(1),
@@ -83,6 +85,7 @@ const CharacterUpdateSchema = z
       preamble: z.string(),
       sections: z.record(z.string(), z.string()),
     }),
+    lifeStatus: z.enum(LIFE_STATUSES),
   })
   .partial()
   .strict();
@@ -108,6 +111,7 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
   if (d.portraitUrls !== undefined) u.portraitUrls = d.portraitUrls;
   if (d.statsImageUrls !== undefined) u.statsImageUrls = d.statsImageUrls;
   if (d.sheetData !== undefined) u.sheetData = d.sheetData;
+  if (d.lifeStatus !== undefined) u.lifeStatus = d.lifeStatus;
   const [updated] = await db
     .update(characters)
     .set(u)

@@ -124,6 +124,7 @@ router.get("/admin/characters", adminOrFixer, async (_req, res): Promise<void> =
       approved: characters.approved,
       archived: characters.archived,
       claimed: characters.claimed,
+      lifeStatus: characters.lifeStatus,
       legacyDiscordUsername: characters.legacyDiscordUsername,
       importedFromChannelName: characters.importedFromChannelName,
       createdAt: characters.createdAt,

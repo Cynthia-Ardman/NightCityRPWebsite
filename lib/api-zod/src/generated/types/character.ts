@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CharacterKind } from './characterKind';
+import type { CharacterLifeStatus } from './characterLifeStatus';
 import type { SheetData } from './sheetData';
 
 export interface Character {
@@ -35,5 +36,7 @@ export interface Character {
   isActive?: boolean;
   approved?: boolean;
   archived: boolean;
+  /** Headline character status shown on sheets. Editable by the owner via PATCH /characters/{id}. */
+  lifeStatus?: CharacterLifeStatus;
   createdAt: Date;
 }

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
+import LifeStatusPill from "@/components/LifeStatusPill";
 
 export default function CharactersList() {
   const { data: characters, isLoading: charsLoading } = useListMyCharacters();
@@ -147,12 +148,8 @@ export default function CharactersList() {
                   </CardHeader>
                   <CardContent className="mt-auto pt-4 border-t border-border/50">
                     <div className="flex items-center justify-between text-xs font-mono">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${char.isActive ? 'bg-nc-cyan animate-pulse shadow-[0_0_5px_currentColor]' : 'bg-muted'}`} />
-                        <span className={char.isActive ? 'text-foreground' : 'text-muted-foreground'}>
-                          {char.isActive ? 'ACTIVE' : 'STANDBY'}
-                        </span>
-                      </div>
+                      <LifeStatusPill status={char.lifeStatus ?? "active"} />
+                      
                       {char.approved ? (
                         <span className="flex items-center gap-1 text-nc-cyan">
                           <Shield className="w-3 h-3" /> APPROVED

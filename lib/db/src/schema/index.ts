@@ -74,6 +74,12 @@ export const characters = pgTable("characters", {
   // archive filtering. Empty array for non-imported / pre-tagging chars.
   appliedTags: text("applied_tags").array().notNull().default([]),
   discordChannelId: text("discord_channel_id"),
+  // Player-visible life status. One of: active | dead | missing | loa |
+  // retired. Defaults to 'active'; the importer/admin backfill maps
+  // archived sheets to 'retired' and character_status.loa to 'loa'.
+  // The transient day-to-day flags (attending, openShop, loaReturnsAt)
+  // still live on character_status — this column is just the headline.
+  lifeStatus: text("life_status").notNull().default("active"),
   approved: boolean("approved").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
   archivedAt: timestamp("archived_at", { withTimezone: true }),

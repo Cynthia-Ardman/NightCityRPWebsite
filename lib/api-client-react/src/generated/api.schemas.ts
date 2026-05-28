@@ -35,6 +35,20 @@ export const CharacterKind = {
   npc: 'npc',
 } as const;
 
+/**
+ * Headline character status shown on sheets. Editable by the owner via PATCH /characters/{id}.
+ */
+export type CharacterLifeStatus = typeof CharacterLifeStatus[keyof typeof CharacterLifeStatus];
+
+
+export const CharacterLifeStatus = {
+  active: 'active',
+  dead: 'dead',
+  missing: 'missing',
+  loa: 'loa',
+  retired: 'retired',
+} as const;
+
 export type SheetDataSections = {[key: string]: string};
 
 export interface SheetData {
@@ -69,8 +83,21 @@ export interface Character {
   isActive?: boolean;
   approved?: boolean;
   archived: boolean;
+  /** Headline character status shown on sheets. Editable by the owner via PATCH /characters/{id}. */
+  lifeStatus?: CharacterLifeStatus;
   createdAt: string;
 }
+
+export type PublicCharacterSummaryLifeStatus = typeof PublicCharacterSummaryLifeStatus[keyof typeof PublicCharacterSummaryLifeStatus];
+
+
+export const PublicCharacterSummaryLifeStatus = {
+  active: 'active',
+  dead: 'dead',
+  missing: 'missing',
+  loa: 'loa',
+  retired: 'retired',
+} as const;
 
 export interface PublicCharacterSummary {
   id: number;
@@ -89,6 +116,7 @@ export interface PublicCharacterSummary {
   ownerName?: string | null;
   /** Discord forum tags applied to the source thread, resolved to display names. */
   appliedTags?: string[];
+  lifeStatus?: PublicCharacterSummaryLifeStatus;
 }
 
 export type PublicCharacter = Character & ({
@@ -97,6 +125,17 @@ export type PublicCharacter = Character & ({
   /** @nullable */
   ownerAvatarUrl?: string | null;
 });
+
+export type AdminCharacterSummaryLifeStatus = typeof AdminCharacterSummaryLifeStatus[keyof typeof AdminCharacterSummaryLifeStatus];
+
+
+export const AdminCharacterSummaryLifeStatus = {
+  active: 'active',
+  dead: 'dead',
+  missing: 'missing',
+  loa: 'loa',
+  retired: 'retired',
+} as const;
 
 export interface AdminCharacterSummary {
   id: number;
@@ -111,6 +150,7 @@ export interface AdminCharacterSummary {
   approved?: boolean;
   archived: boolean;
   claimed: boolean;
+  lifeStatus?: AdminCharacterSummaryLifeStatus;
   /** @nullable */
   legacyDiscordUsername?: string | null;
   /** @nullable */
@@ -169,6 +209,17 @@ export interface CharacterInput {
   portraitUrl?: string;
 }
 
+export type CharacterUpdateLifeStatus = typeof CharacterUpdateLifeStatus[keyof typeof CharacterUpdateLifeStatus];
+
+
+export const CharacterUpdateLifeStatus = {
+  active: 'active',
+  dead: 'dead',
+  missing: 'missing',
+  loa: 'loa',
+  retired: 'retired',
+} as const;
+
 export interface CharacterUpdate {
   /**
      * @minLength 1
@@ -182,6 +233,7 @@ export interface CharacterUpdate {
   portraitUrls?: string[];
   statsImageUrls?: string[];
   sheetData?: SheetData;
+  lifeStatus?: CharacterUpdateLifeStatus;
 }
 
 export interface InventoryItem {

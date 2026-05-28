@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CharacterUpdateLifeStatus } from './characterUpdateLifeStatus';
 import type { SheetData } from './sheetData';
 
 export interface CharacterUpdate {
@@ -20,4 +21,5 @@ export interface CharacterUpdate {
   portraitUrls?: string[];
   statsImageUrls?: string[];
   sheetData?: SheetData;
+  lifeStatus?: CharacterUpdateLifeStatus;
 }

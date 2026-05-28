@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminCharacterSummaryLifeStatus } from './adminCharacterSummaryLifeStatus';
 
 export interface AdminCharacterSummary {
   id: number;
@@ -19,6 +20,7 @@ export interface AdminCharacterSummary {
   approved?: boolean;
   archived: boolean;
   claimed: boolean;
+  lifeStatus?: AdminCharacterSummaryLifeStatus;
   /** @nullable */
   legacyDiscordUsername?: string | null;
   /** @nullable */
