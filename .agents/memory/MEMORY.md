@@ -5,3 +5,4 @@
 - [Importer upsert idempotency](importer-upsert-idempotency.md) — never clobber admin-assigned ownerId on rerun; use coalesce(existing, excluded).
 - [Nullable ownerId guards](nullable-owner-guards.md) — characters.ownerId is nullable; every wallet/jobs/transfer path must guard, and transfers to unclaimed must 4xx before debit.
 - [Prod-import legacy tags](prod-import-legacy-tags.md) — characters.background may contain `[legacy:<uuid>]` anchors; scrub before any UI display.
+- [Express sub-router auth scope](express-router-auth-scope.md) — path-less `router.use(requireAuth)` in a sub-router mounted at root gates every later sibling route, not just its own paths.

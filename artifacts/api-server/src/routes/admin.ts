@@ -10,8 +10,15 @@ const router: IRouter = Router();
 
 // Most /admin routes are ADMIN-only, but the character listing + owner
 // assign/clear endpoints are also exposed to FIXER (the in-fiction canon
-// enforcer role). Auth is required for everything.
-router.use(requireAuth);
+// enforcer role). Auth is required for everything under /admin.
+//
+// IMPORTANT: we scope to "/admin" so this router does not intercept
+// requests that fall through to sibling routers mounted after it
+// (e.g. /storage/*, /housing/*). Express applies `router.use(mw)` to
+// every request the sub-router sees, regardless of whether any local
+// route matches — without the path scope, this would return 401 for
+// every unauthenticated call on the entire API.
+router.use("/admin", requireAuth);
 const adminOnly = requireRole("ADMIN");
 const adminOrFixer = requireAnyRole(["ADMIN", "FIXER"]);
 

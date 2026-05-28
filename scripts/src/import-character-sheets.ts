@@ -814,16 +814,19 @@ if (applyToDb) {
   //   4) Insert characterStatus row for new characters.
   let applied = 0;
   let skipped = 0;
+  let mergedInPlace = 0;
   for (const r of records) {
-    if (!r.sheet || Object.keys(r.sheet.sections).length === 0) {
+    const sectionCount = r.sheet ? Object.keys(r.sheet.sections).length : 0;
+    const hasContent = sectionCount > 0 || (r.sheet?.preamble?.length ?? 0) > 0 || r.images.length > 0;
+    if (!hasContent) {
       skipped++;
       continue;
     }
     // Owner resolution: if the Discord user is in the guild, ensure a users
-    // row exists. If not, ownerId stays null (unclaimed).
+    // row exists. If not, ownerId stays null (unclaimed). User id matches
+    // the OAuth+prod-importer convention: raw discord id, not `discord:<id>`.
     let ownerId: string | null = null;
     if (r.resolvedDiscordId) {
-      const internalId = `discord:${r.resolvedDiscordId}`;
       const [existing] = await db
         .select()
         .from(users)
@@ -836,13 +839,13 @@ if (applyToDb) {
         await db
           .insert(users)
           .values({
-            id: internalId,
+            id: r.resolvedDiscordId,
             discordId: r.resolvedDiscordId,
             username: r.parsedUsername ?? r.resolvedDisplayName ?? "unknown",
             globalName: r.resolvedDisplayName,
           })
           .onConflictDoNothing();
-        ownerId = internalId;
+        ownerId = r.resolvedDiscordId;
       }
     }
 
@@ -872,12 +875,19 @@ if (applyToDb) {
     const primaryPortrait = portraitUrls[0] ?? null;
 
     // Extract a couple of convenience fields out of parsed sections.
-    const sections = r.sheet.sections;
+    // Falls back to the raw OP preamble when the sheet has no labeled
+    // sections (some old threads are free-form prose or image-only).
+    const sections = r.sheet?.sections ?? {};
     const archetype =
-      (sections["Occupation"] ?? "").split(/\r?\n/)[0]?.trim().slice(0, 200) || null;
+      (sections["Occupation"] ?? sections["Occupation / Role in Night City"] ?? "")
+        .split(/\r?\n/)[0]
+        ?.trim()
+        .slice(0, 200) || null;
     const background =
-      (sections["Backstory"] ?? sections["Psychological Profile"] ?? null)?.slice(0, 8000) ??
-      null;
+      (sections["Backstory"] ?? sections["Psychological Profile"] ?? r.sheet?.preamble ?? null)
+        ?.toString()
+        .trim()
+        .slice(0, 8000) || null;
 
     const isRetired = r.sourceChannelName.toLowerCase().includes("retired");
 
@@ -901,30 +911,94 @@ if (applyToDb) {
       archivedAt: isRetired ? new Date() : null,
     };
 
-    const [inserted] = await db
-      .insert(characters)
-      .values(values)
-      .onConflictDoUpdate({
-        target: characters.importedFromThreadId,
-        set: {
-          // Never clobber an existing owner on rerun: an admin may have
-          // assigned the character since the first import. Only adopt the
-          // resolved owner if the row currently has none.
-          ownerId: sql`coalesce(${characters.ownerId}, excluded.owner_id)`,
-          claimed: sql`(${characters.ownerId} is not null) or excluded.claimed`,
+    // Dedupe against rows the prod-DB importer created earlier. Those rows
+    // have no importedFromThreadId, only (ownerId, name). If we find one,
+    // enrich it in place rather than inserting a duplicate row that would
+    // orphan wallet/inventory/housing data already attached to it.
+    let existing:
+      | {
+          id: number;
+          portraitUrl: string | null;
+          portraitUrls: string[] | null;
+          statsImageUrls: string[] | null;
+        }
+      | undefined;
+    if (ownerId) {
+      const dupes = await db
+        .select({
+          id: characters.id,
+          importedFromThreadId: characters.importedFromThreadId,
+          portraitUrl: characters.portraitUrl,
+          portraitUrls: characters.portraitUrls,
+          statsImageUrls: characters.statsImageUrls,
+        })
+        .from(characters)
+        .where(
+          sql`${characters.ownerId} = ${ownerId} and lower(${characters.name}) = lower(${values.name})`,
+        );
+      existing = dupes.find((d) => !d.importedFromThreadId);
+    }
+
+    let inserted: { id: number } | undefined;
+    if (existing) {
+      // Merge in JS so we never clobber prior portraits the player may have
+      // hand-curated. The new arrays only land when the existing row is empty.
+      const mergedPortraitUrls =
+        existing.portraitUrls && existing.portraitUrls.length > 0
+          ? existing.portraitUrls
+          : values.portraitUrls;
+      const mergedStatsUrls =
+        existing.statsImageUrls && existing.statsImageUrls.length > 0
+          ? existing.statsImageUrls
+          : values.statsImageUrls;
+      const [u] = await db
+        .update(characters)
+        .set({
           legacyDiscordUsername: values.legacyDiscordUsername,
-          name: values.name,
           archetype: values.archetype,
           background: values.background,
-          portraitUrl: sql`coalesce(${characters.portraitUrl}, excluded.portrait_url)`,
-          portraitUrls: sql`case when array_length(${characters.portraitUrls}, 1) is null or array_length(${characters.portraitUrls}, 1) = 0 then excluded.portrait_urls else ${characters.portraitUrls} end`,
-          statsImageUrls: sql`case when array_length(${characters.statsImageUrls}, 1) is null or array_length(${characters.statsImageUrls}, 1) = 0 then excluded.stats_image_urls else ${characters.statsImageUrls} end`,
+          portraitUrl: existing.portraitUrl ?? values.portraitUrl,
+          portraitUrls: mergedPortraitUrls,
+          statsImageUrls: mergedStatsUrls,
           sheetData: values.sheetData,
+          importedFromThreadId: values.importedFromThreadId,
           importedFromChannelName: values.importedFromChannelName,
+          discordChannelId: values.discordChannelId,
           archived: values.archived,
-        },
-      })
-      .returning({ id: characters.id });
+          kind: values.kind,
+          approved: true,
+        })
+        .where(eq(characters.id, existing.id))
+        .returning({ id: characters.id });
+      inserted = u;
+      mergedInPlace++;
+    } else {
+      const [u] = await db
+        .insert(characters)
+        .values(values)
+        .onConflictDoUpdate({
+          target: characters.importedFromThreadId,
+          set: {
+            // Never clobber an existing owner on rerun: an admin may have
+            // assigned the character since the first import. Only adopt the
+            // resolved owner if the row currently has none.
+            ownerId: sql`coalesce(${characters.ownerId}, excluded.owner_id)`,
+            claimed: sql`(${characters.ownerId} is not null) or excluded.claimed`,
+            legacyDiscordUsername: values.legacyDiscordUsername,
+            name: values.name,
+            archetype: values.archetype,
+            background: values.background,
+            portraitUrl: sql`coalesce(${characters.portraitUrl}, excluded.portrait_url)`,
+            portraitUrls: sql`case when array_length(${characters.portraitUrls}, 1) is null or array_length(${characters.portraitUrls}, 1) = 0 then excluded.portrait_urls else ${characters.portraitUrls} end`,
+            statsImageUrls: sql`case when array_length(${characters.statsImageUrls}, 1) is null or array_length(${characters.statsImageUrls}, 1) = 0 then excluded.stats_image_urls else ${characters.statsImageUrls} end`,
+            sheetData: values.sheetData,
+            importedFromChannelName: values.importedFromChannelName,
+            archived: values.archived,
+          },
+        })
+        .returning({ id: characters.id });
+      inserted = u;
+    }
 
     // Ensure a characterStatus row exists.
     if (inserted) {
@@ -939,5 +1013,7 @@ if (applyToDb) {
       console.log(`  applied ${applied}/${records.length}...`);
     }
   }
-  console.log(`\nApply complete: ${applied} upserted, ${skipped} skipped (no sheet).`);
+  console.log(
+    `\nApply complete: ${applied} upserted (${mergedInPlace} merged into existing prod-import rows), ${skipped} skipped (no content).`,
+  );
 }
