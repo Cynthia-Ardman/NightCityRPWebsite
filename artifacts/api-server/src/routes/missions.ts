@@ -38,6 +38,28 @@ type MissionRow = {
   createdAt: Date;
 };
 
+// Extract the attendee Discord ID embedded in a [legacy-mission:<missionId>:<attendeeId>]
+// tag (stamped by the prod importer). Used to fall back to a Discord
+// username when characterId couldn't be resolved on a legacy row.
+function legacyAttendeeId(s: string | null): string | null {
+  if (!s) return null;
+  const m = s.match(/\[legacy-mission:[^:]+:([^\]]+)\]/);
+  return m ? m[1] : null;
+}
+
+// Strip internal anchors stamped by the prod importer ([legacy-mission:...]
+// and [legacy:...]). These were never meant to surface in the UI — they
+// exist only so the importer can detect previously-imported rows on rerun.
+function stripLegacyTags(s: string | null): string | null {
+  if (!s) return s;
+  const cleaned = s
+    .replace(/\[legacy-mission:[^\]]+\]/g, "")
+    .replace(/\[legacy(?:-[a-z]+)?:[^\]]+\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length ? cleaned : null;
+}
+
 function dayKey(d: Date | null | undefined, fallback: Date): string {
   const dt = d ?? fallback;
   // YYYY-MM-DD in UTC. Avoids local-timezone drift between API/UI.
@@ -125,8 +147,8 @@ function groupRows(rows: MissionRow[], mineCharacterIds: Set<number> | null): Mi
       : [];
     return {
       id: encodeGroupId(k),
-      title: head.title,
-      summary: head.summary,
+      title: stripLegacyTags(head.title) ?? head.title,
+      summary: stripLegacyTags(head.summary),
       status: head.status,
       occurredAt: head.occurredAt ? head.occurredAt.toISOString() : null,
       createdAt: head.createdAt.toISOString(),
@@ -273,11 +295,28 @@ router.get("/missions/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  // For any row whose characterId couldn't be resolved, fall back to the
+  // Discord username embedded in the legacy-mission tag so the player still
+  // appears with a real name instead of "(deleted character)".
+  const needFallback = rows
+    .filter((r) => r.characterId == null)
+    .map((r) => legacyAttendeeId(r.summary))
+    .filter((x): x is string => !!x);
+  const discordToName = new Map<string, { username: string; avatarUrl: string | null }>();
+  if (needFallback.length) {
+    const uniq = [...new Set(needFallback)];
+    const found = await db
+      .select({ discordId: users.discordId, username: users.username, avatarUrl: users.avatarUrl })
+      .from(users)
+      .where(inArray(users.discordId, uniq));
+    for (const u of found) discordToName.set(u.discordId, { username: u.username, avatarUrl: u.avatarUrl });
+  }
+
   const head = rows[0];
   res.json({
     id: encodeGroupId(key),
-    title: head.title,
-    summary: head.summary,
+    title: stripLegacyTags(head.title) ?? head.title,
+    summary: stripLegacyTags(head.summary),
     status: head.status,
     occurredAt: head.occurredAt ? head.occurredAt.toISOString() : null,
     createdAt: head.createdAt.toISOString(),
@@ -285,15 +324,27 @@ router.get("/missions/:id", requireAuth, async (req, res): Promise<void> => {
     fixerName: head.fixerName,
     fixerAvatarUrl: head.fixerAvatarUrl,
     totalPayoutEddies: rows.reduce((a, r) => a + (r.payoutEddies ?? 0), 0),
-    participants: rows.map((r) => ({
-      entryId: r.id,
-      characterId: r.characterId,
-      characterName: r.characterName,
-      characterPortraitUrl: r.characterPortraitUrl,
-      payoutEddies: r.payoutEddies ?? 0,
-      status: r.status,
-      summary: r.summary,
-    })),
+    participants: rows.map((r) => {
+      let charName = r.characterName;
+      let portrait = r.characterPortraitUrl;
+      if (!charName) {
+        const did = legacyAttendeeId(r.summary);
+        const fb = did ? discordToName.get(did) : null;
+        if (fb) {
+          charName = `@${fb.username}`;
+          portrait = portrait ?? fb.avatarUrl;
+        }
+      }
+      return {
+        entryId: r.id,
+        characterId: r.characterId,
+        characterName: charName,
+        characterPortraitUrl: portrait,
+        payoutEddies: r.payoutEddies ?? 0,
+        status: r.status,
+        summary: stripLegacyTags(r.summary),
+      };
+    }),
   });
 });
 

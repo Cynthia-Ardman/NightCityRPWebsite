@@ -5,7 +5,8 @@
 - [Object-storage URL prefix](object-storage-url-prefix.md) — store `/api/storage/objects/<id>` not `/objects/<id>`; SPA owns root paths and returns index.html for bare `/objects/*`.
 - [Importer upsert idempotency](importer-upsert-idempotency.md) — never clobber admin-assigned ownerId on rerun; use coalesce(existing, excluded).
 - [Nullable ownerId guards](nullable-owner-guards.md) — characters.ownerId is nullable; every wallet/jobs/transfer path must guard, and transfers to unclaimed must 4xx before debit.
-- [Prod-import legacy tags](prod-import-legacy-tags.md) — characters.background may contain `[legacy:<uuid>]` anchors; scrub before any UI display.
+- [Prod-import legacy tags](prod-import-legacy-tags.md) — characters.background AND missionLog.summary/title may contain `[legacy:<uuid>]` / `[legacy-mission:<id>:<discordId>]` anchors; scrub at API/UI layer.
+- [Sheet-importer reconciliation](sheet-importer-reconciliation.md) — when a sheet is source-of-truth, the importer must delete vacated/changed-tenant rows, not just upsert.
 - [Import name dedupe](import-name-dedupe.md) — exact lower(name) match misses "Corpse" vs "The Corpse Hound"; fuzzy-token match, and delete-before-update when collapsing duplicates.
 - [tsx -e top-level await](tsx-top-level-await.md) — `pnpm exec tsx -e 'await ...'` silently no-ops with exit 0; always use a `.ts` file for awaited one-offs.
 - [NCRP database targets](db-targets.md) — three DBs (dev, legacy-bot source, live deployed); PROD_DATABASE_URL is the legacy source, NOT the live target.
