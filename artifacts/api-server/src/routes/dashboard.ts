@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray } from "drizzle-orm";
 import {
   db,
   characters,
@@ -9,6 +9,7 @@ import {
   fixerNpcs,
   users,
   housing,
+  walletTransactions,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
@@ -186,6 +187,34 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
 
 router.get("/dashboard/activity", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(activityEvents).orderBy(desc(activityEvents.createdAt)).limit(20);
+  res.json(rows);
+});
+
+// Per-user wallet — eddies live on the Discord account via Unbelievaboat,
+// not per-character. UI should prefer these over the per-character endpoints.
+router.get("/me/wallet", requireAuth, async (req, res): Promise<void> => {
+  const ub = await getBalance(req.user!.discordId);
+  if (!ub) {
+    res.status(502).json({ error: "Wallet provider unavailable" });
+    return;
+  }
+  res.json({ balance: ub.total, cash: ub.cash, bank: ub.bank, source: "unbelievaboat" });
+});
+
+router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<void> => {
+  const myChars = await db
+    .select({ id: characters.id })
+    .from(characters)
+    .where(eq(characters.ownerId, req.user!.id));
+  const charIds = myChars.map((c) => c.id);
+  const conditions = [eq(walletTransactions.userId, req.user!.id)];
+  if (charIds.length > 0) conditions.push(inArray(walletTransactions.characterId, charIds));
+  const rows = await db
+    .select()
+    .from(walletTransactions)
+    .where(or(...conditions))
+    .orderBy(desc(walletTransactions.createdAt))
+    .limit(100);
   res.json(rows);
 });
 

@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetWallet, getGetWalletQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -139,14 +139,9 @@ function SidebarContent() {
 
 function TopBar() {
   const { data: user } = useAuthMe();
-  const activeCharId = user?.activeCharacterId;
-  
-  const { data: wallet } = useGetWallet(activeCharId || 0, { 
-    query: { 
-      enabled: !!activeCharId, 
-      queryKey: getGetWalletQueryKey(activeCharId || 0) 
-    } 
-  });
+  // Eddies live on the Discord account via Unbelievaboat, not per-character —
+  // so the pill is keyed off the user, not the active PC.
+  const { data: wallet } = useGetMyWallet({ query: { enabled: !!user, queryKey: getGetMyWalletQueryKey() } });
 
   return (
     <div className="h-16 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between px-4 md:px-8">
@@ -155,11 +150,11 @@ function TopBar() {
       </div>
 
       <div className="flex items-center gap-6">
-        {activeCharId && wallet && (
-          <div className="flex items-center gap-3 border border-nc-yellow/30 bg-nc-yellow/5 px-4 py-1.5 shadow-[0_0_10px_rgba(255,255,0,0.1)]">
+        {user && wallet && (
+          <div className="flex items-center gap-3 border border-nc-yellow/30 bg-nc-yellow/5 px-4 py-1.5 shadow-[0_0_10px_rgba(255,255,0,0.1)]" data-testid="pill-eddies">
             <div className="text-nc-yellow font-display text-sm tracking-widest">EDDIES</div>
             <div className="text-nc-yellow font-mono text-lg font-bold">
-              {wallet.balance.toLocaleString()} 
+              {wallet.balance.toLocaleString()}
               <span className="text-nc-yellow/50 text-xs ml-1">€$</span>
             </div>
             <div className="w-1.5 h-1.5 rounded-full bg-nc-yellow animate-pulse ml-2" title={`Source: ${wallet.source}`} />

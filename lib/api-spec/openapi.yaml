@@ -1270,6 +1270,30 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ActivityEvent" }
+  /me/wallet:
+    get:
+      operationId: getMyWallet
+      tags: [wallet]
+      summary: Per-user eddies balance from Unbelievaboat (account-level, not per-character)
+      responses:
+        "200":
+          description: Wallet balance for signed-in user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWallet" }
+  /me/wallet/transactions:
+    get:
+      operationId: getMyWalletTransactions
+      tags: [wallet]
+      summary: Combined wallet ledger for the signed-in user across all their characters
+      responses:
+        "200":
+          description: Transaction history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WalletTransaction" }
 
 components:
   schemas:
@@ -1480,6 +1504,15 @@ components:
         cash: { type: integer }
         source: { type: string, enum: [unbelievaboat, local] }
         updatedAt: { type: string, format: date-time }
+
+    UserWallet:
+      type: object
+      required: [balance, source]
+      properties:
+        balance: { type: integer }
+        cash: { type: integer }
+        bank: { type: integer }
+        source: { type: string, enum: [unbelievaboat, local] }
 
     TransferInput:
       type: object

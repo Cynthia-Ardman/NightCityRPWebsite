@@ -251,6 +251,21 @@ export interface Wallet {
   updatedAt?: string;
 }
 
+export type UserWalletSource = typeof UserWalletSource[keyof typeof UserWalletSource];
+
+
+export const UserWalletSource = {
+  unbelievaboat: 'unbelievaboat',
+  local: 'local',
+} as const;
+
+export interface UserWallet {
+  balance: number;
+  cash?: number;
+  bank?: number;
+  source: UserWalletSource;
+}
+
 export interface TransferInput {
   toCharacterId: number;
   /** @minimum 1 */

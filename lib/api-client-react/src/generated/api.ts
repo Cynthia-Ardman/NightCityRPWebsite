@@ -83,6 +83,7 @@ import type {
   UpcomingBills,
   UploadUrlRequest,
   UploadUrlResponse,
+  UserWallet,
   Wallet,
   WalletAdjustmentInput,
   WalletTransaction
@@ -6490,6 +6491,160 @@ export function useGetRecentActivity<TData = Awaited<ReturnType<typeof getRecent
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRecentActivityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetMyWalletUrl = () => {
+
+
+
+
+  return `/api/me/wallet`
+}
+
+/**
+ * @summary Per-user eddies balance from Unbelievaboat (account-level, not per-character)
+ */
+export const getMyWallet = async ( options?: RequestInit): Promise<UserWallet> => {
+
+  return customFetch<UserWallet>(getGetMyWalletUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyWalletQueryKey = () => {
+    return [
+    `/api/me/wallet`
+    ] as const;
+    }
+
+
+export const getGetMyWalletQueryOptions = <TData = Awaited<ReturnType<typeof getMyWallet>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyWallet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyWalletQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyWallet>>> = ({ signal }) => getMyWallet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyWallet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyWalletQueryResult = NonNullable<Awaited<ReturnType<typeof getMyWallet>>>
+export type GetMyWalletQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Per-user eddies balance from Unbelievaboat (account-level, not per-character)
+ */
+
+export function useGetMyWallet<TData = Awaited<ReturnType<typeof getMyWallet>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyWallet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyWalletQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetMyWalletTransactionsUrl = () => {
+
+
+
+
+  return `/api/me/wallet/transactions`
+}
+
+/**
+ * @summary Combined wallet ledger for the signed-in user across all their characters
+ */
+export const getMyWalletTransactions = async ( options?: RequestInit): Promise<WalletTransaction[]> => {
+
+  return customFetch<WalletTransaction[]>(getGetMyWalletTransactionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyWalletTransactionsQueryKey = () => {
+    return [
+    `/api/me/wallet/transactions`
+    ] as const;
+    }
+
+
+export const getGetMyWalletTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof getMyWalletTransactions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyWalletTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyWalletTransactionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyWalletTransactions>>> = ({ signal }) => getMyWalletTransactions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyWalletTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyWalletTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyWalletTransactions>>>
+export type GetMyWalletTransactionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Combined wallet ledger for the signed-in user across all their characters
+ */
+
+export function useGetMyWalletTransactions<TData = Awaited<ReturnType<typeof getMyWalletTransactions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyWalletTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyWalletTransactionsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

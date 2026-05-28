@@ -1,6 +1,5 @@
 import {
   useGetCharacter,
-  useGetWallet,
   useGetWalletTransactions,
   useTransferEddies,
   useGetCharacterInventory,
@@ -13,8 +12,8 @@ import {
   getGetCharacterHousingQueryKey,
   useGetCharacterStatus,
   useUpdateCharacterStatus,
-  getGetWalletQueryKey,
   getGetWalletTransactionsQueryKey,
+  getGetMyWalletQueryKey,
   getGetCharacterInventoryQueryKey,
   getGetCharacterStatusQueryKey,
 } from "@workspace/api-client-react";
@@ -24,7 +23,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, AlertTriangle, Send, DollarSign, X, Home } from "lucide-react";
+import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +93,7 @@ export default function CharacterDetail() {
             <Terminal className="w-4 h-4 mr-2 hidden sm:inline" /> Profile
           </TabsTrigger>
           <TabsTrigger value="wallet" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-wallet">
-            <Wallet className="w-4 h-4 mr-2 hidden sm:inline" /> Wallet
+            <Wallet className="w-4 h-4 mr-2 hidden sm:inline" /> Ledger
           </TabsTrigger>
           <TabsTrigger value="inventory" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-inv">
             <Package className="w-4 h-4 mr-2 hidden sm:inline" /> Inventory
@@ -131,12 +130,13 @@ export default function CharacterDetail() {
 
 function WalletTab({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
-  const { data: wallet, isLoading, error } = useGetWallet(characterId);
   const { data: txs } = useGetWalletTransactions(characterId);
   const transfer = useTransferEddies({
     mutation: {
       onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getGetWalletQueryKey(characterId) });
+        // Balance lives on the user (Unbelievaboat); invalidate the per-user
+        // pill in the TopBar and this character's ledger.
+        qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
         qc.invalidateQueries({ queryKey: getGetWalletTransactionsQueryKey(characterId) });
         setTo(null);
         setAmount(0);
@@ -148,27 +148,16 @@ function WalletTab({ characterId }: { characterId: number }) {
   const [amount, setAmount] = useState(0);
   const [memo, setMemo] = useState("");
 
-  if (isLoading) return <div className="text-nc-cyan font-mono animate-pulse">Fetching UB ledger...</div>;
-  if (error || !wallet) {
-    return (
-      <Card className="rounded-none border-destructive bg-card/50" data-testid="card-wallet-unavailable">
-        <CardContent className="py-6 flex items-center gap-3 text-destructive font-mono">
-          <AlertTriangle className="w-5 h-5" /> Wallet provider unavailable. UnbelievaBoat must be reachable to view balance.
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <Card className="rounded-none border-border bg-card/50">
-        <CardHeader>
-          <CardTitle className="font-display tracking-widest text-nc-cyan">BALANCE</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono">
-          <Stat label="CASH" value={wallet.cash ?? 0} />
-          <Stat label="BANK" value={wallet.bank ?? 0} />
-          <Stat label="TOTAL" value={wallet.balance} highlight />
+      <Card className="rounded-none border-border bg-card/50" data-testid="card-wallet-account-notice">
+        <CardContent className="py-4 flex items-start gap-3 font-mono text-sm text-muted-foreground">
+          <Wallet className="w-4 h-4 mt-0.5 text-nc-cyan shrink-0" />
+          <div>
+            <span className="text-nc-cyan">EDDIES ARE ACCOUNT-LEVEL.</span> Your balance lives on your Discord profile via UnbelievaBoat
+            and is shown in the top bar. All buys, sells, transfers, payouts, rent, and meds settle there in real time. The ledger
+            below shows transactions tied to <span className="text-foreground">this character</span>.
+          </div>
         </CardContent>
       </Card>
 
@@ -239,21 +228,12 @@ function WalletTab({ characterId }: { characterId: number }) {
   );
 }
 
-function Stat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
-  return (
-    <div className={`border ${highlight ? "border-nc-cyan" : "border-border"} p-4`}>
-      <div className="text-xs uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className={`text-3xl font-display ${highlight ? "text-nc-cyan" : "text-foreground"}`}>€${value}</div>
-    </div>
-  );
-}
-
 function InventoryTab({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
   const { data: items, isLoading } = useGetCharacterInventory(characterId);
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(characterId) });
-    qc.invalidateQueries({ queryKey: getGetWalletQueryKey(characterId) });
+    qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
     qc.invalidateQueries({ queryKey: getGetWalletTransactionsQueryKey(characterId) });
   };
   const addItem = useAddInventoryItem({ mutation: { onSuccess: invalidate } });

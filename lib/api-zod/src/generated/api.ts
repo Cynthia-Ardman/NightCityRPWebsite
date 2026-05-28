@@ -2170,3 +2170,29 @@ export const GetRecentActivityResponseItem = zod.object({
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
 
 
+/**
+ * @summary Per-user eddies balance from Unbelievaboat (account-level, not per-character)
+ */
+export const GetMyWalletResponse = zod.object({
+  "balance": zod.number(),
+  "cash": zod.number().optional(),
+  "bank": zod.number().optional(),
+  "source": zod.enum(['unbelievaboat', 'local'])
+})
+
+
+/**
+ * @summary Combined wallet ledger for the signed-in user across all their characters
+ */
+export const GetMyWalletTransactionsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "amount": zod.number(),
+  "kind": zod.enum(['transfer_in', 'transfer_out', 'payout', 'rent', 'cyberware', 'admin', 'shop', 'other']),
+  "memo": zod.string().nullish(),
+  "counterpartyName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const GetMyWalletTransactionsResponse = zod.array(GetMyWalletTransactionsResponseItem)
+
+

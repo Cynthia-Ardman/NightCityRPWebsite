@@ -97,6 +97,8 @@ export * from './upcomingBillsRentItem';
 export * from './upcomingBillsTotals';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';
+export * from './userWallet';
+export * from './userWalletSource';
 export * from './wallet';
 export * from './walletAdjustmentInput';
 export * from './walletSource';
