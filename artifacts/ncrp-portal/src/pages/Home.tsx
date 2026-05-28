@@ -432,15 +432,43 @@ function UpcomingBillsCard() {
                 icon={Syringe}
                 color="text-destructive"
                 title="CYBERPSYCHOSIS MEDS (WEEKLY)"
-                emptyHint="No chrome on file — no meds owed."
+                emptyHint={
+                  data.unbilledChrome.length > 0
+                    ? "No risk band assigned — no meds owed yet."
+                    : "No chrome on file — no meds owed."
+                }
                 items={data.meds.map((m) => ({
                   key: `meds-${m.characterId}`,
                   primary: m.characterName,
-                  secondary: `${m.totalHL} HL · due ${formatDueDate(m.dueAt)}`,
+                  secondary: `${m.level} band · ${m.chromeCount} chrome · week ${m.nextStreak} · due ${formatDueDate(m.dueAt)}`,
                   amount: m.amount,
                   to: `/characters/${m.characterId}`,
                 }))}
               />
+
+              {data.unbilledChrome.length > 0 && (
+                <div className="space-y-1 border border-nc-yellow/30 bg-nc-yellow/5 px-3 py-2">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-nc-yellow">
+                    Chrome installed · not yet billed
+                  </div>
+                  {data.unbilledChrome.map((u) => (
+                    <Link key={`unbilled-${u.characterId}`} href={`/characters/${u.characterId}`}>
+                      <div
+                        className="flex justify-between items-center text-xs font-mono hover:text-nc-cyan cursor-pointer"
+                        data-testid={`row-unbilled-${u.characterId}`}
+                      >
+                        <span className="truncate text-foreground">{u.characterName}</span>
+                        <span className="text-muted-foreground whitespace-nowrap">
+                          {u.chromeCount} {u.chromeCount === 1 ? "piece" : "pieces"}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                  <div className="text-[10px] font-mono text-muted-foreground/80 italic pt-1">
+                    Visit a ripperdoc to get a risk band assigned before cyberpsychosis meds are charged.
+                  </div>
+                </div>
+              )}
 
               {data.leases.length > 0 && (
                 <div className="space-y-2">

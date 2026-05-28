@@ -11,15 +11,17 @@ import {
   users,
   housing,
   walletTransactions,
+  inventoryItems,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
 import { hasRole } from "../lib/discord";
+import { projectedWeeklyMeds } from "../lib/jobs";
 
-// Keep these in sync with `lib/jobs.ts` — they define the formulas the cron
-// jobs actually use, so the projection on the dashboard is honest.
+// Keep this in sync with `lib/jobs.ts` — it's the rent the monthly_rent cron
+// actually debits per approved PC. Meds use a different formula keyed on
+// the ripperdoc-assigned cyberwareLevel — see projectedWeeklyMeds().
 const RENT_PER_PC_PER_MONTH = 500;
-const MEDS_RATE_PER_HL_PER_WEEK = 50;
 
 // monthly_rent cron runs 04:00 UTC on the 1st of every month.
 function nextMonthlyRunDate(now: Date = new Date()): Date {
@@ -123,32 +125,65 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     dueAt: rentDueAt,
   }));
 
-  // Meds projection: only PCs with an approved sheet contribute. Sum HL across
-  // foundational + misc chrome the same way the cron does.
-  const meds: Array<{ characterId: number; characterName: string; totalHL: number; amount: number; dueAt: string }> = [];
+  // Meds projection. The cyberware_humanity cron does NOT count chrome HL —
+  // it charges purely off the ripperdoc-assigned cyberwareLevel + the
+  // checkup streak counter. So the dashboard's projected weekly meds must
+  // come from that same formula or we'd be lying about what gets debited
+  // on the next Monday tick.
+  //
+  // Chrome COUNT, on the other hand, comes from the portal's inventory_items
+  // table (category='cyberware'). The user might own chrome in their
+  // inventory but still have cyberwareLevel='none' if they haven't seen a
+  // ripperdoc — that's a real game state, not "no chrome on file".
+  const billableIds = billable.map((c) => c.id);
+  const chromeCountsRaw = billableIds.length === 0 ? [] : await db
+    .select({
+      characterId: inventoryItems.characterId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(inventoryItems)
+    .where(and(inArray(inventoryItems.characterId, billableIds), eq(inventoryItems.category, "cyberware")))
+    .groupBy(inventoryItems.characterId);
+  const chromeCounts = new Map<number, number>();
+  for (const r of chromeCountsRaw) {
+    if (r.characterId != null) chromeCounts.set(r.characterId, r.count);
+  }
+
+  const meds: Array<{
+    characterId: number;
+    characterName: string;
+    chromeCount: number;
+    level: string;
+    nextStreak: number;
+    amount: number;
+    dueAt: string;
+  }> = [];
+  // Characters that have chrome installed in inventory but no risk band
+  // assigned yet — surfaced in the UI as a hint so "no meds owed" doesn't
+  // look like the system failed to see their chrome.
+  const unbilledChrome: Array<{ characterId: number; characterName: string; chromeCount: number; reason: string }> = [];
+
   for (const c of billable) {
-    const [sheet] = await db
-      .select()
-      .from(characterSheets)
-      .where(and(eq(characterSheets.characterId, c.id), eq(characterSheets.status, "approved")))
-      .orderBy(desc(characterSheets.createdAt))
-      .limit(1);
-    if (!sheet) continue;
-    const data = (sheet.data ?? {}) as Record<string, unknown>;
-    const bySlot = Array.isArray(data.cyberwareBySlot) ? data.cyberwareBySlot : [];
-    const misc = Array.isArray(data.cyberwareMisc) ? data.cyberwareMisc : [];
-    const allChrome = [...bySlot, ...misc] as Array<{ name?: string; humanityLoss?: number }>;
-    const totalHL = allChrome
-      .filter((cw) => (cw?.name ?? "").trim().length > 0)
-      .reduce((s, cw) => s + (Number(cw.humanityLoss) || 0), 0);
-    if (totalHL <= 0) continue;
-    meds.push({
-      characterId: c.id,
-      characterName: c.name,
-      totalHL,
-      amount: totalHL * MEDS_RATE_PER_HL_PER_WEEK,
-      dueAt: medsDueAt,
-    });
+    const chromeCount = chromeCounts.get(c.id) ?? 0;
+    const proj = projectedWeeklyMeds(c.cyberwareLevel, c.checkupStreak ?? 0);
+    if (proj.charge > 0) {
+      meds.push({
+        characterId: c.id,
+        characterName: c.name,
+        chromeCount,
+        level: proj.level,
+        nextStreak: proj.nextStreak,
+        amount: proj.charge,
+        dueAt: medsDueAt,
+      });
+    } else if (chromeCount > 0) {
+      unbilledChrome.push({
+        characterId: c.id,
+        characterName: c.name,
+        chromeCount,
+        reason: "No risk band assigned — visit a ripperdoc to start cyberpsychosis tracking",
+      });
+    }
   }
 
   // Active leases (informational — automated rent currently charges the flat
@@ -175,6 +210,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   res.json({
     rent,
     meds,
+    unbilledChrome,
     leases: leases.map((l) => ({
       ...l,
       paidThrough: l.paidThrough ? l.paidThrough.toISOString() : null,

@@ -27,12 +27,26 @@ const DEFAULT_TRAUMA_TEAM_COSTS: Record<string, number> = {
 // character is (cap/128) * 2^(streak-1), clamped to the cap — meaning the
 // charge starts trivial and doubles each missed checkup until it hits the
 // ceiling at streak 8.
-const CYBERWARE_LEVEL_CAPS: Record<string, number> = {
+export const CYBERWARE_LEVEL_CAPS: Record<string, number> = {
   none: 0,
   medium: 2000,
   high: 5000,
   extreme: 10000,
 };
+
+// Weekly meds charge for a character, mirroring the cyberware_humanity cron
+// formula. Exported so the dashboard projection can show the same number the
+// cron will actually debit on the next Monday tick (no HL-guessing).
+export function projectedWeeklyMeds(level: string | null | undefined, currentStreak: number): { charge: number; level: string; nextStreak: number; cap: number } {
+  const norm = (level ?? "none").toLowerCase();
+  const cap = CYBERWARE_LEVEL_CAPS[norm] ?? 0;
+  const MAX_STREAK = 12;
+  const nextStreak = Math.min((currentStreak ?? 0) + 1, MAX_STREAK);
+  if (cap <= 0) return { charge: 0, level: norm, nextStreak, cap };
+  const base = cap / 128;
+  const charge = Math.min(Math.floor(base * Math.pow(2, nextStreak - 1)), cap);
+  return { charge, level: norm, nextStreak, cap };
+}
 
 // Passive-income table for opened businesses.
 //   T0 (tier 0 / micro): flat eddies by # of opens this month.

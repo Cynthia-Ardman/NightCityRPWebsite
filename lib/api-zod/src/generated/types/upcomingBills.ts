@@ -9,10 +9,13 @@ import type { UpcomingBillsLeasesItem } from './upcomingBillsLeasesItem';
 import type { UpcomingBillsMedsItem } from './upcomingBillsMedsItem';
 import type { UpcomingBillsRentItem } from './upcomingBillsRentItem';
 import type { UpcomingBillsTotals } from './upcomingBillsTotals';
+import type { UpcomingBillsUnbilledChromeItem } from './upcomingBillsUnbilledChromeItem';
 
 export interface UpcomingBills {
   rent: UpcomingBillsRentItem[];
   meds: UpcomingBillsMedsItem[];
+  /** Characters with chrome installed in inventory but no risk band assigned (cyberwareLevel='none'), so no meds will be auto-charged until a ripperdoc certifies the band. */
+  unbilledChrome: UpcomingBillsUnbilledChromeItem[];
   leases: UpcomingBillsLeasesItem[];
   totals: UpcomingBillsTotals;
 }

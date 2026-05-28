@@ -1393,9 +1393,21 @@ export type UpcomingBillsRentItem = {
 export type UpcomingBillsMedsItem = {
   characterId: number;
   characterName: string;
-  totalHL: number;
+  /** Cyberware items installed (from inventory_items category=cyberware). */
+  chromeCount: number;
+  /** Ripperdoc-assigned risk band: none|medium|high|extreme. */
+  level: string;
+  /** Streak counter the next cron tick will apply. */
+  nextStreak: number;
   amount: number;
   dueAt: string;
+};
+
+export type UpcomingBillsUnbilledChromeItem = {
+  characterId: number;
+  characterName: string;
+  chromeCount: number;
+  reason: string;
 };
 
 export type UpcomingBillsLeasesItem = {
@@ -1417,6 +1429,8 @@ export type UpcomingBillsTotals = {
 export interface UpcomingBills {
   rent: UpcomingBillsRentItem[];
   meds: UpcomingBillsMedsItem[];
+  /** Characters with chrome installed in inventory but no risk band assigned (cyberwareLevel='none'), so no meds will be auto-charged until a ripperdoc certifies the band. */
+  unbilledChrome: UpcomingBillsUnbilledChromeItem[];
   leases: UpcomingBillsLeasesItem[];
   totals: UpcomingBillsTotals;
 }

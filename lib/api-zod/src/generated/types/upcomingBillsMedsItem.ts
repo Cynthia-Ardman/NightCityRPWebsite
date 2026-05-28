@@ -9,7 +9,12 @@
 export type UpcomingBillsMedsItem = {
   characterId: number;
   characterName: string;
-  totalHL: number;
+  /** Cyberware items installed (from inventory_items category=cyberware). */
+  chromeCount: number;
+  /** Ripperdoc-assigned risk band: none|medium|high|extreme. */
+  level: string;
+  /** Streak counter the next cron tick will apply. */
+  nextStreak: number;
   amount: number;
   dueAt: Date;
 };

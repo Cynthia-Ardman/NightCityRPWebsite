@@ -157,6 +157,7 @@ export * from './upcomingBillsLeasesItem';
 export * from './upcomingBillsMedsItem';
 export * from './upcomingBillsRentItem';
 export * from './upcomingBillsTotals';
+export * from './upcomingBillsUnbilledChromeItem';
 export * from './updateCharacter409';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';

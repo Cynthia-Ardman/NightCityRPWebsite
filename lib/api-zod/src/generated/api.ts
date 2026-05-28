@@ -2908,10 +2908,18 @@ export const GetUpcomingBillsResponse = zod.object({
   "meds": zod.array(zod.object({
   "characterId": zod.number(),
   "characterName": zod.string(),
-  "totalHL": zod.number(),
+  "chromeCount": zod.number().describe('Cyberware items installed (from inventory_items category=cyberware).'),
+  "level": zod.string().describe('Ripperdoc-assigned risk band: none|medium|high|extreme.'),
+  "nextStreak": zod.number().describe('Streak counter the next cron tick will apply.'),
   "amount": zod.number(),
   "dueAt": zod.coerce.date()
 })),
+  "unbilledChrome": zod.array(zod.object({
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "chromeCount": zod.number(),
+  "reason": zod.string()
+})).describe('Characters with chrome installed in inventory but no risk band assigned (cyberwareLevel=\'none\'), so no meds will be auto-charged until a ripperdoc certifies the band.'),
   "leases": zod.array(zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
