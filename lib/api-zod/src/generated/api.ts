@@ -2116,28 +2116,12 @@ export const GetDashboardSummaryResponse = zod.object({
 })).optional(),
   "recentArrivals": zod.array(zod.object({
   "id": zod.number(),
-  "ownerId": zod.string().nullish(),
-  "claimed": zod.boolean(),
-  "legacyDiscordUsername": zod.string().nullish(),
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
-  "background": zod.string().nullish(),
   "portraitUrl": zod.string().nullish(),
-  "portraitUrls": zod.array(zod.string()),
-  "statsImageUrls": zod.array(zod.string()),
-  "sheetData": zod.union([zod.null(),zod.object({
-  "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
-})]).optional(),
-  "importedFromThreadId": zod.string().nullish(),
-  "importedFromChannelName": zod.string().nullish(),
-  "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
-  "approved": zod.boolean().optional(),
-  "archived": zod.boolean(),
   "createdAt": zod.coerce.date()
-})).optional()
+})).optional().describe('Roster tile data only. Intentionally excludes sheet body fields\n(background, sheetData, ownerId, importedFromThreadId, …) because\ncharacter sheets are owner\/staff-only — see \/directory\/characters\/:id.\n')
 })
 
 

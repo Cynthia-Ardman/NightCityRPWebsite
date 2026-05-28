@@ -73,8 +73,20 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     .groupBy(fixerNpcs.fixerId, users.username, users.avatarUrl)
     .orderBy(desc(sql`count(*)`))
     .limit(5);
+  // Roster snippet shown on every dashboard. Must NOT include sheet body
+  // fields (background, sheetData, importedFromThreadId, ownerId, …) —
+  // those are owner/staff-only per the character-sheet visibility policy
+  // enforced in routes/directory.ts. Keep this to the minimum a roster
+  // tile renders: name, kind, archetype, portrait.
   const recentArrivals = await db
-    .select()
+    .select({
+      id: characters.id,
+      name: characters.name,
+      kind: characters.kind,
+      archetype: characters.archetype,
+      portraitUrl: characters.portraitUrl,
+      createdAt: characters.createdAt,
+    })
     .from(characters)
     .where(eq(characters.kind, "pc"))
     .orderBy(desc(characters.createdAt))

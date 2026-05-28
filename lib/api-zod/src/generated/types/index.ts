@@ -34,6 +34,8 @@ export * from './characterStatus';
 export * from './characterStatusUpdate';
 export * from './characterUpdate';
 export * from './dashboardSummary';
+export * from './dashboardSummaryRecentArrivalsItem';
+export * from './dashboardSummaryRecentArrivalsItemKind';
 export * from './deactivateCharacter200';
 export * from './diceRollInput';
 export * from './diceRollResult';

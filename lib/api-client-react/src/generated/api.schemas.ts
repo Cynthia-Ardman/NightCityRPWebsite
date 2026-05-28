@@ -835,6 +835,25 @@ export interface JobRunResult {
   affectedCount?: number | null;
 }
 
+export type DashboardSummaryRecentArrivalsItemKind = typeof DashboardSummaryRecentArrivalsItemKind[keyof typeof DashboardSummaryRecentArrivalsItemKind];
+
+
+export const DashboardSummaryRecentArrivalsItemKind = {
+  pc: 'pc',
+  npc: 'npc',
+} as const;
+
+export type DashboardSummaryRecentArrivalsItem = {
+  id: number;
+  name: string;
+  kind: DashboardSummaryRecentArrivalsItemKind;
+  /** @nullable */
+  archetype?: string | null;
+  /** @nullable */
+  portraitUrl?: string | null;
+  createdAt: string;
+};
+
 export interface LeaderboardEntry {
   name: string;
   /** @nullable */
@@ -851,7 +870,11 @@ export interface DashboardSummary {
   loaCount: number;
   pendingSheets: number;
   topFixers?: LeaderboardEntry[];
-  recentArrivals?: Character[];
+  /** Roster tile data only. Intentionally excludes sheet body fields
+  (background, sheetData, ownerId, importedFromThreadId, …) because
+  character sheets are owner/staff-only — see /directory/characters/:id.
+   */
+  recentArrivals?: DashboardSummaryRecentArrivalsItem[];
 }
 
 export type UpcomingBillsRentItem = {

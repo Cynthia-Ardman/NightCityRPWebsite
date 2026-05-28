@@ -88,7 +88,12 @@ function SidebarContent() {
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
 
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Directory</div>
-        <NavItem href="/directory/characters" icon={Users} label="Character Archive" />
+        {/* Character Archive shows every sheet in the city and is restricted
+            to canon staff (fixers + admins). Regular players manage their own
+            characters from /characters. */}
+        {user && (user.isFixer || user.isAdmin) && (
+          <NavItem href="/directory/characters" icon={Users} label="Character Archive" />
+        )}
         <NavItem href="/directory/stores" icon={Store} label="Stores" />
         <NavItem href="/directory/ripperdocs" icon={Syringe} label="Ripperdocs" />
 

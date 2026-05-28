@@ -5,7 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
-import type { Character } from './character';
+import type { DashboardSummaryRecentArrivalsItem } from './dashboardSummaryRecentArrivalsItem';
 import type { LeaderboardEntry } from './leaderboardEntry';
 
 export interface DashboardSummary {
@@ -17,5 +17,9 @@ export interface DashboardSummary {
   loaCount: number;
   pendingSheets: number;
   topFixers?: LeaderboardEntry[];
-  recentArrivals?: Character[];
+  /** Roster tile data only. Intentionally excludes sheet body fields
+  (background, sheetData, ownerId, importedFromThreadId, …) because
+  character sheets are owner/staff-only — see /directory/characters/:id.
+   */
+  recentArrivals?: DashboardSummaryRecentArrivalsItem[];
 }

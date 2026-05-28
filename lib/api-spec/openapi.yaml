@@ -1966,7 +1966,20 @@ components:
           items: { $ref: "#/components/schemas/LeaderboardEntry" }
         recentArrivals:
           type: array
-          items: { $ref: "#/components/schemas/Character" }
+          description: |
+            Roster tile data only. Intentionally excludes sheet body fields
+            (background, sheetData, ownerId, importedFromThreadId, …) because
+            character sheets are owner/staff-only — see /directory/characters/:id.
+          items:
+            type: object
+            required: [id, name, kind, createdAt]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              kind: { type: string, enum: [pc, npc] }
+              archetype: { type: ["string", "null"] }
+              portraitUrl: { type: ["string", "null"] }
+              createdAt: { type: string, format: date-time }
 
     UpcomingBills:
       type: object

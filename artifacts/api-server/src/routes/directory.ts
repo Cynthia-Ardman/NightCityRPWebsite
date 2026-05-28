@@ -12,8 +12,20 @@ import {
   catalogCyberware,
   catalogRent,
 } from "@workspace/db";
+import { requireAuth, requireAnyRole } from "../middlewares/auth";
+import { hasRole } from "../lib/discord";
 
 const router: IRouter = Router();
+
+// Character sheets contain IC backstory, contacts, and chrome loadouts that
+// players and staff have agreed should NOT be visible to the wider community.
+// Visibility rules:
+//   - The list endpoint is a roster tool for canon enforcement — fixers and
+//     admins only.
+//   - A given sheet's detail is viewable by its owner (so a player can read
+//     their own claimed dossier from the archive route), plus fixers and
+//     admins. Everyone else gets 403, including other logged-in players.
+// Stores, ripperdocs, and the gun/cyberware/rent catalogs remain public.
 
 // Strip internal `[legacy:<uuid>]` tags that the prod importer stamps into
 // background. They are mapping anchors, not story content.
@@ -23,10 +35,10 @@ function cleanBackground(s: string | null | undefined): string | null {
   return cleaned.length > 0 ? cleaned : null;
 }
 
-// Public character directory: anyone (even unauthenticated visitors) can
-// browse the imported sheets. The list endpoint supports a simple name
-// filter and a scope filter (all / active / retired / unclaimed).
-router.get("/directory/characters", async (req, res): Promise<void> => {
+// Roster of all character sheets. Fixers and admins only — used to enforce
+// canon, resolve claims, and run mission paperwork. Regular players see
+// their own characters under /characters, not here.
+router.get("/directory/characters", requireAnyRole(["ADMIN", "FIXER"]), async (req, res): Promise<void> => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
 
@@ -72,11 +84,11 @@ router.get("/directory/characters", async (req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.get("/directory/characters/:id", async (req, res): Promise<void> => {
+router.get("/directory/characters/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  // Explicit projection only — never spread the full row. Internal fields
-  // like ownerId, discordChannelId, importedFromThreadId, approval flags,
-  // and timestamps must not leak through the public endpoint.
+  // We need ownerId for the access check, but it must NOT leak to the client
+  // — pull it into a separate variable and return the same explicit
+  // projection as before.
   const [row] = await db
     .select({
       id: characters.id,
@@ -92,6 +104,7 @@ router.get("/directory/characters/:id", async (req, res): Promise<void> => {
       archived: characters.archived,
       legacyDiscordUsername: characters.legacyDiscordUsername,
       importedFromChannelName: characters.importedFromChannelName,
+      ownerId: characters.ownerId,
       ownerName: users.username,
       ownerAvatarUrl: users.avatarUrl,
     })
@@ -102,7 +115,15 @@ router.get("/directory/characters/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json({ ...row, background: cleanBackground(row.background) });
+  const me = req.user!;
+  const isStaff = hasRole(me.roles, "ADMIN") || hasRole(me.roles, "FIXER");
+  const isOwner = row.ownerId !== null && row.ownerId === me.id;
+  if (!isStaff && !isOwner) {
+    res.status(403).json({ error: "Character sheets are visible only to the owner, fixers, and admins" });
+    return;
+  }
+  const { ownerId: _ownerId, ...safe } = row;
+  res.json({ ...safe, background: cleanBackground(safe.background) });
 });
 
 router.get("/directory/ripperdocs", async (_req, res): Promise<void> => {
