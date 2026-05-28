@@ -116,6 +116,13 @@ export const characters = pgTable("characters", {
   // Default is 'none' so existing characters aren't auto-billed until a
   // ripperdoc gives them a checkup and stamps a level.
   cyberwareLevel: text("cyberware_level").notNull().default("none"),
+  // Explicit "this character has no chrome on purpose" flag. Set by the
+  // cyberware importer when the source spreadsheet lists CWP total = 0, and
+  // by admins via the character page. Distinct from "chrome data is missing":
+  // organic=true means we know there's no chrome; organic=false + 0 inventory
+  // rows means we don't know yet. The dashboard MEDS card and audit reports
+  // use this to suppress "missing cyberware" warnings.
+  isOrganic: boolean("is_organic").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   importedThreadIdx: uniqueIndex("characters_imported_thread_idx").on(t.importedFromThreadId),

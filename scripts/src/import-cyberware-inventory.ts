@@ -9,23 +9,29 @@
 // by that sentinel) before re-inserting, leaving ripperdoc-installed chrome
 // and other manually added items untouched.
 //
-// PC matching: case-insensitive exact match on characters.name where kind='pc'.
-// PCs that are not found are logged and skipped (we never auto-create PCs —
-// they have to be claimed through the normal sheet flow).
-// NPC matching: same as the existing import-npcs-cyberware.ts — exact name on
-// kind='npc'; missing NPCs are created with claimed=false, ownerId=null.
+// Matching policy:
+//   1. cyberware-aliases.json (sheet name → DB id, or action='organic').
+//   2. Fall back to case-insensitive exact match on characters.name.
+//   3. If still no unique match, log and skip. We NEVER auto-create
+//      characters — every sheet entry must map to an existing DB row or be
+//      explicitly listed in the alias map.
+//
+// Organic handling: entries flagged action='organic' (or with no implants in
+// the sheet and an explicit characterId) set characters.is_organic=true on
+// the mapped row and skip the chrome insert entirely.
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as XLSX from "xlsx";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 import { db, pool, characters, inventoryItems } from "@workspace/db";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..", "..");
 const ASSETS = path.join(ROOT, "attached_assets");
+const ALIAS_FILE = path.join(ROOT, "scripts", "cyberware-aliases.json");
 
 const DEFAULT_FILE = "NCRP__Cyberware_list_v2(1)_1779978749744.xlsx";
 const FILE = process.env.CYBERWARE_FILE ?? DEFAULT_FILE;
@@ -54,6 +60,18 @@ type CharBlock = {
   implants: Implant[];
 };
 
+type AliasEntry =
+  | { action: "match"; characterId: number }
+  | { action: "organic"; characterId?: number };
+
+type AliasMap = { pc: Record<string, AliasEntry>; npc: Record<string, AliasEntry> };
+
+function loadAliases(): AliasMap {
+  if (!fs.existsSync(ALIAS_FILE)) return { pc: {}, npc: {} };
+  const raw = JSON.parse(fs.readFileSync(ALIAS_FILE, "utf8")) as Partial<AliasMap> & { _comment?: unknown };
+  return { pc: raw.pc ?? {}, npc: raw.npc ?? {} };
+}
+
 function loadSheet(file: string, sheetName: string): Row[] {
   const buf = fs.readFileSync(path.join(ASSETS, file));
   const wb = XLSX.read(buf, { type: "buffer" });
@@ -68,11 +86,6 @@ function str(v: unknown): string | null {
   return s.length === 0 ? null : s;
 }
 
-// Both sheets share the same column layout — Character | Player Name |
-// CWP Total | Implant Name | CWP | Brand | Brand Tier | Function | Slot/Type
-// | Notes. Each character's block starts with a row that has a non-null
-// Character cell; subsequent rows with only an implant name are appended to
-// the current block.
 function parseBlocks(sheetName: string): CharBlock[] {
   const rows = loadSheet(FILE, sheetName);
   const blocks: CharBlock[] = [];
@@ -103,8 +116,6 @@ function parseBlocks(sheetName: string): CharBlock[] {
 }
 
 function formatNotes(im: Implant): string {
-  // Pack the implant metadata into the notes field so it stays visible in the
-  // inventory tab. Trailing SENTINEL is what we grep for on rerun.
   const parts: string[] = [];
   if (im.cwp) parts.push(`CWP ${im.cwp}`);
   if (im.slot) parts.push(im.slot);
@@ -115,16 +126,15 @@ function formatNotes(im: Implant): string {
   return head ? `${head} ${SENTINEL}` : SENTINEL;
 }
 
-type PcLookup = { kind: "ok"; id: number } | { kind: "missing" } | { kind: "ambiguous"; ids: number[] };
+type Lookup = { kind: "ok"; id: number } | { kind: "missing" } | { kind: "ambiguous"; ids: number[] };
 
-async function findPcId(name: string): Promise<PcLookup> {
+async function findByName(kind: "pc" | "npc", name: string): Promise<Lookup> {
   // Case-insensitive exact match. There's no unique (kind,name) constraint, so
   // we must check for duplicates explicitly — picking arbitrarily would risk
-  // attaching implants to the wrong player's character and corrupting their
-  // wallet/billing/transfer history. On ambiguity we skip and log.
+  // attaching implants to the wrong player's character.
   const rows = await db.execute<{ id: number }>(sql`
     SELECT id FROM characters
-    WHERE kind = 'pc' AND lower(name) = lower(${name})
+    WHERE kind = ${kind} AND lower(name) = lower(${name})
     ORDER BY id ASC
   `);
   if (rows.rows.length === 0) return { kind: "missing" };
@@ -132,28 +142,10 @@ async function findPcId(name: string): Promise<PcLookup> {
   return { kind: "ok", id: rows.rows[0].id };
 }
 
-async function findOrCreateNpcId(name: string, playerName: string | null): Promise<number> {
-  const rows = await db.execute<{ id: number }>(sql`
-    SELECT id FROM characters WHERE kind = 'npc' AND name = ${name} LIMIT 1
-  `);
-  if (rows.rows[0]) return rows.rows[0].id;
-  const [created] = await db.insert(characters).values({
-    name,
-    kind: "npc",
-    claimed: false,
-    ownerId: null,
-    legacyDiscordUsername: playerName,
-    archetype: null,
-    lifeStatus: "active",
-    approved: true,
-  }).returning({ id: characters.id });
-  return created.id;
-}
-
 async function applyBlock(characterId: number, block: CharBlock): Promise<{ deleted: number; inserted: number }> {
-  // Wrap delete+insert in a transaction so a crash between the two doesn't
-  // leave the character with zero cyberware mid-rerun (which would briefly
-  // wrong-band their meds bill).
+  // Wrap delete+insert+is_organic update in a transaction so a crash between
+  // them doesn't leave the character with zero cyberware mid-rerun (which
+  // would briefly wrong-band their meds bill).
   return await db.transaction(async (tx) => {
     const del = await tx.execute(sql`
       DELETE FROM inventory_items
@@ -175,64 +167,202 @@ async function applyBlock(characterId: number, block: CharBlock): Promise<{ dele
         equipped: true,
       })),
     );
+    // A character with chrome is definitionally not organic — clear the flag
+    // if it was previously set (e.g. by a stale organic alias).
+    await tx.update(characters).set({ isOrganic: false }).where(eq(characters.id, characterId));
     return { deleted, inserted: block.implants.length };
   });
 }
 
+async function markOrganic(characterId: number): Promise<{ deleted: number; conflict: boolean }> {
+  // Set is_organic=true and remove any chrome rows this importer previously
+  // inserted. If non-sentinel chrome still exists afterward (ripperdoc or
+  // manual rows), flag a conflict so the operator can decide — we don't
+  // silently nuke human-owned data.
+  return await db.transaction(async (tx) => {
+    const del = await tx.execute(sql`
+      DELETE FROM inventory_items
+      WHERE character_id = ${characterId}
+        AND category = 'cyberware'
+        AND notes LIKE ${'%' + SENTINEL + '%'}
+    `);
+    const left = await tx.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM inventory_items
+      WHERE character_id = ${characterId} AND category = 'cyberware'
+    `);
+    const conflict = (left.rows[0]?.n ?? 0) > 0;
+    if (!conflict) {
+      await tx.update(characters).set({ isOrganic: true }).where(eq(characters.id, characterId));
+    }
+    return { deleted: del.rowCount ?? 0, conflict };
+  });
+}
+
+async function validateAliasTarget(kind: "pc" | "npc", characterId: number): Promise<"ok" | "missing" | "wrong_kind"> {
+  const rows = await db.execute<{ kind: string }>(sql`
+    SELECT kind FROM characters WHERE id = ${characterId} LIMIT 1
+  `);
+  if (rows.rows.length === 0) return "missing";
+  if (rows.rows[0].kind !== kind) return "wrong_kind";
+  return "ok";
+}
+
+type Outcome =
+  | { tag: "chrome"; id: number; inserted: number; deleted: number }
+  | { tag: "organic"; id: number; deleted: number }
+  | { tag: "organic_conflict"; id: number; deleted: number }
+  | { tag: "missing" }
+  | { tag: "ambiguous"; ids: number[] }
+  | { tag: "alias_invalid"; reason: string };
+
+// Sheet's CWP Total column = "0" (or absent) AND no implant rows ⇒ organic by
+// the spreadsheet itself. We auto-mark these so the operator doesn't have to
+// hand-curate every chrome-free character into the alias file.
+function isOrganicFromSheet(block: CharBlock): boolean {
+  if (block.implants.length > 0) return false;
+  const t = (block.cwpTotal ?? "").trim();
+  return t === "" || t === "0";
+}
+
+async function resolveAliasTargetId(
+  kind: "pc" | "npc",
+  block: CharBlock,
+  alias: AliasEntry,
+): Promise<{ id: number } | { error: string } | { ambiguous: number[] } | { missing: true }> {
+  if (alias.action === "match" || alias.characterId) {
+    const id = alias.characterId!;
+    const check = await validateAliasTarget(kind, id);
+    if (check === "missing") return { error: `alias points at #${id} but no such character row exists` };
+    if (check === "wrong_kind") return { error: `alias points at #${id} but it's not a ${kind}` };
+    return { id };
+  }
+  // Organic alias without explicit id — fall back to name lookup.
+  const hit = await findByName(kind, block.name);
+  if (hit.kind === "missing") return { missing: true };
+  if (hit.kind === "ambiguous") return { ambiguous: hit.ids };
+  return { id: hit.id };
+}
+
+async function resolveBlock(
+  kind: "pc" | "npc",
+  block: CharBlock,
+  alias: AliasEntry | undefined,
+): Promise<Outcome> {
+  // 1. Alias takes precedence. Always validate the target before mutating.
+  if (alias) {
+    const target = await resolveAliasTargetId(kind, block, alias);
+    if ("error" in target) return { tag: "alias_invalid", reason: target.reason ?? target.error };
+    if ("ambiguous" in target) return { tag: "ambiguous", ids: target.ambiguous };
+    if ("missing" in target) return { tag: "missing" };
+    if (alias.action === "organic") {
+      const r = await markOrganic(target.id);
+      return { tag: r.conflict ? "organic_conflict" : "organic", id: target.id, deleted: r.deleted };
+    }
+    const r = await applyBlock(target.id, block);
+    return { tag: "chrome", id: target.id, inserted: r.inserted, deleted: r.deleted };
+  }
+
+  // 2. No alias: case-insensitive exact name lookup.
+  const hit = await findByName(kind, block.name);
+  if (hit.kind === "missing") return { tag: "missing" };
+  if (hit.kind === "ambiguous") return { tag: "ambiguous", ids: hit.ids };
+
+  // 3. Sheet itself says organic? Stamp it.
+  if (isOrganicFromSheet(block)) {
+    const r = await markOrganic(hit.id);
+    return { tag: r.conflict ? "organic_conflict" : "organic", id: hit.id, deleted: r.deleted };
+  }
+
+  // 4. Has implants ⇒ insert chrome.
+  if (block.implants.length > 0) {
+    const r = await applyBlock(hit.id, block);
+    return { tag: "chrome", id: hit.id, inserted: r.inserted, deleted: r.deleted };
+  }
+
+  // 5. CWP > 0 but no implant rows parsed — unusual sheet state; surface it.
+  return { tag: "alias_invalid", reason: `sheet has CWP ${block.cwpTotal} but no implant rows — needs manual review` };
+}
+
 async function main() {
   console.log(`Reading ${FILE}`);
+  const aliases = loadAliases();
   const pcBlocks = parseBlocks("Character CWP Tracking");
   const npcBlocks = parseBlocks("NPC CWP Tracking");
+  console.log(`Aliases loaded: ${Object.keys(aliases.pc).length} PC, ${Object.keys(aliases.npc).length} NPC`);
   console.log(`Parsed PCs: ${pcBlocks.length} blocks (${pcBlocks.reduce((a, b) => a + b.implants.length, 0)} implants)`);
   console.log(`Parsed NPCs: ${npcBlocks.length} blocks (${npcBlocks.reduce((a, b) => a + b.implants.length, 0)} implants)`);
 
-  let pcMatched = 0, pcMissing = 0, pcAmbiguous = 0, pcInserted = 0, pcDeleted = 0;
-  const missing: string[] = [];
-  const ambiguous: string[] = [];
-  for (const block of pcBlocks) {
-    if (block.implants.length === 0) continue;
-    const hit = await findPcId(block.name);
-    if (hit.kind === "missing") {
-      pcMissing++;
-      missing.push(`${block.name}${block.playerName ? ` (${block.playerName})` : ""}`);
-      continue;
+  type Stats = {
+    chrome: number; organic: number; inserted: number; deleted: number;
+    missing: string[]; ambiguous: string[]; conflicts: string[]; invalid: string[];
+  };
+  const mk = (): Stats => ({ chrome: 0, organic: 0, inserted: 0, deleted: 0, missing: [], ambiguous: [], conflicts: [], invalid: [] });
+
+  async function run(kind: "pc" | "npc", blocks: CharBlock[], aliasMap: Record<string, AliasEntry>): Promise<Stats> {
+    const s = mk();
+    for (const block of blocks) {
+      const alias = aliasMap[block.name];
+      const tag = `${block.name}${block.playerName ? ` (${block.playerName})` : ""}`;
+      let out: Outcome;
+      try {
+        out = await resolveBlock(kind, block, alias);
+      } catch (err) {
+        // Per-block isolation: one bad alias shouldn't abort the whole import.
+        s.invalid.push(`${tag} — ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
+      switch (out.tag) {
+        case "chrome":
+          s.chrome++; s.inserted += out.inserted; s.deleted += out.deleted;
+          if (process.env.VERBOSE) console.log(`  ${kind.toUpperCase()} ${tag} → #${out.id}: -${out.deleted} +${out.inserted}`);
+          break;
+        case "organic":
+          s.organic++; s.deleted += out.deleted;
+          console.log(`  ${kind.toUpperCase()} ${tag} → #${out.id}: marked ORGANIC (cleared ${out.deleted} prior chrome rows)`);
+          break;
+        case "organic_conflict":
+          s.conflicts.push(`${tag} → #${out.id} has non-importer chrome rows; refused to mark organic`);
+          break;
+        case "missing":
+          // Silently drop alias-less, implant-less rows — they're the
+          // "no chrome listed, no known target" tail and the user has said
+          // we'll triage them later, not auto-create characters.
+          if (alias || block.implants.length > 0) s.missing.push(tag);
+          break;
+        case "ambiguous":
+          s.ambiguous.push(`${tag} → ids [${out.ids.join(", ")}]`);
+          break;
+        case "alias_invalid":
+          s.invalid.push(`${tag} — ${out.reason}`);
+          break;
+      }
     }
-    if (hit.kind === "ambiguous") {
-      pcAmbiguous++;
-      ambiguous.push(`${block.name}${block.playerName ? ` (${block.playerName})` : ""} → ids [${hit.ids.join(", ")}]`);
-      continue;
-    }
-    const r = await applyBlock(hit.id, block);
-    pcMatched++;
-    pcInserted += r.inserted;
-    pcDeleted += r.deleted;
-    if (process.env.VERBOSE) console.log(`  PC ${block.name} (#${hit.id}): -${r.deleted} +${r.inserted}`);
+    return s;
   }
 
-  let npcTouched = 0, npcInserted = 0, npcDeleted = 0;
-  for (const block of npcBlocks) {
-    if (block.implants.length === 0) continue;
-    const id = await findOrCreateNpcId(block.name, block.playerName);
-    const r = await applyBlock(id, block);
-    npcTouched++;
-    npcInserted += r.inserted;
-    npcDeleted += r.deleted;
-    if (process.env.VERBOSE) console.log(`  NPC ${block.name} (#${id}): -${r.deleted} +${r.inserted}`);
-  }
+  const pc = await run("pc", pcBlocks, aliases.pc);
+  const npc = await run("npc", npcBlocks, aliases.npc);
 
   console.log("\n=== Summary ===");
-  console.log(`PCs matched: ${pcMatched}  (replaced ${pcDeleted}, inserted ${pcInserted} implants)`);
-  console.log(`PCs not found: ${pcMissing}`);
-  if (missing.length) {
-    console.log("Missing PCs (no matching character row by name):");
-    for (const m of missing) console.log(`  - ${m}`);
+  for (const [label, s] of [["PCs", pc], ["NPCs", npc]] as const) {
+    console.log(`${label}: ${s.chrome} chromed (-${s.deleted} +${s.inserted}), ${s.organic} organic, ${s.missing.length} unmatched, ${s.ambiguous.length} ambiguous, ${s.conflicts.length} organic-conflicts, ${s.invalid.length} invalid`);
+    if (s.missing.length) {
+      console.log(`  Unmatched ${label} (need alias map entry):`);
+      for (const m of s.missing) console.log(`    - ${m}`);
+    }
+    if (s.ambiguous.length) {
+      console.log(`  Ambiguous ${label} (duplicate names — add alias map entry):`);
+      for (const a of s.ambiguous) console.log(`    - ${a}`);
+    }
+    if (s.conflicts.length) {
+      console.log(`  Organic conflicts ${label} (chrome still present, not flagged organic):`);
+      for (const c of s.conflicts) console.log(`    - ${c}`);
+    }
+    if (s.invalid.length) {
+      console.log(`  Invalid aliases / sheet rows ${label}:`);
+      for (const i of s.invalid) console.log(`    - ${i}`);
+    }
   }
-  console.log(`PCs skipped (ambiguous — multiple matches by name): ${pcAmbiguous}`);
-  if (ambiguous.length) {
-    console.log("Ambiguous PCs (need manual disambiguation before importing):");
-    for (const a of ambiguous) console.log(`  - ${a}`);
-  }
-  console.log(`NPCs touched: ${npcTouched}  (replaced ${npcDeleted}, inserted ${npcInserted} implants)`);
 
   await pool.end();
 }
