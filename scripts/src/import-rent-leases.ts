@@ -46,13 +46,25 @@ function str(v: unknown): string | null {
 }
 
 function normName(s: string): string {
-  // Strip smart quotes, nicknames in quotes, extra spaces; lowercase.
+  // Strip smart quotes, nicknames in quotes/parens, trailing punctuation,
+  // and collapse whitespace; lowercase.
   return s
     .replace(/[\u201C\u201D\u2018\u2019"']/g, "")
     .replace(/\([^)]*\)/g, "")
+    .replace(/[.,;:!?]+$/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+}
+
+// Break a name into significant tokens — drop short connectors like
+// "de", "la", "di" since they aren't distinctive enough to anchor a
+// match. Lowercased + punctuation stripped.
+function nameTokens(s: string): string[] {
+  return normName(s)
+    .split(/[\s\-]+/)
+    .map((t) => t.replace(/[^a-z0-9]/g, ""))
+    .filter((t) => t.length >= 2 && !["de", "la", "di", "le", "el", "the"].includes(t));
 }
 
 type ParsedRow = {
@@ -223,10 +235,46 @@ async function findCharacterFor(
   const pool = approved.length ? approved : active.length ? active : owned;
   if (desiredName) {
     const target = normName(desiredName);
-    // Exact (normalized) match only — substring matching can false-link
-    // characters whose names share a token (e.g. "Adam" vs "Adam Smith").
+    // 1. Exact (normalized) match.
     const exact = pool.find((c) => normName(c.name) === target);
     if (exact) return { ...exact, userId };
+
+    // 2. Fuzzy token match: every distinctive token from the desired
+    // name must appear in the candidate's tokens. If exactly ONE
+    // candidate satisfies that, it's the match. This handles:
+    //   "Frankie Ar3gus" → "Frankie Ar3gus Miles"  (extra surname)
+    //   "Reven Reed"     → "Reven holo Reed"        (added nickname)
+    //   "Aryn Rece"      → "Ayrn Rece"              (typo — still
+    //                     matches via the unique "rece" surname)
+    // Refusing when the desired tokens are missing prevents matching
+    // "Adam" to "Samael" just because the user has both.
+    const wantTokens = nameTokens(desiredName);
+    if (wantTokens.length) {
+      const scored = pool
+        .map((c) => {
+          const candTokens = new Set(nameTokens(c.name));
+          const hits = wantTokens.filter((t) => candTokens.has(t)).length;
+          return { c, hits, candSize: candTokens.size };
+        })
+        .filter((s) => s.hits >= Math.min(wantTokens.length, 2) || s.hits === wantTokens.length);
+      const best = scored.sort((a, b) => b.hits - a.hits)[0];
+      // Accept only if there's a clear winner — best beats second-best
+      // strictly, or no second-best exists.
+      const second = scored[1];
+      if (best && (!second || best.hits > second.hits)) {
+        return { ...best.c, userId };
+      }
+
+      // 3. Distinctive-token fallback: if any single desired token
+      // appears in exactly ONE candidate AND that token is >=4 chars
+      // (surnames, nicknames), match. Catches "Aryn Rece"→"Ayrn Rece"
+      // via the unique surname "rece" when "aryn" misses "ayrn".
+      for (const t of wantTokens) {
+        if (t.length < 4) continue;
+        const hits = pool.filter((c) => new Set(nameTokens(c.name)).has(t));
+        if (hits.length === 1) return { ...hits[0], userId };
+      }
+    }
   }
   // Fall back to the single active char only when unambiguous.
   if (pool.length === 1) return { ...pool[0], userId };
