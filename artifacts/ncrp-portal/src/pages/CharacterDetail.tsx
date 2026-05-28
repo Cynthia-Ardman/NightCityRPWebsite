@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch as UiSwitch } from "@/components/ui/switch";
+import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 
 export default function CharacterDetail() {
   const { id } = useParams();
@@ -137,13 +138,13 @@ function WalletTab({ characterId }: { characterId: number }) {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getGetWalletQueryKey(characterId) });
         qc.invalidateQueries({ queryKey: getGetWalletTransactionsQueryKey(characterId) });
-        setTo("");
+        setTo(null);
         setAmount(0);
         setMemo("");
       },
     },
   });
-  const [to, setTo] = useState("");
+  const [to, setTo] = useState<CharacterPickerValue>(null);
   const [amount, setAmount] = useState(0);
   const [memo, setMemo] = useState("");
 
@@ -180,14 +181,14 @@ function WalletTab({ characterId }: { characterId: number }) {
             className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
             onSubmit={(e) => {
               e.preventDefault();
-              const toCharacterId = parseInt(to, 10);
+              const toCharacterId = to?.id;
               if (!toCharacterId || amount <= 0) return;
               transfer.mutate({ id: characterId, data: { toCharacterId, amount, memo: memo || undefined } });
             }}
           >
             <div className="sm:col-span-3">
-              <Label className="text-xs font-mono">TO CHARACTER ID</Label>
-              <Input value={to} onChange={(e) => setTo(e.target.value)} inputMode="numeric" data-testid="input-transfer-to" />
+              <Label className="text-xs font-mono">TO</Label>
+              <CharacterPicker value={to} onChange={setTo} testId="input-transfer-to" />
             </div>
             <div className="sm:col-span-3">
               <Label className="text-xs font-mono">AMOUNT (€$)</Label>
@@ -198,7 +199,7 @@ function WalletTab({ characterId }: { characterId: number }) {
               <Input value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="input-transfer-memo" />
             </div>
             <div className="sm:col-span-2">
-              <Button type="submit" disabled={transfer.isPending || !to || amount <= 0} className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-transfer">
+              <Button type="submit" disabled={transfer.isPending || !to?.id || amount <= 0} className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-transfer">
                 {transfer.isPending ? "SENDING..." : "SEND"}
               </Button>
             </div>
@@ -392,7 +393,7 @@ function TransferItemDialog({
   onDone: () => void;
 }) {
   const [mode, setMode] = useState<"give" | "sell">("give");
-  const [toId, setToId] = useState("");
+  const [toChar, setToChar] = useState<CharacterPickerValue>(null);
   const [qty, setQty] = useState(1);
   const [price, setPrice] = useState(0);
   const [memo, setMemo] = useState("");
@@ -417,7 +418,7 @@ function TransferItemDialog({
             className="space-y-4 font-mono text-sm"
             onSubmit={(e) => {
               e.preventDefault();
-              const toCharacterId = parseInt(toId, 10);
+              const toCharacterId = toChar?.id;
               if (!toCharacterId) return;
               if (mode === "sell" && price <= 0) return;
               transfer.mutate({
@@ -452,11 +453,8 @@ function TransferItemDialog({
               </Button>
             </div>
             <div>
-              <Label className="text-xs">TO CHARACTER ID</Label>
-              <Input value={toId} onChange={(e) => setToId(e.target.value)} inputMode="numeric" data-testid="input-transfer-target" />
-              <p className="text-xs text-muted-foreground mt-1">
-                Find the recipient&apos;s ID on their character page URL.
-              </p>
+              <Label className="text-xs">RECIPIENT</Label>
+              <CharacterPicker value={toChar} onChange={setToChar} testId="input-transfer-target" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -492,7 +490,7 @@ function TransferItemDialog({
             )}
             <Button
               type="submit"
-              disabled={transfer.isPending || !toId || (mode === "sell" && price <= 0)}
+              disabled={transfer.isPending || !toChar?.id || (mode === "sell" && price <= 0)}
               className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
               data-testid="button-confirm-transfer"
             >

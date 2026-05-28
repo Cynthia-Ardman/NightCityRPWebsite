@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X } from "lucide-react";
+import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 
 type Props = {
   kind: "store" | "ripperdoc";
@@ -15,7 +16,7 @@ type Props = {
 };
 
 export default function SellStockDialog({ kind, venueId, stock, onClose, onDone }: Props) {
-  const [buyerCharacterId, setBuyerCharacterId] = useState("");
+  const [buyer, setBuyer] = useState<CharacterPickerValue>(null);
   const [qty, setQty] = useState(1);
   const [memo, setMemo] = useState("");
   const sellStore = useSellStoreItem({ mutation: { onSuccess: onDone } });
@@ -40,7 +41,7 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
             className="space-y-4 font-mono text-sm"
             onSubmit={(e) => {
               e.preventDefault();
-              const cid = parseInt(buyerCharacterId, 10);
+              const cid = buyer?.id;
               const q = Math.max(1, qty || 1);
               if (!cid || q > stock.quantity) return;
               const data = { stockId: stock.id, buyerCharacterId: cid, qty: q, memo: memo || undefined };
@@ -52,14 +53,8 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
               Unit price <span className="text-nc-yellow">€${stock.price.toLocaleString()}</span> · In stock {stock.quantity}
             </p>
             <div>
-              <Label className="text-xs">BUYER CHARACTER ID</Label>
-              <Input
-                value={buyerCharacterId}
-                onChange={(e) => setBuyerCharacterId(e.target.value)}
-                inputMode="numeric"
-                placeholder="e.g. 142"
-                data-testid="input-sell-buyer"
-              />
+              <Label className="text-xs">BUYER</Label>
+              <CharacterPicker value={buyer} onChange={setBuyer} testId="input-sell-buyer" />
             </div>
             <div>
               <Label className="text-xs">QTY</Label>
@@ -85,7 +80,7 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
             )}
             <Button
               type="submit"
-              disabled={m.isPending || !buyerCharacterId || qty < 1 || qty > stock.quantity}
+              disabled={m.isPending || !buyer || qty < 1 || qty > stock.quantity}
               className={`w-full rounded-none bg-${accent} text-background hover:bg-${accent}/80 font-display`}
               data-testid="button-confirm-sell"
             >

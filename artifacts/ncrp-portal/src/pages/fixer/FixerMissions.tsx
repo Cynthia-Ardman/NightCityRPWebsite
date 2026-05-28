@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Briefcase } from "lucide-react";
+import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 
 const STATUSES = ["planned", "completed", "failed", "cancelled"] as const;
 
@@ -22,7 +23,7 @@ export default function FixerMissions() {
     mutation: { onSuccess: () => qc.invalidateQueries({ queryKey: getListMissionsQueryKey() }) },
   });
   const [title, setTitle] = useState("");
-  const [characterId, setCharacterId] = useState("");
+  const [character, setCharacter] = useState<CharacterPickerValue>(null);
   const [payout, setPayout] = useState(0);
   const [summary, setSummary] = useState("");
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("completed");
@@ -52,7 +53,7 @@ export default function FixerMissions() {
                 {
                   data: {
                     title: title.trim(),
-                    characterId: characterId ? Number(characterId) : undefined,
+                    characterId: character?.id ?? undefined,
                     summary: summary || undefined,
                     payoutEddies: payout,
                     status,
@@ -64,7 +65,7 @@ export default function FixerMissions() {
                     setTitle("");
                     setSummary("");
                     setPayout(0);
-                    setCharacterId("");
+                    setCharacter(null);
                   },
                 },
               );
@@ -75,8 +76,8 @@ export default function FixerMissions() {
               <Input value={title} onChange={(e) => setTitle(e.target.value)} required data-testid="input-mission-title" />
             </div>
             <div className="md:col-span-3">
-              <Label className="text-xs">CHARACTER ID</Label>
-              <Input value={characterId} onChange={(e) => setCharacterId(e.target.value)} inputMode="numeric" data-testid="input-mission-char" />
+              <Label className="text-xs">CHARACTER</Label>
+              <CharacterPicker value={character} onChange={setCharacter} testId="input-mission-char" />
             </div>
             <div className="md:col-span-2">
               <Label className="text-xs">PAYOUT €$</Label>

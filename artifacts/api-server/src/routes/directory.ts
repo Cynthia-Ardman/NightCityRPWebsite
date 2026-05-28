@@ -31,7 +31,20 @@ router.get("/directory/characters", async (req, res): Promise<void> => {
   const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
 
   const conds = [] as Array<ReturnType<typeof eq>>;
-  if (q.length > 0) conds.push(ilike(characters.name, `%${q}%`) as unknown as ReturnType<typeof eq>);
+  if (q.length > 0) {
+    // Match against character name, the legacy Discord handle stamped at import,
+    // and (via the users join below) the current owner's username/globalName so
+    // operators can find a sheet by either the IC name or the player.
+    const like = `%${q}%`;
+    conds.push(
+      or(
+        ilike(characters.name, like),
+        ilike(characters.legacyDiscordUsername, like),
+        ilike(users.username, like),
+        ilike(users.globalName, like),
+      ) as unknown as ReturnType<typeof eq>,
+    );
+  }
   if (scope === "active") conds.push(eq(characters.archived, false));
   else if (scope === "retired") conds.push(eq(characters.archived, true));
   else if (scope === "unclaimed") conds.push(isNull(characters.ownerId) as unknown as ReturnType<typeof eq>);

@@ -16,6 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 
 export default function AdminDashboard() {
   const { data: user, isLoading: userLoading } = useAuthMe();
@@ -476,6 +477,7 @@ const walletSchema = z.object({
 function WalletTab() {
   const adjustWallet = useAdminAdjustWallet();
   const { toast } = useToast();
+  const [target, setTarget] = useState<CharacterPickerValue>(null);
 
   const form = useForm<z.infer<typeof walletSchema>>({
     resolver: zodResolver(walletSchema),
@@ -487,10 +489,15 @@ function WalletTab() {
   });
 
   const onSubmit = (values: z.infer<typeof walletSchema>) => {
-    adjustWallet.mutate({ data: values }, {
+    if (!target?.id) {
+      toast({ title: "Pick a character", description: "Search by character or player name.", variant: "destructive" });
+      return;
+    }
+    adjustWallet.mutate({ data: { ...values, characterId: target.id } }, {
       onSuccess: () => {
-        toast({ title: "Wallet Adjusted", description: "Funds successfully injected/drained." });
+        toast({ title: "Wallet Adjusted", description: `Adjusted ${target.name}.` });
         form.reset();
+        setTarget(null);
       },
       onError: (err: any) => {
         toast({ title: "Adjustment Failed", description: err.message, variant: "destructive" });
@@ -507,19 +514,13 @@ function WalletTab() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 font-mono max-w-md">
-            <FormField
-              control={form.control}
-              name="characterId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Character ID</FormLabel>
-                  <FormControl>
-                    <Input type="number" className="rounded-none border-border bg-background focus-visible:ring-destructive" {...field} data-testid="input-wallet-char" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+            <FormItem>
+              <FormLabel>Character</FormLabel>
+              <CharacterPicker value={target} onChange={setTarget} scope="all" testId="input-wallet-char" />
+              {!target && (
+                <p className="text-xs text-muted-foreground">Search by character or player name.</p>
               )}
-            />
+            </FormItem>
             <FormField
               control={form.control}
               name="amount"
@@ -546,7 +547,7 @@ function WalletTab() {
                 </FormItem>
               )}
             />
-            <Button type="submit" disabled={adjustWallet.isPending} className="w-full rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display mt-4" data-testid="button-submit-wallet">
+            <Button type="submit" disabled={adjustWallet.isPending || !target?.id} className="w-full rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display mt-4" data-testid="button-submit-wallet">
               {adjustWallet.isPending ? "PROCESSING..." : "EXECUTE TRANSFER"}
             </Button>
           </form>

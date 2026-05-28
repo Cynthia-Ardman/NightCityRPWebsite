@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
 import SellStockDialog from "@/components/SellStockDialog";
+import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 
 export default function MyClinicDetail() {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +31,7 @@ export default function MyClinicDetail() {
   const addStock = useAddRipperdocStock({ mutation: { onSuccess: invalidate } });
   const removeStock = useRemoveRipperdocStock({ mutation: { onSuccess: invalidate } });
 
-  const [empCharId, setEmpCharId] = useState("");
+  const [empChar, setEmpChar] = useState<CharacterPickerValue>(null);
   const [empRole, setEmpRole] = useState("doc");
   const [stockName, setStockName] = useState("");
   const [stockCategory, setStockCategory] = useState("");
@@ -62,10 +63,21 @@ export default function MyClinicDetail() {
               <Button size="icon" variant="ghost" onClick={() => removeEmp.mutate({ id: rid, employeeId: e.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
             </div>
           ))}
-          <div className="flex gap-2 pt-3">
-            <Input placeholder="Character ID" value={empCharId} onChange={(e) => setEmpCharId(e.target.value)} data-testid="input-add-doc-id" />
-            <Input placeholder="Role" value={empRole} onChange={(e) => setEmpRole(e.target.value)} data-testid="input-add-doc-role" />
-            <Button onClick={() => empCharId && addEmp.mutate({ id: rid, data: { characterId: Number(empCharId), role: empRole } })} className="rounded-none bg-nc-magenta text-background font-display" data-testid="button-add-doc"><Plus className="w-4 h-4" /></Button>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-3">
+            <div className="md:col-span-7"><CharacterPicker value={empChar} onChange={setEmpChar} testId="input-add-doc-id" /></div>
+            <Input className="md:col-span-3" placeholder="Role" value={empRole} onChange={(e) => setEmpRole(e.target.value)} data-testid="input-add-doc-role" />
+            <Button
+              disabled={!empChar?.id}
+              onClick={() => {
+                if (!empChar?.id) return;
+                addEmp.mutate({ id: rid, data: { characterId: empChar.id, role: empRole } });
+                setEmpChar(null);
+              }}
+              className="md:col-span-2 rounded-none bg-nc-magenta text-background font-display"
+              data-testid="button-add-doc"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>
