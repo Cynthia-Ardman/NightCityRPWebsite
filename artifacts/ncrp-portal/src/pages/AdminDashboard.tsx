@@ -1136,6 +1136,7 @@ function MaintenanceTab() {
       <BotImportCard />
       <DuplicateCleanupCard />
       <ClaimByUsernameCard />
+      <PortraitBackfillCard />
     </div>
   );
 }
@@ -1498,6 +1499,221 @@ function ClaimByUsernameCard() {
             {applyResult.skipped.length > 0 && (
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {applyResult.skipped.map((s) => (
+                  <div key={s.characterId} className="text-[10px] font-mono text-nc-yellow border border-nc-yellow/30 px-2 py-1">
+                    #{s.characterId} {s.characterName}: {s.reason}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface BackfillCandidate {
+  characterId: number;
+  characterName: string;
+  kind: string;
+  threadId: string;
+  attachmentCount: number;
+  firstAttachment: { filename: string; contentType: string | null; width: number | null; height: number | null } | null;
+  reason: string | null;
+}
+interface BackfillPreview {
+  total: number;
+  withAttachment: number;
+  candidates: BackfillCandidate[];
+}
+interface BackfillApplyResult {
+  requested: number;
+  applied: Array<{ characterId: number; characterName: string; portraitUrl: string; sourceFilename: string }>;
+  skipped: Array<{ characterId: number; characterName: string; reason: string }>;
+}
+
+function PortraitBackfillCard() {
+  const { toast } = useToast();
+  const [preview, setPreview] = useState<BackfillPreview | null>(null);
+  const [result, setResult] = useState<BackfillApplyResult | null>(null);
+  const [busy, setBusy] = useState<"preview" | "apply" | null>(null);
+  // Per-character selection. Defaults to "checked" for every candidate that
+  // has at least one attachment; rows without an attachment can't be applied
+  // and stay disabled.
+  const [picked, setPicked] = useState<Record<number, boolean>>({});
+
+  async function loadPreview() {
+    setBusy("preview");
+    setResult(null);
+    try {
+      const r = await fetch("/api/admin/maintenance/portrait-backfill", { credentials: "include" });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Preview failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setPreview(body as BackfillPreview);
+      const defaults: Record<number, boolean> = {};
+      for (const c of (body as BackfillPreview).candidates) {
+        if (c.attachmentCount > 0) defaults[c.characterId] = true;
+      }
+      setPicked(defaults);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function applySelected() {
+    const ids = Object.entries(picked).filter(([, v]) => v).map(([k]) => Number(k));
+    if (ids.length === 0) {
+      toast({ title: "Nothing selected", description: "Tick at least one row before applying.", variant: "destructive" });
+      return;
+    }
+    const ok = window.confirm(
+      `Download ${ids.length} portrait${ids.length === 1 ? "" : "s"} from Discord and save them as the primary portrait?\n\n` +
+      `Characters that already have a portrait will be left alone.`,
+    );
+    if (!ok) return;
+    setBusy("apply");
+    try {
+      const r = await fetch("/api/admin/maintenance/portrait-backfill", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ characterIds: ids }),
+      });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Backfill failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setResult(body as BackfillApplyResult);
+      toast({
+        title: "Portrait backfill complete",
+        description: `Saved ${body.applied?.length ?? 0}, skipped ${body.skipped?.length ?? 0}.`,
+      });
+      await loadPreview();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const eligible = preview?.candidates.filter((c) => c.attachmentCount > 0) ?? [];
+  const noImg = preview?.candidates.filter((c) => c.attachmentCount === 0) ?? [];
+  const selectedCount = Object.values(picked).filter(Boolean).length;
+
+  return (
+    <Card className="rounded-none border-nc-cyan/40 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-cyan">PORTRAIT BACKFILL FROM DISCORD</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          For every character with no portrait but an <code>imported_from_thread_id</code>,
+          fetches the OP message of their #character-sheets thread and offers to download
+          the first image attachment as their portrait. Bytes are re-hosted on object
+          storage (Discord CDN URLs expire after ~24h, so storing them directly would
+          break). Existing portraits are never overwritten.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            onClick={loadPreview}
+            disabled={busy !== null}
+            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+            data-testid="button-portrait-preview"
+          >
+            {busy === "preview" ? "SCANNING DISCORD..." : preview ? "RE-SCAN" : "SCAN DISCORD"}
+          </Button>
+          {preview && (
+            <Button
+              type="button"
+              onClick={applySelected}
+              disabled={busy !== null || selectedCount === 0}
+              className="rounded-none bg-destructive text-foreground hover:bg-destructive/80 font-display tracking-widest"
+              data-testid="button-portrait-apply"
+            >
+              {busy === "apply" ? "DOWNLOADING..." : `BACKFILL SELECTED (${selectedCount})`}
+            </Button>
+          )}
+        </div>
+
+        {preview && (
+          <div className="space-y-2">
+            <div className="text-xs font-mono text-muted-foreground">
+              {preview.total} character{preview.total === 1 ? "" : "s"} missing a portrait have a thread on file
+              {" · "}{preview.withAttachment} have a recoverable image
+            </div>
+
+            {eligible.length > 0 && (
+              <div className="space-y-1 max-h-96 overflow-y-auto" data-testid="block-portrait-eligible">
+                {eligible.map((c) => {
+                  const checked = !!picked[c.characterId];
+                  return (
+                    <label
+                      key={c.characterId}
+                      className={`border px-3 py-2 text-xs font-mono flex items-center justify-between gap-3 cursor-pointer ${
+                        checked ? "border-nc-cyan/60 text-foreground" : "border-border/40 text-muted-foreground"
+                      }`}
+                      data-testid={`portrait-row-${c.characterId}`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => setPicked((p) => ({ ...p, [c.characterId]: e.target.checked }))}
+                          className="accent-nc-cyan"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate">
+                            <span className="text-foreground">{c.characterName}</span>{" "}
+                            <span className="opacity-50">[{c.kind}] #{c.characterId}</span>
+                          </div>
+                          <div className="text-[10px] opacity-70 truncate">
+                            {c.firstAttachment?.filename}
+                            {c.firstAttachment?.width && c.firstAttachment?.height
+                              ? ` · ${c.firstAttachment.width}×${c.firstAttachment.height}`
+                              : ""}
+                            {c.attachmentCount > 1 ? ` · +${c.attachmentCount - 1} more` : ""}
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {noImg.length > 0 && (
+              <details className="border border-border/40 px-3 py-2">
+                <summary className="text-xs font-mono text-muted-foreground cursor-pointer">
+                  {noImg.length} thread{noImg.length === 1 ? "" : "s"} with no recoverable image (expand)
+                </summary>
+                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                  {noImg.map((c) => (
+                    <div key={c.characterId} className="text-[10px] font-mono text-muted-foreground">
+                      <span className="text-foreground">{c.characterName}</span>{" "}
+                      <span className="opacity-50">[{c.kind}] #{c.characterId}</span>
+                      <span className="opacity-70"> — {c.reason ?? "unknown"}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+
+        {result && (
+          <div className="border-t border-border/50 pt-3 space-y-2" data-testid="block-portrait-apply-result">
+            <div className="text-xs font-mono">
+              <span className="text-nc-cyan">{result.applied.length} backfilled</span>
+              {result.skipped.length > 0 && (
+                <span className="text-nc-yellow"> · {result.skipped.length} skipped</span>
+              )}
+            </div>
+            {result.skipped.length > 0 && (
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {result.skipped.map((s) => (
                   <div key={s.characterId} className="text-[10px] font-mono text-nc-yellow border border-nc-yellow/30 px-2 py-1">
                     #{s.characterId} {s.characterName}: {s.reason}
                   </div>

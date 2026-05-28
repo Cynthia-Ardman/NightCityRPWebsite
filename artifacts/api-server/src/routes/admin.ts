@@ -15,7 +15,8 @@ import {
 import { isNull, or, ilike, count } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole, fetchThreadOpMessage, imageAttachmentsOf, type ThreadAttachment } from "../lib/discord";
+import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
 import { recordAudit } from "../lib/audit";
@@ -1653,5 +1654,190 @@ async function previewClaimByUsername(): Promise<Array<{
     };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Portrait backfill from Discord. Many NPCs (and a long tail of PCs) were
+// imported with an `imported_from_thread_id` but no portrait, because the
+// original importer only scraped sheet *text* and skipped attachments.
+// The OP message of a #character-sheets forum post is almost always the
+// portrait image the player posted, so we can recover them after the fact:
+//   PREVIEW  → list characters missing a portrait whose thread we can hit,
+//              with the attachment filenames Discord still has for them.
+//   APPLY    → for each selected character, download the first image
+//              attachment, re-host it on object storage, and save it as
+//              the primary portrait (also appended to portrait_urls so the
+//              gallery picks it up).
+// We rehost rather than store cdn.discordapp.com URLs because those URLs
+// are signed and expire after ~24h — saving them directly would surface
+// broken images within a day.
+// ---------------------------------------------------------------------------
+
+interface BackfillCandidate {
+  characterId: number;
+  characterName: string;
+  kind: string;
+  threadId: string;
+  attachmentCount: number;
+  firstAttachment: { filename: string; contentType: string | null; width: number | null; height: number | null } | null;
+  reason: string | null; // populated when fetch fails (404, no perms, etc.)
+}
+
+async function listPortraitBackfillCandidates(): Promise<BackfillCandidate[]> {
+  const rows = await db
+    .select({
+      id: characters.id,
+      name: characters.name,
+      kind: characters.kind,
+      threadId: characters.importedFromThreadId,
+    })
+    .from(characters)
+    .where(
+      and(
+        eq(characters.archived, false),
+        isNull(characters.portraitUrl),
+        sql`coalesce(array_length(${characters.portraitUrls}, 1), 0) = 0`,
+        sql`${characters.importedFromThreadId} is not null`,
+      ),
+    )
+    .orderBy(characters.kind, characters.name);
+
+  // Sequential fetch — Discord rate-limits aggressively (per-route bucket
+  // ~5 req/s) and a typical run is dozens, not thousands. Going parallel
+  // would just trip the limiter and slow the whole thing down.
+  const out: BackfillCandidate[] = [];
+  for (const r of rows) {
+    if (!r.threadId) continue;
+    let attachments: ThreadAttachment[] = [];
+    let reason: string | null = null;
+    try {
+      const msg = await fetchThreadOpMessage(r.threadId);
+      if (!msg) {
+        reason = "thread inaccessible (deleted, archived w/o perms, or bot kicked)";
+      } else {
+        attachments = imageAttachmentsOf(msg);
+        if (attachments.length === 0) reason = "OP has no image attachments";
+      }
+    } catch (err) {
+      reason = `fetch error: ${(err as Error).message}`;
+    }
+    out.push({
+      characterId: r.id,
+      characterName: r.name,
+      kind: r.kind,
+      threadId: r.threadId,
+      attachmentCount: attachments.length,
+      firstAttachment: attachments[0]
+        ? {
+          filename: attachments[0].filename,
+          contentType: attachments[0].contentType,
+          width: attachments[0].width,
+          height: attachments[0].height,
+        }
+        : null,
+      reason,
+    });
+  }
+  return out;
+}
+
+router.get(
+  "/admin/maintenance/portrait-backfill",
+  adminOnly,
+  async (_req, res): Promise<void> => {
+    const candidates = await listPortraitBackfillCandidates();
+    res.json({
+      total: candidates.length,
+      withAttachment: candidates.filter((c) => c.attachmentCount > 0).length,
+      candidates,
+    });
+  },
+);
+
+router.post(
+  "/admin/maintenance/portrait-backfill",
+  adminOnly,
+  async (req, res): Promise<void> => {
+    // Body shape: { characterIds?: number[] }. Empty/omitted = apply to every
+    // candidate the preview turned up that has at least one attachment.
+    const requested = Array.isArray(req.body?.characterIds)
+      ? (req.body.characterIds as unknown[]).map(Number).filter((n): n is number => Number.isInteger(n))
+      : null;
+
+    const candidates = await listPortraitBackfillCandidates();
+    const targets = candidates.filter(
+      (c) => c.attachmentCount > 0 && (requested === null || requested.includes(c.characterId)),
+    );
+
+    const storage = new ObjectStorageService();
+    const applied: Array<{ characterId: number; characterName: string; portraitUrl: string; sourceFilename: string }> = [];
+    const skipped: Array<{ characterId: number; characterName: string; reason: string }> = [];
+
+    for (const cand of targets) {
+      try {
+        const msg = await fetchThreadOpMessage(cand.threadId);
+        const first = imageAttachmentsOf(msg)[0];
+        if (!first) {
+          skipped.push({ characterId: cand.characterId, characterName: cand.characterName, reason: "attachment disappeared between preview and apply" });
+          continue;
+        }
+        // Download from Discord CDN.
+        const dl = await fetch(first.url, { signal: AbortSignal.timeout(30_000) });
+        if (!dl.ok) {
+          skipped.push({ characterId: cand.characterId, characterName: cand.characterName, reason: `cdn download failed: HTTP ${dl.status}` });
+          continue;
+        }
+        const ab = await dl.arrayBuffer();
+        const buf = Buffer.from(ab);
+        const contentType = first.contentType
+          ?? dl.headers.get("content-type")
+          ?? "application/octet-stream";
+        const path = await storage.uploadBuffer(buf, contentType);
+
+        // Guard against a race: another writer may have set a portrait
+        // between preview and apply — don't clobber it.
+        const updated = await db
+          .update(characters)
+          .set({
+            portraitUrl: path,
+            portraitUrls: sql`array_append(${characters.portraitUrls}, ${path})`,
+          })
+          .where(
+            and(
+              eq(characters.id, cand.characterId),
+              isNull(characters.portraitUrl),
+            ),
+          )
+          .returning({ id: characters.id });
+        if (updated.length === 0) {
+          skipped.push({ characterId: cand.characterId, characterName: cand.characterName, reason: "character already has a portrait; left untouched" });
+          continue;
+        }
+        applied.push({
+          characterId: cand.characterId,
+          characterName: cand.characterName,
+          portraitUrl: path,
+          sourceFilename: first.filename,
+        });
+      } catch (err) {
+        skipped.push({
+          characterId: cand.characterId,
+          characterName: cand.characterName,
+          reason: `error: ${(err as Error).message}`,
+        });
+      }
+    }
+
+    await recordAudit({
+      req,
+      category: "character",
+      action: "portrait.backfill",
+      targetType: "system",
+      targetId: "characters",
+      after: { applied: applied.length, skipped: skipped.length },
+    });
+
+    res.json({ requested: targets.length, applied, skipped });
+  },
+);
 
 export default router;

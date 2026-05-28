@@ -106,6 +106,32 @@ export class ObjectStorageService {
     return new Response(webStream, { headers });
   }
 
+  /**
+   * Server-side upload helper: pushes a Buffer into the bucket and returns
+   * the client-facing path (`/api/storage/objects/<id>`) suitable for
+   * persisting in the DB and loading via <img src>.
+   *
+   * Use this when the bytes already live on the server (e.g. a fetch from
+   * an external CDN like Discord's). For browser uploads, prefer the
+   * presigned-URL flow exposed by `/storage/uploads/request-url`.
+   */
+  async uploadBuffer(buffer: Buffer, contentType: string): Promise<string> {
+    const uploadURL = await this.getObjectEntityUploadURL();
+    const put = await fetch(uploadURL, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: buffer,
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!put.ok) {
+      throw new Error(`object-storage PUT failed (${put.status}): ${await put.text()}`);
+    }
+    const internalPath = this.normalizeObjectEntityPath(uploadURL);
+    // The SPA owns "/objects/*" — surface the API-mounted path so callers can
+    // store it directly and load via <img src>.
+    return internalPath.startsWith("/objects/") ? `/api/storage${internalPath}` : internalPath;
+  }
+
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {

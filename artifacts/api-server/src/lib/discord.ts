@@ -210,6 +210,98 @@ export async function fetchDiscordUser(discordId: string): Promise<DiscordUserPr
   }
 }
 
+/** A Discord message attachment we care about for portrait backfill. */
+export interface ThreadAttachment {
+  id: string;
+  filename: string;
+  contentType: string | null;
+  size: number;
+  url: string;          // CDN url (signed, short-lived)
+  proxyUrl: string;     // media.discordapp.net mirror (also signed)
+  width: number | null;
+  height: number | null;
+}
+
+interface DiscordMessage {
+  id: string;
+  attachments?: Array<{
+    id: string;
+    filename: string;
+    content_type?: string | null;
+    size: number;
+    url: string;
+    proxy_url: string;
+    width?: number | null;
+    height?: number | null;
+  }>;
+}
+
+/**
+ * Fetch the OP message of a thread.
+ *
+ * For forum-post threads (which is how #character-sheets is structured) the
+ * thread id IS the OP message id, so `GET /channels/{thread}/messages/{thread}`
+ * is the cheapest one-shot fetch. For non-forum threads we fall back to
+ * paging through messages and picking the chronologically oldest one.
+ */
+export async function fetchThreadOpMessage(threadId: string): Promise<DiscordMessage | null> {
+  if (!DISCORD_BOT_TOKEN) return null;
+  const headers = { Authorization: `Bot ${DISCORD_BOT_TOKEN}` };
+  // Try the forum-thread shortcut first.
+  const direct = await fetch(`${API}/channels/${threadId}/messages/${threadId}`, {
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (direct.ok) {
+    return (await direct.json()) as DiscordMessage;
+  }
+  if (direct.status !== 404) {
+    logger.warn(
+      { status: direct.status, threadId, body: await direct.text() },
+      "fetchThreadOpMessage direct fetch failed",
+    );
+    // fall through to paginated lookup
+  }
+  // Fallback: paginate to the oldest message. `after=0` returns messages
+  // with id > 0 (all of them) and Discord returns them oldest-first when
+  // `after` is provided, so limit=1 gives us the OP.
+  const oldest = await fetch(`${API}/channels/${threadId}/messages?after=0&limit=1`, {
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!oldest.ok) {
+    logger.warn(
+      { status: oldest.status, threadId, body: await oldest.text() },
+      "fetchThreadOpMessage paginated fetch failed",
+    );
+    return null;
+  }
+  const arr = (await oldest.json()) as DiscordMessage[];
+  return arr[0] ?? null;
+}
+
+/** Filter a message's attachments down to image-like uploads. */
+export function imageAttachmentsOf(msg: DiscordMessage | null | undefined): ThreadAttachment[] {
+  if (!msg?.attachments) return [];
+  return msg.attachments
+    .filter((a) => {
+      const ct = (a.content_type ?? "").toLowerCase();
+      if (ct.startsWith("image/")) return true;
+      // Content-type can be missing; fall back to extension.
+      return /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.filename);
+    })
+    .map((a) => ({
+      id: a.id,
+      filename: a.filename,
+      contentType: a.content_type ?? null,
+      size: a.size,
+      url: a.url,
+      proxyUrl: a.proxy_url,
+      width: a.width ?? null,
+      height: a.height ?? null,
+    }));
+}
+
 export async function postToChannel(channelId: string, content: string, embeds?: unknown[]): Promise<string | null> {
   if (!DISCORD_BOT_TOKEN) {
     logger.warn("No bot token; cannot post to Discord channel");
