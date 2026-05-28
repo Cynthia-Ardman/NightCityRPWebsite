@@ -127,9 +127,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // with 0 approved PCs owe nothing here.
   const rent = billable.length === 0 ? [] : [{
     characterId: billable[0].id,
-    characterName: billable.length === 1
-      ? billable[0].name
-      : `${billable.length} characters`,
+    characterName: "Flat household fee",
     amount: BASELINE_LIVING_COST_PER_PLAYER,
     dueAt: rentDueAt,
   }];
@@ -270,7 +268,12 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     .innerJoin(characters, eq(characters.id, housing.characterId))
     .where(inArray(housing.characterId, charIds));
 
-  const nextRentTotal = rent.reduce((s, r) => s + r.amount, 0);
+  // "Next Rent" at the top of the dashboard is everything that will hit
+  // the wallet on the 1st: the baseline living cost PLUS every per-lease
+  // monthly_rent. Players were confused when a $3,000 apartment didn't
+  // show up in the headline total even though it shows up in their bill.
+  const leasesRentTotal = leases.reduce((s, l) => s + (l.monthlyRent ?? 0), 0);
+  const nextRentTotal = rent.reduce((s, r) => s + r.amount, 0) + leasesRentTotal;
   const nextMedsTotal = meds.reduce((s, m) => s + m.amount, 0);
   // Rough monthly estimate = next rent + (weekly meds * ~4.33 weeks).
   const monthlyEstimate = nextRentTotal + Math.round(nextMedsTotal * 4.33);
