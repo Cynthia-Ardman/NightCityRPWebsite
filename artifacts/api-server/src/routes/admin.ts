@@ -1,6 +1,6 @@
 import { Router, type IRouter, json as expressJson } from "express";
 import { eq, desc, sql, and, gte, type SQL } from "drizzle-orm";
-import { db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig } from "@workspace/db";
+import { db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig, characterStatus, housing, catalogRent } from "@workspace/db";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole } from "../lib/discord";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
@@ -548,6 +548,321 @@ router.post(
       after: { inserted, updated, skipped, errors: errors.length },
     });
     res.json({ inserted, updated, skipped, errors });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// One-time dev->prod full migration. Imports characters (NPCs + PCs),
+// character_status, housing leases, and catalog_rent in one shot. Idempotent:
+// safe to re-run. Characters are matched by (kind, name); status/housing
+// rows reference their character by (character_kind, character_name) instead
+// of numeric id (serial ids differ between databases). catalog_rent is keyed
+// on name. Admin-edited prod values for an existing character are preserved.
+// ---------------------------------------------------------------------------
+interface FullImportChar extends NpcExportRow {
+  ownerId?: string | null;
+  discordChannelId?: string | null;
+  lifestyleTierId?: number | null;
+  traumaTeamTier?: string | null;
+  xanaduGold?: boolean | null;
+  cyberwareLevel?: string | null;
+  appliedTags?: string[] | null;
+  archived?: boolean | null;
+  // snake_case aliases (the export uses pg row_to_json naming)
+  owner_id?: string | null;
+  legacy_discord_username?: string | null;
+  portrait_url?: string | null;
+  portrait_urls?: string[] | null;
+  stats_image_urls?: string[] | null;
+  sheet_data?: unknown;
+  imported_from_thread_id?: string | null;
+  imported_from_channel_name?: string | null;
+  discord_channel_id?: string | null;
+  applied_tags?: string[] | null;
+  life_status?: string | null;
+  lifestyle_tier_id?: number | null;
+  trauma_team_tier?: string | null;
+  xanadu_gold?: boolean | null;
+  cyberware_level?: string | null;
+}
+interface FullImportStatus {
+  character_kind?: string;
+  character_name?: string;
+  loa?: boolean | null;
+  loa_returns_at?: string | null;
+  attending?: boolean | null;
+  open_shop?: boolean | null;
+  status_message?: string | null;
+}
+interface FullImportHousing {
+  character_kind?: string;
+  character_name?: string;
+  address?: string;
+  monthly_rent?: number | null;
+  kind?: string | null;
+  paid_through?: string | null;
+  delinquent_since?: string | null;
+  notes?: string | null;
+}
+interface FullImportRent {
+  name?: string;
+  district?: string | null;
+  tier?: string | null;
+  monthly_rent?: number | null;
+  description?: string | null;
+}
+interface FullImportBody {
+  characters?: FullImportChar[];
+  character_status?: FullImportStatus[];
+  housing?: FullImportHousing[];
+  catalog_rent?: FullImportRent[];
+}
+
+// Pull the export's value preferring snake_case keys (from row_to_json dumps)
+// then camelCase, then default. Lets the same endpoint accept either shape.
+function pick<T>(
+  obj: Record<string, unknown>,
+  snake: string,
+  camel: string,
+  fallback: T,
+): T {
+  const s = obj[snake];
+  if (s !== undefined && s !== null) return s as T;
+  const c = obj[camel];
+  if (c !== undefined && c !== null) return c as T;
+  return fallback;
+}
+
+router.post(
+  "/admin/maintenance/full-import",
+  adminOnly,
+  expressJson({ limit: "50mb" }),
+  async (req, res): Promise<void> => {
+    const body = req.body as FullImportBody | null;
+    if (!body || typeof body !== "object") {
+      res.status(400).json({ error: "Body must be JSON object" });
+      return;
+    }
+    const result = {
+      characters: { inserted: 0, updated: 0, skipped: 0, errors: [] as Array<{ name: string; error: string }> },
+      character_status: { inserted: 0, skipped: 0, errors: [] as Array<{ name: string; error: string }> },
+      housing: { inserted: 0, skipped: 0, errors: [] as Array<{ address: string; error: string }> },
+      catalog_rent: { inserted: 0, skipped: 0, errors: [] as Array<{ name: string; error: string }> },
+    };
+
+    // ---- 1) catalog_rent (insert by name if missing) -----------------------
+    for (const r of body.catalog_rent ?? []) {
+      const name = r.name?.trim();
+      if (!name) { result.catalog_rent.skipped++; continue; }
+      try {
+        const existing = await db
+          .select({ id: catalogRent.id })
+          .from(catalogRent)
+          .where(eq(catalogRent.name, name))
+          .limit(1);
+        if (existing.length === 0) {
+          await db.insert(catalogRent).values({
+            name,
+            district: r.district ?? null,
+            tier: r.tier ?? null,
+            monthlyRent: r.monthly_rent ?? 0,
+            description: r.description ?? null,
+          });
+          result.catalog_rent.inserted++;
+        } else {
+          result.catalog_rent.skipped++;
+        }
+      } catch (err) {
+        result.catalog_rent.errors.push({ name, error: (err as Error).message });
+      }
+    }
+
+    // ---- 2) characters (upsert by kind+name) -------------------------------
+    for (const raw of body.characters ?? []) {
+      const r = raw as unknown as Record<string, unknown>;
+      const name = (raw.name as string | undefined)?.trim();
+      const kind = (raw.kind as string | undefined) ?? "npc";
+      if (!name) { result.characters.skipped++; continue; }
+      try {
+        const existing = await db
+          .select({ id: characters.id })
+          .from(characters)
+          .where(and(eq(characters.kind, kind), eq(characters.name, name)))
+          .limit(1);
+        const values = {
+          name,
+          kind,
+          ownerId: pick<string | null>(r, "owner_id", "ownerId", null),
+          archetype: pick<string | null>(r, "archetype", "archetype", null),
+          background: pick<string | null>(r, "background", "background", null),
+          portraitUrl: pick<string | null>(r, "portrait_url", "portraitUrl", null),
+          discordChannelId: pick<string | null>(r, "discord_channel_id", "discordChannelId", null),
+          approved: pick<boolean>(r, "approved", "approved", true),
+          claimed: pick<boolean>(r, "claimed", "claimed", false),
+          legacyDiscordUsername: pick<string | null>(r, "legacy_discord_username", "legacyDiscordUsername", null),
+          portraitUrls: pick<string[]>(r, "portrait_urls", "portraitUrls", []),
+          statsImageUrls: pick<string[]>(r, "stats_image_urls", "statsImageUrls", []),
+          sheetData: pick<unknown>(r, "sheet_data", "sheetData", null) as never,
+          importedFromThreadId: pick<string | null>(r, "imported_from_thread_id", "importedFromThreadId", null),
+          importedFromChannelName: pick<string | null>(r, "imported_from_channel_name", "importedFromChannelName", null),
+          appliedTags: pick<string[]>(r, "applied_tags", "appliedTags", []),
+          lifeStatus: pick<string>(r, "life_status", "lifeStatus", "active"),
+          lifestyleTierId: pick<number | null>(r, "lifestyle_tier_id", "lifestyleTierId", null),
+          traumaTeamTier: pick<string | null>(r, "trauma_team_tier", "traumaTeamTier", null),
+          xanaduGold: pick<boolean>(r, "xanadu_gold", "xanaduGold", false),
+          cyberwareLevel: pick<string>(r, "cyberware_level", "cyberwareLevel", "none"),
+          archived: pick<boolean>(r, "archived", "archived", false),
+        };
+        if (existing.length === 0) {
+          // Owner FK safety: only carry ownerId across if that Discord user
+          // already exists in prod (users.id IS the Discord snowflake — global,
+          // so it CAN match — but a PC's owner may not have logged into prod
+          // yet, in which case the FK would 500 the whole row). Drop to null
+          // and let the existing claim/assign flow attach the owner later.
+          let safeOwnerId: string | null = null;
+          if (values.ownerId) {
+            const u = await db.select({ id: users.id }).from(users).where(eq(users.id, values.ownerId)).limit(1);
+            if (u.length > 0) safeOwnerId = values.ownerId;
+          }
+          await db.insert(characters).values({ ...values, ownerId: safeOwnerId });
+          result.characters.inserted++;
+        } else {
+          // PRESERVE-FIRST: never overwrite prod-side state on rerun. This
+          // endpoint is a one-shot importer — admin edits made in prod after
+          // the first import are sacred. We only fill *missing/empty* fields
+          // (so a row imported headless can later get sheet/portrait data
+          // backfilled), and we never touch ownerId, approved, claimed,
+          // archived, lifeStatus, xanaduGold, lifestyleTierId — those are
+          // admin-managed in prod.
+          //   Memory: importer-upsert-idempotency, nullable-owner-guards.
+          const prod = await db
+            .select()
+            .from(characters)
+            .where(eq(characters.id, existing[0].id))
+            .limit(1);
+          const cur = prod[0];
+          const updateSet: Record<string, unknown> = {};
+          const fillIfEmpty = (k: keyof typeof cur, v: unknown) => {
+            const curVal = cur[k];
+            const isEmpty =
+              curVal == null ||
+              (typeof curVal === "string" && curVal.trim() === "") ||
+              (Array.isArray(curVal) && curVal.length === 0);
+            if (isEmpty && v != null && !(Array.isArray(v) && v.length === 0)) {
+              updateSet[k] = v;
+            }
+          };
+          fillIfEmpty("archetype", values.archetype);
+          fillIfEmpty("background", values.background);
+          fillIfEmpty("portraitUrl", values.portraitUrl);
+          fillIfEmpty("discordChannelId", values.discordChannelId);
+          fillIfEmpty("legacyDiscordUsername", values.legacyDiscordUsername);
+          fillIfEmpty("portraitUrls", values.portraitUrls);
+          fillIfEmpty("statsImageUrls", values.statsImageUrls);
+          fillIfEmpty("appliedTags", values.appliedTags);
+          fillIfEmpty("sheetData", values.sheetData);
+          fillIfEmpty("importedFromThreadId", values.importedFromThreadId);
+          fillIfEmpty("importedFromChannelName", values.importedFromChannelName);
+          fillIfEmpty("traumaTeamTier", values.traumaTeamTier);
+          fillIfEmpty("cyberwareLevel", values.cyberwareLevel === "none" ? null : values.cyberwareLevel);
+          if (Object.keys(updateSet).length > 0) {
+            await db.update(characters).set(updateSet).where(eq(characters.id, existing[0].id));
+            result.characters.updated++;
+          } else {
+            result.characters.skipped++;
+          }
+        }
+      } catch (err) {
+        result.characters.errors.push({ name: name ?? "(unknown)", error: (err as Error).message });
+      }
+    }
+
+    // Build prod-side (kind|name) -> id map for the linked tables.
+    const allRows = await db
+      .select({ id: characters.id, kind: characters.kind, name: characters.name })
+      .from(characters);
+    const idByName = new Map<string, number>();
+    for (const r of allRows) idByName.set(`${r.kind}|${r.name.toLowerCase()}`, r.id);
+    const lookup = (kind?: string, name?: string): number | undefined =>
+      kind && name ? idByName.get(`${kind}|${name.toLowerCase()}`) : undefined;
+
+    // ---- 3) character_status (upsert by character_id) ----------------------
+    for (const s of body.character_status ?? []) {
+      const cid = lookup(s.character_kind, s.character_name);
+      if (!cid) {
+        result.character_status.skipped++;
+        result.character_status.errors.push({ name: `${s.character_kind}/${s.character_name}`, error: "character not found in prod" });
+        continue;
+      }
+      try {
+        const existing = await db
+          .select({ characterId: characterStatus.characterId })
+          .from(characterStatus)
+          .where(eq(characterStatus.characterId, cid))
+          .limit(1);
+        if (existing.length === 0) {
+          await db.insert(characterStatus).values({
+            characterId: cid,
+            loa: s.loa ?? false,
+            loaReturnsAt: s.loa_returns_at ? new Date(s.loa_returns_at) : null,
+            attending: s.attending ?? false,
+            openShop: s.open_shop ?? false,
+            statusMessage: s.status_message ?? null,
+          });
+          result.character_status.inserted++;
+        } else {
+          result.character_status.skipped++;
+        }
+      } catch (err) {
+        result.character_status.errors.push({ name: `${s.character_kind}/${s.character_name}`, error: (err as Error).message });
+      }
+    }
+
+    // ---- 4) housing (insert; key uniqueness = char+address) ----------------
+    for (const h of body.housing ?? []) {
+      const cid = lookup(h.character_kind, h.character_name);
+      const addr = h.address?.trim();
+      if (!cid || !addr) {
+        result.housing.skipped++;
+        if (addr) result.housing.errors.push({ address: addr, error: cid ? "missing address" : "character not found in prod" });
+        continue;
+      }
+      try {
+        // Idempotent: skip if this character already has a lease at that address.
+        const existing = await db
+          .select({ id: housing.id })
+          .from(housing)
+          .where(and(eq(housing.characterId, cid), eq(housing.address, addr)))
+          .limit(1);
+        if (existing.length > 0) { result.housing.skipped++; continue; }
+        await db.insert(housing).values({
+          characterId: cid,
+          address: addr,
+          monthlyRent: h.monthly_rent ?? 0,
+          kind: h.kind ?? "residential",
+          paidThrough: h.paid_through ? new Date(h.paid_through) : null,
+          delinquentSince: h.delinquent_since ? new Date(h.delinquent_since) : null,
+          notes: h.notes ?? null,
+        });
+        result.housing.inserted++;
+      } catch (err) {
+        result.housing.errors.push({ address: addr, error: (err as Error).message });
+      }
+    }
+
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "full_import",
+      message: `Full migration import: chars +${result.characters.inserted}/~${result.characters.updated}, status +${result.character_status.inserted}, housing +${result.housing.inserted}, rent +${result.catalog_rent.inserted}`,
+      after: {
+        characters: { inserted: result.characters.inserted, updated: result.characters.updated, errors: result.characters.errors.length },
+        character_status: { inserted: result.character_status.inserted, errors: result.character_status.errors.length },
+        housing: { inserted: result.housing.inserted, errors: result.housing.errors.length },
+        catalog_rent: { inserted: result.catalog_rent.inserted, errors: result.catalog_rent.errors.length },
+      },
+    });
+    res.json(result);
   },
 );
 

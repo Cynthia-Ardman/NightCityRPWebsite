@@ -12,3 +12,9 @@ id = "Um-i3O34uGzgtdQcm2-18"
 uri = "file://.local/reports/bot-vs-portal-parity.md"
 type = "text"
 title = "Bot ↔ Portal Parity Report"
+
+[[outputs]]
+id = "37JNEJuWyBU9T2fD_AQeS"
+uri = "file://.local/exports/dev-to-prod-full.json"
+type = "unspecified"
+title = "dev-to-prod-full.json — one-time migration dump"

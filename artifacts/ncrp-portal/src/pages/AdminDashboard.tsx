@@ -1131,6 +1131,121 @@ function MaintenanceTab() {
           )}
         </CardContent>
       </Card>
+
+      <FullMigrationCard />
     </div>
+  );
+}
+
+interface FullImportResult {
+  characters: { inserted: number; updated: number; skipped: number; errors: Array<{ name: string; error: string }> };
+  character_status: { inserted: number; skipped: number; errors: Array<{ name: string; error: string }> };
+  housing: { inserted: number; skipped: number; errors: Array<{ address: string; error: string }> };
+  catalog_rent: { inserted: number; skipped: number; errors: Array<{ name: string; error: string }> };
+}
+
+function FullMigrationCard() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<FullImportResult | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function runFullImport(file: File) {
+    setBusy(true);
+    setResult(null);
+    try {
+      const text = await file.text();
+      let body: unknown;
+      try { body = JSON.parse(text); } catch (e) {
+        toast({ title: "Invalid JSON", description: (e as Error).message, variant: "destructive" });
+        return;
+      }
+      const r = await fetch("/api/admin/maintenance/full-import", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        toast({ title: "Migration failed", description: data.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setResult(data as FullImportResult);
+      toast({
+        title: "Migration complete",
+        description: `Chars +${data.characters?.inserted ?? 0}/~${data.characters?.updated ?? 0}, status +${data.character_status?.inserted ?? 0}, housing +${data.housing?.inserted ?? 0}, rent +${data.catalog_rent?.inserted ?? 0}`,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await runFullImport(file);
+    e.target.value = "";
+  }
+
+  return (
+    <Card className="rounded-none border-nc-yellow/40 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-yellow">FULL DEV → PROD MIGRATION</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          One-shot import: characters (NPCs + PCs), character status, housing leases, and the housing rent catalog.
+          Upload the <code>dev-to-prod-full.json</code> dump generated from the dev workspace. Idempotent:
+          safe to re-run. Existing prod rows are preserved (owner assignments never touched, sheet/portrait
+          edits only overwritten if the export has a non-empty value).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            type="file"
+            accept="application/json,.json"
+            onChange={onFile}
+            disabled={busy}
+            className="font-mono text-xs"
+            data-testid="input-full-import-file"
+          />
+          {busy && <span className="text-xs font-mono text-nc-yellow animate-pulse">IMPORTING (may take 30s)...</span>}
+        </div>
+
+        {result && (
+          <div className="border-t border-border/50 pt-4 space-y-3" data-testid="block-full-import-result">
+            {(["characters", "character_status", "housing", "catalog_rent"] as const).map((k) => {
+              const r = result[k];
+              if (!r) return null;
+              const ins = r.inserted ?? 0;
+              const upd = ("updated" in r ? r.updated : 0) ?? 0;
+              const skp = r.skipped ?? 0;
+              const errs = r.errors ?? [];
+              return (
+                <div key={k} className="border border-border/50 p-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-display tracking-widest text-xs uppercase">{k.replace("_", " ")}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      +{ins} inserted{("updated" in r) ? `, ~${upd} updated` : ""}, {skp} skipped, {errs.length} errors
+                    </span>
+                  </div>
+                  {errs.length > 0 && (
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {errs.slice(0, 20).map((e, i) => (
+                        <div key={i} className="text-xs font-mono text-destructive border border-destructive/30 px-2 py-1">
+                          <span className="font-bold">{("name" in e ? e.name : e.address) ?? ""}:</span> {e.error}
+                        </div>
+                      ))}
+                      {errs.length > 20 && (
+                        <div className="text-xs font-mono text-muted-foreground">+ {errs.length - 20} more errors</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
