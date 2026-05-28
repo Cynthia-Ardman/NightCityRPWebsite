@@ -57,6 +57,8 @@ export default function EditCharacterDialog({
   const [portraitUrls, setPortraitUrls] = useState<string[]>(character.portraitUrls ?? []);
   const [statsImageUrls, setStatsImageUrls] = useState<string[]>(character.statsImageUrls ?? []);
   const [lifeStatus, setLifeStatus] = useState<string>(character.lifeStatus ?? "active");
+  const [traumaTeamTier, setTraumaTeamTier] = useState<string>(character.traumaTeamTier ?? "");
+  const [xanaduGold, setXanaduGold] = useState<boolean>(character.xanaduGold ?? false);
   const [updateNote, setUpdateNote] = useState<string>("");
 
   // Reset form state every time we re-open with a different character or after
@@ -72,6 +74,8 @@ export default function EditCharacterDialog({
     setPortraitUrls(character.portraitUrls ?? []);
     setStatsImageUrls(character.statsImageUrls ?? []);
     setLifeStatus(character.lifeStatus ?? "active");
+    setTraumaTeamTier(character.traumaTeamTier ?? "");
+    setXanaduGold(character.xanaduGold ?? false);
     setUpdateNote("");
   }, [open, character]);
 
@@ -125,6 +129,8 @@ export default function EditCharacterDialog({
         statsImageUrls,
         sheetData: { preamble, sections: rowsToSections(rows) },
         lifeStatus: lifeStatus as "active" | "dead" | "missing" | "loa" | "retired",
+        traumaTeamTier: (traumaTeamTier || null) as "silver" | "gold" | "platinum" | "diamond" | null,
+        xanaduGold,
         updateNote: updateNote.trim() || undefined,
       },
     });
@@ -178,6 +184,45 @@ export default function EditCharacterDialog({
               <option value="loa">LOA</option>
               <option value="retired">Retired</option>
             </select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs">TRAUMA TEAM SUBSCRIPTION</Label>
+              <select
+                value={traumaTeamTier}
+                onChange={(e) => setTraumaTeamTier(e.target.value)}
+                className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm font-mono uppercase tracking-widest text-nc-cyan focus:outline-none focus:ring-1 focus:ring-nc-cyan"
+                data-testid="select-edit-trauma-tier"
+              >
+                <option value="">None</option>
+                <option value="silver">Silver</option>
+                <option value="gold">Gold</option>
+                <option value="platinum">Platinum</option>
+                <option value="diamond">Diamond</option>
+              </select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Billed monthly. Paused while on LOA.
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs">XANADU GOLD</Label>
+              <label className="flex h-10 items-center gap-3 border border-input bg-background px-3">
+                <input
+                  type="checkbox"
+                  checked={xanaduGold}
+                  onChange={(e) => setXanaduGold(e.target.checked)}
+                  className="accent-nc-cyan"
+                  data-testid="checkbox-edit-xanadu-gold"
+                />
+                <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                  {xanaduGold ? "Active" : "Inactive"}
+                </span>
+              </label>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Flat monthly fee. Paused while on LOA.
+              </p>
+            </div>
           </div>
 
           {/* Background */}

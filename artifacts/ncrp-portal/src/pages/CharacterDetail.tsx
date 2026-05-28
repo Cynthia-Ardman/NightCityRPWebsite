@@ -10,7 +10,9 @@ import {
   useTransferInventoryItem,
   useGetCharacterHousing,
   useVacateHousing,
+  useUpdateHousingLease,
   getGetCharacterHousingQueryKey,
+  useAdminRecordCheckup,
   useGetCharacterStatus,
   useUpdateCharacterStatus,
   getGetWalletTransactionsQueryKey,
@@ -41,6 +43,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch as UiSwitch } from "@/components/ui/switch";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import { useAuthMe } from "@/hooks/useAuthMe";
 
 export default function CharacterDetail() {
   const { id } = useParams();
@@ -268,6 +271,64 @@ function UpdatesLog({ characterId }: { characterId: number }) {
   );
 }
 
+function CheckupStreakCard({ characterId }: { characterId: number }) {
+  const qc = useQueryClient();
+  const me = useAuthMe();
+  const { data: char } = useGetCharacter(characterId);
+  const isAdmin = !!me.data?.isAdmin;
+  const recordCheckup = useAdminRecordCheckup({
+    mutation: {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(characterId) }),
+    },
+  });
+  if (!char) return null;
+  const streak = char.checkupStreak ?? 0;
+  const last = char.lastCheckupAt ? new Date(char.lastCheckupAt) : null;
+  if (streak === 0 && !isAdmin) return null;
+  const danger = streak >= 3;
+  return (
+    <Card
+      className={`rounded-none border ${danger ? "border-destructive bg-destructive/10" : "border-border bg-card/50"}`}
+      data-testid="card-checkup-streak"
+    >
+      <CardContent className="py-3 flex items-center justify-between gap-3 font-mono text-sm">
+        <div>
+          <div className={`uppercase tracking-widest text-xs ${danger ? "text-destructive" : "text-nc-cyan"}`}>
+            CYBERWARE CHECKUP
+          </div>
+          <div className="text-foreground">
+            {streak === 0 ? (
+              <>Streak clean. Next weekly meds bill bills at <span className="text-nc-yellow">1×</span>.</>
+            ) : (
+              <>
+                <span className={danger ? "text-destructive font-bold" : "text-nc-yellow"}>{streak}×</span>{" "}
+                multiplier on the next weekly meds bill (missed {streak} checkup{streak === 1 ? "" : "s"}).
+              </>
+            )}
+            {last ? (
+              <div className="text-xs text-muted-foreground mt-0.5">Last checkup: {last.toLocaleDateString()}</div>
+            ) : (
+              <div className="text-xs text-muted-foreground mt-0.5">No checkup recorded yet.</div>
+            )}
+          </div>
+        </div>
+        {isAdmin && (
+          <Button
+            type="button"
+            size="sm"
+            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+            onClick={() => recordCheckup.mutate({ id: characterId })}
+            disabled={recordCheckup.isPending}
+            data-testid="button-record-checkup"
+          >
+            {recordCheckup.isPending ? "RECORDING..." : "RECORD CHECKUP"}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function WalletTab({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
   const { data: txs } = useGetWalletTransactions(characterId);
@@ -300,6 +361,8 @@ function WalletTab({ characterId }: { characterId: number }) {
           </div>
         </CardContent>
       </Card>
+
+      <CheckupStreakCard characterId={characterId} />
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
@@ -637,12 +700,12 @@ function TransferItemDialog({
 
 function HousingCard({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
+  const me = useAuthMe();
+  const isAdmin = !!me.data?.isAdmin;
   const { data: leases, isLoading } = useGetCharacterHousing(characterId);
-  const vacate = useVacateHousing({
-    mutation: {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getGetCharacterHousingQueryKey(characterId) }),
-    },
-  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGetCharacterHousingQueryKey(characterId) });
+  const vacate = useVacateHousing({ mutation: { onSuccess: invalidate } });
+  const updateLease = useUpdateHousingLease({ mutation: { onSuccess: invalidate } });
   return (
     <Card className="rounded-none border-border bg-card/50" data-testid="card-housing">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -661,14 +724,24 @@ function HousingCard({ characterId }: { characterId: number }) {
           <ul className="space-y-2 font-mono text-sm">
             {leases.map((l) => {
               const paid = l.paidThrough ? new Date(l.paidThrough) : null;
+              const inEviction = l.delinquentSince != null;
               return (
                 <li
                   key={l.id}
-                  className={`flex items-center justify-between gap-3 border p-3 ${l.delinquent ? "border-destructive bg-destructive/10" : "border-border/40"}`}
+                  className={`flex items-center justify-between gap-3 border p-3 ${inEviction ? "border-destructive bg-destructive/10" : l.delinquent ? "border-nc-yellow/60 bg-nc-yellow/5" : "border-border/40"}`}
                   data-testid={`row-lease-${l.id}`}
                 >
-                  <div>
-                    <div className="text-foreground">{l.address}</div>
+                  <div className="flex-1">
+                    <div className="text-foreground flex items-center gap-2">
+                      {l.address}
+                      <Badge
+                        variant="outline"
+                        className={`rounded-none text-[10px] px-1 py-0 ${l.kind === "business" ? "border-nc-magenta text-nc-magenta" : "border-nc-cyan/40 text-nc-cyan"}`}
+                        data-testid={`badge-lease-kind-${l.id}`}
+                      >
+                        {(l.kind ?? "residential").toUpperCase()}
+                      </Badge>
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {l.tier ? <span className="text-nc-magenta uppercase mr-2">{l.tier}</span> : null}
                       <span className="text-nc-yellow">€${l.monthlyRent.toLocaleString()}/mo</span>
@@ -679,7 +752,28 @@ function HousingCard({ characterId }: { characterId: number }) {
                         </span>
                       ) : null}
                     </div>
+                    {inEviction && (
+                      <div
+                        className="mt-2 text-xs font-bold uppercase tracking-widest text-destructive"
+                        data-testid={`text-eviction-${l.id}`}
+                      >
+                        {(l.daysUntilEviction ?? 0) > 0
+                          ? `EVICTION IN ${l.daysUntilEviction} DAY${l.daysUntilEviction === 1 ? "" : "S"} — RENT FAILED ${new Date(l.delinquentSince!).toLocaleDateString()}`
+                          : "EVICTION PENDING ON NEXT SWEEP — RENT UNPAID"}
+                      </div>
+                    )}
                   </div>
+                  {isAdmin && (
+                    <select
+                      value={l.kind ?? "residential"}
+                      onChange={(e) => updateLease.mutate({ id: l.id, data: { kind: e.target.value as "residential" | "business" } })}
+                      className="h-8 rounded-none border border-input bg-background px-2 text-xs font-mono uppercase tracking-widest text-nc-cyan"
+                      data-testid={`select-lease-kind-${l.id}`}
+                    >
+                      <option value="residential">Residential</option>
+                      <option value="business">Business</option>
+                    </select>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"

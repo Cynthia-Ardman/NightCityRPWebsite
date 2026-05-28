@@ -23,6 +23,7 @@ import type {
   ActivityEvent,
   AdminCharacterSummary,
   AdminListAuditParams,
+  AdminRecordCheckup200,
   AdminUser,
   AssignOwnerInput,
   BotConfigEntry,
@@ -57,6 +58,9 @@ import type {
   HealthStatus,
   HousingLease,
   HousingLeaseInput,
+  HousingLeaseUpdate,
+  HousingRequest,
+  HousingReviewerNote,
   HydrateUsersInput,
   HydrateUsersResult,
   InventoryItem,
@@ -71,6 +75,7 @@ import type {
   LifestyleTierInput,
   LifestyleTierPatch,
   ListAllMissionsParams,
+  ListHousingRequestsParams,
   ListMissionsParams,
   ListPublicCharactersParams,
   ListWholesalerItemsParams,
@@ -2869,6 +2874,454 @@ export const useLeaseHousing = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getLeaseHousingMutationOptions(options));
+    }
+
+export const getListHousingRequestsUrl = (params?: ListHousingRequestsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/housing/requests?${stringifiedParams}` : `/api/housing/requests`
+}
+
+/**
+ * @summary List housing rental requests (admin only).
+ */
+export const listHousingRequests = async (params?: ListHousingRequestsParams, options?: RequestInit): Promise<HousingRequest[]> => {
+
+  return customFetch<HousingRequest[]>(getListHousingRequestsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListHousingRequestsQueryKey = (params?: ListHousingRequestsParams,) => {
+    return [
+    `/api/housing/requests`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListHousingRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listHousingRequests>>, TError = ErrorType<void>>(params?: ListHousingRequestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listHousingRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListHousingRequestsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listHousingRequests>>> = ({ signal }) => listHousingRequests(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listHousingRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListHousingRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listHousingRequests>>>
+export type ListHousingRequestsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List housing rental requests (admin only).
+ */
+
+export function useListHousingRequests<TData = Awaited<ReturnType<typeof listHousingRequests>>, TError = ErrorType<void>>(
+ params?: ListHousingRequestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listHousingRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListHousingRequestsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateHousingRequestUrl = () => {
+
+
+
+
+  return `/api/housing/requests`
+}
+
+/**
+ * @summary Submit a rental request awaiting admin approval.
+ */
+export const createHousingRequest = async (housingLeaseInput: HousingLeaseInput, options?: RequestInit): Promise<HousingRequest> => {
+
+  return customFetch<HousingRequest>(getCreateHousingRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      housingLeaseInput,)
+  }
+);}
+
+
+
+
+export const getCreateHousingRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createHousingRequest>>, TError,{data: BodyType<HousingLeaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createHousingRequest>>, TError,{data: BodyType<HousingLeaseInput>}, TContext> => {
+
+const mutationKey = ['createHousingRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createHousingRequest>>, {data: BodyType<HousingLeaseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createHousingRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateHousingRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createHousingRequest>>>
+    export type CreateHousingRequestMutationBody = BodyType<HousingLeaseInput>
+    export type CreateHousingRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a rental request awaiting admin approval.
+ */
+export const useCreateHousingRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createHousingRequest>>, TError,{data: BodyType<HousingLeaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createHousingRequest>>,
+        TError,
+        {data: BodyType<HousingLeaseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateHousingRequestMutationOptions(options));
+    }
+
+export const getListMyHousingRequestsUrl = () => {
+
+
+
+
+  return `/api/housing/requests/mine`
+}
+
+/**
+ * @summary Requests submitted by the signed-in user (any status).
+ */
+export const listMyHousingRequests = async ( options?: RequestInit): Promise<HousingRequest[]> => {
+
+  return customFetch<HousingRequest[]>(getListMyHousingRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyHousingRequestsQueryKey = () => {
+    return [
+    `/api/housing/requests/mine`
+    ] as const;
+    }
+
+
+export const getListMyHousingRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listMyHousingRequests>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyHousingRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyHousingRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyHousingRequests>>> = ({ signal }) => listMyHousingRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyHousingRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyHousingRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyHousingRequests>>>
+export type ListMyHousingRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Requests submitted by the signed-in user (any status).
+ */
+
+export function useListMyHousingRequests<TData = Awaited<ReturnType<typeof listMyHousingRequests>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyHousingRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyHousingRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getApproveHousingRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/housing/requests/${id}/approve`
+}
+
+/**
+ * @summary Approve a pending request — materializes a housing lease (admin only).
+ */
+export const approveHousingRequest = async (id: number,
+    housingReviewerNote?: HousingReviewerNote, options?: RequestInit): Promise<HousingLease> => {
+
+  return customFetch<HousingLease>(getApproveHousingRequestUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      housingReviewerNote,)
+  }
+);}
+
+
+
+
+export const getApproveHousingRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveHousingRequest>>, TError,{id: number;data?: BodyType<HousingReviewerNote>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveHousingRequest>>, TError,{id: number;data?: BodyType<HousingReviewerNote>}, TContext> => {
+
+const mutationKey = ['approveHousingRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveHousingRequest>>, {id: number;data?: BodyType<HousingReviewerNote>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveHousingRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveHousingRequestMutationResult = NonNullable<Awaited<ReturnType<typeof approveHousingRequest>>>
+    export type ApproveHousingRequestMutationBody = BodyType<HousingReviewerNote> | undefined
+    export type ApproveHousingRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a pending request — materializes a housing lease (admin only).
+ */
+export const useApproveHousingRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveHousingRequest>>, TError,{id: number;data?: BodyType<HousingReviewerNote>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveHousingRequest>>,
+        TError,
+        {id: number;data?: BodyType<HousingReviewerNote>},
+        TContext
+      > => {
+      return useMutation(getApproveHousingRequestMutationOptions(options));
+    }
+
+export const getRejectHousingRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/housing/requests/${id}/reject`
+}
+
+/**
+ * @summary Reject a pending request (admin only).
+ */
+export const rejectHousingRequest = async (id: number,
+    housingReviewerNote?: HousingReviewerNote, options?: RequestInit): Promise<HousingRequest> => {
+
+  return customFetch<HousingRequest>(getRejectHousingRequestUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      housingReviewerNote,)
+  }
+);}
+
+
+
+
+export const getRejectHousingRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectHousingRequest>>, TError,{id: number;data?: BodyType<HousingReviewerNote>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectHousingRequest>>, TError,{id: number;data?: BodyType<HousingReviewerNote>}, TContext> => {
+
+const mutationKey = ['rejectHousingRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectHousingRequest>>, {id: number;data?: BodyType<HousingReviewerNote>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectHousingRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectHousingRequestMutationResult = NonNullable<Awaited<ReturnType<typeof rejectHousingRequest>>>
+    export type RejectHousingRequestMutationBody = BodyType<HousingReviewerNote> | undefined
+    export type RejectHousingRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Reject a pending request (admin only).
+ */
+export const useRejectHousingRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectHousingRequest>>, TError,{id: number;data?: BodyType<HousingReviewerNote>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectHousingRequest>>,
+        TError,
+        {id: number;data?: BodyType<HousingReviewerNote>},
+        TContext
+      > => {
+      return useMutation(getRejectHousingRequestMutationOptions(options));
+    }
+
+export const getUpdateHousingLeaseUrl = (id: number,) => {
+
+
+
+
+  return `/api/housing/${id}`
+}
+
+/**
+ * @summary Update lease metadata (admin only)
+ */
+export const updateHousingLease = async (id: number,
+    housingLeaseUpdate: HousingLeaseUpdate, options?: RequestInit): Promise<HousingLease> => {
+
+  return customFetch<HousingLease>(getUpdateHousingLeaseUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      housingLeaseUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateHousingLeaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateHousingLease>>, TError,{id: number;data: BodyType<HousingLeaseUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateHousingLease>>, TError,{id: number;data: BodyType<HousingLeaseUpdate>}, TContext> => {
+
+const mutationKey = ['updateHousingLease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateHousingLease>>, {id: number;data: BodyType<HousingLeaseUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateHousingLease(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateHousingLeaseMutationResult = NonNullable<Awaited<ReturnType<typeof updateHousingLease>>>
+    export type UpdateHousingLeaseMutationBody = BodyType<HousingLeaseUpdate>
+    export type UpdateHousingLeaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Update lease metadata (admin only)
+ */
+export const useUpdateHousingLease = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateHousingLease>>, TError,{id: number;data: BodyType<HousingLeaseUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateHousingLease>>,
+        TError,
+        {id: number;data: BodyType<HousingLeaseUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateHousingLeaseMutationOptions(options));
     }
 
 export const getVacateHousingUrl = (id: number,) => {
@@ -6786,6 +7239,76 @@ export const useAdminClearCharacterOwner = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminClearCharacterOwnerMutationOptions(options));
+    }
+
+export const getAdminRecordCheckupUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/characters/${id}/checkup`
+}
+
+/**
+ * @summary Record a ripperdoc checkup — resets the weekly meds streak multiplier to 1×.
+ */
+export const adminRecordCheckup = async (id: number, options?: RequestInit): Promise<AdminRecordCheckup200> => {
+
+  return customFetch<AdminRecordCheckup200>(getAdminRecordCheckupUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminRecordCheckupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRecordCheckup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminRecordCheckup>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['adminRecordCheckup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminRecordCheckup>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminRecordCheckup(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminRecordCheckupMutationResult = NonNullable<Awaited<ReturnType<typeof adminRecordCheckup>>>
+
+    export type AdminRecordCheckupMutationError = ErrorType<void>
+
+    /**
+ * @summary Record a ripperdoc checkup — resets the weekly meds streak multiplier to 1×.
+ */
+export const useAdminRecordCheckup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRecordCheckup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminRecordCheckup>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getAdminRecordCheckupMutationOptions(options));
     }
 
 export const getListPublicCharactersUrl = (params?: ListPublicCharactersParams,) => {

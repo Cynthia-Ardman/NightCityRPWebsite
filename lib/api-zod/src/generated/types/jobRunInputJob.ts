@@ -13,4 +13,5 @@ export const JobRunInputJob = {
   cyberware_humanity: 'cyberware_humanity',
   monthly_rent: 'monthly_rent',
   role_sync: 'role_sync',
+  eviction_sweep: 'eviction_sweep',
 } as const;

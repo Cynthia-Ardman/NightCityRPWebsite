@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { HousingLeaseKind } from './housingLeaseKind';
 
 export interface HousingLease {
   id: number;
@@ -22,6 +23,19 @@ export interface HousingLease {
   paidThrough?: Date | null;
   /** @nullable */
   notes?: string | null;
+  /** Residential leases pause rent on LOA; business leases keep billing. */
+  kind?: HousingLeaseKind;
+  /** True when paidThrough is in the past — informational only. */
   delinquent?: boolean;
+  /**
+     * First failed-rent timestamp. Null = current. Starts the eviction grace clock.
+     * @nullable
+     */
+  delinquentSince?: Date | null;
+  /**
+     * Days remaining in the grace window. 0 = will be evicted on the next eviction_sweep run. Null = not delinquent.
+     * @nullable
+     */
+  daysUntilEviction?: number | null;
   createdAt: Date;
 }

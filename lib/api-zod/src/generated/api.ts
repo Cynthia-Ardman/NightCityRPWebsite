@@ -80,6 +80,10 @@ export const ListMyCharactersResponseItem = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
 })
 export const ListMyCharactersResponse = zod.array(ListMyCharactersResponseItem)
@@ -135,6 +139,10 @@ export const GetCharacterResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
 })
 
@@ -170,6 +178,8 @@ export const UpdateCharacterBody = zod.object({
   "sections": zod.record(zod.string(), zod.string())
 }).optional(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish(),
+  "xanaduGold": zod.boolean().optional(),
   "updateNote": zod.string().min(1).max(updateCharacterBodyUpdateNoteMax).optional().describe('Optional commit-message-style note describing what changed. When non-empty, appended to the character\'s update log.')
 })
 
@@ -424,7 +434,7 @@ export const GetWalletTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "amount": zod.number(),
-  "kind": zod.enum(['transfer_in', 'transfer_out', 'payout', 'rent', 'lifestyle', 'cyberware', 'admin', 'shop', 'other']),
+  "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others). Treat as an open vocabulary.\n'),
   "memo": zod.string().nullish(),
   "counterpartyName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
@@ -514,6 +524,10 @@ export const SetCharacterLifestyleResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
 })
 
@@ -682,7 +696,10 @@ export const ListMyHousingResponseItem = zod.object({
   "monthlyRent": zod.number(),
   "paidThrough": zod.coerce.date().nullish(),
   "notes": zod.string().nullish(),
-  "delinquent": zod.boolean().optional(),
+  "kind": zod.enum(['residential', 'business']).optional().describe('Residential leases pause rent on LOA; business leases keep billing.'),
+  "delinquent": zod.boolean().optional().describe('True when paidThrough is in the past — informational only.'),
+  "delinquentSince": zod.coerce.date().nullish().describe('First failed-rent timestamp. Null = current. Starts the eviction grace clock.'),
+  "daysUntilEviction": zod.number().nullish().describe('Days remaining in the grace window. 0 = will be evicted on the next eviction_sweep run. Null = not delinquent.'),
   "createdAt": zod.coerce.date()
 })
 export const ListMyHousingResponse = zod.array(ListMyHousingResponseItem)
@@ -703,7 +720,10 @@ export const GetCharacterHousingResponseItem = zod.object({
   "monthlyRent": zod.number(),
   "paidThrough": zod.coerce.date().nullish(),
   "notes": zod.string().nullish(),
-  "delinquent": zod.boolean().optional(),
+  "kind": zod.enum(['residential', 'business']).optional().describe('Residential leases pause rent on LOA; business leases keep billing.'),
+  "delinquent": zod.boolean().optional().describe('True when paidThrough is in the past — informational only.'),
+  "delinquentSince": zod.coerce.date().nullish().describe('First failed-rent timestamp. Null = current. Starts the eviction grace clock.'),
+  "daysUntilEviction": zod.number().nullish().describe('Days remaining in the grace window. 0 = will be evicted on the next eviction_sweep run. Null = not delinquent.'),
   "createdAt": zod.coerce.date()
 })
 export const GetCharacterHousingResponse = zod.array(GetCharacterHousingResponseItem)
@@ -715,7 +735,173 @@ export const GetCharacterHousingResponse = zod.array(GetCharacterHousingResponse
 export const LeaseHousingBody = zod.object({
   "catalogRentId": zod.number(),
   "characterId": zod.number(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "kind": zod.enum(['residential', 'business']).optional()
+})
+
+
+/**
+ * @summary List housing rental requests (admin only).
+ */
+export const listHousingRequestsQueryStatusDefault = `pending`;
+
+export const ListHousingRequestsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'rejected']).default(listHousingRequestsQueryStatusDefault)
+})
+
+export const ListHousingRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "listingId": zod.number(),
+  "listingName": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "kind": zod.enum(['residential', 'business']),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListHousingRequestsResponse = zod.array(ListHousingRequestsResponseItem)
+
+
+/**
+ * @summary Submit a rental request awaiting admin approval.
+ */
+export const CreateHousingRequestBody = zod.object({
+  "catalogRentId": zod.number(),
+  "characterId": zod.number(),
+  "notes": zod.string().optional(),
+  "kind": zod.enum(['residential', 'business']).optional()
+})
+
+
+/**
+ * @summary Requests submitted by the signed-in user (any status).
+ */
+export const ListMyHousingRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "listingId": zod.number(),
+  "listingName": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "kind": zod.enum(['residential', 'business']),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyHousingRequestsResponse = zod.array(ListMyHousingRequestsResponseItem)
+
+
+/**
+ * @summary Approve a pending request — materializes a housing lease (admin only).
+ */
+export const ApproveHousingRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveHousingRequestBody = zod.object({
+  "reviewerNote": zod.string().optional()
+})
+
+export const ApproveHousingRequestResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "listingId": zod.number().nullish(),
+  "address": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "paidThrough": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "kind": zod.enum(['residential', 'business']).optional().describe('Residential leases pause rent on LOA; business leases keep billing.'),
+  "delinquent": zod.boolean().optional().describe('True when paidThrough is in the past — informational only.'),
+  "delinquentSince": zod.coerce.date().nullish().describe('First failed-rent timestamp. Null = current. Starts the eviction grace clock.'),
+  "daysUntilEviction": zod.number().nullish().describe('Days remaining in the grace window. 0 = will be evicted on the next eviction_sweep run. Null = not delinquent.'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject a pending request (admin only).
+ */
+export const RejectHousingRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectHousingRequestBody = zod.object({
+  "reviewerNote": zod.string().optional()
+})
+
+export const RejectHousingRequestResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "listingId": zod.number(),
+  "listingName": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "kind": zod.enum(['residential', 'business']),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update lease metadata (admin only)
+ */
+export const UpdateHousingLeaseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateHousingLeaseBodyMonthlyRentMin = 0;
+
+
+
+export const UpdateHousingLeaseBody = zod.object({
+  "kind": zod.enum(['residential', 'business']).optional(),
+  "notes": zod.string().nullish(),
+  "monthlyRent": zod.number().min(updateHousingLeaseBodyMonthlyRentMin).optional()
+})
+
+export const UpdateHousingLeaseResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "listingId": zod.number().nullish(),
+  "address": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "paidThrough": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "kind": zod.enum(['residential', 'business']).optional().describe('Residential leases pause rent on LOA; business leases keep billing.'),
+  "delinquent": zod.boolean().optional().describe('True when paidThrough is in the past — informational only.'),
+  "delinquentSince": zod.coerce.date().nullish().describe('First failed-rent timestamp. Null = current. Starts the eviction grace clock.'),
+  "daysUntilEviction": zod.number().nullish().describe('Days remaining in the grace window. 0 = will be evicted on the next eviction_sweep run. Null = not delinquent.'),
+  "createdAt": zod.coerce.date()
 })
 
 
@@ -2186,6 +2372,10 @@ export const AdminListUsersResponseItem = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -2243,6 +2433,10 @@ export const AdminGetUserResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -2316,6 +2510,10 @@ export const AdminSyncUserRolesResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -2383,6 +2581,10 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
 })
 
@@ -2427,7 +2629,25 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Record a ripperdoc checkup — resets the weekly meds streak multiplier to 1×.
+ */
+export const AdminRecordCheckupParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AdminRecordCheckupResponse = zod.object({
+  "characterId": zod.number(),
+  "lastCheckupAt": zod.coerce.date().nullish(),
+  "checkupStreak": zod.number()
 })
 
 
@@ -2505,6 +2725,10 @@ export const GetPublicCharacterResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "ownerName": zod.string().nullish(),
@@ -2584,7 +2808,7 @@ export const AdminAdjustWalletResponse = zod.object({
  * @summary Manually trigger a cron job
  */
 export const AdminRunJobBody = zod.object({
-  "job": zod.enum(['cyberware_humanity', 'monthly_rent', 'role_sync'])
+  "job": zod.enum(['cyberware_humanity', 'monthly_rent', 'role_sync', 'eviction_sweep'])
 })
 
 export const AdminRunJobResponse = zod.object({
@@ -2885,7 +3109,7 @@ export const GetMyWalletTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "amount": zod.number(),
-  "kind": zod.enum(['transfer_in', 'transfer_out', 'payout', 'rent', 'lifestyle', 'cyberware', 'admin', 'shop', 'other']),
+  "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others). Treat as an open vocabulary.\n'),
   "memo": zod.string().nullish(),
   "counterpartyName": zod.string().nullish(),
   "createdAt": zod.coerce.date()

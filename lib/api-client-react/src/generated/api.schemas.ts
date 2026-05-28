@@ -49,6 +49,20 @@ export const CharacterLifeStatus = {
   retired: 'retired',
 } as const;
 
+/**
+ * Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.
+ * @nullable
+ */
+export type CharacterTraumaTeamTier = typeof CharacterTraumaTeamTier[keyof typeof CharacterTraumaTeamTier] | null;
+
+
+export const CharacterTraumaTeamTier = {
+  silver: 'silver',
+  gold: 'gold',
+  platinum: 'platinum',
+  diamond: 'diamond',
+} as const;
+
 export type SheetDataSections = {[key: string]: string};
 
 export interface SheetData {
@@ -99,6 +113,20 @@ export interface Character {
   /** @nullable */
   lifestyleTierId?: number | null;
   lifestyleTier?: null | LifestyleTier;
+  /**
+     * Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.
+     * @nullable
+     */
+  traumaTeamTier?: CharacterTraumaTeamTier;
+  /** Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost. */
+  xanaduGold?: boolean;
+  /**
+     * Timestamp of the last ripperdoc checkup. Null = never had one.
+     * @nullable
+     */
+  lastCheckupAt?: string | null;
+  /** Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max). */
+  checkupStreak?: number;
   createdAt: string;
 }
 
@@ -234,6 +262,19 @@ export const CharacterUpdateLifeStatus = {
   retired: 'retired',
 } as const;
 
+/**
+ * @nullable
+ */
+export type CharacterUpdateTraumaTeamTier = typeof CharacterUpdateTraumaTeamTier[keyof typeof CharacterUpdateTraumaTeamTier] | null;
+
+
+export const CharacterUpdateTraumaTeamTier = {
+  silver: 'silver',
+  gold: 'gold',
+  platinum: 'platinum',
+  diamond: 'diamond',
+} as const;
+
 export interface CharacterUpdate {
   /**
      * @minLength 1
@@ -248,6 +289,9 @@ export interface CharacterUpdate {
   statsImageUrls?: string[];
   sheetData?: SheetData;
   lifeStatus?: CharacterUpdateLifeStatus;
+  /** @nullable */
+  traumaTeamTier?: CharacterUpdateTraumaTeamTier;
+  xanaduGold?: boolean;
   /**
      * Optional commit-message-style note describing what changed. When non-empty, appended to the character's update log.
      * @minLength 1
@@ -459,26 +503,16 @@ export interface TransferInput {
   memo?: string;
 }
 
-export type WalletTransactionKind = typeof WalletTransactionKind[keyof typeof WalletTransactionKind];
-
-
-export const WalletTransactionKind = {
-  transfer_in: 'transfer_in',
-  transfer_out: 'transfer_out',
-  payout: 'payout',
-  rent: 'rent',
-  lifestyle: 'lifestyle',
-  cyberware: 'cyberware',
-  admin: 'admin',
-  shop: 'shop',
-  other: 'other',
-} as const;
-
 export interface WalletTransaction {
   id: number;
   characterId: number;
   amount: number;
-  kind: WalletTransactionKind;
+  /** Wallet transaction kind. Includes legacy values plus per-billing-line
+  kinds emitted by the autobill cron (rent, business_rent, lifestyle,
+  baseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,
+  and others). Treat as an open vocabulary.
+   */
+  kind: string;
   /** @nullable */
   memo?: string | null;
   /** @nullable */
@@ -754,6 +788,17 @@ export interface CatalogRent {
   description?: string | null;
 }
 
+/**
+ * Residential leases pause rent on LOA; business leases keep billing.
+ */
+export type HousingLeaseKind = typeof HousingLeaseKind[keyof typeof HousingLeaseKind];
+
+
+export const HousingLeaseKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
 export interface HousingLease {
   id: number;
   characterId: number;
@@ -770,14 +815,100 @@ export interface HousingLease {
   paidThrough?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** Residential leases pause rent on LOA; business leases keep billing. */
+  kind?: HousingLeaseKind;
+  /** True when paidThrough is in the past — informational only. */
   delinquent?: boolean;
+  /**
+     * First failed-rent timestamp. Null = current. Starts the eviction grace clock.
+     * @nullable
+     */
+  delinquentSince?: string | null;
+  /**
+     * Days remaining in the grace window. 0 = will be evicted on the next eviction_sweep run. Null = not delinquent.
+     * @nullable
+     */
+  daysUntilEviction?: number | null;
   createdAt: string;
 }
+
+export interface HousingReviewerNote {
+  reviewerNote?: string;
+}
+
+export type HousingRequestKind = typeof HousingRequestKind[keyof typeof HousingRequestKind];
+
+
+export const HousingRequestKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
+export type HousingRequestStatus = typeof HousingRequestStatus[keyof typeof HousingRequestStatus];
+
+
+export const HousingRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface HousingRequest {
+  id: number;
+  characterId: number;
+  characterName: string;
+  listingId: number;
+  listingName: string;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+  monthlyRent: number;
+  requestedById: string;
+  /** @nullable */
+  requestedByName?: string | null;
+  kind: HousingRequestKind;
+  /** @nullable */
+  notes?: string | null;
+  status: HousingRequestStatus;
+  /** @nullable */
+  reviewedById?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  reviewerNote?: string | null;
+  createdAt: string;
+}
+
+export type HousingLeaseInputKind = typeof HousingLeaseInputKind[keyof typeof HousingLeaseInputKind];
+
+
+export const HousingLeaseInputKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
 
 export interface HousingLeaseInput {
   catalogRentId: number;
   characterId: number;
   notes?: string;
+  kind?: HousingLeaseInputKind;
+}
+
+export type HousingLeaseUpdateKind = typeof HousingLeaseUpdateKind[keyof typeof HousingLeaseUpdateKind];
+
+
+export const HousingLeaseUpdateKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
+export interface HousingLeaseUpdate {
+  kind?: HousingLeaseUpdateKind;
+  /** @nullable */
+  notes?: string | null;
+  /** @minimum 0 */
+  monthlyRent?: number;
 }
 
 export interface FixerNpc {
@@ -1181,6 +1312,7 @@ export const JobRunInputJob = {
   cyberware_humanity: 'cyberware_humanity',
   monthly_rent: 'monthly_rent',
   role_sync: 'role_sync',
+  eviction_sweep: 'eviction_sweep',
 } as const;
 
 export interface JobRunInput {
@@ -1593,6 +1725,19 @@ export type ReactivateCharacter200 = {
   archived: boolean;
 };
 
+export type ListHousingRequestsParams = {
+status?: ListHousingRequestsStatus;
+};
+
+export type ListHousingRequestsStatus = typeof ListHousingRequestsStatus[keyof typeof ListHousingRequestsStatus];
+
+
+export const ListHousingRequestsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
 export type ListMissionsParams = {
 characterId?: number;
 limit?: number;
@@ -1632,6 +1777,13 @@ export type GetCharacterPendingEdit200 = {
   id: number;
   submittedAt: string;
   submittedBy: string;
+};
+
+export type AdminRecordCheckup200 = {
+  characterId: number;
+  /** @nullable */
+  lastCheckupAt?: string | null;
+  checkupStreak: number;
 };
 
 export type ListPublicCharactersParams = {

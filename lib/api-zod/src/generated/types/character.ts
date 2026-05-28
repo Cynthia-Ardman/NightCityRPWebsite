@@ -7,6 +7,7 @@
  */
 import type { CharacterKind } from './characterKind';
 import type { CharacterLifeStatus } from './characterLifeStatus';
+import type { CharacterTraumaTeamTier } from './characterTraumaTeamTier';
 import type { LifestyleTier } from './lifestyleTier';
 import type { SheetData } from './sheetData';
 
@@ -42,5 +43,19 @@ export interface Character {
   /** @nullable */
   lifestyleTierId?: number | null;
   lifestyleTier?: null | LifestyleTier;
+  /**
+     * Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.
+     * @nullable
+     */
+  traumaTeamTier?: CharacterTraumaTeamTier;
+  /** Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost. */
+  xanaduGold?: boolean;
+  /**
+     * Timestamp of the last ripperdoc checkup. Null = never had one.
+     * @nullable
+     */
+  lastCheckupAt?: Date | null;
+  /** Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max). */
+  checkupStreak?: number;
   createdAt: Date;
 }

@@ -575,9 +575,118 @@ paths:
               schema: { $ref: "#/components/schemas/HousingLease" }
         "400": { description: Bad request }
         "404": { description: Not found }
+  /housing/requests:
+    get:
+      operationId: listHousingRequests
+      tags: [housing]
+      summary: List housing rental requests (admin only).
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [pending, approved, rejected], default: pending }
+      responses:
+        "200":
+          description: Housing requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/HousingRequest" }
+        "403": { description: Admin only }
+    post:
+      operationId: createHousingRequest
+      tags: [housing]
+      summary: Submit a rental request awaiting admin approval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HousingLeaseInput" }
+      responses:
+        "201":
+          description: Pending request created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HousingRequest" }
+        "400": { description: Bad request }
+        "404": { description: Not found }
+        "409": { description: Duplicate pending request }
+  /housing/requests/mine:
+    get:
+      operationId: listMyHousingRequests
+      tags: [housing]
+      summary: Requests submitted by the signed-in user (any status).
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/HousingRequest" }
+  /housing/requests/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approveHousingRequest
+      tags: [housing]
+      summary: Approve a pending request — materializes a housing lease (admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HousingReviewerNote" }
+      responses:
+        "200":
+          description: Lease created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HousingLease" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+  /housing/requests/{id}/reject:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: rejectHousingRequest
+      tags: [housing]
+      summary: Reject a pending request (admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HousingReviewerNote" }
+      responses:
+        "200":
+          description: Rejected request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HousingRequest" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
   /housing/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateHousingLease
+      tags: [housing]
+      summary: Update lease metadata (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HousingLeaseUpdate" }
+      responses:
+        "200":
+          description: Updated lease
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HousingLease" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
     delete:
       operationId: vacateHousing
       tags: [housing]
@@ -1359,6 +1468,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Character" }
         "404": { description: Not found }
+  /admin/characters/{id}/checkup:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: adminRecordCheckup
+      tags: [admin]
+      summary: Record a ripperdoc checkup — resets the weekly meds streak multiplier to 1×.
+      responses:
+        "200":
+          description: Checkup recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [characterId, checkupStreak]
+                properties:
+                  characterId: { type: integer }
+                  lastCheckupAt: { type: ["string", "null"], format: date-time }
+                  checkupStreak: { type: integer }
+        "404": { description: Not found }
 
   # ---------------- DIRECTORY (public character sheets) ----------------
   /directory/characters:
@@ -1775,6 +1904,20 @@ components:
           oneOf:
             - { type: "null" }
             - { $ref: "#/components/schemas/LifestyleTier" }
+        traumaTeamTier:
+          type: ["string", "null"]
+          enum: [silver, gold, platinum, diamond, null]
+          description: "Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription."
+        xanaduGold:
+          type: boolean
+          description: "Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost."
+        lastCheckupAt:
+          type: ["string", "null"]
+          format: date-time
+          description: "Timestamp of the last ripperdoc checkup. Null = never had one."
+        checkupStreak:
+          type: integer
+          description: "Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max)."
         createdAt: { type: string, format: date-time }
 
     SheetData:
@@ -1894,6 +2037,10 @@ components:
         lifeStatus:
           type: string
           enum: [active, dead, missing, loa, retired]
+        traumaTeamTier:
+          type: ["string", "null"]
+          enum: [silver, gold, platinum, diamond, null]
+        xanaduGold: { type: boolean }
         updateNote:
           type: string
           minLength: 1
@@ -2060,7 +2207,13 @@ components:
         id: { type: integer }
         characterId: { type: integer }
         amount: { type: integer }
-        kind: { type: string, enum: [transfer_in, transfer_out, payout, rent, lifestyle, cyberware, admin, shop, other] }
+        kind:
+          type: string
+          description: |
+            Wallet transaction kind. Includes legacy values plus per-billing-line
+            kinds emitted by the autobill cron (rent, business_rent, lifestyle,
+            baseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,
+            and others). Treat as an open vocabulary.
         memo: { type: ["string", "null"] }
         counterpartyName: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
@@ -2296,7 +2449,45 @@ components:
         monthlyRent: { type: integer }
         paidThrough: { type: ["string", "null"], format: date-time }
         notes: { type: ["string", "null"] }
-        delinquent: { type: boolean }
+        kind:
+          type: string
+          enum: [residential, business]
+          description: "Residential leases pause rent on LOA; business leases keep billing."
+        delinquent: { type: boolean, description: "True when paidThrough is in the past — informational only." }
+        delinquentSince:
+          type: ["string", "null"]
+          format: date-time
+          description: "First failed-rent timestamp. Null = current. Starts the eviction grace clock."
+        daysUntilEviction:
+          type: ["integer", "null"]
+          description: "Days remaining in the grace window. 0 = will be evicted on the next eviction_sweep run. Null = not delinquent."
+        createdAt: { type: string, format: date-time }
+
+    HousingReviewerNote:
+      type: object
+      properties:
+        reviewerNote: { type: string }
+
+    HousingRequest:
+      type: object
+      required: [id, characterId, characterName, listingId, listingName, monthlyRent, requestedById, kind, status, createdAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        characterName: { type: string }
+        listingId: { type: integer }
+        listingName: { type: string }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
+        monthlyRent: { type: integer }
+        requestedById: { type: string }
+        requestedByName: { type: ["string", "null"] }
+        kind: { type: string, enum: [residential, business] }
+        notes: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, approved, rejected] }
+        reviewedById: { type: ["string", "null"] }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        reviewerNote: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
 
     HousingLeaseInput:
@@ -2306,6 +2497,18 @@ components:
         catalogRentId: { type: integer }
         characterId: { type: integer }
         notes: { type: string }
+        kind:
+          type: string
+          enum: [residential, business]
+
+    HousingLeaseUpdate:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [residential, business]
+        notes: { type: ["string", "null"] }
+        monthlyRent: { type: integer, minimum: 0 }
 
     FixerNpc:
       type: object
@@ -2605,7 +2808,7 @@ components:
       type: object
       required: [job]
       properties:
-        job: { type: string, enum: [cyberware_humanity, monthly_rent, role_sync] }
+        job: { type: string, enum: [cyberware_humanity, monthly_rent, role_sync, eviction_sweep] }
 
     JobRunResult:
       type: object

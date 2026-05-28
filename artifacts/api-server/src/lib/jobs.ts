@@ -1,8 +1,11 @@
 import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
-import { fetchGuildMemberRolesViaBot } from "./discord";
+import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
 import { patchBalance } from "./unbelievaboat";
+
+const EVICTION_CHANNEL_ID = process.env.EVICTION_CHANNEL_ID ?? "";
+const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
 
 // Default monthly costs used when the corresponding bot_config row is missing
 // or malformed. Admins override these by writing to bot_config; the cron
@@ -75,7 +78,7 @@ export async function isAutobillEnabled(key: string): Promise<boolean> {
   }
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep";
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
   const [run] = await db.insert(jobRuns).values({ job: name, status: "running" }).returning();
@@ -181,6 +184,21 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             { characterId: c.id, leaseId: lease.id, kind: lease.kind },
             "monthly_rent UB debit failed; lease will show delinquent",
           );
+          // Stamp the lease as delinquent on the FIRST failed cycle only —
+          // subsequent failures preserve the original timestamp so the
+          // eviction grace clock counts from the first miss, not the most
+          // recent retry.
+          if (!lease.delinquentSince) {
+            await db
+              .update(housing)
+              .set({ delinquentSince: new Date() })
+              .where(eq(housing.id, lease.id));
+            await db.insert(activityEvents).values({
+              kind: "housing_delinquent",
+              actorId: c.ownerId,
+              message: `${c.name} could not pay rent on ${lease.address} (€$${rent})`,
+            });
+          }
           continue;
         }
         await db.insert(walletTransactions).values({
@@ -196,7 +214,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           ? new Date(lease.paidThrough)
           : new Date();
         base.setUTCMonth(base.getUTCMonth() + 1);
-        await db.update(housing).set({ paidThrough: base }).where(eq(housing.id, lease.id));
+        // Clear delinquentSince on every successful debit — a paid month
+        // resets the eviction clock, even if the lease had previously
+        // entered the grace period.
+        await db
+          .update(housing)
+          .set({ paidThrough: base, delinquentSince: null })
+          .where(eq(housing.id, lease.id));
         affected++;
       }
 
@@ -348,12 +372,23 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // with an approved sheet, sum total humanity loss across all chrome (foundational
       // slots + Misc) and charge meds = HL * RATE_PER_HL.
       const RATE_PER_HL = 50; // eddies per humanity loss point per week
+      const MAX_STREAK_MULTIPLIER = 10; // cap on missed-checkup streak penalty
       const { characterSheets } = await import("@workspace/db");
+      // Weekly idempotency: skip any character who already has a 'meds' debit in
+      // the last 6 days so a manual rerun (or two cron ticks in the same week)
+      // can't double-charge or double-bump the streak.
+      const sixDaysAgo = new Date(Date.now() - 6 * 86400000);
+      const recentMeds = await db
+        .select({ characterId: walletTransactions.characterId })
+        .from(walletTransactions)
+        .where(and(eq(walletTransactions.kind, "meds"), gte(walletTransactions.createdAt, sixDaysAgo)));
+      const recentMedsSet = new Set(recentMeds.map((r) => r.characterId));
       const approvedChars = await db
         .select()
         .from(characters)
         .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
       for (const c of approvedChars) {
+        if (recentMedsSet.has(c.id)) continue;
         const [sheet] = await db
           .select()
           .from(characterSheets)
@@ -369,7 +404,12 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           .filter((cw) => (cw?.name ?? "").trim().length > 0)
           .reduce((s, cw) => s + (Number(cw.humanityLoss) || 0), 0);
         if (totalHL <= 0) continue;
-        const charge = totalHL * RATE_PER_HL;
+        // Missed-checkup streak penalty. Increment every cron tick; the
+        // admin /admin/characters/:id/checkup endpoint resets it to 0.
+        // Capped so the bill can't run away on a long-absent player.
+        const nextStreak = Math.min((c.checkupStreak ?? 0) + 1, MAX_STREAK_MULTIPLIER);
+        const multiplier = nextStreak;
+        const charge = totalHL * RATE_PER_HL * multiplier;
         if (!c.ownerId) continue;
         const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
         if (!owner) continue;
@@ -377,7 +417,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         // confirmed UB debit. Skip cleanly on UB unavailability.
         const ub = await patchBalance(owner.discordId, {
           cash: -charge,
-          reason: `Cyberpsychosis meds (${totalHL} HL)`,
+          reason: `Cyberpsychosis meds (${totalHL} HL × week ${multiplier})`,
         });
         if (!ub) {
           logger.warn({ characterId: c.id }, "cyberware_humanity UB debit failed; skipping local ledger insert");
@@ -388,12 +428,45 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             characterId: c.id,
             amount: -charge,
             kind: "meds",
-            memo: `Weekly cyberpsychosis maintenance for ${totalHL} HL of chrome`,
+            memo: `Weekly cyberpsychosis maintenance for ${totalHL} HL of chrome (week ${multiplier} of missed checkups)`,
           });
+          // Bump the streak after a successful debit so a UB failure doesn't
+          // also burn the player's streak counter — they get a clean retry.
+          await db.update(characters).set({ checkupStreak: nextStreak }).where(eq(characters.id, c.id));
           affected++;
         } catch (err) {
           logger.warn({ err, characterId: c.id }, "cyberware_humanity ledger insert failed");
         }
+      }
+    } else if (name === "eviction_sweep") {
+      // Daily housing eviction sweep. Any lease whose delinquentSince is
+      // older than HOUSING_GRACE_DAYS gets evicted: the row is deleted, an
+      // activity event is logged, and an optional Discord notice is posted
+      // to EVICTION_CHANNEL_ID. Runs independently of the housing
+      // kill-switch — once a lease is flagged delinquent the grace clock
+      // keeps ticking even if autobill is paused, but no NEW delinquency
+      // can be created while monthly_rent is off.
+      const cutoff = new Date(Date.now() - HOUSING_GRACE_DAYS * 86400000);
+      const overdue = await db
+        .select({ lease: housing, character: characters })
+        .from(housing)
+        .innerJoin(characters, eq(characters.id, housing.characterId))
+        .where(isNotNull(housing.delinquentSince));
+      for (const { lease, character: c } of overdue) {
+        if (!lease.delinquentSince || lease.delinquentSince > cutoff) continue;
+        await db.delete(housing).where(eq(housing.id, lease.id));
+        await db.insert(activityEvents).values({
+          kind: "housing_evicted",
+          actorId: c.ownerId,
+          message: `${c.name} evicted from ${lease.address} after ${HOUSING_GRACE_DAYS}-day grace period`,
+        });
+        if (EVICTION_CHANNEL_ID) {
+          await postToChannel(
+            EVICTION_CHANNEL_ID,
+            `**EVICTION** — ${c.name} has been evicted from \`${lease.address}\` after failing to pay rent for ${HOUSING_GRACE_DAYS}+ days.`,
+          ).catch((err) => logger.warn({ err, leaseId: lease.id }, "eviction notice post failed"));
+        }
+        affected++;
       }
     }
   } catch (err) {
@@ -428,6 +501,13 @@ export function startCron() {
         return;
       }
       runJob("cyberware_humanity").catch((err) => logger.error({ err }, "cyberware_humanity cron"));
+    });
+    // Daily eviction sweep at 04:30 UTC, just after the monthly rent run so
+    // any same-day delinquency stamps are already in place. Intentionally
+    // NOT gated on the housing kill switch — once a lease is in the grace
+    // window we want it to resolve cleanly even if autobill is paused.
+    cron.schedule("30 4 * * *", () => {
+      runJob("eviction_sweep").catch((err) => logger.error({ err }, "eviction_sweep cron"));
     });
     logger.info("Cron jobs scheduled");
   });

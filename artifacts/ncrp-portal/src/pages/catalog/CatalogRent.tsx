@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import {
   useListRentListings,
   useListMyCharacters,
-  useLeaseHousing,
+  useCreateHousingRequest,
+  useListMyHousingRequests,
   useListLifestyleTiers,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -139,6 +140,7 @@ export default function CatalogRent() {
           </table>
         </Card>
       )}
+      <MyHousingRequests />
       <LifestyleComparison />
       {leaseTarget && (
         <LeaseDialog
@@ -148,6 +150,34 @@ export default function CatalogRent() {
         />
       )}
     </div>
+  );
+}
+
+function MyHousingRequests() {
+  const { data, isLoading } = useListMyHousingRequests();
+  const rows = (data ?? []).filter((r) => r.status === "pending");
+  if (isLoading || rows.length === 0) return null;
+  return (
+    <Card className="rounded-none border-nc-yellow/40 bg-card/50" data-testid="card-my-housing-requests">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-yellow">PENDING HOUSING REQUESTS</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-1 font-mono text-sm">
+          {rows.map((r) => (
+            <li key={r.id} className="flex justify-between border-b border-border/30 py-2" data-testid={`row-my-request-${r.id}`}>
+              <span>
+                <span className="text-foreground">{r.characterName}</span>
+                <span className="text-muted-foreground"> → </span>
+                <span className="text-nc-cyan">{r.listingName}</span>
+                <span className="text-xs text-muted-foreground"> ({r.kind})</span>
+              </span>
+              <span className="text-xs text-nc-yellow uppercase tracking-widest">AWAITING APPROVAL</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -207,26 +237,24 @@ function LeaseDialog({
   const { data: chars } = useListMyCharacters();
   const eligible = (chars ?? []).filter((c) => !c.archived);
   const [characterId, setCharacterId] = useState<number | null>(null);
-  const lease = useLeaseHousing({
+  const [notes, setNotes] = useState("");
+  const request = useCreateHousingRequest({
     mutation: {
-      onSuccess: (created) => {
-        qc.invalidateQueries({ queryKey: ["/housing/mine"] });
-        if (created?.characterId) {
-          qc.invalidateQueries({ queryKey: [`/characters/${created.characterId}/housing`] });
-        }
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["/housing/requests/mine"] });
         onDone();
       },
     },
   });
   const errMsg =
-    (lease.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (lease.error ? "Lease failed" : null);
+    (request.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (request.error ? "Request failed" : null);
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-lease">
       <Card className="rounded-none border-nc-cyan bg-card w-full max-w-lg">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="font-display tracking-widest text-nc-cyan">
-            SIGN LEASE: {listing.name}
+            REQUEST LEASE: {listing.name}
           </CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-lease">
             <X className="w-4 h-4" />
@@ -238,11 +266,11 @@ function LeaseDialog({
             onSubmit={(e) => {
               e.preventDefault();
               if (!characterId) return;
-              lease.mutate({ data: { catalogRentId: listing.id, characterId } });
+              request.mutate({ data: { catalogRentId: listing.id, characterId, notes: notes || undefined } });
             }}
           >
             <p className="text-muted-foreground">
-              Rent <span className="text-nc-yellow">€${listing.monthlyRent.toLocaleString()}/mo</span> will be auto-debited on the 1st of each month.
+              Submits a rental request to staff. Once approved, rent <span className="text-nc-yellow">€${listing.monthlyRent.toLocaleString()}/mo</span> auto-debits on the 1st of each month.
             </p>
             <div>
               <Label className="text-xs">CHARACTER</Label>
@@ -269,16 +297,26 @@ function LeaseDialog({
                 </div>
               )}
             </div>
+            <div>
+              <Label className="text-xs">NOTES (optional)</Label>
+              <Input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Context for staff (move-in date, business purpose, etc.)"
+                className="rounded-none font-mono"
+                data-testid="input-request-notes"
+              />
+            </div>
             {errMsg && (
               <div className="text-destructive text-xs" data-testid="text-lease-error">{errMsg}</div>
             )}
             <Button
               type="submit"
-              disabled={lease.isPending || !characterId}
+              disabled={request.isPending || !characterId}
               className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
               data-testid="button-confirm-lease"
             >
-              {lease.isPending ? "SIGNING..." : "CONFIRM LEASE"}
+              {request.isPending ? "SUBMITTING..." : "SUBMIT REQUEST"}
             </Button>
           </form>
         </CardContent>

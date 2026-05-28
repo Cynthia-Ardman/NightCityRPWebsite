@@ -66,6 +66,8 @@ const EditableSchema = z
       sections: z.record(z.string(), z.string()),
     }),
     lifeStatus: z.enum(["active", "dead", "missing", "loa", "retired"]),
+    traumaTeamTier: z.enum(["silver", "gold", "platinum", "diamond"]).nullable(),
+    xanaduGold: z.boolean(),
   })
   .partial()
   .strict();
@@ -85,6 +87,8 @@ async function applyDiff(characterId: number, diff: EditableDiff): Promise<Chara
   if (diff.statsImageUrls !== undefined) u.statsImageUrls = diff.statsImageUrls;
   if (diff.sheetData !== undefined) u.sheetData = diff.sheetData;
   if (diff.lifeStatus !== undefined) u.lifeStatus = diff.lifeStatus;
+  if (diff.traumaTeamTier !== undefined) u.traumaTeamTier = diff.traumaTeamTier;
+  if (diff.xanaduGold !== undefined) u.xanaduGold = diff.xanaduGold;
   const [updated] = await db.update(characters).set(u).where(eq(characters.id, characterId)).returning();
   return updated;
 }

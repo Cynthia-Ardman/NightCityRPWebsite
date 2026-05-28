@@ -5,9 +5,11 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { HousingLeaseInputKind } from './housingLeaseInputKind';
 
 export interface HousingLeaseInput {
   catalogRentId: number;
   characterId: number;
   notes?: string;
+  kind?: HousingLeaseInputKind;
 }

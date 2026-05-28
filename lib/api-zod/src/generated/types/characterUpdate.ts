@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CharacterUpdateLifeStatus } from './characterUpdateLifeStatus';
+import type { CharacterUpdateTraumaTeamTier } from './characterUpdateTraumaTeamTier';
 import type { SheetData } from './sheetData';
 
 export interface CharacterUpdate {
@@ -22,6 +23,9 @@ export interface CharacterUpdate {
   statsImageUrls?: string[];
   sheetData?: SheetData;
   lifeStatus?: CharacterUpdateLifeStatus;
+  /** @nullable */
+  traumaTeamTier?: CharacterUpdateTraumaTeamTier;
+  xanaduGold?: boolean;
   /**
      * Optional commit-message-style note describing what changed. When non-empty, appended to the character's update log.
      * @minLength 1

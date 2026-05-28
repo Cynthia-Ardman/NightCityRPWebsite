@@ -193,6 +193,36 @@ router.delete("/admin/characters/:id/owner", adminOrFixer, async (req, res): Pro
   res.json({ ...updated, isActive: false });
 });
 
+// Records a ripperdoc checkup for a character: resets the missed-checkup
+// streak counter (which the cyberware_humanity cron uses as a multiplier
+// on weekly meds) back to zero and stamps lastCheckupAt. Idempotent — a
+// second call within the same week is a no-op cost-wise.
+router.post("/admin/characters/:id/checkup", adminOnly, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [c] = await db.select().from(characters).where(eq(characters.id, id));
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const [updated] = await db
+    .update(characters)
+    .set({ lastCheckupAt: new Date(), checkupStreak: 0 })
+    .where(eq(characters.id, id))
+    .returning();
+  await db.insert(activityEvents).values({
+    kind: "checkup",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${req.user!.username} recorded a ripperdoc checkup for ${c.name}`,
+  });
+  res.json({
+    characterId: updated.id,
+    lastCheckupAt: updated.lastCheckupAt?.toISOString() ?? null,
+    checkupStreak: updated.checkupStreak,
+  });
+});
+
 router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> => {
   const { characterId, amount, memo } = req.body ?? {};
   if (!characterId || typeof amount !== "number") {
@@ -236,11 +266,11 @@ router.get("/admin/jobs", adminOnly, async (_req, res): Promise<void> => {
 
 router.post("/admin/jobs/run", adminOnly, async (req, res): Promise<void> => {
   const job = String(req.body?.job ?? "");
-  if (!["cyberware_humanity", "monthly_rent", "role_sync"].includes(job)) {
+  if (!["cyberware_humanity", "monthly_rent", "role_sync", "eviction_sweep"].includes(job)) {
     res.status(400).json({ error: "Unknown job" });
     return;
   }
-  const result = await runJob(job as "cyberware_humanity" | "monthly_rent" | "role_sync");
+  const result = await runJob(job as "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep");
   res.json(result);
 });
 

@@ -95,6 +95,16 @@ export const characters = pgTable("characters", {
   // Xanadu Gold premium membership flag. Flat monthly fee from
   // bot_config["xanadu_gold_cost"] (default 500). Skipped while on LOA.
   xanaduGold: boolean("xanadu_gold").notNull().default(false),
+  // Last ripperdoc checkup. Resets `checkupStreak` to 0. Null means no
+  // checkup has ever been recorded (treated the same as "overdue" by the
+  // cyberware_humanity cron, but doesn't pre-charge anything until the
+  // first cron tick after this row exists).
+  lastCheckupAt: timestamp("last_checkup_at", { withTimezone: true }),
+  // Number of consecutive weekly cron ticks since the last checkup. The
+  // cyberware_humanity cron multiplies the meds cost by this streak so
+  // skipping checkups gets exponentially more expensive (matches
+  // NightCityBot's missed-checkup multiplier behavior, but linear).
+  checkupStreak: integer("checkup_streak").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   importedThreadIdx: uniqueIndex("characters_imported_thread_idx").on(t.importedFromThreadId),
@@ -361,7 +371,32 @@ export const housing = pgTable("housing", {
   // NightCityBot behavior where business rent never pauses).
   kind: text("kind").notNull().default("residential"),
   paidThrough: timestamp("paid_through", { withTimezone: true }),
+  // First moment a rent debit failed for this lease (null = current). Set
+  // by monthly_rent when UB rejects the charge; cleared on the next
+  // successful debit. The daily eviction_sweep cron deletes leases whose
+  // delinquentSince is older than HOUSING_GRACE_DAYS (default 7).
+  delinquentSince: timestamp("delinquent_since", { withTimezone: true }),
   notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Pending housing rental requests. Players hit POST /housing/requests from
+// the catalog browser; admins triage the queue and either approve (which
+// materializes a `housing` row and archives the request) or reject (sets
+// status=rejected with a reviewer note). One pending request per (character,
+// listing) pair is enforced at the route layer, not the DB, so a rejected
+// request doesn't block resubmitting.
+export const housingRequests = pgTable("housing_requests", {
+  id: serial("id").primaryKey(),
+  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  listingId: integer("listing_id").notNull().references(() => catalogRent.id, { onDelete: "cascade" }),
+  requestedById: text("requested_by_id").notNull().references(() => users.id),
+  kind: text("kind").notNull().default("residential"),
+  notes: text("notes"),
+  status: text("status").notNull().default("pending"),
+  reviewedById: text("reviewed_by_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewerNote: text("reviewer_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

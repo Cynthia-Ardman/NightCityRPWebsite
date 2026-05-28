@@ -5,13 +5,17 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
-import type { WalletTransactionKind } from './walletTransactionKind';
 
 export interface WalletTransaction {
   id: number;
   characterId: number;
   amount: number;
-  kind: WalletTransactionKind;
+  /** Wallet transaction kind. Includes legacy values plus per-billing-line
+  kinds emitted by the autobill cron (rent, business_rent, lifestyle,
+  baseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,
+  and others). Treat as an open vocabulary.
+   */
+  kind: string;
   /** @nullable */
   memo?: string | null;
   /** @nullable */
