@@ -192,7 +192,7 @@ router.delete("/admin/characters/:id/owner", adminOrFixer, async (req, res): Pro
   res.json({ ...updated, isActive: false });
 });
 
-router.post("/admin/wallet/adjust", async (req, res): Promise<void> => {
+router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> => {
   const { characterId, amount, memo } = req.body ?? {};
   if (!characterId || typeof amount !== "number") {
     res.status(400).json({ error: "characterId and amount required" });
@@ -228,12 +228,12 @@ router.post("/admin/wallet/adjust", async (req, res): Promise<void> => {
   res.json({ success: true });
 });
 
-router.get("/admin/jobs", async (_req, res): Promise<void> => {
+router.get("/admin/jobs", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(jobRuns).orderBy(desc(jobRuns.startedAt)).limit(50);
   res.json(rows);
 });
 
-router.post("/admin/jobs/run", async (req, res): Promise<void> => {
+router.post("/admin/jobs/run", adminOnly, async (req, res): Promise<void> => {
   const job = String(req.body?.job ?? "");
   if (!["cyberware_humanity", "monthly_rent", "role_sync"].includes(job)) {
     res.status(400).json({ error: "Unknown job" });
@@ -243,7 +243,7 @@ router.post("/admin/jobs/run", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.get("/admin/activity", async (_req, res): Promise<void> => {
+router.get("/admin/activity", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(activityEvents).orderBy(desc(activityEvents.createdAt)).limit(100);
   res.json(rows);
 });
@@ -308,7 +308,7 @@ router.delete("/admin/bot-config/:key", adminOnly, async (req, res): Promise<voi
   res.sendStatus(204);
 });
 
-router.get("/admin/stats", async (_req, res): Promise<void> => {
+router.get("/admin/stats", adminOnly, async (_req, res): Promise<void> => {
   const [{ count: userCount }] = await db.select({ count: sql<number>`count(*)::int` }).from(users);
   const [{ count: charCount }] = await db.select({ count: sql<number>`count(*)::int` }).from(characters);
   res.json({ userCount, charCount });
