@@ -18,4 +18,3 @@
 - [Autobill parity](autobill-parity.md) — monthly_rent runs 6 bill types in one job; LOA-skip rules differ per type; period guard via paid_through (rent) or wallet kind+month set (personal fees).
 - [Drizzle ANY array spread](drizzle-any-array-spread.md) — `sql\`= ANY(${arr})\`` spreads into N params and 500s; use `inArray(col, arr)`.
 - [Discord CDN url expiry](discord-cdn-url-expiry.md) — cdn.discordapp.com URLs are signed and 401 after ~24h; always re-host via ObjectStorageService.uploadBuffer.
-- [Legacy NCRP site schema](legacy-ncrp-site-schema.md) — nightcityroleplay.com is a uuid-keyed legacy DB; `/characters/<n>` URL ids do NOT map to portal character ids, look up by name.

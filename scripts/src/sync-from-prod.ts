@@ -5,8 +5,12 @@ import pg from "pg";
  * so devs can work with realistic data without writing fixtures by hand.
  *
  * Requires two env vars:
- *   - DATABASE_URL      → the dev DB (the destination)
- *   - PROD_DATABASE_URL → the prod DB (the source, read-only is fine)
+ *   - DATABASE_URL           → the dev DB (the destination)
+ *   - LIVE_PROD_DATABASE_URL → the live prod DB (the source, read-only is fine).
+ *                              This is the neondb backing nightcityroleplay.com.
+ *                              Do NOT point this at PROD_DATABASE_URL — that
+ *                              legacy var targets the old NightCityBot uuid DB
+ *                              which has a different schema entirely.
  *
  * Run with:  pnpm --filter @workspace/scripts run sync-from-prod
  *
@@ -126,20 +130,51 @@ async function syncTable(
 
 async function main() {
   const devUrl = process.env.DATABASE_URL;
-  const prodUrl = process.env.PROD_DATABASE_URL;
+  const prodUrl = process.env.LIVE_PROD_DATABASE_URL;
   if (!devUrl) throw new Error("DATABASE_URL is not set");
   if (!prodUrl) {
     throw new Error(
-      "PROD_DATABASE_URL is not set. Grab the prod connection string from " +
-        "the Deployments dashboard and add it as a workspace secret.",
+      "LIVE_PROD_DATABASE_URL is not set. This is the neondb backing " +
+        "nightcityroleplay.com — add it as a workspace secret.",
     );
   }
   if (prodUrl === devUrl) {
     throw new Error(
-      "PROD_DATABASE_URL must be different from DATABASE_URL — refusing to " +
-        "truncate and reimport the same database into itself.",
+      "LIVE_PROD_DATABASE_URL must be different from DATABASE_URL — refusing " +
+        "to truncate and reimport the same database into itself.",
     );
   }
+
+  // Destination guard: TRUNCATE CASCADE on the wrong DB is unrecoverable.
+  // Require DATABASE_URL to look like a Replit-managed dev host unless the
+  // operator explicitly opts out with SYNC_TARGET=dev-confirmed.
+  const devHost = new URL(devUrl).host;
+  const looksLikeDev = /helium|replit\.dev|replit\.com|localhost|127\.0\.0\.1/i.test(devHost);
+  if (!looksLikeDev && process.env.SYNC_TARGET !== "dev-confirmed") {
+    throw new Error(
+      `Refusing to TRUNCATE ${devHost}: DATABASE_URL does not look like the ` +
+        `dev DB. If you really mean to wipe and refill this host from live ` +
+        `prod, set SYNC_TARGET=dev-confirmed.`,
+    );
+  }
+
+  // Source guard: reject the legacy uuid-schema PROD_DATABASE_URL host if it
+  // ever leaks into LIVE_PROD_DATABASE_URL by mistake — its schema doesn't
+  // match and the rows would silently fail or insert nonsense.
+  const legacyUrl = process.env.PROD_DATABASE_URL;
+  if (legacyUrl) {
+    const legacyHost = new URL(legacyUrl).host;
+    const prodHost = new URL(prodUrl).host;
+    if (legacyHost === prodHost) {
+      throw new Error(
+        "LIVE_PROD_DATABASE_URL is pointing at the legacy PROD_DATABASE_URL " +
+          "host — that's the old NightCityBot uuid-schema DB, not the live " +
+          "portal. Fix the secret before re-running.",
+      );
+    }
+  }
+
+  console.log(`Source: ${new URL(prodUrl).host}  →  Destination: ${devHost}`);
 
   const prod = new Pool({ connectionString: prodUrl, max: 2 });
   const dev = new Pool({ connectionString: devUrl, max: 2 });

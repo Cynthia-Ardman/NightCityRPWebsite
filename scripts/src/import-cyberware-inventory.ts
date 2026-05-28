@@ -288,7 +288,42 @@ async function resolveBlock(
   return { tag: "alias_invalid", reason: `sheet has CWP ${block.cwpTotal} but no implant rows — needs manual review` };
 }
 
+function assertTargetDbAllowed(): void {
+  // Safety guard: this script will delete + re-insert cyberware rows on every
+  // matched character. Writing to the wrong DB by accident is exactly how we
+  // lost a day last time. Refuse to run against a non-dev host unless the
+  // operator explicitly opts in with IMPORT_TARGET=prod.
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set");
+  let host: string;
+  try {
+    host = new URL(url).host;
+  } catch {
+    throw new Error("DATABASE_URL is not a valid URL");
+  }
+  // Replit-managed dev DBs use helium-style hostnames; treat anything else
+  // (e.g. *.neon.tech for the live prod DB) as "not dev" and require opt-in.
+  const looksLikeDev = /helium|replit\.dev|replit\.com|localhost|127\.0\.0\.1/i.test(host);
+  const target = process.env.IMPORT_TARGET;
+  if (!looksLikeDev && target !== "prod") {
+    console.error(
+      `\nRefusing to write to ${host}: this does not look like the dev DB.\n` +
+        `If you really mean to write to live prod, set IMPORT_TARGET=prod.\n`,
+    );
+    process.exit(2);
+  }
+  if (looksLikeDev && target === "prod") {
+    console.error(
+      `\nIMPORT_TARGET=prod was set but DATABASE_URL host (${host}) looks like the dev DB.\n` +
+        `Refusing to run — point DATABASE_URL at the prod connection string instead.\n`,
+    );
+    process.exit(2);
+  }
+  console.log(`Target DB host: ${host}  (mode: ${target === "prod" ? "PROD" : "DEV"})`);
+}
+
 async function main() {
+  assertTargetDbAllowed();
   console.log(`Reading ${FILE}`);
   const aliases = loadAliases();
   const pcBlocks = parseBlocks("Character CWP Tracking");
