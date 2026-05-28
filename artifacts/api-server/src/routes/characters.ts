@@ -15,6 +15,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
+import { createPendingEdit } from "./pending-edits";
 
 const router: IRouter = Router();
 
@@ -137,6 +138,11 @@ const CharacterUpdateSchema = z
   .partial()
   .strict();
 
+// PATCH /characters/:id no longer auto-applies. Edits are queued as
+// `pending_character_edits` rows requiring a majority of FIXER /
+// CS_APPROVER / ADMIN reviewers (excluding the submitter) to approve
+// before they hit the live `characters` row. See pending-edits.ts for
+// the review/vote/apply pipeline. Returns 202 with the queued edit id.
 router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const c = await loadOwnedChar(req.user!.id, id);
@@ -144,34 +150,27 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const parsed = CharacterUpdateSchema.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid update", details: parsed.error.issues });
-    return;
+  const result = await createPendingEdit({ character: c, submitter: req.user!, body: req.body });
+  if (!result.ok) {
+    switch (result.error.kind) {
+      case "no_changes":
+        res.status(400).json({ error: "No changes detected" });
+        return;
+      case "edit_already_pending":
+        res.status(409).json({ error: "A pending edit already exists for this character", pendingEditId: result.error.editId });
+        return;
+      case "invalid":
+        res.status(400).json({ error: "Invalid update", details: result.error.details });
+        return;
+    }
   }
-  const u: Record<string, unknown> = {};
-  const d = parsed.data;
-  if (d.name !== undefined) u.name = d.name;
-  if (d.archetype !== undefined) u.archetype = d.archetype || null;
-  if (d.background !== undefined) u.background = d.background || null;
-  if (d.portraitUrl !== undefined) u.portraitUrl = d.portraitUrl || null;
-  if (d.portraitUrls !== undefined) u.portraitUrls = d.portraitUrls;
-  if (d.statsImageUrls !== undefined) u.statsImageUrls = d.statsImageUrls;
-  if (d.sheetData !== undefined) u.sheetData = d.sheetData;
-  if (d.lifeStatus !== undefined) u.lifeStatus = d.lifeStatus;
-  const [updated] = await db
-    .update(characters)
-    .set(u)
-    .where(eq(characters.id, id))
-    .returning();
-  if (d.updateNote) {
-    await db.insert(characterUpdates).values({
-      characterId: id,
-      authorId: req.user!.id,
-      note: d.updateNote,
-    });
-  }
-  res.json({ ...updated, isActive: updated.id === req.user!.activeCharacterId });
+  res.status(202).json({
+    pendingEditId: result.edit.id,
+    characterId: id,
+    status: "pending",
+    submittedAt: result.edit.submittedAt,
+    message: "Your edit was submitted for fixer review.",
+  });
 });
 
 router.get("/characters/:id/updates", requireAuth, async (req, res): Promise<void> => {

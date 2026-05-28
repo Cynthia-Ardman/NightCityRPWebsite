@@ -27,11 +27,13 @@ import type {
   AssignOwnerInput,
   BotConfigEntry,
   BotConfigUpdate,
+  CancelPendingEdit200,
   CatalogCyberware,
   CatalogGun,
   CatalogGunUpdate,
   CatalogRent,
   Character,
+  CharacterEditSubmission,
   CharacterInput,
   CharacterLifestyleInput,
   CharacterSheet,
@@ -51,6 +53,7 @@ import type {
   FixerNpc,
   FixerNpcInput,
   FixerNpcUpdate,
+  GetCharacterPendingEdit200,
   HealthStatus,
   HousingLease,
   HousingLeaseInput,
@@ -75,6 +78,10 @@ import type {
   MissionDetail,
   MissionGroupSummary,
   MissionInput,
+  PendingEditDetail,
+  PendingEditSummary,
+  PendingEditVoteInput,
+  PendingEditVoteResult,
   PublicCharacter,
   PublicCharacterSummary,
   ReactivateCharacter200,
@@ -92,6 +99,7 @@ import type {
   StoreUpdate,
   TransferInput,
   UpcomingBills,
+  UpdateCharacter409,
   UploadUrlRequest,
   UploadUrlResponse,
   UserWallet,
@@ -718,10 +726,19 @@ export const getUpdateCharacterUrl = (id: number,) => {
   return `/api/characters/${id}`
 }
 
-export const updateCharacter = async (id: number,
-    characterUpdate: CharacterUpdate, options?: RequestInit): Promise<Character> => {
+/**
+ * Character edits no longer auto-apply. Submitting a PATCH queues a
+`pending_character_edit` row that must be approved by a majority of
+FIXER / CS_APPROVER / ADMIN reviewers (the submitter is excluded
+from the eligible-voter pool). Returns 202 with the pending edit
+id. Only one pending edit may exist per character at a time.
 
-  return customFetch<Character>(getUpdateCharacterUrl(id),
+ * @summary Submit a character edit for fixer review
+ */
+export const updateCharacter = async (id: number,
+    characterUpdate: CharacterUpdate, options?: RequestInit): Promise<CharacterEditSubmission> => {
+
+  return customFetch<CharacterEditSubmission>(getUpdateCharacterUrl(id),
   {
     ...options,
     method: 'PATCH',
@@ -734,7 +751,7 @@ export const updateCharacter = async (id: number,
 
 
 
-export const getUpdateCharacterMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateCharacterMutationOptions = <TError = ErrorType<void | UpdateCharacter409>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCharacter>>, TError,{id: number;data: BodyType<CharacterUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateCharacter>>, TError,{id: number;data: BodyType<CharacterUpdate>}, TContext> => {
 
@@ -763,9 +780,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateCharacterMutationResult = NonNullable<Awaited<ReturnType<typeof updateCharacter>>>
     export type UpdateCharacterMutationBody = BodyType<CharacterUpdate>
-    export type UpdateCharacterMutationError = ErrorType<unknown>
+    export type UpdateCharacterMutationError = ErrorType<void | UpdateCharacter409>
 
-    export const useUpdateCharacter = <TError = ErrorType<unknown>,
+    /**
+ * @summary Submit a character edit for fixer review
+ */
+export const useUpdateCharacter = <TError = ErrorType<void | UpdateCharacter409>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCharacter>>, TError,{id: number;data: BodyType<CharacterUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateCharacter>>,
@@ -5598,6 +5618,379 @@ export const useDecideSheet = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDecideSheetMutationOptions(options));
     }
+
+export const getListPendingEditsUrl = () => {
+
+
+
+
+  return `/api/pending-edits`
+}
+
+/**
+ * @summary List pending character edits (staff see all; players see only their own)
+ */
+export const listPendingEdits = async ( options?: RequestInit): Promise<PendingEditSummary[]> => {
+
+  return customFetch<PendingEditSummary[]>(getListPendingEditsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPendingEditsQueryKey = () => {
+    return [
+    `/api/pending-edits`
+    ] as const;
+    }
+
+
+export const getListPendingEditsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingEdits>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPendingEditsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingEdits>>> = ({ signal }) => listPendingEdits({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPendingEdits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPendingEditsQueryResult = NonNullable<Awaited<ReturnType<typeof listPendingEdits>>>
+export type ListPendingEditsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pending character edits (staff see all; players see only their own)
+ */
+
+export function useListPendingEdits<TData = Awaited<ReturnType<typeof listPendingEdits>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPendingEditsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPendingEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/pending-edits/${id}`
+}
+
+/**
+ * @summary Full detail (diff + before/after + tally) for one pending edit
+ */
+export const getPendingEdit = async (id: number, options?: RequestInit): Promise<PendingEditDetail> => {
+
+  return customFetch<PendingEditDetail>(getGetPendingEditUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPendingEditQueryKey = (id: number,) => {
+    return [
+    `/api/pending-edits/${id}`
+    ] as const;
+    }
+
+
+export const getGetPendingEditQueryOptions = <TData = Awaited<ReturnType<typeof getPendingEdit>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPendingEdit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPendingEditQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPendingEdit>>> = ({ signal }) => getPendingEdit(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPendingEdit>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPendingEditQueryResult = NonNullable<Awaited<ReturnType<typeof getPendingEdit>>>
+export type GetPendingEditQueryError = ErrorType<void>
+
+
+/**
+ * @summary Full detail (diff + before/after + tally) for one pending edit
+ */
+
+export function useGetPendingEdit<TData = Awaited<ReturnType<typeof getPendingEdit>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPendingEdit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPendingEditQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getVotePendingEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/pending-edits/${id}/vote`
+}
+
+/**
+ * @summary Cast or change your approve/reject vote on a pending edit
+ */
+export const votePendingEdit = async (id: number,
+    pendingEditVoteInput: PendingEditVoteInput, options?: RequestInit): Promise<PendingEditVoteResult> => {
+
+  return customFetch<PendingEditVoteResult>(getVotePendingEditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      pendingEditVoteInput,)
+  }
+);}
+
+
+
+
+export const getVotePendingEditMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof votePendingEdit>>, TError,{id: number;data: BodyType<PendingEditVoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof votePendingEdit>>, TError,{id: number;data: BodyType<PendingEditVoteInput>}, TContext> => {
+
+const mutationKey = ['votePendingEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof votePendingEdit>>, {id: number;data: BodyType<PendingEditVoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  votePendingEdit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VotePendingEditMutationResult = NonNullable<Awaited<ReturnType<typeof votePendingEdit>>>
+    export type VotePendingEditMutationBody = BodyType<PendingEditVoteInput>
+    export type VotePendingEditMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Cast or change your approve/reject vote on a pending edit
+ */
+export const useVotePendingEdit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof votePendingEdit>>, TError,{id: number;data: BodyType<PendingEditVoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof votePendingEdit>>,
+        TError,
+        {id: number;data: BodyType<PendingEditVoteInput>},
+        TContext
+      > => {
+      return useMutation(getVotePendingEditMutationOptions(options));
+    }
+
+export const getCancelPendingEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/pending-edits/${id}/cancel`
+}
+
+/**
+ * @summary Submitter (or admin) withdraws a pending edit
+ */
+export const cancelPendingEdit = async (id: number, options?: RequestInit): Promise<CancelPendingEdit200> => {
+
+  return customFetch<CancelPendingEdit200>(getCancelPendingEditUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCancelPendingEditMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelPendingEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelPendingEdit>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['cancelPendingEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelPendingEdit>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  cancelPendingEdit(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelPendingEditMutationResult = NonNullable<Awaited<ReturnType<typeof cancelPendingEdit>>>
+
+    export type CancelPendingEditMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Submitter (or admin) withdraws a pending edit
+ */
+export const useCancelPendingEdit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelPendingEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelPendingEdit>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCancelPendingEditMutationOptions(options));
+    }
+
+export const getGetCharacterPendingEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/pending-edit`
+}
+
+/**
+ * @summary Convenience lookup — does this character have a pending edit?
+ */
+export const getCharacterPendingEdit = async (id: number, options?: RequestInit): Promise<GetCharacterPendingEdit200 | void> => {
+
+  return customFetch<GetCharacterPendingEdit200 | void>(getGetCharacterPendingEditUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCharacterPendingEditQueryKey = (id: number,) => {
+    return [
+    `/api/characters/${id}/pending-edit`
+    ] as const;
+    }
+
+
+export const getGetCharacterPendingEditQueryOptions = <TData = Awaited<ReturnType<typeof getCharacterPendingEdit>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCharacterPendingEdit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCharacterPendingEditQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCharacterPendingEdit>>> = ({ signal }) => getCharacterPendingEdit(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCharacterPendingEdit>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCharacterPendingEditQueryResult = NonNullable<Awaited<ReturnType<typeof getCharacterPendingEdit>>>
+export type GetCharacterPendingEditQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Convenience lookup — does this character have a pending edit?
+ */
+
+export function useGetCharacterPendingEdit<TData = Awaited<ReturnType<typeof getCharacterPendingEdit>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCharacterPendingEdit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCharacterPendingEditQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getRollDiceUrl = () => {
 

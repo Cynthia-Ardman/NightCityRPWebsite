@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const users = pgTable(
   "users",
@@ -423,6 +424,11 @@ export const pendingCharacterEdits = pgTable("pending_character_edits", {
   // background?, portraitUrl?, portraitUrls?, statsImageUrls?, sheetData?,
   // lifeStatus?). Applied verbatim on approve, ignored on reject/cancel.
   proposedDiff: jsonb("proposed_diff").notNull(),
+  // Snapshot of the character fields named in proposedDiff *at submission
+  // time*. Used so the reviewer's before/after view doesn't drift if the
+  // underlying character changes (admin script, other edit) between
+  // submission and decision. Shape: { [field]: prevValue }.
+  beforeSnapshot: jsonb("before_snapshot").notNull().default(sql`'{}'::jsonb`),
   // Player-supplied commit-message-style summary of the change. Surfaced
   // in the reviewer UI and written into character_updates on approval.
   updateNote: text("update_note"),

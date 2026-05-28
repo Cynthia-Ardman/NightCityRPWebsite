@@ -18,6 +18,7 @@ tags:
   - name: stores
   - name: ripperdocs
   - name: fixer
+  - name: pending-edits
   - name: sheets
   - name: dice
   - name: admin
@@ -118,17 +119,34 @@ paths:
     patch:
       operationId: updateCharacter
       tags: [characters]
+      summary: Submit a character edit for fixer review
+      description: |
+        Character edits no longer auto-apply. Submitting a PATCH queues a
+        `pending_character_edit` row that must be approved by a majority of
+        FIXER / CS_APPROVER / ADMIN reviewers (the submitter is excluded
+        from the eligible-voter pool). Returns 202 with the pending edit
+        id. Only one pending edit may exist per character at a time.
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/CharacterUpdate" }
       responses:
-        "200":
-          description: Updated
+        "202":
+          description: Edit queued for review
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Character" }
+              schema: { $ref: "#/components/schemas/CharacterEditSubmission" }
+        "400": { description: No changes or invalid payload }
+        "409":
+          description: A pending edit already exists for this character
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  pendingEditId: { type: integer }
     delete:
       operationId: deleteCharacter
       tags: [characters]
@@ -1101,6 +1119,90 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CharacterSheet" }
+
+  # ---------------- PENDING CHARACTER EDITS ----------------
+  /pending-edits:
+    get:
+      operationId: listPendingEdits
+      tags: [pending-edits]
+      summary: List pending character edits (staff see all; players see only their own)
+      responses:
+        "200":
+          description: Pending edits
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PendingEditSummary" }
+  /pending-edits/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getPendingEdit
+      tags: [pending-edits]
+      summary: Full detail (diff + before/after + tally) for one pending edit
+      responses:
+        "200":
+          description: Pending edit detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PendingEditDetail" }
+        "404": { description: Not found }
+  /pending-edits/{id}/vote:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: votePendingEdit
+      tags: [pending-edits]
+      summary: Cast or change your approve/reject vote on a pending edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PendingEditVoteInput" }
+      responses:
+        "200":
+          description: Vote recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PendingEditVoteResult" }
+  /pending-edits/{id}/cancel:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: cancelPendingEdit
+      tags: [pending-edits]
+      summary: Submitter (or admin) withdraws a pending edit
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  status: { type: string }
+  /characters/{id}/pending-edit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getCharacterPendingEdit
+      tags: [pending-edits]
+      summary: Convenience lookup — does this character have a pending edit?
+      responses:
+        "200":
+          description: Pending edit exists
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, submittedAt, submittedBy]
+                properties:
+                  id: { type: integer }
+                  submittedAt: { type: string, format: date-time }
+                  submittedBy: { type: string }
+        "204": { description: No pending edit }
 
   # ---------------- DICE ----------------
   /dice/roll:
@@ -2236,6 +2338,104 @@ components:
         name: { type: string, minLength: 1, maxLength: 64 }
         characterId: { type: ["integer", "null"] }
         data: { $ref: "#/components/schemas/CharacterSheetData" }
+
+    CharacterEditSubmission:
+      type: object
+      required: [pendingEditId, characterId, status, submittedAt, message]
+      properties:
+        pendingEditId: { type: integer }
+        characterId: { type: integer }
+        status: { type: string, enum: [pending] }
+        submittedAt: { type: string, format: date-time }
+        message: { type: string }
+
+    PendingEditSummary:
+      type: object
+      required: [id, characterId, characterName, submittedBy, status, submittedAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        characterName: { type: string }
+        submittedBy: { type: string }
+        submitterName: { type: ["string", "null"] }
+        submitterAvatarUrl: { type: ["string", "null"] }
+        proposedDiff:
+          type: object
+          additionalProperties: true
+        updateNote: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, approved, rejected, cancelled] }
+        decisionSummary: { type: ["string", "null"] }
+        submittedAt: { type: string, format: date-time }
+        decidedAt: { type: ["string", "null"], format: date-time }
+
+    PendingEditVoteRecord:
+      type: object
+      required: [id, voterId, vote, votedAt]
+      properties:
+        id: { type: integer }
+        voterId: { type: string }
+        voterName: { type: ["string", "null"] }
+        voterAvatarUrl: { type: ["string", "null"] }
+        vote: { type: string, enum: [approve, reject] }
+        note: { type: ["string", "null"] }
+        votedAt: { type: string, format: date-time }
+
+    PendingEditDetail:
+      type: object
+      required: [id, characterId, characterName, submittedBy, proposedDiff, before, status, submittedAt, votes, eligibleVoterCount, threshold, approveCount, rejectCount, canVote]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        characterName: { type: string }
+        characterOwnerId: { type: ["string", "null"] }
+        submittedBy: { type: string }
+        submitterName: { type: ["string", "null"] }
+        submitterAvatarUrl: { type: ["string", "null"] }
+        proposedDiff:
+          type: object
+          additionalProperties: true
+        before:
+          type: object
+          additionalProperties: true
+        updateNote: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, approved, rejected, cancelled] }
+        decisionSummary: { type: ["string", "null"] }
+        submittedAt: { type: string, format: date-time }
+        decidedAt: { type: ["string", "null"], format: date-time }
+        votes:
+          type: array
+          items: { $ref: "#/components/schemas/PendingEditVoteRecord" }
+        eligibleVoterCount: { type: integer }
+        threshold: { type: integer }
+        approveCount: { type: integer }
+        rejectCount: { type: integer }
+        myVote:
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                vote: { type: string, enum: [approve, reject] }
+                note: { type: ["string", "null"] }
+                votedAt: { type: string, format: date-time }
+        canVote: { type: boolean }
+
+    PendingEditVoteInput:
+      type: object
+      required: [vote]
+      properties:
+        vote: { type: string, enum: [approve, reject] }
+        note: { type: string, maxLength: 2000 }
+
+    PendingEditVoteResult:
+      type: object
+      required: [ok, status, approveCount, rejectCount, threshold, eligibleVoterCount]
+      properties:
+        ok: { type: boolean }
+        status: { type: string, enum: [pending, approved, rejected] }
+        approveCount: { type: integer }
+        rejectCount: { type: integer }
+        threshold: { type: integer }
+        eligibleVoterCount: { type: integer }
 
     SheetDecisionInput:
       type: object

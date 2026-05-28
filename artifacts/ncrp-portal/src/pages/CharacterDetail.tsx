@@ -19,8 +19,10 @@ import {
   getGetCharacterStatusQueryKey,
   useListLifestyleTiers,
   useSetCharacterLifestyle,
+  useGetCharacterPendingEdit,
   getGetCharacterQueryKey,
 } from "@workspace/api-client-react";
+import { Link } from "wouter";
 import { useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -46,6 +48,10 @@ export default function CharacterDetail() {
 
   const { data: char, isLoading: charLoading } = useGetCharacter(charId);
   const [editOpen, setEditOpen] = useState(false);
+  // 204 means no pending edit; the generated hook returns undefined data in
+  // that case so we just check truthiness to decide whether to render the
+  // "review pending" banner that links to the queued edit.
+  const { data: pendingEdit } = useGetCharacterPendingEdit(charId);
 
   if (charLoading) return <div className="p-8 text-nc-cyan font-display text-xl animate-pulse">DECRYPTING_IDENTITY...</div>;
   if (!char) return <div className="p-8 text-destructive font-display text-xl">ERROR: IDENTITY_NOT_FOUND</div>;
@@ -95,12 +101,25 @@ export default function CharacterDetail() {
         <Button
           type="button"
           onClick={() => setEditOpen(true)}
-          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+          disabled={!!pendingEdit}
+          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest disabled:opacity-50"
           data-testid="button-edit-character"
         >
           <Pencil className="w-4 h-4 mr-2" /> EDIT
         </Button>
       </div>
+
+      {pendingEdit ? (
+        <Link href={`/pending-edits/${pendingEdit.id}`}>
+          <a
+            className="block border border-nc-yellow bg-nc-yellow/10 hover:bg-nc-yellow/20 p-3 font-mono text-xs text-nc-yellow transition-colors"
+            data-testid="banner-pending-edit"
+          >
+            <ShieldAlert className="w-3 h-3 inline mr-2" />
+            An edit to this character is awaiting fixer review — click to view, vote, or withdraw.
+          </a>
+        </Link>
+      ) : null}
 
       <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} />
 

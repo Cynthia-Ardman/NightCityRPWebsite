@@ -17,6 +17,8 @@ import DiceRoller from "@/pages/DiceRoller";
 import NewSheet from "@/pages/sheets/NewSheet";
 import SheetDetail from "@/pages/sheets/SheetDetail";
 import PendingSheets from "@/pages/sheets/PendingSheets";
+import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
+import PendingEditDetail from "@/pages/pending-edits/PendingEditDetail";
 import { Redirect } from "wouter";
 import DirectoryStores from "@/pages/directory/DirectoryStores";
 import DirectoryStoreDetail from "@/pages/directory/DirectoryStoreDetail";
@@ -76,6 +78,8 @@ function AppRoutes() {
           <Route path="/sheets/pending" component={PendingSheets} />
           <Route path="/sheets/:id/edit" component={NewSheet} />
           <Route path="/sheets/:id" component={SheetDetail} />
+          <Route path="/pending-edits" component={PendingEditsList} />
+          <Route path="/pending-edits/:id" component={PendingEditDetail} />
           <Route path="/directory/stores" component={DirectoryStores} />
           <Route path="/directory/stores/:id" component={DirectoryStoreDetail} />
           <Route path="/directory/ripperdocs" component={DirectoryRipperdocs} />

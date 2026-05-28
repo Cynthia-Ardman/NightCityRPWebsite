@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   useUpdateCharacter,
-  getGetCharacterQueryKey,
-  getListMyCharactersQueryKey,
-  getGetPublicCharacterQueryKey,
-  getListCharacterUpdatesQueryKey,
+  getGetCharacterPendingEditQueryKey,
+  getListPendingEditsQueryKey,
   type Character,
 } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -45,6 +44,7 @@ export default function EditCharacterDialog({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const [name, setName] = useState(character.name);
   const [archetype, setArchetype] = useState(character.archetype ?? "");
@@ -75,21 +75,35 @@ export default function EditCharacterDialog({
     setUpdateNote("");
   }, [open, character]);
 
+  // Saving no longer applies the change directly — the API now queues the
+  // edit as a pending_character_edit awaiting a fixer-majority approval.
+  // The 202 response carries the queued edit id; on 409 we point the
+  // user at the existing pending edit so they can amend it instead.
   const update = useUpdateCharacter({
     mutation: {
-      onSuccess: (updated) => {
-        toast({ title: "Saved", description: `${updated.name} updated.` });
-        qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(character.id) });
-        qc.invalidateQueries({ queryKey: getListMyCharactersQueryKey() });
-        qc.invalidateQueries({ queryKey: getGetPublicCharacterQueryKey(character.id) });
-        qc.invalidateQueries({ queryKey: getListCharacterUpdatesQueryKey(character.id) });
+      onSuccess: (resp) => {
+        const editId = (resp as { pendingEditId?: number } | undefined)?.pendingEditId;
+        toast({
+          title: "Submitted for review",
+          description: `${character.name}'s edit is awaiting fixer approval.`,
+        });
+        qc.invalidateQueries({ queryKey: getGetCharacterPendingEditQueryKey(character.id) });
+        qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
         onOpenChange(false);
+        if (editId) navigate(`/pending-edits/${editId}`);
       },
       onError: (err) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-          "Save failed";
-        toast({ title: "Save failed", description: msg, variant: "destructive" });
+        const data = (err as { response?: { data?: { error?: string; pendingEditId?: number } } } | null)?.response?.data;
+        if (data?.pendingEditId) {
+          toast({
+            title: "Edit already pending",
+            description: "There's already a pending edit for this character. Opening it now.",
+          });
+          onOpenChange(false);
+          navigate(`/pending-edits/${data.pendingEditId}`);
+          return;
+        }
+        toast({ title: "Save failed", description: data?.error ?? "Save failed", variant: "destructive" });
       },
     },
   });
@@ -295,7 +309,7 @@ export default function EditCharacterDialog({
               className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
               data-testid="button-save-edit"
             >
-              {update.isPending ? "SAVING..." : "SAVE CHANGES"}
+              {update.isPending ? "SUBMITTING..." : "SUBMIT FOR REVIEW"}
             </Button>
           </div>
         </form>

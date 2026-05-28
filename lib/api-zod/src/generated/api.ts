@@ -139,6 +139,15 @@ export const GetCharacterResponse = zod.object({
 })
 
 
+/**
+ * Character edits no longer auto-apply. Submitting a PATCH queues a
+`pending_character_edit` row that must be approved by a majority of
+FIXER / CS_APPROVER / ADMIN reviewers (the submitter is excluded
+from the eligible-voter pool). Returns 202 with the pending edit
+id. Only one pending edit may exist per character at a time.
+
+ * @summary Submit a character edit for fixer review
+ */
 export const UpdateCharacterParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -162,42 +171,6 @@ export const UpdateCharacterBody = zod.object({
 }).optional(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
   "updateNote": zod.string().min(1).max(updateCharacterBodyUpdateNoteMax).optional().describe('Optional commit-message-style note describing what changed. When non-empty, appended to the character\'s update log.')
-})
-
-export const UpdateCharacterResponse = zod.object({
-  "id": zod.number(),
-  "ownerId": zod.string().nullish(),
-  "claimed": zod.boolean(),
-  "legacyDiscordUsername": zod.string().nullish(),
-  "name": zod.string(),
-  "kind": zod.enum(['pc', 'npc']),
-  "archetype": zod.string().nullish(),
-  "background": zod.string().nullish(),
-  "portraitUrl": zod.string().nullish(),
-  "portraitUrls": zod.array(zod.string()),
-  "statsImageUrls": zod.array(zod.string()),
-  "sheetData": zod.union([zod.null(),zod.object({
-  "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
-})]).optional(),
-  "importedFromThreadId": zod.string().nullish(),
-  "importedFromChannelName": zod.string().nullish(),
-  "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
-  "approved": zod.boolean().optional(),
-  "archived": zod.boolean(),
-  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
-  "lifestyleTierId": zod.number().nullish(),
-  "lifestyleTier": zod.union([zod.null(),zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "monthlyCost": zod.number(),
-  "description": zod.string().nullish(),
-  "archived": zod.boolean(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})]).optional(),
-  "createdAt": zod.coerce.date()
 })
 
 
@@ -1908,6 +1881,123 @@ export const DecideSheetResponse = zod.object({
   "startingEddies": zod.number(),
   "notes": zod.string().nullish()
 }).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+})
+
+
+/**
+ * @summary List pending character edits (staff see all; players see only their own)
+ */
+export const ListPendingEditsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "submittedBy": zod.string(),
+  "submitterName": zod.string().nullish(),
+  "submitterAvatarUrl": zod.string().nullish(),
+  "proposedDiff": zod.record(zod.string(), zod.unknown()).optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "decisionSummary": zod.string().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "decidedAt": zod.coerce.date().nullish()
+})
+export const ListPendingEditsResponse = zod.array(ListPendingEditsResponseItem)
+
+
+/**
+ * @summary Full detail (diff + before/after + tally) for one pending edit
+ */
+export const GetPendingEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPendingEditResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "characterOwnerId": zod.string().nullish(),
+  "submittedBy": zod.string(),
+  "submitterName": zod.string().nullish(),
+  "submitterAvatarUrl": zod.string().nullish(),
+  "proposedDiff": zod.record(zod.string(), zod.unknown()),
+  "before": zod.record(zod.string(), zod.unknown()),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "decisionSummary": zod.string().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "votes": zod.array(zod.object({
+  "id": zod.number(),
+  "voterId": zod.string(),
+  "voterName": zod.string().nullish(),
+  "voterAvatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date()
+})),
+  "eligibleVoterCount": zod.number(),
+  "threshold": zod.number(),
+  "approveCount": zod.number(),
+  "rejectCount": zod.number(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']).optional(),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional(),
+  "canVote": zod.boolean()
+})
+
+
+/**
+ * @summary Cast or change your approve/reject vote on a pending edit
+ */
+export const VotePendingEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const votePendingEditBodyNoteMax = 2000;
+
+
+
+export const VotePendingEditBody = zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().max(votePendingEditBodyNoteMax).optional()
+})
+
+export const VotePendingEditResponse = zod.object({
+  "ok": zod.boolean(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "approveCount": zod.number(),
+  "rejectCount": zod.number(),
+  "threshold": zod.number(),
+  "eligibleVoterCount": zod.number()
+})
+
+
+/**
+ * @summary Submitter (or admin) withdraws a pending edit
+ */
+export const CancelPendingEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CancelPendingEditResponse = zod.object({
+  "ok": zod.boolean().optional(),
+  "status": zod.string().optional()
+})
+
+
+/**
+ * @summary Convenience lookup — does this character have a pending edit?
+ */
+export const GetCharacterPendingEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCharacterPendingEditResponse = zod.object({
+  "id": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "submittedBy": zod.string()
 })
 
 

@@ -115,6 +115,9 @@ function SidebarContent() {
         {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
         {user?.isFixer && !user?.isAdmin && <NavItem href="/admin" icon={Shield} label="Character Console" />}
         {user?.isCsApprover && <NavItem href="/sheets/pending" icon={FileText} label="Pending Sheets" />}
+        {user && (user.isFixer || user.isCsApprover || user.isAdmin) && (
+          <NavItem href="/pending-edits" icon={FileText} label="Pending Edits" />
+        )}
         {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" />}
       </div>
 

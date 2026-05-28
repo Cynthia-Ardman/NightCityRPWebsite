@@ -860,6 +860,157 @@ export interface CharacterSheetPatchInput {
   data?: CharacterSheetData;
 }
 
+export type CharacterEditSubmissionStatus = typeof CharacterEditSubmissionStatus[keyof typeof CharacterEditSubmissionStatus];
+
+
+export const CharacterEditSubmissionStatus = {
+  pending: 'pending',
+} as const;
+
+export interface CharacterEditSubmission {
+  pendingEditId: number;
+  characterId: number;
+  status: CharacterEditSubmissionStatus;
+  submittedAt: string;
+  message: string;
+}
+
+export type PendingEditSummaryProposedDiff = { [key: string]: unknown };
+
+export type PendingEditSummaryStatus = typeof PendingEditSummaryStatus[keyof typeof PendingEditSummaryStatus];
+
+
+export const PendingEditSummaryStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+export interface PendingEditSummary {
+  id: number;
+  characterId: number;
+  characterName: string;
+  submittedBy: string;
+  /** @nullable */
+  submitterName?: string | null;
+  /** @nullable */
+  submitterAvatarUrl?: string | null;
+  proposedDiff?: PendingEditSummaryProposedDiff;
+  /** @nullable */
+  updateNote?: string | null;
+  status: PendingEditSummaryStatus;
+  /** @nullable */
+  decisionSummary?: string | null;
+  submittedAt: string;
+  /** @nullable */
+  decidedAt?: string | null;
+}
+
+export type PendingEditVoteRecordVote = typeof PendingEditVoteRecordVote[keyof typeof PendingEditVoteRecordVote];
+
+
+export const PendingEditVoteRecordVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface PendingEditVoteRecord {
+  id: number;
+  voterId: string;
+  /** @nullable */
+  voterName?: string | null;
+  /** @nullable */
+  voterAvatarUrl?: string | null;
+  vote: PendingEditVoteRecordVote;
+  /** @nullable */
+  note?: string | null;
+  votedAt: string;
+}
+
+export type PendingEditDetailProposedDiff = { [key: string]: unknown };
+
+export type PendingEditDetailBefore = { [key: string]: unknown };
+
+export type PendingEditDetailStatus = typeof PendingEditDetailStatus[keyof typeof PendingEditDetailStatus];
+
+
+export const PendingEditDetailStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+export type PendingEditDetailMyVote = null | {
+  vote?: 'approve' | 'reject';
+  /** @nullable */
+  note?: string | null;
+  votedAt?: string;
+};
+
+export interface PendingEditDetail {
+  id: number;
+  characterId: number;
+  characterName: string;
+  /** @nullable */
+  characterOwnerId?: string | null;
+  submittedBy: string;
+  /** @nullable */
+  submitterName?: string | null;
+  /** @nullable */
+  submitterAvatarUrl?: string | null;
+  proposedDiff: PendingEditDetailProposedDiff;
+  before: PendingEditDetailBefore;
+  /** @nullable */
+  updateNote?: string | null;
+  status: PendingEditDetailStatus;
+  /** @nullable */
+  decisionSummary?: string | null;
+  submittedAt: string;
+  /** @nullable */
+  decidedAt?: string | null;
+  votes: PendingEditVoteRecord[];
+  eligibleVoterCount: number;
+  threshold: number;
+  approveCount: number;
+  rejectCount: number;
+  myVote?: PendingEditDetailMyVote;
+  canVote: boolean;
+}
+
+export type PendingEditVoteInputVote = typeof PendingEditVoteInputVote[keyof typeof PendingEditVoteInputVote];
+
+
+export const PendingEditVoteInputVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface PendingEditVoteInput {
+  vote: PendingEditVoteInputVote;
+  /** @maxLength 2000 */
+  note?: string;
+}
+
+export type PendingEditVoteResultStatus = typeof PendingEditVoteResultStatus[keyof typeof PendingEditVoteResultStatus];
+
+
+export const PendingEditVoteResultStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface PendingEditVoteResult {
+  ok: boolean;
+  status: PendingEditVoteResultStatus;
+  approveCount: number;
+  rejectCount: number;
+  threshold: number;
+  eligibleVoterCount: number;
+}
+
 export type SheetDecisionInputDecision = typeof SheetDecisionInputDecision[keyof typeof SheetDecisionInputDecision];
 
 
@@ -1332,6 +1483,11 @@ code?: string;
 state?: string;
 };
 
+export type UpdateCharacter409 = {
+  error?: string;
+  pendingEditId?: number;
+};
+
 export type DeactivateCharacter200 = {
   success: boolean;
   archived: boolean;
@@ -1359,6 +1515,17 @@ since?: string;
  * @maximum 500
  */
 limit?: number;
+};
+
+export type CancelPendingEdit200 = {
+  ok?: boolean;
+  status?: string;
+};
+
+export type GetCharacterPendingEdit200 = {
+  id: number;
+  submittedAt: string;
+  submittedBy: string;
 };
 
 export type ListPublicCharactersParams = {
