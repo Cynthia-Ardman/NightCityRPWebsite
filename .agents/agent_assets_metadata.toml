@@ -6,3 +6,9 @@ id = "D1_7HaSkGgaygRuqA72JY"
 uri = "file://docs/SITEMAP.md"
 type = "text"
 title = "Night City RP Portal — Site Map"
+
+[[outputs]]
+id = "Um-i3O34uGzgtdQcm2-18"
+uri = "file://.local/reports/bot-vs-portal-parity.md"
+type = "text"
+title = "Bot ↔ Portal Parity Report"
