@@ -88,8 +88,15 @@ function parseSheet(district: string, rows: Row[]): ParsedRow[] {
     if (tierCell) {
       // Normalize "Buisness" typo.
       tier = tierCell.replace(/Buisness/i, "Business");
-      // New tier block resets building/business context.
-      building = null;
+      // NOTE: deliberately do NOT clear `building` here. The Beastside
+      // sheet uses tier changes to denote a sub-section of the SAME
+      // building (e.g. "The Zen Garden Building and Upstairs" has a
+      // Business Tier 3 row for the ground-floor bar AND a Housing
+      // Tier 3 row for the upstairs apartment with the building cell
+      // left blank). Clearing on tier change orphaned the apartment
+      // and produced placeholder addresses like "Apartment #Apt".
+      // A row that genuinely starts a new building always sets the
+      // building cell explicitly, so inheritance is safe.
       businessName = null;
     }
     if (buildingCell) building = buildingCell;
@@ -118,12 +125,16 @@ function parseSheet(district: string, rows: Row[]): ParsedRow[] {
         : base;
     } else {
       if (!building && !roomCell) continue;
-      const room = roomCell ? String(roomCell) : null;
+      // The spreadsheet uses the literal string "Apt" in the Room column
+      // as a placeholder when the listing is a single-unit apartment
+      // with no real unit number — DON'T render it as "#Apt".
+      const rawRoom = roomCell ? String(roomCell) : null;
+      const room = rawRoom && rawRoom.toLowerCase() !== "apt" ? rawRoom : null;
       listingName = building
         ? room
           ? `${building} #${room}`
           : building
-        : `Apartment #${room}`;
+        : `Apartment${room ? ` #${room}` : ""}`;
     }
 
     const descParts: string[] = [];
@@ -273,6 +284,12 @@ async function main() {
     skippedNoChar: 0,
   };
   const skipped: string[] = [];
+  // Track every (characterId → set of listingIds) we touch this run.
+  // After the main loop we delete any housing row whose character is in
+  // this map but whose listingId is NOT — i.e. the character moved out
+  // of an old place and the spreadsheet (source of truth) no longer
+  // lists them there.
+  const touchedByChar = new Map<number, Set<number>>();
 
   for (const p of parsed) {
     const listingId = await upsertListing(p);
@@ -316,6 +333,23 @@ async function main() {
     const result = await upsertLease(listingId, char.id, p.listingName, p.monthlyRent, p.kind);
     if (result === "created") counts.leasesCreated++;
     else counts.leasesUpdated++;
+    let set = touchedByChar.get(char.id);
+    if (!set) { set = new Set(); touchedByChar.set(char.id, set); }
+    set.add(listingId);
+  }
+
+  // Move-out reconciliation: any housing row whose tenant we touched this
+  // run but whose listing isn't in their touched-set means the tenant
+  // moved (per the spreadsheet) and the old row is stale.
+  for (const [charId, keepListingIds] of touchedByChar) {
+    const stale = await db
+      .delete(housing)
+      .where(and(
+        eq(housing.characterId, charId),
+        sql`${housing.listingId} <> ALL(${sql.raw(`ARRAY[${[...keepListingIds].join(",")}]::int[]`)})`,
+      ))
+      .returning({ id: housing.id });
+    counts.leasesRemoved += stale.length;
   }
 
   console.log("\nDone:");
