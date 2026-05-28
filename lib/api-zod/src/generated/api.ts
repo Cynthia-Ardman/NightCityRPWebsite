@@ -502,6 +502,36 @@ export const ListGunsResponseItem = zod.object({
 export const ListGunsResponse = zod.array(ListGunsResponseItem)
 
 
+/**
+ * Fixer/admin endpoint. Currently only the `status` field is editable
+(used to promote a draft entry to live).
+
+ */
+export const UpdateGunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateGunBody = zod.object({
+  "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().describe('Visibility status; only ADMIN\/FIXER may set.')
+})
+
+export const UpdateGunResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "damage": zod.string().nullish(),
+  "magSize": zod.number().nullish(),
+  "price": zod.number(),
+  "notes": zod.string().nullish(),
+  "wholesalePrice": zod.number().nullish(),
+  "restriction": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "powerLevel": zod.string().nullish(),
+  "weaponType": zod.string().nullish()
+})
+
+
 export const ListCyberwareResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),

@@ -595,6 +595,27 @@ export interface CatalogGun {
   weaponType?: string | null;
 }
 
+/**
+ * Visibility status; only ADMIN/FIXER may set.
+ * @nullable
+ */
+export type CatalogGunUpdateStatus = typeof CatalogGunUpdateStatus[keyof typeof CatalogGunUpdateStatus] | null;
+
+
+export const CatalogGunUpdateStatus = {
+  draft: 'draft',
+  live: 'live',
+  retired: 'retired',
+} as const;
+
+export interface CatalogGunUpdate {
+  /**
+     * Visibility status; only ADMIN/FIXER may set.
+     * @nullable
+     */
+  status?: CatalogGunUpdateStatus;
+}
+
 export interface CatalogCyberware {
   id: number;
   name: string;

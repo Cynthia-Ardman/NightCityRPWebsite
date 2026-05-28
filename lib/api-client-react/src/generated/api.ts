@@ -29,6 +29,7 @@ import type {
   BotConfigUpdate,
   CatalogCyberware,
   CatalogGun,
+  CatalogGunUpdate,
   CatalogRent,
   Character,
   CharacterInput,
@@ -2184,6 +2185,77 @@ export function useListGuns<TData = Awaited<ReturnType<typeof listGuns>>, TError
 
 
 
+
+export const getUpdateGunUrl = (id: number,) => {
+
+
+
+
+  return `/api/catalog/guns/${id}`
+}
+
+/**
+ * Fixer/admin endpoint. Currently only the `status` field is editable
+(used to promote a draft entry to live).
+
+ */
+export const updateGun = async (id: number,
+    catalogGunUpdate: CatalogGunUpdate, options?: RequestInit): Promise<CatalogGun> => {
+
+  return customFetch<CatalogGun>(getUpdateGunUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogGunUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateGunMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGun>>, TError,{id: number;data: BodyType<CatalogGunUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGun>>, TError,{id: number;data: BodyType<CatalogGunUpdate>}, TContext> => {
+
+const mutationKey = ['updateGun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGun>>, {id: number;data: BodyType<CatalogGunUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateGun(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGunMutationResult = NonNullable<Awaited<ReturnType<typeof updateGun>>>
+    export type UpdateGunMutationBody = BodyType<CatalogGunUpdate>
+    export type UpdateGunMutationError = ErrorType<unknown>
+
+    export const useUpdateGun = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGun>>, TError,{id: number;data: BodyType<CatalogGunUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGun>>,
+        TError,
+        {id: number;data: BodyType<CatalogGunUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateGunMutationOptions(options));
+    }
 
 export const getListCyberwareUrl = () => {
 

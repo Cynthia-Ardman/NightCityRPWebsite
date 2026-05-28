@@ -16,6 +16,8 @@ export * from './botConfigEntry';
 export * from './botConfigUpdate';
 export * from './catalogCyberware';
 export * from './catalogGun';
+export * from './catalogGunUpdate';
+export * from './catalogGunUpdateStatus';
 export * from './catalogRent';
 export * from './character';
 export * from './characterInput';

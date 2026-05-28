@@ -239,7 +239,17 @@ router.get("/catalog/guns", async (req, res): Promise<void> => {
   const all = await db.select().from(catalogGuns);
   const isStaff =
     !!req.user && (hasRole(req.user.roles, "ADMIN") || hasRole(req.user.roles, "FIXER"));
-  res.json(isStaff ? all : all.filter((g) => (g.status ?? "").toLowerCase() !== "draft"));
+  if (isStaff) {
+    res.json(all);
+    return;
+  }
+  // Non-staff: hide draft entries and scrub wholesalePrice (a fixer-only
+  // margin number that shouldn't leak to regular players via the API).
+  res.json(
+    all
+      .filter((g) => (g.status ?? "").toLowerCase() !== "draft")
+      .map(({ wholesalePrice: _w, ...rest }) => rest),
+  );
 });
 
 // Fixer/admin can promote a draft to live (or back to draft). Kept minimal
