@@ -18,3 +18,4 @@
 - [Autobill parity](autobill-parity.md) — monthly_rent runs 6 bill types in one job; LOA-skip rules differ per type; period guard via paid_through (rent) or wallet kind+month set (personal fees).
 - [Drizzle ANY array spread](drizzle-any-array-spread.md) — `sql\`= ANY(${arr})\`` spreads into N params and 500s; use `inArray(col, arr)`.
 - [Discord CDN url expiry](discord-cdn-url-expiry.md) — cdn.discordapp.com URLs are signed and 401 after ~24h; always re-host via ObjectStorageService.uploadBuffer.
+- [Character name collisions](character-name-collisions.md) — same-name chars (e.g. "Bones") can be different people; only merge when owner_id AND backstory match.

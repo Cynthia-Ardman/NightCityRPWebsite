@@ -17,3 +17,15 @@ display/projection time is cheaper than backfilling all rows.
 directory detail projection, owner CharacterDetail dossier renderer)
 must run a `.replace(/\[legacy:[^\]]+\]/g, "").trim()` scrub and treat
 the empty result as "no background recorded."
+
+## Cyberware-import HTML-comment blocks
+A separate (cyberware) importer wrote literal
+`<!--cyberware-import-start--> … <!--cyberware-import-end-->` blocks into
+`characters.background`. The portal renders background as PLAIN TEXT, so
+those HTML comments showed up verbatim under the BACKSTORY heading.
+Scrubbed out of the data once (Postgres: `regexp_replace(background,
+'<!--cyberware-import-start-->.*?<!--cyberware-import-end-->','','g')`
+then `NULLIF(btrim(...), '')`). **Why:** the real chrome data belongs in
+the cyberware/inventory tables, not the prose field. If that importer is
+ever re-run it will reintroduce them — prefer also scrubbing this pattern
+at the render layer (same place as the `[legacy:]` scrub) if it recurs.
