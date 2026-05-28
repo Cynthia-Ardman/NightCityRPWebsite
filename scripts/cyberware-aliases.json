@@ -62,7 +62,16 @@
     "Luna": { "action": "match", "characterId": 193 },
 
     "Adam ‘snow’ Donovan.": { "action": "organic", "characterId": 393 },
-    "John Nolan (NPC)": { "action": "organic", "characterId": 385 }
+    "John Nolan (NPC)": { "action": "organic", "characterId": 385 },
+
+    "Wallie O'Donovan (NPC)": { "action": "match", "characterId": 510 },
+    "Jimmy \"the Snake\" Green (NPC)": { "action": "match", "characterId": 501 },
+    "jo": { "action": "match", "characterId": 362 },
+    "Mira Mercer (DEAD)": { "action": "organic", "characterId": 367 },
+    "Jared Castorian": { "action": "organic", "characterId": 212 }
   },
-  "npc": {}
+  "npc": {
+    "Jimmy \"the Snake\" Green (NPC)": { "action": "match", "characterId": 501 },
+    "Wallie O'Donovan (NPC)": { "action": "match", "characterId": 510 }
+  }
 }
