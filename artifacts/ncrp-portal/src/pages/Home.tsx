@@ -74,7 +74,7 @@ function Dashboard() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {characters?.slice(0, 4).map(char => (
+            {characters?.map(char => (
               <Link key={char.id} href={`/characters/${char.id}`}>
                 <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan/50 hover:bg-card transition-all cursor-pointer group" data-testid={`card-dashboard-char-${char.id}`}>
                   <CardHeader className="flex flex-row items-center gap-4 pb-2">
@@ -112,7 +112,6 @@ function Dashboard() {
         <div className="space-y-6">
           <AttendCard />
           <UpcomingBillsCard />
-          <NpcConsolePanel />
           <SystemLogsCard />
         </div>
       </div>
