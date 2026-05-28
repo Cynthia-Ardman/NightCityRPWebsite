@@ -1,0 +1,291 @@
+{
+  "_comment": "Maps cyberware spreadsheet entries to existing character IDs. Used by import-cyberware-inventory.ts. Sheet entries not in this map fall back to case-insensitive exact-name matching. Entries with action='organic' mark the character as is_organic=true and skip any chrome insert. Entries with action='match' insert chrome rows under the given characterId. Never auto-creates new characters — if a sheet entry has no plausible target it must be added here or left unmatched.",
+  "pc": {
+    "Mesirah \"Messy Mes\" Lidha": { "action": "match", "characterId": 20 },
+    "Q'tarr \"The Wolf\" Warrian": { "action": "match", "characterId": 6 },
+    "Ronan Vance - \"Stray\"": { "action": "match", "characterId": 33 },
+    "Ayami Sakurai": { "action": "match", "characterId": 18 },
+    "Vincenzo \"Vinny\" Russo": { "action": "match", "characterId": 5 },
+    "Malcolm 'Diesel' Reyes": { "action": "match", "characterId": 14 },
+    "Brad ‘Silverback’ Burke": { "action": "match", "characterId": 86 },
+    "Laurance \"Large Larry\" Ying": { "action": "match", "characterId": 92 },
+    "Riven (Torque) Knox": { "action": "match", "characterId": 28 },
+    "Michelle Bloodson": { "action": "match", "characterId": 23 },
+    "Lucio “La Garra” Cortez": { "action": "match", "characterId": 66 },
+    "Lucas Shasta Walters": { "action": "match", "characterId": 81 },
+    "Gabriel \"Gabby\" Torenti": { "action": "match", "characterId": 72 },
+    "Dr. Logan Ledger \"L.E.D.G.E.R.\"": { "action": "match", "characterId": 7 },
+    "Aurora Marie Calloway": { "action": "match", "characterId": 46 },
+    "Morning Helen Sanderson": { "action": "match", "characterId": 49 },
+    "Gidgit Stitchwyre “Mama”": { "action": "match", "characterId": 70 },
+    "Volt (Militech Callsign \"Storm\")": { "action": "match", "characterId": 84 },
+    "Abel \"Deimos\" Montez": { "action": "match", "characterId": 35 },
+    "Maki “Suit” Junichi": { "action": "match", "characterId": 454 },
+    "Falconi (The Rabbit)": { "action": "match", "characterId": 47 },
+    "Gina Goldman": { "action": "match", "characterId": 54 },
+    "Tussaint Louverture “Shango”": { "action": "match", "characterId": 93 },
+    "Kyatchi \"Mirror\" Norunobu": { "action": "match", "characterId": 94 },
+    "Noko / M[ira]": { "action": "match", "characterId": 68 },
+    "Astrid Pearce, Alias \"Saturn\"": { "action": "match", "characterId": 88 },
+    "Dr. Rebecca Hellebore": { "action": "match", "characterId": 15 },
+    "Synthia Bennett": { "action": "match", "characterId": 26 },
+    "Jayce Talos": {
+      "action": "match",
+      "characterId": 399
+    },
+    "M.C.": {
+      "action": "match",
+      "characterId": 362
+    },
+    "Adrian Gates (Retired)": {
+      "action": "match",
+      "characterId": 419
+    },
+    "Geo Leman (Hawthorn)": {
+      "action": "match",
+      "characterId": 303
+    },
+    "ThunderWolf": {
+      "action": "match",
+      "characterId": 317
+    },
+    "Sirati Feth (Retired)": {
+      "action": "match",
+      "characterId": 462
+    },
+    "DimondSergal (Retired)": {
+      "action": "match",
+      "characterId": 467
+    },
+    "Glitch | \"Madame\" (Retired)": {
+      "action": "match",
+      "characterId": 465
+    },
+    "Kyuu Watson": {
+      "action": "match",
+      "characterId": 396
+    },
+    "Raven Zhenari (Dead)": {
+      "action": "match",
+      "characterId": 451
+    },
+    "“Scoundrel” A.K.A Eden Cruz": {
+      "action": "match",
+      "characterId": 132
+    },
+    "Alice Evren \"White Fox\" aka \"Athena\"": {
+      "action": "match",
+      "characterId": 305
+    },
+    "Riley 'Spider' Watts - Pizzakev": {
+      "action": "match",
+      "characterId": 250
+    },
+    "Sarah Lawn (retired)": {
+      "action": "match",
+      "characterId": 279
+    },
+    "Reina \"Wildcall\" Arakawa (Retired)": {
+      "action": "match",
+      "characterId": 449
+    },
+    "Ela Myers North (Retired)": {
+      "action": "match",
+      "characterId": 413
+    },
+    "Vivian \"Viv\" Reid (Retired)": {
+      "action": "match",
+      "characterId": 460
+    },
+    "Ryker | Vex": {
+      "action": "match",
+      "characterId": 408
+    },
+    "Sir Lazarus (Formerly Elias Kessler)": {
+      "action": "match",
+      "characterId": 444
+    },
+    "Robert \"Specter\" Locket": {
+      "action": "match",
+      "characterId": 129
+    },
+    "Jackson \"Penguin\" McConnell (Retired)": {
+      "action": "match",
+      "characterId": 459
+    },
+    "Jack 'Hangman' Chlotna (Retired)": {
+      "action": "match",
+      "characterId": 464
+    },
+    "Leonardo (Dead)": {
+      "action": "match",
+      "characterId": 351
+    },
+    "Damion (Militech call sign: Deimos) (Dead)": {
+      "action": "match",
+      "characterId": 316
+    },
+    "Jasmin 'Jaz' Mechanica (Retired)": {
+      "action": "match",
+      "characterId": 455
+    },
+    "Sarah Richard": {
+      "action": "match",
+      "characterId": 406
+    },
+    "Anastasia \"Persona\" Aran.": {
+      "action": "match",
+      "characterId": 144
+    },
+    "Biella Brecken (Retired)": {
+      "action": "match",
+      "characterId": 456
+    },
+    "Carl “Stinger” Nemo (Dead)": {
+      "action": "match",
+      "characterId": 302
+    },
+    "Reven “holo” reed / Hazel Asher (Dead)": {
+      "action": "match",
+      "characterId": 345
+    },
+    "Circe": {
+      "action": "match",
+      "characterId": 374
+    },
+    "Justine Novák - “Ifrit Pale” (DEAD)": {
+      "action": "match",
+      "characterId": 365
+    },
+    "Cassian 'Hadal' Knox": {
+      "action": "match",
+      "characterId": 259
+    },
+    "Inez Aramov": {
+      "action": "match",
+      "characterId": 200
+    },
+    "Min-jae [min-jeh] \"Mikey\" Hyun [h-yoon]": {
+      "action": "match",
+      "characterId": 249
+    },
+    "Max Donovan/Ryan Weyland": {
+      "action": "match",
+      "characterId": 353
+    },
+    "Melody “Mel” Jackson (dead)": {
+      "action": "match",
+      "characterId": 384
+    },
+    "Sebastian Hook (dead)": {
+      "action": "match",
+      "characterId": 468
+    },
+    "Juniper \"junebug\" Mcleary (Retired)": {
+      "action": "match",
+      "characterId": 457
+    },
+    "Riley Watson / Arlo Watson": {
+      "action": "match",
+      "characterId": 389
+    },
+    "Alan 'Owl/Weeping Crow' Autarch Jr (Retired)": {
+      "action": "match",
+      "characterId": 458
+    },
+    "Rafael “Rafi” Alvarez": {
+      "action": "match",
+      "characterId": 112
+    },
+    "M+I-R~I^S": {
+      "action": "match",
+      "characterId": 103
+    },
+    "Athleta Jacksawn (Jacks) (Retired)": {
+      "action": "match",
+      "characterId": 461
+    },
+    "Lilly Raptor (Dead)": {
+      "action": "match",
+      "characterId": 423
+    },
+    "Noah Halloway": {
+      "action": "match",
+      "characterId": 222
+    },
+    "Jonah Pike": {
+      "action": "match",
+      "characterId": 139
+    },
+    "Ender": {
+      "action": "match",
+      "characterId": 154
+    },
+    "Lena Hernandez": {
+      "action": "match",
+      "characterId": 231
+    },
+    "Alexandria \"Chitters\" Dubcord": {
+      "action": "match",
+      "characterId": 489
+    },
+    "Giovanni \"Bandit\" Romero": {
+      "action": "match",
+      "characterId": 425
+    },
+    "Vanessa Belmonte": {
+      "action": "match",
+      "characterId": 147
+    },
+    "Ignis": {
+      "action": "match",
+      "characterId": 135
+    },
+    "Hound": {
+      "action": "match",
+      "characterId": 360
+    },
+    "Mochi": {
+      "action": "match",
+      "characterId": 157
+    },
+    "Luna": {
+      "action": "match",
+      "characterId": 194
+    },
+    "Adam ‘snow’ Donovan.": {
+      "action": "organic",
+      "characterId": 394
+    },
+    "John Nolan (NPC)": {
+      "action": "organic",
+      "characterId": 386
+    },
+    "jo": {
+      "action": "match",
+      "characterId": 363
+    },
+    "Mira Mercer (DEAD)": {
+      "action": "organic",
+      "characterId": 368
+    },
+    "Jared Castorian": {
+      "action": "organic",
+      "characterId": 213
+    }
+  },
+  "npc": {
+    "Alex Graves (Alias: Rebecca Knight) (NPC)": { "action": "match", "characterId": 536 },
+    "Alex Graves (Alias: Drew Camden) (NPC)": { "action": "match", "characterId": 533 },
+    "Dr. Seolfor Aurelius “Fracstle” (NPC)": { "action": "match", "characterId": 538 },
+    "Roxxi Monroe (NPC)": { "action": "match", "characterId": 535 },
+    "Jimmy \"the Snake\" Green (NPC)": {
+      "action": "match",
+      "characterId": 534
+    },
+    "Wallie O'Donovan (NPC)": {
+      "action": "match",
+      "characterId": 543
+    }
+  }
+}

@@ -31,7 +31,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..", "..");
 const ASSETS = path.join(ROOT, "attached_assets");
-const ALIAS_FILE = path.join(ROOT, "scripts", "cyberware-aliases.json");
+const ALIAS_FILE = process.env.ALIAS_FILE
+  ? path.resolve(process.env.ALIAS_FILE)
+  : path.join(ROOT, "scripts", "cyberware-aliases.json");
 
 const DEFAULT_FILE = "NCRP__Cyberware_list_v2(1)_1779978749744.xlsx";
 const FILE = process.env.CYBERWARE_FILE ?? DEFAULT_FILE;
