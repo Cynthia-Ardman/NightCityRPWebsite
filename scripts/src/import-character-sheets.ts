@@ -937,6 +937,23 @@ if (applyToDb) {
           sql`${characters.ownerId} = ${ownerId} and lower(${characters.name}) = lower(${values.name})`,
         );
       existing = dupes.find((d) => !d.importedFromThreadId);
+    } else if (values.kind === "npc") {
+      // NPCs have no owner. The cyberware-xlsx importer seeds kind='npc'
+      // rows with ownerId=null and no importedFromThreadId; merge the
+      // Discord forum thread into that row by name so we don't double up.
+      const dupes = await db
+        .select({
+          id: characters.id,
+          importedFromThreadId: characters.importedFromThreadId,
+          portraitUrl: characters.portraitUrl,
+          portraitUrls: characters.portraitUrls,
+          statsImageUrls: characters.statsImageUrls,
+        })
+        .from(characters)
+        .where(
+          sql`${characters.kind} = 'npc' and ${characters.ownerId} is null and lower(${characters.name}) = lower(${values.name})`,
+        );
+      existing = dupes.find((d) => !d.importedFromThreadId);
     }
 
     let inserted: { id: number } | undefined;
