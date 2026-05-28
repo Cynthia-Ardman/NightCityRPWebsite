@@ -21,4 +21,6 @@ export interface PublicCharacterSummary {
   legacyDiscordUsername?: string | null;
   /** @nullable */
   ownerName?: string | null;
+  /** Discord forum tags applied to the source thread, resolved to display names. */
+  appliedTags?: string[];
 }

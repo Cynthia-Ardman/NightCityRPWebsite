@@ -69,6 +69,10 @@ export const characters = pgTable("characters", {
   // Source channel name at import time (e.g. "character-sheets" or
   // "retired-character-sheets"). Used to mark retired imports as archived.
   importedFromChannelName: text("imported_from_channel_name"),
+  // Discord forum tags applied to the source thread (resolved to display
+  // names at import time, e.g. ["Solo", "Active", "Edgerunner"]). Used for
+  // archive filtering. Empty array for non-imported / pre-tagging chars.
+  appliedTags: text("applied_tags").array().notNull().default([]),
   discordChannelId: text("discord_channel_id"),
   approved: boolean("approved").notNull().default(false),
   archived: boolean("archived").notNull().default(false),

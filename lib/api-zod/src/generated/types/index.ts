@@ -61,6 +61,7 @@ export * from './jobRunResult';
 export * from './jobRunResultStatus';
 export * from './leaderboardEntry';
 export * from './listMissionsParams';
+export * from './listPublicCharactersMode';
 export * from './listPublicCharactersParams';
 export * from './listPublicCharactersScope';
 export * from './listWholesalerItemsParams';

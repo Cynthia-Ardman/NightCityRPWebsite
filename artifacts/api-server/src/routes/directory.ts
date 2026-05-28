@@ -46,27 +46,57 @@ function cleanBackground(s: string | null | undefined): string | null {
 router.get("/directory/characters", requireAuth, async (req, res): Promise<void> => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
+  const mode = req.query.mode === "content" ? "content" : "name";
+  // Tag filter accepted as a comma-separated query string. Empty entries are
+  // ignored. An empty list = no tag filter applied.
+  const tagsRaw = typeof req.query.tags === "string" ? req.query.tags : "";
+  const tagList = tagsRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 
   const conds = [] as Array<ReturnType<typeof eq>>;
   if (q.length > 0) {
-    // Match against character name, the legacy Discord handle stamped at import,
-    // and (via the users join below) the current owner's username/globalName so
-    // operators can find a sheet by either the IC name or the player.
+    // Default ("name" mode) matches character name, the legacy Discord handle
+    // stamped at import, and (via the users join below) the current owner's
+    // username/globalName so operators can find a sheet by either the IC
+    // name or the player. "content" mode additionally searches the sheet
+    // body text (background + every section), so a player can find every
+    // character that mentions "Arasaka" or any other in-fiction term.
     const like = `%${q}%`;
-    conds.push(
-      or(
-        ilike(characters.name, like),
-        ilike(characters.legacyDiscordUsername, like),
-        ilike(users.username, like),
-        ilike(users.globalName, like),
-      ) as unknown as ReturnType<typeof eq>,
-    );
+    const clauses = [
+      ilike(characters.name, like),
+      ilike(characters.legacyDiscordUsername, like),
+      ilike(users.username, like),
+      ilike(users.globalName, like),
+    ];
+    if (mode === "content") {
+      clauses.push(ilike(characters.background, like));
+      clauses.push(ilike(characters.archetype, like));
+      // sheet_data is jsonb of { preamble, sections: { label: body } }.
+      // Cast to text and ILIKE — fine for a <500-row roster and avoids
+      // having to teach Postgres FTS the cyberpunk vocabulary.
+      clauses.push(
+        sql`${characters.sheetData}::text ILIKE ${like}` as unknown as ReturnType<typeof eq>,
+      );
+    }
+    conds.push(or(...clauses) as unknown as ReturnType<typeof eq>);
   }
   if (scope === "active") conds.push(eq(characters.archived, false));
   else if (scope === "retired") conds.push(eq(characters.archived, true));
   else if (scope === "unclaimed") conds.push(isNull(characters.ownerId) as unknown as ReturnType<typeof eq>);
   else if (scope === "pc") conds.push(eq(characters.kind, "pc"));
   else if (scope === "npc") conds.push(eq(characters.kind, "npc"));
+
+  if (tagList.length > 0) {
+    // Postgres array overlap: returns characters tagged with ANY of the
+    // requested tags. "Solo OR Netrunner" is a more useful filter than
+    // "Solo AND Netrunner" for a multi-faceted archive — players almost
+    // never want the intersection.
+    conds.push(
+      sql`${characters.appliedTags} && ${tagList}::text[]` as unknown as ReturnType<typeof eq>,
+    );
+  }
 
   const rows = await db
     .select({
@@ -79,6 +109,7 @@ router.get("/directory/characters", requireAuth, async (req, res): Promise<void>
       archived: characters.archived,
       legacyDiscordUsername: characters.legacyDiscordUsername,
       ownerName: users.username,
+      appliedTags: characters.appliedTags,
     })
     .from(characters)
     .leftJoin(users, eq(users.id, characters.ownerId))
@@ -87,6 +118,18 @@ router.get("/directory/characters", requireAuth, async (req, res): Promise<void>
     .limit(2000);
 
   res.json(rows);
+});
+
+// Distinct tag names across the whole archive, so the filter UI can render
+// chips without each client having to derive the union from a 2000-row list.
+router.get("/directory/character-tags", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db.execute<{ tag: string }>(
+    sql`SELECT DISTINCT unnest(applied_tags) AS tag
+        FROM characters
+        WHERE array_length(applied_tags, 1) > 0
+        ORDER BY tag`,
+  );
+  res.json(rows.rows.map((r) => r.tag));
 });
 
 router.get("/directory/characters/:id", requireAuth, async (req, res): Promise<void> => {

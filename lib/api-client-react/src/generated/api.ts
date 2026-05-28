@@ -5771,6 +5771,83 @@ export function useListPublicCharacters<TData = Awaited<ReturnType<typeof listPu
 
 
 
+export const getListPublicCharacterTagsUrl = () => {
+
+
+
+
+  return `/api/directory/character-tags`
+}
+
+/**
+ * @summary Distinct Discord forum tag names across all imported characters.
+ */
+export const listPublicCharacterTags = async ( options?: RequestInit): Promise<string[]> => {
+
+  return customFetch<string[]>(getListPublicCharacterTagsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicCharacterTagsQueryKey = () => {
+    return [
+    `/api/directory/character-tags`
+    ] as const;
+    }
+
+
+export const getListPublicCharacterTagsQueryOptions = <TData = Awaited<ReturnType<typeof listPublicCharacterTags>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicCharacterTags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicCharacterTagsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicCharacterTags>>> = ({ signal }) => listPublicCharacterTags({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicCharacterTags>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPublicCharacterTagsQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicCharacterTags>>>
+export type ListPublicCharacterTagsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Distinct Discord forum tag names across all imported characters.
+ */
+
+export function useListPublicCharacterTags<TData = Awaited<ReturnType<typeof listPublicCharacterTags>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicCharacterTags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPublicCharacterTagsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetPublicCharacterUrl = (id: number,) => {
 
 

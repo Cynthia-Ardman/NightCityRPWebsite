@@ -1951,8 +1951,10 @@ export const AdminClearCharacterOwnerResponse = zod.object({
  * @summary Public list of imported character sheets.
  */
 export const ListPublicCharactersQueryParams = zod.object({
-  "q": zod.coerce.string().optional().describe('Filter by name.'),
-  "scope": zod.enum(['all', 'active', 'retired', 'unclaimed', 'pc', 'npc']).optional()
+  "q": zod.coerce.string().optional().describe('Free-text filter. By default matches character name, legacy Discord handle, and owner handle. When mode=content, additionally matches against background and sheet section bodies.'),
+  "scope": zod.enum(['all', 'active', 'retired', 'unclaimed', 'pc', 'npc']).optional(),
+  "tags": zod.coerce.string().optional().describe('Comma-separated list of Discord forum tag names. Returns characters whose appliedTags overlap with any of these.'),
+  "mode": zod.enum(['name', 'content']).optional().describe('Search mode for `q`. `name` (default) matches identifiers only; `content` also searches sheet body text.')
 })
 
 export const ListPublicCharactersResponseItem = zod.object({
@@ -1965,9 +1967,17 @@ export const ListPublicCharactersResponseItem = zod.object({
   "claimed": zod.boolean(),
   "archived": zod.boolean(),
   "legacyDiscordUsername": zod.string().nullish(),
-  "ownerName": zod.string().nullish()
+  "ownerName": zod.string().nullish(),
+  "appliedTags": zod.array(zod.string()).optional().describe('Discord forum tags applied to the source thread, resolved to display names.')
 })
 export const ListPublicCharactersResponse = zod.array(ListPublicCharactersResponseItem)
+
+
+/**
+ * @summary Distinct Discord forum tag names across all imported characters.
+ */
+export const ListPublicCharacterTagsResponseItem = zod.string()
+export const ListPublicCharacterTagsResponse = zod.array(ListPublicCharacterTagsResponseItem)
 
 
 /**

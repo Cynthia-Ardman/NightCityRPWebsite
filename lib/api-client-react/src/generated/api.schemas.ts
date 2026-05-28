@@ -87,6 +87,8 @@ export interface PublicCharacterSummary {
   legacyDiscordUsername?: string | null;
   /** @nullable */
   ownerName?: string | null;
+  /** Discord forum tags applied to the source thread, resolved to display names. */
+  appliedTags?: string[];
 }
 
 export type PublicCharacter = Character & ({
@@ -1160,10 +1162,18 @@ limit?: number;
 
 export type ListPublicCharactersParams = {
 /**
- * Filter by name.
+ * Free-text filter. By default matches character name, legacy Discord handle, and owner handle. When mode=content, additionally matches against background and sheet section bodies.
  */
 q?: string;
 scope?: ListPublicCharactersScope;
+/**
+ * Comma-separated list of Discord forum tag names. Returns characters whose appliedTags overlap with any of these.
+ */
+tags?: string;
+/**
+ * Search mode for `q`. `name` (default) matches identifiers only; `content` also searches sheet body text.
+ */
+mode?: ListPublicCharactersMode;
 };
 
 export type ListPublicCharactersScope = typeof ListPublicCharactersScope[keyof typeof ListPublicCharactersScope];
@@ -1176,6 +1186,14 @@ export const ListPublicCharactersScope = {
   unclaimed: 'unclaimed',
   pc: 'pc',
   npc: 'npc',
+} as const;
+
+export type ListPublicCharactersMode = typeof ListPublicCharactersMode[keyof typeof ListPublicCharactersMode];
+
+
+export const ListPublicCharactersMode = {
+  name: 'name',
+  content: 'content',
 } as const;
 
 export type ListWholesalerItemsParams = {

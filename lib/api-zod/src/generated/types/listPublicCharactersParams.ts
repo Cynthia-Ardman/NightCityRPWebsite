@@ -5,12 +5,21 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListPublicCharactersMode } from './listPublicCharactersMode';
 import type { ListPublicCharactersScope } from './listPublicCharactersScope';
 
 export type ListPublicCharactersParams = {
 /**
- * Filter by name.
+ * Free-text filter. By default matches character name, legacy Discord handle, and owner handle. When mode=content, additionally matches against background and sheet section bodies.
  */
 q?: string;
 scope?: ListPublicCharactersScope;
+/**
+ * Comma-separated list of Discord forum tag names. Returns characters whose appliedTags overlap with any of these.
+ */
+tags?: string;
+/**
+ * Search mode for `q`. `name` (default) matches identifiers only; `content` also searches sheet body text.
+ */
+mode?: ListPublicCharactersMode;
 };

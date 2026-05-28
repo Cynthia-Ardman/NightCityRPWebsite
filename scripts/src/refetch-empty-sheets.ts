@@ -40,7 +40,7 @@ async function discord<T>(path: string): Promise<T> {
       signal: AbortSignal.timeout(20_000),
     });
     if (r.status === 429) {
-      const body = await r.json().catch(() => ({ retry_after: 2 }));
+      const body = (await r.json().catch(() => ({ retry_after: 2 }))) as { retry_after?: number };
       await new Promise((res) =>
         setTimeout(res, Math.ceil((body.retry_after ?? 2) * 1000)),
       );
@@ -62,6 +62,38 @@ type Message = {
   content: string;
   message_snapshots?: Array<{ message: { content?: string } }>;
 };
+
+type Thread = {
+  id: string;
+  parent_id?: string | null;
+  applied_tags?: string[];
+};
+type ForumTag = { id: string; name: string };
+type ForumChannel = { id: string; available_tags?: ForumTag[] };
+
+// Cache resolved forum tag tables (id -> name) per parent forum so we only
+// hit /channels/<forumId> once per channel across the run.
+const forumTagCache = new Map<string, Map<string, string>>();
+async function getTagMap(forumId: string): Promise<Map<string, string>> {
+  const cached = forumTagCache.get(forumId);
+  if (cached) return cached;
+  const ch = await discord<ForumChannel | null>(`/channels/${forumId}`);
+  const m = new Map<string, string>();
+  for (const t of ch?.available_tags ?? []) m.set(t.id, t.name);
+  forumTagCache.set(forumId, m);
+  return m;
+}
+async function fetchAppliedTagNames(threadId: string): Promise<string[]> {
+  const th = await discord<Thread | null>(`/channels/${threadId}`);
+  if (!th || !th.parent_id || !th.applied_tags || th.applied_tags.length === 0) return [];
+  const map = await getTagMap(th.parent_id);
+  const out: string[] = [];
+  for (const id of th.applied_tags) {
+    const name = map.get(id);
+    if (name) out.push(name);
+  }
+  return out;
+}
 
 async function fetchAllMessages(threadId: string): Promise<Message[]> {
   const out: Message[] = [];
@@ -303,17 +335,28 @@ for (let i = 0; i < slice.length; i++) {
       continue;
     }
 
+    // Discord forum tags applied to the thread (e.g. "Solo", "Active",
+    // "Edgerunner"). Resolved to display names so the archive can filter on
+    // them without re-fetching forum metadata at query time.
+    let appliedTagNames: string[] = [];
+    try {
+      appliedTagNames = await fetchAppliedTagNames(c.threadId!);
+    } catch (e: any) {
+      console.log(`${tag} tag-fetch warn: ${e.message}`);
+    }
+
     await db
       .update(characters)
       .set({
         sheetData: parsed,
         background: newBackground,
+        appliedTags: appliedTagNames,
         ...(newArchetype ? { archetype: newArchetype } : {}),
       })
       .where(eq(characters.id, c.id));
 
     console.log(
-      `${tag} updated sections=${Object.keys(parsed.sections).length} preambleLen=${parsed.preamble.length} bgLen=${newBackground.length}${newArchetype ? ` archetype="${newArchetype.slice(0, 40)}"` : ""}`,
+      `${tag} updated sections=${Object.keys(parsed.sections).length} preambleLen=${parsed.preamble.length} bgLen=${newBackground.length}${newArchetype ? ` archetype="${newArchetype.slice(0, 40)}"` : ""}${appliedTagNames.length ? ` tags=[${appliedTagNames.join(",")}]` : ""}`,
     );
     recovered++;
     if (hasSections) parsedSections++;

@@ -1118,8 +1118,10 @@ paths:
       tags: [directory]
       summary: Public list of imported character sheets.
       parameters:
-        - { in: query, name: q, schema: { type: string }, description: Filter by name. }
+        - { in: query, name: q, schema: { type: string }, description: "Free-text filter. By default matches character name, legacy Discord handle, and owner handle. When mode=content, additionally matches against background and sheet section bodies." }
         - { in: query, name: scope, schema: { type: string, enum: [all, active, retired, unclaimed, pc, npc] } }
+        - { in: query, name: tags, schema: { type: string }, description: "Comma-separated list of Discord forum tag names. Returns characters whose appliedTags overlap with any of these." }
+        - { in: query, name: mode, schema: { type: string, enum: [name, content] }, description: "Search mode for `q`. `name` (default) matches identifiers only; `content` also searches sheet body text." }
       responses:
         "200":
           description: List
@@ -1128,6 +1130,19 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/PublicCharacterSummary" }
+  /directory/character-tags:
+    get:
+      operationId: listPublicCharacterTags
+      tags: [directory]
+      summary: Distinct Discord forum tag names across all imported characters.
+      responses:
+        "200":
+          description: List of tag names, sorted alphabetically.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: string }
   /directory/characters/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1478,6 +1493,7 @@ components:
         archived: { type: boolean }
         legacyDiscordUsername: { type: ["string", "null"] }
         ownerName: { type: ["string", "null"] }
+        appliedTags: { type: array, items: { type: string }, description: "Discord forum tags applied to the source thread, resolved to display names." }
 
     PublicCharacter:
       allOf:
