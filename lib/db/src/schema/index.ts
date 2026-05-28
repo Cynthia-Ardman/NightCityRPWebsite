@@ -392,6 +392,73 @@ export const lifestyleTiers = pgTable("lifestyle_tiers", {
 });
 export type LifestyleTier = typeof lifestyleTiers.$inferSelect;
 
+// Pending character edits awaiting fixer/admin review.
+//
+// Workflow: a character owner submits PATCH /characters/:id with the fields
+// they want changed. Instead of applying the diff to the live `characters`
+// row, the server stores the partial payload here as `proposedDiff` and
+// notifies the approval channel on Discord. Approvers vote via
+// `pendingEditApprovals` rows; once a MAJORITY of distinct eligible voters
+// (FIXER + CS_APPROVER + ADMIN, excluding the submitter themselves so
+// staff can't self-approve) approve, the edit is applied and status flips
+// to "approved". A majority rejection flips to "rejected". The submitter
+// may "cancel" their own pending edit while it's still pending.
+//
+// Only one PENDING edit may exist per character at a time — the route
+// layer guards this so reviewers always see a single coherent diff per
+// character (and so a player can't queue 50 edits at once).
+export const pendingCharacterEdits = pgTable("pending_character_edits", {
+  id: serial("id").primaryKey(),
+  characterId: integer("character_id")
+    .notNull()
+    .references(() => characters.id, { onDelete: "cascade" }),
+  // The user who proposed the edit. They may NOT vote on it themselves
+  // (route enforces), and they ARE excluded from the eligible-voter pool
+  // when computing the majority threshold.
+  submittedBy: text("submitted_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  // Partial PATCH payload — only the fields the submitter intends to
+  // change. Shape mirrors CharacterUpdateSchema (name?, archetype?,
+  // background?, portraitUrl?, portraitUrls?, statsImageUrls?, sheetData?,
+  // lifeStatus?). Applied verbatim on approve, ignored on reject/cancel.
+  proposedDiff: jsonb("proposed_diff").notNull(),
+  // Player-supplied commit-message-style summary of the change. Surfaced
+  // in the reviewer UI and written into character_updates on approval.
+  updateNote: text("update_note"),
+  status: text("status").notNull().default("pending"),
+  decisionSummary: text("decision_summary"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  discordMessageId: text("discord_message_id"),
+}, (t) => ({
+  pendingPerCharacterIdx: uniqueIndex("pending_edit_one_per_char_idx")
+    .on(t.characterId)
+    .where(sql`status = 'pending'`),
+}));
+export type PendingCharacterEdit = typeof pendingCharacterEdits.$inferSelect;
+
+// One row per (edit, voter). A voter may switch their vote by upserting,
+// hence the unique index — but the route only accepts one canonical vote
+// per voter per edit (last write wins via upsert).
+export const pendingEditApprovals = pgTable("pending_edit_approvals", {
+  id: serial("id").primaryKey(),
+  editId: integer("edit_id")
+    .notNull()
+    .references(() => pendingCharacterEdits.id, { onDelete: "cascade" }),
+  voterId: text("voter_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  // 'approve' | 'reject'. Stored as text to avoid an enum migration; the
+  // route layer is the only writer and validates the value.
+  vote: text("vote").notNull(),
+  note: text("note"),
+  votedAt: timestamp("voted_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  oneVotePerVoterIdx: uniqueIndex("pending_edit_vote_unique_idx").on(t.editId, t.voterId),
+}));
+export type PendingEditApproval = typeof pendingEditApprovals.$inferSelect;
+
 export const sessionsTable = pgTable("user_sessions", {
   sid: text("sid").primaryKey(),
   sess: jsonb("sess").notNull(),
