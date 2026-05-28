@@ -1938,6 +1938,13 @@ components:
         checkupStreak:
           type: integer
           description: "Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max)."
+        cyberwareLevel:
+          type: string
+          enum: [none, medium, high, extreme]
+          description: "Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap."
+        isOrganic:
+          type: boolean
+          description: "Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard."
         createdAt: { type: string, format: date-time }
 
     SheetData:

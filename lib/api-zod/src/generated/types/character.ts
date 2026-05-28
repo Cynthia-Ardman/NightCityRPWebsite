@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CharacterCyberwareLevel } from './characterCyberwareLevel';
 import type { CharacterKind } from './characterKind';
 import type { CharacterLifeStatus } from './characterLifeStatus';
 import type { CharacterTraumaTeamTier } from './characterTraumaTeamTier';
@@ -57,5 +58,9 @@ export interface Character {
   lastCheckupAt?: Date | null;
   /** Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max). */
   checkupStreak?: number;
+  /** Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap. */
+  cyberwareLevel?: CharacterCyberwareLevel;
+  /** Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard. */
+  isOrganic?: boolean;
   createdAt: Date;
 }

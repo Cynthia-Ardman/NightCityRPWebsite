@@ -24,6 +24,7 @@ export * from './catalogGunUpdate';
 export * from './catalogGunUpdateStatus';
 export * from './catalogRent';
 export * from './character';
+export * from './characterCyberwareLevel';
 export * from './characterEditSubmission';
 export * from './characterEditSubmissionStatus';
 export * from './characterInput';

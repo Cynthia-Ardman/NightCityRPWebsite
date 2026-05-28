@@ -63,6 +63,19 @@ export const CharacterTraumaTeamTier = {
   diamond: 'diamond',
 } as const;
 
+/**
+ * Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.
+ */
+export type CharacterCyberwareLevel = typeof CharacterCyberwareLevel[keyof typeof CharacterCyberwareLevel];
+
+
+export const CharacterCyberwareLevel = {
+  none: 'none',
+  medium: 'medium',
+  high: 'high',
+  extreme: 'extreme',
+} as const;
+
 export type SheetDataSections = {[key: string]: string};
 
 export interface SheetData {
@@ -127,6 +140,10 @@ export interface Character {
   lastCheckupAt?: string | null;
   /** Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max). */
   checkupStreak?: number;
+  /** Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap. */
+  cyberwareLevel?: CharacterCyberwareLevel;
+  /** Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard. */
+  isOrganic?: boolean;
   createdAt: string;
 }
 

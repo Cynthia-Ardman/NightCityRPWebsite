@@ -84,6 +84,8 @@ export const ListMyCharactersResponseItem = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })
 export const ListMyCharactersResponse = zod.array(ListMyCharactersResponseItem)
@@ -143,6 +145,8 @@ export const GetCharacterResponse = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -528,6 +532,8 @@ export const SetCharacterLifestyleResponse = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -2411,6 +2417,8 @@ export const AdminListUsersResponseItem = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -2472,6 +2480,8 @@ export const AdminGetUserResponse = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -2549,6 +2559,8 @@ export const AdminSyncUserRolesResponse = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })).optional()
 })
@@ -2620,6 +2632,8 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -2668,6 +2682,8 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -2764,6 +2780,8 @@ export const GetPublicCharacterResponse = zod.object({
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "ownerName": zod.string().nullish(),
