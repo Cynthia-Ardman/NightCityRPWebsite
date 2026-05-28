@@ -21,10 +21,11 @@ import { hasRole } from "../lib/discord";
 import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand } from "../lib/jobs";
 import { sumCwpByCharacter } from "../lib/cyberware";
 
-// Keep this in sync with `lib/jobs.ts` — it's the rent the monthly_rent cron
-// actually debits per approved PC. Meds use a different formula keyed on
-// the ripperdoc-assigned cyberwareLevel — see projectedWeeklyMeds().
-const RENT_PER_PC_PER_MONTH = 500;
+// Baseline living cost the monthly_rent cron debits ONCE per player
+// (regardless of how many PCs they have). Per-lease housing rent is
+// listed separately in the Active Leases section. Keep this in sync
+// with DEFAULT_BASELINE_LIVING_COST in lib/jobs.ts.
+const BASELINE_LIVING_COST_PER_PLAYER = 500;
 
 // monthly_rent cron runs 04:00 UTC on the 1st of every month.
 function nextMonthlyRunDate(now: Date = new Date()): Date {
@@ -121,12 +122,17 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   const rentDueAt = nextMonthlyRunDate(now).toISOString();
   const medsDueAt = nextWeeklyRunDate(now).toISOString();
 
-  const rent = billable.map((c) => ({
-    characterId: c.id,
-    characterName: c.name,
-    amount: RENT_PER_PC_PER_MONTH,
+  // Baseline living cost = ONE charge per player (not per character),
+  // matching the monthly_rent cron's per-owner baseline pass. Players
+  // with 0 approved PCs owe nothing here.
+  const rent = billable.length === 0 ? [] : [{
+    characterId: billable[0].id,
+    characterName: billable.length === 1
+      ? billable[0].name
+      : `${billable.length} characters`,
+    amount: BASELINE_LIVING_COST_PER_PLAYER,
     dueAt: rentDueAt,
-  }));
+  }];
 
   // Meds projection — one bill per PLAYER, not per character. The band
   // comes from the highest chrome count across the player's PCs
@@ -206,7 +212,20 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     }
   }
 
-  const proj = projectedWeeklyMeds({ chromeCount: maxChromeCount, household, weeksUnpaid });
+  // Suppress meds entirely if the player had a checkup within the
+  // current billing week. The bot mirror tracks this as weeks=0
+  // (just had one); we ALSO fall back to a 7-day window on
+  // lastCheckupAt for portal-only users that aren't in the bot
+  // mirror yet. Without this guard, projectedWeeklyMeds floors
+  // weeksUnpaid at 1 and charges a full week's bill the same day
+  // you visit a ripperdoc — which the player rightfully reads as a bug.
+  const sevenDaysMs = 7 * 86_400_000;
+  const checkupIsCurrent =
+    (botRow && (botRow.weeks ?? 0) <= 0) ||
+    (!!lastCheckupAt && (now.getTime() - lastCheckupAt.getTime()) < sevenDaysMs);
+  const proj = checkupIsCurrent
+    ? { charge: 0, level: deriveCyberwareBand(maxChromeCount).level, cap: 0, baseCharge: 0, multiplier: 1, weeksUnpaid: 0, household }
+    : projectedWeeklyMeds({ chromeCount: maxChromeCount, household, weeksUnpaid });
   const meds: Array<{
     anchorCharacterId: number | null;
     anchorCharacterName: string | null;

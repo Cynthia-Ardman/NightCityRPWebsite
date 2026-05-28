@@ -455,30 +455,48 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           isNotNull(characters.ownerId),
         ));
 
+      // Baseline living cost is billed ONCE PER PLAYER, not per PC.
+      // Track which owners have already been billed this run so a player
+      // with multiple PCs only pays $500 total. Idempotency for reruns
+      // within the same month uses the same per-owner key, persisted via
+      // wallet_transactions (kind='baseline', characterId=NULL keyed off
+      // userId only) — preloaded into baselineBilledOwners below.
+      const baselineBilledOwners = new Set<string>();
+      const existingBaselineByOwner = await db
+        .select({ userId: walletTransactions.userId })
+        .from(walletTransactions)
+        .where(and(
+          eq(walletTransactions.kind, "baseline"),
+          gte(walletTransactions.createdAt, periodStart),
+        ));
+      for (const r of existingBaselineByOwner) {
+        if (r.userId) baselineBilledOwners.add(r.userId);
+      }
+
       for (const c of personalChars) {
         if (isOnLoa(c.id)) continue;
         if (!c.ownerId) continue; // narrowing — the SQL filter already guarantees this
         const owner = await getOwner(c.ownerId);
         if (!owner) continue;
 
-        // 4. Baseline living cost (food, utilities, etc.)
-        if (baselineCost > 0 && !billedThisRun(c.id, "baseline")) {
+        // 4. Baseline living cost (food, utilities, etc.) — ONE per player.
+        if (baselineCost > 0 && !baselineBilledOwners.has(c.ownerId)) {
           const ub = await patchBalance(owner.discordId, {
             cash: -baselineCost,
-            reason: `Baseline living cost (${c.name})`,
+            reason: `Baseline living cost`,
           });
           if (ub) {
             await db.insert(walletTransactions).values({
-              characterId: c.id,
+              characterId: null,
               userId: c.ownerId,
               amount: -baselineCost,
               kind: "baseline",
-              memo: "Baseline living cost",
+              memo: "Baseline living cost (monthly)",
             });
-            markBilled(c.id, "baseline");
+            baselineBilledOwners.add(c.ownerId);
             affected++;
           } else {
-            logger.warn({ characterId: c.id }, "monthly_rent baseline UB debit failed");
+            logger.warn({ ownerId: c.ownerId }, "monthly_rent baseline UB debit failed");
           }
         }
 
@@ -600,6 +618,14 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           return acc;
         }, null);
         const weeksUnpaid = weeksSinceLastCheckup(lastCheckupAt, now);
+        // Skip the bill entirely if the household had a ripperdoc checkup
+        // inside the current billing week. weeksSinceLastCheckup() floors
+        // at 1, so we re-check the raw 7-day window here — without this
+        // guard a checkup the same day as the Monday cron tick would still
+        // be charged as if a full week had elapsed.
+        const checkupIsCurrent = !!lastCheckupAt
+          && (now.getTime() - lastCheckupAt.getTime()) < 7 * 86_400_000;
+        if (checkupIsCurrent) continue;
         const proj = projectedWeeklyMeds({ chromeCount: maxChromeCount, household, weeksUnpaid });
         if (proj.charge <= 0) continue;
 

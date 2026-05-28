@@ -480,13 +480,13 @@ function UpcomingBillsCard() {
                     <HomeIcon className="w-3 h-3" /> ACTIVE LEASES
                   </div>
                   <div className="text-xs font-mono text-muted-foreground italic leading-relaxed">
-                    Listed for reference. Auto-billing currently uses the flat rent above, not per-lease pricing.
+                    Per-lease rent. Listed for reference — actual lease billing comes from each row's monthly rate.
                   </div>
                   {data.leases.map((l) => (
                     <Link key={l.id} href={`/characters/${l.characterId}`}>
                       <div className="flex justify-between items-center text-sm font-mono border border-border/40 px-3 py-2 hover:border-nc-cyan/60 cursor-pointer" data-testid={`row-lease-${l.id}`}>
                         <div className="min-w-0">
-                          <div className="truncate text-foreground">{l.address}</div>
+                          <div className="truncate text-foreground">{cleanLeaseAddress(l.address)}</div>
                           <div className="text-xs text-muted-foreground truncate">{l.characterName}</div>
                         </div>
                         <div className="text-nc-yellow whitespace-nowrap">€${l.monthlyRent.toLocaleString()}/mo</div>
@@ -520,6 +520,14 @@ type CyberwareStatusShape = {
   topBand: string;
   breakdown: Array<{ characterId: number; characterName: string; chromeCount: number; band: string }>;
 };
+
+// Strip placeholder unit suffixes left over from the legacy importer
+// (e.g. "Apartment #Apt", "Studio #TBD") so the lease list reads as
+// "Apartment" rather than "Apartment #Apt". Real unit suffixes like
+// "#2B" or "#13" pass through untouched.
+function cleanLeaseAddress(addr: string): string {
+  return addr.replace(/\s*#\s*(apt|tbd|unit|n\/a|none|placeholder)\b/i, "").trim() || addr;
+}
 
 // Explain WHY no meds are owed this week so the player doesn't think
 // the system is broken. Priority: recent checkup > nobody at risk >
