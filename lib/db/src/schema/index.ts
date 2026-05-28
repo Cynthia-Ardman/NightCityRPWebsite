@@ -88,6 +88,13 @@ export const characters = pgTable("characters", {
   // Optional monthly lifestyle tier (Street/Standard/Affluent/Luxury). Debited
   // alongside rent by the monthly_rent cron. Null = no lifestyle billing.
   lifestyleTierId: integer("lifestyle_tier_id"),
+  // Optional Trauma Team subscription tier — one of silver | gold | platinum | diamond
+  // (or null = no subscription). Billed monthly from bot_config["trauma_team_costs"].
+  // Skipped while character is on LOA. Mirrors NightCityBot trauma-team billing.
+  traumaTeamTier: text("trauma_team_tier"),
+  // Xanadu Gold premium membership flag. Flat monthly fee from
+  // bot_config["xanadu_gold_cost"] (default 500). Skipped while on LOA.
+  xanaduGold: boolean("xanadu_gold").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   importedThreadIdx: uniqueIndex("characters_imported_thread_idx").on(t.importedFromThreadId),
@@ -349,6 +356,10 @@ export const housing = pgTable("housing", {
   listingId: integer("listing_id"),
   address: text("address").notNull(),
   monthlyRent: integer("monthly_rent").notNull().default(0),
+  // Lease kind: "residential" (default — personal home, skipped while on LOA)
+  // or "business" (storefront/venue — billed even on LOA, matching the
+  // NightCityBot behavior where business rent never pauses).
+  kind: text("kind").notNull().default("residential"),
   paidThrough: timestamp("paid_through", { withTimezone: true }),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

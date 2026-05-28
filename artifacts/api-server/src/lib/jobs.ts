@@ -1,8 +1,52 @@
-import { db, users, jobRuns, characters, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig } from "@workspace/db";
-import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
+import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig } from "@workspace/db";
+import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot } from "./discord";
 import { patchBalance } from "./unbelievaboat";
+
+// Default monthly costs used when the corresponding bot_config row is missing
+// or malformed. Admins override these by writing to bot_config; the cron
+// always falls back here so a fresh deploy is internally consistent.
+const DEFAULT_BASELINE_LIVING_COST = 500;
+const DEFAULT_XANADU_GOLD_COST = 500;
+const DEFAULT_TRAUMA_TEAM_COSTS: Record<string, number> = {
+  silver: 500,
+  gold: 1000,
+  platinum: 2000,
+  diamond: 5000,
+};
+
+async function readConfigNumber(key: string, fallback: number): Promise<number> {
+  try {
+    const [row] = await db.select().from(botConfig).where(eq(botConfig.key, key));
+    const v = row?.value;
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) return Math.floor(v);
+    return fallback;
+  } catch (err) {
+    logger.warn({ err, key }, "readConfigNumber failed; using fallback");
+    return fallback;
+  }
+}
+
+async function readTraumaCosts(): Promise<Record<string, number>> {
+  try {
+    const [row] = await db.select().from(botConfig).where(eq(botConfig.key, "trauma_team_costs"));
+    const v = row?.value;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const out: Record<string, number> = { ...DEFAULT_TRAUMA_TEAM_COSTS };
+      for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
+        if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) {
+          out[k.toLowerCase()] = Math.floor(raw);
+        }
+      }
+      return out;
+    }
+    return { ...DEFAULT_TRAUMA_TEAM_COSTS };
+  } catch (err) {
+    logger.warn({ err }, "readTraumaCosts failed; using defaults");
+    return { ...DEFAULT_TRAUMA_TEAM_COSTS };
+  }
+}
 
 // Kill-switch flags stored in bot_config. Both default to OFF so freshly
 // deployed environments never silently start charging players until an
@@ -53,11 +97,35 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         }
       }
     } else if (name === "monthly_rent") {
+      // Build an LOA lookup once so every billing pass below can ask
+      // "is this character on LOA?" without a per-row roundtrip. We treat
+      // a missing status row as "not on LOA" — same as the bot's default.
+      const statusRows = await db.select().from(characterStatus);
+      const loaByCharacter = new Map<number, boolean>();
+      for (const s of statusRows) loaByCharacter.set(s.characterId, !!s.loa);
+      const isOnLoa = (cid: number) => loaByCharacter.get(cid) === true;
+
+      // Resolve and cache owner rows so we do at most one users-row read per
+      // distinct owner across all six billing passes below.
+      const ownerCache = new Map<string, typeof users.$inferSelect | null>();
+      const getOwner = async (ownerId: string | null | undefined) => {
+        if (!ownerId) return null;
+        if (ownerCache.has(ownerId)) return ownerCache.get(ownerId) ?? null;
+        const [row] = await db.select().from(users).where(eq(users.id, ownerId));
+        ownerCache.set(ownerId, row ?? null);
+        return row ?? null;
+      };
+
+      // ----- 1+2. Housing leases (residential AND business) -----------------
       // Per-lease billing: iterate active housing rows joined to their
       // approved, non-archived characters. UB is authoritative — record the
       // local ledger entry and roll paid_through forward only when the debit
       // succeeds. On UB failure leave paid_through where it is so the lease
       // shows as delinquent in upcoming-bills until next run.
+      //
+      // LOA rule (matches NightCityBot): residential leases pause while the
+      // character is on LOA; business leases bill regardless because the
+      // venue keeps operating.
       const rows = await db
         .select({
           lease: housing,
@@ -66,20 +134,51 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .from(housing)
         .innerJoin(characters, eq(characters.id, housing.characterId))
         .where(and(eq(characters.archived, false)));
+      const now = new Date();
+
+      // Idempotency guard for personal-fee passes (lifestyle, baseline,
+      // trauma_team, xanadu_gold): pull every wallet_transactions row in the
+      // tracked kinds written this calendar month (UTC), then build a Set of
+      // "charId:kind" pairs already billed. Each pass below consults the set
+      // before debiting so a manual rerun in the same month is a no-op.
+      // Housing leases use their own rolling paid_through guard instead.
+      const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const TRACKED_PERSONAL_KINDS = ["lifestyle", "baseline", "trauma_team", "xanadu_gold"] as const;
+      const alreadyBilled = new Set<string>();
+      const existingBills = await db
+        .select({ characterId: walletTransactions.characterId, kind: walletTransactions.kind })
+        .from(walletTransactions)
+        .where(and(
+          inArray(walletTransactions.kind, TRACKED_PERSONAL_KINDS as unknown as string[]),
+          gte(walletTransactions.createdAt, periodStart),
+        ));
+      for (const e of existingBills) {
+        if (e.characterId != null) alreadyBilled.add(`${e.characterId}:${e.kind}`);
+      }
+      const billedThisRun = (cid: number, kind: string) => alreadyBilled.has(`${cid}:${kind}`);
+      const markBilled = (cid: number, kind: string) => alreadyBilled.add(`${cid}:${kind}`);
+
       for (const { lease, character: c } of rows) {
         if (!c.approved) continue;
         if (!c.ownerId) continue;
-        const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
+        const isBusiness = lease.kind === "business";
+        if (!isBusiness && isOnLoa(c.id)) continue;
+        // Idempotency: if this lease is already paid past now (rolling
+        // paid_through), skip. Manual rerun within the same period must not
+        // double-charge.
+        if (lease.paidThrough && lease.paidThrough.getTime() > now.getTime()) continue;
+        const owner = await getOwner(c.ownerId);
         if (!owner) continue;
         const rent = lease.monthlyRent;
         if (rent <= 0) continue;
+        const reasonLabel = isBusiness ? "Business rent" : "Rent";
         const ub = await patchBalance(owner.discordId, {
           cash: -rent,
-          reason: `Rent: ${lease.address}`,
+          reason: `${reasonLabel}: ${lease.address}`,
         });
         if (!ub) {
           logger.warn(
-            { characterId: c.id, leaseId: lease.id },
+            { characterId: c.id, leaseId: lease.id, kind: lease.kind },
             "monthly_rent UB debit failed; lease will show delinquent",
           );
           continue;
@@ -87,8 +186,8 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         await db.insert(walletTransactions).values({
           characterId: c.id,
           amount: -rent,
-          kind: "rent",
-          memo: `Rent: ${lease.address}`,
+          kind: isBusiness ? "business_rent" : "rent",
+          memo: `${reasonLabel}: ${lease.address}`,
         });
         // Bump paid_through forward by one month from its previous value (or
         // from now if it was missing/stale), preserving anchor date when
@@ -100,10 +199,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         await db.update(housing).set({ paidThrough: base }).where(eq(housing.id, lease.id));
         affected++;
       }
+
+      // ----- 3. Lifestyle ----------------------------------------------------
       // Monthly lifestyle charge — independent of housing, iterates approved
       // non-archived PCs that have selected a (non-archived) lifestyle tier.
-      // UB is authoritative; on debit failure we log an activity event but do
-      // NOT evict the tier or write a ledger row.
+      // Personal fee → skipped on LOA. UB is authoritative; on debit failure
+      // we log an activity event but do NOT evict the tier or write a ledger
+      // row.
       const lifestyleRows = await db
         .select({ character: characters, tier: lifestyleTiers })
         .from(characters)
@@ -116,10 +218,12 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           isNotNull(characters.lifestyleTierId),
         ));
       for (const { character: c, tier } of lifestyleRows) {
+        if (isOnLoa(c.id)) continue;
+        if (billedThisRun(c.id, "lifestyle")) continue;
         const cost = tier.monthlyCost;
         if (cost <= 0) continue;
         if (!c.ownerId) continue;
-        const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
+        const owner = await getOwner(c.ownerId);
         if (!owner) continue;
         const ub = await patchBalance(owner.discordId, {
           cash: -cost,
@@ -144,7 +248,100 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           kind: "lifestyle",
           memo: `Lifestyle: ${tier.name}`,
         });
+        markBilled(c.id, "lifestyle");
         affected++;
+      }
+
+      // ----- 4+5+6. Baseline / Trauma Team / Xanadu Gold ---------------------
+      // These three personal fees all iterate the same set: approved PCs that
+      // are claimed (have an ownerId), not archived, and not on LOA. Costs
+      // come from bot_config with sensible defaults so the cron is internally
+      // consistent on a fresh deploy. UB is authoritative for each — skip the
+      // ledger row on debit failure.
+      const baselineCost = await readConfigNumber("baseline_living_cost", DEFAULT_BASELINE_LIVING_COST);
+      const xanaduCost = await readConfigNumber("xanadu_gold_cost", DEFAULT_XANADU_GOLD_COST);
+      const traumaCosts = await readTraumaCosts();
+
+      const personalChars = await db
+        .select()
+        .from(characters)
+        .where(and(
+          eq(characters.kind, "pc"),
+          eq(characters.approved, true),
+          eq(characters.archived, false),
+          isNotNull(characters.ownerId),
+        ));
+
+      for (const c of personalChars) {
+        if (isOnLoa(c.id)) continue;
+        if (!c.ownerId) continue; // narrowing — the SQL filter already guarantees this
+        const owner = await getOwner(c.ownerId);
+        if (!owner) continue;
+
+        // 4. Baseline living cost (food, utilities, etc.)
+        if (baselineCost > 0 && !billedThisRun(c.id, "baseline")) {
+          const ub = await patchBalance(owner.discordId, {
+            cash: -baselineCost,
+            reason: `Baseline living cost (${c.name})`,
+          });
+          if (ub) {
+            await db.insert(walletTransactions).values({
+              characterId: c.id,
+              userId: c.ownerId,
+              amount: -baselineCost,
+              kind: "baseline",
+              memo: "Baseline living cost",
+            });
+            markBilled(c.id, "baseline");
+            affected++;
+          } else {
+            logger.warn({ characterId: c.id }, "monthly_rent baseline UB debit failed");
+          }
+        }
+
+        // 5. Trauma Team subscription
+        const tier = (c.traumaTeamTier ?? "").toLowerCase();
+        const traumaCost = tier ? (traumaCosts[tier] ?? 0) : 0;
+        if (tier && traumaCost > 0 && !billedThisRun(c.id, "trauma_team")) {
+          const ub = await patchBalance(owner.discordId, {
+            cash: -traumaCost,
+            reason: `Trauma Team ${tier} (${c.name})`,
+          });
+          if (ub) {
+            await db.insert(walletTransactions).values({
+              characterId: c.id,
+              userId: c.ownerId,
+              amount: -traumaCost,
+              kind: "trauma_team",
+              memo: `Trauma Team ${tier} subscription`,
+            });
+            markBilled(c.id, "trauma_team");
+            affected++;
+          } else {
+            logger.warn({ characterId: c.id, tier }, "monthly_rent trauma UB debit failed");
+          }
+        }
+
+        // 6. Xanadu Gold premium membership
+        if (c.xanaduGold && xanaduCost > 0 && !billedThisRun(c.id, "xanadu_gold")) {
+          const ub = await patchBalance(owner.discordId, {
+            cash: -xanaduCost,
+            reason: `Xanadu Gold (${c.name})`,
+          });
+          if (ub) {
+            await db.insert(walletTransactions).values({
+              characterId: c.id,
+              userId: c.ownerId,
+              amount: -xanaduCost,
+              kind: "xanadu_gold",
+              memo: "Xanadu Gold membership",
+            });
+            markBilled(c.id, "xanadu_gold");
+            affected++;
+          } else {
+            logger.warn({ characterId: c.id }, "monthly_rent xanadu UB debit failed");
+          }
+        }
       }
     } else if (name === "cyberware_humanity") {
       // Weekly cyberpsychosis-meds charge. For each approved (non-archived) character
