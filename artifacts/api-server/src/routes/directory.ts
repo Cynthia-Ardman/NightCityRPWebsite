@@ -12,7 +12,7 @@ import {
   catalogCyberware,
   catalogRent,
 } from "@workspace/db";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 
 const router: IRouter = Router();
@@ -231,9 +231,50 @@ router.get("/directory/stores/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/catalog/guns", async (_req, res): Promise<void> => {
-  res.json(await db.select().from(catalogGuns));
+// Drafts are work-in-progress catalog entries the fixer team is curating
+// before they go public. Public/anonymous callers and regular players never
+// see draft rows; only ADMIN/FIXER do. Anything else (live, retired, null
+// status) is treated as visible.
+router.get("/catalog/guns", async (req, res): Promise<void> => {
+  const all = await db.select().from(catalogGuns);
+  const isStaff =
+    !!req.user && (hasRole(req.user.roles, "ADMIN") || hasRole(req.user.roles, "FIXER"));
+  res.json(isStaff ? all : all.filter((g) => (g.status ?? "").toLowerCase() !== "draft"));
 });
+
+// Fixer/admin can promote a draft to live (or back to draft). Kept minimal
+// for now: just the status flip; full editor can follow.
+router.patch(
+  "/catalog/guns/:id",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const body = (req.body ?? {}) as { status?: string | null };
+    if (body.status === undefined) {
+      res.status(400).json({ error: "Nothing to update" });
+      return;
+    }
+    const nextStatus = body.status == null ? null : String(body.status).toLowerCase();
+    if (nextStatus !== null && !["draft", "live", "retired"].includes(nextStatus)) {
+      res.status(400).json({ error: "status must be draft|live|retired|null" });
+      return;
+    }
+    const [updated] = await db
+      .update(catalogGuns)
+      .set({ status: nextStatus })
+      .where(eq(catalogGuns.id, id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Gun not found" });
+      return;
+    }
+    res.json(updated);
+  },
+);
 router.get("/catalog/cyberware", async (_req, res): Promise<void> => {
   res.json(await db.select().from(catalogCyberware));
 });

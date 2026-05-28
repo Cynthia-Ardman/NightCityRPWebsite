@@ -409,12 +409,35 @@ paths:
       tags: [catalog]
       responses:
         "200":
-          description: Gun catalog
+          description: |
+            Gun catalog. Entries with status="draft" are only returned when
+            the caller is ADMIN or FIXER; everyone else sees only live (or
+            null-status legacy) entries.
           content:
             application/json:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CatalogGun" }
+  /catalog/guns/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateGun
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Currently only the `status` field is editable
+        (used to promote a draft entry to live).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogGunUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogGun" }
   /catalog/cyberware:
     get:
       operationId: listCyberware
@@ -1936,6 +1959,13 @@ components:
         status: { type: ["string", "null"] }
         powerLevel: { type: ["string", "null"] }
         weaponType: { type: ["string", "null"] }
+    CatalogGunUpdate:
+      type: object
+      properties:
+        status:
+          type: ["string", "null"]
+          enum: [draft, live, retired, null]
+          description: "Visibility status; only ADMIN/FIXER may set."
 
     CatalogCyberware:
       type: object
