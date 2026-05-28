@@ -13,7 +13,6 @@ import {
   useVacateHousing,
   useUpdateHousingLease,
   getGetCharacterHousingQueryKey,
-  useAdminRecordCheckup,
   useGetCharacterStatus,
   useUpdateCharacterStatus,
   getGetWalletTransactionsQueryKey,
@@ -280,15 +279,7 @@ function UpdatesLog({ characterId }: { characterId: number }) {
 }
 
 function CheckupStreakCard({ characterId }: { characterId: number }) {
-  const qc = useQueryClient();
-  const me = useAuthMe();
   const { data: char } = useGetCharacter(characterId);
-  const isAdmin = !!me.data?.isAdmin;
-  const recordCheckup = useAdminRecordCheckup({
-    mutation: {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(characterId) }),
-    },
-  });
   if (!char) return null;
   const last = char.lastCheckupAt ? new Date(char.lastCheckupAt) : null;
   // Weeks since this character's last checkup. Note: the household
@@ -298,48 +289,38 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
   const weeksSince = last
     ? Math.max(1, Math.floor((Date.now() - last.getTime()) / (7 * 86400000)) + 1)
     : null;
-  if (weeksSince === null && !isAdmin) return null;
   const danger = weeksSince !== null && weeksSince >= 4;
+  // No button: checkups are a PER-USER action recorded by a ripperdoc,
+  // not something a player triggers on their own character. The
+  // ripperdoc console (/ripperdocs/...) is the only legitimate entry
+  // point. This card is read-only status.
   return (
     <Card
       className={`rounded-none border ${danger ? "border-destructive bg-destructive/10" : "border-border bg-card/50"}`}
       data-testid="card-checkup-streak"
     >
-      <CardContent className="py-3 flex items-center justify-between gap-3 font-mono text-sm">
-        <div>
-          <div className={`uppercase tracking-widest text-xs ${danger ? "text-destructive" : "text-nc-cyan"}`}>
-            CYBERWARE CHECKUP
-          </div>
-          <div className="text-foreground">
-            {last === null ? (
-              <>No checkup recorded yet — household will bill at the max streak.</>
-            ) : (
-              <>
-                Last checkup <span className="text-foreground">{last.toLocaleDateString()}</span>
-                {" · "}
-                <span className={danger ? "text-destructive font-bold" : "text-nc-yellow"}>
-                  week {weeksSince}
-                </span>{" "}
-                of the doubling streak.
-              </>
-            )}
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              Any of your characters getting a checkup resets the streak for the whole household.
-            </div>
-          </div>
+      <CardContent className="py-3 font-mono text-sm space-y-1">
+        <div className={`uppercase tracking-widest text-xs ${danger ? "text-destructive" : "text-nc-cyan"}`}>
+          CYBERWARE CHECKUP
         </div>
-        {isAdmin && (
-          <Button
-            type="button"
-            size="sm"
-            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-            onClick={() => recordCheckup.mutate({ id: characterId })}
-            disabled={recordCheckup.isPending}
-            data-testid="button-record-checkup"
-          >
-            {recordCheckup.isPending ? "RECORDING..." : "RECORD CHECKUP"}
-          </Button>
-        )}
+        <div className="text-foreground leading-relaxed">
+          {last === null ? (
+            <>No checkup recorded yet — household will bill at the max streak.</>
+          ) : (
+            <>
+              Last checkup <span className="text-foreground">{last.toLocaleDateString()}</span>
+              {" · "}
+              <span className={danger ? "text-destructive font-bold" : "text-nc-yellow"}>
+                week {weeksSince}
+              </span>{" "}
+              of the doubling streak.
+            </>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground leading-relaxed">
+          Checkups are tracked per player, not per character. Visit a ripperdoc to reset
+          the streak — any checkup clears it for your whole household.
+        </div>
       </CardContent>
     </Card>
   );
