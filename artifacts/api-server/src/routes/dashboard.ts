@@ -12,6 +12,8 @@ import {
   housing,
   walletTransactions,
   inventoryItems,
+  botCyberwareStatus,
+  botCyberwareWeeklyRuns,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
@@ -142,13 +144,56 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   for (const r of chromeCountsRaw) {
     if (r.characterId != null) chromeCounts.set(r.characterId, r.count);
   }
-  const lastCheckupAt = billable.reduce<Date | null>((acc, c) => {
+  // Per-user checkup state. The portal stores characters.lastCheckupAt per
+  // character, but the legacy bot (and current weekly cron) track checkups
+  // PER USER — one ripperdoc visit on any character resets the streak for
+  // every character that user owns. Trust botCyberwareStatus first (it's
+  // the authoritative per-user mirror; weeks = weeks since last checkup,
+  // lastProcessed = most recent weekly cron tick that touched this user).
+  // Fall back to the max(lastCheckupAt) across the household only if no
+  // per-user row exists — this is the case for brand-new portal users who
+  // were never tracked by the bot.
+  const charLastCheckup = billable.reduce<Date | null>((acc, c) => {
     if (!c.lastCheckupAt) return acc;
     if (!acc || c.lastCheckupAt > acc) return c.lastCheckupAt;
     return acc;
   }, null);
   const nextRunDate = nextWeeklyRunDate(now);
-  const weeksUnpaid = weeksSinceLastCheckup(lastCheckupAt, nextRunDate);
+  const discordId = req.user!.discordId;
+  const [botRow] = await db
+    .select()
+    .from(botCyberwareStatus)
+    .where(eq(botCyberwareStatus.userId, discordId))
+    .limit(1);
+  // Try to resolve an exact checkup date from the bot's weekly_runs log
+  // (each row's checkup_ids array lists the discord IDs that paid for a
+  // checkup that week). If the user has a row in cyberware_status but no
+  // matching run (older history), approximate as last_processed - weeks*7d
+  // so the UI shows roughly when the streak started rather than "never".
+  let lastCheckupAt: Date | null = charLastCheckup;
+  let weeksUnpaid = weeksSinceLastCheckup(charLastCheckup, nextRunDate);
+  if (botRow) {
+    weeksUnpaid = botRow.weeks ?? weeksUnpaid;
+    // checkupIds is a jsonb array of discord-id strings. Use `?` (jsonb
+    // top-level key/element containment) which is the explicit predicate
+    // for "this array contains this string". Safer than scalar @> tricks.
+    const [lastRun] = await db
+      .select({ runAt: botCyberwareWeeklyRuns.runAt })
+      .from(botCyberwareWeeklyRuns)
+      .where(sql`${botCyberwareWeeklyRuns.checkupIds} ? ${discordId}`)
+      .orderBy(desc(botCyberwareWeeklyRuns.runAt))
+      .limit(1);
+    if (lastRun?.runAt) {
+      lastCheckupAt = lastRun.runAt;
+    } else if (botRow.lastProcessed && (botRow.weeks ?? 0) >= 0) {
+      const approx = new Date(botRow.lastProcessed.getTime() - (botRow.weeks ?? 0) * 7 * 86_400_000);
+      lastCheckupAt = approx;
+    }
+    // Don't let charLastCheckup beat a fresher value from the bot mirror.
+    if (charLastCheckup && (!lastCheckupAt || charLastCheckup > lastCheckupAt)) {
+      lastCheckupAt = charLastCheckup;
+    }
+  }
   const maxChromeCount = billable.reduce((m, c) => Math.max(m, chromeCounts.get(c.id) ?? 0), 0);
   const household = billable.filter((c) => (chromeCounts.get(c.id) ?? 0) >= 7).length;
   // Anchor character = the one driving the band (highest chrome). Used so
@@ -213,12 +258,18 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // Rough monthly estimate = next rent + (weekly meds * ~4.33 weeks).
   const monthlyEstimate = nextRentTotal + Math.round(nextMedsTotal * 4.33);
 
+  // Report the same effective week count the meds calculation actually used
+  // (projectedWeeklyMeds floors at 1). Otherwise we end up displaying
+  // "0 weeks unpaid · €$X meds owed" right after a checkup, which looks
+  // contradictory even though the math is correct.
+  const reportedWeeksUnpaid = proj.weeksUnpaid;
+
   res.json({
     rent,
     meds,
     cyberwareStatus: {
       lastCheckupAt: lastCheckupAtIso,
-      weeksUnpaid,
+      weeksUnpaid: reportedWeeksUnpaid,
       household,
       multiplier: Number(((household <= 1) ? 1 : (1 + 0.25 * (household - 1))).toFixed(2)),
     },

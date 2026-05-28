@@ -239,13 +239,38 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
     res.status(400).json({ error: `cyberwareLevel must be one of: ${[...CYBERWARE_LEVELS].join(", ")}` });
     return;
   }
-  const patch: Record<string, unknown> = { lastCheckupAt: new Date(), checkupStreak: 0 };
+  const now = new Date();
+  const patch: Record<string, unknown> = { lastCheckupAt: now, checkupStreak: 0 };
   if (rawLevel) patch.cyberwareLevel = rawLevel;
   const [updated] = await db
     .update(characters)
     .set(patch)
     .where(eq(characters.id, id))
     .returning();
+  // Mirror the checkup into the per-user bot_cyberware_status table — the
+  // dashboard's UPCOMING_BILLS card reads from there first, since checkups
+  // are a per-USER concept (one ripperdoc visit resets the streak for every
+  // character that user owns, regardless of which character was examined).
+  // Without this, a fresh checkup would show in characters.lastCheckupAt
+  // but the dashboard would still report the old stale streak from the
+  // legacy mirror. Owner can be null on orphan characters — skip the mirror
+  // write if so; the character-level reset above is still applied.
+  if (updated.ownerId) {
+    const [owner] = await db
+      .select({ discordId: users.discordId })
+      .from(users)
+      .where(eq(users.id, updated.ownerId))
+      .limit(1);
+    if (owner?.discordId) {
+      await db
+        .insert(botCyberwareStatus)
+        .values({ userId: owner.discordId, weeks: 0, lastProcessed: now, updatedAt: now })
+        .onConflictDoUpdate({
+          target: botCyberwareStatus.userId,
+          set: { weeks: 0, lastProcessed: now, updatedAt: now },
+        });
+    }
+  }
   const levelNote = rawLevel ? ` (level: ${rawLevel})` : "";
   await db.insert(activityEvents).values({
     kind: "checkup",

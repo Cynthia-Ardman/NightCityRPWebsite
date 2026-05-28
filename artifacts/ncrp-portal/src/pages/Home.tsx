@@ -57,59 +57,64 @@ function Dashboard() {
 
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard icon={Users} label="Total Characters" value={summary.characterCount} color="cyan" />
-          <StatCard icon={Wallet} label="Total Eddies" value={`€$${summary.totalEddies.toLocaleString()}`} color="yellow" />
-          <StatCard icon={Store} label="Open Shops" value={summary.openShops} color="magenta" />
-          <StatCard icon={Activity} label="Pending Sheets" value={summary.pendingSheets} color="red" />
+          <StatCard icon={Users} label="Total Characters" value={summary.characterCount} color="cyan" href="/characters" />
+          <StatCard icon={Wallet} label="Total Eddies" value={`€$${summary.totalEddies.toLocaleString()}`} color="yellow" href="/characters" />
+          <StatCard icon={Store} label="Open Shops" value={summary.openShops} color="magenta" href="/stores" />
+          <StatCard icon={Activity} label="Pending Sheets" value={summary.pendingSheets} color="red" href="/sheets/pending" />
         </div>
       )}
 
+      {/* Layout flipped: characters live on /characters, so on the dashboard they
+          collapse to a compact left-rail list. Bills / attendance / system logs
+          are the actual reason you visit the dashboard, so they get the wide
+          column. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-4 lg:order-1">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-display font-bold text-foreground" data-testid="text-my-chars-title">MY_CHARACTERS</h2>
-            <Button asChild variant="outline" size="sm" className="border-nc-cyan text-nc-cyan rounded-none hover:bg-nc-cyan/10">
+            <h2 className="text-xl font-display font-bold text-foreground" data-testid="text-my-chars-title">MY_CHARACTERS</h2>
+            <Button asChild variant="outline" size="sm" className="border-nc-cyan text-nc-cyan rounded-none hover:bg-nc-cyan/10 h-7 px-2 text-xs">
               <Link href="/characters">VIEW_ALL</Link>
             </Button>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {characters?.map(char => (
-              <Link key={char.id} href={`/characters/${char.id}`}>
-                <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan/50 hover:bg-card transition-all cursor-pointer group" data-testid={`card-dashboard-char-${char.id}`}>
-                  <CardHeader className="flex flex-row items-center gap-4 pb-2">
-                    <Avatar className="h-20 w-20 border border-border rounded-none group-hover:border-nc-cyan transition-colors shadow-sm">
-                      <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} className="object-cover" />
-                      <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-2xl">
-                        {char.name.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-lg font-display group-hover:text-nc-cyan transition-colors">{char.name}</CardTitle>
-                      <CardDescription className="font-mono text-xs uppercase">{char.kind} // {char.archetype || 'UNKNOWN'}</CardDescription>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-xs font-mono text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <span className={`w-2 h-2 rounded-full ${char.isActive ? 'bg-nc-cyan' : 'bg-muted'} shadow-[0_0_5px_currentColor]`} />
-                        {char.isActive ? 'ACTIVE' : 'STANDBY'}
-                      </span>
-                      {char.approved && <span className="text-nc-cyan">APPROVED</span>}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-            {(!characters || characters.length === 0) && (
-              <div className="col-span-full py-8 text-center border border-dashed border-border bg-card/30 text-muted-foreground font-mono text-sm">
-                NO_CHARACTERS_FOUND.
-              </div>
-            )}
-          </div>
+
+          <Card className="rounded-none border-border bg-card/50">
+            <CardContent className="p-0">
+              {(!characters || characters.length === 0) ? (
+                <div className="p-4 text-center text-muted-foreground font-mono text-xs">NO_CHARACTERS_FOUND.</div>
+              ) : (
+                <div className="divide-y divide-border/50 max-h-[640px] overflow-y-auto">
+                  {characters.map(char => (
+                    <Link key={char.id} href={`/characters/${char.id}`}>
+                      <div className="p-2 flex items-center gap-3 hover:bg-nc-cyan/5 cursor-pointer group" data-testid={`row-dashboard-char-${char.id}`}>
+                        <Avatar className="h-10 w-10 border border-border rounded-none group-hover:border-nc-cyan transition-colors shrink-0">
+                          <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} className="object-cover" />
+                          <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-xs">
+                            {char.name.substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-display text-sm truncate group-hover:text-nc-cyan transition-colors">{char.name}</div>
+                          <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">
+                            {char.kind} · {char.archetype || 'UNKNOWN'}
+                          </div>
+                        </div>
+                        <div className="text-[10px] font-mono shrink-0 flex flex-col items-end gap-0.5">
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <span className={`w-1.5 h-1.5 rounded-full ${char.isActive ? 'bg-nc-cyan' : 'bg-muted'}`} />
+                            {char.isActive ? 'ACTIVE' : 'STANDBY'}
+                          </span>
+                          {char.approved && <span className="text-nc-cyan">APPROVED</span>}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="lg:col-span-2 space-y-6 lg:order-2">
           <AttendCard />
           <UpcomingBillsCard />
           <SystemLogsCard />
@@ -566,12 +571,12 @@ function BillSection({
   );
 }
 
-function StatCard({ icon: Icon, label, value, color }: { icon: any, label: string, value: string | number, color: 'cyan' | 'magenta' | 'yellow' | 'red' }) {
+function StatCard({ icon: Icon, label, value, color, href }: { icon: any, label: string, value: string | number, color: 'cyan' | 'magenta' | 'yellow' | 'red', href?: string }) {
   const colorMap = {
-    cyan: 'text-nc-cyan border-nc-cyan/30 bg-nc-cyan/5 shadow-[0_0_15px_rgba(0,255,255,0.05)]',
-    magenta: 'text-nc-magenta border-nc-magenta/30 bg-nc-magenta/5 shadow-[0_0_15px_rgba(255,0,255,0.05)]',
-    yellow: 'text-nc-yellow border-nc-yellow/30 bg-nc-yellow/5 shadow-[0_0_15px_rgba(255,255,0,0.05)]',
-    red: 'text-destructive border-destructive/30 bg-destructive/5 shadow-[0_0_15px_rgba(255,0,0,0.05)]'
+    cyan: 'text-nc-cyan border-nc-cyan/30 bg-nc-cyan/5 shadow-[0_0_15px_rgba(0,255,255,0.05)] hover:border-nc-cyan/60',
+    magenta: 'text-nc-magenta border-nc-magenta/30 bg-nc-magenta/5 shadow-[0_0_15px_rgba(255,0,255,0.05)] hover:border-nc-magenta/60',
+    yellow: 'text-nc-yellow border-nc-yellow/30 bg-nc-yellow/5 shadow-[0_0_15px_rgba(255,255,0,0.05)] hover:border-nc-yellow/60',
+    red: 'text-destructive border-destructive/30 bg-destructive/5 shadow-[0_0_15px_rgba(255,0,0,0.05)] hover:border-destructive/60'
   };
 
   const iconColorMap = {
@@ -581,8 +586,8 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any, label: strin
     red: 'text-destructive'
   };
 
-  return (
-    <Card className={`rounded-none border ${colorMap[color]} transition-all hover:brightness-125`} data-testid={`card-stat-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+  const card = (
+    <Card className={`rounded-none border ${colorMap[color]} transition-all ${href ? 'hover:brightness-125 cursor-pointer' : 'hover:brightness-125'} h-full`} data-testid={`card-stat-${label.toLowerCase().replace(/\s+/g, '-')}`}>
       <CardContent className="p-4 md:p-6 flex flex-col gap-2">
         <Icon className={`w-6 h-6 ${iconColorMap[color]}`} />
         <div className="text-3xl font-display font-bold text-foreground mt-2">{value}</div>
@@ -590,4 +595,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any, label: strin
       </CardContent>
     </Card>
   );
+
+  if (href) return <Link href={href}>{card}</Link>;
+  return card;
 }
