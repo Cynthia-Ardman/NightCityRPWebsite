@@ -468,9 +468,11 @@ function UpcomingBillsCard() {
                 }))}
               />
 
-              {(data.cyberwareStatus.household > 0 || data.meds.length > 0 || (data.cyberwareStatus.breakdown?.length ?? 0) > 0) && (
-                <CyberwareStatusPanel status={data.cyberwareStatus} />
-              )}
+              {/* Always render so the checkup history, multiplier and band
+                  breakdown stay visible even when the household isn't being
+                  billed this week (e.g. just had a checkup, or no PC is
+                  above 7 CWP yet). */}
+              <CyberwareStatusPanel status={data.cyberwareStatus} />
 
               {data.leases.length > 0 && (
                 <div className="space-y-2">
