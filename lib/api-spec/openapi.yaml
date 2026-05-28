@@ -295,6 +295,22 @@ paths:
         "502": { description: Wallet provider unavailable }
 
   # ---------------- WALLET (UnbelievaBoat is source of truth) ----------------
+  /inventory-items/{uuid}:
+    parameters:
+      - { in: path, name: uuid, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getInventoryItemHistory
+      tags: [inventory]
+      summary: Per-instance chain of custody (owner or fixer/admin)
+      responses:
+        "200":
+          description: Item plus event timeline
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryItemHistory" }
+        "403": { description: Not owner / not staff }
+        "404": { description: Unknown uuid }
+
   /characters/{id}/wallet:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -987,6 +1003,20 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/FixerNpc" }
+  /fixer/inventory-search:
+    get:
+      operationId: searchInventoryByOwner
+      tags: [fixer]
+      summary: Cross-character inventory search (fixer/admin) by item name and/or owner character name
+      parameters:
+        - { in: query, name: q, schema: { type: string }, description: "Item name fragment (ILIKE)" }
+        - { in: query, name: owner, schema: { type: string }, description: "Character name fragment matched against current owner and event log past owners (ILIKE)" }
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventorySearchResult" }
   /fixer/npcs/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1884,15 +1914,87 @@ components:
 
     InventoryItem:
       type: object
-      required: [id, characterId, name, quantity]
+      required: [id, instanceUuid, characterId, name, quantity]
       properties:
         id: { type: integer }
-        characterId: { type: integer }
+        instanceUuid:
+          type: string
+          format: uuid
+          description: "Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion."
+        characterId: { type: ["integer", "null"] }
         name: { type: string }
         category: { type: ["string", "null"] }
         quantity: { type: integer }
         notes: { type: ["string", "null"] }
         equipped: { type: boolean }
+
+    InventoryEvent:
+      type: object
+      required: [id, instanceUuid, kind, itemName, createdAt]
+      properties:
+        id: { type: integer }
+        instanceUuid: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [created, transferred, sold, split, adjusted, consumed, destroyed, history_begins]
+        actorId: { type: ["string", "null"] }
+        actorName: { type: ["string", "null"] }
+        fromCharacterId: { type: ["integer", "null"] }
+        fromCharacterName: { type: ["string", "null"] }
+        toCharacterId: { type: ["integer", "null"] }
+        toCharacterName: { type: ["string", "null"] }
+        itemName: { type: string }
+        quantity: { type: ["integer", "null"] }
+        price: { type: ["integer", "null"] }
+        reason: { type: ["string", "null"] }
+        metadata: { type: ["object", "null"], additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+
+    InventoryItemHistory:
+      type: object
+      required: [item, events]
+      properties:
+        item: { oneOf: [{ $ref: "#/components/schemas/InventoryItem" }, { type: "null" }] }
+        currentCharacter:
+          type: ["object", "null"]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/InventoryEvent" }
+
+    InventorySearchHit:
+      type: object
+      required: [id, instanceUuid, name, quantity]
+      properties:
+        id: { type: integer }
+        instanceUuid: { type: string, format: uuid }
+        name: { type: string }
+        category: { type: ["string", "null"] }
+        quantity: { type: integer }
+        characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
+        ownerUserId: { type: ["string", "null"] }
+        ownerUsername: { type: ["string", "null"] }
+        acquiredAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    InventorySearchResult:
+      type: object
+      required: [items, pastOwners]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/InventorySearchHit" }
+        pastOwners:
+          type: array
+          items:
+            type: object
+            required: [event]
+            properties:
+              event: { $ref: "#/components/schemas/InventoryEvent" }
+              liveItem: { oneOf: [{ $ref: "#/components/schemas/InventoryItem" }, { type: "null" }] }
 
     InventoryItemInput:
       type: object

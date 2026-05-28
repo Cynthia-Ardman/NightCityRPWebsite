@@ -8,7 +8,10 @@
 
 export interface InventoryItem {
   id: number;
-  characterId: number;
+  /** Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion. */
+  instanceUuid: string;
+  /** @nullable */
+  characterId: number | null;
   name: string;
   /** @nullable */
   category?: string | null;

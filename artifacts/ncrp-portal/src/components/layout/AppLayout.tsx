@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMyWallet, getGetMyWalletQueryKey } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -113,6 +113,7 @@ function SidebarContent() {
         {user?.isStoreOwner && <NavItem href="/stores" icon={Store} label="Manage Stores" />}
         {user?.isRipperdoc && <NavItem href="/clinics" icon={Syringe} label="Manage Clinics" />}
         {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
+        {user?.isFixer && <NavItem href="/fixer/items" icon={Search} label="Item Trace" />}
         {user?.isFixer && !user?.isAdmin && <NavItem href="/admin" icon={Shield} label="Character Console" />}
         {user?.isCsApprover && <NavItem href="/sheets/pending" icon={FileText} label="Pending Sheets" />}
         {user && (user.isFixer || user.isCsApprover || user.isAdmin) && (

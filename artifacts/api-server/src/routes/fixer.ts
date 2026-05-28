@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
-import { db, fixerNpcs, missionLog, characters, users, walletTransactions, activityEvents } from "@workspace/db";
-import { requireAuth, requireRole } from "../middlewares/auth";
+import { eq, and, desc, or, ilike, inArray, sql } from "drizzle-orm";
+import { db, fixerNpcs, missionLog, characters, users, walletTransactions, activityEvents, inventoryItems, inventoryEvents } from "@workspace/db";
+import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { patchBalance } from "../lib/unbelievaboat";
 import { logger } from "../lib/logger";
 
@@ -203,6 +203,71 @@ router.post("/fixer/missions", requireAuth, requireRole("FIXER"), async (req, re
     characterName: creditedCharacter?.name ?? null,
     fixerName: req.user!.username,
   });
+});
+
+// ===== Cross-character inventory search (fixer/admin) =====
+// Lets fixers and admins resolve "who has/had this item?" disputes. Searches
+// across all live inventory items by name OR by current/past owner character
+// name (matched via the events log). Returns the live item rows plus, for each
+// past-owner hit, the matching event so the UI can show "owned by X then sold
+// to Y" without a separate per-item drill-in.
+router.get("/fixer/inventory-search", requireAuth, requireAnyRole(["FIXER", "ADMIN"]), async (req, res): Promise<void> => {
+  const q = String(req.query.q ?? "").trim();
+  const owner = String(req.query.owner ?? "").trim();
+  if (!q && !owner) {
+    res.json({ items: [], pastOwners: [] });
+    return;
+  }
+  // Live items matching name or current-character name.
+  const liveConds: ReturnType<typeof ilike>[] = [];
+  if (q) liveConds.push(ilike(inventoryItems.name, `%${q}%`));
+  if (owner) liveConds.push(ilike(characters.name, `%${owner}%`));
+  const live = await db
+    .select({
+      id: inventoryItems.id,
+      instanceUuid: inventoryItems.instanceUuid,
+      name: inventoryItems.name,
+      category: inventoryItems.category,
+      quantity: inventoryItems.quantity,
+      characterId: inventoryItems.characterId,
+      characterName: characters.name,
+      ownerUserId: characters.ownerId,
+      ownerUsername: users.username,
+      acquiredAt: inventoryItems.acquiredAt,
+      createdAt: inventoryItems.createdAt,
+    })
+    .from(inventoryItems)
+    .leftJoin(characters, eq(characters.id, inventoryItems.characterId))
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .where(liveConds.length === 1 ? liveConds[0] : or(...liveConds))
+    .orderBy(desc(inventoryItems.createdAt))
+    .limit(200);
+  // Past-owner hits via events log (only meaningful when an owner-name search
+  // was supplied). Returns the event row plus the live item if it still exists.
+  let pastOwners: Array<{ event: typeof inventoryEvents.$inferSelect; liveItem: typeof inventoryItems.$inferSelect | null }> = [];
+  if (owner) {
+    const matched = await db
+      .select()
+      .from(inventoryEvents)
+      .where(
+        or(
+          ilike(inventoryEvents.fromCharacterName, `%${owner}%`),
+          ilike(inventoryEvents.toCharacterName, `%${owner}%`),
+        ),
+      )
+      .orderBy(desc(inventoryEvents.createdAt))
+      .limit(200);
+    // Filter further by q on item name, if supplied.
+    const filtered = q ? matched.filter((e) => e.itemName.toLowerCase().includes(q.toLowerCase())) : matched;
+    const uuids = Array.from(new Set(filtered.map((e) => e.instanceUuid)));
+    const liveByUuid = new Map<string, typeof inventoryItems.$inferSelect>();
+    if (uuids.length) {
+      const rows = await db.select().from(inventoryItems).where(inArray(inventoryItems.instanceUuid, uuids));
+      for (const r of rows) liveByUuid.set(r.instanceUuid, r);
+    }
+    pastOwners = filtered.map((e) => ({ event: e, liveItem: liveByUuid.get(e.instanceUuid) ?? null }));
+  }
+  res.json({ items: live, pastOwners });
 });
 
 export default router;

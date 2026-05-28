@@ -18,6 +18,7 @@ import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { logger } from "../lib/logger";
+import { recordInventoryEvent } from "../lib/inventoryEvents";
 
 const router: IRouter = Router();
 
@@ -296,6 +297,19 @@ async function sellFromVenue(opts: {
     res.status(500).json({ error: "Inventory write failed after wallet writes; contact an admin." });
     return;
   }
+  await recordInventoryEvent({
+    instanceUuid: inserted.instanceUuid,
+    kind: "created",
+    actorId: actor.id,
+    actorName: actor.username,
+    toCharacterId: buyer.id,
+    toCharacterName: buyer.name,
+    itemName: inserted.name,
+    quantity: qty,
+    price: totalPaid,
+    reason: `Sold at ${venue.name}`,
+    metadata: { venueKind: kind, venueId, venueName: venue.name, stockId, memo: memo ?? null },
+  });
   // Ledger entries (cosmetic; UB is authoritative for balance).
   await db.insert(walletTransactions).values([
     {

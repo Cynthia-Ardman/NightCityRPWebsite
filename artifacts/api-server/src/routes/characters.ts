@@ -7,6 +7,7 @@ import {
   characterStatus,
   characterUpdates,
   inventoryItems,
+  inventoryEvents,
   walletTransactions,
   users,
   activityEvents,
@@ -16,6 +17,8 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { createPendingEdit } from "./pending-edits";
+import { recordInventoryEvent } from "../lib/inventoryEvents";
+import { hasRole } from "../lib/discord";
 
 const router: IRouter = Router();
 
@@ -292,6 +295,7 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
     .insert(inventoryItems)
     .values({
       characterId: id,
+      ownerId: req.user!.id,
       name,
       category: category ?? null,
       quantity: quantity ?? 1,
@@ -303,6 +307,17 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
     characterId: id,
     authorId: req.user!.id,
     note: `Added inventory item: ${name}${quantity && quantity > 1 ? ` ×${quantity}` : ""}${category ? ` [${category}]` : ""}`,
+  });
+  await recordInventoryEvent({
+    instanceUuid: it.instanceUuid,
+    kind: "created",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    toCharacterId: c.id,
+    toCharacterName: c.name,
+    itemName: it.name,
+    quantity: it.quantity,
+    reason: "Player added item to inventory",
   });
   res.status(201).json(it);
 });
@@ -316,7 +331,14 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
     return;
   }
   const { name, category, quantity, notes, equipped } = req.body ?? {};
-  const [prev] = await db.select().from(inventoryItems).where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+  const [before] = await db
+    .select()
+    .from(inventoryItems)
+    .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+  if (!before) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
   const [u] = await db
     .update(inventoryItems)
     .set({
@@ -328,24 +350,42 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
     })
     .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)))
     .returning();
-  if (!u) {
-    res.status(404).json({ error: "Item not found" });
-    return;
+  // Log meaningful adjustments: rename, recategorize, requantify, or notes
+  // change. Skip equip toggles (too chatty for the audit log).
+  const changedFields: string[] = [];
+  if (name !== undefined && name !== before.name) changedFields.push("name");
+  if (category !== undefined && category !== before.category) changedFields.push("category");
+  if (quantity !== undefined && quantity !== before.quantity) changedFields.push("quantity");
+  if (notes !== undefined && notes !== before.notes) changedFields.push("notes");
+  if (changedFields.length > 0) {
+    await recordInventoryEvent({
+      instanceUuid: before.instanceUuid,
+      kind: "adjusted",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      toCharacterId: c.id,
+      toCharacterName: c.name,
+      itemName: u.name,
+      quantity: u.quantity,
+      reason: `Owner edited: ${changedFields.join(", ")}`,
+      metadata: {
+        before: { name: before.name, category: before.category, quantity: before.quantity, notes: before.notes },
+        after: { name: u.name, category: u.category, quantity: u.quantity, notes: u.notes },
+      },
+    });
   }
-  if (prev) {
-    const diffs: string[] = [];
-    if (name !== undefined && name !== prev.name) diffs.push(`name: "${prev.name}" → "${name}"`);
-    if (quantity !== undefined && quantity !== prev.quantity) diffs.push(`qty: ${prev.quantity} → ${quantity}`);
-    if (equipped !== undefined && equipped !== prev.equipped) diffs.push(equipped ? "equipped" : "unequipped");
-    if (category !== undefined && category !== prev.category) diffs.push(`category: ${prev.category ?? "—"} → ${category ?? "—"}`);
-    if (notes !== undefined && notes !== prev.notes) diffs.push("notes updated");
-    if (diffs.length) {
-      await db.insert(characterUpdates).values({
-        characterId: cid,
-        authorId: req.user!.id,
-        note: `Inventory item "${u.name}": ${diffs.join(", ")}`,
-      });
-    }
+  const diffs: string[] = [];
+  if (name !== undefined && name !== before.name) diffs.push(`name: "${before.name}" → "${name}"`);
+  if (quantity !== undefined && quantity !== before.quantity) diffs.push(`qty: ${before.quantity} → ${quantity}`);
+  if (equipped !== undefined && equipped !== before.equipped) diffs.push(equipped ? "equipped" : "unequipped");
+  if (category !== undefined && category !== before.category) diffs.push(`category: ${before.category ?? "—"} → ${category ?? "—"}`);
+  if (notes !== undefined && notes !== before.notes) diffs.push("notes updated");
+  if (diffs.length) {
+    await db.insert(characterUpdates).values({
+      characterId: cid,
+      authorId: req.user!.id,
+      note: `Inventory item "${u.name}": ${diffs.join(", ")}`,
+    });
   }
   res.json(u);
 });
@@ -358,13 +398,27 @@ router.delete("/characters/:cid/inventory/:itemId", requireAuth, async (req, res
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const [prev] = await db.select().from(inventoryItems).where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+  const [doomed] = await db
+    .select()
+    .from(inventoryItems)
+    .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
   await db.delete(inventoryItems).where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
-  if (prev) {
+  if (doomed) {
     await db.insert(characterUpdates).values({
       characterId: cid,
       authorId: req.user!.id,
-      note: `Removed inventory item: ${prev.name}${prev.quantity > 1 ? ` ×${prev.quantity}` : ""}`,
+      note: `Removed inventory item: ${doomed.name}${doomed.quantity > 1 ? ` ×${doomed.quantity}` : ""}`,
+    });
+    await recordInventoryEvent({
+      instanceUuid: doomed.instanceUuid,
+      kind: "destroyed",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      fromCharacterId: c.id,
+      fromCharacterName: c.name,
+      itemName: doomed.name,
+      quantity: doomed.quantity,
+      reason: "Removed from inventory",
     });
   }
   res.sendStatus(204);
@@ -486,21 +540,27 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
     ]);
   }
 
-  // Move the item. If sender keeps any (partial transfer) decrement; otherwise delete.
+  // Move the item. If sender keeps any (partial transfer) decrement and insert
+  // a new instance for the recipient (the split creates a new chain); otherwise
+  // reassign characterId so the same instanceUuid persists across owners.
+  let movedUuid: string = item.instanceUuid;
+  let movedName: string = item.name;
+  let splitParentUuid: string | null = null;
   try {
     if (qty === item.quantity) {
-      // Whole stack moves: reassign characterId. Preserve fields.
+      // Whole stack moves: reassign characterId + ownerId. Preserve instanceUuid.
       await db
         .update(inventoryItems)
-        .set({ characterId: to.id })
+        .set({ characterId: to.id, ownerId: to.ownerId, equipped: false })
         .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
     } else {
       await db
         .update(inventoryItems)
         .set({ quantity: item.quantity - qty })
         .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
-      await db.insert(inventoryItems).values({
+      const [inserted] = await db.insert(inventoryItems).values({
         characterId: to.id,
+        ownerId: to.ownerId,
         name: item.name,
         category: item.category,
         quantity: qty,
@@ -508,7 +568,10 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
         equipped: false,
         pricePaid: mode === "sell" ? Number(price) : null,
         acquiredAt: new Date(),
-      });
+      }).returning();
+      splitParentUuid = item.instanceUuid;
+      movedUuid = inserted.instanceUuid;
+      movedName = inserted.name;
     }
   } catch (err) {
     // If item move fails after a successful sale, we cannot easily un-debit
@@ -550,13 +613,109 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
     { characterId: to.id, authorId: to.ownerId, note: recipientNote },
   ]);
 
+  // Per-instance audit log. For a partial transfer we record two events:
+  // a "split" against the source instance and a "created" for the new
+  // recipient instance (so its chain begins at the split point). For a
+  // whole-stack move there is one event against the persistent uuid.
+  if (splitParentUuid) {
+    await recordInventoryEvent({
+      instanceUuid: splitParentUuid,
+      kind: "split",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      fromCharacterId: sender.id,
+      fromCharacterName: sender.name,
+      itemName: item.name,
+      quantity: qty,
+      reason: `Split ${qty} of ${item.quantity} for ${mode} to ${to.name}`,
+      metadata: { childInstanceUuid: movedUuid, mode, toCharacterId: to.id },
+    });
+    await recordInventoryEvent({
+      instanceUuid: movedUuid,
+      kind: mode === "sell" ? "sold" : "transferred",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      fromCharacterId: sender.id,
+      fromCharacterName: sender.name,
+      toCharacterId: to.id,
+      toCharacterName: to.name,
+      itemName: movedName,
+      quantity: qty,
+      price: mode === "sell" ? Number(price) : null,
+      reason: memo ?? null,
+      metadata: { splitFromInstanceUuid: splitParentUuid, mode },
+    });
+  } else {
+    await recordInventoryEvent({
+      instanceUuid: movedUuid,
+      kind: mode === "sell" ? "sold" : "transferred",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      fromCharacterId: sender.id,
+      fromCharacterName: sender.name,
+      toCharacterId: to.id,
+      toCharacterName: to.name,
+      itemName: movedName,
+      quantity: qty,
+      price: mode === "sell" ? Number(price) : null,
+      reason: memo ?? null,
+      metadata: { mode },
+    });
+  }
+
   const [moved] = await db
     .select()
     .from(inventoryItems)
-    .where(and(eq(inventoryItems.characterId, to.id), eq(inventoryItems.name, item.name)))
-    .orderBy(desc(inventoryItems.createdAt))
-    .limit(1);
+    .where(eq(inventoryItems.instanceUuid, movedUuid));
   res.json(moved ?? item);
+});
+
+// ===== Per-item chain of custody =====
+// Returns an item by its stable instanceUuid, plus the full event chain.
+// Scope: the current owner of the live item, OR any FIXER/ADMIN. If the
+// instance no longer exists (consumed/destroyed) only fixers/admins can
+// view it — there is no current player owner to authorize against.
+router.get("/inventory-items/:uuid", requireAuth, async (req, res): Promise<void> => {
+  const uuidParam = String(req.params.uuid);
+  if (!/^[0-9a-f-]{36}$/i.test(uuidParam)) {
+    res.status(400).json({ error: "Invalid instance uuid" });
+    return;
+  }
+  const [live] = await db
+    .select()
+    .from(inventoryItems)
+    .where(eq(inventoryItems.instanceUuid, uuidParam));
+  const isStaff = hasRole(req.user!.roles, "ADMIN") || hasRole(req.user!.roles, "FIXER");
+  if (!live && !isStaff) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (live && !isStaff) {
+    // Owner check — match by characterId belonging to the caller.
+    if (live.characterId == null) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const owned = await loadOwnedChar(req.user!.id, live.characterId);
+    if (!owned) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+  }
+  const events = await db
+    .select()
+    .from(inventoryEvents)
+    .where(eq(inventoryEvents.instanceUuid, uuidParam))
+    .orderBy(inventoryEvents.createdAt);
+  let currentCharacter: { id: number; name: string } | null = null;
+  if (live?.characterId != null) {
+    const [c] = await db
+      .select({ id: characters.id, name: characters.name })
+      .from(characters)
+      .where(eq(characters.id, live.characterId));
+    currentCharacter = c ?? null;
+  }
+  res.json({ item: live ?? null, currentCharacter, events });
 });
 
 // Wallet

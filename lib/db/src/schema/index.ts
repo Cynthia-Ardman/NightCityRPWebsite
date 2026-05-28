@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -9,8 +10,8 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  uuid,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 export const users = pgTable(
   "users",
@@ -118,6 +119,12 @@ export const characterStatus = pgTable("character_status", {
 
 export const inventoryItems = pgTable("inventory_items", {
   id: serial("id").primaryKey(),
+  // Stable per-instance identifier that survives transfers between characters.
+  // The numeric id is used by every existing route/UI as the primary key, so we
+  // keep it; this uuid is the durable handle the chain-of-custody log keys off
+  // of. When a stack splits on partial transfer, the new stack gets a fresh
+  // uuid (it is a new instance); the source keeps its uuid.
+  instanceUuid: uuid("instance_uuid").notNull().default(sql`gen_random_uuid()`).unique(),
   // characterId is nullable so legacy/migrated items can sit under a player's account
   // without being assigned to a specific character. The player picks the character later.
   characterId: integer("character_id").references(() => characters.id, { onDelete: "cascade" }),
@@ -131,6 +138,37 @@ export const inventoryItems = pgTable("inventory_items", {
   acquiredAt: timestamp("acquired_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+
+// Per-instance audit log: every meaningful state change for an inventory item
+// (creation, transfer, sale, split, adjustment, consumption, destruction) is
+// appended here. Keyed by inventoryItems.instanceUuid so the chain survives
+// even after the underlying row is deleted (consumed/destroyed).
+export const inventoryEvents = pgTable("inventory_events", {
+  id: serial("id").primaryKey(),
+  instanceUuid: uuid("instance_uuid").notNull(),
+  // One of: created | transferred | sold | split | adjusted | consumed | destroyed | history_begins
+  kind: text("kind").notNull(),
+  // Who performed the action (user id). Null for system actions (importer, cron).
+  actorId: text("actor_id"),
+  actorName: text("actor_name"),
+  fromCharacterId: integer("from_character_id"),
+  fromCharacterName: text("from_character_name"),
+  toCharacterId: integer("to_character_id"),
+  toCharacterName: text("to_character_name"),
+  // Snapshot of item name at event time (item may be renamed later).
+  itemName: text("item_name").notNull(),
+  quantity: integer("quantity"),
+  price: integer("price"),
+  reason: text("reason"),
+  // Free-form structured metadata (split parent uuid, venue id, mission id, etc).
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uuidIdx: index("inv_events_uuid_idx").on(t.instanceUuid),
+  createdIdx: index("inv_events_created_idx").on(t.createdAt),
+}));
+export type InventoryEvent = typeof inventoryEvents.$inferSelect;
 
 export const walletTransactions = pgTable("wallet_transactions", {
   id: serial("id").primaryKey(),

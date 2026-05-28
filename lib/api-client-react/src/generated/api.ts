@@ -60,8 +60,10 @@ import type {
   HydrateUsersInput,
   HydrateUsersResult,
   InventoryItem,
+  InventoryItemHistory,
   InventoryItemInput,
   InventoryItemUpdate,
+  InventorySearchResult,
   InventoryTransferInput,
   JobRunInput,
   JobRunResult,
@@ -88,6 +90,7 @@ import type {
   Ripperdoc,
   RipperdocPublic,
   RipperdocUpdate,
+  SearchInventoryByOwnerParams,
   SheetDecisionInput,
   StockInput,
   StockItem,
@@ -1491,6 +1494,83 @@ export const useTransferInventoryItem = <TError = ErrorType<void>,
       > => {
       return useMutation(getTransferInventoryItemMutationOptions(options));
     }
+
+export const getGetInventoryItemHistoryUrl = (uuid: string,) => {
+
+
+
+
+  return `/api/inventory-items/${uuid}`
+}
+
+/**
+ * @summary Per-instance chain of custody (owner or fixer/admin)
+ */
+export const getInventoryItemHistory = async (uuid: string, options?: RequestInit): Promise<InventoryItemHistory> => {
+
+  return customFetch<InventoryItemHistory>(getGetInventoryItemHistoryUrl(uuid),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInventoryItemHistoryQueryKey = (uuid: string,) => {
+    return [
+    `/api/inventory-items/${uuid}`
+    ] as const;
+    }
+
+
+export const getGetInventoryItemHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getInventoryItemHistory>>, TError = ErrorType<void>>(uuid: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInventoryItemHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInventoryItemHistoryQueryKey(uuid);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInventoryItemHistory>>> = ({ signal }) => getInventoryItemHistory(uuid, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(uuid), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInventoryItemHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInventoryItemHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getInventoryItemHistory>>>
+export type GetInventoryItemHistoryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Per-instance chain of custody (owner or fixer/admin)
+ */
+
+export function useGetInventoryItemHistory<TData = Awaited<ReturnType<typeof getInventoryItemHistory>>, TError = ErrorType<void>>(
+ uuid: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInventoryItemHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInventoryItemHistoryQueryOptions(uuid,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getGetWalletUrl = (id: number,) => {
 
@@ -4907,6 +4987,90 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getCreateFixerNpcMutationOptions(options));
     }
+
+export const getSearchInventoryByOwnerUrl = (params?: SearchInventoryByOwnerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/fixer/inventory-search?${stringifiedParams}` : `/api/fixer/inventory-search`
+}
+
+/**
+ * @summary Cross-character inventory search (fixer/admin) by item name and/or owner character name
+ */
+export const searchInventoryByOwner = async (params?: SearchInventoryByOwnerParams, options?: RequestInit): Promise<InventorySearchResult> => {
+
+  return customFetch<InventorySearchResult>(getSearchInventoryByOwnerUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchInventoryByOwnerQueryKey = (params?: SearchInventoryByOwnerParams,) => {
+    return [
+    `/api/fixer/inventory-search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchInventoryByOwnerQueryOptions = <TData = Awaited<ReturnType<typeof searchInventoryByOwner>>, TError = ErrorType<unknown>>(params?: SearchInventoryByOwnerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchInventoryByOwner>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchInventoryByOwnerQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchInventoryByOwner>>> = ({ signal }) => searchInventoryByOwner(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchInventoryByOwner>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchInventoryByOwnerQueryResult = NonNullable<Awaited<ReturnType<typeof searchInventoryByOwner>>>
+export type SearchInventoryByOwnerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Cross-character inventory search (fixer/admin) by item name and/or owner character name
+ */
+
+export function useSearchInventoryByOwner<TData = Awaited<ReturnType<typeof searchInventoryByOwner>>, TError = ErrorType<unknown>>(
+ params?: SearchInventoryByOwnerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchInventoryByOwner>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchInventoryByOwnerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getGetFixerNpcUrl = (id: number,) => {
 

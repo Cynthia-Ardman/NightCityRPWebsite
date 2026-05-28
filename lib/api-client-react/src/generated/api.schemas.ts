@@ -271,7 +271,10 @@ export interface CharacterUpdateNote {
 
 export interface InventoryItem {
   id: number;
-  characterId: number;
+  /** Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion. */
+  instanceUuid: string;
+  /** @nullable */
+  characterId: number | null;
   name: string;
   /** @nullable */
   category?: string | null;
@@ -279,6 +282,98 @@ export interface InventoryItem {
   /** @nullable */
   notes?: string | null;
   equipped?: boolean;
+}
+
+export type InventoryEventKind = typeof InventoryEventKind[keyof typeof InventoryEventKind];
+
+
+export const InventoryEventKind = {
+  created: 'created',
+  transferred: 'transferred',
+  sold: 'sold',
+  split: 'split',
+  adjusted: 'adjusted',
+  consumed: 'consumed',
+  destroyed: 'destroyed',
+  history_begins: 'history_begins',
+} as const;
+
+/**
+ * @nullable
+ */
+export type InventoryEventMetadata = { [key: string]: unknown } | null;
+
+export interface InventoryEvent {
+  id: number;
+  instanceUuid: string;
+  kind: InventoryEventKind;
+  /** @nullable */
+  actorId?: string | null;
+  /** @nullable */
+  actorName?: string | null;
+  /** @nullable */
+  fromCharacterId?: number | null;
+  /** @nullable */
+  fromCharacterName?: string | null;
+  /** @nullable */
+  toCharacterId?: number | null;
+  /** @nullable */
+  toCharacterName?: string | null;
+  itemName: string;
+  /** @nullable */
+  quantity?: number | null;
+  /** @nullable */
+  price?: number | null;
+  /** @nullable */
+  reason?: string | null;
+  /** @nullable */
+  metadata?: InventoryEventMetadata;
+  createdAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type InventoryItemHistoryCurrentCharacter = {
+  id?: number;
+  name?: string;
+} | null;
+
+export interface InventoryItemHistory {
+  item: InventoryItem | null;
+  /** @nullable */
+  currentCharacter?: InventoryItemHistoryCurrentCharacter;
+  events: InventoryEvent[];
+}
+
+export interface InventorySearchHit {
+  id: number;
+  instanceUuid: string;
+  name: string;
+  /** @nullable */
+  category?: string | null;
+  quantity: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  ownerUserId?: string | null;
+  /** @nullable */
+  ownerUsername?: string | null;
+  /** @nullable */
+  acquiredAt?: string | null;
+  createdAt?: string;
+}
+
+export type InventorySearchResultPastOwnersItem = {
+  event: InventoryEvent;
+  liveItem?: InventoryItem | null;
+};
+
+export interface InventorySearchResult {
+  items: InventorySearchHit[];
+  pastOwners: InventorySearchResultPastOwnersItem[];
 }
 
 export interface InventoryItemInput {
@@ -1515,6 +1610,17 @@ since?: string;
  * @maximum 500
  */
 limit?: number;
+};
+
+export type SearchInventoryByOwnerParams = {
+/**
+ * Item name fragment (ILIKE)
+ */
+q?: string;
+/**
+ * Character name fragment matched against current owner and event log past owners (ILIKE)
+ */
+owner?: string;
 };
 
 export type CancelPendingEdit200 = {

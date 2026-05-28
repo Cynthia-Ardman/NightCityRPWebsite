@@ -23,14 +23,13 @@ import {
   getGetCharacterQueryKey,
   useListMyMissions,
 } from "@workspace/api-client-react";
-import { Link } from "wouter";
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase } from "lucide-react";
+import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
@@ -459,6 +458,18 @@ function InventoryTab({ characterId }: { characterId: number }) {
                     EQ
                   </label>
                   <div className="col-span-3 flex justify-end gap-1">
+                    <Link href={`/items/${it.instanceUuid}`}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-nc-cyan h-8 px-2"
+                        title="View chain of custody"
+                        data-testid={`button-history-item-${it.id}`}
+                      >
+                        <History className="w-3 h-3" />
+                      </Button>
+                    </Link>
                     <Button
                       type="button"
                       variant="ghost"

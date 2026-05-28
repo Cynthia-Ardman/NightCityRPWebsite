@@ -238,7 +238,8 @@ export const GetCharacterInventoryParams = zod.object({
 
 export const GetCharacterInventoryResponseItem = zod.object({
   "id": zod.number(),
-  "characterId": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
   "name": zod.string(),
   "category": zod.string().nullish(),
   "quantity": zod.number(),
@@ -285,7 +286,8 @@ export const UpdateInventoryItemBody = zod.object({
 
 export const UpdateInventoryItemResponse = zod.object({
   "id": zod.number(),
-  "characterId": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
   "name": zod.string(),
   "category": zod.string().nullish(),
   "quantity": zod.number(),
@@ -322,12 +324,55 @@ export const TransferInventoryItemBody = zod.object({
 
 export const TransferInventoryItemResponse = zod.object({
   "id": zod.number(),
-  "characterId": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
   "name": zod.string(),
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "equipped": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Per-instance chain of custody (owner or fixer/admin)
+ */
+export const GetInventoryItemHistoryParams = zod.object({
+  "uuid": zod.coerce.string().uuid()
+})
+
+export const GetInventoryItemHistoryResponse = zod.object({
+  "item": zod.union([zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}),zod.null()]),
+  "currentCharacter": zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string().optional()
+}).nullish(),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid(),
+  "kind": zod.enum(['created', 'transferred', 'sold', 'split', 'adjusted', 'consumed', 'destroyed', 'history_begins']),
+  "actorId": zod.string().nullish(),
+  "actorName": zod.string().nullish(),
+  "fromCharacterId": zod.number().nullish(),
+  "fromCharacterName": zod.string().nullish(),
+  "toCharacterId": zod.number().nullish(),
+  "toCharacterName": zod.string().nullish(),
+  "itemName": zod.string(),
+  "quantity": zod.number().nullish(),
+  "price": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish(),
+  "createdAt": zod.coerce.date()
+}))
 })
 
 
@@ -824,7 +869,8 @@ export const SellStoreItemResponse = zod.object({
 }),
   "inventoryItem": zod.object({
   "id": zod.number(),
-  "characterId": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
   "name": zod.string(),
   "category": zod.string().nullish(),
   "quantity": zod.number(),
@@ -1214,7 +1260,8 @@ export const SellRipperdocItemResponse = zod.object({
 }),
   "inventoryItem": zod.object({
   "id": zod.number(),
-  "characterId": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
   "name": zod.string(),
   "category": zod.string().nullish(),
   "quantity": zod.number(),
@@ -1297,6 +1344,60 @@ export const CreateFixerNpcBody = zod.object({
   "description": zod.string().optional(),
   "portraitUrl": zod.string().optional(),
   "contact": zod.string().optional()
+})
+
+
+/**
+ * @summary Cross-character inventory search (fixer/admin) by item name and/or owner character name
+ */
+export const SearchInventoryByOwnerQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Item name fragment (ILIKE)'),
+  "owner": zod.coerce.string().optional().describe('Character name fragment matched against current owner and event log past owners (ILIKE)')
+})
+
+export const SearchInventoryByOwnerResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "ownerUserId": zod.string().nullish(),
+  "ownerUsername": zod.string().nullish(),
+  "acquiredAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})),
+  "pastOwners": zod.array(zod.object({
+  "event": zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid(),
+  "kind": zod.enum(['created', 'transferred', 'sold', 'split', 'adjusted', 'consumed', 'destroyed', 'history_begins']),
+  "actorId": zod.string().nullish(),
+  "actorName": zod.string().nullish(),
+  "fromCharacterId": zod.number().nullish(),
+  "fromCharacterName": zod.string().nullish(),
+  "toCharacterId": zod.number().nullish(),
+  "toCharacterName": zod.string().nullish(),
+  "itemName": zod.string(),
+  "quantity": zod.number().nullish(),
+  "price": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish(),
+  "createdAt": zod.coerce.date()
+}),
+  "liveItem": zod.union([zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}),zod.null()]).optional()
+}))
 })
 
 
