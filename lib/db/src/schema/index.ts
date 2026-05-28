@@ -359,6 +359,43 @@ export const jobRuns = pgTable("job_runs", {
   affectedCount: integer("affected_count"),
 });
 
+// Unified audit log written on every state-changing action across the API.
+// Lives alongside the older `activity_events` feed (which is a player-facing
+// social feed); audit_log is the staff-facing forensic record.
+//   category:   broad bucket — auth, wallet, character, inventory,
+//               housing, attendance, shop, sheet, admin, mission.
+//   action:    machine-readable verb scoped to the category
+//               (e.g. "login", "transfer", "update", "decision").
+//   actorIp/Ua:capture x-forwarded-for and user-agent at write time so the
+//               same row can answer "who did this from where" without a
+//               separate session table lookup.
+//   targetType:logical row kind ("character", "user", "sheet", ...). Free-
+//               form; not a FK because targets live in many tables.
+//   targetId:  string form of the target's pk so cross-table queries don't
+//               need union casts.
+//   before/after: optional JSON snapshots for diff display. Keep small —
+//               do NOT dump huge blobs.
+export const auditLog = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  category: text("category").notNull(),
+  action: text("action").notNull(),
+  actorId: text("actor_id"),
+  actorName: text("actor_name"),
+  actorIp: text("actor_ip"),
+  actorUa: text("actor_ua"),
+  targetType: text("target_type"),
+  targetId: text("target_id"),
+  message: text("message"),
+  beforeJson: jsonb("before_json"),
+  afterJson: jsonb("after_json"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  createdIdx: index("audit_log_created_idx").on(t.createdAt),
+  categoryIdx: index("audit_log_category_idx").on(t.category),
+  actorIdx: index("audit_log_actor_idx").on(t.actorId),
+}));
+export type AuditLogRow = typeof auditLog.$inferSelect;
+
 export const activityEvents = pgTable("activity_events", {
   id: serial("id").primaryKey(),
   kind: text("kind").notNull(),

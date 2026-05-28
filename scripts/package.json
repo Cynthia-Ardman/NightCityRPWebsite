@@ -10,6 +10,7 @@
     "sync-from-prod": "tsx ./src/sync-from-prod.ts",
     "import-character-sheets": "tsx ./src/import-character-sheets.ts",
     "import-rent-leases": "tsx ./src/import-rent-leases.ts",
+    "import-npcs-cyberware": "tsx ./src/import-npcs-cyberware.ts",
     "backfill-mission-runners": "tsx ./src/backfill-mission-runners.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

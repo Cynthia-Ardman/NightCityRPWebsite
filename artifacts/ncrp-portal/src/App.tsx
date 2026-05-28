@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthMe } from "@/hooks/useAuthMe";
 
 import AppLayout from "@/components/layout/AppLayout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import CharactersList from "@/pages/CharactersList";
@@ -70,6 +71,7 @@ function AppRoutes() {
   return (
     <>
       <AppLayout>
+        <ErrorBoundary>
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/login/error" component={LoginError} />
@@ -111,6 +113,7 @@ function AppRoutes() {
           <Route path="/admin/lifestyle" component={AdminLifestyle} />
           <Route component={NotFound} />
         </Switch>
+        </ErrorBoundary>
       </AppLayout>
       <div className="crt-overlay pointer-events-none fixed inset-0 z-50">
         <div className="scanline" />

@@ -3,6 +3,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { db, characterSheets, users, activityEvents, type User } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { postToChannel } from "../lib/discord";
+import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -197,6 +198,15 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
   if (!wantsDraft) {
     await announceSubmission(s.id, name, data, req.user!);
   }
+  await recordAudit({
+    req,
+    category: "sheet",
+    action: wantsDraft ? "draft" : "submit",
+    targetType: "sheet",
+    targetId: s.id,
+    message: `${req.user!.username} ${wantsDraft ? "drafted" : "submitted"} sheet "${name}"`,
+    after: { name, characterId: s.characterId },
+  });
   res.status(201).json(s);
 });
 
@@ -300,6 +310,15 @@ router.post("/sheets/:id/decision", requireAuth, requireRole("CS_APPROVER"), asy
     res.status(404).json({ error: "Not found" });
     return;
   }
+  await recordAudit({
+    req,
+    category: "sheet",
+    action: `decision_${decision}`,
+    targetType: "sheet",
+    targetId: id,
+    message: `${req.user!.username} ${decision} sheet "${u.name}"`,
+    after: { decision, note: note ?? null },
+  });
   res.json(u);
 });
 

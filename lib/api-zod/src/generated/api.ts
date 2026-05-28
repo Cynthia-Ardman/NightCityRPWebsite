@@ -1390,6 +1390,40 @@ export const AdminListAuditResponseItem = zod.object({
 export const AdminListAuditResponse = zod.array(AdminListAuditResponseItem)
 
 
+/**
+ * @summary Unified staff-facing audit log.
+ */
+export const adminListAuditLogQueryLimitDefault = 200;
+export const adminListAuditLogQueryLimitMax = 500;
+
+
+
+export const AdminListAuditLogQueryParams = zod.object({
+  "category": zod.coerce.string().optional(),
+  "action": zod.coerce.string().optional(),
+  "actorId": zod.coerce.string().optional(),
+  "since": zod.date().optional(),
+  "limit": zod.coerce.number().max(adminListAuditLogQueryLimitMax).default(adminListAuditLogQueryLimitDefault)
+})
+
+export const AdminListAuditLogResponseItem = zod.object({
+  "id": zod.number(),
+  "category": zod.string(),
+  "action": zod.string(),
+  "actorId": zod.string().nullish(),
+  "actorName": zod.string().nullish(),
+  "actorIp": zod.string().nullish(),
+  "actorUa": zod.string().nullish(),
+  "targetType": zod.string().nullish(),
+  "targetId": zod.string().nullish(),
+  "message": zod.string().nullable(),
+  "beforeJson": zod.unknown().nullish(),
+  "afterJson": zod.unknown().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const AdminListAuditLogResponse = zod.array(AdminListAuditLogResponseItem)
+
+
 export const AdminListBotConfigResponseItem = zod.object({
   "key": zod.string(),
   "value": zod.unknown(),

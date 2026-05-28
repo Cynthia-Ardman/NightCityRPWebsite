@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase } from "lucide-react";
 
 export default function FixerHub() {
   const qc = useQueryClient();
@@ -38,8 +38,16 @@ export default function FixerHub() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-4xl font-display" data-testid="text-fixer-title">FIXER HUB</h1>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/directory/characters" className="px-3 py-2 border border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-archive"><FileText className="w-3 h-3" /> CHARACTER ARCHIVE</Link>
+          <Link href="/fixer/missions" className="px-3 py-2 border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-missions"><Briefcase className="w-3 h-3" /> MISSION LOG</Link>
+          <Link href="/fixer/items" className="px-3 py-2 border border-nc-yellow text-nc-yellow hover:bg-nc-yellow hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-items"><Search className="w-3 h-3" /> INVENTORY SEARCH</Link>
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-display text-muted-foreground tracking-widest">FIXER NPCS</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-new-npc"><Plus className="w-4 h-4 mr-2" /> NEW NPC</Button>

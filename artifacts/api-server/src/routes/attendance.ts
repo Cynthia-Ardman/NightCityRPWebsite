@@ -4,6 +4,7 @@ import { db, attendanceClaims, activityEvents } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { patchBalance } from "../lib/unbelievaboat";
 import { logger } from "../lib/logger";
+import { recordAudit } from "../lib/audit";
 
 const WEEKLY_ATTEND_PAYOUT = 250;
 
@@ -97,6 +98,15 @@ router.post("/attendance/claim", requireAuth, async (req, res): Promise<void> =>
       actorName: req.user!.username,
       actorAvatarUrl: req.user!.avatarUrl,
       message: `${req.user!.username} claimed weekly attendance (+€$${WEEKLY_ATTEND_PAYOUT})`,
+    });
+    await recordAudit({
+      req,
+      category: "attendance",
+      action: "claim",
+      targetType: "user",
+      targetId: userId,
+      message: `Weekly attendance claimed (+${WEEKLY_ATTEND_PAYOUT})`,
+      after: { weekStart, amount: WEEKLY_ATTEND_PAYOUT },
     });
     res.json({
       weekStart: row.weekStart,

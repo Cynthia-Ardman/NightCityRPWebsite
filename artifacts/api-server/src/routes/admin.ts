@@ -5,6 +5,8 @@ import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole } from "../lib/discord";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
+import { recordAudit } from "../lib/audit";
+import { auditLog } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -238,6 +240,16 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${req.user!.username} recorded a ripperdoc checkup for ${c.name}${levelNote}`,
   });
+  await recordAudit({
+    req,
+    category: "character",
+    action: "checkup",
+    targetType: "character",
+    targetId: id,
+    message: `Ripperdoc checkup for ${c.name}${levelNote}`,
+    before: { cyberwareLevel: c.cyberwareLevel, checkupStreak: c.checkupStreak },
+    after: { cyberwareLevel: updated.cyberwareLevel, checkupStreak: updated.checkupStreak },
+  });
   res.json({
     characterId: updated.id,
     lastCheckupAt: updated.lastCheckupAt?.toISOString() ?? null,
@@ -279,6 +291,15 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
     memo: memo ?? null,
     counterpartyName: req.user!.username,
   });
+  await recordAudit({
+    req,
+    category: "wallet",
+    action: "admin_adjust",
+    targetType: "character",
+    targetId: characterId,
+    message: `${req.user!.username} adjusted ${c.name} by ${amount >= 0 ? "+" : ""}${amount}`,
+    after: { amount, memo: memo ?? null, ownerDiscordId: owner.discordId },
+  });
   res.json({ success: true });
 });
 
@@ -299,6 +320,27 @@ router.post("/admin/jobs/run", adminOnly, async (req, res): Promise<void> => {
 
 router.get("/admin/activity", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(activityEvents).orderBy(desc(activityEvents.createdAt)).limit(100);
+  res.json(rows);
+});
+
+// New unified audit log feed (separate from /admin/audit which still reads the
+// legacy player-facing activity_events). Supports category/action/actor
+// filters and a since cursor.
+router.get("/admin/audit-log", adminOnly, async (req, res): Promise<void> => {
+  const category = req.query.category ? String(req.query.category) : null;
+  const action = req.query.action ? String(req.query.action) : null;
+  const actorId = req.query.actorId ? String(req.query.actorId) : null;
+  const since = req.query.since ? new Date(String(req.query.since)) : null;
+  const limit = Math.min(500, parseInt(String(req.query.limit ?? "200"), 10) || 200);
+  const conds = [
+    category && category !== "all" ? eq(auditLog.category, category) : null,
+    action ? eq(auditLog.action, action) : null,
+    actorId ? eq(auditLog.actorId, actorId) : null,
+    since && !isNaN(since.getTime()) ? gte(auditLog.createdAt, since) : null,
+  ].filter(Boolean) as ReturnType<typeof eq>[];
+  const rows = conds.length
+    ? await db.select().from(auditLog).where(and(...conds)).orderBy(desc(auditLog.createdAt)).limit(limit)
+    : await db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(limit);
   res.json(rows);
 });
 

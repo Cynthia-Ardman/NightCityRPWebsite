@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useListHousingRequests, useApproveHousingRequest, useRejectHousingRequest, getListHousingRequestsQueryKey, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useListHousingRequests, useApproveHousingRequest, useRejectHousingRequest, getListHousingRequestsQueryKey, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -25,11 +25,8 @@ export default function AdminDashboard() {
     return <div className="p-8 text-nc-cyan font-display animate-pulse">AUTH_VERIFICATION...</div>;
   }
 
-  // Fixers get a scoped view (Characters tab only) so they can run the
-  // canon-enforcement claim workflow without exposing the full admin
-  // surface (users / wallets / jobs).
-  const isFixerOnly = !user?.isAdmin && !!user?.isFixer;
-  if (!user?.isAdmin && !user?.isFixer) {
+  // /admin is ADMIN-only. Fixers have their own /fixer hub.
+  if (!user?.isAdmin) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-4">
         <Shield className="w-24 h-24 text-destructive opacity-80" />
@@ -44,16 +41,12 @@ export default function AdminDashboard() {
       <div>
         <h1 className="text-4xl font-display font-bold text-foreground flex items-center gap-3" data-testid="text-admin-title">
           <Shield className="w-8 h-8 text-destructive" />
-          {isFixerOnly ? "FIXER_CONSOLE" : "SYSTEM_ADMIN"}
+          SYSTEM_ADMIN
         </h1>
-        <p className="text-muted-foreground font-mono mt-2">
-          {isFixerOnly
-            ? "Canon enforcement. Assign owners to unclaimed sheets."
-            : "God mode enabled. Proceed with caution."}
-        </p>
+        <p className="text-muted-foreground font-mono mt-2">God mode enabled. Proceed with caution.</p>
       </div>
 
-      {!isFixerOnly && (
+      {(
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/wholesaler" className="px-4 py-2 border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background font-display text-xs tracking-widest" data-testid="link-admin-wholesaler">
             WHOLESALER CATALOG →
@@ -64,27 +57,15 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <Tabs defaultValue={isFixerOnly ? "characters" : "users"} className="w-full">
-        <TabsList className={`bg-card border border-border rounded-none p-0 h-auto grid ${isFixerOnly ? "grid-cols-1 max-w-xs" : "grid-cols-2 md:grid-cols-7 max-w-6xl"} w-full`}>
-          {!isFixerOnly && (
-            <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
-          )}
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-7 max-w-6xl w-full">
+          <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
           <TabsTrigger value="characters" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-chars">Characters</TabsTrigger>
-          {!isFixerOnly && (
-            <TabsTrigger value="wallet" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-wallet">Wallets</TabsTrigger>
-          )}
-          {!isFixerOnly && (
-            <TabsTrigger value="jobs" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-jobs">Cron Jobs</TabsTrigger>
-          )}
-          {!isFixerOnly && (
-            <TabsTrigger value="audit" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-audit">Audit</TabsTrigger>
-          )}
-          {!isFixerOnly && (
-            <TabsTrigger value="flags" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-flags">System Flags</TabsTrigger>
-          )}
-          {!isFixerOnly && (
-            <TabsTrigger value="housing" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-housing-requests">Housing</TabsTrigger>
-          )}
+          <TabsTrigger value="wallet" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-wallet">Wallets</TabsTrigger>
+          <TabsTrigger value="jobs" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-jobs">Cron Jobs</TabsTrigger>
+          <TabsTrigger value="audit" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-audit">Audit Log</TabsTrigger>
+          <TabsTrigger value="flags" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-flags">System Flags</TabsTrigger>
+          <TabsTrigger value="housing" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-housing-requests">Housing</TabsTrigger>
         </TabsList>
 
         <div className="mt-8">
@@ -101,7 +82,7 @@ export default function AdminDashboard() {
             <JobsTab />
           </TabsContent>
           <TabsContent value="audit">
-            <AuditTab />
+            <AuditLogTab />
           </TabsContent>
           <TabsContent value="flags">
             <FlagsTab />
@@ -178,6 +159,113 @@ function AuditTab() {
                 {!rows?.length && (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center text-muted-foreground h-24">NO EVENTS</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Pre-built sub-tabs (category groupings) for the unified audit log.
+const AUDIT_SUBTABS: Array<{ key: string; label: string; categories: string[] }> = [
+  { key: "all", label: "All", categories: [] },
+  { key: "auth", label: "Auth", categories: ["auth"] },
+  { key: "wallet", label: "Wallet", categories: ["wallet"] },
+  { key: "characters", label: "Characters", categories: ["character"] },
+  { key: "sheets", label: "Sheets", categories: ["sheet"] },
+  { key: "shop_attend", label: "Shop & Attend", categories: ["shop", "attendance"] },
+  { key: "admin", label: "Admin", categories: ["admin"] },
+];
+
+function AuditLogTab() {
+  const [sub, setSub] = useState("all");
+  const [actorId, setActorId] = useState("");
+  const [since, setSince] = useState("");
+  const tab = AUDIT_SUBTABS.find((t) => t.key === sub) ?? AUDIT_SUBTABS[0];
+  // Single-category sub-tabs use the server filter; multi-category sub-tabs
+  // (shop+attend) pull "all" and filter client-side.
+  const serverCategory = tab.categories.length === 1 ? tab.categories[0] : undefined;
+  const params = {
+    ...(serverCategory ? { category: serverCategory } : {}),
+    ...(actorId ? { actorId } : {}),
+    ...(since ? { since: new Date(since).toISOString() } : {}),
+    limit: 200,
+  };
+  const { data: rows, isLoading, refetch } = useAdminListAuditLog(params);
+  const qc = useQueryClient();
+  const visibleRows = tab.categories.length > 1
+    ? (rows ?? []).filter((r) => tab.categories.includes(r.category))
+    : (rows ?? []);
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display text-nc-cyan">Audit Log</CardTitle>
+        <CardDescription className="font-mono">Unified staff-facing audit. Pick a category sub-tab or filter by actor / since.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Tabs value={sub} onValueChange={setSub}>
+          <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-3 md:grid-cols-7 w-full">
+            {AUDIT_SUBTABS.map((t) => (
+              <TabsTrigger
+                key={t.key}
+                value={t.key}
+                className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-2 text-xs"
+                data-testid={`tab-audit-${t.key}`}
+              >
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 font-mono text-xs">
+          <Input className="md:col-span-5" placeholder="actor user id" value={actorId} onChange={(e) => setActorId(e.target.value)} data-testid="input-auditlog-actor" />
+          <Input className="md:col-span-5" type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} data-testid="input-auditlog-since" />
+          <Button
+            className="md:col-span-2 rounded-none bg-nc-cyan text-background font-display"
+            onClick={() => {
+              qc.invalidateQueries({ queryKey: getAdminListAuditLogQueryKey() });
+              refetch();
+            }}
+            data-testid="button-auditlog-apply"
+          >
+            APPLY
+          </Button>
+        </div>
+        {isLoading ? (
+          <div className="text-nc-cyan font-mono animate-pulse">Loading events...</div>
+        ) : (
+          <div className="rounded-md border border-border">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-display text-nc-cyan w-40">When</TableHead>
+                  <TableHead className="font-display text-nc-cyan w-28">Category</TableHead>
+                  <TableHead className="font-display text-nc-cyan w-36">Action</TableHead>
+                  <TableHead className="font-display text-nc-cyan w-40">Actor</TableHead>
+                  <TableHead className="font-display text-nc-cyan">Message</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="font-mono text-xs">
+                {visibleRows.map((e) => (
+                  <TableRow key={e.id} className="hover:bg-muted/50 border-border" data-testid={`row-auditlog-${e.id}`}>
+                    <TableCell className="text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow text-[10px] px-1 py-0">
+                        {e.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-nc-magenta">{e.action}</TableCell>
+                    <TableCell className="text-nc-cyan">{e.actorName ?? e.actorId ?? "—"}</TableCell>
+                    <TableCell className="text-foreground">{e.message ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+                {!visibleRows.length && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground h-24">NO EVENTS</TableCell>
                   </TableRow>
                 )}
               </TableBody>

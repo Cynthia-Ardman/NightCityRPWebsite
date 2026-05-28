@@ -987,6 +987,26 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/ActivityEvent" }
 
+  /admin/audit-log:
+    get:
+      operationId: adminListAuditLog
+      tags: [admin]
+      summary: Unified staff-facing audit log.
+      parameters:
+        - { in: query, name: category, schema: { type: string } }
+        - { in: query, name: action, schema: { type: string } }
+        - { in: query, name: actorId, schema: { type: string } }
+        - { in: query, name: since, schema: { type: string, format: date-time } }
+        - { in: query, name: limit, schema: { type: integer, default: 200, maximum: 500 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditLogRow" }
+
   /admin/bot-config:
     get:
       operationId: adminListBotConfig
@@ -3121,4 +3141,22 @@ components:
         actorName: { type: ["string", "null"] }
         actorAvatarUrl: { type: ["string", "null"] }
         message: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    AuditLogRow:
+      type: object
+      required: [id, category, action, message, createdAt]
+      properties:
+        id: { type: integer }
+        category: { type: string }
+        action: { type: string }
+        actorId: { type: ["string", "null"] }
+        actorName: { type: ["string", "null"] }
+        actorIp: { type: ["string", "null"] }
+        actorUa: { type: ["string", "null"] }
+        targetType: { type: ["string", "null"] }
+        targetId: { type: ["string", "null"] }
+        message: { type: ["string", "null"] }
+        beforeJson: { nullable: true }
+        afterJson: { nullable: true }
         createdAt: { type: string, format: date-time }

@@ -13,6 +13,7 @@ import {
   DiscordUpstreamError,
 } from "../lib/discord";
 import { requireAuth } from "../middlewares/auth";
+import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -101,6 +102,16 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
       req.log.warn({ err: claimErr }, "auto-claim by legacy username failed");
     }
     req.session.userId = id;
+    await recordAudit({
+      req,
+      category: "auth",
+      action: existing ? "login" : "login_first",
+      actorId: id,
+      actorName: discordUser.username,
+      targetType: "user",
+      targetId: id,
+      message: `${discordUser.username} signed in via Discord`,
+    });
     res.redirect("/");
   } catch (err) {
     req.log.error({ err }, "Discord OAuth callback failed");
@@ -117,6 +128,10 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
 });
 
 router.post("/auth/logout", (req, res): void => {
+  const uid = req.session.userId;
+  if (uid) {
+    void recordAudit({ req, category: "auth", action: "logout", actorId: uid, targetType: "user", targetId: uid, message: "User logged out" });
+  }
   req.session.destroy((err) => {
     if (err) {
       req.log.error({ err }, "Session destroy failed during logout");

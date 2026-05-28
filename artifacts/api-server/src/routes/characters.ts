@@ -22,6 +22,7 @@ import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { hasRole } from "../lib/discord";
+import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -66,6 +67,15 @@ router.post("/characters", requireAuth, async (req, res): Promise<void> => {
     actorName: req.user!.username,
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${req.user!.username} created ${c.name}`,
+  });
+  await recordAudit({
+    req,
+    category: "character",
+    action: "create",
+    targetType: "character",
+    targetId: c.id,
+    message: `Created character ${c.name}`,
+    after: { name: c.name, kind: c.kind, archetype: c.archetype },
   });
   res.status(201).json({ ...c, isActive: false });
 });
@@ -169,6 +179,17 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
     return;
   }
   const result = await createPendingEdit({ character: c, submitter: req.user!, body: req.body });
+  if (result.ok) {
+    await recordAudit({
+      req,
+      category: "character",
+      action: "edit_submitted",
+      targetType: "character",
+      targetId: id,
+      message: `Edit queued for ${c.name} (pending fixer review)`,
+      after: { pendingEditId: result.edit.id },
+    });
+  }
   if (!result.ok) {
     switch (result.error.kind) {
       case "no_changes":
@@ -832,6 +853,15 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     },
   ]);
   const ub = await getBalance(req.user!.discordId);
+  await recordAudit({
+    req,
+    category: "wallet",
+    action: "transfer",
+    targetType: "character",
+    targetId: id,
+    message: `${c.name} → ${to.name}: ${amount}`,
+    after: { fromCharacterId: id, toCharacterId: to.id, amount, memo: memo ?? null },
+  });
   res.json(ub ?? { cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
 });
 
@@ -986,6 +1016,15 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
       actorName: req.user!.username,
       actorAvatarUrl: req.user!.avatarUrl,
       message: `${c.name} opened shop at ${lease.address}`,
+    });
+    await recordAudit({
+      req,
+      category: "shop",
+      action: "open",
+      targetType: "character",
+      targetId: id,
+      message: `${c.name} opened shop at ${lease.address}`,
+      after: { leaseId: lease.id, address: lease.address, openedOn: today },
     });
     res.json({
       characterId: id,

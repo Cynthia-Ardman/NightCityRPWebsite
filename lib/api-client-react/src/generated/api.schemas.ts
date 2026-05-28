@@ -1705,6 +1705,29 @@ export interface ActivityEvent {
   createdAt: string;
 }
 
+export interface AuditLogRow {
+  id: number;
+  category: string;
+  action: string;
+  /** @nullable */
+  actorId?: string | null;
+  /** @nullable */
+  actorName?: string | null;
+  /** @nullable */
+  actorIp?: string | null;
+  /** @nullable */
+  actorUa?: string | null;
+  /** @nullable */
+  targetType?: string | null;
+  /** @nullable */
+  targetId?: string | null;
+  /** @nullable */
+  message: string | null;
+  beforeJson?: unknown | null;
+  afterJson?: unknown | null;
+  createdAt: string;
+}
+
 export type DiscordCallbackParams = {
 code?: string;
 state?: string;
@@ -1749,6 +1772,17 @@ limit?: number;
 
 export type AdminListAuditParams = {
 kind?: string;
+actorId?: string;
+since?: string;
+/**
+ * @maximum 500
+ */
+limit?: number;
+};
+
+export type AdminListAuditLogParams = {
+category?: string;
+action?: string;
 actorId?: string;
 since?: string;
 /**

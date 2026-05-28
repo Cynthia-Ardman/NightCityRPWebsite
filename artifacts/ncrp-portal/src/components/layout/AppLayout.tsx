@@ -115,7 +115,6 @@ function SidebarContent() {
         {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Syringe} label="Ripperdoc Console" />}
         {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
         {user?.isFixer && <NavItem href="/fixer/items" icon={Search} label="Item Trace" />}
-        {user?.isFixer && !user?.isAdmin && <NavItem href="/admin" icon={Shield} label="Character Console" />}
         {user?.isCsApprover && <NavItem href="/sheets/pending" icon={FileText} label="Pending Sheets" />}
         {user && (user.isFixer || user.isCsApprover || user.isAdmin) && (
           <NavItem href="/pending-edits" icon={FileText} label="Pending Edits" />
@@ -156,14 +155,14 @@ function TopBar() {
       </div>
 
       <div className="flex items-center gap-6">
-        {user && wallet && (
+        {user && wallet && typeof wallet.balance === "number" && (
           <div className="flex items-center gap-3 border border-nc-yellow/30 bg-nc-yellow/5 px-4 py-1.5 shadow-[0_0_10px_rgba(255,255,0,0.1)]" data-testid="pill-eddies">
             <div className="text-nc-yellow font-display text-sm tracking-widest">EDDIES</div>
             <div className="text-nc-yellow font-mono text-lg font-bold">
               {wallet.balance.toLocaleString()}
               <span className="text-nc-yellow/50 text-xs ml-1">€$</span>
             </div>
-            <div className="w-1.5 h-1.5 rounded-full bg-nc-yellow animate-pulse ml-2" title={`Source: ${wallet.source}`} />
+            <div className="w-1.5 h-1.5 rounded-full bg-nc-yellow animate-pulse ml-2" title={`Source: ${wallet.source ?? "unknown"}`} />
           </div>
         )}
       </div>

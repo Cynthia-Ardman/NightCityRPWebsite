@@ -22,10 +22,12 @@ import type {
 import type {
   ActivityEvent,
   AdminCharacterSummary,
+  AdminListAuditLogParams,
   AdminListAuditParams,
   AdminRecordCheckup200,
   AdminUser,
   AssignOwnerInput,
+  AuditLogRow,
   BotConfigEntry,
   BotConfigUpdate,
   CancelPendingEdit200,
@@ -4805,6 +4807,90 @@ export function useAdminListAudit<TData = Awaited<ReturnType<typeof adminListAud
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminListAuditQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminListAuditLogUrl = (params?: AdminListAuditLogParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/audit-log?${stringifiedParams}` : `/api/admin/audit-log`
+}
+
+/**
+ * @summary Unified staff-facing audit log.
+ */
+export const adminListAuditLog = async (params?: AdminListAuditLogParams, options?: RequestInit): Promise<AuditLogRow[]> => {
+
+  return customFetch<AuditLogRow[]>(getAdminListAuditLogUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListAuditLogQueryKey = (params?: AdminListAuditLogParams,) => {
+    return [
+    `/api/admin/audit-log`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminListAuditLogQueryOptions = <TData = Awaited<ReturnType<typeof adminListAuditLog>>, TError = ErrorType<unknown>>(params?: AdminListAuditLogParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListAuditLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListAuditLogQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListAuditLog>>> = ({ signal }) => adminListAuditLog(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListAuditLog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListAuditLogQueryResult = NonNullable<Awaited<ReturnType<typeof adminListAuditLog>>>
+export type AdminListAuditLogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Unified staff-facing audit log.
+ */
+
+export function useAdminListAuditLog<TData = Awaited<ReturnType<typeof adminListAuditLog>>, TError = ErrorType<unknown>>(
+ params?: AdminListAuditLogParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListAuditLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListAuditLogQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
