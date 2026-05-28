@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
+import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import Markdown from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -729,7 +730,11 @@ function SheetSections({
             <CardTitle className="font-display text-nc-cyan tracking-widest text-base">{heading.toUpperCase()}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{body}</Markdown>
+            {isCyberwareHeading(heading) ? (
+              <CyberwareSection body={body} />
+            ) : (
+              <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{body}</Markdown>
+            )}
           </CardContent>
         </Card>
       ))}
