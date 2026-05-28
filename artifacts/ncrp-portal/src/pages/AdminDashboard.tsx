@@ -1134,7 +1134,380 @@ function MaintenanceTab() {
 
       <FullMigrationCard />
       <BotImportCard />
+      <DuplicateCleanupCard />
+      <ClaimByUsernameCard />
     </div>
+  );
+}
+
+interface DupeRow {
+  id: number;
+  name: string;
+  kind: string;
+  ownerId: string | null;
+  ownerName: string | null;
+  archetype: string | null;
+  portraitUrl: string | null;
+  portraitCount: number;
+  hasSheetData: boolean;
+  importedFromThreadId: string | null;
+  legacyDiscordUsername: string | null;
+  approved: boolean;
+  archived: boolean;
+  lifeStatus: string;
+  createdAt: string;
+}
+interface DupeGroup {
+  key: string;
+  kind: string;
+  name: string;
+  count: number;
+  suggestedKeepId: number;
+  rows: DupeRow[];
+}
+interface DupeResponse {
+  groupCount: number;
+  totalDuplicateRows: number;
+  groups: DupeGroup[];
+}
+interface MergeResult {
+  keepId: number;
+  dropId: number;
+  fieldsFilled: string[];
+  repointed: Record<string, number>;
+}
+
+function DuplicateCleanupCard() {
+  const { toast } = useToast();
+  const [data, setData] = useState<DupeResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [merging, setMerging] = useState<string | null>(null);
+  // groupKey -> the id the admin has picked as the keeper. Defaults to the
+  // server's suggestion when the group is first loaded.
+  const [keepers, setKeepers] = useState<Record<string, number>>({});
+
+  async function load() {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/admin/maintenance/duplicate-characters", { credentials: "include" });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Scan failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setData(body as DupeResponse);
+      const init: Record<string, number> = {};
+      for (const g of (body as DupeResponse).groups) init[g.key] = g.suggestedKeepId;
+      setKeepers(init);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function mergePair(group: DupeGroup, keepId: number, dropId: number) {
+    const drop = group.rows.find((r) => r.id === dropId);
+    const keep = group.rows.find((r) => r.id === keepId);
+    if (!drop || !keep) return;
+    const ok = window.confirm(
+      `Merge "${drop.name}" #${drop.id} INTO #${keep.id}?\n\n` +
+      `• Empty fields on #${keep.id} will be filled from #${drop.id}.\n` +
+      `• All inventory, wallet, housing, sheet history pointing at #${drop.id} will be repointed to #${keep.id}.\n` +
+      `• #${drop.id} will then be deleted. This cannot be undone.`,
+    );
+    if (!ok) return;
+    setMerging(`${keepId}->${dropId}`);
+    try {
+      const r = await fetch("/api/admin/maintenance/merge-character", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ keepId, dropId }),
+      });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Merge failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      const result = body as MergeResult;
+      const repointTotal = Object.values(result.repointed).reduce((s, n) => s + n, 0);
+      toast({
+        title: `Merged #${dropId} → #${keepId}`,
+        description: `Filled ${result.fieldsFilled.length} fields, repointed ${repointTotal} child rows.`,
+      });
+      await load();
+    } finally {
+      setMerging(null);
+    }
+  }
+
+  return (
+    <Card className="rounded-none border-destructive/40 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-destructive">DUPLICATE CHARACTERS</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Lists every (kind, name) collision so you can review each pair before merging. Pre-fix
+          imports could create a second empty NPC when the name drifted between dev and prod.
+          The default "KEEP" pick is the row with the richest data (sheet body, portrait, owner) —
+          override per row if you know the other one is canonical. Merging is destructive: the
+          DROP row is deleted after all its inventory / wallet / housing references are
+          repointed to the keeper.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="rounded-none bg-destructive text-foreground hover:bg-destructive/80 font-display tracking-widest"
+            data-testid="button-scan-duplicates"
+          >
+            {loading ? "SCANNING..." : data ? "RE-SCAN" : "SCAN FOR DUPLICATES"}
+          </Button>
+          {data && (
+            <span className="text-xs font-mono text-muted-foreground">
+              {data.groupCount} group{data.groupCount === 1 ? "" : "s"} · {data.totalDuplicateRows} rows
+            </span>
+          )}
+        </div>
+
+        {data && data.groups.length === 0 && (
+          <div className="text-xs font-mono text-muted-foreground italic">No duplicate characters detected.</div>
+        )}
+
+        {data && data.groups.map((g) => {
+          const keepId = keepers[g.key] ?? g.suggestedKeepId;
+          return (
+            <div key={g.key} className="border border-border/60 p-3 space-y-2" data-testid={`dupe-group-${g.key}`}>
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="font-display tracking-widest text-sm">
+                  {g.name} <span className="text-muted-foreground">[{g.kind}]</span>
+                </div>
+                <div className="text-xs font-mono text-muted-foreground">{g.count} rows</div>
+              </div>
+              <div className="space-y-1">
+                {g.rows.map((row) => {
+                  const isKeep = row.id === keepId;
+                  return (
+                    <div
+                      key={row.id}
+                      className={`border px-3 py-2 text-xs font-mono flex items-center gap-3 ${
+                        isKeep ? "border-nc-cyan/60 bg-nc-cyan/5" : "border-border/40"
+                      }`}
+                      data-testid={`dupe-row-${row.id}`}
+                    >
+                      <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`keep-${g.key}`}
+                          checked={isKeep}
+                          onChange={() => setKeepers((k) => ({ ...k, [g.key]: row.id }))}
+                          className="cursor-pointer"
+                          data-testid={`radio-keep-${row.id}`}
+                        />
+                        <span className={isKeep ? "text-nc-cyan font-bold" : "text-muted-foreground"}>
+                          {isKeep ? "KEEP" : "drop"} #{row.id}
+                        </span>
+                      </label>
+                      <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
+                        <span title="archetype">{row.archetype || <em className="text-muted-foreground/50">no archetype</em>}</span>
+                        <span title="portrait">{row.portraitUrl ? `${row.portraitCount} portrait${row.portraitCount === 1 ? "" : "s"}` : <em className="text-muted-foreground/50">no portrait</em>}</span>
+                        <span title="sheet">{row.hasSheetData ? "sheet ✓" : <em className="text-muted-foreground/50">no sheet</em>}</span>
+                        <span title="owner">{row.ownerName ? `@${row.ownerName}` : <em className="text-muted-foreground/50">unclaimed</em>}</span>
+                        <span title="legacy username" className="md:col-span-2">{row.legacyDiscordUsername ? `legacy: ${row.legacyDiscordUsername}` : ""}</span>
+                        <span title="thread id" className="md:col-span-2">{row.importedFromThreadId ? `thread: ${row.importedFromThreadId}` : ""}</span>
+                      </div>
+                      {!isKeep && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={merging !== null}
+                          onClick={() => mergePair(g, keepId, row.id)}
+                          className="rounded-none border-destructive text-destructive hover:bg-destructive hover:text-foreground h-7 px-2 font-display tracking-widest text-xs shrink-0"
+                          data-testid={`button-merge-${keepId}-${row.id}`}
+                        >
+                          {merging === `${keepId}->${row.id}` ? "MERGING..." : `MERGE → #${keepId}`}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface ClaimMatch {
+  characterId: number;
+  characterName: string;
+  kind: string;
+  legacyDiscordUsername: string;
+  matchedUserIds: string[];
+  matchedUsernames: string[];
+}
+interface ClaimPreview {
+  candidateCount: number;
+  ambiguousCount: number;
+  matches: ClaimMatch[];
+}
+interface ClaimApplyResult {
+  applied: Array<{ characterId: number; characterName: string; ownerId: string; matchedUsername: string }>;
+  skipped: Array<{ characterId: number; characterName: string; reason: string }>;
+}
+
+function ClaimByUsernameCard() {
+  const { toast } = useToast();
+  const [preview, setPreview] = useState<ClaimPreview | null>(null);
+  const [applyResult, setApplyResult] = useState<ClaimApplyResult | null>(null);
+  const [busy, setBusy] = useState<"preview" | "apply" | null>(null);
+
+  async function loadPreview() {
+    setBusy("preview");
+    setApplyResult(null);
+    try {
+      const r = await fetch("/api/admin/maintenance/claim-by-username", { credentials: "include" });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Preview failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setPreview(body as ClaimPreview);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function applyAll() {
+    const unique = preview ? preview.matches.filter((m) => m.matchedUserIds.length === 1).length : 0;
+    if (unique === 0) {
+      toast({ title: "Nothing to apply", description: "No single-match candidates.", variant: "destructive" });
+      return;
+    }
+    const ok = window.confirm(
+      `Link ${unique} unclaimed character${unique === 1 ? "" : "s"} to their matched Discord user?\n\n` +
+      `Ambiguous matches (multiple users with the same username) will be skipped. Existing ownerIds are never overwritten.`,
+    );
+    if (!ok) return;
+    setBusy("apply");
+    try {
+      const r = await fetch("/api/admin/maintenance/claim-by-username", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Claim failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setApplyResult(body as ClaimApplyResult);
+      toast({
+        title: "Claim-by-username complete",
+        description: `Linked ${body.applied?.length ?? 0}, skipped ${body.skipped?.length ?? 0}.`,
+      });
+      await loadPreview();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Card className="rounded-none border-nc-magenta/40 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-magenta">CLAIM UNCLAIMED BY USERNAME</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          For every character with no ownerId but a <code>legacy_discord_username</code>, looks for a
+          single matching <code>users</code> row (case-insensitive on username or global name) and
+          links them. Ambiguous matches (multiple Discord users sharing the handle) are reported but
+          never auto-linked. Existing owners are never overwritten.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            onClick={loadPreview}
+            disabled={busy !== null}
+            className="rounded-none bg-nc-magenta text-foreground hover:bg-nc-magenta/80 font-display tracking-widest"
+            data-testid="button-claim-preview"
+          >
+            {busy === "preview" ? "SCANNING..." : preview ? "RE-SCAN" : "PREVIEW MATCHES"}
+          </Button>
+          {preview && (
+            <Button
+              type="button"
+              onClick={applyAll}
+              disabled={busy !== null}
+              className="rounded-none bg-destructive text-foreground hover:bg-destructive/80 font-display tracking-widest"
+              data-testid="button-claim-apply"
+            >
+              {busy === "apply" ? "APPLYING..." : "APPLY SINGLE-MATCH"}
+            </Button>
+          )}
+        </div>
+
+        {preview && (
+          <div className="space-y-2">
+            <div className="text-xs font-mono text-muted-foreground">
+              {preview.candidateCount} unclaimed character{preview.candidateCount === 1 ? "" : "s"} with a legacy username
+              {preview.ambiguousCount > 0 ? ` · ${preview.ambiguousCount} ambiguous` : ""}
+            </div>
+            {preview.matches.length === 0 ? (
+              <div className="text-xs font-mono text-muted-foreground italic">Nothing unclaimed has a legacy username on file.</div>
+            ) : (
+              <div className="space-y-1 max-h-96 overflow-y-auto">
+                {preview.matches.map((m) => {
+                  const tone = m.matchedUserIds.length === 1
+                    ? "border-nc-cyan/40 text-foreground"
+                    : m.matchedUserIds.length === 0
+                      ? "border-border/40 text-muted-foreground"
+                      : "border-nc-yellow/40 text-nc-yellow";
+                  return (
+                    <div key={m.characterId} className={`border px-3 py-2 text-xs font-mono flex items-center justify-between gap-3 ${tone}`} data-testid={`claim-row-${m.characterId}`}>
+                      <div className="min-w-0">
+                        <div className="truncate"><span className="text-foreground">{m.characterName}</span> <span className="opacity-50">[{m.kind}] #{m.characterId}</span></div>
+                        <div className="text-[10px] opacity-70 truncate">legacy: {m.legacyDiscordUsername}</div>
+                      </div>
+                      <div className="text-right whitespace-nowrap">
+                        {m.matchedUserIds.length === 1 && <span>→ @{m.matchedUsernames[0]}</span>}
+                        {m.matchedUserIds.length === 0 && <span>no user match</span>}
+                        {m.matchedUserIds.length > 1 && <span>ambiguous ({m.matchedUserIds.length})</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {applyResult && (
+          <div className="border-t border-border/50 pt-3 space-y-2" data-testid="block-claim-apply-result">
+            <div className="text-xs font-mono">
+              <span className="text-nc-cyan">{applyResult.applied.length} linked</span>
+              {applyResult.skipped.length > 0 && (
+                <span className="text-nc-yellow"> · {applyResult.skipped.length} skipped</span>
+              )}
+            </div>
+            {applyResult.skipped.length > 0 && (
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {applyResult.skipped.map((s) => (
+                  <div key={s.characterId} className="text-[10px] font-mono text-nc-yellow border border-nc-yellow/30 px-2 py-1">
+                    #{s.characterId} {s.characterName}: {s.reason}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

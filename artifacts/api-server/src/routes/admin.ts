@@ -3,11 +3,16 @@ import { eq, desc, sql, and, gte, type SQL } from "drizzle-orm";
 import {
   db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig,
   characterStatus, housing, catalogRent,
+  characterUpdates, inventoryItems, inventoryEvents,
+  storeEmployees, stores, ripperdocs, ripperdocEmployees,
+  housingRequests, traumaTeamCalls, missionLog,
+  pendingCharacterEdits, shopOpens, characterSheets, diceRolls,
   botActorAttendance, botAttendanceLog, botBalanceHistory, botCyberwareStatus,
   botCyberwareWeeklyRuns, botLastPayment, botPaymentLabels, botRentRuns,
   botStoreInventory, botTicketIndex, botMissionLog, botBusinessOpenLog,
   botPlayerInventory,
 } from "@workspace/db";
+import { isNull, or, ilike, count } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole } from "../lib/discord";
@@ -1235,5 +1240,403 @@ router.post(
     res.json({ totals: { inserted: totalIn, skippedInvalid: totalInvalid, chunkFailures: totalChunkFail }, tables: out });
   },
 );
+
+// ---------------------------------------------------------------------------
+// Duplicate-character cleanup. The dev-to-prod and npc-import flows used to
+// match only on (kind,name) before the imported_from_thread_id resolver was
+// added, so name drift (smart quotes, manual renames) could spawn a second
+// row with an empty sheet. These endpoints let an admin REVIEW the duplicate
+// groups first, then MANUALLY pick which row to keep — the merge is opt-in
+// per pair because guessing wrong throws away inventory/wallet history.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/admin/maintenance/duplicate-characters",
+  adminOnly,
+  async (_req, res): Promise<void> => {
+    // Group by (kind, lower(trim(name))). Two characters with the same
+    // name+kind are almost always the import artifact described above —
+    // a real "two NPCs named John Smith" case is vanishingly rare in
+    // this fiction and the admin can just decline to merge.
+    const rows = await db
+      .select({
+        id: characters.id,
+        name: characters.name,
+        kind: characters.kind,
+        ownerId: characters.ownerId,
+        ownerName: users.username,
+        archetype: characters.archetype,
+        portraitUrl: characters.portraitUrl,
+        portraitCount: sql<number>`coalesce(array_length(${characters.portraitUrls}, 1), 0)`,
+        hasSheetData: sql<boolean>`${characters.sheetData} is not null`,
+        importedFromThreadId: characters.importedFromThreadId,
+        legacyDiscordUsername: characters.legacyDiscordUsername,
+        approved: characters.approved,
+        archived: characters.archived,
+        lifeStatus: characters.lifeStatus,
+        createdAt: characters.createdAt,
+      })
+      .from(characters)
+      .leftJoin(users, eq(users.id, characters.ownerId))
+      .orderBy(characters.name, desc(characters.createdAt));
+
+    type Row = (typeof rows)[number];
+    const groups = new Map<string, Row[]>();
+    for (const r of rows) {
+      const key = `${r.kind}::${r.name.trim().toLowerCase()}`;
+      const list = groups.get(key) ?? [];
+      list.push(r);
+      groups.set(key, list);
+    }
+    const dupes = Array.from(groups.entries())
+      .filter(([, list]) => list.length > 1)
+      .map(([key, list]) => ({
+        key,
+        kind: list[0].kind,
+        name: list[0].name,
+        count: list.length,
+        // Suggest the row with the richest data as the "keeper": prefer
+        // ones with sheet_data, then with a portrait, then with an
+        // owner, then the oldest row (most likely to have inventory
+        // history). This is only a hint — the admin picks manually.
+        suggestedKeepId: pickSuggestedKeep(list),
+        rows: list,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json({ groupCount: dupes.length, totalDuplicateRows: dupes.reduce((s, g) => s + g.count, 0), groups: dupes });
+  },
+);
+
+function pickSuggestedKeep<T extends {
+  id: number;
+  hasSheetData: boolean;
+  portraitUrl: string | null;
+  ownerId: string | null;
+  createdAt: Date | string;
+}>(list: T[]): number {
+  const score = (r: T) =>
+    (r.hasSheetData ? 8 : 0) +
+    (r.portraitUrl ? 4 : 0) +
+    (r.ownerId ? 2 : 0);
+  let best = list[0];
+  for (const r of list) {
+    const sb = score(best);
+    const sr = score(r);
+    if (sr > sb) best = r;
+    else if (sr === sb && new Date(r.createdAt) < new Date(best.createdAt)) best = r;
+  }
+  return best.id;
+}
+
+router.post(
+  "/admin/maintenance/merge-character",
+  adminOnly,
+  expressJson({ limit: "1mb" }),
+  async (req, res): Promise<void> => {
+    const body = req.body as { keepId?: number; dropId?: number; dryRun?: boolean } | null;
+    const keepId = Number(body?.keepId);
+    const dropId = Number(body?.dropId);
+    if (!Number.isInteger(keepId) || !Number.isInteger(dropId) || keepId === dropId) {
+      res.status(400).json({ error: "Body must be { keepId: int, dropId: int } with distinct ids" });
+      return;
+    }
+
+    const [keep] = await db.select().from(characters).where(eq(characters.id, keepId));
+    const [drop] = await db.select().from(characters).where(eq(characters.id, dropId));
+    if (!keep || !drop) {
+      res.status(404).json({ error: "keepId or dropId not found" });
+      return;
+    }
+    if (keep.kind !== drop.kind) {
+      res.status(400).json({ error: `Refusing to merge across kinds (keep=${keep.kind}, drop=${drop.kind})` });
+      return;
+    }
+
+    // Count what we'd touch so the admin gets a clear before/after picture.
+    // Done outside the txn so a dryRun is cheap and doesn't lock rows.
+    const counts = await collectChildCounts(dropId);
+    if (body?.dryRun) {
+      res.json({
+        dryRun: true,
+        keep: summarizeForMerge(keep),
+        drop: summarizeForMerge(drop),
+        wouldRepoint: counts,
+        wouldFillFields: diffFieldsForFill(keep, drop),
+      });
+      return;
+    }
+
+    // Real merge. Transaction so a mid-flight failure leaves the drop row
+    // (and its FK children) intact rather than half-repointed.
+    const result = await db.transaction(async (tx) => {
+      // 1. Backfill empty/null fields on the keeper from the drop. We only
+      //    fill where the keeper is empty — never overwrite live admin data.
+      const updateSet: Record<string, unknown> = {};
+      if (!keep.archetype && drop.archetype) updateSet.archetype = drop.archetype;
+      if (!keep.background && drop.background) updateSet.background = drop.background;
+      if (!keep.portraitUrl && drop.portraitUrl) updateSet.portraitUrl = drop.portraitUrl;
+      if ((keep.portraitUrls?.length ?? 0) === 0 && (drop.portraitUrls?.length ?? 0) > 0) updateSet.portraitUrls = drop.portraitUrls;
+      if ((keep.statsImageUrls?.length ?? 0) === 0 && (drop.statsImageUrls?.length ?? 0) > 0) updateSet.statsImageUrls = drop.statsImageUrls;
+      if (!keep.sheetData && drop.sheetData) updateSet.sheetData = drop.sheetData as never;
+      if (!keep.importedFromThreadId && drop.importedFromThreadId) updateSet.importedFromThreadId = drop.importedFromThreadId;
+      if (!keep.importedFromChannelName && drop.importedFromChannelName) updateSet.importedFromChannelName = drop.importedFromChannelName;
+      if ((keep.appliedTags?.length ?? 0) === 0 && (drop.appliedTags?.length ?? 0) > 0) updateSet.appliedTags = drop.appliedTags;
+      if (!keep.legacyDiscordUsername && drop.legacyDiscordUsername) updateSet.legacyDiscordUsername = drop.legacyDiscordUsername;
+      if (!keep.ownerId && drop.ownerId) updateSet.ownerId = drop.ownerId;
+      if (!keep.discordChannelId && drop.discordChannelId) updateSet.discordChannelId = drop.discordChannelId;
+      // The thread_id index is unique — if BOTH rows have a value we have
+      // to clear drop's first (the delete at the end would also handle it,
+      // but UPDATE...RETURNING below would also work; clearing keeps the
+      // order obvious).
+      if (drop.importedFromThreadId && keep.importedFromThreadId && drop.importedFromThreadId !== keep.importedFromThreadId) {
+        await tx.update(characters).set({ importedFromThreadId: null }).where(eq(characters.id, dropId));
+      }
+      if (Object.keys(updateSet).length > 0) {
+        await tx.update(characters).set(updateSet).where(eq(characters.id, keepId));
+      }
+
+      // 2. Repoint child rows on tables WITHOUT a unique constraint that
+      //    would collide. Straight UPDATEs.
+      const repoint: Record<string, number> = {};
+      repoint.character_updates = (await tx.update(characterUpdates).set({ characterId: keepId }).where(eq(characterUpdates.characterId, dropId)).returning({ id: characterUpdates.id })).length;
+      repoint.inventory_items = (await tx.update(inventoryItems).set({ characterId: keepId }).where(eq(inventoryItems.characterId, dropId)).returning({ id: inventoryItems.id })).length;
+      repoint.store_employees = (await tx.update(storeEmployees).set({ characterId: keepId }).where(eq(storeEmployees.characterId, dropId)).returning({ id: storeEmployees.id })).length;
+      repoint.ripperdoc_employees = (await tx.update(ripperdocEmployees).set({ characterId: keepId }).where(eq(ripperdocEmployees.characterId, dropId)).returning({ id: ripperdocEmployees.id })).length;
+      repoint.housing = (await tx.update(housing).set({ characterId: keepId }).where(eq(housing.characterId, dropId)).returning({ id: housing.id })).length;
+      repoint.housing_requests = (await tx.update(housingRequests).set({ characterId: keepId }).where(eq(housingRequests.characterId, dropId)).returning({ id: housingRequests.id })).length;
+      repoint.trauma_team_calls = (await tx.update(traumaTeamCalls).set({ characterId: keepId }).where(eq(traumaTeamCalls.characterId, dropId)).returning({ id: traumaTeamCalls.id })).length;
+      repoint.mission_log = (await tx.update(missionLog).set({ characterId: keepId }).where(eq(missionLog.characterId, dropId)).returning({ id: missionLog.id })).length;
+      repoint.wallet_transactions = (await tx.update(walletTransactions).set({ characterId: keepId }).where(eq(walletTransactions.characterId, dropId)).returning({ id: walletTransactions.id })).length;
+      repoint.wallet_counterparty = (await tx.update(walletTransactions).set({ counterpartyCharacterId: keepId }).where(eq(walletTransactions.counterpartyCharacterId, dropId)).returning({ id: walletTransactions.id })).length;
+      repoint.inventory_events_from = (await tx.update(inventoryEvents).set({ fromCharacterId: keepId }).where(eq(inventoryEvents.fromCharacterId, dropId)).returning({ id: inventoryEvents.id })).length;
+      repoint.inventory_events_to = (await tx.update(inventoryEvents).set({ toCharacterId: keepId }).where(eq(inventoryEvents.toCharacterId, dropId)).returning({ id: inventoryEvents.id })).length;
+      repoint.stores_owner = (await tx.update(stores).set({ ownerCharacterId: keepId }).where(eq(stores.ownerCharacterId, dropId)).returning({ id: stores.id })).length;
+      repoint.ripperdocs_owner = (await tx.update(ripperdocs).set({ ownerCharacterId: keepId }).where(eq(ripperdocs.ownerCharacterId, dropId)).returning({ id: ripperdocs.id })).length;
+      repoint.character_sheets = (await tx.update(characterSheets).set({ characterId: keepId }).where(eq(characterSheets.characterId, dropId)).returning({ id: characterSheets.id })).length;
+      repoint.dice_rolls = (await tx.update(diceRolls).set({ characterId: keepId }).where(eq(diceRolls.characterId, dropId)).returning({ id: diceRolls.id })).length;
+      repoint.users_active_character = (await tx.update(users).set({ activeCharacterId: keepId }).where(eq(users.activeCharacterId, dropId)).returning({ id: users.id })).length;
+
+      // 3. Tables with a UNIQUE constraint on characterId: handle
+      //    collisions explicitly so the txn doesn't 23505 mid-merge.
+      // character_status: PK is characterId, so the keeper either has
+      // one or doesn't.
+      const [keepStatus] = await tx.select().from(characterStatus).where(eq(characterStatus.characterId, keepId));
+      if (!keepStatus) {
+        await tx.update(characterStatus).set({ characterId: keepId }).where(eq(characterStatus.characterId, dropId));
+        repoint.character_status_moved = 1;
+      } else {
+        await tx.delete(characterStatus).where(eq(characterStatus.characterId, dropId));
+        repoint.character_status_dropped = 1;
+      }
+
+      // shop_opens: UNIQUE (characterId, openedOn). Delete the drop's
+      // opens on days the keeper already opened, then repoint the rest.
+      await tx.execute(sql`delete from shop_opens d
+        where d.character_id = ${dropId}
+          and exists (select 1 from shop_opens k where k.character_id = ${keepId} and k.opened_on = d.opened_on)`);
+      repoint.shop_opens = (await tx.update(shopOpens).set({ characterId: keepId }).where(eq(shopOpens.characterId, dropId)).returning({ id: shopOpens.id })).length;
+
+      // pending_character_edits: UNIQUE (characterId WHERE status='pending').
+      // If both have a pending edit, drop's pending edit becomes
+      // 'superseded' so reviewers don't see two competing diffs.
+      await tx.execute(sql`update pending_character_edits set status='superseded'
+        where character_id = ${dropId} and status='pending'
+          and exists (select 1 from pending_character_edits k where k.character_id = ${keepId} and k.status='pending')`);
+      repoint.pending_edits = (await tx.update(pendingCharacterEdits).set({ characterId: keepId }).where(eq(pendingCharacterEdits.characterId, dropId)).returning({ id: pendingCharacterEdits.id })).length;
+
+      // 4. Drop row should now have zero remaining child references. Any
+      //    remaining cascade-on-delete children get nuked, which is the
+      //    point — if we missed a table the data is gone.
+      await tx.delete(characters).where(eq(characters.id, dropId));
+
+      return { keepId, dropId, fieldsFilled: Object.keys(updateSet), repointed: repoint };
+    });
+
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "merge_character",
+      targetType: "character",
+      targetId: String(keepId),
+      message: `Merged character #${dropId} (${drop.name}) into #${keepId} (${keep.name})`,
+      before: { drop: summarizeForMerge(drop), keep: summarizeForMerge(keep) },
+      after: result,
+    });
+    res.json(result);
+  },
+);
+
+function summarizeForMerge(c: typeof characters.$inferSelect): Record<string, unknown> {
+  return {
+    id: c.id,
+    name: c.name,
+    kind: c.kind,
+    ownerId: c.ownerId,
+    archetype: c.archetype,
+    portraitUrl: c.portraitUrl,
+    portraitCount: c.portraitUrls?.length ?? 0,
+    hasSheetData: c.sheetData != null,
+    importedFromThreadId: c.importedFromThreadId,
+    legacyDiscordUsername: c.legacyDiscordUsername,
+    approved: c.approved,
+    archived: c.archived,
+    lifeStatus: c.lifeStatus,
+    createdAt: c.createdAt,
+  };
+}
+
+function diffFieldsForFill(keep: typeof characters.$inferSelect, drop: typeof characters.$inferSelect): string[] {
+  const fields: string[] = [];
+  if (!keep.archetype && drop.archetype) fields.push("archetype");
+  if (!keep.background && drop.background) fields.push("background");
+  if (!keep.portraitUrl && drop.portraitUrl) fields.push("portraitUrl");
+  if ((keep.portraitUrls?.length ?? 0) === 0 && (drop.portraitUrls?.length ?? 0) > 0) fields.push("portraitUrls");
+  if ((keep.statsImageUrls?.length ?? 0) === 0 && (drop.statsImageUrls?.length ?? 0) > 0) fields.push("statsImageUrls");
+  if (!keep.sheetData && drop.sheetData) fields.push("sheetData");
+  if (!keep.importedFromThreadId && drop.importedFromThreadId) fields.push("importedFromThreadId");
+  if (!keep.importedFromChannelName && drop.importedFromChannelName) fields.push("importedFromChannelName");
+  if ((keep.appliedTags?.length ?? 0) === 0 && (drop.appliedTags?.length ?? 0) > 0) fields.push("appliedTags");
+  if (!keep.legacyDiscordUsername && drop.legacyDiscordUsername) fields.push("legacyDiscordUsername");
+  if (!keep.ownerId && drop.ownerId) fields.push("ownerId");
+  if (!keep.discordChannelId && drop.discordChannelId) fields.push("discordChannelId");
+  return fields;
+}
+
+async function collectChildCounts(charId: number): Promise<Record<string, number>> {
+  const c = async (q: Promise<Array<{ n: number }>>) => (await q)[0]?.n ?? 0;
+  return {
+    character_updates: await c(db.select({ n: count() }).from(characterUpdates).where(eq(characterUpdates.characterId, charId))),
+    inventory_items: await c(db.select({ n: count() }).from(inventoryItems).where(eq(inventoryItems.characterId, charId))),
+    store_employees: await c(db.select({ n: count() }).from(storeEmployees).where(eq(storeEmployees.characterId, charId))),
+    ripperdoc_employees: await c(db.select({ n: count() }).from(ripperdocEmployees).where(eq(ripperdocEmployees.characterId, charId))),
+    housing: await c(db.select({ n: count() }).from(housing).where(eq(housing.characterId, charId))),
+    housing_requests: await c(db.select({ n: count() }).from(housingRequests).where(eq(housingRequests.characterId, charId))),
+    trauma_team_calls: await c(db.select({ n: count() }).from(traumaTeamCalls).where(eq(traumaTeamCalls.characterId, charId))),
+    mission_log: await c(db.select({ n: count() }).from(missionLog).where(eq(missionLog.characterId, charId))),
+    wallet_transactions: await c(db.select({ n: count() }).from(walletTransactions).where(eq(walletTransactions.characterId, charId))),
+    character_sheets: await c(db.select({ n: count() }).from(characterSheets).where(eq(characterSheets.characterId, charId))),
+    shop_opens: await c(db.select({ n: count() }).from(shopOpens).where(eq(shopOpens.characterId, charId))),
+    pending_edits: await c(db.select({ n: count() }).from(pendingCharacterEdits).where(eq(pendingCharacterEdits.characterId, charId))),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Claim-by-username. Unclaimed characters carry `legacyDiscordUsername`
+// (the Discord handle the sheet was authored under). When that user later
+// logs into the portal we get a `users` row with the same username — this
+// endpoint links them. Case-insensitive name match, never overwrites an
+// existing ownerId, never matches when the dev row owner is ambiguous
+// (>1 users share the legacy username).
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/admin/maintenance/claim-by-username",
+  adminOnly,
+  async (_req, res): Promise<void> => {
+    const matches = await previewClaimByUsername();
+    res.json({
+      candidateCount: matches.length,
+      ambiguousCount: matches.filter((m) => m.matchedUserIds.length > 1).length,
+      matches,
+    });
+  },
+);
+
+router.post(
+  "/admin/maintenance/claim-by-username",
+  adminOnly,
+  expressJson({ limit: "100kb" }),
+  async (req, res): Promise<void> => {
+    const body = req.body as { dryRun?: boolean } | null;
+    const matches = await previewClaimByUsername();
+    if (body?.dryRun) {
+      res.json({ dryRun: true, candidateCount: matches.length, matches });
+      return;
+    }
+    const applied: Array<{ characterId: number; characterName: string; ownerId: string; matchedUsername: string }> = [];
+    const skipped: Array<{ characterId: number; characterName: string; reason: string }> = [];
+    for (const m of matches) {
+      if (m.matchedUserIds.length !== 1) {
+        skipped.push({ characterId: m.characterId, characterName: m.characterName, reason: m.matchedUserIds.length === 0 ? "no_match" : `ambiguous (${m.matchedUserIds.length} users)` });
+        continue;
+      }
+      const ownerId = m.matchedUserIds[0];
+      try {
+        await db.update(characters).set({ ownerId, claimed: true }).where(and(eq(characters.id, m.characterId), isNull(characters.ownerId)));
+        applied.push({ characterId: m.characterId, characterName: m.characterName, ownerId, matchedUsername: m.legacyDiscordUsername });
+      } catch (err) {
+        skipped.push({ characterId: m.characterId, characterName: m.characterName, reason: (err as Error).message });
+      }
+    }
+
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "claim_by_username",
+      message: `Claim-by-username: linked ${applied.length}, skipped ${skipped.length}`,
+      after: { applied: applied.length, skipped: skipped.length },
+    });
+    res.json({ applied, skipped });
+  },
+);
+
+async function previewClaimByUsername(): Promise<Array<{
+  characterId: number;
+  characterName: string;
+  kind: string;
+  legacyDiscordUsername: string;
+  matchedUserIds: string[];
+  matchedUsernames: string[];
+}>> {
+  const unclaimed = await db
+    .select({
+      id: characters.id,
+      name: characters.name,
+      kind: characters.kind,
+      legacyDiscordUsername: characters.legacyDiscordUsername,
+    })
+    .from(characters)
+    .where(and(
+      isNull(characters.ownerId),
+      sql`${characters.legacyDiscordUsername} is not null`,
+      sql`length(trim(${characters.legacyDiscordUsername})) > 0`,
+    ));
+
+  if (unclaimed.length === 0) return [];
+
+  // One pass over `users` keyed by lower-cased username for an in-memory
+  // join — the user table is small (every logged-in member, hundreds at
+  // most) and the row count squared is dwarfed by network roundtrips if
+  // we did it per-character.
+  const allUsers = await db.select({ id: users.id, username: users.username, globalName: users.globalName }).from(users);
+  const byUsername = new Map<string, Array<{ id: string; username: string }>>();
+  for (const u of allUsers) {
+    for (const handle of [u.username, u.globalName].filter((x): x is string => !!x)) {
+      const key = handle.trim().toLowerCase();
+      if (!key) continue;
+      const list = byUsername.get(key) ?? [];
+      list.push({ id: u.id, username: u.username });
+      byUsername.set(key, list);
+    }
+  }
+
+  return unclaimed.map((c) => {
+    const key = (c.legacyDiscordUsername ?? "").trim().toLowerCase();
+    const hits = byUsername.get(key) ?? [];
+    // Dedupe — a single user matched on both username AND globalName
+    // shouldn't be counted twice.
+    const uniq = new Map<string, string>();
+    for (const h of hits) uniq.set(h.id, h.username);
+    return {
+      characterId: c.id,
+      characterName: c.name,
+      kind: c.kind,
+      legacyDiscordUsername: c.legacyDiscordUsername ?? "",
+      matchedUserIds: Array.from(uniq.keys()),
+      matchedUsernames: Array.from(uniq.values()),
+    };
+  });
+}
 
 export default router;
