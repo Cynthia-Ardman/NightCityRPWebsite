@@ -20,4 +20,14 @@ export interface CatalogGun {
   price: number;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  wholesalePrice?: number | null;
+  /** @nullable */
+  restriction?: string | null;
+  /** @nullable */
+  status?: string | null;
+  /** @nullable */
+  powerLevel?: string | null;
+  /** @nullable */
+  weaponType?: string | null;
 }

@@ -480,6 +480,16 @@ export interface CatalogGun {
   price: number;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  wholesalePrice?: number | null;
+  /** @nullable */
+  restriction?: string | null;
+  /** @nullable */
+  status?: string | null;
+  /** @nullable */
+  powerLevel?: string | null;
+  /** @nullable */
+  weaponType?: string | null;
 }
 
 export interface CatalogCyberware {
@@ -492,6 +502,10 @@ export interface CatalogCyberware {
   installCost?: number | null;
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  cwp?: string | null;
+  /** @nullable */
+  wholesalePrice?: number | null;
 }
 
 export interface CatalogRent {

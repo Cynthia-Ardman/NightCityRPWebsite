@@ -16,4 +16,8 @@ export interface CatalogCyberware {
   installCost?: number | null;
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  cwp?: string | null;
+  /** @nullable */
+  wholesalePrice?: number | null;
 }

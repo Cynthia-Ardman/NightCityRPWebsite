@@ -9,38 +9,59 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Home } from "lucide-react";
+
+const ALL = "__all__";
+
+type Listing = {
+  id: number;
+  name: string;
+  district?: string | null;
+  tier?: string | null;
+  monthlyRent: number;
+  description?: string | null;
+};
+
+const FILTER_COLUMNS: Array<{ key: keyof Listing; label: string }> = [
+  { key: "district", label: "District" },
+  { key: "tier", label: "Tier" },
+];
 
 export default function CatalogRent() {
   const { data, isLoading } = useListRentListings();
   const [q, setQ] = useState("");
-  const [district, setDistrict] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [leaseTarget, setLeaseTarget] = useState<{ id: number; name: string; monthlyRent: number } | null>(null);
 
-  const listings = data ?? [];
-  const districts = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of listings) if (r.district) set.add(r.district);
-    return Array.from(set).sort();
+  const listings = (data ?? []) as Listing[];
+
+  const options = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const { key } of FILTER_COLUMNS) {
+      const set = new Set<string>();
+      for (const r of listings) {
+        const v = r[key];
+        if (typeof v === "string" && v.trim()) set.add(v);
+      }
+      out[key as string] = Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+    return out;
   }, [listings]);
 
   const filtered = listings.filter((r) => {
-    if (district && r.district !== district) return false;
+    for (const { key } of FILTER_COLUMNS) {
+      const want = filters[key as string];
+      if (want && want !== ALL && r[key] !== want) return false;
+    }
     if (!q) return true;
     const needle = q.toLowerCase();
-    return r.name.toLowerCase().includes(needle) || (r.district ?? "").toLowerCase().includes(needle);
+    return (
+      r.name.toLowerCase().includes(needle) ||
+      (r.district ?? "").toLowerCase().includes(needle) ||
+      (r.description ?? "").toLowerCase().includes(needle)
+    );
   });
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, typeof filtered>();
-    for (const r of filtered) {
-      const key = r.district ?? "—";
-      const arr = map.get(key) ?? [];
-      arr.push(r);
-      map.set(key, arr);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [filtered]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
@@ -48,78 +69,74 @@ export default function CatalogRent() {
         <h1 className="text-4xl font-display" data-testid="text-catalog-rent-title">HOUSING CATALOG</h1>
         <p className="font-mono text-muted-foreground mt-2">Available rooms and apartments.</p>
       </div>
-      <div className="flex flex-col gap-3">
-        <Input placeholder="SEARCH..." value={q} onChange={(e) => setQ(e.target.value)} className="rounded-none font-mono max-w-md" data-testid="input-search-rent" />
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant={district === null ? "default" : "outline"}
-            className="rounded-none font-mono uppercase text-xs"
-            onClick={() => setDistrict(null)}
-            data-testid="filter-district-all"
-          >
-            All Districts
-          </Button>
-          {districts.map((d) => (
-            <Button
-              key={d}
-              type="button"
-              variant={district === d ? "default" : "outline"}
-              className="rounded-none font-mono uppercase text-xs"
-              onClick={() => setDistrict(d)}
-              data-testid={`filter-district-${d}`}
-            >
-              {d}
-            </Button>
+      <div className="space-y-3">
+        <Input
+          placeholder="SEARCH NAME / DISTRICT / DESCRIPTION..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="rounded-none font-mono max-w-md"
+          data-testid="input-search-rent"
+        />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-w-2xl">
+          {FILTER_COLUMNS.map(({ key, label }) => (
+            <div key={key as string}>
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">{label}</Label>
+              <Select
+                value={filters[key as string] ?? ALL}
+                onValueChange={(v) => setFilters((prev) => ({ ...prev, [key as string]: v }))}
+              >
+                <SelectTrigger className="rounded-none font-mono text-xs" data-testid={`filter-rent-${String(key)}`}>
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All</SelectItem>
+                  {options[key as string].map((opt) => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ))}
         </div>
       </div>
       {isLoading ? <div className="text-nc-cyan font-display animate-pulse">LOADING...</div> : (
-        <div className="space-y-6">
-          {grouped.map(([districtName, rows]) => (
-            <Card key={districtName} className="rounded-none border-border bg-card/50 p-0 overflow-x-auto" data-testid={`group-district-${districtName}`}>
-              <div className="px-3 py-2 border-b border-border bg-card flex items-baseline justify-between">
-                <h2 className="font-display text-nc-magenta text-lg tracking-widest">{districtName}</h2>
-                <span className="font-mono text-xs text-muted-foreground">{rows.length} listing{rows.length === 1 ? "" : "s"}</span>
-              </div>
-              <table className="w-full font-mono text-sm">
-                <thead className="border-b border-border bg-card">
-                  <tr className="text-nc-cyan uppercase text-xs tracking-widest">
-                    <th className="text-left p-3">Name</th>
-                    <th className="text-left p-3">Tier</th>
-                    <th className="text-right p-3">Rent/mo</th>
-                    <th className="p-3 w-0"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id} className="border-b border-border/30 hover:bg-card/80" data-testid={`row-rent-${r.id}`}>
-                      <td className="p-3 font-bold">{r.name}</td>
-                      <td className="p-3 uppercase">{r.tier ?? "—"}</td>
-                      <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
-                      <td className="p-3 text-right">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
-                          onClick={() => setLeaseTarget({ id: r.id, name: r.name, monthlyRent: r.monthlyRent })}
-                          data-testid={`button-lease-${r.id}`}
-                        >
-                          <Home className="w-3 h-3 mr-1" /> LEASE
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          ))}
-          {grouped.length === 0 && (
-            <Card className="rounded-none border-border bg-card/50 p-8 text-center text-muted-foreground font-mono">
-              No results.
-            </Card>
-          )}
-        </div>
+        <Card className="rounded-none border-border bg-card/50 p-0 overflow-x-auto">
+          <table className="w-full font-mono text-sm min-w-[800px]">
+            <thead className="border-b border-border bg-card">
+              <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
+                <th className="text-left p-3">Name</th>
+                <th className="text-left p-3">District</th>
+                <th className="text-left p-3">Tier</th>
+                <th className="text-left p-3">Description</th>
+                <th className="text-right p-3">Rent/mo</th>
+                <th className="p-3 w-0"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id} className="border-b border-border/30 hover:bg-card/80" data-testid={`row-rent-${r.id}`}>
+                  <td className="p-3 font-bold">{r.name}</td>
+                  <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
+                  <td className="p-3 uppercase">{r.tier ?? "—"}</td>
+                  <td className="p-3 text-muted-foreground max-w-md truncate" title={r.description ?? ""}>{r.description ?? "—"}</td>
+                  <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
+                  <td className="p-3 text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
+                      onClick={() => setLeaseTarget({ id: r.id, name: r.name, monthlyRent: r.monthlyRent })}
+                      data-testid={`button-lease-${r.id}`}
+                    >
+                      <Home className="w-3 h-3 mr-1" /> LEASE
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && <tr><td colSpan={6} className="text-center p-8 text-muted-foreground">No results.</td></tr>}
+            </tbody>
+          </table>
+        </Card>
       )}
       {leaseTarget && (
         <LeaseDialog

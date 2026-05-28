@@ -1653,6 +1653,11 @@ components:
         magSize: { type: ["integer", "null"] }
         price: { type: integer }
         notes: { type: ["string", "null"] }
+        wholesalePrice: { type: ["integer", "null"] }
+        restriction: { type: ["string", "null"] }
+        status: { type: ["string", "null"] }
+        powerLevel: { type: ["string", "null"] }
+        weaponType: { type: ["string", "null"] }
 
     CatalogCyberware:
       type: object
@@ -1665,6 +1670,8 @@ components:
         price: { type: integer }
         installCost: { type: ["integer", "null"] }
         description: { type: ["string", "null"] }
+        cwp: { type: ["string", "null"] }
+        wholesalePrice: { type: ["integer", "null"] }
 
     CatalogRent:
       type: object

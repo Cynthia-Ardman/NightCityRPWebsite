@@ -460,7 +460,12 @@ export const ListGunsResponseItem = zod.object({
   "damage": zod.string().nullish(),
   "magSize": zod.number().nullish(),
   "price": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "wholesalePrice": zod.number().nullish(),
+  "restriction": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "powerLevel": zod.string().nullish(),
+  "weaponType": zod.string().nullish()
 })
 export const ListGunsResponse = zod.array(ListGunsResponseItem)
 
@@ -472,7 +477,9 @@ export const ListCyberwareResponseItem = zod.object({
   "humanityLoss": zod.number(),
   "price": zod.number(),
   "installCost": zod.number().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "cwp": zod.string().nullish(),
+  "wholesalePrice": zod.number().nullish()
 })
 export const ListCyberwareResponse = zod.array(ListCyberwareResponseItem)
 
