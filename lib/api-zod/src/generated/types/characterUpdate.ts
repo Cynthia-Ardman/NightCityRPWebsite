@@ -22,4 +22,10 @@ export interface CharacterUpdate {
   statsImageUrls?: string[];
   sheetData?: SheetData;
   lifeStatus?: CharacterUpdateLifeStatus;
+  /**
+     * Optional commit-message-style note describing what changed. When non-empty, appended to the character's update log.
+     * @minLength 1
+     * @maxLength 2000
+     */
+  updateNote?: string;
 }

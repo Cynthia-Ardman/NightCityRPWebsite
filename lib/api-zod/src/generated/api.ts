@@ -125,6 +125,8 @@ export const UpdateCharacterParams = zod.object({
 
 export const updateCharacterBodyNameMax = 64;
 
+export const updateCharacterBodyUpdateNoteMax = 2000;
+
 
 
 export const UpdateCharacterBody = zod.object({
@@ -138,7 +140,8 @@ export const UpdateCharacterBody = zod.object({
   "preamble": zod.string(),
   "sections": zod.record(zod.string(), zod.string())
 }).optional(),
-  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional()
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
+  "updateNote": zod.string().min(1).max(updateCharacterBodyUpdateNoteMax).optional().describe('Optional commit-message-style note describing what changed. When non-empty, appended to the character\'s update log.')
 })
 
 export const UpdateCharacterResponse = zod.object({
@@ -171,6 +174,25 @@ export const UpdateCharacterResponse = zod.object({
 export const DeleteCharacterParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
+/**
+ * @summary Newest-first list of owner-written update notes for this character
+ */
+export const ListCharacterUpdatesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListCharacterUpdatesResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "note": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "authorId": zod.string().nullish(),
+  "authorName": zod.string().nullish(),
+  "authorAvatarUrl": zod.string().nullish()
+})
+export const ListCharacterUpdatesResponse = zod.array(ListCharacterUpdatesResponseItem)
 
 
 /**

@@ -36,6 +36,7 @@ export * from './characterStatus';
 export * from './characterStatusUpdate';
 export * from './characterUpdate';
 export * from './characterUpdateLifeStatus';
+export * from './characterUpdateNote';
 export * from './dashboardSummary';
 export * from './dashboardSummaryRecentArrivalsItem';
 export * from './dashboardSummaryRecentArrivalsItemKind';

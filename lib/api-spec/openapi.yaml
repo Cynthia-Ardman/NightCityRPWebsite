@@ -134,6 +134,21 @@ paths:
       tags: [characters]
       responses:
         "204": { description: Deleted }
+  /characters/{id}/updates:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listCharacterUpdates
+      tags: [characters]
+      summary: Newest-first list of owner-written update notes for this character
+      responses:
+        "200":
+          description: Update notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CharacterUpdateNote" }
   /characters/{id}/activate:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1638,6 +1653,23 @@ components:
         lifeStatus:
           type: string
           enum: [active, dead, missing, loa, retired]
+        updateNote:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Optional commit-message-style note describing what changed. When non-empty, appended to the character's update log.
+
+    CharacterUpdateNote:
+      type: object
+      required: [id, characterId, note, createdAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+        authorId: { type: ["string", "null"] }
+        authorName: { type: ["string", "null"] }
+        authorAvatarUrl: { type: ["string", "null"] }
 
     InventoryItem:
       type: object

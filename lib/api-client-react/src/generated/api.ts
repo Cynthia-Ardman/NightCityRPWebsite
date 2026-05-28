@@ -38,6 +38,7 @@ import type {
   CharacterStatus,
   CharacterStatusUpdate,
   CharacterUpdate,
+  CharacterUpdateNote,
   DashboardSummary,
   DeactivateCharacter200,
   DiceRollInput,
@@ -833,6 +834,83 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteCharacterMutationOptions(options));
     }
+
+export const getListCharacterUpdatesUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/updates`
+}
+
+/**
+ * @summary Newest-first list of owner-written update notes for this character
+ */
+export const listCharacterUpdates = async (id: number, options?: RequestInit): Promise<CharacterUpdateNote[]> => {
+
+  return customFetch<CharacterUpdateNote[]>(getListCharacterUpdatesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCharacterUpdatesQueryKey = (id: number,) => {
+    return [
+    `/api/characters/${id}/updates`
+    ] as const;
+    }
+
+
+export const getListCharacterUpdatesQueryOptions = <TData = Awaited<ReturnType<typeof listCharacterUpdates>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCharacterUpdates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCharacterUpdatesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCharacterUpdates>>> = ({ signal }) => listCharacterUpdates(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCharacterUpdates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCharacterUpdatesQueryResult = NonNullable<Awaited<ReturnType<typeof listCharacterUpdates>>>
+export type ListCharacterUpdatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Newest-first list of owner-written update notes for this character
+ */
+
+export function useListCharacterUpdates<TData = Awaited<ReturnType<typeof listCharacterUpdates>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCharacterUpdates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCharacterUpdatesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getSetActiveCharacterUrl = (id: number,) => {
 

@@ -89,6 +89,19 @@ export const characters = pgTable("characters", {
 }));
 export type Character = typeof characters.$inferSelect;
 
+// Free-form change-log entries written by the character owner whenever they
+// edit the sheet. Functions like commit messages: a short note describing
+// what changed (new chrome installed, retconned background, etc). Displayed
+// at the bottom of the character profile in newest-first order.
+export const characterUpdates = pgTable("character_updates", {
+  id: serial("id").primaryKey(),
+  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+  note: text("note").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type CharacterUpdate = typeof characterUpdates.$inferSelect;
+
 export const characterStatus = pgTable("character_status", {
   characterId: integer("character_id").primaryKey().references(() => characters.id, { onDelete: "cascade" }),
   loa: boolean("loa").notNull().default(false),

@@ -1,5 +1,6 @@
 import {
   useGetCharacter,
+  useListCharacterUpdates,
   useGetWalletTransactions,
   useTransferEddies,
   useGetCharacterInventory,
@@ -121,6 +122,7 @@ export default function CharacterDetail() {
             <HousingCard characterId={char.id} />
             <ImageGallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
             <ImageGallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
+            <UpdatesLog characterId={char.id} />
           </TabsContent>
 
           <TabsContent value="wallet" className="outline-none focus:ring-0">
@@ -137,6 +139,39 @@ export default function CharacterDetail() {
         </div>
       </Tabs>
     </div>
+  );
+}
+
+function UpdatesLog({ characterId }: { characterId: number }) {
+  const { data: updates } = useListCharacterUpdates(characterId);
+  if (!updates || updates.length === 0) return null;
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid="card-updates-log">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-cyan">UPDATE LOG</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-4">
+          {updates.map((u) => (
+            <li key={u.id} className="flex gap-3 border-b border-border/30 pb-3 last:border-0 last:pb-0" data-testid={`update-${u.id}`}>
+              <Avatar className="w-8 h-8 rounded-none border border-border shrink-0">
+                {u.authorAvatarUrl ? <AvatarImage src={u.authorAvatarUrl} alt={u.authorName ?? ""} /> : null}
+                <AvatarFallback className="rounded-none bg-card text-xs font-mono text-nc-cyan">
+                  {(u.authorName ?? "?").slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 text-xs font-mono">
+                  <span className="text-nc-cyan truncate">{u.authorName ?? "Unknown"}</span>
+                  <span className="text-muted-foreground shrink-0">{new Date(u.createdAt).toLocaleString()}</span>
+                </div>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{u.note}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -5,6 +5,7 @@ import {
   getGetCharacterQueryKey,
   getListMyCharactersQueryKey,
   getGetPublicCharacterQueryKey,
+  getListCharacterUpdatesQueryKey,
   type Character,
 } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -56,6 +57,7 @@ export default function EditCharacterDialog({
   const [portraitUrls, setPortraitUrls] = useState<string[]>(character.portraitUrls ?? []);
   const [statsImageUrls, setStatsImageUrls] = useState<string[]>(character.statsImageUrls ?? []);
   const [lifeStatus, setLifeStatus] = useState<string>(character.lifeStatus ?? "active");
+  const [updateNote, setUpdateNote] = useState<string>("");
 
   // Reset form state every time we re-open with a different character or after
   // server-side changes (avoids leaking stale form state across opens).
@@ -70,6 +72,7 @@ export default function EditCharacterDialog({
     setPortraitUrls(character.portraitUrls ?? []);
     setStatsImageUrls(character.statsImageUrls ?? []);
     setLifeStatus(character.lifeStatus ?? "active");
+    setUpdateNote("");
   }, [open, character]);
 
   const update = useUpdateCharacter({
@@ -79,6 +82,7 @@ export default function EditCharacterDialog({
         qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(character.id) });
         qc.invalidateQueries({ queryKey: getListMyCharactersQueryKey() });
         qc.invalidateQueries({ queryKey: getGetPublicCharacterQueryKey(character.id) });
+        qc.invalidateQueries({ queryKey: getListCharacterUpdatesQueryKey(character.id) });
         onOpenChange(false);
       },
       onError: (err) => {
@@ -107,6 +111,7 @@ export default function EditCharacterDialog({
         statsImageUrls,
         sheetData: { preamble, sections: rowsToSections(rows) },
         lifeStatus: lifeStatus as "active" | "dead" | "missing" | "loa" | "retired",
+        updateNote: updateNote.trim() || undefined,
       },
     });
   }
@@ -256,6 +261,22 @@ export default function EditCharacterDialog({
             onChange={setStatsImageUrls}
             testIdPrefix="stats"
           />
+
+          {/* Update note (commit-message style) */}
+          <div className="border-t border-border pt-4">
+            <Label className="text-xs">UPDATE NOTE (OPTIONAL)</Label>
+            <Textarea
+              value={updateNote}
+              onChange={(e) => setUpdateNote(e.target.value)}
+              placeholder="What changed? e.g. Installed Sandevistan MK.3, retconned backstory, etc."
+              rows={3}
+              maxLength={2000}
+              data-testid="input-edit-update-note"
+            />
+            <p className="text-xs font-mono text-muted-foreground mt-1">
+              If filled in, this note is appended to the character's update log (visible at the bottom of the profile).
+            </p>
+          </div>
 
           {/* Actions */}
           <div className="flex justify-end gap-2 border-t border-border pt-4">

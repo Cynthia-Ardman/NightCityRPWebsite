@@ -5,6 +5,7 @@ import {
   db,
   characters,
   characterStatus,
+  characterUpdates,
   inventoryItems,
   walletTransactions,
   users,
@@ -86,6 +87,7 @@ const CharacterUpdateSchema = z
       sections: z.record(z.string(), z.string()),
     }),
     lifeStatus: z.enum(LIFE_STATUSES),
+    updateNote: z.string().trim().min(1).max(2000),
   })
   .partial()
   .strict();
@@ -117,7 +119,40 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
     .set(u)
     .where(eq(characters.id, id))
     .returning();
+  if (d.updateNote) {
+    await db.insert(characterUpdates).values({
+      characterId: id,
+      authorId: req.user!.id,
+      note: d.updateNote,
+    });
+  }
   res.json({ ...updated, isActive: updated.id === req.user!.activeCharacterId });
+});
+
+router.get("/characters/:id/updates", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  // Anyone who can view the character detail (owner) can see its update log.
+  // The public archive uses its own endpoint and does not include this yet.
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const rows = await db
+    .select({
+      id: characterUpdates.id,
+      characterId: characterUpdates.characterId,
+      note: characterUpdates.note,
+      createdAt: characterUpdates.createdAt,
+      authorId: characterUpdates.authorId,
+      authorName: users.username,
+      authorAvatarUrl: users.avatarUrl,
+    })
+    .from(characterUpdates)
+    .leftJoin(users, eq(users.id, characterUpdates.authorId))
+    .where(eq(characterUpdates.characterId, id))
+    .orderBy(desc(characterUpdates.createdAt));
+  res.json(rows);
 });
 
 router.delete("/characters/:id", requireAuth, async (req, res): Promise<void> => {
