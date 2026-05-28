@@ -19,11 +19,18 @@ export function parseCwp(notes: string | null | undefined): number | null {
   return null;
 }
 
+// CWP cost for one inventory row. Items with an explicit "CWP n" token in
+// notes are counted at face value (multiplied by quantity). Anything
+// untagged is treated as 0 — the spreadsheet only bills points-bearing
+// items, and most untagged rows are placeholders ("Fully Organic",
+// "Has basic implants", legacy-import stubs, junk test entries). A real
+// piece of chrome will always carry a CWP tag from the importer; if one
+// shows up without it, the fix is to stamp the CWP value, not silently
+// charge the player 1 point.
 export function cwpForItem(item: { name: string | null; notes: string | null; quantity: number | null }): number {
   const parsed = parseCwp(item.notes);
   if (parsed != null) return parsed * Math.max(1, item.quantity ?? 1);
-  if (item.name && /fully\s*organic/i.test(item.name)) return 0;
-  return Math.max(1, item.quantity ?? 1);
+  return 0;
 }
 
 export async function sumCwpByCharacter(characterIds: number[]): Promise<Map<number, number>> {
