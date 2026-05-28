@@ -16,12 +16,18 @@ export const ROLE_NAMES = {
 };
 
 export function getRedirectUri(): string {
-  // In production, PUBLIC_BASE_URL pins the OAuth callback to the custom
-  // domain (e.g. https://nightcityroleplay.com) regardless of which Replit
-  // hostname REPLIT_DOMAINS happens to list first.
-  const pinned = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, "");
-  if (pinned) return `${pinned}/api/auth/discord/callback`;
-  const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+  // Only honor PUBLIC_BASE_URL in actual deployments (REPLIT_DEPLOYMENT=1).
+  // In the dev workspace we always use the live workspace domain so Discord
+  // OAuth round-trips back to the workflow app the user is testing in,
+  // even though PUBLIC_BASE_URL is set as a shared secret for production.
+  const isDeployment = process.env.REPLIT_DEPLOYMENT === "1";
+  if (isDeployment) {
+    const pinned = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, "");
+    if (pinned) return `${pinned}/api/auth/discord/callback`;
+  }
+  const domain =
+    process.env.REPLIT_DEV_DOMAIN ||
+    process.env.REPLIT_DOMAINS?.split(",")[0];
   if (!domain) return "http://localhost:5000/api/auth/discord/callback";
   return `https://${domain}/api/auth/discord/callback`;
 }
