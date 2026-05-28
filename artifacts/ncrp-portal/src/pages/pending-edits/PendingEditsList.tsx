@@ -43,9 +43,13 @@ export default function PendingEditsList() {
         <h1 className="font-display text-3xl tracking-widest text-nc-cyan flex items-center gap-2">
           <ShieldAlert className="w-7 h-7" /> CHARACTER EDIT QUEUE
         </h1>
-        <p className="font-mono text-xs text-muted-foreground mt-2">
+        <p className="font-mono text-xs text-muted-foreground mt-2 leading-relaxed">
           Edits to characters require a majority of fixers / approvers / admins to sign off before they apply.
           Submitters cannot vote on their own edits.
+          <br />
+          <span className="text-muted-foreground/80">
+            Reviewers see every pending edit. Players see only their own submissions and can withdraw them from the detail view.
+          </span>
         </p>
       </div>
       {isLoading ? (

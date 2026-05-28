@@ -116,7 +116,12 @@ function SidebarContent() {
         {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
         {user?.isFixer && <NavItem href="/fixer/items" icon={Search} label="Item Trace" />}
         {user?.isCsApprover && <NavItem href="/sheets/pending" icon={FileText} label="Pending Sheets" />}
-        {user && (user.isFixer || user.isCsApprover || user.isAdmin) && (
+        {/* Pending Edits — everyone can open this. The API filters per-role:
+            fixers / cs-approvers / admins see the full review queue;
+            regular players see only their OWN pending submissions, so this
+            doubles as a "where's my edit?" inbox for players who submitted
+            a sheet change and want to track the vote. */}
+        {user && (
           <NavItem href="/pending-edits" icon={FileText} label="Pending Edits" />
         )}
         {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" />}

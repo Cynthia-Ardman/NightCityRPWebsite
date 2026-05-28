@@ -2939,8 +2939,15 @@ export const GetUpcomingBillsResponse = zod.object({
   "cyberwareStatus": zod.object({
   "lastCheckupAt": zod.coerce.date().nullable(),
   "weeksUnpaid": zod.number(),
-  "household": zod.number(),
-  "multiplier": zod.number()
+  "household": zod.number().describe('Number of player\'s PCs with chrome >= 7 (i.e. \'above 6\').'),
+  "multiplier": zod.number(),
+  "topBand": zod.string().describe('Risk band currently driving the bill: none|medium|high|extreme.'),
+  "breakdown": zod.array(zod.object({
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "chromeCount": zod.number(),
+  "band": zod.string().describe('none|medium|high|extreme based on this character\'s chrome count alone.')
+})).describe('All of the player\'s PCs that own at least one piece of chrome, sorted by chrome count descending. Used to populate dashboard tooltips.')
 }).describe('Household-level cyberware billing context — what the next weekly cron tick will see.'),
   "leases": zod.array(zod.object({
   "id": zod.number(),

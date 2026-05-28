@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpcomingBillsCyberwareStatusBreakdownItem } from './upcomingBillsCyberwareStatusBreakdownItem';
 
 /**
  * Household-level cyberware billing context — what the next weekly cron tick will see.
@@ -13,6 +14,11 @@ export type UpcomingBillsCyberwareStatus = {
   /** @nullable */
   lastCheckupAt: Date | null;
   weeksUnpaid: number;
+  /** Number of player's PCs with chrome >= 7 (i.e. 'above 6'). */
   household: number;
   multiplier: number;
+  /** Risk band currently driving the bill: none|medium|high|extreme. */
+  topBand: string;
+  /** All of the player's PCs that own at least one piece of chrome, sorted by chrome count descending. Used to populate dashboard tooltips. */
+  breakdown: UpcomingBillsCyberwareStatusBreakdownItem[];
 };

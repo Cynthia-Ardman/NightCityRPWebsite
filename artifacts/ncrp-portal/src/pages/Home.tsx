@@ -6,6 +6,8 @@ import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 export default function Home() {
   const { data: user, isLoading: userLoading } = useAuthMe();
@@ -466,34 +468,8 @@ function UpcomingBillsCard() {
                 }))}
               />
 
-              {(data.cyberwareStatus.household > 0 || data.meds.length > 0) && (
-                <div className="space-y-1.5 border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm font-mono">
-                  <div className="text-xs uppercase tracking-widest text-destructive">
-                    Cyberware Status
-                  </div>
-                  <div className="flex justify-between gap-3 text-muted-foreground">
-                    <span>Last checkup</span>
-                    <span className="text-foreground text-right">
-                      {data.cyberwareStatus.lastCheckupAt
-                        ? formatDueDate(data.cyberwareStatus.lastCheckupAt)
-                        : "never"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3 text-muted-foreground">
-                    <span>Weeks unpaid</span>
-                    <span className="text-foreground">{data.cyberwareStatus.weeksUnpaid}</span>
-                  </div>
-                  <div className="flex justify-between gap-3 text-muted-foreground">
-                    <span>Household chars billing meds</span>
-                    <span className="text-foreground text-right">
-                      {data.cyberwareStatus.household}
-                      {data.cyberwareStatus.multiplier > 1 ? ` · x${data.cyberwareStatus.multiplier}` : ""}
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground italic pt-1 leading-relaxed">
-                    Any ripperdoc checkup resets the streak for all your characters. Bands: 0-6 none · 7-9 medium · 10-12 high · 13+ extreme.
-                  </div>
-                </div>
+              {(data.cyberwareStatus.household > 0 || data.meds.length > 0 || (data.cyberwareStatus.breakdown?.length ?? 0) > 0) && (
+                <CyberwareStatusPanel status={data.cyberwareStatus} />
               )}
 
               {data.leases.length > 0 && (
@@ -525,6 +501,127 @@ function UpcomingBillsCard() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// Cyberware status panel — 4 labelled stats with hover tooltips that
+// explain what each number means and (for the character count) which PCs
+// are driving the household band. Replaces the older opaque
+// "household chars billing meds · x1.5" line so players can see why
+// they're being billed at the current band.
+type CyberwareStatusShape = {
+  lastCheckupAt?: string | null;
+  weeksUnpaid: number;
+  household: number;
+  multiplier: number;
+  topBand: string;
+  breakdown: Array<{ characterId: number; characterName: string; chromeCount: number; band: string }>;
+};
+
+function bandLabel(band: string): string {
+  if (band === "none") return "None";
+  return band.charAt(0).toUpperCase() + band.slice(1);
+}
+
+function bandColorClass(band: string): string {
+  switch (band) {
+    case "extreme": return "text-destructive";
+    case "high": return "text-nc-magenta";
+    case "medium": return "text-nc-yellow";
+    default: return "text-foreground";
+  }
+}
+
+function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
+  const billable = status.breakdown.filter((b) => b.chromeCount >= 7);
+  return (
+    <TooltipProvider delayDuration={150}>
+      <div className="space-y-2 border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm font-mono">
+        <div className="text-xs uppercase tracking-widest text-destructive">
+          Cyberware Status
+        </div>
+
+        <StatRow
+          label="Last Checkup"
+          value={status.lastCheckupAt ? formatDueDate(status.lastCheckupAt) : "never"}
+          tooltip="Checkups are done by Ripperdocs either in RP or via Text RP. Any of your characters getting a checkup resets the streak for your whole household."
+        />
+
+        <StatRow
+          label="Weeks Without Checkup"
+          value={String(status.weeksUnpaid)}
+          tooltip={`Number of weeks since your last checkup. Drives the weekly cyberware bill: charge = floor((bandCap / 128) × 2^(weeks − 1)), clamped to the band cap, then × household multiplier${status.multiplier > 1 ? ` (currently ×${status.multiplier})` : ""}. Capped at 12 weeks.`}
+        />
+
+        <StatRow
+          label="Characters with Cyberware Above 6"
+          value={
+            <>
+              {status.household}
+              {status.multiplier > 1 ? <span className="text-muted-foreground"> · ×{status.multiplier}</span> : null}
+            </>
+          }
+          tooltip={
+            billable.length === 0 ? (
+              <span>No PC is over the 7-chrome threshold yet.</span>
+            ) : (
+              <div className="space-y-1">
+                <div className="font-semibold">Billable characters (≥ 7 chrome):</div>
+                {billable.map((b) => (
+                  <div key={b.characterId} className="flex justify-between gap-3">
+                    <span>{b.characterName}</span>
+                    <span className="text-muted-foreground">
+                      {b.chromeCount} chrome · {bandLabel(b.band)}
+                    </span>
+                  </div>
+                ))}
+                {status.multiplier > 1 ? (
+                  <div className="pt-1 border-t border-border/40 text-muted-foreground">
+                    Household multiplier ×{status.multiplier} (+25% per extra billable PC).
+                  </div>
+                ) : null}
+              </div>
+            )
+          }
+        />
+
+        <StatRow
+          label="Top Cyberware Band"
+          value={<span className={bandColorClass(status.topBand)}>{bandLabel(status.topBand)}</span>}
+          tooltip="Medium is 7-9 Cyberware Points, High is 10-12 Cyberware points, and Extreme is 13-15 Cyberware Points. The bill is driven by your highest-chrome character."
+        />
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function StatRow({
+  label,
+  value,
+  tooltip,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tooltip: React.ReactNode;
+}) {
+  return (
+    <div className="flex justify-between items-start gap-3 text-muted-foreground">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex items-center gap-1 cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2">
+            {label}
+            <HelpCircle className="w-3 h-3 opacity-60" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          className="max-w-xs bg-background border border-nc-cyan/60 text-foreground font-mono text-xs px-3 py-2 leading-relaxed"
+        >
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+      <span className="text-foreground text-right">{value}</span>
     </div>
   );
 }

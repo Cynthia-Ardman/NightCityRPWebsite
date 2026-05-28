@@ -18,7 +18,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
 import { hasRole } from "../lib/discord";
-import { projectedWeeklyMeds, weeksSinceLastCheckup } from "../lib/jobs";
+import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand } from "../lib/jobs";
 
 // Keep this in sync with `lib/jobs.ts` — it's the rent the monthly_rent cron
 // actually debits per approved PC. Meds use a different formula keyed on
@@ -264,6 +264,26 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // contradictory even though the math is correct.
   const reportedWeeksUnpaid = proj.weeksUnpaid;
 
+  // Per-character chrome breakdown for the dashboard tooltip. Includes
+  // every billable PC that has at least one piece of chrome, so the
+  // player can see exactly which characters are driving their household
+  // band and bill (Corpse with 7 vs. Korra with 5, etc.). Sorted hi→lo.
+  const breakdown = billable
+    .map((c) => {
+      const count = chromeCounts.get(c.id) ?? 0;
+      return {
+        characterId: c.id,
+        characterName: c.name,
+        chromeCount: count,
+        band: deriveCyberwareBand(count).level,
+      };
+    })
+    .filter((r) => r.chromeCount > 0)
+    .sort((a, b) => b.chromeCount - a.chromeCount);
+  // topBand = the band the household is currently being billed at (derived
+  // from maxChromeCount). This is the same value used by projectedWeeklyMeds.
+  const topBand = deriveCyberwareBand(maxChromeCount).level;
+
   res.json({
     rent,
     meds,
@@ -272,6 +292,8 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
       weeksUnpaid: reportedWeeksUnpaid,
       household,
       multiplier: Number(((household <= 1) ? 1 : (1 + 0.25 * (household - 1))).toFixed(2)),
+      topBand,
+      breakdown,
     },
     leases: leases.map((l) => ({
       ...l,

@@ -155,6 +155,7 @@ export * from './storeUpdateKind';
 export * from './transferInput';
 export * from './upcomingBills';
 export * from './upcomingBillsCyberwareStatus';
+export * from './upcomingBillsCyberwareStatusBreakdownItem';
 export * from './upcomingBillsLeasesItem';
 export * from './upcomingBillsMedsItem';
 export * from './upcomingBillsRentItem';

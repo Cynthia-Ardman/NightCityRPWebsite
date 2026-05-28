@@ -1434,6 +1434,14 @@ export type UpcomingBillsMedsItem = {
   dueAt: string;
 };
 
+export type UpcomingBillsCyberwareStatusBreakdownItem = {
+  characterId: number;
+  characterName: string;
+  chromeCount: number;
+  /** none|medium|high|extreme based on this character's chrome count alone. */
+  band: string;
+};
+
 /**
  * Household-level cyberware billing context — what the next weekly cron tick will see.
  */
@@ -1441,8 +1449,13 @@ export type UpcomingBillsCyberwareStatus = {
   /** @nullable */
   lastCheckupAt: string | null;
   weeksUnpaid: number;
+  /** Number of player's PCs with chrome >= 7 (i.e. 'above 6'). */
   household: number;
   multiplier: number;
+  /** Risk band currently driving the bill: none|medium|high|extreme. */
+  topBand: string;
+  /** All of the player's PCs that own at least one piece of chrome, sorted by chrome count descending. Used to populate dashboard tooltips. */
+  breakdown: UpcomingBillsCyberwareStatusBreakdownItem[];
 };
 
 export type UpcomingBillsLeasesItem = {

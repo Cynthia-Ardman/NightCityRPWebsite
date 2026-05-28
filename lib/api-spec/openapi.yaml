@@ -2917,12 +2917,24 @@ components:
         cyberwareStatus:
           type: object
           description: "Household-level cyberware billing context — what the next weekly cron tick will see."
-          required: [lastCheckupAt, weeksUnpaid, household, multiplier]
+          required: [lastCheckupAt, weeksUnpaid, household, multiplier, topBand, breakdown]
           properties:
             lastCheckupAt: { type: ["string", "null"], format: date-time }
             weeksUnpaid: { type: integer }
-            household: { type: integer }
+            household: { type: integer, description: "Number of player's PCs with chrome >= 7 (i.e. 'above 6')." }
             multiplier: { type: number }
+            topBand: { type: string, description: "Risk band currently driving the bill: none|medium|high|extreme." }
+            breakdown:
+              type: array
+              description: "All of the player's PCs that own at least one piece of chrome, sorted by chrome count descending. Used to populate dashboard tooltips."
+              items:
+                type: object
+                required: [characterId, characterName, chromeCount, band]
+                properties:
+                  characterId: { type: integer }
+                  characterName: { type: string }
+                  chromeCount: { type: integer }
+                  band: { type: string, description: "none|medium|high|extreme based on this character's chrome count alone." }
         leases:
           type: array
           items:
