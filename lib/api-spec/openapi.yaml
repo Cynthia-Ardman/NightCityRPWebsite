@@ -2446,7 +2446,7 @@ components:
 
     CatalogRent:
       type: object
-      required: [id, name, monthlyRent]
+      required: [id, name, monthlyRent, occupied]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -2454,6 +2454,9 @@ components:
         tier: { type: ["string", "null"] }
         monthlyRent: { type: integer }
         description: { type: ["string", "null"] }
+        occupied:
+          type: boolean
+          description: True when an active lease already references this listing.
 
     HousingLease:
       type: object

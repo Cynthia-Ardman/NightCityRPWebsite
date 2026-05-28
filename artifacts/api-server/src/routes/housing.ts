@@ -141,6 +141,16 @@ router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Listing not found" });
     return;
   }
+  // Single-unit listings: reject if any active lease already references it.
+  const [existingLease] = await db
+    .select({ id: housing.id })
+    .from(housing)
+    .where(eq(housing.listingId, lid))
+    .limit(1);
+  if (existingLease) {
+    res.status(409).json({ error: "Listing is already occupied by another lease" });
+    return;
+  }
   const address = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
   const [inserted] = await db
     .insert(housing)
@@ -348,6 +358,17 @@ router.post("/housing/requests", requireAuth, async (req, res): Promise<void> =>
     res.status(404).json({ error: "Listing not found" });
     return;
   }
+  // Reject requests against listings that already have an active lease —
+  // these are single-unit, so an occupied listing can't accept another tenant.
+  const [occupant] = await db
+    .select({ id: housing.id })
+    .from(housing)
+    .where(eq(housing.listingId, lid))
+    .limit(1);
+  if (occupant) {
+    res.status(409).json({ error: "Listing is already occupied" });
+    return;
+  }
   // Reject duplicate pending request for the same (character, listing)
   // pair — rejected requests don't block, so the player can resubmit
   // after a denial.
@@ -424,6 +445,16 @@ router.post("/housing/requests/:id/approve", requireAuth, async (req, res): Prom
     const [listing] = await tx.select().from(catalogRent).where(eq(catalogRent.id, reqRow.listingId));
     if (!listing) {
       return { error: { status: 400, body: { error: "Listing is missing" } } };
+    }
+    // Re-check occupancy at approval time: another request could have
+    // been approved between when this one was submitted and now.
+    const [occupant] = await tx
+      .select({ id: housing.id })
+      .from(housing)
+      .where(eq(housing.listingId, reqRow.listingId))
+      .limit(1);
+    if (occupant) {
+      return { error: { status: 409, body: { error: "Listing is already occupied by another lease" } } };
     }
     const address = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
     const [inserted] = await tx

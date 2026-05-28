@@ -662,7 +662,8 @@ export const ListRentListingsResponseItem = zod.object({
   "district": zod.string().nullish(),
   "tier": zod.string().nullish(),
   "monthlyRent": zod.number(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "occupied": zod.boolean().describe('True when an active lease already references this listing.')
 })
 export const ListRentListingsResponse = zod.array(ListRentListingsResponseItem)
 

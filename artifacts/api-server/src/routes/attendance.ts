@@ -8,6 +8,49 @@ import { recordAudit } from "../lib/audit";
 
 const WEEKLY_ATTEND_PAYOUT = 250;
 
+// Attendance can only be claimed during the in-game session window:
+// Sundays 2pm-9pm Pacific Time. We use Intl.DateTimeFormat against
+// America/Los_Angeles so DST is handled correctly (PST ↔ PDT shifts
+// twice a year and naive UTC offset math would silently drift).
+const ATTENDANCE_TZ = "America/Los_Angeles";
+const ATTENDANCE_DAY = "Sun";
+const ATTENDANCE_HOUR_START = 14; // 2pm inclusive
+const ATTENDANCE_HOUR_END = 21;   // 9pm exclusive (i.e. window closes at 21:00)
+
+function pacificParts(now: Date): { weekday: string; hour: number } {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: ATTENDANCE_TZ,
+    weekday: "short",
+    hour: "numeric",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(now);
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  const hourStr = parts.find((p) => p.type === "hour")?.value ?? "0";
+  // Intl reports midnight as "24" with hour12:false in some runtimes.
+  const hourNum = parseInt(hourStr, 10);
+  const hour = Number.isNaN(hourNum) ? 0 : (hourNum === 24 ? 0 : hourNum);
+  return { weekday, hour };
+}
+
+export function isAttendanceWindowOpen(now: Date = new Date()): boolean {
+  const { weekday, hour } = pacificParts(now);
+  return weekday === ATTENDANCE_DAY && hour >= ATTENDANCE_HOUR_START && hour < ATTENDANCE_HOUR_END;
+}
+
+// Next Sunday-2pm-PST opening, computed by stepping hour-by-hour from
+// `now`. Bounded to 9 days so we always terminate even if Intl returns
+// something unexpected. Used purely for UI display.
+export function nextAttendanceWindowStart(now: Date = new Date()): Date {
+  const cursor = new Date(now.getTime());
+  for (let i = 0; i < 24 * 9; i++) {
+    cursor.setTime(cursor.getTime() + 60 * 60 * 1000);
+    const { weekday, hour } = pacificParts(cursor);
+    if (weekday === ATTENDANCE_DAY && hour === ATTENDANCE_HOUR_START) return cursor;
+  }
+  return cursor;
+}
+
 // ISO-week Monday 00:00 UTC for the date passed in. The `attendance_claims`
 // row stores this as a `date` (YYYY-MM-DD) so the UNIQUE index naturally
 // enforces one-claim-per-user-per-week without us having to do any range
@@ -37,11 +80,15 @@ router.get("/attendance/me", requireAuth, async (req, res): Promise<void> => {
     .where(eq(attendanceClaims.userId, userId))
     .orderBy(desc(attendanceClaims.weekStart))
     .limit(8);
+  const windowOpen = isAttendanceWindowOpen();
   res.json({
     weekStart,
     payout: WEEKLY_ATTEND_PAYOUT,
     claimed: !!row,
     claimedAt: row?.claimedAt ?? null,
+    windowOpen,
+    nextWindowOpensAt: windowOpen ? null : nextAttendanceWindowStart().toISOString(),
+    windowHint: "Sundays 2:00pm–9:00pm Pacific",
     history: recent.map((r) => ({
       weekStart: r.weekStart,
       amount: r.amount,
@@ -60,6 +107,18 @@ router.post("/attendance/claim", requireAuth, async (req, res): Promise<void> =>
   const userId = req.user!.id;
   const discordId = req.user!.discordId;
   const weekStart = isoWeekStart(new Date());
+
+  // Attendance is only claimable during the live session window
+  // (Sundays 2-9pm PST). The frontend disables the button outside the
+  // window but the server is authoritative — reject closed-window POSTs
+  // before we ever hit UB.
+  if (!isAttendanceWindowOpen()) {
+    res.status(403).json({
+      error: "Attendance can only be claimed during Sunday sessions (2:00pm–9:00pm Pacific).",
+      nextWindowOpensAt: nextAttendanceWindowStart().toISOString(),
+    });
+    return;
+  }
 
   // Pre-check (race-safe with the unique index below — the index is the
   // source of truth, this is just to skip the UB roundtrip on the obvious

@@ -300,6 +300,9 @@ interface AttendInfo {
   payout: number;
   claimed: boolean;
   claimedAt: string | null;
+  windowOpen: boolean;
+  nextWindowOpensAt: string | null;
+  windowHint: string;
   history: Array<{ weekStart: string; amount: number; claimedAt: string }>;
 }
 
@@ -338,7 +341,15 @@ function AttendCard() {
   if (isLoading) return null;
   if (!data) return null;
 
-  const disabled = data.claimed || claim.isPending;
+  const windowOpen = data.windowOpen;
+  const disabled = data.claimed || claim.isPending || !windowOpen;
+  const buttonLabel = data.claimed
+    ? "CLAIMED ✓"
+    : claim.isPending
+      ? "CLAIMING..."
+      : !windowOpen
+        ? "WINDOW CLOSED"
+        : "CLAIM";
   return (
     <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5">
       <CardContent className="p-4 space-y-3">
@@ -348,6 +359,9 @@ function AttendCard() {
             <div className="text-xs text-muted-foreground font-mono mt-1">
               WEEK_OF {data.weekStart} · €${data.payout.toLocaleString()}
             </div>
+            <div className="text-[10px] font-mono text-muted-foreground/80 mt-1 uppercase tracking-widest">
+              {data.windowHint}
+            </div>
           </div>
           <Button
             type="button"
@@ -356,9 +370,14 @@ function AttendCard() {
             className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest disabled:opacity-50"
             data-testid="button-attend-claim"
           >
-            {data.claimed ? "CLAIMED ✓" : claim.isPending ? "CLAIMING..." : "CLAIM"}
+            {buttonLabel}
           </Button>
         </div>
+        {!windowOpen && !data.claimed && data.nextWindowOpensAt && (
+          <div className="text-xs font-mono text-muted-foreground" data-testid="text-attend-next-window">
+            NEXT_WINDOW: {new Date(data.nextWindowOpensAt).toLocaleString()}
+          </div>
+        )}
         {data.claimedAt && (
           <div className="text-xs font-mono text-muted-foreground">
             LAST_CLAIM: {new Date(data.claimedAt).toLocaleString()}

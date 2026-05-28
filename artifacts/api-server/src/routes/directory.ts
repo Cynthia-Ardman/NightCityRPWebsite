@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, ilike, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, ilike, isNull, isNotNull, desc, sql } from "drizzle-orm";
 import {
   db,
   ripperdocs,
@@ -11,6 +11,7 @@ import {
   catalogGuns,
   catalogCyberware,
   catalogRent,
+  housing,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
@@ -289,7 +290,18 @@ router.get("/catalog/cyberware", async (_req, res): Promise<void> => {
   res.json(await db.select().from(catalogCyberware));
 });
 router.get("/catalog/rent", async (_req, res): Promise<void> => {
-  res.json(await db.select().from(catalogRent));
+  // Mark listings that already have an active lease so the UI can
+  // disable the LEASE button instead of letting players submit a
+  // request that the housing flow would have to reject anyway.
+  const [listings, occupied] = await Promise.all([
+    db.select().from(catalogRent),
+    db
+      .selectDistinct({ listingId: housing.listingId })
+      .from(housing)
+      .where(isNotNull(housing.listingId)),
+  ]);
+  const occupiedSet = new Set(occupied.map((r) => r.listingId).filter((id): id is number => id != null));
+  res.json(listings.map((l) => ({ ...l, occupied: occupiedSet.has(l.id) })));
 });
 
 export default router;

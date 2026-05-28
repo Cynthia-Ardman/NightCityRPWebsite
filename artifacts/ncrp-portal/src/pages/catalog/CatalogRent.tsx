@@ -23,6 +23,7 @@ type Listing = {
   tier?: string | null;
   monthlyRent: number;
   description?: string | null;
+  occupied?: boolean;
 };
 
 const FILTER_COLUMNS: Array<{ key: keyof Listing; label: string }> = [
@@ -123,15 +124,24 @@ export default function CatalogRent() {
                   <td className="p-3 text-muted-foreground max-w-md truncate" title={r.description ?? ""}>{r.description ?? "—"}</td>
                   <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
                   <td className="p-3 text-right">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
-                      onClick={() => setLeaseTarget({ id: r.id, name: r.name, monthlyRent: r.monthlyRent })}
-                      data-testid={`button-lease-${r.id}`}
-                    >
-                      <Home className="w-3 h-3 mr-1" /> LEASE
-                    </Button>
+                    {r.occupied ? (
+                      <span
+                        className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest"
+                        data-testid={`badge-occupied-${r.id}`}
+                      >
+                        OCCUPIED
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
+                        onClick={() => setLeaseTarget({ id: r.id, name: r.name, monthlyRent: r.monthlyRent })}
+                        data-testid={`button-lease-${r.id}`}
+                      >
+                        <Home className="w-3 h-3 mr-1" /> LEASE
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

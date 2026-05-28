@@ -16,4 +16,6 @@ export interface CatalogRent {
   monthlyRent: number;
   /** @nullable */
   description?: string | null;
+  /** True when an active lease already references this listing. */
+  occupied: boolean;
 }
