@@ -6,6 +6,7 @@ import {
   characterStatus,
   characterSheets,
   activityEvents,
+  auditLog,
   fixerNpcs,
   users,
   housing,
@@ -13,6 +14,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
+import { hasRole } from "../lib/discord";
 
 // Keep these in sync with `lib/jobs.ts` — they define the formulas the cron
 // jobs actually use, so the projection on the dashboard is honest.
@@ -187,6 +189,47 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
 
 router.get("/dashboard/activity", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(activityEvents).orderBy(desc(activityEvents.createdAt)).limit(20);
+  res.json(rows);
+});
+
+// Per-user activity feed for the home dashboard SYSTEM_LOGS card.
+// - ADMIN and FIXER see the global audit_log (most recent N rows).
+// - Everyone else sees rows where they are the actor OR the target is one
+//   of their characters. Keeps players' personal feed actually personal
+//   without exposing other players' wallet/sheet activity.
+router.get("/me/system-log", requireAuth, async (req, res): Promise<void> => {
+  const limit = Math.min(50, parseInt(String(req.query.limit ?? "15"), 10) || 15);
+  const u = req.user!;
+  const staff = hasRole(u.roles, "ADMIN") || hasRole(u.roles, "FIXER");
+  if (staff) {
+    const rows = await db
+      .select()
+      .from(auditLog)
+      .orderBy(desc(auditLog.createdAt))
+      .limit(limit);
+    res.json(rows);
+    return;
+  }
+  const myChars = await db
+    .select({ id: characters.id })
+    .from(characters)
+    .where(eq(characters.ownerId, u.id));
+  const charIdStrs = myChars.map((c) => String(c.id));
+  const conds: ReturnType<typeof eq>[] = [eq(auditLog.actorId, u.id)];
+  if (charIdStrs.length > 0) {
+    conds.push(
+      and(
+        eq(auditLog.targetType, "character"),
+        sql`${auditLog.targetId} = ANY(${charIdStrs})`,
+      ) as ReturnType<typeof eq>,
+    );
+  }
+  const rows = await db
+    .select()
+    .from(auditLog)
+    .where(or(...conds))
+    .orderBy(desc(auditLog.createdAt))
+    .limit(limit);
   res.json(rows);
 });
 

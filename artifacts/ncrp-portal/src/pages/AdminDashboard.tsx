@@ -58,7 +58,7 @@ export default function AdminDashboard() {
       )}
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-7 max-w-6xl w-full">
+        <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-8 max-w-6xl w-full">
           <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
           <TabsTrigger value="characters" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-chars">Characters</TabsTrigger>
           <TabsTrigger value="wallet" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-wallet">Wallets</TabsTrigger>
@@ -66,6 +66,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="audit" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-audit">Audit Log</TabsTrigger>
           <TabsTrigger value="flags" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-flags">System Flags</TabsTrigger>
           <TabsTrigger value="housing" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-housing-requests">Housing</TabsTrigger>
+          <TabsTrigger value="maintenance" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-maintenance">Maintenance</TabsTrigger>
         </TabsList>
 
         <div className="mt-8">
@@ -89,6 +90,9 @@ export default function AdminDashboard() {
           </TabsContent>
           <TabsContent value="housing">
             <HousingRequestsTab />
+          </TabsContent>
+          <TabsContent value="maintenance">
+            <MaintenanceTab />
           </TabsContent>
         </div>
       </Tabs>
@@ -957,5 +961,176 @@ function HousingRequestsTab() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function MaintenanceTab() {
+  const { toast } = useToast();
+  const [importResult, setImportResult] = useState<null | {
+    inserted: number;
+    updated: number;
+    skipped: number;
+    errors: Array<{ name: string; error: string }>;
+  }>(null);
+  const [importing, setImporting] = useState(false);
+  const [pasted, setPasted] = useState("");
+
+  async function downloadExport() {
+    const r = await fetch("/api/admin/maintenance/npc-export", { credentials: "include" });
+    if (!r.ok) {
+      toast({ title: "Export failed", description: `HTTP ${r.status}`, variant: "destructive" });
+      return;
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ncrp-npcs-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    const json = await fetch(url).catch(() => null);
+    toast({ title: "NPC export downloaded", description: `Saved ${a.download}` });
+    void json;
+  }
+
+  async function runImport(jsonText: string) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (e) {
+      toast({ title: "Invalid JSON", description: (e as Error).message, variant: "destructive" });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const r = await fetch("/api/admin/maintenance/npc-import", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Import failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setImportResult(body);
+      toast({
+        title: "NPC import complete",
+        description: `${body.inserted} inserted, ${body.updated} updated, ${body.errors?.length ?? 0} errors`,
+      });
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    await runImport(text);
+    e.target.value = "";
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader>
+          <CardTitle className="font-display tracking-widest">NPC SYNC</CardTitle>
+          <CardDescription className="font-mono text-xs">
+            Dev → Prod data sync for NPC characters. Production database writes go through this
+            running app — export from dev, then deploy and re-import here in prod. Upsert is
+            keyed on (kind='npc', name); admin-assigned owners are preserved across runs.
+            Portrait URLs continue to resolve because dev and prod share the object-storage bucket.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label className="font-display tracking-widest text-xs">1 · EXPORT (run in dev)</Label>
+            <p className="text-xs font-mono text-muted-foreground">
+              Downloads every NPC in this environment as a single JSON file.
+            </p>
+            <Button
+              type="button"
+              onClick={downloadExport}
+              className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+              data-testid="button-npc-export"
+            >
+              DOWNLOAD NPC EXPORT
+            </Button>
+          </div>
+
+          <div className="border-t border-border/50 pt-4 space-y-2">
+            <Label className="font-display tracking-widest text-xs">2 · IMPORT (run in prod after deploy)</Label>
+            <p className="text-xs font-mono text-muted-foreground">
+              Upload the JSON file produced above (or paste it). Safe to run repeatedly.
+            </p>
+            <div className="flex flex-wrap gap-3 items-center">
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={onFile}
+                disabled={importing}
+                className="font-mono text-xs"
+                data-testid="input-npc-import-file"
+              />
+              {importing && <span className="text-xs font-mono text-nc-cyan animate-pulse">IMPORTING...</span>}
+            </div>
+            <details className="text-xs font-mono text-muted-foreground">
+              <summary className="cursor-pointer hover:text-foreground">Or paste JSON directly</summary>
+              <textarea
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+                placeholder='{ "npcs": [...] }'
+                className="mt-2 w-full h-32 bg-background border border-border rounded-none p-2 text-xs font-mono"
+                data-testid="textarea-npc-import-paste"
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => runImport(pasted)}
+                disabled={importing || !pasted.trim()}
+                className="mt-2 rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                data-testid="button-npc-import-paste"
+              >
+                RUN IMPORT
+              </Button>
+            </details>
+          </div>
+
+          {importResult && (
+            <div className="border-t border-border/50 pt-4 space-y-2" data-testid="block-npc-import-result">
+              <Label className="font-display tracking-widest text-xs">RESULT</Label>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="border border-nc-cyan/40 bg-nc-cyan/5 p-2">
+                  <div className="text-2xl font-display text-nc-cyan">{importResult.inserted}</div>
+                  <div className="text-xs font-mono text-muted-foreground uppercase">Inserted</div>
+                </div>
+                <div className="border border-nc-yellow/40 bg-nc-yellow/5 p-2">
+                  <div className="text-2xl font-display text-nc-yellow">{importResult.updated}</div>
+                  <div className="text-xs font-mono text-muted-foreground uppercase">Updated</div>
+                </div>
+                <div className="border border-destructive/40 bg-destructive/5 p-2">
+                  <div className="text-2xl font-display text-destructive">{importResult.errors.length}</div>
+                  <div className="text-xs font-mono text-muted-foreground uppercase">Errors</div>
+                </div>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {importResult.errors.map((e, i) => (
+                    <div key={i} className="text-xs font-mono text-destructive border border-destructive/30 px-2 py-1">
+                      <span className="font-bold">{e.name}:</span> {e.error}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

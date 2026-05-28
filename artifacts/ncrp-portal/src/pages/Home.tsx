@@ -2,7 +2,7 @@ import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useG
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
-import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe } from "lucide-react";
+import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -112,30 +112,185 @@ function Dashboard() {
         <div className="space-y-6">
           <AttendCard />
           <UpcomingBillsCard />
-          <h2 className="text-2xl font-display font-bold text-foreground" data-testid="text-system-logs-title">SYSTEM_LOGS</h2>
-          <Card className="rounded-none border-border bg-card/50 min-h-[300px]">
-            <CardContent className="p-0">
-              <div className="divide-y divide-border/50">
-                {/* Fallback logs if recent activity API is not hooked up yet */}
-                <div className="p-4 text-sm font-mono text-muted-foreground flex gap-3">
-                  <Clock className="w-4 h-4 mt-0.5 text-nc-cyan" />
-                  <div>
-                    <div className="text-foreground">System initialized</div>
-                    <div className="text-xs opacity-50 mt-1">Just now</div>
-                  </div>
-                </div>
-                <div className="p-4 text-sm font-mono text-muted-foreground flex gap-3">
-                  <Skull className="w-4 h-4 mt-0.5 text-nc-magenta" />
-                  <div>
-                    <div className="text-foreground">NCPD Scanner connected</div>
-                    <div className="text-xs opacity-50 mt-1">2 mins ago</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <NpcConsolePanel />
+          <SystemLogsCard />
         </div>
       </div>
+    </div>
+  );
+}
+
+interface SystemLogRow {
+  id: number;
+  category: string;
+  action: string;
+  actorName: string | null;
+  targetType: string | null;
+  targetId: string | null;
+  message: string | null;
+  createdAt: string;
+}
+
+function relTime(iso: string): string {
+  const t = new Date(iso).getTime();
+  const diff = Date.now() - t;
+  const s = Math.round(diff / 1000);
+  if (s < 60) return s <= 1 ? "just now" : `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function iconForLog(row: SystemLogRow) {
+  // Category-then-action shaping. Keep this synced with audit categories
+  // wired in the API: auth | wallet | character | sheet | shop | inventory |
+  // housing | attendance | admin | mission.
+  if (row.category === "auth") return { Icon: LogIn, color: "text-nc-cyan" };
+  if (row.category === "wallet") return { Icon: Wallet, color: "text-nc-yellow" };
+  if (row.category === "housing") return { Icon: HomeIcon, color: "text-nc-yellow" };
+  if (row.category === "sheet") return { Icon: FileText, color: "text-nc-cyan" };
+  if (row.category === "shop") return { Icon: Store, color: "text-nc-magenta" };
+  if (row.category === "attendance") return { Icon: Clock, color: "text-nc-cyan" };
+  if (row.category === "mission") return { Icon: Activity, color: "text-nc-magenta" };
+  if (row.category === "admin") return { Icon: ShieldCheck, color: "text-destructive" };
+  if (row.category === "character") {
+    if (/cyber|chrome/i.test(row.action) || /cyber|chrome/i.test(row.message ?? "")) {
+      return { Icon: Cpu, color: "text-nc-magenta" };
+    }
+    return { Icon: Users, color: "text-nc-cyan" };
+  }
+  if (row.category === "inventory") return { Icon: Receipt, color: "text-nc-yellow" };
+  return { Icon: Skull, color: "text-muted-foreground" };
+}
+
+function summarizeLog(row: SystemLogRow): string {
+  if (row.message) return row.message;
+  const who = row.actorName ?? "system";
+  const verb = row.action.replace(/_/g, " ");
+  return `${who} ${verb}`.trim();
+}
+
+function SystemLogsCard() {
+  const { data, isLoading } = useQuery<SystemLogRow[]>({
+    queryKey: ["me-system-log"],
+    queryFn: async () => {
+      const r = await fetch("/api/me/system-log?limit=15", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    refetchInterval: 30_000,
+  });
+  return (
+    <div className="space-y-3">
+      <h2 className="text-2xl font-display font-bold text-foreground" data-testid="text-system-logs-title">SYSTEM_LOGS</h2>
+      <Card className="rounded-none border-border bg-card/50 min-h-[200px]">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4 font-mono text-sm text-nc-cyan animate-pulse">SYNCING_FEED...</div>
+          ) : !data || data.length === 0 ? (
+            <div className="p-4 font-mono text-sm text-muted-foreground">No recent activity.</div>
+          ) : (
+            <div className="divide-y divide-border/50 max-h-[420px] overflow-y-auto">
+              {data.map((row) => {
+                const { Icon, color } = iconForLog(row);
+                return (
+                  <div key={row.id} className="p-3 text-sm font-mono text-muted-foreground flex gap-3" data-testid={`row-system-log-${row.id}`}>
+                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${color}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-foreground break-words">{summarizeLog(row)}</div>
+                      <div className="text-xs opacity-50 mt-1 flex gap-2">
+                        <span className="uppercase tracking-widest">{row.category}</span>
+                        <span>·</span>
+                        <span>{relTime(row.createdAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface NpcRow {
+  id: number;
+  name: string;
+  archetype: string | null;
+  portraitUrl: string | null;
+  portraitUrls?: string[] | null;
+  ownerId?: string | null;
+  ownerName?: string | null;
+}
+
+// Staff-only NPC roster card. ADMIN/FIXER see the top NPCs by recency so the
+// dashboard makes it obvious who's been imported / claimed. Players don't
+// see this panel — their assigned NPCs (if any) already render in
+// MY_CHARACTERS via /characters (which filters by ownerId).
+function NpcConsolePanel() {
+  const { data: user } = useAuthMe();
+  const isStaff = Boolean(user?.isAdmin || user?.isFixer);
+  const { data, isLoading } = useQuery<{ items: NpcRow[]; total: number }>({
+    queryKey: ["dashboard-npcs"],
+    queryFn: async () => {
+      const r = await fetch("/api/directory/characters?scope=npc&limit=8", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: isStaff,
+  });
+  if (!isStaff) return null;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-display font-bold text-foreground flex items-center gap-2" data-testid="text-npcs-title">
+          <UserCog className="w-5 h-5 text-nc-magenta" /> NPCS
+          {data?.total ? (
+            <span className="text-xs font-mono text-muted-foreground">({data.total})</span>
+          ) : null}
+        </h2>
+        <Button asChild variant="outline" size="sm" className="border-nc-magenta text-nc-magenta rounded-none hover:bg-nc-magenta/10">
+          <Link href="/characters?scope=npc">MANAGE</Link>
+        </Button>
+      </div>
+      <Card className="rounded-none border-border bg-card/50">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4 font-mono text-sm text-nc-cyan animate-pulse">LOADING_NPCS...</div>
+          ) : !data || data.items.length === 0 ? (
+            <div className="p-4 font-mono text-sm text-muted-foreground">
+              No NPCs yet. Run the importer or use Admin → Maintenance to load them.
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {data.items.map((npc) => (
+                <Link key={npc.id} href={`/characters/${npc.id}`}>
+                  <div className="p-3 flex items-center gap-3 hover:bg-nc-magenta/5 cursor-pointer" data-testid={`row-npc-${npc.id}`}>
+                    <Avatar className="h-9 w-9 border border-border rounded-none">
+                      <AvatarImage src={npc.portraitUrl || npc.portraitUrls?.[0] || ""} />
+                      <AvatarFallback className="bg-background text-nc-magenta rounded-none font-display text-xs">
+                        {npc.name.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-display text-sm truncate">{npc.name}</div>
+                      <div className="text-xs font-mono text-muted-foreground truncate">
+                        {npc.archetype || "—"} {npc.ownerName ? `· ${npc.ownerName}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

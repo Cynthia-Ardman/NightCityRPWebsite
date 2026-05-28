@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, json as expressJson } from "express";
 import { eq, desc, sql, and, gte, type SQL } from "drizzle-orm";
 import { db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig } from "@workspace/db";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
@@ -409,5 +409,146 @@ router.get("/admin/stats", adminOnly, async (_req, res): Promise<void> => {
   const [{ count: charCount }] = await db.select({ count: sql<number>`count(*)::int` }).from(characters);
   res.json({ userCount, charCount });
 });
+
+// ─── NPC maintenance: dev → prod data sync ────────────────────────────────
+// Production DB writes go through the running app (Replit's executeSql is
+// read-only against prod, and migration scripts aren't allowed). Dev → prod
+// data sync therefore uses an export/import pair:
+//   1) Admin in dev calls GET /admin/maintenance/npc-export → JSON dump.
+//   2) Admin in prod calls POST /admin/maintenance/npc-import with that JSON.
+// Idempotent upsert keyed on (kind='npc', name). Admin-assigned ownerId is
+// preserved on rerun via COALESCE so this is safe to import multiple times.
+// Portrait URLs continue to resolve in prod because dev and prod share the
+// same DEFAULT_OBJECT_STORAGE_BUCKET_ID.
+router.get("/admin/maintenance/npc-export", adminOnly, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(characters)
+    .where(eq(characters.kind, "npc"))
+    .orderBy(characters.name);
+  res.setHeader("content-disposition", `attachment; filename="ncrp-npcs-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.json({
+    exportedAt: new Date().toISOString(),
+    count: rows.length,
+    npcs: rows.map((r) => ({
+      name: r.name,
+      kind: r.kind,
+      archetype: r.archetype,
+      lifeStatus: r.lifeStatus,
+      approved: r.approved,
+      claimed: r.claimed,
+      legacyDiscordUsername: r.legacyDiscordUsername,
+      background: r.background,
+      portraitUrl: r.portraitUrl,
+      portraitUrls: r.portraitUrls,
+      statsImageUrls: r.statsImageUrls,
+      importedFromThreadId: r.importedFromThreadId,
+      importedFromChannelName: r.importedFromChannelName,
+      sheetData: r.sheetData,
+      // ownerId intentionally OMITTED — owner assignments are environment-
+      // local (a dev test owner won't exist in prod). Prod assignments must
+      // be made via the existing /admin/characters/:id/owner endpoint.
+    })),
+  });
+});
+
+interface NpcExportRow {
+  name: string;
+  kind?: string;
+  archetype?: string | null;
+  lifeStatus?: string | null;
+  approved?: boolean | null;
+  claimed?: boolean | null;
+  legacyDiscordUsername?: string | null;
+  background?: string | null;
+  portraitUrl?: string | null;
+  portraitUrls?: string[] | null;
+  statsImageUrls?: string[] | null;
+  importedFromThreadId?: string | null;
+  importedFromChannelName?: string | null;
+  sheetData?: unknown;
+}
+
+router.post(
+  "/admin/maintenance/npc-import",
+  adminOnly,
+  expressJson({ limit: "20mb" }),
+  async (req, res): Promise<void> => {
+    const body = req.body as { npcs?: NpcExportRow[] } | null;
+    if (!body || !Array.isArray(body.npcs)) {
+      res.status(400).json({ error: "Body must be { npcs: [...] }" });
+      return;
+    }
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: Array<{ name: string; error: string }> = [];
+
+    for (const npc of body.npcs) {
+      if (!npc || typeof npc.name !== "string" || !npc.name.trim()) {
+        skipped++;
+        continue;
+      }
+      try {
+        const existing = await db
+          .select({ id: characters.id })
+          .from(characters)
+          .where(and(eq(characters.kind, "npc"), eq(characters.name, npc.name)))
+          .limit(1);
+        if (existing.length === 0) {
+          await db.insert(characters).values({
+            name: npc.name,
+            kind: "npc",
+            ownerId: null,
+            archetype: npc.archetype ?? null,
+            lifeStatus: npc.lifeStatus ?? "active",
+            approved: npc.approved ?? true,
+            claimed: npc.claimed ?? false,
+            legacyDiscordUsername: npc.legacyDiscordUsername ?? null,
+            background: npc.background ?? null,
+            portraitUrl: npc.portraitUrl ?? null,
+            portraitUrls: npc.portraitUrls ?? [],
+            statsImageUrls: npc.statsImageUrls ?? [],
+            importedFromThreadId: npc.importedFromThreadId ?? null,
+            importedFromChannelName: npc.importedFromChannelName ?? null,
+            sheetData: (npc.sheetData ?? null) as never,
+          });
+          inserted++;
+        } else {
+          // Preserve admin-assigned ownerId (never touched here). For other
+          // fields, an explicit value in the export wins; otherwise keep what
+          // prod already has, so admins editing in prod don't get clobbered.
+          const updateSet: Record<string, unknown> = {
+            approved: npc.approved ?? true,
+            claimed: npc.claimed ?? false,
+          };
+          if (npc.archetype != null) updateSet.archetype = npc.archetype;
+          if (npc.lifeStatus != null) updateSet.lifeStatus = npc.lifeStatus;
+          if (npc.legacyDiscordUsername != null) updateSet.legacyDiscordUsername = npc.legacyDiscordUsername;
+          if (npc.background != null) updateSet.background = npc.background;
+          if (npc.portraitUrl != null) updateSet.portraitUrl = npc.portraitUrl;
+          if (Array.isArray(npc.portraitUrls) && npc.portraitUrls.length > 0) updateSet.portraitUrls = npc.portraitUrls;
+          if (Array.isArray(npc.statsImageUrls) && npc.statsImageUrls.length > 0) updateSet.statsImageUrls = npc.statsImageUrls;
+          if (npc.importedFromThreadId != null) updateSet.importedFromThreadId = npc.importedFromThreadId;
+          if (npc.importedFromChannelName != null) updateSet.importedFromChannelName = npc.importedFromChannelName;
+          if (npc.sheetData != null) updateSet.sheetData = npc.sheetData as never;
+          await db.update(characters).set(updateSet).where(eq(characters.id, existing[0].id));
+          updated++;
+        }
+      } catch (err) {
+        errors.push({ name: npc.name, error: (err as Error).message });
+      }
+    }
+
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "npc_import",
+      message: `NPC import: ${inserted} inserted, ${updated} updated, ${skipped} skipped, ${errors.length} errors`,
+      after: { inserted, updated, skipped, errors: errors.length },
+    });
+    res.json({ inserted, updated, skipped, errors });
+  },
+);
 
 export default router;
