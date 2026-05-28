@@ -1,0 +1,21 @@
+Smart call. Here's the full backlog as I have it, in the order you raised each item:
+
+MID-FLIGHT (server done, frontend not yet):
+
+    A. Gun catalog UI cleanup — server endpoint + OpenAPI for hiding drafts from non-staff and a PATCH to flip status are shipped on disk but not committed end-to-end. Still to do: regen API client, frontend (drop damage/mag/wholesale columns, hide drafts from regular users, "Edit Gun Catalog" button for fixer/admin, humanize underscored values like heavy_machine_gun → "Heavy Machine Gun", make weapon-type searchable by text).
+
+QUEUED, NOT STARTED:
+
+    B. Pending-sheets approval flow — extend the existing character_sheets table so character edits/uploads need fixer signoff before they apply to characters. (Open: how many fixers must approve? Any-one / two / unanimous? Admin/fixer bypass?)
+    C. Stores & ripperdocs list cleanup + CRUD — list shows only name / owner / storefront image, drop legacy IDs. Admin + fixer can CRUD both the stores/ripperdocs themselves AND their inventory.
+    D. Fixer global cyberware list page — one page for fixers showing every player → every character → that character's chrome, formatted like the NCRP__Cyberware_list_v2 spreadsheet (Character | Player | CWP Total | Implant | CWP | Slot | Function | Notes).
+    E. Housing rental flow — /housing page listing every property as Available or Occupied (by which character), "Rent" button on available ones. Rule: one rented house + one rented business per player per map (you confirmed this).
+    F. Auto-bill jobs (rent + cyberware) matching NightCityBot's logic. (I still need the NightCityBot GitHub URL, or paste me the rent + cyberware processing functions.)
+    G. Admin kill switches for housing autobill and cyberware autobill, both defaulting OFF while testing.
+    H. Monthly lifestyle costs charged alongside rent (Task #21, just queued).
+
+OPEN LOOSE END:
+
+    Your cyberware-list message cut off at "In addition, we need to add..." — was there a separate item I'm missing?
+
+My recommendation: finish A first since it's already half-done (small, ~15 min), then do G (kill switches — tiny but unblocks safe deployment of F and E), then tackle E + F + H together since they're tightly coupled (housing UI needs the rent-billing logic and the lifestyle cost cycle uses the same job).
