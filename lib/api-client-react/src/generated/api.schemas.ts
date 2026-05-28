@@ -1391,21 +1391,26 @@ export type UpcomingBillsRentItem = {
 };
 
 export type UpcomingBillsMedsItem = {
-  characterId: number;
-  characterName: string;
-  /** Cyberware items installed (inventory_items category=cyberware). */
-  chromeCount: number;
-  /** Auto-derived risk band from chrome count: none|medium|high|extreme. */
+  /**
+     * Character driving the band (highest chrome count) — for UI linking only.
+     * @nullable
+     */
+  anchorCharacterId: number | null;
+  /** @nullable */
+  anchorCharacterName: string | null;
+  /** Highest cyberware count across the player's PCs (inventory_items category=cyberware). */
+  maxChromeCount: number;
+  /** Auto-derived risk band from max chrome count: none|medium|high|extreme. */
   level: string;
   /** Weeks since the household's most recent ripperdoc checkup (capped at 12). */
   weeksUnpaid: number;
-  /** Number of the owner's PCs that currently owe meds (chrome >= 7). */
+  /** Number of the player's PCs that own chrome (>= 7 pieces). */
   household: number;
   /** Household-size multiplier applied to the base charge (1.0 + 0.25 per extra billable character). */
   multiplier: number;
   /** Charge before the household multiplier. */
   baseCharge: number;
-  /** Final charge for this character (baseCharge * multiplier, floored). */
+  /** Final charge for the player (baseCharge * multiplier, floored). */
   amount: number;
   dueAt: string;
 };
@@ -1439,6 +1444,7 @@ export type UpcomingBillsTotals = {
 
 export interface UpcomingBills {
   rent: UpcomingBillsRentItem[];
+  /** Player-level cyberpsychosis meds bill (one entry per player, not per character). Empty if no PC has 7+ chrome. */
   meds: UpcomingBillsMedsItem[];
   /** Household-level cyberware billing context — what the next weekly cron tick will see. */
   cyberwareStatus: UpcomingBillsCyberwareStatus;

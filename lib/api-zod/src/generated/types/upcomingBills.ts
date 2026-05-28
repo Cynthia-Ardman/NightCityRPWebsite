@@ -13,6 +13,7 @@ import type { UpcomingBillsTotals } from './upcomingBillsTotals';
 
 export interface UpcomingBills {
   rent: UpcomingBillsRentItem[];
+  /** Player-level cyberpsychosis meds bill (one entry per player, not per character). Empty if no PC has 7+ chrome. */
   meds: UpcomingBillsMedsItem[];
   /** Household-level cyberware billing context — what the next weekly cron tick will see. */
   cyberwareStatus: UpcomingBillsCyberwareStatus;

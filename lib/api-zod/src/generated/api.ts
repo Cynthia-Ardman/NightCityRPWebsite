@@ -2906,17 +2906,17 @@ export const GetUpcomingBillsResponse = zod.object({
   "dueAt": zod.coerce.date()
 })),
   "meds": zod.array(zod.object({
-  "characterId": zod.number(),
-  "characterName": zod.string(),
-  "chromeCount": zod.number().describe('Cyberware items installed (inventory_items category=cyberware).'),
-  "level": zod.string().describe('Auto-derived risk band from chrome count: none|medium|high|extreme.'),
+  "anchorCharacterId": zod.number().nullable().describe('Character driving the band (highest chrome count) — for UI linking only.'),
+  "anchorCharacterName": zod.string().nullable(),
+  "maxChromeCount": zod.number().describe('Highest cyberware count across the player\'s PCs (inventory_items category=cyberware).'),
+  "level": zod.string().describe('Auto-derived risk band from max chrome count: none|medium|high|extreme.'),
   "weeksUnpaid": zod.number().describe('Weeks since the household\'s most recent ripperdoc checkup (capped at 12).'),
-  "household": zod.number().describe('Number of the owner\'s PCs that currently owe meds (chrome >= 7).'),
+  "household": zod.number().describe('Number of the player\'s PCs that own chrome (>= 7 pieces).'),
   "multiplier": zod.number().describe('Household-size multiplier applied to the base charge (1.0 + 0.25 per extra billable character).'),
   "baseCharge": zod.number().describe('Charge before the household multiplier.'),
-  "amount": zod.number().describe('Final charge for this character (baseCharge \* multiplier, floored).'),
+  "amount": zod.number().describe('Final charge for the player (baseCharge \* multiplier, floored).'),
   "dueAt": zod.coerce.date()
-})),
+})).describe('Player-level cyberpsychosis meds bill (one entry per player, not per character). Empty if no PC has 7+ chrome.'),
   "cyberwareStatus": zod.object({
   "lastCheckupAt": zod.coerce.date().nullable(),
   "weeksUnpaid": zod.number(),

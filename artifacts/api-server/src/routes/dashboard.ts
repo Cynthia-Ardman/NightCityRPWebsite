@@ -125,13 +125,13 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     dueAt: rentDueAt,
   }));
 
-  // Meds projection — calls the same helper the cyberware_humanity cron
-  // uses, so the displayed number is exactly what gets debited on the
-  // next Monday tick. Risk band is auto-derived from chrome count in
-  // inventory_items (0-6=none, 7-9=medium, 10-12=high, 13+=extreme).
-  // "Weeks unpaid" is per-USER (most recent checkup across all the
-  // owner's characters); household multiplier scales the bill by
-  // +25% per extra billable character.
+  // Meds projection — one bill per PLAYER, not per character. The band
+  // comes from the highest chrome count across the player's PCs
+  // (0-6=none, 7-9=medium, 10-12=high, 13+=extreme). "Weeks unpaid" is
+  // the most recent checkup across all characters; household multiplier
+  // scales the bill by +25% per extra billable character (chrome >= 7).
+  // Calls the same helper the cyberware_humanity cron uses so the
+  // displayed number is exactly what gets debited.
   const billableIds = billable.map((c) => c.id);
   const chromeCountsRaw = billableIds.length === 0 ? [] : await db
     .select({ characterId: inventoryItems.characterId, count: sql<number>`count(*)::int` })
@@ -142,7 +142,6 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   for (const r of chromeCountsRaw) {
     if (r.characterId != null) chromeCounts.set(r.characterId, r.count);
   }
-  // Per-user lastCheckupAt = most recent across the owner's characters.
   const lastCheckupAt = billable.reduce<Date | null>((acc, c) => {
     if (!c.lastCheckupAt) return acc;
     if (!acc || c.lastCheckupAt > acc) return c.lastCheckupAt;
@@ -150,13 +149,25 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   }, null);
   const nextRunDate = nextWeeklyRunDate(now);
   const weeksUnpaid = weeksSinceLastCheckup(lastCheckupAt, nextRunDate);
-  // Household = approved PCs that actually owe meds (chrome >= 7).
+  const maxChromeCount = billable.reduce((m, c) => Math.max(m, chromeCounts.get(c.id) ?? 0), 0);
   const household = billable.filter((c) => (chromeCounts.get(c.id) ?? 0) >= 7).length;
+  // Anchor character = the one driving the band (highest chrome). Used so
+  // the UI can link back to a relevant character page.
+  let anchor: { id: number; name: string } | null = null;
+  let anchorMax = -1;
+  for (const c of billable) {
+    const n = chromeCounts.get(c.id) ?? 0;
+    if (n > anchorMax) {
+      anchorMax = n;
+      anchor = { id: c.id, name: c.name };
+    }
+  }
 
+  const proj = projectedWeeklyMeds({ chromeCount: maxChromeCount, household, weeksUnpaid });
   const meds: Array<{
-    characterId: number;
-    characterName: string;
-    chromeCount: number;
+    anchorCharacterId: number | null;
+    anchorCharacterName: string | null;
+    maxChromeCount: number;
     level: string;
     weeksUnpaid: number;
     household: number;
@@ -165,15 +176,11 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     amount: number;
     dueAt: string;
   }> = [];
-
-  for (const c of billable) {
-    const chromeCount = chromeCounts.get(c.id) ?? 0;
-    const proj = projectedWeeklyMeds({ chromeCount, household, weeksUnpaid });
-    if (proj.charge <= 0) continue;
+  if (proj.charge > 0) {
     meds.push({
-      characterId: c.id,
-      characterName: c.name,
-      chromeCount,
+      anchorCharacterId: anchor?.id ?? null,
+      anchorCharacterName: anchor?.name ?? null,
+      maxChromeCount,
       level: proj.level,
       weeksUnpaid: proj.weeksUnpaid,
       household: proj.household,

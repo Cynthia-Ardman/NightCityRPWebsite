@@ -75,13 +75,17 @@ export function weeksSinceLastCheckup(lastCheckupAt: Date | null | undefined, ru
   return Math.max(1, Math.min(CYBERWARE_MAX_STREAK, weeks));
 }
 
-// Weekly cyberpsychosis-meds charge for a single character, mirroring the
-// cyberware_humanity cron exactly. Exported so the dashboard projection
-// shows the same number the cron will actually debit on the next Monday.
+// Weekly cyberpsychosis-meds charge for a PLAYER (one bill per Discord
+// account, not per character). `chromeCount` is the highest chrome count
+// across any of the player's approved PCs — that drives the band — and
+// `household` is the count of their PCs that own chrome (>=7 pieces).
+// Both the cron and the dashboard call this so the displayed number is
+// exactly what gets debited.
 //
 // formula: floor((cap/128) * 2^(weeksUnpaid - 1)) * householdMultiplier,
 // clamped at the cap BEFORE the multiplier (so household scaling can push
-// past the per-character cap, which is intentional — more chars = more risk).
+// past the band cap, which is intentional — more chrome under one roof
+// = more risk).
 export function projectedWeeklyMeds(opts: {
   chromeCount: number;
   household: number;
@@ -570,10 +574,26 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         charsByOwner.set(c.ownerId, list);
       }
 
+      // One bill per PLAYER (not per character). We charge once at the
+      // band derived from the player's highest-chrome character; the
+      // household multiplier still scales it by +25% per extra billable
+      // character so multi-PC players pay more in aggregate.
+      const recentMedsByUser = await db
+        .select({ userId: walletTransactions.userId })
+        .from(walletTransactions)
+        .where(and(
+          eq(walletTransactions.kind, "meds"),
+          gte(walletTransactions.createdAt, sixDaysAgo),
+          isNotNull(walletTransactions.userId),
+        ));
+      const recentMedsUserSet = new Set(recentMedsByUser.map((r) => r.userId).filter((u): u is string => !!u));
+
       const now = new Date();
       for (const [ownerId, ownerChars] of charsByOwner) {
-        const billableChars = ownerChars.filter((c) => (chromeByChar.get(c.id) ?? 0) >= 7);
-        if (billableChars.length === 0) continue;
+        if (recentMedsUserSet.has(ownerId)) continue; // already billed this week
+        const maxChromeCount = ownerChars.reduce((m, c) => Math.max(m, chromeByChar.get(c.id) ?? 0), 0);
+        if (maxChromeCount < 7) continue; // no PC has enough chrome to trigger any band
+        const household = ownerChars.filter((c) => (chromeByChar.get(c.id) ?? 0) >= 7).length;
         // Per-user last checkup = most recent across the household. One
         // ripperdoc visit resets the streak for every character.
         const lastCheckupAt = ownerChars.reduce<Date | null>((acc, c) => {
@@ -582,37 +602,32 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           return acc;
         }, null);
         const weeksUnpaid = weeksSinceLastCheckup(lastCheckupAt, now);
-        const household = billableChars.length;
+        const proj = projectedWeeklyMeds({ chromeCount: maxChromeCount, household, weeksUnpaid });
+        if (proj.charge <= 0) continue;
 
         const [owner] = await db.select().from(users).where(eq(users.id, ownerId));
         if (!owner) continue;
-
-        for (const c of billableChars) {
-          if (recentMedsSet.has(c.id)) continue;
-          const chromeCount = chromeByChar.get(c.id) ?? 0;
-          const proj = projectedWeeklyMeds({ chromeCount, household, weeksUnpaid });
-          if (proj.charge <= 0) continue;
-          // UB is authoritative — only insert a local ledger entry after a
-          // confirmed UB debit. Skip cleanly on UB unavailability.
-          const ub = await patchBalance(owner.discordId, {
-            cash: -proj.charge,
-            reason: `Cyberpsychosis meds (${proj.level}, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
+        // UB is authoritative — only insert a local ledger entry after a
+        // confirmed UB debit. Skip cleanly on UB unavailability.
+        const ub = await patchBalance(owner.discordId, {
+          cash: -proj.charge,
+          reason: `Cyberpsychosis meds (${proj.level}, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
+        });
+        if (!ub) {
+          logger.warn({ ownerId }, "cyberware_humanity UB debit failed; skipping local ledger insert");
+          continue;
+        }
+        try {
+          await db.insert(walletTransactions).values({
+            userId: ownerId,
+            characterId: null,
+            amount: -proj.charge,
+            kind: "meds",
+            memo: `Weekly cyberpsychosis meds (${proj.level}, ${maxChromeCount} chrome, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
           });
-          if (!ub) {
-            logger.warn({ characterId: c.id }, "cyberware_humanity UB debit failed; skipping local ledger insert");
-            continue;
-          }
-          try {
-            await db.insert(walletTransactions).values({
-              characterId: c.id,
-              amount: -proj.charge,
-              kind: "meds",
-              memo: `Weekly cyberpsychosis meds (${proj.level}, ${chromeCount} chrome, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
-            });
-            affected++;
-          } catch (err) {
-            logger.warn({ err, characterId: c.id }, "cyberware_humanity ledger insert failed");
-          }
+          affected++;
+        } catch (err) {
+          logger.warn({ err, ownerId }, "cyberware_humanity ledger insert failed");
         }
       }
     } else if (name === "eviction_sweep") {

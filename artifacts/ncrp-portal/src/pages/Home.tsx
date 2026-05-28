@@ -432,13 +432,13 @@ function UpcomingBillsCard() {
                 icon={Syringe}
                 color="text-destructive"
                 title="CYBERPSYCHOSIS MEDS (WEEKLY)"
-                emptyHint="No chrome installed (6 or fewer pieces) — no meds owed."
+                emptyHint="No character has 7+ chrome — no meds owed."
                 items={data.meds.map((m) => ({
-                  key: `meds-${m.characterId}`,
-                  primary: m.characterName,
-                  secondary: `${m.level} band · ${m.chromeCount} chrome · week ${m.weeksUnpaid}${m.multiplier > 1 ? ` · household x${m.multiplier}` : ""} · due ${formatDueDate(m.dueAt)}`,
+                  key: `meds-${m.anchorCharacterId ?? "player"}`,
+                  primary: `Household bill${m.anchorCharacterName ? ` · top: ${m.anchorCharacterName}` : ""}`,
+                  secondary: `${m.level} band · ${m.maxChromeCount} chrome · week ${m.weeksUnpaid}${m.multiplier > 1 ? ` · household x${m.multiplier}` : ""} · due ${formatDueDate(m.dueAt)}`,
                   amount: m.amount,
-                  to: `/characters/${m.characterId}`,
+                  to: m.anchorCharacterId ? `/characters/${m.anchorCharacterId}` : undefined,
                 }))}
               />
 
@@ -515,7 +515,7 @@ function BillSection({
   icon: any;
   color: string;
   title: string;
-  items: Array<{ key: string; primary: string; secondary: string; amount: number; to: string }>;
+  items: Array<{ key: string; primary: string; secondary: string; amount: number; to?: string }>;
   emptyHint: string;
 }) {
   return (
@@ -526,17 +526,22 @@ function BillSection({
       {items.length === 0 ? (
         <div className="text-xs font-mono text-muted-foreground italic">{emptyHint}</div>
       ) : (
-        items.map((it) => (
-          <Link key={it.key} href={it.to}>
-            <div className="flex justify-between items-center text-sm font-mono border border-border/40 px-3 py-2 hover:border-nc-cyan/60 cursor-pointer" data-testid={`row-${it.key}`}>
+        items.map((it) => {
+          const row = (
+            <div className={`flex justify-between items-center text-sm font-mono border border-border/40 px-3 py-2 ${it.to ? "hover:border-nc-cyan/60 cursor-pointer" : ""}`} data-testid={`row-${it.key}`}>
               <div className="min-w-0">
                 <div className="truncate text-foreground">{it.primary}</div>
                 <div className="text-xs text-muted-foreground truncate">{it.secondary}</div>
               </div>
               <div className={`whitespace-nowrap ${color}`}>€${it.amount.toLocaleString()}</div>
             </div>
-          </Link>
-        ))
+          );
+          return it.to ? (
+            <Link key={it.key} href={it.to}>{row}</Link>
+          ) : (
+            <div key={it.key}>{row}</div>
+          );
+        })
       )}
     </div>
   );
