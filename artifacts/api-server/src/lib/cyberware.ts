@@ -1,16 +1,21 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, inventoryItems } from "@workspace/db";
 
+// Importer always emits "CWP <n> · ..." at the start of notes (keyword
+// first, then the value). We also accept "<n> CWP" / "<n> points" /
+// "<n> pts" as a fallback in case anyone hand-types it the other way.
+// Anchor on word boundaries so "CWP" inside another token can't double-
+// match a stray number.
 const CWP_PATTERNS = [
-  /[\s\-–—(\[]\s*(\d+(?:\.\d+)?)\s*(?:cwp|c\.w\.p\.?|points?|pts?\.?)\s*[)\]]?/i,
-  /[\s(\[]\s*(\d+(?:\.\d+)?)\s*(?:cwp|c\.w\.p\.?|points?|pts?\.?)\s*[)\]]/i,
+  /\bcwp\b[\s:=-]*?(\d+(?:\.\d+)?)/i,            // "CWP 1", "CWP: 2", "CWP-3"
+  /\bc\.w\.p\.?\b[\s:=-]*?(\d+(?:\.\d+)?)/i,
+  /(\d+(?:\.\d+)?)\s*(?:cwp|c\.w\.p\.?|points?|pts?\.?)\b/i, // "2 CWP", "3 pts"
 ];
 
 export function parseCwp(notes: string | null | undefined): number | null {
   if (!notes) return null;
-  const padded = ` ${notes}`;
   for (const re of CWP_PATTERNS) {
-    const m = padded.match(re);
+    const m = notes.match(re);
     if (m) {
       const n = parseFloat(m[1]);
       if (Number.isFinite(n)) return n;
