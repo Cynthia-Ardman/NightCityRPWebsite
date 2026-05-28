@@ -2,6 +2,7 @@ import {
   useGetCharacter,
   useListCharacterUpdates,
   useGetWalletTransactions,
+  useGetMyWallet,
   useTransferEddies,
   useGetCharacterInventory,
   useAddInventoryItem,
@@ -332,6 +333,7 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
 function WalletTab({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
   const { data: txs } = useGetWalletTransactions(characterId);
+  const { data: wallet, isLoading: walletLoading } = useGetMyWallet();
   const transfer = useTransferEddies({
     mutation: {
       onSuccess: () => {
@@ -359,6 +361,34 @@ function WalletTab({ characterId }: { characterId: number }) {
             and is shown in the top bar. All buys, sells, transfers, payouts, rent, and meds settle there in real time. The ledger
             below shows transactions tied to <span className="text-foreground">this character</span>.
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-nc-cyan/40 bg-card/50" data-testid="card-wallet-balance">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-display tracking-widest text-xs text-muted-foreground">LIVE BALANCE</CardTitle>
+        </CardHeader>
+        <CardContent className="font-mono">
+          {walletLoading ? (
+            <div className="text-nc-cyan animate-pulse">SYNCING…</div>
+          ) : wallet ? (
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <div className="text-xs text-muted-foreground">CASH</div>
+                <div className="text-2xl text-nc-green" data-testid="text-balance-cash">€${(wallet.cash ?? 0).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">BANK</div>
+                <div className="text-2xl text-nc-cyan" data-testid="text-balance-bank">€${(wallet.bank ?? 0).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">TOTAL</div>
+                <div className="text-2xl text-foreground" data-testid="text-balance-total">€${((wallet.cash ?? 0) + (wallet.bank ?? 0)).toLocaleString()}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-muted-foreground italic">No wallet data.</div>
+          )}
         </CardContent>
       </Card>
 
@@ -447,6 +477,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [transferItemId, setTransferItemId] = useState<number | null>(null);
+  const [editItemId, setEditItemId] = useState<number | null>(null);
 
   if (isLoading) return <div className="text-nc-cyan font-mono animate-pulse">Scanning personal stash...</div>;
 
@@ -538,6 +569,17 @@ function InventoryTab({ characterId }: { characterId: number }) {
                       variant="ghost"
                       size="sm"
                       className="text-nc-cyan h-8 px-2"
+                      onClick={() => setEditItemId(it.id)}
+                      title="Edit item details"
+                      data-testid={`button-edit-item-${it.id}`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-nc-cyan h-8 px-2"
                       onClick={() => setTransferItemId(it.id)}
                       data-testid={`button-transfer-item-${it.id}`}
                     >
@@ -572,6 +614,114 @@ function InventoryTab({ characterId }: { characterId: number }) {
           }}
         />
       )}
+
+      {editItemId !== null && (
+        <EditItemDialog
+          characterId={characterId}
+          item={items?.find((i) => i.id === editItemId) ?? null}
+          onClose={() => setEditItemId(null)}
+          onDone={() => {
+            setEditItemId(null);
+            invalidate();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditItemDialog({
+  characterId,
+  item,
+  onClose,
+  onDone,
+}: {
+  characterId: number;
+  item: { id: number; name: string; category?: string | null; quantity: number; notes?: string | null } | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [name, setName] = useState(item?.name ?? "");
+  const [category, setCategory] = useState(item?.category ?? "");
+  const [quantity, setQuantity] = useState(item?.quantity ?? 1);
+  const [notes, setNotes] = useState(item?.notes ?? "");
+  const update = useUpdateInventoryItem({ mutation: { onSuccess: onDone } });
+  if (!item) return null;
+  const errMsg =
+    (update.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (update.error ? "Update failed" : null);
+  return (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-edit-item">
+      <Card className="rounded-none border-nc-cyan bg-card w-full max-w-lg">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest text-nc-cyan">EDIT: {item.name}</CardTitle>
+          <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-edit-item">
+            <X className="w-4 h-4" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4 font-mono text-sm"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!name.trim() || quantity < 1) return;
+              update.mutate({
+                id: characterId,
+                itemId: item.id,
+                data: {
+                  name: name.trim(),
+                  category: category.trim() || undefined,
+                  quantity: Math.max(1, quantity),
+                  notes: notes.trim() || undefined,
+                },
+              });
+            }}
+          >
+            <div>
+              <Label className="text-xs">NAME</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} data-testid="input-edit-item-name" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">CATEGORY</Label>
+                <Input value={category} onChange={(e) => setCategory(e.target.value)} data-testid="input-edit-item-category" />
+              </div>
+              <div>
+                <Label className="text-xs">QUANTITY</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  data-testid="input-edit-item-qty"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">NOTES</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="input-edit-item-notes" />
+            </div>
+            {errMsg && (
+              <div className="text-destructive text-sm" data-testid="text-edit-item-error">
+                {errMsg}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={onClose} className="rounded-none">
+                CANCEL
+              </Button>
+              <Button
+                type="submit"
+                disabled={update.isPending || !name.trim() || quantity < 1}
+                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+                data-testid="button-save-edit-item"
+              >
+                {update.isPending ? "SAVING..." : "SAVE"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
