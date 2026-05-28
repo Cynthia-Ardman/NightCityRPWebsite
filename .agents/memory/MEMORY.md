@@ -2,6 +2,7 @@
 - [Anthropic SDK timeouts](anthropic-sdk-timeouts.md) — pass `{ timeout: ms }` per call; default is much longer than you expect.
 - [Discord forwarded messages](discord-forwarded-messages.md) — OP message_reference can hide the real first post; resolve via referenced_message.
 - [Object-storage public images](object-storage-public-images.md) — uploads via request-url have no ACL metadata; treat absent policy as public-read in /storage/objects/*.
+- [Object-storage URL prefix](object-storage-url-prefix.md) — store `/api/storage/objects/<id>` not `/objects/<id>`; SPA owns root paths and returns index.html for bare `/objects/*`.
 - [Importer upsert idempotency](importer-upsert-idempotency.md) — never clobber admin-assigned ownerId on rerun; use coalesce(existing, excluded).
 - [Nullable ownerId guards](nullable-owner-guards.md) — characters.ownerId is nullable; every wallet/jobs/transfer path must guard, and transfers to unclaimed must 4xx before debit.
 - [Prod-import legacy tags](prod-import-legacy-tags.md) — characters.background may contain `[legacy:<uuid>]` anchors; scrub before any UI display.

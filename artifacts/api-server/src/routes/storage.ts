@@ -28,7 +28,14 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
     const { name, size, contentType } = parsed.data;
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    const internalPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    // Return the client-facing URL (mounted under /api/storage/objects/*) so
+    // callers can store it directly in the DB and load via <img src=...>.
+    // The portal SPA owns "/objects/*" — using the bare path would 404 in the
+    // browser even though the file exists in storage.
+    const objectPath = internalPath.startsWith("/objects/")
+      ? `/api/storage${internalPath}`
+      : internalPath;
 
     res.json(
       RequestUploadUrlResponse.parse({

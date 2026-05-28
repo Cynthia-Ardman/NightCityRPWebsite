@@ -12,8 +12,18 @@ export default function DirectoryCharacterDetail() {
   if (isLoading) return <div className="p-8 text-nc-cyan font-display text-xl animate-pulse">DECRYPTING_IDENTITY...</div>;
   if (!char) return <div className="p-8 text-destructive font-display text-xl">ERROR: IDENTITY_NOT_FOUND</div>;
 
-  const sections = (char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections;
-  const sectionEntries = sections ? Object.entries(sections).filter(([, v]) => v && v.trim().length > 0) : [];
+  const sheet = char.sheetData as { sections?: Record<string, string>; preamble?: string } | null | undefined;
+  const sections = sheet?.sections;
+  const rawEntries = sections ? Object.entries(sections).filter(([, v]) => v && v.trim().length > 0) : [];
+  const preamble = sheet?.preamble?.trim() ?? "";
+  const sectionEntries: [string, string][] =
+    rawEntries.length > 0
+      ? rawEntries
+      : preamble.length > 0
+        ? [["Backstory", preamble]]
+        : char.background && char.background.trim().length > 0
+          ? [["Backstory", char.background.trim()]]
+          : [];
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
