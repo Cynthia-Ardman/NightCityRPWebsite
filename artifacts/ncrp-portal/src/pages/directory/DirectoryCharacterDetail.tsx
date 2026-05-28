@@ -3,6 +3,7 @@ import { useGetPublicCharacter } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import Markdown from "@/components/Markdown";
 
 export default function DirectoryCharacterDetail() {
   const { id } = useParams();
@@ -86,7 +87,7 @@ export default function DirectoryCharacterDetail() {
                 <CardTitle className="font-display text-nc-cyan tracking-widest text-base">{heading.toUpperCase()}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="whitespace-pre-wrap font-mono text-sm text-foreground/90">{body}</div>
+                <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{body}</Markdown>
               </CardContent>
             </Card>
           ))}

@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
+import Markdown from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -682,9 +683,7 @@ function SheetSections({
           <CardTitle className="font-display text-nc-cyan">DOSSIER</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="prose prose-invert prose-p:font-mono max-w-none prose-headings:font-display whitespace-pre-wrap">
-            {cleanBg}
-          </div>
+          <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{cleanBg}</Markdown>
         </CardContent>
       </Card>
     );
@@ -697,7 +696,7 @@ function SheetSections({
             <CardTitle className="font-display text-nc-cyan tracking-widest text-base">{heading.toUpperCase()}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="whitespace-pre-wrap font-mono text-sm text-foreground/90">{body}</div>
+            <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{body}</Markdown>
           </CardContent>
         </Card>
       ))}

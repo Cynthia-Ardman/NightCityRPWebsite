@@ -159,6 +159,43 @@ function stripLegacyTag(s: string | null): string {
   return (s ?? "").replace(/\[legacy:[a-f0-9-]+\]/gi, "").trim();
 }
 
+// Players sometimes paste the same backstory multiple times into the thread
+// (cross-channel re-posts, edits, the original importer concatenating
+// duplicate messages). Split into paragraphs and drop later copies of any
+// long-enough paragraph we've already seen. Short paragraphs (single
+// sentences, separators like "---") are left alone — they can legitimately
+// repeat.
+function dedupeParagraphs(text: string): string {
+  const paras = text.split(/\n{2,}/);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of paras) {
+    const key = p.trim().replace(/\s+/g, " ");
+    if (key.length >= 100 && seen.has(key)) continue;
+    if (key.length >= 100) seen.add(key);
+    out.push(p);
+  }
+  return out.join("\n\n").trim();
+}
+
+// Strip Discord/markdown emphasis markers around a short label so a value
+// like "**  \nBio-engineered tracker" reduces to "Bio-engineered tracker".
+function cleanLabelValue(s: string | null | undefined): string {
+  if (!s) return "";
+  // Drop empty bold runs ("** **" or "** \n"), then collapse remaining `**`
+  // bold markers (we keep the text inside), then trim.
+  return s
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\*\*\s*\*\*/g, "").replace(/[*_~`]+/g, "").trim())
+    .filter((l) => l.length > 0)[0] ?? "";
+}
+
+function deriveArchetype(sections: Record<string, string>): string | null {
+  const raw = sections["Occupation"] ?? sections["Occupation / Role in Night City"] ?? "";
+  const v = cleanLabelValue(raw).slice(0, 200);
+  return v || null;
+}
+
 // --- main ---
 const empties = await db
   .select({
@@ -166,6 +203,7 @@ const empties = await db
     name: characters.name,
     ownerId: characters.ownerId,
     threadId: characters.importedFromThreadId,
+    archetype: characters.archetype,
     background: characters.background,
     sheetData: characters.sheetData,
   })
@@ -236,21 +274,29 @@ for (let i = 0; i < slice.length; i++) {
       continue;
     }
 
-    // Build a usable background: prefer existing non-tag content + parsed Backstory
-    // section if any + remaining preamble.
+    // Build a usable background: prefer parsed Backstory section, falling back
+    // to preamble or existing stored background. Then dedupe repeated
+    // paragraphs from re-posts. We rebuild from the freshly-fetched OP rather
+    // than concatenating existing+new — concatenating is what produced the 3x
+    // duplicates in the first place.
     const existingBg = stripLegacyTag(c.background);
-    const newBgParts: string[] = [];
-    if (existingBg) newBgParts.push(existingBg);
-    if (parsed.sections["Backstory"]) {
-      newBgParts.push(parsed.sections["Backstory"]);
-    } else if (parsed.preamble) {
-      newBgParts.push(parsed.preamble);
-    }
-    const newBackground = newBgParts.join("\n\n").trim() || text.slice(0, 4000);
+    const bgSource =
+      parsed.sections["Backstory"]?.trim() ||
+      parsed.preamble?.trim() ||
+      existingBg ||
+      text.slice(0, 4000);
+    const newBackground = dedupeParagraphs(bgSource).slice(0, 16000);
+
+    // Re-derive archetype only if currently empty — never clobber an
+    // admin/player-set value.
+    const currentArchetype = (c.archetype ?? "").trim();
+    const derivedArchetype = deriveArchetype(parsed.sections);
+    const newArchetype =
+      currentArchetype.length === 0 && derivedArchetype ? derivedArchetype : null;
 
     if (DRY) {
       console.log(
-        `${tag} would-set sections=${Object.keys(parsed.sections).length} preambleLen=${parsed.preamble.length} bgLen=${newBackground.length}`,
+        `${tag} would-set sections=${Object.keys(parsed.sections).length} preambleLen=${parsed.preamble.length} bgLen=${newBackground.length}${newArchetype ? ` archetype="${newArchetype.slice(0, 40)}"` : ""}`,
       );
       recovered++;
       if (hasSections) parsedSections++;
@@ -262,11 +308,12 @@ for (let i = 0; i < slice.length; i++) {
       .set({
         sheetData: parsed,
         background: newBackground,
+        ...(newArchetype ? { archetype: newArchetype } : {}),
       })
       .where(eq(characters.id, c.id));
 
     console.log(
-      `${tag} updated sections=${Object.keys(parsed.sections).length} preambleLen=${parsed.preamble.length} bgLen=${newBackground.length}`,
+      `${tag} updated sections=${Object.keys(parsed.sections).length} preambleLen=${parsed.preamble.length} bgLen=${newBackground.length}${newArchetype ? ` archetype="${newArchetype.slice(0, 40)}"` : ""}`,
     );
     recovered++;
     if (hasSections) parsedSections++;
