@@ -41,6 +41,7 @@ const API_BASE = process.env.API_BASE ?? "https://nightcityroleplay.com";
 const REHOST_CONCURRENCY = Number(process.env.REHOST_CONCURRENCY ?? "4");
 const DRY_RUN = process.env.DRY_RUN === "1";
 const LIMIT = process.env.LIMIT ? Number(process.env.LIMIT) : Infinity;
+const OFFSET = process.env.OFFSET ? Number(process.env.OFFSET) : 0;
 const SKIP_FILLED = process.env.SKIP_FILLED === "1";
 
 // Sanity check: confirm we're pointed at prod.
@@ -80,8 +81,8 @@ type ThreadRecord = {
 };
 
 const allRecords = JSON.parse(readFileSync(PREVIEW_PATH, "utf8")) as ThreadRecord[];
-const records = allRecords.slice(0, LIMIT);
-console.log(`Loaded ${allRecords.length} records from preview (processing ${records.length}).`);
+const records = allRecords.slice(OFFSET, OFFSET + LIMIT);
+console.log(`Loaded ${allRecords.length} records from preview (processing ${records.length} starting at offset ${OFFSET}).`);
 
 async function pMapBounded<T, R>(
   items: T[],
