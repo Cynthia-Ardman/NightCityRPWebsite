@@ -1393,21 +1393,32 @@ export type UpcomingBillsRentItem = {
 export type UpcomingBillsMedsItem = {
   characterId: number;
   characterName: string;
-  /** Cyberware items installed (from inventory_items category=cyberware). */
+  /** Cyberware items installed (inventory_items category=cyberware). */
   chromeCount: number;
-  /** Ripperdoc-assigned risk band: none|medium|high|extreme. */
+  /** Auto-derived risk band from chrome count: none|medium|high|extreme. */
   level: string;
-  /** Streak counter the next cron tick will apply. */
-  nextStreak: number;
+  /** Weeks since the household's most recent ripperdoc checkup (capped at 12). */
+  weeksUnpaid: number;
+  /** Number of the owner's PCs that currently owe meds (chrome >= 7). */
+  household: number;
+  /** Household-size multiplier applied to the base charge (1.0 + 0.25 per extra billable character). */
+  multiplier: number;
+  /** Charge before the household multiplier. */
+  baseCharge: number;
+  /** Final charge for this character (baseCharge * multiplier, floored). */
   amount: number;
   dueAt: string;
 };
 
-export type UpcomingBillsUnbilledChromeItem = {
-  characterId: number;
-  characterName: string;
-  chromeCount: number;
-  reason: string;
+/**
+ * Household-level cyberware billing context — what the next weekly cron tick will see.
+ */
+export type UpcomingBillsCyberwareStatus = {
+  /** @nullable */
+  lastCheckupAt: string | null;
+  weeksUnpaid: number;
+  household: number;
+  multiplier: number;
 };
 
 export type UpcomingBillsLeasesItem = {
@@ -1429,8 +1440,8 @@ export type UpcomingBillsTotals = {
 export interface UpcomingBills {
   rent: UpcomingBillsRentItem[];
   meds: UpcomingBillsMedsItem[];
-  /** Characters with chrome installed in inventory but no risk band assigned (cyberwareLevel='none'), so no meds will be auto-charged until a ripperdoc certifies the band. */
-  unbilledChrome: UpcomingBillsUnbilledChromeItem[];
+  /** Household-level cyberware billing context — what the next weekly cron tick will see. */
+  cyberwareStatus: UpcomingBillsCyberwareStatus;
   leases: UpcomingBillsLeasesItem[];
   totals: UpcomingBillsTotals;
 }

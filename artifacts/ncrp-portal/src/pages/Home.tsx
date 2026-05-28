@@ -432,40 +432,42 @@ function UpcomingBillsCard() {
                 icon={Syringe}
                 color="text-destructive"
                 title="CYBERPSYCHOSIS MEDS (WEEKLY)"
-                emptyHint={
-                  data.unbilledChrome.length > 0
-                    ? "No risk band assigned — no meds owed yet."
-                    : "No chrome on file — no meds owed."
-                }
+                emptyHint="No chrome installed (6 or fewer pieces) — no meds owed."
                 items={data.meds.map((m) => ({
                   key: `meds-${m.characterId}`,
                   primary: m.characterName,
-                  secondary: `${m.level} band · ${m.chromeCount} chrome · week ${m.nextStreak} · due ${formatDueDate(m.dueAt)}`,
+                  secondary: `${m.level} band · ${m.chromeCount} chrome · week ${m.weeksUnpaid}${m.multiplier > 1 ? ` · household x${m.multiplier}` : ""} · due ${formatDueDate(m.dueAt)}`,
                   amount: m.amount,
                   to: `/characters/${m.characterId}`,
                 }))}
               />
 
-              {data.unbilledChrome.length > 0 && (
-                <div className="space-y-1 border border-nc-yellow/30 bg-nc-yellow/5 px-3 py-2">
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-nc-yellow">
-                    Chrome installed · not yet billed
+              {(data.cyberwareStatus.household > 0 || data.meds.length > 0) && (
+                <div className="space-y-1 border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-mono">
+                  <div className="text-[10px] uppercase tracking-widest text-destructive">
+                    Cyberware Status
                   </div>
-                  {data.unbilledChrome.map((u) => (
-                    <Link key={`unbilled-${u.characterId}`} href={`/characters/${u.characterId}`}>
-                      <div
-                        className="flex justify-between items-center text-xs font-mono hover:text-nc-cyan cursor-pointer"
-                        data-testid={`row-unbilled-${u.characterId}`}
-                      >
-                        <span className="truncate text-foreground">{u.characterName}</span>
-                        <span className="text-muted-foreground whitespace-nowrap">
-                          {u.chromeCount} {u.chromeCount === 1 ? "piece" : "pieces"}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                  <div className="text-[10px] font-mono text-muted-foreground/80 italic pt-1">
-                    Visit a ripperdoc to get a risk band assigned before cyberpsychosis meds are charged.
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Last checkup</span>
+                    <span className="text-foreground">
+                      {data.cyberwareStatus.lastCheckupAt
+                        ? formatDueDate(data.cyberwareStatus.lastCheckupAt)
+                        : "never"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Weeks unpaid</span>
+                    <span className="text-foreground">{data.cyberwareStatus.weeksUnpaid}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Household chars billing meds</span>
+                    <span className="text-foreground">
+                      {data.cyberwareStatus.household}
+                      {data.cyberwareStatus.multiplier > 1 ? ` · x${data.cyberwareStatus.multiplier}` : ""}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground/70 italic pt-1">
+                    Any ripperdoc checkup resets the streak for all your characters. Bands: 0-6 none · 7-9 medium · 10-12 high · 13+ extreme.
                   </div>
                 </div>
               )}

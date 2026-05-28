@@ -2875,7 +2875,7 @@ components:
 
     UpcomingBills:
       type: object
-      required: [rent, meds, unbilledChrome, leases, totals]
+      required: [rent, meds, cyberwareStatus, leases, totals]
       properties:
         rent:
           type: array
@@ -2891,26 +2891,27 @@ components:
           type: array
           items:
             type: object
-            required: [characterId, characterName, chromeCount, level, nextStreak, amount, dueAt]
+            required: [characterId, characterName, chromeCount, level, weeksUnpaid, household, multiplier, baseCharge, amount, dueAt]
             properties:
               characterId: { type: integer }
               characterName: { type: string }
-              chromeCount: { type: integer, description: "Cyberware items installed (from inventory_items category=cyberware)." }
-              level: { type: string, description: "Ripperdoc-assigned risk band: none|medium|high|extreme." }
-              nextStreak: { type: integer, description: "Streak counter the next cron tick will apply." }
-              amount: { type: integer }
+              chromeCount: { type: integer, description: "Cyberware items installed (inventory_items category=cyberware)." }
+              level: { type: string, description: "Auto-derived risk band from chrome count: none|medium|high|extreme." }
+              weeksUnpaid: { type: integer, description: "Weeks since the household's most recent ripperdoc checkup (capped at 12)." }
+              household: { type: integer, description: "Number of the owner's PCs that currently owe meds (chrome >= 7)." }
+              multiplier: { type: number, description: "Household-size multiplier applied to the base charge (1.0 + 0.25 per extra billable character)." }
+              baseCharge: { type: integer, description: "Charge before the household multiplier." }
+              amount: { type: integer, description: "Final charge for this character (baseCharge * multiplier, floored)." }
               dueAt: { type: string, format: date-time }
-        unbilledChrome:
-          type: array
-          description: "Characters with chrome installed in inventory but no risk band assigned (cyberwareLevel='none'), so no meds will be auto-charged until a ripperdoc certifies the band."
-          items:
-            type: object
-            required: [characterId, characterName, chromeCount, reason]
-            properties:
-              characterId: { type: integer }
-              characterName: { type: string }
-              chromeCount: { type: integer }
-              reason: { type: string }
+        cyberwareStatus:
+          type: object
+          description: "Household-level cyberware billing context — what the next weekly cron tick will see."
+          required: [lastCheckupAt, weeksUnpaid, household, multiplier]
+          properties:
+            lastCheckupAt: { type: ["string", "null"], format: date-time }
+            weeksUnpaid: { type: integer }
+            household: { type: integer }
+            multiplier: { type: number }
         leases:
           type: array
           items:

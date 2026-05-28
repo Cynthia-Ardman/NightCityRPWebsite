@@ -9,12 +9,19 @@
 export type UpcomingBillsMedsItem = {
   characterId: number;
   characterName: string;
-  /** Cyberware items installed (from inventory_items category=cyberware). */
+  /** Cyberware items installed (inventory_items category=cyberware). */
   chromeCount: number;
-  /** Ripperdoc-assigned risk band: none|medium|high|extreme. */
+  /** Auto-derived risk band from chrome count: none|medium|high|extreme. */
   level: string;
-  /** Streak counter the next cron tick will apply. */
-  nextStreak: number;
+  /** Weeks since the household's most recent ripperdoc checkup (capped at 12). */
+  weeksUnpaid: number;
+  /** Number of the owner's PCs that currently owe meds (chrome >= 7). */
+  household: number;
+  /** Household-size multiplier applied to the base charge (1.0 + 0.25 per extra billable character). */
+  multiplier: number;
+  /** Charge before the household multiplier. */
+  baseCharge: number;
+  /** Final charge for this character (baseCharge * multiplier, floored). */
   amount: number;
   dueAt: Date;
 };

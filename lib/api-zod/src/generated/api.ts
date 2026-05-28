@@ -2908,18 +2908,21 @@ export const GetUpcomingBillsResponse = zod.object({
   "meds": zod.array(zod.object({
   "characterId": zod.number(),
   "characterName": zod.string(),
-  "chromeCount": zod.number().describe('Cyberware items installed (from inventory_items category=cyberware).'),
-  "level": zod.string().describe('Ripperdoc-assigned risk band: none|medium|high|extreme.'),
-  "nextStreak": zod.number().describe('Streak counter the next cron tick will apply.'),
-  "amount": zod.number(),
+  "chromeCount": zod.number().describe('Cyberware items installed (inventory_items category=cyberware).'),
+  "level": zod.string().describe('Auto-derived risk band from chrome count: none|medium|high|extreme.'),
+  "weeksUnpaid": zod.number().describe('Weeks since the household\'s most recent ripperdoc checkup (capped at 12).'),
+  "household": zod.number().describe('Number of the owner\'s PCs that currently owe meds (chrome >= 7).'),
+  "multiplier": zod.number().describe('Household-size multiplier applied to the base charge (1.0 + 0.25 per extra billable character).'),
+  "baseCharge": zod.number().describe('Charge before the household multiplier.'),
+  "amount": zod.number().describe('Final charge for this character (baseCharge \* multiplier, floored).'),
   "dueAt": zod.coerce.date()
 })),
-  "unbilledChrome": zod.array(zod.object({
-  "characterId": zod.number(),
-  "characterName": zod.string(),
-  "chromeCount": zod.number(),
-  "reason": zod.string()
-})).describe('Characters with chrome installed in inventory but no risk band assigned (cyberwareLevel=\'none\'), so no meds will be auto-charged until a ripperdoc certifies the band.'),
+  "cyberwareStatus": zod.object({
+  "lastCheckupAt": zod.coerce.date().nullable(),
+  "weeksUnpaid": zod.number(),
+  "household": zod.number(),
+  "multiplier": zod.number()
+}).describe('Household-level cyberware billing context — what the next weekly cron tick will see.'),
   "leases": zod.array(zod.object({
   "id": zod.number(),
   "characterId": zod.number(),

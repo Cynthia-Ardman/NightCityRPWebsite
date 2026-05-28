@@ -16,7 +16,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
 import { hasRole } from "../lib/discord";
-import { projectedWeeklyMeds } from "../lib/jobs";
+import { projectedWeeklyMeds, weeksSinceLastCheckup } from "../lib/jobs";
 
 // Keep this in sync with `lib/jobs.ts` — it's the rent the monthly_rent cron
 // actually debits per approved PC. Meds use a different formula keyed on
@@ -125,22 +125,16 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     dueAt: rentDueAt,
   }));
 
-  // Meds projection. The cyberware_humanity cron does NOT count chrome HL —
-  // it charges purely off the ripperdoc-assigned cyberwareLevel + the
-  // checkup streak counter. So the dashboard's projected weekly meds must
-  // come from that same formula or we'd be lying about what gets debited
-  // on the next Monday tick.
-  //
-  // Chrome COUNT, on the other hand, comes from the portal's inventory_items
-  // table (category='cyberware'). The user might own chrome in their
-  // inventory but still have cyberwareLevel='none' if they haven't seen a
-  // ripperdoc — that's a real game state, not "no chrome on file".
+  // Meds projection — calls the same helper the cyberware_humanity cron
+  // uses, so the displayed number is exactly what gets debited on the
+  // next Monday tick. Risk band is auto-derived from chrome count in
+  // inventory_items (0-6=none, 7-9=medium, 10-12=high, 13+=extreme).
+  // "Weeks unpaid" is per-USER (most recent checkup across all the
+  // owner's characters); household multiplier scales the bill by
+  // +25% per extra billable character.
   const billableIds = billable.map((c) => c.id);
   const chromeCountsRaw = billableIds.length === 0 ? [] : await db
-    .select({
-      characterId: inventoryItems.characterId,
-      count: sql<number>`count(*)::int`,
-    })
+    .select({ characterId: inventoryItems.characterId, count: sql<number>`count(*)::int` })
     .from(inventoryItems)
     .where(and(inArray(inventoryItems.characterId, billableIds), eq(inventoryItems.category, "cyberware")))
     .groupBy(inventoryItems.characterId);
@@ -148,43 +142,48 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   for (const r of chromeCountsRaw) {
     if (r.characterId != null) chromeCounts.set(r.characterId, r.count);
   }
+  // Per-user lastCheckupAt = most recent across the owner's characters.
+  const lastCheckupAt = billable.reduce<Date | null>((acc, c) => {
+    if (!c.lastCheckupAt) return acc;
+    if (!acc || c.lastCheckupAt > acc) return c.lastCheckupAt;
+    return acc;
+  }, null);
+  const nextRunDate = nextWeeklyRunDate(now);
+  const weeksUnpaid = weeksSinceLastCheckup(lastCheckupAt, nextRunDate);
+  // Household = approved PCs that actually owe meds (chrome >= 7).
+  const household = billable.filter((c) => (chromeCounts.get(c.id) ?? 0) >= 7).length;
 
   const meds: Array<{
     characterId: number;
     characterName: string;
     chromeCount: number;
     level: string;
-    nextStreak: number;
+    weeksUnpaid: number;
+    household: number;
+    multiplier: number;
+    baseCharge: number;
     amount: number;
     dueAt: string;
   }> = [];
-  // Characters that have chrome installed in inventory but no risk band
-  // assigned yet — surfaced in the UI as a hint so "no meds owed" doesn't
-  // look like the system failed to see their chrome.
-  const unbilledChrome: Array<{ characterId: number; characterName: string; chromeCount: number; reason: string }> = [];
 
   for (const c of billable) {
     const chromeCount = chromeCounts.get(c.id) ?? 0;
-    const proj = projectedWeeklyMeds(c.cyberwareLevel, c.checkupStreak ?? 0);
-    if (proj.charge > 0) {
-      meds.push({
-        characterId: c.id,
-        characterName: c.name,
-        chromeCount,
-        level: proj.level,
-        nextStreak: proj.nextStreak,
-        amount: proj.charge,
-        dueAt: medsDueAt,
-      });
-    } else if (chromeCount > 0) {
-      unbilledChrome.push({
-        characterId: c.id,
-        characterName: c.name,
-        chromeCount,
-        reason: "No risk band assigned — visit a ripperdoc to start cyberpsychosis tracking",
-      });
-    }
+    const proj = projectedWeeklyMeds({ chromeCount, household, weeksUnpaid });
+    if (proj.charge <= 0) continue;
+    meds.push({
+      characterId: c.id,
+      characterName: c.name,
+      chromeCount,
+      level: proj.level,
+      weeksUnpaid: proj.weeksUnpaid,
+      household: proj.household,
+      multiplier: Number(proj.multiplier.toFixed(2)),
+      baseCharge: proj.baseCharge,
+      amount: proj.charge,
+      dueAt: medsDueAt,
+    });
   }
+  const lastCheckupAtIso = lastCheckupAt ? lastCheckupAt.toISOString() : null;
 
   // Active leases (informational — automated rent currently charges the flat
   // RENT_PER_PC_PER_MONTH per PC; per-lease billing is not yet wired up).
@@ -210,7 +209,12 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   res.json({
     rent,
     meds,
-    unbilledChrome,
+    cyberwareStatus: {
+      lastCheckupAt: lastCheckupAtIso,
+      weeksUnpaid,
+      household,
+      multiplier: Number(((household <= 1) ? 1 : (1 + 0.25 * (household - 1))).toFixed(2)),
+    },
     leases: leases.map((l) => ({
       ...l,
       paidThrough: l.paidThrough ? l.paidThrough.toISOString() : null,

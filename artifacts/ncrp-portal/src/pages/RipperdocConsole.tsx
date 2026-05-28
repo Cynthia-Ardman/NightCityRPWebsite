@@ -177,7 +177,19 @@ export default function RipperdocConsole() {
                     LAST_CHECKUP: {selected.lastCheckupAt ? new Date(selected.lastCheckupAt).toLocaleString() : "—"}
                   </div>
                   <div className="text-xs font-mono text-muted-foreground">
-                    MISSED_STREAK: {selected.checkupStreak ?? 0} · CURRENT_LEVEL: {selected.cyberwareLevel ?? "none"}
+                    WEEKS_SINCE_CHECKUP:{" "}
+                    {selected.lastCheckupAt
+                      ? Math.max(
+                          1,
+                          Math.floor(
+                            (Date.now() - new Date(selected.lastCheckupAt).getTime()) / (7 * 86400000),
+                          ) + 1,
+                        )
+                      : "12+"}
+                    {" · "}LEGACY_LEVEL_TAG: {selected.cyberwareLevel ?? "none"}
+                  </div>
+                  <div className="text-[10px] font-mono text-muted-foreground/70">
+                    Note: cyberpsychosis band is now auto-derived from chrome count (0-6 none · 7-9 medium · 10-12 high · 13+ extreme). The tag below is legacy/cosmetic and no longer affects billing.
                   </div>
                 </div>
 
@@ -201,7 +213,7 @@ export default function RipperdocConsole() {
                     ))}
                   </div>
                   <div className="text-[10px] font-mono text-muted-foreground mt-1">
-                    Weekly cap: none=0 · medium=€$2K · high=€$5K · extreme=€$10K
+                    Weekly cap (auto from chrome count): 0-6 none=0 · 7-9 medium=€$2K · 10-12 high=€$5K · 13+ extreme=€$10K. Setting a level here only updates the legacy tag.
                   </div>
                 </div>
 

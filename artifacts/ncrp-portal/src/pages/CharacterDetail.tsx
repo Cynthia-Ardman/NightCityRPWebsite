@@ -283,10 +283,16 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
     },
   });
   if (!char) return null;
-  const streak = char.checkupStreak ?? 0;
   const last = char.lastCheckupAt ? new Date(char.lastCheckupAt) : null;
-  if (streak === 0 && !isAdmin) return null;
-  const danger = streak >= 3;
+  // Weeks since this character's last checkup. Note: the household
+  // streak (used for billing) takes the MAX(lastCheckupAt) across all
+  // the owner's characters, so this number is only a hint — see the
+  // dashboard for the actual billable streak.
+  const weeksSince = last
+    ? Math.max(1, Math.floor((Date.now() - last.getTime()) / (7 * 86400000)) + 1)
+    : null;
+  if (weeksSince === null && !isAdmin) return null;
+  const danger = weeksSince !== null && weeksSince >= 4;
   return (
     <Card
       className={`rounded-none border ${danger ? "border-destructive bg-destructive/10" : "border-border bg-card/50"}`}
@@ -298,19 +304,21 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
             CYBERWARE CHECKUP
           </div>
           <div className="text-foreground">
-            {streak === 0 ? (
-              <>Streak clean. Next weekly meds bill bills at <span className="text-nc-yellow">1×</span>.</>
+            {last === null ? (
+              <>No checkup recorded yet — household will bill at the max streak.</>
             ) : (
               <>
-                <span className={danger ? "text-destructive font-bold" : "text-nc-yellow"}>{streak}×</span>{" "}
-                multiplier on the next weekly meds bill (missed {streak} checkup{streak === 1 ? "" : "s"}).
+                Last checkup <span className="text-foreground">{last.toLocaleDateString()}</span>
+                {" · "}
+                <span className={danger ? "text-destructive font-bold" : "text-nc-yellow"}>
+                  week {weeksSince}
+                </span>{" "}
+                of the doubling streak.
               </>
             )}
-            {last ? (
-              <div className="text-xs text-muted-foreground mt-0.5">Last checkup: {last.toLocaleDateString()}</div>
-            ) : (
-              <div className="text-xs text-muted-foreground mt-0.5">No checkup recorded yet.</div>
-            )}
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              Any of your characters getting a checkup resets the streak for the whole household.
+            </div>
           </div>
         </div>
         {isAdmin && (

@@ -1,4 +1,4 @@
-import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig, shopOpens } from "@workspace/db";
+import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig, shopOpens, inventoryItems } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
@@ -27,25 +27,84 @@ const DEFAULT_TRAUMA_TEAM_COSTS: Record<string, number> = {
 // character is (cap/128) * 2^(streak-1), clamped to the cap — meaning the
 // charge starts trivial and doubles each missed checkup until it hits the
 // ceiling at streak 8.
-export const CYBERWARE_LEVEL_CAPS: Record<string, number> = {
-  none: 0,
-  medium: 2000,
-  high: 5000,
-  extreme: 10000,
-};
+// Cyberware risk band is now auto-derived from how many cyberware pieces a
+// character has installed (inventory_items where category='cyberware'). No
+// ripperdoc certification step required — the band is a function of chrome
+// count and the weekly cap is keyed off the band:
+//   0-6  pieces → none    (no charge, body can metabolize the load)
+//   7-9         → medium  (cap €2000/wk)
+//  10-12        → high    (cap €5000/wk)
+//  13+         → extreme (cap €10000/wk)
+export const CYBERWARE_BANDS: ReadonlyArray<{ min: number; max: number; level: string; cap: number }> = [
+  { min: 0, max: 6, level: "none", cap: 0 },
+  { min: 7, max: 9, level: "medium", cap: 2000 },
+  { min: 10, max: 12, level: "high", cap: 5000 },
+  { min: 13, max: Number.POSITIVE_INFINITY, level: "extreme", cap: 10000 },
+];
 
-// Weekly meds charge for a character, mirroring the cyberware_humanity cron
-// formula. Exported so the dashboard projection can show the same number the
-// cron will actually debit on the next Monday tick (no HL-guessing).
-export function projectedWeeklyMeds(level: string | null | undefined, currentStreak: number): { charge: number; level: string; nextStreak: number; cap: number } {
-  const norm = (level ?? "none").toLowerCase();
-  const cap = CYBERWARE_LEVEL_CAPS[norm] ?? 0;
-  const MAX_STREAK = 12;
-  const nextStreak = Math.min((currentStreak ?? 0) + 1, MAX_STREAK);
-  if (cap <= 0) return { charge: 0, level: norm, nextStreak, cap };
+export function deriveCyberwareBand(chromeCount: number): { level: string; cap: number } {
+  const n = Math.max(0, Math.floor(chromeCount));
+  const band = CYBERWARE_BANDS.find((b) => n >= b.min && n <= b.max);
+  return band ? { level: band.level, cap: band.cap } : { level: "none", cap: 0 };
+}
+
+// Household multiplier on the weekly meds bill. More characters under the
+// same Discord account = +25% per extra billable character (2 → 1.25x,
+// 3 → 1.5x, 4 → 1.75x …). "Billable" = approved, non-archived PCs that
+// actually own chrome (>=7 pieces — chars below the threshold don't owe
+// meds anyway so they don't count toward the household risk).
+export function householdMultiplier(billableCharCount: number): number {
+  if (billableCharCount <= 1) return 1;
+  return 1 + 0.25 * (billableCharCount - 1);
+}
+
+// Cap on how many weeks of skipped checkups the formula will compound.
+// At streak 8 the doubling already hits the cap; anything beyond is just
+// a safety bound on Math.pow.
+export const CYBERWARE_MAX_STREAK = 12;
+
+// Weeks since the last ripperdoc checkup, projected forward to a given
+// cron tick (defaults to "right now"). Returns 1 if a checkup just
+// happened (first tick after a checkup is week 1). Capped at
+// CYBERWARE_MAX_STREAK; null lastCheckupAt means "never had one" → max.
+export function weeksSinceLastCheckup(lastCheckupAt: Date | null | undefined, runAt: Date = new Date()): number {
+  if (!lastCheckupAt) return CYBERWARE_MAX_STREAK;
+  const ms = runAt.getTime() - lastCheckupAt.getTime();
+  if (ms <= 0) return 1;
+  const weeks = Math.floor(ms / (7 * 86400000)) + 1;
+  return Math.max(1, Math.min(CYBERWARE_MAX_STREAK, weeks));
+}
+
+// Weekly cyberpsychosis-meds charge for a single character, mirroring the
+// cyberware_humanity cron exactly. Exported so the dashboard projection
+// shows the same number the cron will actually debit on the next Monday.
+//
+// formula: floor((cap/128) * 2^(weeksUnpaid - 1)) * householdMultiplier,
+// clamped at the cap BEFORE the multiplier (so household scaling can push
+// past the per-character cap, which is intentional — more chars = more risk).
+export function projectedWeeklyMeds(opts: {
+  chromeCount: number;
+  household: number;
+  weeksUnpaid: number;
+}): {
+  charge: number;
+  level: string;
+  cap: number;
+  baseCharge: number;
+  multiplier: number;
+  weeksUnpaid: number;
+  household: number;
+} {
+  const weeksUnpaid = Math.max(1, Math.min(CYBERWARE_MAX_STREAK, opts.weeksUnpaid));
+  const { level, cap } = deriveCyberwareBand(opts.chromeCount);
+  const multiplier = householdMultiplier(opts.household);
+  if (cap <= 0) {
+    return { charge: 0, level, cap, baseCharge: 0, multiplier, weeksUnpaid, household: opts.household };
+  }
   const base = cap / 128;
-  const charge = Math.min(Math.floor(base * Math.pow(2, nextStreak - 1)), cap);
-  return { charge, level: norm, nextStreak, cap };
+  const baseCharge = Math.min(Math.floor(base * Math.pow(2, weeksUnpaid - 1)), cap);
+  const charge = Math.floor(baseCharge * multiplier);
+  return { charge, level, cap, baseCharge, multiplier, weeksUnpaid, household: opts.household };
 }
 
 // Passive-income table for opened businesses.
@@ -463,22 +522,23 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         }
       }
     } else if (name === "cyberware_humanity") {
-      // Weekly cyberpsychosis-meds charge — matches NightCityBot's formula:
-      //   weeklyCost = (CAP[level] / 128) * 2^(streak - 1), clamped to CAP.
-      // CAP is keyed by the ripperdoc-assigned `cyberwareLevel`:
-      //   none    → 0 (no charge)
-      //   medium  → 2000
-      //   high    → 5000
-      //   extreme → 10000
-      // Streak starts at 1 the cron tick after the most recent checkup and
-      // doubles weekly until it caps. Players with cyberwareLevel='none'
-      // are never charged regardless of how much chrome they carry — that's
-      // intentional: a ripperdoc has to certify the risk band first, just
-      // like assigning the Discord role in the bot.
-      const MAX_STREAK = 12; // safety cap so the exponent can't overflow
-      // Weekly idempotency: skip any character who already has a 'meds' debit in
-      // the last 6 days so a manual rerun (or two cron ticks in the same week)
-      // can't double-charge or double-bump the streak.
+      // Weekly cyberpsychosis-meds charge. The band is auto-derived from
+      // each character's chrome count (inventory_items where
+      // category='cyberware') — no ripperdoc certification required:
+      //   0-6 → none, 7-9 → medium, 10-12 → high, 13+ → extreme.
+      // The "weeks unpaid" counter is per-USER, computed from the most
+      // recent ripperdoc checkup across ANY of the user's characters
+      // (characters.lastCheckupAt). One checkup resets the streak for the
+      // whole household. Cost per character:
+      //   floor((cap/128) * 2^(weeksUnpaid - 1)) * householdMultiplier
+      // where householdMultiplier = 1 + 0.25 * (billableCharCount - 1).
+      // See projectedWeeklyMeds() — both this cron and the dashboard
+      // projection call into the same helper so the displayed number is
+      // exactly what gets debited.
+
+      // Weekly idempotency: skip any character with a 'meds' debit in the
+      // last 6 days so a manual rerun (or two cron ticks in the same week)
+      // can't double-charge.
       const sixDaysAgo = new Date(Date.now() - 6 * 86400000);
       const recentMeds = await db
         .select({ characterId: walletTransactions.characterId })
@@ -489,44 +549,70 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .select()
         .from(characters)
         .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
+
+      // Chrome counts per character (inventory_items category='cyberware').
+      const approvedIds = approvedChars.map((c) => c.id);
+      const chromeRows = approvedIds.length === 0 ? [] : await db
+        .select({ characterId: inventoryItems.characterId, count: sql<number>`count(*)::int` })
+        .from(inventoryItems)
+        .where(and(inArray(inventoryItems.characterId, approvedIds), eq(inventoryItems.category, "cyberware")))
+        .groupBy(inventoryItems.characterId);
+      const chromeByChar = new Map<number, number>();
+      for (const r of chromeRows) if (r.characterId != null) chromeByChar.set(r.characterId, r.count);
+
+      // Group chars by owner so we can compute the household multiplier
+      // and the per-user "last checkup across all chars" streak.
+      const charsByOwner = new Map<string, typeof approvedChars>();
       for (const c of approvedChars) {
-        if (recentMedsSet.has(c.id)) continue;
-        const level = (c.cyberwareLevel ?? "none").toLowerCase();
-        const cap = CYBERWARE_LEVEL_CAPS[level] ?? 0;
-        if (cap <= 0) continue; // 'none' or unknown band → no charge
-        const nextStreak = Math.min((c.checkupStreak ?? 0) + 1, MAX_STREAK);
-        // (cap/128) * 2^(streak-1), capped at the cap. floor() so we never
-        // bill fractional eddies.
-        const base = cap / 128;
-        const raw = Math.floor(base * Math.pow(2, nextStreak - 1));
-        const charge = Math.min(raw, cap);
-        if (charge <= 0) continue;
         if (!c.ownerId) continue;
-        const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
+        const list = charsByOwner.get(c.ownerId) ?? [];
+        list.push(c);
+        charsByOwner.set(c.ownerId, list);
+      }
+
+      const now = new Date();
+      for (const [ownerId, ownerChars] of charsByOwner) {
+        const billableChars = ownerChars.filter((c) => (chromeByChar.get(c.id) ?? 0) >= 7);
+        if (billableChars.length === 0) continue;
+        // Per-user last checkup = most recent across the household. One
+        // ripperdoc visit resets the streak for every character.
+        const lastCheckupAt = ownerChars.reduce<Date | null>((acc, c) => {
+          if (!c.lastCheckupAt) return acc;
+          if (!acc || c.lastCheckupAt > acc) return c.lastCheckupAt;
+          return acc;
+        }, null);
+        const weeksUnpaid = weeksSinceLastCheckup(lastCheckupAt, now);
+        const household = billableChars.length;
+
+        const [owner] = await db.select().from(users).where(eq(users.id, ownerId));
         if (!owner) continue;
-        // UB is authoritative — only insert a local ledger entry after a
-        // confirmed UB debit. Skip cleanly on UB unavailability.
-        const ub = await patchBalance(owner.discordId, {
-          cash: -charge,
-          reason: `Cyberpsychosis meds (${level}, week ${nextStreak})`,
-        });
-        if (!ub) {
-          logger.warn({ characterId: c.id }, "cyberware_humanity UB debit failed; skipping local ledger insert");
-          continue;
-        }
-        try {
-          await db.insert(walletTransactions).values({
-            characterId: c.id,
-            amount: -charge,
-            kind: "meds",
-            memo: `Weekly cyberpsychosis meds (${level} — week ${nextStreak} since last checkup)`,
+
+        for (const c of billableChars) {
+          if (recentMedsSet.has(c.id)) continue;
+          const chromeCount = chromeByChar.get(c.id) ?? 0;
+          const proj = projectedWeeklyMeds({ chromeCount, household, weeksUnpaid });
+          if (proj.charge <= 0) continue;
+          // UB is authoritative — only insert a local ledger entry after a
+          // confirmed UB debit. Skip cleanly on UB unavailability.
+          const ub = await patchBalance(owner.discordId, {
+            cash: -proj.charge,
+            reason: `Cyberpsychosis meds (${proj.level}, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
           });
-          // Bump the streak after a successful debit so a UB failure doesn't
-          // also burn the player's streak counter — they get a clean retry.
-          await db.update(characters).set({ checkupStreak: nextStreak }).where(eq(characters.id, c.id));
-          affected++;
-        } catch (err) {
-          logger.warn({ err, characterId: c.id }, "cyberware_humanity ledger insert failed");
+          if (!ub) {
+            logger.warn({ characterId: c.id }, "cyberware_humanity UB debit failed; skipping local ledger insert");
+            continue;
+          }
+          try {
+            await db.insert(walletTransactions).values({
+              characterId: c.id,
+              amount: -proj.charge,
+              kind: "meds",
+              memo: `Weekly cyberpsychosis meds (${proj.level}, ${chromeCount} chrome, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
+            });
+            affected++;
+          } catch (err) {
+            logger.warn({ err, characterId: c.id }, "cyberware_humanity ledger insert failed");
+          }
         }
       }
     } else if (name === "eviction_sweep") {
