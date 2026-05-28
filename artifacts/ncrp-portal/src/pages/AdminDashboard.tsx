@@ -1133,7 +1133,118 @@ function MaintenanceTab() {
       </Card>
 
       <FullMigrationCard />
+      <BotImportCard />
     </div>
+  );
+}
+
+interface BotImportTableResult { received: number; inserted: number; skippedInvalid: number; chunkFailures: number; note?: string }
+interface BotImportResult {
+  totals: { inserted: number; skippedInvalid: number; chunkFailures: number };
+  tables: Record<string, BotImportTableResult>;
+}
+
+function BotImportCard() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<BotImportResult | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function runBotImport(file: File) {
+    setBusy(true);
+    setResult(null);
+    try {
+      const text = await file.text();
+      let body: unknown;
+      try { body = JSON.parse(text); } catch (e) {
+        toast({ title: "Invalid JSON", description: (e as Error).message, variant: "destructive" });
+        return;
+      }
+      const r = await fetch("/api/admin/maintenance/bot-import", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        toast({ title: "Bot import failed", description: data.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setResult(data as BotImportResult);
+      toast({
+        title: "Bot DB import complete",
+        description: `+${data.totals?.inserted ?? 0} new rows, ${data.totals?.skippedInvalid ?? 0} invalid, ${data.totals?.chunkFailures ?? 0} chunk failures`,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await runBotImport(file);
+    e.target.value = "";
+  }
+
+  return (
+    <Card className="rounded-none border-nc-magenta/40 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-magenta">BOT DB IMPORT</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          One-shot import of the legacy Discord bot's database: rent history, cyberware status,
+          transaction ledger (balance_history), attendance, store inventory, mission log, tickets, etc.
+          Stored as <code>bot_*</code> tables — separate from portal-native data so it stays read-only
+          history. Idempotent: each table dedups on its natural key (bot_id, message_id, or composite).
+          Upload <code>bot-db-import.json</code> (the file produced from your bot Replit).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            type="file"
+            accept="application/json,.json"
+            onChange={onFile}
+            disabled={busy}
+            className="font-mono text-xs"
+            data-testid="input-bot-import-file"
+          />
+          {busy && <span className="text-xs font-mono text-nc-magenta animate-pulse">IMPORTING (may take 1\u20132 min for big payloads)...</span>}
+        </div>
+
+        {result && (
+          <div className="border-t border-border/50 pt-4 space-y-3" data-testid="block-bot-import-result">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="border border-nc-magenta/40 bg-nc-magenta/5 p-2">
+                <div className="text-2xl font-display text-nc-magenta">{result.totals.inserted}</div>
+                <div className="text-xs font-mono text-muted-foreground uppercase">New Rows</div>
+              </div>
+              <div className="border border-nc-yellow/40 bg-nc-yellow/5 p-2">
+                <div className="text-2xl font-display text-nc-yellow">{result.totals.skippedInvalid}</div>
+                <div className="text-xs font-mono text-muted-foreground uppercase">Skipped (Invalid)</div>
+              </div>
+              <div className="border border-destructive/40 bg-destructive/5 p-2">
+                <div className="text-2xl font-display text-destructive">{result.totals.chunkFailures}</div>
+                <div className="text-xs font-mono text-muted-foreground uppercase">Chunk Failures</div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {Object.entries(result.tables).map(([name, r]) => (
+                <div key={name} className="flex items-center justify-between border border-border/50 px-3 py-2 text-xs font-mono">
+                  <span className="text-foreground">{name}</span>
+                  <span className="text-muted-foreground">
+                    {r.received} received, <span className="text-nc-magenta">+{r.inserted} new</span>
+                    {r.skippedInvalid > 0 && <span className="text-nc-yellow"> / {r.skippedInvalid} invalid</span>}
+                    {r.chunkFailures > 0 && <span className="text-destructive"> / {r.chunkFailures} chunk fail</span>}
+                    {r.note && <span className="ml-2 text-muted-foreground/70 italic">({r.note})</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

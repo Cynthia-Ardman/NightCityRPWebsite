@@ -1,6 +1,14 @@
 import { Router, type IRouter, json as expressJson } from "express";
 import { eq, desc, sql, and, gte, type SQL } from "drizzle-orm";
-import { db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig, characterStatus, housing, catalogRent } from "@workspace/db";
+import {
+  db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig,
+  characterStatus, housing, catalogRent,
+  botActorAttendance, botAttendanceLog, botBalanceHistory, botCyberwareStatus,
+  botCyberwareWeeklyRuns, botLastPayment, botPaymentLabels, botRentRuns,
+  botStoreInventory, botTicketIndex, botMissionLog, botBusinessOpenLog,
+  botPlayerInventory,
+} from "@workspace/db";
+import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole } from "../lib/discord";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
@@ -863,6 +871,318 @@ router.post(
       },
     });
     res.json(result);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Bot DB import. Mirrors 13 tables from the legacy Discord-bot Replit DB
+// (rent/cyberware/transactions/attendance/...) into the `bot_*` tables.
+// Idempotent: each table uses its natural dedup key (bot_id where present,
+// composite unique elsewhere). Big payloads inserted in 500-row chunks.
+//   Body shape: { tables: { actor_attendance: [...], ... } }
+// ---------------------------------------------------------------------------
+interface BotImportBody {
+  tables?: Record<string, Array<Record<string, unknown>>>;
+}
+
+// Insert rows in chunks so very large payloads (2,672 tickets, 1,777
+// attendance rows) don't blow past pg's per-statement parameter limit.
+// Uses RETURNING (any column) so `inserted` is the TRUE number of new rows —
+// onConflictDoNothing skips don't show up in returning, so rerun counts go
+// to zero. `chunkFailures` records full-chunk errors separately so the UI
+// doesn't conflate a 500-row chunk crash with per-row failures.
+async function chunkedInsert<T extends PgTable>(
+  table: T,
+  rows: Array<Record<string, unknown>>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  conflict: (q: any) => any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  returningCol: any,
+): Promise<{ received: number; inserted: number; chunkFailures: number; lastError?: string }> {
+  let inserted = 0;
+  let chunkFailures = 0;
+  let lastError: string | undefined;
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const slice = rows.slice(i, i + CHUNK);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const q = (db.insert(table) as any).values(slice);
+      const ret = await conflict(q).returning({ k: returningCol });
+      inserted += Array.isArray(ret) ? ret.length : 0;
+    } catch (e) {
+      chunkFailures += 1;
+      lastError = (e as Error).message;
+    }
+  }
+  return { received: rows.length, inserted, chunkFailures, lastError };
+}
+
+function parseTs(v: unknown): Date | null {
+  if (!v) return null;
+  if (typeof v === "string" || typeof v === "number") {
+    const d = new Date(v);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+function asInt(v: unknown, dflt = 0): number {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    if (Number.isFinite(n)) return Math.trunc(n);
+  }
+  return dflt;
+}
+function asStr(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === "string") return v;
+  return String(v);
+}
+function asArr(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
+router.post(
+  "/admin/maintenance/bot-import",
+  adminOnly,
+  expressJson({ limit: "50mb" }),
+  async (req, res): Promise<void> => {
+    const body = req.body as BotImportBody | null;
+    if (!body?.tables || typeof body.tables !== "object") {
+      res.status(400).json({ error: "Body must be { tables: { ... } }" });
+      return;
+    }
+    const t = body.tables;
+    // Validate every present table value is actually an array — protects
+    // against malformed uploads (object/string/null) that would otherwise
+    // 500 inside the .map() call below.
+    for (const [k, v] of Object.entries(t)) {
+      if (!Array.isArray(v)) {
+        res.status(400).json({ error: `tables.${k} must be an array, got ${typeof v}` });
+        return;
+      }
+    }
+
+    type TableResult = { received: number; inserted: number; skippedInvalid: number; chunkFailures: number; note?: string };
+    const out: Record<string, TableResult> = {};
+    const skip = (name: string) => { out[name] = { received: 0, inserted: 0, skippedInvalid: 0, chunkFailures: 0, note: "not present in upload" }; };
+
+    // Helper: take a mapped + filtered list and return both the kept rows
+    // and the count of input rows that were dropped (missing required dedup
+    // fields). Strict idempotency rule: rows missing a dedup key are SKIPPED,
+    // never inserted with a fabricated value — fabrication breaks rerun.
+    function split<R>(input: unknown[], map: (r: Record<string, unknown>) => R | null): { rows: R[]; skippedInvalid: number } {
+      const rows: R[] = [];
+      let skippedInvalid = 0;
+      for (const raw of input) {
+        const r = map(raw as Record<string, unknown>);
+        if (r == null) skippedInvalid++; else rows.push(r);
+      }
+      return { rows, skippedInvalid };
+    }
+
+    // 1) actor_attendance — dedup by bot_id (must be present)
+    if (t.actor_attendance) {
+      const { rows, skippedInvalid } = split(t.actor_attendance, (r) => {
+        const botId = asInt(r.bot_id, 0); if (!botId) return null;
+        const userId = asStr(r.user_id); if (!userId) return null;
+        const actedAt = parseTs(r.acted_at); if (!actedAt) return null;
+        return {
+          botId, userId, username: asStr(r.username),
+          missionId: asStr(r.mission_id), missionName: asStr(r.mission_name),
+          fixerId: asStr(r.fixer_id), fixerUsername: asStr(r.fixer_username),
+          payAmount: asInt(r.pay_amount, 0), actedAt,
+        };
+      });
+      const res = await chunkedInsert(botActorAttendance, rows, (q) => q.onConflictDoNothing({ target: botActorAttendance.botId }), botActorAttendance.id);
+      out.actor_attendance = { received: t.actor_attendance.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("actor_attendance");
+
+    // 2) attendance_log — dedup by (user, ts); skip if ts missing
+    if (t.attendance_log) {
+      const { rows, skippedInvalid } = split(t.attendance_log, (r) => {
+        const userId = asStr(r.user_id); const loggedAt = parseTs(r.logged_at);
+        if (!userId || !loggedAt) return null;
+        return { userId, loggedAt };
+      });
+      const res = await chunkedInsert(botAttendanceLog, rows, (q) => q.onConflictDoNothing({ target: [botAttendanceLog.userId, botAttendanceLog.loggedAt] }), botAttendanceLog.id);
+      out.attendance_log = { received: t.attendance_log.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("attendance_log");
+
+    // 3) balance_history — dedup by bot_id (must be present)
+    if (t.balance_history) {
+      const { rows, skippedInvalid } = split(t.balance_history, (r) => {
+        const botId = asInt(r.bot_id, 0); if (!botId) return null;
+        const userId = asStr(r.user_id); if (!userId) return null;
+        const ts = parseTs(r.ts); if (!ts) return null;
+        return { botId, userId, ts, cashDelta: asInt(r.cash_delta, 0), bankDelta: asInt(r.bank_delta, 0), reason: asStr(r.reason) };
+      });
+      const res = await chunkedInsert(botBalanceHistory, rows, (q) => q.onConflictDoNothing({ target: botBalanceHistory.botId }), botBalanceHistory.id);
+      out.balance_history = { received: t.balance_history.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("balance_history");
+
+    // 4) cyberware_status — PK user_id, upsert (latest wins)
+    if (t.cyberware_status) {
+      const { rows, skippedInvalid } = split(t.cyberware_status, (r) => {
+        const userId = asStr(r.user_id); if (!userId) return null;
+        return { userId, weeks: asInt(r.weeks, 0), lastProcessed: parseTs(r.last_processed), updatedAt: parseTs(r.updated_at) };
+      });
+      const res = await chunkedInsert(botCyberwareStatus, rows, (q) => q.onConflictDoUpdate({
+        target: botCyberwareStatus.userId,
+        set: { weeks: sql`excluded.weeks`, lastProcessed: sql`excluded.last_processed`, updatedAt: sql`excluded.updated_at` },
+      }), botCyberwareStatus.userId);
+      out.cyberware_status = { received: t.cyberware_status.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("cyberware_status");
+
+    // 5) cyberware_weekly_runs — dedup by bot_id
+    if (t.cyberware_weekly_runs) {
+      const { rows, skippedInvalid } = split(t.cyberware_weekly_runs, (r) => {
+        const botId = asInt(r.bot_id, 0); if (!botId) return null;
+        const runAt = parseTs(r.run_at); if (!runAt) return null;
+        return { botId, runAt, checkupIds: asArr(r.checkup_ids), paidIds: asArr(r.paid_ids), unpaidIds: asArr(r.unpaid_ids) };
+      });
+      const res = await chunkedInsert(botCyberwareWeeklyRuns, rows, (q) => q.onConflictDoNothing({ target: botCyberwareWeeklyRuns.botId }), botCyberwareWeeklyRuns.id);
+      out.cyberware_weekly_runs = { received: t.cyberware_weekly_runs.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("cyberware_weekly_runs");
+
+    // 6) last_payment — PK user_id, upsert
+    if (t.last_payment) {
+      const { rows, skippedInvalid } = split(t.last_payment, (r) => {
+        const userId = asStr(r.user_id); if (!userId) return null;
+        return { userId, summary: asStr(r.summary), updatedAt: parseTs(r.updated_at) };
+      });
+      const res = await chunkedInsert(botLastPayment, rows, (q) => q.onConflictDoUpdate({
+        target: botLastPayment.userId,
+        set: { summary: sql`excluded.summary`, updatedAt: sql`excluded.updated_at` },
+      }), botLastPayment.userId);
+      out.last_payment = { received: t.last_payment.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("last_payment");
+
+    // 7) payment_labels — composite (user, label, ts); skip if ts missing
+    if (t.payment_labels) {
+      const { rows, skippedInvalid } = split(t.payment_labels, (r) => {
+        const userId = asStr(r.user_id); const label = asStr(r.label); const recordedAt = parseTs(r.recorded_at);
+        if (!userId || !label || !recordedAt) return null;
+        return { userId, label, recordedAt };
+      });
+      const res = await chunkedInsert(botPaymentLabels, rows, (q) => q.onConflictDoNothing({ target: [botPaymentLabels.userId, botPaymentLabels.label, botPaymentLabels.recordedAt] }), botPaymentLabels.id);
+      out.payment_labels = { received: t.payment_labels.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("payment_labels");
+
+    // 8) rent_runs — dedup by bot_id
+    if (t.rent_runs) {
+      const { rows, skippedInvalid } = split(t.rent_runs, (r) => {
+        const botId = asInt(r.bot_id, 0); if (!botId) return null;
+        const runAt = parseTs(r.run_at); if (!runAt) return null;
+        return { botId, runAt, initiatedBy: asStr(r.initiated_by) };
+      });
+      const res = await chunkedInsert(botRentRuns, rows, (q) => q.onConflictDoNothing({ target: botRentRuns.botId }), botRentRuns.id);
+      out.rent_runs = { received: t.rent_runs.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("rent_runs");
+
+    // 9) store_inventory — dedup by bot_id
+    if (t.store_inventory) {
+      const { rows, skippedInvalid } = split(t.store_inventory, (r) => {
+        const botId = asInt(r.bot_id, 0); if (!botId) return null;
+        const storeId = asStr(r.store_id); if (!storeId) return null;
+        return {
+          botId, storeId, lotId: asStr(r.lot_id), gunName: asStr(r.gun_name), gunLevel: asStr(r.gun_level),
+          unitCost: asInt(r.unit_cost, 0), qty: asInt(r.qty, 0), itemIds: asArr(r.item_ids),
+          restriction: asStr(r.restriction), weaponType: asStr(r.weapon_type), gunCategory: asStr(r.gun_category),
+          createdAt: parseTs(r.created_at),
+        };
+      });
+      const res = await chunkedInsert(botStoreInventory, rows, (q) => q.onConflictDoNothing({ target: botStoreInventory.botId }), botStoreInventory.id);
+      out.store_inventory = { received: t.store_inventory.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("store_inventory");
+
+    // 10) ticket_index — PK message_id, upsert
+    if (t.ticket_index) {
+      const { rows, skippedInvalid } = split(t.ticket_index, (r) => {
+        const messageId = asStr(r.message_id); if (!messageId) return null;
+        return { messageId, url: asStr(r.url), ts: parseTs(r.ts), title: asStr(r.title), body: asStr(r.body) };
+      });
+      const res = await chunkedInsert(botTicketIndex, rows, (q) => q.onConflictDoUpdate({
+        target: botTicketIndex.messageId,
+        set: { url: sql`excluded.url`, ts: sql`excluded.ts`, title: sql`excluded.title`, body: sql`excluded.body` },
+      }), botTicketIndex.messageId);
+      out.ticket_index = { received: t.ticket_index.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("ticket_index");
+
+    // 11) mission_log — PK user_id, upsert
+    if (t.mission_log) {
+      const { rows, skippedInvalid } = split(t.mission_log, (r) => {
+        const userId = asStr(r.user_id); if (!userId) return null;
+        return {
+          userId, username: asStr(r.username), missionCount: asInt(r.mission_count, 0),
+          missionDates: asArr(r.mission_dates), missionTitles: asArr(r.mission_titles), updatedAt: parseTs(r.updated_at),
+        };
+      });
+      const res = await chunkedInsert(botMissionLog, rows, (q) => q.onConflictDoUpdate({
+        target: botMissionLog.userId,
+        set: {
+          username: sql`excluded.username`, missionCount: sql`excluded.mission_count`,
+          missionDates: sql`excluded.mission_dates`, missionTitles: sql`excluded.mission_titles`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      }), botMissionLog.userId);
+      out.mission_log = { received: t.mission_log.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("mission_log");
+
+    // 12) business_open_log — composite (user, ts); skip if ts missing
+    if (t.business_open_log) {
+      const { rows, skippedInvalid } = split(t.business_open_log, (r) => {
+        const userId = asStr(r.user_id); const openedAt = parseTs(r.opened_at);
+        if (!userId || !openedAt) return null;
+        return { userId, openedAt };
+      });
+      const res = await chunkedInsert(botBusinessOpenLog, rows, (q) => q.onConflictDoNothing({ target: [botBusinessOpenLog.userId, botBusinessOpenLog.openedAt] }), botBusinessOpenLog.id);
+      out.business_open_log = { received: t.business_open_log.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("business_open_log");
+
+    // 13) player_inventory — PK item_id, upsert
+    if (t.player_inventory) {
+      const { rows, skippedInvalid } = split(t.player_inventory, (r) => {
+        const itemId = asStr(r.item_id); if (!itemId) return null;
+        return {
+          itemId, ownerId: asStr(r.owner_id), characterId: asStr(r.character_id),
+          characterName: asStr(r.character_name), itemType: asStr(r.item_type), name: asStr(r.name),
+          restriction: asStr(r.restriction), description: asStr(r.description),
+          pricePaid: r.price_paid == null ? null : asInt(r.price_paid, 0),
+          sellerId: asStr(r.seller_id), sellerName: asStr(r.seller_name),
+          acquiredAt: parseTs(r.acquired_at), createdAt: parseTs(r.created_at),
+          powerLevel: asStr(r.power_level), weaponSubtype: asStr(r.weapon_subtype),
+          cwp: asStr(r.cwp), slot: asStr(r.slot), weaponType: asStr(r.weapon_type),
+        };
+      });
+      const res = await chunkedInsert(botPlayerInventory, rows, (q) => q.onConflictDoUpdate({
+        target: botPlayerInventory.itemId,
+        set: {
+          ownerId: sql`excluded.owner_id`, characterId: sql`excluded.character_id`,
+          characterName: sql`excluded.character_name`, itemType: sql`excluded.item_type`,
+          name: sql`excluded.name`, restriction: sql`excluded.restriction`,
+          description: sql`excluded.description`, pricePaid: sql`excluded.price_paid`,
+          sellerId: sql`excluded.seller_id`, sellerName: sql`excluded.seller_name`,
+          acquiredAt: sql`excluded.acquired_at`, powerLevel: sql`excluded.power_level`,
+          weaponSubtype: sql`excluded.weapon_subtype`, cwp: sql`excluded.cwp`,
+          slot: sql`excluded.slot`, weaponType: sql`excluded.weapon_type`,
+        },
+      }), botPlayerInventory.itemId);
+      out.player_inventory = { received: t.player_inventory.length, inserted: res.inserted, skippedInvalid, chunkFailures: res.chunkFailures, note: res.lastError };
+    } else skip("player_inventory");
+
+    const totalIn = Object.values(out).reduce((s, x) => s + x.inserted, 0);
+    const totalInvalid = Object.values(out).reduce((s, x) => s + x.skippedInvalid, 0);
+    const totalChunkFail = Object.values(out).reduce((s, x) => s + x.chunkFailures, 0);
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "bot_import",
+      message: `Bot DB import: +${totalIn} new rows across ${Object.keys(out).length} tables, ${totalInvalid} invalid, ${totalChunkFail} chunk failures`,
+      after: out,
+    });
+    res.json({ totals: { inserted: totalIn, skippedInvalid: totalInvalid, chunkFailures: totalChunkFail }, tables: out });
   },
 );
 

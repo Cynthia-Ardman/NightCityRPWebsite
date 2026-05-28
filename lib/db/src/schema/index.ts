@@ -640,3 +640,181 @@ export const sessionsTable = pgTable("user_sessions", {
   sess: jsonb("sess").notNull(),
   expire: timestamp("expire", { withTimezone: false, precision: 6 }).notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// `bot_*` tables: mirror-imports of the legacy Discord-bot Replit DB.
+// These are RAW IMPORTS — they preserve the bot's shape exactly so the portal
+// can surface rent/cyberware/transaction history without re-modelling.
+// All character/user references are Discord IDs (no FK to portal.users — the
+// bot DB has rows for users who have never logged into the portal). Resolve
+// to portal characters at READ TIME by joining bot.user_id → characters.ownerId.
+// `botId` columns preserve the source-DB serial id for idempotent re-import.
+// ---------------------------------------------------------------------------
+
+// Per-mission pay log (one row per (user, mission) attendance grant).
+export const botActorAttendance = pgTable("bot_actor_attendance", {
+  id: serial("id").primaryKey(),
+  botId: integer("bot_id").unique(),
+  userId: text("user_id").notNull(),
+  username: text("username"),
+  missionId: text("mission_id"),
+  missionName: text("mission_name"),
+  fixerId: text("fixer_id"),
+  fixerUsername: text("fixer_username"),
+  payAmount: integer("pay_amount").notNull().default(0),
+  actedAt: timestamp("acted_at", { withTimezone: true }).notNull(),
+}, (t) => ({
+  userIdx: index("bot_actor_attendance_user_idx").on(t.userId),
+  actedIdx: index("bot_actor_attendance_acted_idx").on(t.actedAt),
+}));
+
+// Weekly attendance check-ins from the bot. Source has no primary key —
+// we synthesize one and use (user, ts) as the dedup unique index.
+export const botAttendanceLog = pgTable("bot_attendance_log", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  loggedAt: timestamp("logged_at", { withTimezone: true }).notNull(),
+}, (t) => ({
+  userTsIdx: uniqueIndex("bot_attendance_log_user_ts_idx").on(t.userId, t.loggedAt),
+}));
+
+// THE transaction ledger. Every cash/bank delta the bot applied lives here,
+// with a free-text reason ("Fixer store-add gun", "rent ...", etc.).
+export const botBalanceHistory = pgTable("bot_balance_history", {
+  id: serial("id").primaryKey(),
+  botId: integer("bot_id").unique(),
+  userId: text("user_id").notNull(),
+  ts: timestamp("ts", { withTimezone: true }).notNull(),
+  cashDelta: integer("cash_delta").notNull().default(0),
+  bankDelta: integer("bank_delta").notNull().default(0),
+  reason: text("reason"),
+}, (t) => ({
+  userIdx: index("bot_balance_history_user_idx").on(t.userId),
+  tsIdx: index("bot_balance_history_ts_idx").on(t.ts),
+}));
+
+// Cyberware "weeks since last checkup" counter. PER USER (not per character)
+// — that is just how the bot tracks it. Per-character cyberware ITEMS live
+// in botPlayerInventory.
+export const botCyberwareStatus = pgTable("bot_cyberware_status", {
+  userId: text("user_id").primaryKey(),
+  weeks: integer("weeks").notNull().default(0),
+  lastProcessed: timestamp("last_processed", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+// One row per cyberware sweep run: which users were charged, skipped, or
+// had a checkup. checkup/paid/unpaid are arrays of Discord IDs.
+export const botCyberwareWeeklyRuns = pgTable("bot_cyberware_weekly_runs", {
+  id: serial("id").primaryKey(),
+  botId: integer("bot_id").unique(),
+  runAt: timestamp("run_at", { withTimezone: true }).notNull(),
+  checkupIds: jsonb("checkup_ids").notNull().default(sql`'[]'::jsonb`),
+  paidIds: jsonb("paid_ids").notNull().default(sql`'[]'::jsonb`),
+  unpaidIds: jsonb("unpaid_ids").notNull().default(sql`'[]'::jsonb`),
+});
+
+// Latest rent-payment debug summary text per user (one row per user, the
+// bot overwrites it on each rent run).
+export const botLastPayment = pgTable("bot_last_payment", {
+  userId: text("user_id").primaryKey(),
+  summary: text("summary"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+// Free-form per-user tags ("collect_rent_after", etc.) with a timestamp.
+// Unique on (user, label, ts) so re-running the import is a no-op.
+export const botPaymentLabels = pgTable("bot_payment_labels", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  label: text("label").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+}, (t) => ({
+  composite: uniqueIndex("bot_payment_labels_user_label_ts_idx").on(t.userId, t.label, t.recordedAt),
+}));
+
+// When each rent sweep was kicked off (one row per run).
+export const botRentRuns = pgTable("bot_rent_runs", {
+  id: serial("id").primaryKey(),
+  botId: integer("bot_id").unique(),
+  runAt: timestamp("run_at", { withTimezone: true }).notNull(),
+  initiatedBy: text("initiated_by"),
+});
+
+// Fixer / ripperdoc store stock. store_id is the bot's "guild:owner" key.
+export const botStoreInventory = pgTable("bot_store_inventory", {
+  id: serial("id").primaryKey(),
+  botId: integer("bot_id").unique(),
+  storeId: text("store_id").notNull(),
+  lotId: text("lot_id"),
+  gunName: text("gun_name"),
+  gunLevel: text("gun_level"),
+  unitCost: integer("unit_cost").notNull().default(0),
+  qty: integer("qty").notNull().default(0),
+  itemIds: jsonb("item_ids").notNull().default(sql`'[]'::jsonb`),
+  restriction: text("restriction"),
+  weaponType: text("weapon_type"),
+  gunCategory: text("gun_category"),
+  createdAt: timestamp("created_at", { withTimezone: true }),
+}, (t) => ({
+  storeIdx: index("bot_store_inventory_store_idx").on(t.storeId),
+}));
+
+// Discord ticket message index — message_id is naturally unique so we use it
+// as the primary key.
+export const botTicketIndex = pgTable("bot_ticket_index", {
+  messageId: text("message_id").primaryKey(),
+  url: text("url"),
+  ts: timestamp("ts", { withTimezone: true }),
+  title: text("title"),
+  body: text("body"),
+}, (t) => ({
+  tsIdx: index("bot_ticket_index_ts_idx").on(t.ts),
+}));
+
+// Per-user mission aggregate from the bot (parallel date+title arrays).
+export const botMissionLog = pgTable("bot_mission_log", {
+  userId: text("user_id").primaryKey(),
+  username: text("username"),
+  missionCount: integer("mission_count").notNull().default(0),
+  missionDates: jsonb("mission_dates").notNull().default(sql`'[]'::jsonb`),
+  missionTitles: jsonb("mission_titles").notNull().default(sql`'[]'::jsonb`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+// Shop-open events from the bot.
+export const botBusinessOpenLog = pgTable("bot_business_open_log", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
+}, (t) => ({
+  composite: uniqueIndex("bot_business_open_user_ts_idx").on(t.userId, t.openedAt),
+  userIdx: index("bot_business_open_user_idx").on(t.userId),
+}));
+
+// Bot's player inventory (distinct from portal.inventory_items — kept as a
+// separate read-only mirror so we can surface bot-era item history without
+// migrating live inventory state).
+export const botPlayerInventory = pgTable("bot_player_inventory", {
+  itemId: text("item_id").primaryKey(),
+  ownerId: text("owner_id"),
+  characterId: text("character_id"),
+  characterName: text("character_name"),
+  itemType: text("item_type"),
+  name: text("name"),
+  restriction: text("restriction"),
+  description: text("description"),
+  pricePaid: integer("price_paid"),
+  sellerId: text("seller_id"),
+  sellerName: text("seller_name"),
+  acquiredAt: timestamp("acquired_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }),
+  powerLevel: text("power_level"),
+  weaponSubtype: text("weapon_subtype"),
+  cwp: text("cwp"),
+  slot: text("slot"),
+  weaponType: text("weapon_type"),
+}, (t) => ({
+  ownerIdx: index("bot_player_inventory_owner_idx").on(t.ownerId),
+  charIdx: index("bot_player_inventory_char_idx").on(t.characterName),
+}));

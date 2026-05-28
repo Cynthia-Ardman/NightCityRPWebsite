@@ -18,3 +18,9 @@ id = "37JNEJuWyBU9T2fD_AQeS"
 uri = "file://.local/exports/dev-to-prod-full.json"
 type = "unspecified"
 title = "dev-to-prod-full.json — one-time migration dump"
+
+[[outputs]]
+id = "IP8fV2MdSn4Wlvn9Nbecp"
+uri = "file://.local/exports/bot-db-import.json"
+type = "unspecified"
+title = "bot-db-import.json — 13 tables, 6,382 rows from your bot DB"
