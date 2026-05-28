@@ -105,6 +105,7 @@ router.put("/characters/:id/lifestyle", requireAuth, async (req, res): Promise<v
     }
     tierId = parsed;
   }
+  const prevTierId = c.lifestyleTierId ?? null;
   const [u] = await db
     .update(characters)
     .set({ lifestyleTierId: tierId })
@@ -114,6 +115,17 @@ router.put("/characters/:id/lifestyle", requireAuth, async (req, res): Promise<v
   if (u.lifestyleTierId != null) {
     const [t] = await db.select().from(lifestyleTiers).where(eq(lifestyleTiers.id, u.lifestyleTierId));
     lifestyleTier = t ?? null;
+  }
+  if (prevTierId !== tierId) {
+    const prevName = prevTierId
+      ? (await db.select().from(lifestyleTiers).where(eq(lifestyleTiers.id, prevTierId)))[0]?.name ?? `#${prevTierId}`
+      : "none";
+    const nextName = lifestyleTier?.name ?? "none";
+    await db.insert(characterUpdates).values({
+      characterId: id,
+      authorId: req.user!.id,
+      note: `Lifestyle changed: ${prevName} → ${nextName}`,
+    });
   }
   res.json({ ...u, lifestyleTier, isActive: u.id === req.user!.activeCharacterId });
 });
@@ -287,6 +299,11 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
       equipped: !!equipped,
     })
     .returning();
+  await db.insert(characterUpdates).values({
+    characterId: id,
+    authorId: req.user!.id,
+    note: `Added inventory item: ${name}${quantity && quantity > 1 ? ` ×${quantity}` : ""}${category ? ` [${category}]` : ""}`,
+  });
   res.status(201).json(it);
 });
 
@@ -299,6 +316,7 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
     return;
   }
   const { name, category, quantity, notes, equipped } = req.body ?? {};
+  const [prev] = await db.select().from(inventoryItems).where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
   const [u] = await db
     .update(inventoryItems)
     .set({
@@ -314,6 +332,21 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
     res.status(404).json({ error: "Item not found" });
     return;
   }
+  if (prev) {
+    const diffs: string[] = [];
+    if (name !== undefined && name !== prev.name) diffs.push(`name: "${prev.name}" → "${name}"`);
+    if (quantity !== undefined && quantity !== prev.quantity) diffs.push(`qty: ${prev.quantity} → ${quantity}`);
+    if (equipped !== undefined && equipped !== prev.equipped) diffs.push(equipped ? "equipped" : "unequipped");
+    if (category !== undefined && category !== prev.category) diffs.push(`category: ${prev.category ?? "—"} → ${category ?? "—"}`);
+    if (notes !== undefined && notes !== prev.notes) diffs.push("notes updated");
+    if (diffs.length) {
+      await db.insert(characterUpdates).values({
+        characterId: cid,
+        authorId: req.user!.id,
+        note: `Inventory item "${u.name}": ${diffs.join(", ")}`,
+      });
+    }
+  }
   res.json(u);
 });
 
@@ -325,7 +358,15 @@ router.delete("/characters/:cid/inventory/:itemId", requireAuth, async (req, res
     res.status(404).json({ error: "Not found" });
     return;
   }
+  const [prev] = await db.select().from(inventoryItems).where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
   await db.delete(inventoryItems).where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+  if (prev) {
+    await db.insert(characterUpdates).values({
+      characterId: cid,
+      authorId: req.user!.id,
+      note: `Removed inventory item: ${prev.name}${prev.quantity > 1 ? ` ×${prev.quantity}` : ""}`,
+    });
+  }
   res.sendStatus(204);
 });
 
@@ -492,6 +533,23 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
         : `${sender.name} gave ${item.name} x${qty} to ${to.name}`,
   });
 
+  // Per-character audit log entries for both sender and recipient so the
+  // transfer shows up in each character's UpdatesLog. Sender row is
+  // authored by req.user; recipient row is authored by the recipient's
+  // owner so it reads "<owner> received ..." in their feed.
+  const senderNote =
+    mode === "sell"
+      ? `Sold ${item.name} x${qty} to ${to.name} for €$${Number(price)}`
+      : `Gave ${item.name} x${qty} to ${to.name}`;
+  const recipientNote =
+    mode === "sell"
+      ? `Bought ${item.name} x${qty} from ${sender.name} for €$${Number(price)}`
+      : `Received ${item.name} x${qty} from ${sender.name}`;
+  await db.insert(characterUpdates).values([
+    { characterId: cid, authorId: req.user!.id, note: senderNote },
+    { characterId: to.id, authorId: to.ownerId, note: recipientNote },
+  ]);
+
   const [moved] = await db
     .select()
     .from(inventoryItems)
@@ -648,6 +706,25 @@ router.patch("/characters/:id/status", requireAuth, async (req, res): Promise<vo
     [result] = await db.update(characterStatus).set(patch).where(eq(characterStatus.characterId, id)).returning();
   } else {
     [result] = await db.insert(characterStatus).values({ characterId: id, ...patch }).returning();
+  }
+  const flips: string[] = [];
+  if (loa !== undefined && loa !== (existing?.loa ?? false)) flips.push(loa ? "set LOA" : "returned from LOA");
+  if (attending !== undefined && attending !== (existing?.attending ?? false)) flips.push(attending ? "marked attending" : "no longer attending");
+  if (openShop !== undefined && openShop !== (existing?.openShop ?? false)) flips.push(openShop ? "opened shop" : "closed shop");
+  if (statusMessage !== undefined && statusMessage !== (existing?.statusMessage ?? null)) flips.push("updated status message");
+  if (loaReturnsAt !== undefined) {
+    const prevMs = existing?.loaReturnsAt ? new Date(existing.loaReturnsAt).getTime() : null;
+    const nextMs = loaReturnsAt ? new Date(loaReturnsAt).getTime() : null;
+    if (prevMs !== nextMs) {
+      flips.push(nextMs ? `LOA return date set to ${new Date(nextMs).toISOString().slice(0, 10)}` : "cleared LOA return date");
+    }
+  }
+  if (flips.length) {
+    await db.insert(characterUpdates).values({
+      characterId: id,
+      authorId: req.user!.id,
+      note: `Status: ${flips.join(", ")}`,
+    });
   }
   res.json(result);
 });

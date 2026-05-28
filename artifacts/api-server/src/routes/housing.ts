@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, sql } from "drizzle-orm";
-import { db, housing, characters, catalogRent, activityEvents } from "@workspace/db";
+import { db, housing, characters, catalogRent, activityEvents, characterUpdates } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 
@@ -138,6 +138,11 @@ router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${c.name} leased ${listing.name} (€$${listing.monthlyRent}/mo)`,
   });
+  await db.insert(characterUpdates).values({
+    characterId: cid,
+    authorId: req.user!.id,
+    note: `Leased housing: ${listing.name} (€$${listing.monthlyRent.toLocaleString()}/mo)`,
+  });
   const [row] = await selectLeasesWhere(eq(housing.id, inserted.id));
   res.status(201).json(shape(row));
 });
@@ -164,6 +169,11 @@ router.delete("/housing/:id", requireAuth, async (req, res): Promise<void> => {
     actorName: req.user!.username,
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${row.characterName} vacated ${row.h.address}`,
+  });
+  await db.insert(characterUpdates).values({
+    characterId: row.h.characterId,
+    authorId: req.user!.id,
+    note: `Vacated housing: ${row.h.address}`,
   });
   res.sendStatus(204);
 });

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
-import { db, users } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, users, characters } from "@workspace/db";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   buildAuthUrl,
   exchangeCode,
@@ -72,6 +72,33 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
         tokenExpiresAt: expiresAt,
         rolesSyncedAt: new Date(),
       });
+    }
+    // Back-fill ownership for any imported characters whose legacy Discord
+    // *username* (the globally-unique handle, not the mutable display
+    // name) matches this user. We deliberately do NOT match on
+    // global_name because global_name is user-editable and non-unique —
+    // matching on it would let anyone set a colliding display name and
+    // steal orphaned characters. The match is also strict-equality on
+    // lower(username) since Discord usernames are globally unique.
+    // Only touch rows that are still NULL — never clobber an
+    // admin-assigned ownerId. See memory:
+    // importer-upsert-idempotency, nullable-owner-guards,
+    // auto-claim-legacy-username.
+    try {
+      const handle = discordUser.username?.trim().toLowerCase();
+      if (handle) {
+        await db
+          .update(characters)
+          .set({ ownerId: id, claimed: true })
+          .where(
+            and(
+              isNull(characters.ownerId),
+              sql`lower(${characters.legacyDiscordUsername}) = ${handle}`,
+            ),
+          );
+      }
+    } catch (claimErr) {
+      req.log.warn({ err: claimErr }, "auto-claim by legacy username failed");
     }
     req.session.userId = id;
     res.redirect("/");

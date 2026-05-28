@@ -12,3 +12,4 @@
 - [Character-sheet thread structure](character-sheet-thread-structure.md) — #character-sheets threads span many OP-author messages and use markdown headings, not inline `Label:` lines.
 - [Express sub-router auth scope](express-router-auth-scope.md) — path-less `router.use(requireAuth)` in a sub-router mounted at root gates every later sibling route, not just its own paths.
 - [Pending edit before-snapshot](pending-edit-snapshot.md) — capture diffed fields at submit time, not view time, or admin/other edits silently rewrite the reviewer's BEFORE column.
+- [Auto-claim on login](auto-claim-legacy-username.md) — back-fill characters.ownerId from legacy_discord_username on Discord OAuth callback; guard with isNull(ownerId).
