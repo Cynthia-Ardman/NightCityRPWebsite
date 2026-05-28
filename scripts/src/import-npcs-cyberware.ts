@@ -103,6 +103,10 @@ async function main() {
   let inserted = 0;
   let updated = 0;
   for (const npc of npcs) {
+    // Skip NPC blocks that have no implant rows — the sheet sometimes lists
+    // a character header without any actual cyberware data, and we don't want
+    // to materialize an empty NPC for those.
+    if (npc.implants.length === 0) continue;
     const block = renderCyberwareBlock(npc);
     // Idempotent upsert keyed on (kind='npc', name). Preserve admin-assigned
     // ownerId via coalesce. We embed the cyberware block in background under

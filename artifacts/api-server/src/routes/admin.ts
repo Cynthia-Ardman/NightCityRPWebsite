@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql, and, gte } from "drizzle-orm";
+import { eq, desc, sql, and, gte, type SQL } from "drizzle-orm";
 import { db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig } from "@workspace/db";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole } from "../lib/discord";
@@ -332,12 +332,12 @@ router.get("/admin/audit-log", adminOnly, async (req, res): Promise<void> => {
   const actorId = req.query.actorId ? String(req.query.actorId) : null;
   const since = req.query.since ? new Date(String(req.query.since)) : null;
   const limit = Math.min(500, parseInt(String(req.query.limit ?? "200"), 10) || 200);
-  const conds = [
+  const conds: SQL[] = [
     category && category !== "all" ? eq(auditLog.category, category) : null,
     action ? eq(auditLog.action, action) : null,
     actorId ? eq(auditLog.actorId, actorId) : null,
     since && !isNaN(since.getTime()) ? gte(auditLog.createdAt, since) : null,
-  ].filter(Boolean) as ReturnType<typeof eq>[];
+  ].filter((c): c is SQL => c !== null);
   const rows = conds.length
     ? await db.select().from(auditLog).where(and(...conds)).orderBy(desc(auditLog.createdAt)).limit(limit)
     : await db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(limit);
