@@ -94,80 +94,58 @@ export default function CharactersList() {
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-display tracking-widest text-foreground flex items-center gap-2">
-          <Users className="w-4 h-4" /> APPROVED IDENTITIES
-          {characters && <span className="text-xs font-mono text-muted-foreground">({characters.length})</span>}
-        </h2>
-        {isLoading ? (
-          <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">SCANNING_DATABASE...</div>
-        ) : (characters?.length ?? 0) === 0 ? (
-          <div className="py-12 text-center border border-dashed border-border bg-card/30">
-            <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <h3 className="text-xl font-display text-foreground mb-2">NO APPROVED IDENTITIES</h3>
-            <p className="text-muted-foreground font-mono text-sm">
-              {drafts.length > 0 || pendingSheets.length > 0
-                ? "Finish a draft or wait for approval to see characters here."
-                : "Create your first character to get started."}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {characters?.map(char => (
-              <div key={char.id} className="relative">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="absolute top-2 right-2 z-10 rounded-none border-nc-cyan/40 text-nc-cyan hover:bg-nc-cyan hover:text-background h-7 px-2 font-display tracking-widest text-xs"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setEditing(char);
-                  }}
-                  data-testid={`button-edit-character-${char.id}`}
-                >
-                  <Pencil className="w-3 h-3 mr-1" /> EDIT
-                </Button>
-                <Link href={`/characters/${char.id}`}>
-                <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan hover:shadow-[0_0_15px_rgba(0,255,255,0.1)] transition-all cursor-pointer group h-full flex flex-col" data-testid={`card-character-${char.id}`}>
-                  <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2">
-                    <Avatar className="h-16 w-16 border border-border rounded-none group-hover:border-nc-cyan transition-colors shadow-sm">
-                      <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} className="object-cover" />
-                      <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-2xl">
-                        {char.name.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-xl font-display group-hover:text-nc-cyan transition-colors truncate" title={char.name}>{char.name}</CardTitle>
-                      <CardDescription className="font-mono text-xs uppercase mt-1">
-                        <span className={char.kind === 'pc' ? 'text-nc-magenta' : 'text-nc-yellow'}>{char.kind}</span>
-                        {char.archetype && ` // ${char.archetype}`}
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="mt-auto pt-4 border-t border-border/50">
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <LifeStatusPill status={char.lifeStatus ?? "active"} />
-                      
-                      {char.approved ? (
-                        <span className="flex items-center gap-1 text-nc-cyan">
-                          <Shield className="w-3 h-3" /> APPROVED
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-nc-yellow">
-                          <ShieldAlert className="w-3 h-3" /> PENDING
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-                </Link>
+      {(() => {
+        const pcs = (characters ?? []).filter((c) => c.kind === "pc");
+        const npcs = (characters ?? []).filter((c) => c.kind === "npc");
+        if (isLoading) {
+          return (
+            <section className="space-y-3">
+              <h2 className="text-lg font-display tracking-widest text-foreground flex items-center gap-2">
+                <Users className="w-4 h-4" /> APPROVED IDENTITIES
+              </h2>
+              <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">SCANNING_DATABASE...</div>
+            </section>
+          );
+        }
+        if (pcs.length === 0 && npcs.length === 0) {
+          return (
+            <section className="space-y-3">
+              <h2 className="text-lg font-display tracking-widest text-foreground flex items-center gap-2">
+                <Users className="w-4 h-4" /> APPROVED IDENTITIES
+              </h2>
+              <div className="py-12 text-center border border-dashed border-border bg-card/30">
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <h3 className="text-xl font-display text-foreground mb-2">NO APPROVED IDENTITIES</h3>
+                <p className="text-muted-foreground font-mono text-sm">
+                  {drafts.length > 0 || pendingSheets.length > 0
+                    ? "Finish a draft or wait for approval to see characters here."
+                    : "Create your first character to get started."}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            </section>
+          );
+        }
+        return (
+          <>
+            {pcs.length > 0 && (
+              <CharacterSection
+                title="PLAYER CHARACTERS"
+                accent="text-nc-magenta"
+                items={pcs}
+                onEdit={setEditing}
+              />
+            )}
+            {npcs.length > 0 && (
+              <CharacterSection
+                title="NON-PLAYER CHARACTERS"
+                accent="text-nc-yellow"
+                items={npcs}
+                onEdit={setEditing}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {editing && (
         <EditCharacterDialog
@@ -177,5 +155,79 @@ export default function CharactersList() {
         />
       )}
     </div>
+  );
+}
+
+function CharacterSection({
+  title,
+  accent,
+  items,
+  onEdit,
+}: {
+  title: string;
+  accent: string;
+  items: Character[];
+  onEdit: (c: Character) => void;
+}) {
+  return (
+    <section className="space-y-3" data-testid={`section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+      <h2 className={`text-lg font-display tracking-widest flex items-center gap-2 ${accent}`}>
+        <Users className="w-4 h-4" /> {title}
+        <span className="text-xs font-mono text-muted-foreground">({items.length})</span>
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {items.map((char) => (
+          <div key={char.id} className="relative">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="absolute top-2 right-2 z-10 rounded-none border-nc-cyan/40 text-nc-cyan hover:bg-nc-cyan hover:text-background h-7 px-2 font-display tracking-widest text-xs"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEdit(char);
+              }}
+              data-testid={`button-edit-character-${char.id}`}
+            >
+              <Pencil className="w-3 h-3 mr-1" /> EDIT
+            </Button>
+            <Link href={`/characters/${char.id}`}>
+              <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan hover:shadow-[0_0_15px_rgba(0,255,255,0.1)] transition-all cursor-pointer group h-full flex flex-col" data-testid={`card-character-${char.id}`}>
+                <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2">
+                  <Avatar className="h-16 w-16 border border-border rounded-none group-hover:border-nc-cyan transition-colors shadow-sm">
+                    <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ""} className="object-cover" />
+                    <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-2xl">
+                      {char.name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-xl font-display group-hover:text-nc-cyan transition-colors truncate" title={char.name}>{char.name}</CardTitle>
+                    <CardDescription className="font-mono text-xs uppercase mt-1">
+                      <span className={char.kind === "pc" ? "text-nc-magenta" : "text-nc-yellow"}>{char.kind}</span>
+                      {char.archetype && ` // ${char.archetype}`}
+                    </CardDescription>
+                  </div>
+                </CardHeader>
+                <CardContent className="mt-auto pt-4 border-t border-border/50">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <LifeStatusPill status={char.lifeStatus ?? "active"} />
+                    {char.approved ? (
+                      <span className="flex items-center gap-1 text-nc-cyan">
+                        <Shield className="w-3 h-3" /> APPROVED
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-nc-yellow">
+                        <ShieldAlert className="w-3 h-3" /> PENDING
+                      </span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

@@ -498,11 +498,27 @@ router.post(
         continue;
       }
       try {
-        const existing = await db
-          .select({ id: characters.id })
-          .from(characters)
-          .where(and(eq(characters.kind, "npc"), eq(characters.name, npc.name)))
-          .limit(1);
+        // Match the dev-to-prod character resolver: imported_from_thread_id
+        // is the actual UNIQUE key on `characters`. If we look up only by
+        // (kind,name) and the name has drifted (smart quotes, retitle),
+        // we'll try to re-insert and either 500 on the unique index, or
+        // (if the NPC arrived via a different code path with NULL
+        // thread_id) silently create a half-populated duplicate.
+        let existing: Array<{ id: number }> = [];
+        if (npc.importedFromThreadId) {
+          existing = await db
+            .select({ id: characters.id })
+            .from(characters)
+            .where(eq(characters.importedFromThreadId, npc.importedFromThreadId))
+            .limit(1);
+        }
+        if (existing.length === 0) {
+          existing = await db
+            .select({ id: characters.id })
+            .from(characters)
+            .where(and(eq(characters.kind, "npc"), eq(characters.name, npc.name)))
+            .limit(1);
+        }
         if (existing.length === 0) {
           await db.insert(characters).values({
             name: npc.name,

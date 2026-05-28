@@ -236,7 +236,10 @@ interface NpcRow {
 function NpcConsolePanel() {
   const { data: user } = useAuthMe();
   const isStaff = Boolean(user?.isAdmin || user?.isFixer);
-  const { data, isLoading } = useQuery<{ items: NpcRow[]; total: number }>({
+  // /api/directory/characters returns a raw NpcRow[] (see directory.ts:121),
+  // not the { items, total } envelope this card originally expected.
+  // Crashing the dashboard with "n.items is undefined" otherwise.
+  const { data, isLoading } = useQuery<NpcRow[]>({
     queryKey: ["dashboard-npcs"],
     queryFn: async () => {
       const r = await fetch("/api/directory/characters?scope=npc&limit=8", { credentials: "include" });
@@ -245,15 +248,13 @@ function NpcConsolePanel() {
     },
     enabled: isStaff,
   });
+  const items = (data ?? []).slice(0, 8);
   if (!isStaff) return null;
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-display font-bold text-foreground flex items-center gap-2" data-testid="text-npcs-title">
           <UserCog className="w-5 h-5 text-nc-magenta" /> NPCS
-          {data?.total ? (
-            <span className="text-xs font-mono text-muted-foreground">({data.total})</span>
-          ) : null}
         </h2>
         <Button asChild variant="outline" size="sm" className="border-nc-magenta text-nc-magenta rounded-none hover:bg-nc-magenta/10">
           <Link href="/characters?scope=npc">MANAGE</Link>
@@ -263,13 +264,13 @@ function NpcConsolePanel() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4 font-mono text-sm text-nc-cyan animate-pulse">LOADING_NPCS...</div>
-          ) : !data || data.items.length === 0 ? (
+          ) : items.length === 0 ? (
             <div className="p-4 font-mono text-sm text-muted-foreground">
               No NPCs yet. Run the importer or use Admin → Maintenance to load them.
             </div>
           ) : (
             <div className="divide-y divide-border/50">
-              {data.items.map((npc) => (
+              {items.map((npc) => (
                 <Link key={npc.id} href={`/characters/${npc.id}`}>
                   <div className="p-3 flex items-center gap-3 hover:bg-nc-magenta/5 cursor-pointer" data-testid={`row-npc-${npc.id}`}>
                     <Avatar className="h-9 w-9 border border-border rounded-none">
