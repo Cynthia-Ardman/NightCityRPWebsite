@@ -51,6 +51,8 @@ import type {
   HealthStatus,
   HousingLease,
   HousingLeaseInput,
+  HydrateUsersInput,
+  HydrateUsersResult,
   InventoryItem,
   InventoryItemInput,
   InventoryItemUpdate,
@@ -5321,6 +5323,77 @@ export function useAdminGetUser<TData = Awaited<ReturnType<typeof adminGetUser>>
 
 
 
+
+export const getAdminHydrateUsersUrl = () => {
+
+
+
+
+  return `/api/admin/users/hydrate`
+}
+
+/**
+ * @summary Bulk-hydrate username / globalName / avatarUrl from Discord for users with placeholder usernames.
+ */
+export const adminHydrateUsers = async (hydrateUsersInput?: HydrateUsersInput, options?: RequestInit): Promise<HydrateUsersResult> => {
+
+  return customFetch<HydrateUsersResult>(getAdminHydrateUsersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      hydrateUsersInput,)
+  }
+);}
+
+
+
+
+export const getAdminHydrateUsersMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminHydrateUsers>>, TError,{data?: BodyType<HydrateUsersInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminHydrateUsers>>, TError,{data?: BodyType<HydrateUsersInput>}, TContext> => {
+
+const mutationKey = ['adminHydrateUsers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminHydrateUsers>>, {data?: BodyType<HydrateUsersInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminHydrateUsers(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminHydrateUsersMutationResult = NonNullable<Awaited<ReturnType<typeof adminHydrateUsers>>>
+    export type AdminHydrateUsersMutationBody = BodyType<HydrateUsersInput> | undefined
+    export type AdminHydrateUsersMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Bulk-hydrate username / globalName / avatarUrl from Discord for users with placeholder usernames.
+ */
+export const useAdminHydrateUsers = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminHydrateUsers>>, TError,{data?: BodyType<HydrateUsersInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminHydrateUsers>>,
+        TError,
+        {data?: BodyType<HydrateUsersInput>},
+        TContext
+      > => {
+      return useMutation(getAdminHydrateUsersMutationOptions(options));
+    }
 
 export const getAdminSyncUserRolesUrl = (userId: string,) => {
 

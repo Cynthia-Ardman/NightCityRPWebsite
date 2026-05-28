@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListBotConfigQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -298,34 +298,97 @@ function FlagsTab() {
 }
 
 function UsersTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: users, isLoading } = useAdminListUsers();
+  const hydrate = useAdminHydrateUsers({
+    mutation: {
+      onSuccess: (data) => {
+        qc.invalidateQueries({ queryKey: getAdminListUsersQueryKey() });
+        toast({
+          title: "Hydrated from Discord",
+          description: `Scanned ${data.scanned}, updated ${data.updated}, missing ${data.missing}.`,
+        });
+      },
+      onError: () => toast({ title: "Hydration failed", variant: "destructive" }),
+    },
+  });
 
   if (isLoading) return <div className="text-nc-cyan font-mono animate-pulse">Querying users...</div>;
 
+  const placeholderCount = users?.filter((u) => /^user_[A-Za-z0-9]+$/.test(u.username)).length ?? 0;
+
   return (
     <Card className="rounded-none border-border bg-card/50">
-      <CardHeader>
-        <CardTitle className="font-display">Registered Users</CardTitle>
-        <CardDescription className="font-mono">Discord identities linked to the portal.</CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle className="font-display">Registered Users</CardTitle>
+          <CardDescription className="font-mono">
+            Discord identities linked to the portal. Discord ID is the unique key — everything (characters, housing, guns, cyberware) hangs off it.
+            {placeholderCount > 0 && (
+              <span className="block mt-1 text-nc-yellow">
+                {placeholderCount} user{placeholderCount === 1 ? "" : "s"} still on a placeholder username — hydrate to pull real Discord handles.
+              </span>
+            )}
+          </CardDescription>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Button
+            size="sm"
+            disabled={hydrate.isPending}
+            onClick={() => hydrate.mutate({ data: {} })}
+            className="rounded-none bg-nc-cyan text-background font-display"
+            data-testid="button-hydrate-users"
+          >
+            {hydrate.isPending ? "HYDRATING..." : "HYDRATE FROM DISCORD"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={hydrate.isPending}
+            onClick={() => { if (confirm("Force-refresh EVERY user from Discord?")) hydrate.mutate({ data: { force: true } }); }}
+            className="rounded-none border-nc-magenta text-nc-magenta font-display text-xs"
+            data-testid="button-hydrate-users-force"
+          >
+            FORCE ALL
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border border-border">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="font-display text-nc-cyan">User</TableHead>
+                <TableHead className="font-display text-nc-cyan">Discord User</TableHead>
                 <TableHead className="font-display text-nc-cyan">Discord ID</TableHead>
                 <TableHead className="font-display text-nc-cyan">Roles</TableHead>
                 <TableHead className="font-display text-nc-cyan text-right">Characters</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="font-mono text-sm">
-              {users?.map(u => (
+              {users?.map(u => {
+                const isPlaceholder = /^user_[A-Za-z0-9]+$/.test(u.username);
+                const display = u.globalName || (isPlaceholder ? null : u.username);
+                return (
                 <TableRow key={u.id} className="hover:bg-muted/50 border-border cursor-pointer transition-colors" data-testid={`row-user-${u.id}`}>
                   <TableCell className="font-medium text-foreground">
-                    <Link href={`/admin/users/${u.id}`} className="hover:underline">{u.globalName || u.username}</Link>
+                    <Link href={`/admin/users/${u.id}`} className="hover:underline flex items-center gap-3">
+                      {u.avatarUrl ? (
+                        <img src={u.avatarUrl} alt="" className="w-8 h-8 rounded-none border border-border object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-none border border-border bg-muted flex items-center justify-center text-[10px] text-muted-foreground">
+                          {(display || u.discordId).slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex flex-col">
+                        <span>{display ?? <span className="text-nc-yellow italic">unhydrated</span>}</span>
+                        {!isPlaceholder && (
+                          <span className="text-[10px] text-muted-foreground">@{u.username}</span>
+                        )}
+                      </div>
+                    </Link>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{u.discordId}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs">{u.discordId}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {u.isAdmin && <Badge variant="outline" className="border-destructive text-destructive rounded-none text-[10px] px-1 py-0">ADMIN</Badge>}
@@ -337,7 +400,8 @@ function UsersTab() {
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">{u.characterCount || 0}</TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
               {!users?.length && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground h-24">NO DATA</TableCell>

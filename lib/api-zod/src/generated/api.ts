@@ -1793,6 +1793,20 @@ export const AdminGetUserResponse = zod.object({
 
 
 /**
+ * @summary Bulk-hydrate username / globalName / avatarUrl from Discord for users with placeholder usernames.
+ */
+export const AdminHydrateUsersBody = zod.object({
+  "force": zod.boolean().optional().describe('Re-hydrate every user, not just placeholders')
+})
+
+export const AdminHydrateUsersResponse = zod.object({
+  "scanned": zod.number(),
+  "updated": zod.number(),
+  "missing": zod.number()
+})
+
+
+/**
  * @summary Re-sync this user's roles from Discord
  */
 export const AdminSyncUserRolesParams = zod.object({

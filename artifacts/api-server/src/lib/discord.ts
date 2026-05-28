@@ -166,6 +166,44 @@ export function avatarUrl(discordId: string, hash: string | null | undefined): s
   return `https://cdn.discordapp.com/avatars/${discordId}/${hash}.png`;
 }
 
+export type DiscordUserProfile = {
+  id: string;
+  username: string;
+  globalName: string | null;
+  avatarUrl: string | null;
+};
+
+/**
+ * Fetch a Discord user's public profile by ID using the bot token.
+ * Returns null on 404 / missing token / network errors so callers can
+ * skip cleanly during bulk hydration.
+ */
+export async function fetchDiscordUser(discordId: string): Promise<DiscordUserProfile | null> {
+  if (!DISCORD_BOT_TOKEN) return null;
+  try {
+    const res = await fetch(`${API}/users/${discordId}`, {
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const u = (await res.json()) as {
+      id: string;
+      username: string;
+      global_name: string | null;
+      avatar: string | null;
+    };
+    return {
+      id: u.id,
+      username: u.username,
+      globalName: u.global_name,
+      avatarUrl: avatarUrl(u.id, u.avatar),
+    };
+  } catch (err) {
+    logger.warn({ err, discordId }, "fetchDiscordUser failed");
+    return null;
+  }
+}
+
 export async function postToChannel(channelId: string, content: string, embeds?: unknown[]): Promise<string | null> {
   if (!DISCORD_BOT_TOKEN) {
     logger.warn("No bot token; cannot post to Discord channel");

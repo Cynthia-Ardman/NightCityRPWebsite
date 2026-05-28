@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql, and, gte } from "drizzle-orm";
 import { db, users, characters, walletTransactions, jobRuns, activityEvents, botConfig } from "@workspace/db";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, hasRole } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole } from "../lib/discord";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
 
@@ -67,6 +67,38 @@ router.get("/admin/users/:userId", adminOnly, async (req, res): Promise<void> =>
     rolesSyncedAt: u.rolesSyncedAt,
     characters: chars,
   });
+});
+
+// Bulk-hydrate users from Discord. Walks every users row, calls the Discord
+// API by discordId, and overwrites username / globalName / avatarUrl when
+// Discord returns a profile. Targets rows whose `username` is still the
+// `user_<last6>` placeholder the prod-DB importer inserted, but `force=true`
+// re-hydrates everyone. Returns counts so the UI can show what happened.
+router.post("/admin/users/hydrate", adminOnly, async (req, res): Promise<void> => {
+  const force = Boolean((req.body ?? {}).force);
+  const rows = await db.select().from(users);
+  const targets = force
+    ? rows
+    : rows.filter((u) => /^user_[A-Za-z0-9]+$/.test(u.username));
+  let updated = 0;
+  let missing = 0;
+  for (const u of targets) {
+    const profile = await fetchDiscordUser(u.discordId);
+    if (!profile) {
+      missing++;
+      continue;
+    }
+    await db
+      .update(users)
+      .set({
+        username: profile.username,
+        globalName: profile.globalName,
+        avatarUrl: profile.avatarUrl,
+      })
+      .where(eq(users.id, u.id));
+    updated++;
+  }
+  res.json({ scanned: targets.length, updated, missing });
 });
 
 router.post("/admin/users/:userId/roles", adminOnly, async (req, res): Promise<void> => {

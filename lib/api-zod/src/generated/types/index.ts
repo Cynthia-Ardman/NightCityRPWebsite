@@ -46,6 +46,8 @@ export * from './fixerNpcUpdate';
 export * from './healthStatus';
 export * from './housingLease';
 export * from './housingLeaseInput';
+export * from './hydrateUsersInput';
+export * from './hydrateUsersResult';
 export * from './inventoryItem';
 export * from './inventoryItemInput';
 export * from './inventoryItemUpdate';

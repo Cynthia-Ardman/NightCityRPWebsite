@@ -1039,6 +1039,22 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/users/hydrate:
+    post:
+      operationId: adminHydrateUsers
+      tags: [admin]
+      summary: Bulk-hydrate username / globalName / avatarUrl from Discord for users with placeholder usernames.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HydrateUsersInput" }
+      responses:
+        "200":
+          description: Hydration counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HydrateUsersResult" }
   /admin/users/{userId}/roles:
     parameters:
       - { in: path, name: userId, required: true, schema: { type: string } }
@@ -1362,6 +1378,17 @@ components:
         importedFromChannelName: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
 
+    HydrateUsersInput:
+      type: object
+      properties:
+        force: { type: boolean, description: "Re-hydrate every user, not just placeholders" }
+    HydrateUsersResult:
+      type: object
+      required: [scanned, updated, missing]
+      properties:
+        scanned: { type: integer }
+        updated: { type: integer }
+        missing: { type: integer }
     AssignOwnerInput:
       type: object
       required: [ownerId]

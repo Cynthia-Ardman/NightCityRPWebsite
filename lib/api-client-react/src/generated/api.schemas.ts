@@ -116,6 +116,17 @@ export interface AdminCharacterSummary {
   createdAt: string;
 }
 
+export interface HydrateUsersInput {
+  /** Re-hydrate every user, not just placeholders */
+  force?: boolean;
+}
+
+export interface HydrateUsersResult {
+  scanned: number;
+  updated: number;
+  missing: number;
+}
+
 export interface AssignOwnerInput {
   /** Internal users.id of the new owner. */
   ownerId: string;
