@@ -685,18 +685,45 @@ router.post(
       }
     }
 
-    // ---- 2) characters (upsert by kind+name) -------------------------------
+    // Track every dev row → prod id we resolve in this pass, keyed by the
+    // DEV-side `${kind}|${name.toLowerCase()}`. Downstream loops (status,
+    // housing, …) look up by dev name; without this map, any case where
+    // prod's stored name differs from dev's (smart quotes, retitle) would
+    // cascade as "character not found in prod" even though the row was
+    // successfully resolved by imported_from_thread_id above.
+    const idByDevName = new Map<string, number>();
+
+    // ---- 2) characters (upsert by imported_from_thread_id first, then kind+name)
+    // Why thread-id first: `characters_imported_thread_idx` is a UNIQUE index
+    // on imported_from_thread_id. Prod may already have a row imported via
+    // the normal Discord-thread workflow under a slightly different name
+    // (smart quotes, whitespace, post-import retitle). Looking up by
+    // (kind,name) misses, we try to insert, and the unique index 500s the
+    // row — then every downstream (character_status, housing, …) cascades
+    // as "character not found in prod". Resolving by thread-id first makes
+    // the importer truly idempotent against the actual unique key.
     for (const raw of body.characters ?? []) {
       const r = raw as unknown as Record<string, unknown>;
       const name = (raw.name as string | undefined)?.trim();
       const kind = (raw.kind as string | undefined) ?? "npc";
+      const threadId = pick<string | null>(r, "imported_from_thread_id", "importedFromThreadId", null);
       if (!name) { result.characters.skipped++; continue; }
       try {
-        const existing = await db
-          .select({ id: characters.id })
-          .from(characters)
-          .where(and(eq(characters.kind, kind), eq(characters.name, name)))
-          .limit(1);
+        let existing: Array<{ id: number }> = [];
+        if (threadId) {
+          existing = await db
+            .select({ id: characters.id })
+            .from(characters)
+            .where(eq(characters.importedFromThreadId, threadId))
+            .limit(1);
+        }
+        if (existing.length === 0) {
+          existing = await db
+            .select({ id: characters.id })
+            .from(characters)
+            .where(and(eq(characters.kind, kind), eq(characters.name, name)))
+            .limit(1);
+        }
         const values = {
           name,
           kind,
@@ -732,9 +759,11 @@ router.post(
             const u = await db.select({ id: users.id }).from(users).where(eq(users.id, values.ownerId)).limit(1);
             if (u.length > 0) safeOwnerId = values.ownerId;
           }
-          await db.insert(characters).values({ ...values, ownerId: safeOwnerId });
+          const ins = await db.insert(characters).values({ ...values, ownerId: safeOwnerId }).returning({ id: characters.id });
+          if (ins[0]) idByDevName.set(`${kind}|${name.toLowerCase()}`, ins[0].id);
           result.characters.inserted++;
         } else {
+          idByDevName.set(`${kind}|${name.toLowerCase()}`, existing[0].id);
           // PRESERVE-FIRST: never overwrite prod-side state on rerun. This
           // endpoint is a one-shot importer — admin edits made in prod after
           // the first import are sacred. We only fill *missing/empty* fields
@@ -785,14 +814,19 @@ router.post(
       }
     }
 
-    // Build prod-side (kind|name) -> id map for the linked tables.
+    // Build prod-side (kind|name) -> id map for the linked tables. The
+    // dev-name map above takes priority — it covers rows resolved via
+    // imported_from_thread_id where prod's stored name differs from dev's.
     const allRows = await db
       .select({ id: characters.id, kind: characters.kind, name: characters.name })
       .from(characters);
     const idByName = new Map<string, number>();
     for (const r of allRows) idByName.set(`${r.kind}|${r.name.toLowerCase()}`, r.id);
-    const lookup = (kind?: string, name?: string): number | undefined =>
-      kind && name ? idByName.get(`${kind}|${name.toLowerCase()}`) : undefined;
+    const lookup = (kind?: string, name?: string): number | undefined => {
+      if (!kind || !name) return undefined;
+      const key = `${kind}|${name.toLowerCase()}`;
+      return idByDevName.get(key) ?? idByName.get(key);
+    };
 
     // ---- 3) character_status (upsert by character_id) ----------------------
     for (const s of body.character_status ?? []) {
