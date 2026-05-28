@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "D1_7HaSkGgaygRuqA72JY"
+uri = "file://docs/SITEMAP.md"
+type = "text"
+title = "Night City RP Portal — Site Map"
