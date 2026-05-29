@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useListHousingRequests, useApproveHousingRequest, useRejectHousingRequest, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, getListHousingRequestsQueryKey, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useListHousingRequests, useApproveHousingRequest, useRejectHousingRequest, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminScanVrchatLinks, type LiveModeUpdate, type VrchatScanResult, getListHousingRequestsQueryKey, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -735,53 +735,149 @@ const HOUSING_AUTOBILL_KEY = "housing_autobill_enabled";
 const CYBERWARE_AUTOBILL_KEY = "cyberware_autobill_enabled";
 const MISSION_AUTOPAY_KEY = "mission_autopay_enabled";
 
-// Master Test/Live switch for the missions system. In Test mode every external
-// effect (Discord scheduled events, channel posts, UnbelievaBoat payouts) is
-// simulated and recorded but never actually sent.
-function MissionModeToggle() {
+// Per-system metadata for the Test/Live switchboard. Keys must match the
+// LiveModeState.systems shape returned by GET /admin/live-mode.
+const LIVE_MODE_SYSTEMS: Array<{ key: "missions" | "housing" | "cyberware" | "evictions"; label: string; desc: string }> = [
+  { key: "missions", label: "Missions", desc: "Discord scheduled events, banking/NPC channel posts, mission payouts." },
+  { key: "housing", label: "Housing & Lifestyle Billing", desc: "Monthly rent + lifestyle debits (monthly_rent job)." },
+  { key: "cyberware", label: "Cyberware Humanity", desc: "Weekly cyberpsychosis med charges (cyberware_humanity job)." },
+  { key: "evictions", label: "Evictions", desc: "Delinquent lease sweeps + eviction notices (eviction_sweep job)." },
+];
+
+// Site-wide Test/Live switchboard: one master switch + per-system overrides.
+// A system performs real external/destructive effects ONLY when BOTH the master
+// switch and that system's own switch are Live. In Test mode every system
+// simulates/logs what it would have done without sending anything.
+function LiveModeSwitchboard() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: config, isLoading } = useGetMissionConfig();
-  const update = useUpdateMissionConfig({
+  const { data: state, isLoading } = useAdminGetLiveMode();
+  const update = useAdminSetLiveMode({
     mutation: {
       onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getAdminGetLiveModeQueryKey() });
+        // Missions also exposes its effective state via /missions/config, used
+        // by the player-facing test-mode banner — refresh it in lockstep.
         qc.invalidateQueries({ queryKey: getGetMissionConfigQueryKey() });
-        toast({ title: "Mission mode updated" });
+        toast({ title: "Live-mode updated" });
       },
       onError: (err: any) =>
-        toast({ title: "Update failed", description: err.message, variant: "destructive" }),
+        toast({ title: "Update failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
     },
   });
-  const live = config?.live === true;
+  const master = state?.master === true;
+  const set = (patch: LiveModeUpdate) => update.mutate({ data: patch });
   return (
-    <div
-      className={`flex items-center justify-between gap-4 border p-4 ${live ? "border-nc-magenta bg-nc-magenta/10" : "border-nc-yellow bg-nc-yellow/10"}`}
-      data-testid="mission-mode-toggle"
-    >
+    <div className="space-y-3" data-testid="live-mode-switchboard">
+      <div
+        className={`flex items-center justify-between gap-4 border p-4 ${master ? "border-nc-magenta bg-nc-magenta/10" : "border-nc-yellow bg-nc-yellow/10"}`}
+        data-testid="live-mode-master"
+      >
+        <div>
+          <div className="font-display text-base tracking-widest">
+            MASTER:{" "}
+            <span className={master ? "text-nc-magenta" : "text-nc-yellow"}>
+              {isLoading ? "…" : master ? "LIVE" : "TEST MODE"}
+            </span>
+          </div>
+          <div className="font-mono text-[11px] text-muted-foreground max-w-xl mt-1">
+            Global safety switch. While this is TEST, NO system touches live data regardless of its own switch. A system goes live only when this AND its own switch below are both LIVE.
+          </div>
+        </div>
+        <Button
+          size="sm"
+          disabled={isLoading || update.isPending}
+          onClick={() => {
+            if (!master && !confirm("Flip the MASTER switch to LIVE? Any system whose own switch is LIVE will start sending real effects.")) return;
+            set({ master: !master });
+          }}
+          className={`rounded-none font-display text-xs ${master ? "bg-nc-yellow text-background" : "bg-nc-magenta text-background"}`}
+          data-testid="button-live-mode-master"
+        >
+          {master ? "SWITCH TO TEST" : "GO LIVE"}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {LIVE_MODE_SYSTEMS.map((s) => {
+          const sys = state?.systems?.[s.key];
+          const configured = sys?.configured === true;
+          const effective = sys?.effective === true;
+          return (
+            <div
+              key={s.key}
+              className="flex items-center justify-between gap-4 border border-border bg-card/30 p-3"
+              data-testid={`live-mode-${s.key}`}
+            >
+              <div>
+                <div className="font-display text-sm text-foreground">{s.label}</div>
+                <div className="font-mono text-[11px] text-muted-foreground">{s.desc}</div>
+                <div className="font-mono text-[11px] mt-1">
+                  Effective:{" "}
+                  <span className={effective ? "text-nc-magenta" : "text-nc-yellow"}>
+                    {isLoading ? "…" : effective ? "LIVE" : "TEST"}
+                  </span>
+                  {configured && !master ? (
+                    <span className="text-muted-foreground"> · switch ON, blocked by master</span>
+                  ) : null}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                disabled={isLoading || update.isPending}
+                onClick={() => {
+                  if (!configured && !confirm(`Set ${s.label} switch to LIVE? It will send real effects whenever the master switch is also LIVE.`)) return;
+                  set({ [s.key]: !configured } as LiveModeUpdate);
+                }}
+                className={`rounded-none font-display text-xs ${configured ? "bg-nc-yellow text-background" : "bg-nc-magenta text-background"}`}
+                data-testid={`button-live-mode-${s.key}`}
+              >
+                {configured ? "SET TEST" : "SET LIVE"}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Manual refresh of the Discord<->VRChat username links shown on the directory
+// and player profiles. Read-only on Discord, so it is safe to run any time.
+function VrchatScanButton() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<VrchatScanResult | null>(null);
+  const scan = useAdminScanVrchatLinks({
+    mutation: {
+      onSuccess: (r) => {
+        setResult(r);
+        toast({ title: "VRChat links refreshed", description: `${r.linkedPlayers} players linked from ${r.scannedMessages} messages.` });
+      },
+      onError: (err: any) =>
+        toast({ title: "Scan failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+    },
+  });
+  return (
+    <div className="flex items-center justify-between gap-4 border border-border bg-card/30 p-4" data-testid="vrchat-scan">
       <div>
-        <div className="font-display text-base tracking-widest">
-          MISSIONS:{" "}
-          <span className={live ? "text-nc-magenta" : "text-nc-yellow"}>
-            {isLoading ? "…" : live ? "LIVE" : "TEST MODE"}
-          </span>
-        </div>
+        <div className="font-display text-sm text-foreground">VRChat Username Sync</div>
         <div className="font-mono text-[11px] text-muted-foreground max-w-xl mt-1">
-          {live
-            ? "External effects are ACTIVE: Discord scheduled events, channel posts, and payouts are sent for real."
-            : "Test mode: all external effects (Discord events, channel posts, payouts) are simulated and recorded, never sent."}
+          Re-scrapes the VRChat username channel and refreshes the Discord↔VRChat links shown on the character directory and player profiles.
         </div>
+        {result ? (
+          <div className="font-mono text-[11px] text-nc-cyan mt-1" data-testid="vrchat-scan-result">
+            Last scan: {result.linkedPlayers} linked · {result.matchedMessages} matched · {result.scannedMessages} scanned
+          </div>
+        ) : null}
       </div>
       <Button
         size="sm"
-        disabled={isLoading || update.isPending}
-        onClick={() => {
-          if (!live && !confirm("Switch missions to LIVE? External effects will be sent for real.")) return;
-          update.mutate({ data: { live: !live } });
-        }}
-        className={`rounded-none font-display text-xs ${live ? "bg-nc-yellow text-background" : "bg-nc-magenta text-background"}`}
-        data-testid="button-mission-mode-toggle"
+        disabled={scan.isPending}
+        onClick={() => scan.mutate()}
+        className="rounded-none font-display text-xs bg-nc-cyan text-background"
+        data-testid="button-vrchat-scan"
       >
-        {live ? "SWITCH TO TEST" : "GO LIVE"}
+        {scan.isPending ? "SCANNING…" : "RESCAN"}
       </Button>
     </div>
   );
@@ -860,11 +956,12 @@ function JobsTab() {
       <CardHeader>
         <CardTitle className="font-display text-nc-cyan">System Jobs</CardTitle>
         <CardDescription className="font-mono">
-          Kill switches gate the scheduled cron. Manual buttons below always run regardless of switch state.
+          Kill switches gate the scheduled cron. Manual buttons run on demand, but money/destructive jobs still respect the Test/Live switches above — nothing touches live data unless both the master and that system are LIVE.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
-        <MissionModeToggle />
+        <LiveModeSwitchboard />
+        <VrchatScanButton />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <AutobillSwitch
             configKey={HOUSING_AUTOBILL_KEY}

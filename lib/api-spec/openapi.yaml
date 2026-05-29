@@ -1179,6 +1179,45 @@ paths:
       responses:
         "204": { description: Deleted }
 
+  /admin/live-mode:
+    get:
+      operationId: adminGetLiveMode
+      tags: [admin]
+      summary: "Current master + per-system Test/Live switch state."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveModeState" }
+    put:
+      operationId: adminSetLiveMode
+      tags: [admin]
+      summary: "Update master and/or per-system Test/Live switches."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LiveModeUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveModeState" }
+
+  /admin/vrchat-links/scan:
+    post:
+      operationId: adminScanVrchatLinks
+      tags: [admin]
+      summary: "Re-scrape the VRChat username channel and refresh Discord<->VRChat links."
+      responses:
+        "200":
+          description: Scan complete
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatScanResult" }
+
   /ripperdocs/{id}/sell:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -2145,6 +2184,11 @@ components:
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
         activeCharacterId: { type: ["integer", "null"] }
+        vrchat:
+          oneOf:
+            - { $ref: "#/components/schemas/VrchatLinkSummary" }
+            - { type: "null" }
+          description: "Linked VRChat profile for this Discord user, or null if none registered."
 
     Character:
       type: object
@@ -2230,6 +2274,8 @@ components:
         archived: { type: boolean }
         legacyDiscordUsername: { type: ["string", "null"] }
         ownerName: { type: ["string", "null"] }
+        vrchatUsername: { type: ["string", "null"], description: "Owner's linked VRChat display name, or null if unlinked/unclaimed." }
+        vrchatUrl: { type: ["string", "null"], description: "Owner's VRChat profile URL, or null." }
         appliedTags: { type: array, items: { type: string }, description: "Discord forum tags applied to the source thread, resolved to display names." }
         tags: { type: array, items: { type: string }, description: "Merged display tag list (Discord-applied ∪ staff-added)." }
         lifeStatus:
@@ -2267,6 +2313,8 @@ components:
         ownerId: { type: ["string", "null"] }
         ownerName: { type: ["string", "null"] }
         ownerAvatarUrl: { type: ["string", "null"] }
+        vrchatUsername: { type: ["string", "null"] }
+        vrchatUrl: { type: ["string", "null"] }
         fixerDiscordId: { type: ["string", "null"] }
         playerDiscordId: { type: ["string", "null"] }
         appliedTags: { type: array, items: { type: string } }
@@ -3581,6 +3629,57 @@ components:
         npcSpendingChannelId: { type: string }
         defaultImageUrl: { type: string }
         autopayDelayHours: { type: number }
+
+    VrchatLinkSummary:
+      type: object
+      required: [vrchatUserId, vrchatUsername, vrchatUrl]
+      properties:
+        vrchatUserId: { type: string }
+        vrchatUsername: { type: string }
+        vrchatUrl: { type: string }
+
+    SystemLiveState:
+      type: object
+      required: [configured, effective]
+      properties:
+        configured: { type: boolean, description: "The per-system override as stored, independent of the master switch." }
+        effective: { type: boolean, description: "Whether the system is actually Live right now (master AND configured)." }
+
+    LiveModeSystems:
+      type: object
+      required: [missions, housing, cyberware, evictions]
+      properties:
+        missions: { $ref: "#/components/schemas/SystemLiveState" }
+        housing: { $ref: "#/components/schemas/SystemLiveState" }
+        cyberware: { $ref: "#/components/schemas/SystemLiveState" }
+        evictions: { $ref: "#/components/schemas/SystemLiveState" }
+
+    LiveModeState:
+      type: object
+      required: [master, systems]
+      description: "Site-wide Test/Live switches. A system is effectively live only when master AND that system are both true."
+      properties:
+        master: { type: boolean }
+        systems: { $ref: "#/components/schemas/LiveModeSystems" }
+
+    LiveModeUpdate:
+      type: object
+      description: "Partial update of the Test/Live switches. Omitted fields are left unchanged."
+      properties:
+        master: { type: boolean }
+        missions: { type: boolean }
+        housing: { type: boolean }
+        cyberware: { type: boolean }
+        evictions: { type: boolean }
+
+    VrchatScanResult:
+      type: object
+      required: [channelId, scannedMessages, matchedMessages, linkedPlayers]
+      properties:
+        channelId: { type: string }
+        scannedMessages: { type: integer }
+        matchedMessages: { type: integer }
+        linkedPlayers: { type: integer }
 
     ActorReportRow:
       type: object

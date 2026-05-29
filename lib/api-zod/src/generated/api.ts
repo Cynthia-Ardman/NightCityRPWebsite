@@ -40,7 +40,12 @@ export const GetMeResponse = zod.object({
   "isCsApprover": zod.boolean(),
   "isRipperdoc": zod.boolean(),
   "isStoreOwner": zod.boolean(),
-  "activeCharacterId": zod.number().nullish()
+  "activeCharacterId": zod.number().nullish(),
+  "vrchat": zod.union([zod.object({
+  "vrchatUserId": zod.string(),
+  "vrchatUsername": zod.string(),
+  "vrchatUrl": zod.string()
+}),zod.null()]).optional().describe('Linked VRChat profile for this Discord user, or null if none registered.')
 })
 
 
@@ -1849,6 +1854,77 @@ export const AdminDeleteBotConfigParams = zod.object({
 
 
 /**
+ * @summary Current master + per-system Test/Live switch state.
+ */
+export const AdminGetLiveModeResponse = zod.object({
+  "master": zod.boolean(),
+  "systems": zod.object({
+  "missions": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+}),
+  "housing": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+}),
+  "cyberware": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+}),
+  "evictions": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+})
+})
+}).describe('Site-wide Test\/Live switches. A system is effectively live only when master AND that system are both true.')
+
+
+/**
+ * @summary Update master and/or per-system Test/Live switches.
+ */
+export const AdminSetLiveModeBody = zod.object({
+  "master": zod.boolean().optional(),
+  "missions": zod.boolean().optional(),
+  "housing": zod.boolean().optional(),
+  "cyberware": zod.boolean().optional(),
+  "evictions": zod.boolean().optional()
+}).describe('Partial update of the Test\/Live switches. Omitted fields are left unchanged.')
+
+export const AdminSetLiveModeResponse = zod.object({
+  "master": zod.boolean(),
+  "systems": zod.object({
+  "missions": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+}),
+  "housing": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+}),
+  "cyberware": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+}),
+  "evictions": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+})
+})
+}).describe('Site-wide Test\/Live switches. A system is effectively live only when master AND that system are both true.')
+
+
+/**
+ * @summary Re-scrape the VRChat username channel and refresh Discord<->VRChat links.
+ */
+export const AdminScanVrchatLinksResponse = zod.object({
+  "channelId": zod.string(),
+  "scannedMessages": zod.number(),
+  "matchedMessages": zod.number(),
+  "linkedPlayers": zod.number()
+})
+
+
+/**
  * @summary Owner/employee installs cyberware on a buyer character
  */
 export const SellRipperdocItemParams = zod.object({
@@ -3088,6 +3164,8 @@ export const ListPublicCharactersResponseItem = zod.object({
   "archived": zod.boolean(),
   "legacyDiscordUsername": zod.string().nullish(),
   "ownerName": zod.string().nullish(),
+  "vrchatUsername": zod.string().nullish().describe('Owner\'s linked VRChat display name, or null if unlinked\/unclaimed.'),
+  "vrchatUrl": zod.string().nullish().describe('Owner\'s VRChat profile URL, or null.'),
   "appliedTags": zod.array(zod.string()).optional().describe('Discord forum tags applied to the source thread, resolved to display names.'),
   "tags": zod.array(zod.string()).optional().describe('Merged display tag list (Discord-applied ∪ staff-added).'),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional()
@@ -3214,6 +3292,8 @@ export const ListArchiveCharactersResponseItem = zod.object({
   "ownerId": zod.string().nullish(),
   "ownerName": zod.string().nullish(),
   "ownerAvatarUrl": zod.string().nullish(),
+  "vrchatUsername": zod.string().nullish(),
+  "vrchatUrl": zod.string().nullish(),
   "fixerDiscordId": zod.string().nullish(),
   "playerDiscordId": zod.string().nullish(),
   "appliedTags": zod.array(zod.string()).optional(),

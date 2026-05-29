@@ -9,6 +9,12 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface VrchatLinkSummary {
+  vrchatUserId: string;
+  vrchatUsername: string;
+  vrchatUrl: string;
+}
+
 export interface Me {
   id: string;
   discordId: string;
@@ -25,6 +31,8 @@ export interface Me {
   isStoreOwner: boolean;
   /** @nullable */
   activeCharacterId?: number | null;
+  /** Linked VRChat profile for this Discord user, or null if none registered. */
+  vrchat?: VrchatLinkSummary | null;
 }
 
 export type CharacterKind = typeof CharacterKind[keyof typeof CharacterKind];
@@ -173,6 +181,16 @@ export interface PublicCharacterSummary {
   legacyDiscordUsername?: string | null;
   /** @nullable */
   ownerName?: string | null;
+  /**
+     * Owner's linked VRChat display name, or null if unlinked/unclaimed.
+     * @nullable
+     */
+  vrchatUsername?: string | null;
+  /**
+     * Owner's VRChat profile URL, or null.
+     * @nullable
+     */
+  vrchatUrl?: string | null;
   /** Discord forum tags applied to the source thread, resolved to display names. */
   appliedTags?: string[];
   /** Merged display tag list (Discord-applied ∪ staff-added). */
@@ -233,6 +251,10 @@ export interface ArchiveCharacterSummary {
   ownerName?: string | null;
   /** @nullable */
   ownerAvatarUrl?: string | null;
+  /** @nullable */
+  vrchatUsername?: string | null;
+  /** @nullable */
+  vrchatUrl?: string | null;
   /** @nullable */
   fixerDiscordId?: string | null;
   /** @nullable */
@@ -2144,6 +2166,46 @@ export interface MissionConfigUpdate {
   npcSpendingChannelId?: string;
   defaultImageUrl?: string;
   autopayDelayHours?: number;
+}
+
+export interface SystemLiveState {
+  /** The per-system override as stored, independent of the master switch. */
+  configured: boolean;
+  /** Whether the system is actually Live right now (master AND configured). */
+  effective: boolean;
+}
+
+export interface LiveModeSystems {
+  missions: SystemLiveState;
+  housing: SystemLiveState;
+  cyberware: SystemLiveState;
+  evictions: SystemLiveState;
+}
+
+/**
+ * Site-wide Test/Live switches. A system is effectively live only when master AND that system are both true.
+ */
+export interface LiveModeState {
+  master: boolean;
+  systems: LiveModeSystems;
+}
+
+/**
+ * Partial update of the Test/Live switches. Omitted fields are left unchanged.
+ */
+export interface LiveModeUpdate {
+  master?: boolean;
+  missions?: boolean;
+  housing?: boolean;
+  cyberware?: boolean;
+  evictions?: boolean;
+}
+
+export interface VrchatScanResult {
+  channelId: string;
+  scannedMessages: number;
+  matchedMessages: number;
+  linkedPlayers: number;
 }
 
 export type ActorReportRowMissionsItem = {

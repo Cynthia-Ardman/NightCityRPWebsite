@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
-import { db, users, characters } from "@workspace/db";
+import { db, users, characters, vrchatLinks } from "@workspace/db";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   buildAuthUrl,
@@ -171,8 +171,12 @@ router.post("/auth/logout", (req, res): void => {
   });
 });
 
-router.get("/auth/me", requireAuth, (req, res): void => {
+router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   const u = req.user!;
+  const [link] = await db
+    .select()
+    .from(vrchatLinks)
+    .where(eq(vrchatLinks.discordId, u.discordId));
   res.json({
     id: u.id,
     discordId: u.discordId,
@@ -186,6 +190,9 @@ router.get("/auth/me", requireAuth, (req, res): void => {
     isCsApprover: hasRole(u.roles, "CS_APPROVER"),
     isRipperdoc: hasRole(u.roles, "RIPPERDOC"),
     isStoreOwner: hasRole(u.roles, "STORE_OWNER"),
+    vrchat: link
+      ? { vrchatUserId: link.vrchatUserId, vrchatUsername: link.vrchatUsername, vrchatUrl: link.vrchatUrl }
+      : null,
   });
 });
 

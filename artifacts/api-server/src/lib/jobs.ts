@@ -5,6 +5,7 @@ import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay } from "./missionsService";
+import { isSystemLive, type LiveSystem } from "./liveMode";
 
 const EVICTION_CHANNEL_ID = process.env.EVICTION_CHANNEL_ID ?? "";
 const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
@@ -198,7 +199,22 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
   let status = "succeeded";
   let message: string | null = null;
   try {
-    if (name === "role_sync") {
+    // Site-wide Test/Live gate. The money-moving + destructive jobs perform NO
+    // live effects (no UnbelievaBoat debits, no Discord posts, no lease deletes)
+    // unless BOTH the master switch and the job's own system are Live. This
+    // applies to manual /admin/jobs/run too, so admins can safely trigger a job
+    // without touching real data. mission_autopay is intentionally NOT listed:
+    // its internal payment path already simulates + records in Test mode.
+    const liveSystemByJob: Partial<Record<JobName, LiveSystem>> = {
+      monthly_rent: "housing",
+      cyberware_humanity: "cyberware",
+      eviction_sweep: "evictions",
+    };
+    const gatedSystem = liveSystemByJob[name];
+    if (gatedSystem && !(await isSystemLive(gatedSystem))) {
+      message = `Test mode: ${name} made no live changes. Set the master switch AND ${gatedSystem} to Live to run for real.`;
+      logger.info({ job: name, system: gatedSystem }, "job skipped — Test mode (live gate)");
+    } else if (name === "role_sync") {
       const allUsers = await db.select().from(users);
       for (const u of allUsers) {
         try {

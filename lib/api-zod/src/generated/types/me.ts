@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { VrchatLinkSummary } from './vrchatLinkSummary';
 
 export interface Me {
   id: string;
@@ -22,4 +23,6 @@ export interface Me {
   isStoreOwner: boolean;
   /** @nullable */
   activeCharacterId?: number | null;
+  /** Linked VRChat profile for this Discord user, or null if none registered. */
+  vrchat?: VrchatLinkSummary | null;
 }

@@ -647,6 +647,25 @@ export const botConfig = pgTable("bot_config", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// Discord <-> VRChat username links, scraped from the #vrchat-username channel.
+// Each Discord message there is posted BY the player whose VRChat profile it
+// links to, so the message author is the Discord identity and the message body
+// (plus the unfurled embed) carries the VRChat profile. Keyed by Discord user
+// id so a re-scan upserts the latest post per player.
+export const vrchatLinks = pgTable("vrchat_links", {
+  discordId: text("discord_id").primaryKey(),
+  discordUsername: text("discord_username").notNull(),
+  discordGlobalName: text("discord_global_name"),
+  vrchatUserId: text("vrchat_user_id").notNull(),
+  vrchatUsername: text("vrchat_username").notNull(),
+  vrchatUrl: text("vrchat_url").notNull(),
+  sourceMessageId: text("source_message_id"),
+  sourcePostedAt: timestamp("source_posted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+export type VrchatLink = typeof vrchatLinks.$inferSelect;
+
 export const lifestyleTiers = pgTable("lifestyle_tiers", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

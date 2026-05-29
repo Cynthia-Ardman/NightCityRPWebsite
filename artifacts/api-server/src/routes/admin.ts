@@ -21,6 +21,8 @@ import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
 import { recordAudit } from "../lib/audit";
 import { auditLog } from "@workspace/db";
+import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from "../lib/liveMode";
+import { scanVrchatChannel } from "../lib/vrchatLinks";
 
 const router: IRouter = Router();
 
@@ -441,6 +443,65 @@ router.delete("/admin/bot-config/:key", adminOnly, async (req, res): Promise<voi
     message: `${req.user!.username} removed bot_config.${key}`,
   });
   res.sendStatus(204);
+});
+
+// ─── Site-wide Test/Live switchboard ──────────────────────────────────────
+// A system performs live effects only when the master switch AND that system's
+// own switch are both Live. Defaults are Test (off) everywhere.
+router.get("/admin/live-mode", adminOnly, async (_req, res): Promise<void> => {
+  res.json(await getLiveModeState());
+});
+
+router.put("/admin/live-mode", adminOnly, async (req, res): Promise<void> => {
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  const fields: Array<{ name: "master" | LiveSystem; key: string }> = [
+    { name: "master", key: LIVE_MODE_KEYS.master },
+    ...LIVE_SYSTEMS.map((s) => ({ name: s, key: LIVE_MODE_KEYS[s] })),
+  ];
+  const changed: string[] = [];
+  for (const f of fields) {
+    if (typeof b[f.name] !== "boolean") continue;
+    const value = b[f.name] as boolean;
+    await db
+      .insert(botConfig)
+      .values({ key: f.key, value: value as never })
+      .onConflictDoUpdate({ target: botConfig.key, set: { value: value as never, updatedAt: new Date() } });
+    changed.push(`${f.name}=${value ? "LIVE" : "TEST"}`);
+  }
+  if (changed.length > 0) {
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "live_mode.change",
+      targetType: "config",
+      targetId: "live_mode",
+      message: `Live-mode switches updated: ${changed.join(", ")}`,
+      after: b,
+    });
+  }
+  res.json(await getLiveModeState());
+});
+
+// Re-scrape the VRChat username channel and refresh Discord<->VRChat links.
+// Read-only on Discord (no live mutation), so not gated by the Test/Live
+// switches — it only refreshes our local link table.
+router.post("/admin/vrchat-links/scan", adminOnly, async (req, res): Promise<void> => {
+  try {
+    const result = await scanVrchatChannel();
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "vrchat_links.scan",
+      targetType: "config",
+      targetId: "vrchat_links",
+      message: `VRChat link scan: ${result.linkedPlayers} players linked from ${result.scannedMessages} messages`,
+      after: result,
+    });
+    res.json(result);
+  } catch (err) {
+    req.log?.error?.({ err }, "vrchat link scan failed");
+    res.status(502).json({ error: err instanceof Error ? err.message : "VRChat scan failed" });
+  }
 });
 
 router.get("/admin/stats", adminOnly, async (_req, res): Promise<void> => {

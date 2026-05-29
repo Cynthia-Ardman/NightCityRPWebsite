@@ -12,6 +12,7 @@ import {
   activityEvents,
   auditLog,
   users,
+  vrchatLinks,
   catalogGuns,
   catalogCyberware,
   catalogRent,
@@ -208,16 +209,26 @@ router.get("/directory/characters", requireAuth, async (req, res): Promise<void>
       lifeStatus: characters.lifeStatus,
       legacyDiscordUsername: characters.legacyDiscordUsername,
       ownerName: users.username,
+      vrchatUsername: vrchatLinks.vrchatUsername,
+      vrchatUrl: vrchatLinks.vrchatUrl,
       appliedTags: characters.appliedTags,
       manualTags: characters.manualTags,
     })
     .from(characters)
     .leftJoin(users, eq(users.id, characters.ownerId))
+    .leftJoin(vrchatLinks, eq(vrchatLinks.discordId, users.discordId))
     .where(conds.length > 0 ? and(...conds) : undefined)
     .orderBy(desc(characters.createdAt))
     .limit(2000);
 
-  res.json(rows.map(({ manualTags, ...r }) => ({ ...r, tags: mergeTags(r.appliedTags, manualTags) })));
+  res.json(
+    rows.map(({ manualTags, ...r }) => ({
+      ...r,
+      vrchatUsername: r.vrchatUsername ?? null,
+      vrchatUrl: r.vrchatUrl ?? null,
+      tags: mergeTags(r.appliedTags, manualTags),
+    })),
+  );
 });
 
 // Distinct tag names across the whole archive, so the filter UI can render
@@ -363,6 +374,8 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
       ownerId: characters.ownerId,
       ownerName: users.username,
       ownerAvatarUrl: users.avatarUrl,
+      vrchatUsername: vrchatLinks.vrchatUsername,
+      vrchatUrl: vrchatLinks.vrchatUrl,
       fixerDiscordId: characters.fixerDiscordId,
       playerDiscordId: characters.playerDiscordId,
       appliedTags: characters.appliedTags,
@@ -371,6 +384,7 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
     })
     .from(characters)
     .leftJoin(users, eq(users.id, characters.ownerId))
+    .leftJoin(vrchatLinks, eq(vrchatLinks.discordId, users.discordId))
     .where(conds.length > 0 ? and(...conds) : undefined)
     .orderBy(sort === "name" ? asc(characters.name) : desc(characters.createdAt))
     .limit(2000);
@@ -380,6 +394,8 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
   const chromeCounts = await sumCwpByCharacter(rows.map((r) => r.id));
   let out = rows.map(({ appliedTags, manualTags, isOrganic, cyberwareLevel, ...r }) => ({
     ...r,
+    vrchatUsername: r.vrchatUsername ?? null,
+    vrchatUrl: r.vrchatUrl ?? null,
     tags: mergeTags(appliedTags, manualTags),
     cwpBand: resolveBand(isOrganic, cyberwareLevel, chromeCounts.get(r.id) ?? 0),
   }));

@@ -22,6 +22,16 @@ export interface PublicCharacterSummary {
   legacyDiscordUsername?: string | null;
   /** @nullable */
   ownerName?: string | null;
+  /**
+     * Owner's linked VRChat display name, or null if unlinked/unclaimed.
+     * @nullable
+     */
+  vrchatUsername?: string | null;
+  /**
+     * Owner's VRChat profile URL, or null.
+     * @nullable
+     */
+  vrchatUrl?: string | null;
   /** Discord forum tags applied to the source thread, resolved to display names. */
   appliedTags?: string[];
   /** Merged display tag list (Discord-applied ∪ staff-added). */

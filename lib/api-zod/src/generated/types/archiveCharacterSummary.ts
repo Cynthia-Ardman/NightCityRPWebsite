@@ -31,6 +31,10 @@ export interface ArchiveCharacterSummary {
   /** @nullable */
   ownerAvatarUrl?: string | null;
   /** @nullable */
+  vrchatUsername?: string | null;
+  /** @nullable */
+  vrchatUrl?: string | null;
+  /** @nullable */
   fixerDiscordId?: string | null;
   /** @nullable */
   playerDiscordId?: string | null;

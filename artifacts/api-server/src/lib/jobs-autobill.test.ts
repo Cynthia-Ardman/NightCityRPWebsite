@@ -11,12 +11,27 @@ import {
 } from "@workspace/db";
 import { patchBalance } from "./unbelievaboat";
 import { runJob, isAutobillEnabled, AUTOBILL_FLAGS } from "./jobs";
+import { LIVE_MODE_KEYS } from "./liveMode";
 import { createUser, createCharacter } from "../test/testDb";
 
 const mockPatch = vi.mocked(patchBalance);
 
-beforeEach(() => {
+// runJob's Test/Live gate skips all external/local effects unless the master
+// switch AND the job's own system are Live — even for manual runs. These tests
+// assert the real billing behavior, so flip every relevant flag Live up-front.
+async function setLive(key: string): Promise<void> {
+  await db
+    .insert(botConfig)
+    .values({ key, value: true as never })
+    .onConflictDoUpdate({ target: botConfig.key, set: { value: true as never } });
+}
+
+beforeEach(async () => {
   mockPatch.mockReset();
+  await setLive(LIVE_MODE_KEYS.master);
+  await setLive(LIVE_MODE_KEYS.housing);
+  await setLive(LIVE_MODE_KEYS.cyberware);
+  await setLive(LIVE_MODE_KEYS.evictions);
 });
 
 async function addChrome(characterId: number, ownerId: string, cwp: number) {

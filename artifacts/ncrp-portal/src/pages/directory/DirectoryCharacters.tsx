@@ -332,6 +332,11 @@ export default function DirectoryCharacters() {
                   <div className="text-xs font-mono text-muted-foreground truncate">
                     {c.archetype ?? "—"}
                   </div>
+                  {c.vrchatUsername ? (
+                    <div className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-char-vrchat-${c.id}`}>
+                      VRCHAT: <span className="text-nc-magenta">{c.vrchatUsername}</span>
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap gap-1">
                     <KindBadge kind={c.kind} />
                     <StatusBadge status={c.lifeStatus ?? "active"} />

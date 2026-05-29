@@ -1,6 +1,7 @@
 import { db, botConfig } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
+import { isSystemLive } from "./liveMode";
 
 // ---------------------------------------------------------------------------
 // Mission system configuration (bot_config-backed, admin-editable).
@@ -53,12 +54,14 @@ async function readNumber(key: string, fallback: number): Promise<number> {
 }
 
 /**
- * Master gate. Returns true only when an admin has explicitly set
- * `missions_live_mode` to the literal JSON `true`. Anything else (missing
- * row, false, null, "", numbers, strings) is treated as Test mode — fail-safe.
+ * Mission external-effects gate. Live only when BOTH the global master switch
+ * (`master_live_mode`) and the missions override (`missions_live_mode`) are
+ * explicitly Live. Anything else is Test mode — fail-safe. Delegates to the
+ * shared site-wide live-mode module so missions stay consistent with every
+ * other gated system.
  */
 export async function isMissionsLiveMode(): Promise<boolean> {
-  return (await readRaw(MISSION_CONFIG_KEYS.liveMode)) === true;
+  return isSystemLive("missions");
 }
 
 export interface MissionExternalContext {

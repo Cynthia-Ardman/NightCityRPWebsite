@@ -30,13 +30,19 @@ import {
   botConfig,
 } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
-import { postToChannel, createGuildScheduledEvent } from "../lib/discord";
+import {
+  postToChannel,
+  createGuildScheduledEvent,
+  modifyGuildScheduledEvent,
+  deleteGuildScheduledEvent,
+} from "../lib/discord";
 import {
   payMissionPlayers,
   payMissionActors,
   runMissionAutoPay,
 } from "../lib/missionsService";
 import { MISSION_CONFIG_KEYS } from "../lib/missionsConfig";
+import { LIVE_MODE_KEYS } from "../lib/liveMode";
 import { isAutobillEnabled, AUTOBILL_FLAGS } from "../lib/jobs";
 import { buildTestApp } from "../test/app";
 import { createUser, createCharacter } from "../test/testDb";
@@ -45,6 +51,8 @@ const app = buildTestApp();
 const mockPatch = vi.mocked(patchBalance);
 const mockPost = vi.mocked(postToChannel);
 const mockCreateEvent = vi.mocked(createGuildScheduledEvent);
+const mockModifyEvent = vi.mocked(modifyGuildScheduledEvent);
+const mockDeleteEvent = vi.mocked(deleteGuildScheduledEvent);
 
 const bal = (cash: number) => ({ cash, bank: 0, total: cash, source: "unbelievaboat" as const });
 
@@ -54,6 +62,10 @@ beforeEach(() => {
   mockPost.mockResolvedValue("msg-id");
   mockCreateEvent.mockReset();
   mockCreateEvent.mockResolvedValue({ ok: true, id: "evt-1" });
+  mockModifyEvent.mockReset();
+  mockModifyEvent.mockImplementation(async (id: string) => ({ ok: true, id }));
+  mockDeleteEvent.mockReset();
+  mockDeleteEvent.mockImplementation(async (id: string) => ({ ok: true, id }));
 });
 
 // --- config helpers --------------------------------------------------------
@@ -63,7 +75,12 @@ async function setConfig(key: string, value: unknown): Promise<void> {
     .values({ key, value: value as never })
     .onConflictDoUpdate({ target: botConfig.key, set: { value: value as never } });
 }
-const setLiveMode = (live: boolean) => setConfig(MISSION_CONFIG_KEYS.liveMode, live);
+// Missions go Live only when BOTH the master switch and the missions override
+// are Live, so the helper flips both. Test-mode setup just leaves them off.
+async function setLiveMode(live: boolean): Promise<void> {
+  await setConfig(LIVE_MODE_KEYS.master, live);
+  await setConfig(MISSION_CONFIG_KEYS.liveMode, live);
+}
 
 // --- seed helpers ----------------------------------------------------------
 async function seedMission(opts: Partial<typeof missions.$inferInsert> = {}) {
@@ -404,5 +421,175 @@ describe("auto-pay kill switch", () => {
     expect(await isAutobillEnabled(AUTOBILL_FLAGS.missionAutopay)).toBe(false);
     await setConfig(AUTOBILL_FLAGS.missionAutopay, true);
     expect(await isAutobillEnabled(AUTOBILL_FLAGS.missionAutopay)).toBe(true);
+  });
+});
+
+// ===========================================================================
+// DISCORD SCHEDULED-EVENT SYNC — gated by the Test/Live switch, driven through
+// the real create/patch/cancel HTTP endpoints.
+// ===========================================================================
+const futureIso = () => new Date(Date.now() + 86_400_000).toISOString();
+
+describe("Discord scheduled-event sync", () => {
+  it("creates an event and persists its id when a scheduled mission is created Live", async () => {
+    await setLiveMode(true);
+    const manager = await createUser({ roles: ["admin"] });
+    const res = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Heist", tier: 2, startAt: futureIso() });
+    expect(res.status).toBe(201);
+    expect(mockCreateEvent).toHaveBeenCalledTimes(1);
+    expect(res.body.discordEventId).toBe("evt-1");
+    expect(res.body.discordSyncError).toBeNull();
+  });
+
+  it("does NOT create an event for a Live mission with no start date", async () => {
+    await setLiveMode(true);
+    const manager = await createUser({ roles: ["admin"] });
+    const res = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Open Run", tier: 1 });
+    expect(res.status).toBe(201);
+    expect(mockCreateEvent).not.toHaveBeenCalled();
+    expect(res.body.discordEventId).toBeNull();
+  });
+
+  it("records the sync error and leaves the event id null when create fails", async () => {
+    await setLiveMode(true);
+    mockCreateEvent.mockResolvedValue({ ok: false, error: "rate limited" });
+    const manager = await createUser({ roles: ["admin"] });
+    const res = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Doomed", tier: 1, startAt: futureIso() });
+    expect(res.status).toBe(201);
+    expect(res.body.discordEventId).toBeNull();
+    expect(res.body.discordSyncError).toBe("rate limited");
+    const [row] = await db.select().from(missions).where(eq(missions.id, res.body.id));
+    expect(row.discordSyncError).toBe("rate limited");
+  });
+
+  it("modifies the existing event when a scheduled Live mission is edited", async () => {
+    await setLiveMode(true);
+    const manager = await createUser({ roles: ["admin"] });
+    const created = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Heist", tier: 2, startAt: futureIso() });
+    expect(created.body.discordEventId).toBe("evt-1");
+
+    const patched = await request(app)
+      .patch(`/api/missions/${created.body.id}`)
+      .set("x-test-user", manager.id)
+      .send({ title: "Heist (Reschedule)", startAt: futureIso() });
+    expect(patched.status).toBe(200);
+    expect(mockModifyEvent).toHaveBeenCalledTimes(1);
+    expect(mockModifyEvent.mock.calls[0][0]).toBe("evt-1");
+    expect(mockCreateEvent).toHaveBeenCalledTimes(1); // not re-created
+  });
+
+  it("tears down the event when a scheduled Live mission is cancelled", async () => {
+    await setLiveMode(true);
+    const manager = await createUser({ roles: ["admin"] });
+    const created = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Heist", tier: 2, startAt: futureIso() });
+    expect(created.body.discordEventId).toBe("evt-1");
+
+    const patched = await request(app)
+      .patch(`/api/missions/${created.body.id}`)
+      .set("x-test-user", manager.id)
+      .send({ status: "cancelled" });
+    expect(patched.status).toBe(200);
+    expect(mockDeleteEvent).toHaveBeenCalledTimes(1);
+    expect(mockDeleteEvent.mock.calls[0][0]).toBe("evt-1");
+    const [row] = await db.select().from(missions).where(eq(missions.id, created.body.id));
+    expect(row.discordEventId).toBeNull();
+  });
+
+  it("does not touch Discord at all when editing in Test mode", async () => {
+    const manager = await createUser({ roles: ["admin"] });
+    const created = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Heist", tier: 2, startAt: futureIso() });
+    await request(app)
+      .patch(`/api/missions/${created.body.id}`)
+      .set("x-test-user", manager.id)
+      .send({ title: "Heist v2", status: "cancelled" });
+    expect(mockCreateEvent).not.toHaveBeenCalled();
+    expect(mockModifyEvent).not.toHaveBeenCalled();
+    expect(mockDeleteEvent).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// REPORTING ENDPOINTS — actor-report and attendance-report. Manager-gated;
+// fixers are scoped to their own data, admins can query across fixers.
+// ===========================================================================
+describe("GET /missions/actor-report", () => {
+  it("forbids a plain user (manager role required)", async () => {
+    const user = await createUser();
+    const res = await request(app).get("/api/missions/actor-report").set("x-test-user", user.id);
+    expect(res.status).toBe(403);
+  });
+
+  it("aggregates paid acts per actor for a fixer", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(50));
+    const fixer = await createUser({ roles: ["fixer"] });
+    const actor = await createUser({ username: "ActorOne" });
+    const m = await seedMission({ fixerId: fixer.id });
+    await payMissionActors(m.id, [actor.id], 50, { actorId: fixer.id });
+
+    const res = await request(app).get("/api/missions/actor-report").set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    const row = res.body.find((r: { userId: string }) => r.userId === actor.id);
+    expect(row).toBeTruthy();
+    expect(row.actCount).toBe(1);
+    expect(row.totalPaid).toBe(50);
+  });
+
+  it("scopes a fixer to their own report (cannot see another fixer's acts)", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(50));
+    const fixerA = await createUser({ roles: ["fixer"] });
+    const fixerB = await createUser({ roles: ["fixer"] });
+    const actor = await createUser();
+    const m = await seedMission({ fixerId: fixerB.id });
+    await payMissionActors(m.id, [actor.id], 50, { actorId: fixerB.id });
+
+    // fixerA queries (their own fixerId is forced server-side) → sees nothing.
+    const res = await request(app).get("/api/missions/actor-report").set("x-test-user", fixerA.id);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+});
+
+describe("GET /missions/attendance-report", () => {
+  it("forbids a plain user (manager role required)", async () => {
+    const user = await createUser();
+    const res = await request(app).get("/api/missions/attendance-report").set("x-test-user", user.id);
+    expect(res.status).toBe(403);
+  });
+
+  it("lists attendance once a player has been credited via a payout", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(100));
+    const admin = await createUser({ roles: ["admin"] });
+    const player = await createUser({ username: "PlayerOne" });
+    const m = await seedMission({ playerPay: 100 });
+    await seedAssignment(m.id, player.id);
+    await payMissionPlayers(m.id, { source: "manual" });
+
+    const res = await request(app).get("/api/missions/attendance-report").set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const row = res.body.find((r: { userId: string }) => r.userId === player.id);
+    expect(row).toBeTruthy();
+    expect(row.attendedCount).toBe(1);
   });
 });

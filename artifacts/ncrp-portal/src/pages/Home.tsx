@@ -45,6 +45,7 @@ export default function Home() {
 }
 
 function Dashboard() {
+  const { data: user } = useAuthMe();
   const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary();
   const { data: characters, isLoading: charsLoading } = useListMyCharacters();
   // We'll skip recent activity if the hook isn't fully implemented or we just use characters
@@ -55,8 +56,19 @@ function Dashboard() {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-4xl font-display font-bold text-foreground" data-testid="text-dashboard-title">SYS_OVERVIEW</h1>
+        {user?.vrchat ? (
+          <a
+            href={user.vrchat.vrchatUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs text-muted-foreground hover:text-nc-magenta"
+            data-testid="link-my-vrchat"
+          >
+            VRCHAT: <span className="text-nc-magenta">{user.vrchat.vrchatUsername}</span>
+          </a>
+        ) : null}
       </div>
 
       {summary && (

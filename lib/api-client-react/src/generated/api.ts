@@ -94,6 +94,8 @@ import type {
   ListPublicCharactersParams,
   ListWholesalerItemsParams,
   ListWholesalerOrdersParams,
+  LiveModeState,
+  LiveModeUpdate,
   Me,
   MissionConfig,
   MissionConfigUpdate,
@@ -131,6 +133,7 @@ import type {
   UploadUrlRequest,
   UploadUrlResponse,
   UserWallet,
+  VrchatScanResult,
   Wallet,
   WalletAdjustmentInput,
   WalletTransaction,
@@ -5709,6 +5712,224 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getAdminDeleteBotConfigMutationOptions(options));
+    }
+
+export const getAdminGetLiveModeUrl = () => {
+
+
+
+
+  return `/api/admin/live-mode`
+}
+
+/**
+ * @summary Current master + per-system Test/Live switch state.
+ */
+export const adminGetLiveMode = async ( options?: RequestInit): Promise<LiveModeState> => {
+
+  return customFetch<LiveModeState>(getAdminGetLiveModeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetLiveModeQueryKey = () => {
+    return [
+    `/api/admin/live-mode`
+    ] as const;
+    }
+
+
+export const getAdminGetLiveModeQueryOptions = <TData = Awaited<ReturnType<typeof adminGetLiveMode>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetLiveMode>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetLiveModeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetLiveMode>>> = ({ signal }) => adminGetLiveMode({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetLiveMode>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetLiveModeQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetLiveMode>>>
+export type AdminGetLiveModeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Current master + per-system Test/Live switch state.
+ */
+
+export function useAdminGetLiveMode<TData = Awaited<ReturnType<typeof adminGetLiveMode>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetLiveMode>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetLiveModeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminSetLiveModeUrl = () => {
+
+
+
+
+  return `/api/admin/live-mode`
+}
+
+/**
+ * @summary Update master and/or per-system Test/Live switches.
+ */
+export const adminSetLiveMode = async (liveModeUpdate: LiveModeUpdate, options?: RequestInit): Promise<LiveModeState> => {
+
+  return customFetch<LiveModeState>(getAdminSetLiveModeUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      liveModeUpdate,)
+  }
+);}
+
+
+
+
+export const getAdminSetLiveModeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetLiveMode>>, TError,{data: BodyType<LiveModeUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSetLiveMode>>, TError,{data: BodyType<LiveModeUpdate>}, TContext> => {
+
+const mutationKey = ['adminSetLiveMode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSetLiveMode>>, {data: BodyType<LiveModeUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminSetLiveMode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSetLiveModeMutationResult = NonNullable<Awaited<ReturnType<typeof adminSetLiveMode>>>
+    export type AdminSetLiveModeMutationBody = BodyType<LiveModeUpdate>
+    export type AdminSetLiveModeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update master and/or per-system Test/Live switches.
+ */
+export const useAdminSetLiveMode = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetLiveMode>>, TError,{data: BodyType<LiveModeUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSetLiveMode>>,
+        TError,
+        {data: BodyType<LiveModeUpdate>},
+        TContext
+      > => {
+      return useMutation(getAdminSetLiveModeMutationOptions(options));
+    }
+
+export const getAdminScanVrchatLinksUrl = () => {
+
+
+
+
+  return `/api/admin/vrchat-links/scan`
+}
+
+/**
+ * @summary Re-scrape the VRChat username channel and refresh Discord<->VRChat links.
+ */
+export const adminScanVrchatLinks = async ( options?: RequestInit): Promise<VrchatScanResult> => {
+
+  return customFetch<VrchatScanResult>(getAdminScanVrchatLinksUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminScanVrchatLinksMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminScanVrchatLinks>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminScanVrchatLinks>>, TError,void, TContext> => {
+
+const mutationKey = ['adminScanVrchatLinks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminScanVrchatLinks>>, void> = () => {
+
+
+          return  adminScanVrchatLinks(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminScanVrchatLinksMutationResult = NonNullable<Awaited<ReturnType<typeof adminScanVrchatLinks>>>
+
+    export type AdminScanVrchatLinksMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Re-scrape the VRChat username channel and refresh Discord<->VRChat links.
+ */
+export const useAdminScanVrchatLinks = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminScanVrchatLinks>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminScanVrchatLinks>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAdminScanVrchatLinksMutationOptions(options));
     }
 
 export const getSellRipperdocItemUrl = (id: number,) => {
