@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { eq } from "drizzle-orm";
-import { db, characters, auditLog, characterUpdates } from "@workspace/db";
+import { db, characters, auditLog, characterUpdates, inventoryItems } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
 
@@ -136,6 +136,61 @@ describe("GET /directory/archive (staff-only roster)", () => {
     expect(ids).toContain(high.id);
     expect(ids).toContain(extreme.id);
     expect(ids).not.toContain(none.id);
+  });
+
+  it("derives the band from real installed chrome, not the (empty) column", async () => {
+    const admin = await createAdmin();
+    // No cyberwareLevel override — band must come from the cyberware inventory.
+    const char = await createCharacter({ name: "Real Chrome" });
+    await db.insert(inventoryItems).values([
+      { characterId: char.id, name: "Mantis Blades", notes: "CWP 6", quantity: 1, category: "cyberware" },
+      { characterId: char.id, name: "Smart Eyes", notes: "CWP 4", quantity: 1, category: "cyberware" },
+    ]);
+
+    const res = await request(app).get("/api/directory/archive").set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const found = res.body.find((r: { id: number }) => r.id === char.id);
+    // 6 + 4 = 10 CWP → "high" band (10-12), even though the column says "none".
+    expect(found.cwpBand).toBe("high");
+  });
+
+  it("filters by a band derived from real installed chrome", async () => {
+    const admin = await createAdmin();
+    const extreme = await createCharacter({ name: "Loaded Up" });
+    await db.insert(inventoryItems).values({
+      characterId: extreme.id,
+      name: "Full Borg",
+      notes: "CWP 15",
+      quantity: 1,
+      category: "cyberware",
+    });
+    const bare = await createCharacter({ name: "Nothing Installed" });
+
+    const res = await request(app)
+      .get("/api/directory/archive?bands=extreme")
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(extreme.id); // 15 CWP → extreme (13+)
+    expect(ids).not.toContain(bare.id); // 0 CWP → none
+  });
+
+  it("an explicit medium/high/extreme override wins over real chrome", async () => {
+    const admin = await createAdmin();
+    // Column override says "medium" but installed chrome (15) would derive "extreme".
+    const char = await createCharacter({ name: "Overridden", cyberwareLevel: "medium" });
+    await db.insert(inventoryItems).values({
+      characterId: char.id,
+      name: "Full Borg",
+      notes: "CWP 15",
+      quantity: 1,
+      category: "cyberware",
+    });
+
+    const res = await request(app).get("/api/directory/archive").set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const found = res.body.find((r: { id: number }) => r.id === char.id);
+    expect(found.cwpBand).toBe("medium");
   });
 
   it("filters by the organic band (isOrganic wins over level)", async () => {
@@ -318,5 +373,59 @@ describe("PATCH /directory/archive/:id (immediate-apply staff edit)", () => {
     const [row] = await db.select().from(characters).where(eq(characters.id, char.id));
     expect(row.cyberwareLevel).toBe("extreme");
     expect(row.isOrganic).toBe(false);
+  });
+
+  it("sets the life status and records it in the audit before/after", async () => {
+    const admin = await createAdmin();
+    const char = await createCharacter({ name: "Status Test", lifeStatus: "active" });
+    const res = await request(app)
+      .patch(`/api/directory/archive/${char.id}`)
+      .set("x-test-user", admin.id)
+      .send({ commitMessage: "char died on stream", lifeStatus: "dead" });
+    expect(res.status).toBe(200);
+    expect(res.body.changed).toContain("lifeStatus");
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(row.lifeStatus).toBe("dead");
+
+    const [audit] = await db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.targetId, String(char.id)));
+    expect((audit.beforeJson as Record<string, unknown>).lifeStatus).toBe("active");
+    expect((audit.afterJson as Record<string, unknown>).lifeStatus).toBe("dead");
+  });
+
+  it("rejects an unknown life status with 400", async () => {
+    const admin = await createAdmin();
+    const char = await createCharacter({ name: "Bad Status" });
+    const res = await request(app)
+      .patch(`/api/directory/archive/${char.id}`)
+      .set("x-test-user", admin.id)
+      .send({ commitMessage: "nope", lifeStatus: "zombie" });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /directory/archive/:id (staff-only editable detail)", () => {
+  it("forbids non-staff callers with 403", async () => {
+    const user = await createUser();
+    const char = await createCharacter({ name: "Locked Detail" });
+    const res = await request(app)
+      .get(`/api/directory/archive/${char.id}`)
+      .set("x-test-user", user.id);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns the editable detail (with cwpBand + merged tags) to staff", async () => {
+    const admin = await createAdmin();
+    const char = await createCharacter({ name: "Open Detail" });
+    const res = await request(app)
+      .get(`/api/directory/archive/${char.id}`)
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(char.id);
+    expect(res.body.cwpBand).toBe("none");
+    expect(Array.isArray(res.body.tags)).toBe(true);
   });
 });

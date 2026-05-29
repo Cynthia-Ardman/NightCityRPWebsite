@@ -7,6 +7,7 @@
  */
 import type { ArchiveEditInputCwpBand } from './archiveEditInputCwpBand';
 import type { ArchiveEditInputKind } from './archiveEditInputKind';
+import type { ArchiveEditInputLifeStatus } from './archiveEditInputLifeStatus';
 import type { ArchiveEditInputSheetData } from './archiveEditInputSheetData';
 
 export interface ArchiveEditInput {
@@ -27,6 +28,8 @@ export interface ArchiveEditInput {
   claimed?: boolean;
   kind?: ArchiveEditInputKind;
   archived?: boolean;
+  /** Headline life-status column (drives the status badge/filter). */
+  lifeStatus?: ArchiveEditInputLifeStatus;
   cwpBand?: ArchiveEditInputCwpBand;
   /** Full desired merged tag set. */
   tags?: string[];

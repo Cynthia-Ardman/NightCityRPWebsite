@@ -308,6 +308,20 @@ export const ArchiveEditInputKind = {
   npc: 'npc',
 } as const;
 
+/**
+ * Headline life-status column (drives the status badge/filter).
+ */
+export type ArchiveEditInputLifeStatus = typeof ArchiveEditInputLifeStatus[keyof typeof ArchiveEditInputLifeStatus];
+
+
+export const ArchiveEditInputLifeStatus = {
+  active: 'active',
+  dead: 'dead',
+  missing: 'missing',
+  loa: 'loa',
+  retired: 'retired',
+} as const;
+
 export type ArchiveEditInputCwpBand = typeof ArchiveEditInputCwpBand[keyof typeof ArchiveEditInputCwpBand];
 
 
@@ -344,6 +358,8 @@ export interface ArchiveEditInput {
   claimed?: boolean;
   kind?: ArchiveEditInputKind;
   archived?: boolean;
+  /** Headline life-status column (drives the status badge/filter). */
+  lifeStatus?: ArchiveEditInputLifeStatus;
   cwpBand?: ArchiveEditInputCwpBand;
   /** Full desired merged tag set. */
   tags?: string[];

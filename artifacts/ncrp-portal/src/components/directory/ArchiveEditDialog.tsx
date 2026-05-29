@@ -38,6 +38,8 @@ function rowsToSections(rows: SectionRow[]): Record<string, string> {
 }
 
 const CWP_OPTIONS: CwpBand[] = ["organic", "none", "medium", "high", "extreme"];
+const LIFE_STATUS_OPTIONS = ["active", "dead", "missing", "loa", "retired"] as const;
+type LifeStatusValue = (typeof LIFE_STATUS_OPTIONS)[number];
 
 function Toggle({
   options,
@@ -89,6 +91,7 @@ export default function ArchiveEditDialog({
   const [archetype, setArchetype] = useState(character.archetype ?? "");
   const [kind, setKind] = useState(character.kind === "npc" ? "npc" : "pc");
   const [archived, setArchived] = useState(character.archived);
+  const [lifeStatus, setLifeStatus] = useState<string>(character.lifeStatus ?? "active");
   const [claimed, setClaimed] = useState(character.claimed);
   const [ownerId, setOwnerId] = useState<string | null>(character.ownerId ?? null);
   const [ownerName, setOwnerName] = useState<string | null>(character.ownerName ?? null);
@@ -134,6 +137,7 @@ export default function ArchiveEditDialog({
           archetype: archetype.trim() ? archetype.trim() : null,
           kind: kind === "npc" ? "npc" : "pc",
           archived,
+          lifeStatus: lifeStatus as LifeStatusValue,
           claimed,
           ownerId,
           cwpBand,
@@ -213,6 +217,16 @@ export default function ArchiveEditDialog({
                 testid="toggle-claim"
               />
             </div>
+          </div>
+
+          <div>
+            <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Status</Label>
+            <Toggle
+              options={LIFE_STATUS_OPTIONS.map((s) => ({ label: s.toUpperCase(), value: s }))}
+              value={lifeStatus}
+              onChange={setLifeStatus}
+              testid="toggle-status"
+            />
           </div>
 
           <div>

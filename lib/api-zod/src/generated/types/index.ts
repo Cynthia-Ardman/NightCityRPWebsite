@@ -22,6 +22,7 @@ export * from './archiveCharacterSummaryLifeStatus';
 export * from './archiveEditInput';
 export * from './archiveEditInputCwpBand';
 export * from './archiveEditInputKind';
+export * from './archiveEditInputLifeStatus';
 export * from './archiveEditInputSheetData';
 export * from './archiveEditInputSheetDataSections';
 export * from './archiveEditResult';

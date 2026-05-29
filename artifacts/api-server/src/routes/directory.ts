@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, ilike, isNull, isNotNull, desc, asc, sql, arrayOverlaps, inArray, notInArray } from "drizzle-orm";
+import { eq, and, or, ilike, isNull, isNotNull, desc, asc, sql, arrayOverlaps, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -19,6 +19,8 @@ import {
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
+import { sumCwpByCharacter } from "../lib/cyberware";
+import { deriveCyberwareBand } from "../lib/jobs";
 
 const router: IRouter = Router();
 
@@ -67,34 +69,38 @@ function splitDesiredTags(
 
 // ---- CWP / cyberware band helpers -----------------------------------------
 // The card shows a single "band": Organic, or the chrome load (None / Medium /
-// High / Extreme). Storage is two fields: isOrganic (a fully-meat character)
-// and cyberwareLevel. Organic wins — an organic character has no chrome band.
+// High / Extreme). The chrome load is NOT stored on the character — it is
+// derived live from the character's installed cyberware (sum of "CWP n" across
+// inventory_items, category=cyberware), exactly like the dashboard / billing
+// cron via deriveCyberwareBand (0-6 none · 7-9 medium · 10-12 high · 13+ extreme).
+// The legacy cyberwareLevel column was never populated from real chrome, so
+// reading it made every character show "None"; we only honour it as an explicit
+// staff override (medium/high/extreme). Organic wins outright.
 type CwpBand = "organic" | "none" | "medium" | "high" | "extreme";
 const CWP_BANDS: readonly CwpBand[] = ["organic", "none", "medium", "high", "extreme"];
+const OVERRIDE_BANDS: readonly string[] = ["medium", "high", "extreme"];
+// Legacy/column-only band: organic flag + the stored cyberwareLevel string. Used
+// for audit before/after snapshots where we report exactly what the column held.
 function deriveCwpBand(isOrganic: boolean | null, cyberwareLevel: string | null): CwpBand {
   if (isOrganic) return "organic";
   const lvl = (cyberwareLevel ?? "none").toLowerCase();
   return (CWP_BANDS as readonly string[]).includes(lvl) && lvl !== "organic" ? (lvl as CwpBand) : "none";
 }
+// Display band: organic wins; an explicit staff override on the column wins next;
+// otherwise derive from the character's real installed-chrome CWP total.
+function resolveBand(
+  isOrganic: boolean | null,
+  cyberwareLevel: string | null,
+  chromeCount: number,
+): CwpBand {
+  if (isOrganic) return "organic";
+  const lvl = (cyberwareLevel ?? "none").toLowerCase();
+  if (OVERRIDE_BANDS.includes(lvl)) return lvl as CwpBand;
+  return deriveCyberwareBand(chromeCount).level as CwpBand;
+}
 function bandToFields(band: CwpBand): { isOrganic: boolean; cyberwareLevel: string } {
   if (band === "organic") return { isOrganic: true, cyberwareLevel: "none" };
   return { isOrganic: false, cyberwareLevel: band };
-}
-// SQL predicate that selects rows whose DERIVED band equals `band`, mirroring
-// deriveCwpBand: organic wins outright; "none" is any non-organic row that
-// isn't medium/high/extreme (so unrecognized levels still bucket as none).
-function bandToCondition(band: CwpBand): ReturnType<typeof eq> {
-  if (band === "organic") return eq(characters.isOrganic, true) as ReturnType<typeof eq>;
-  if (band === "none") {
-    return and(
-      eq(characters.isOrganic, false),
-      notInArray(characters.cyberwareLevel, ["medium", "high", "extreme"]),
-    ) as unknown as ReturnType<typeof eq>;
-  }
-  return and(
-    eq(characters.isOrganic, false),
-    eq(characters.cyberwareLevel, band),
-  ) as unknown as ReturnType<typeof eq>;
 }
 
 // Valid life-status values (the headline status column). Kept here so the
@@ -330,9 +336,6 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
   if (statusList.length > 0) {
     conds.push(inArray(characters.lifeStatus, statusList) as unknown as ReturnType<typeof eq>);
   }
-  if (bandList.length > 0) {
-    conds.push(or(...bandList.map(bandToCondition)) as unknown as ReturnType<typeof eq>);
-  }
   if (tagList.length > 0) {
     conds.push(
       or(
@@ -369,13 +372,21 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
     .orderBy(sort === "name" ? asc(characters.name) : desc(characters.createdAt))
     .limit(2000);
 
-  res.json(
-    rows.map(({ appliedTags, manualTags, isOrganic, cyberwareLevel, ...r }) => ({
-      ...r,
-      tags: mergeTags(appliedTags, manualTags),
-      cwpBand: deriveCwpBand(isOrganic, cyberwareLevel),
-    })),
-  );
+  // CWP band is derived from each character's real installed chrome (parsed from
+  // their cyberware inventory), so resolve it per row from a single bulk lookup.
+  const chromeCounts = await sumCwpByCharacter(rows.map((r) => r.id));
+  let out = rows.map(({ appliedTags, manualTags, isOrganic, cyberwareLevel, ...r }) => ({
+    ...r,
+    tags: mergeTags(appliedTags, manualTags),
+    cwpBand: resolveBand(isOrganic, cyberwareLevel, chromeCounts.get(r.id) ?? 0),
+  }));
+  // Band filter (multi-select, matches ANY) is applied in-memory because the
+  // band is derived, not a column — the SQL above can't express it.
+  if (bandList.length > 0) {
+    const wanted = new Set<CwpBand>(bandList);
+    out = out.filter((r) => wanted.has(r.cwpBand));
+  }
+  res.json(out);
 });
 
 // Owner picker search — staff need to look up the internal user to (re)assign
@@ -433,11 +444,12 @@ router.get("/directory/archive/:id", staffOnly, async (req, res): Promise<void> 
     return;
   }
   const { isOrganic, cyberwareLevel, appliedTags, manualTags, ...rest } = row;
+  const chromeCounts = await sumCwpByCharacter([id]);
   res.json({
     ...rest,
     background: cleanBackground(rest.background),
     tags: mergeTags(appliedTags, manualTags),
-    cwpBand: deriveCwpBand(isOrganic, cyberwareLevel),
+    cwpBand: resolveBand(isOrganic, cyberwareLevel, chromeCounts.get(id) ?? 0),
   });
 });
 
@@ -455,6 +467,7 @@ const ArchiveEditSchema = z
     claimed: z.boolean().optional(),
     kind: z.enum(["pc", "npc"]).optional(),
     archived: z.boolean().optional(),
+    lifeStatus: z.enum(LIFE_STATUSES).optional(),
     cwpBand: z.enum(["organic", "none", "medium", "high", "extreme"]).optional(),
     tags: z.array(z.string()).optional(),
     sheetData: z
@@ -506,6 +519,10 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
   if (edit.kind !== undefined) {
     patch.kind = edit.kind;
     mark("kind", cur.kind, edit.kind);
+  }
+  if (edit.lifeStatus !== undefined) {
+    patch.lifeStatus = edit.lifeStatus;
+    mark("lifeStatus", cur.lifeStatus, edit.lifeStatus);
   }
   if (edit.archived !== undefined) {
     patch.archived = edit.archived;
@@ -618,7 +635,11 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
     claimed: updated.claimed,
     archived: updated.archived,
     ownerId: updated.ownerId,
-    cwpBand: deriveCwpBand(updated.isOrganic, updated.cyberwareLevel),
+    cwpBand: resolveBand(
+      updated.isOrganic,
+      updated.cyberwareLevel,
+      (await sumCwpByCharacter([id])).get(id) ?? 0,
+    ),
     tags: mergeTags(updated.appliedTags, updated.manualTags),
     changed: Object.keys(after),
   });

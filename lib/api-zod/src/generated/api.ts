@@ -2878,6 +2878,7 @@ export const UpdateArchiveCharacterBody = zod.object({
   "claimed": zod.boolean().optional(),
   "kind": zod.enum(['pc', 'npc']).optional(),
   "archived": zod.boolean().optional(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline life-status column (drives the status badge\/filter).'),
   "cwpBand": zod.enum(['organic', 'none', 'medium', 'high', 'extreme']).optional(),
   "tags": zod.array(zod.string()).optional().describe('Full desired merged tag set.'),
   "sheetData": zod.object({
