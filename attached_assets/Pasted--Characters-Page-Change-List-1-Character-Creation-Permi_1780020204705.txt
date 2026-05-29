@@ -1,0 +1,315 @@
+# Characters Page Change List
+
+## 1. Character Creation Permissions
+
+### Player vs Fixer Permissions
+
+* Regular players / non-fixers should only be able to create **Player Characters**.
+* Non-fixers should not be able to create **NPCs**.
+* Fixers should be able to create both **Player Characters** and **Non-Player Characters**, if that permission already exists in the role system.
+
+**Acceptance criteria**
+
+* Non-fixers cannot select or create NPCs.
+* For non-fixers, sheet type should default to PC and not need to be shown as an editable option.
+* Fixers can access NPC creation if they have the correct permission.
+
+---
+
+## 2. Characters Page Layout
+
+### Character Cards / Visual Priority
+
+* The character image should be the largest visual element on each character card.
+* Character name should also be large and prominent.
+* Under the name, show whether the character is a **PC** or **NPC**.
+* Under PC/NPC, show the character’s brief description.
+* Below that, keep the current status/approval information, such as Active, Pending, Approved, etc.
+
+**Suggested display order**
+
+1. Character image
+2. Character name
+3. PC/NPC badge
+4. Brief character description
+5. Character status
+6. Approval state
+
+**Acceptance criteria**
+
+* Character image and name are the most visually obvious parts of each card.
+* PC/NPC is clearly visible but secondary to image/name.
+* Description appears before status/approval metadata.
+* Status and approval remain easy to find.
+
+---
+
+## 3. Existing Sections
+
+### Player Character / Non-Player Character Sections
+
+* Keep the current split between:
+
+  * Player Characters
+  * Non-Player Characters
+
+**Acceptance criteria**
+
+* Existing PC/NPC grouping remains.
+* Layout improvements apply inside both sections.
+
+---
+
+### New Character Button
+
+* Keep the “New Character” button.
+
+**Acceptance criteria**
+
+* Users can still easily start the character creation flow.
+* Button remains obvious and accessible.
+
+---
+
+## 4. New Character Form Cleanup
+
+### Remove Starting Eddies Section
+
+* Remove the “Starting Eddies” section from the new character form.
+
+**Acceptance criteria**
+
+* Starting Eddies is no longer shown during character creation.
+* Character creation does not ask users to manually enter starting eddies.
+
+---
+
+### Replace Incorrect Cyberpunk RED Rules Text
+
+* Remove the current text that says something like:
+
+  * “Cyberpunk RED rules”
+  * “Max 11 Cyberware slots”
+  * “6 Humanity points at creation”
+* Replace with NCRP-specific language:
+
+  * Characters may start with up to **6 CWP / Cyberware Points** at creation.
+  * The app should not reference Humanity Points or Cyberpunk RED slot limits here.
+
+**Acceptance criteria**
+
+* No incorrect Cyberpunk RED rule text appears.
+* Creation rules reference **6 CWP / Cyberware Points**.
+* No mention of “6 Humanity points” or “max 11 Cyberware slots.”
+
+---
+
+## 5. Identity Section
+
+### Sheet Type
+
+* Sheet type should default to **PC** for regular players.
+* Regular players should not need to select sheet type.
+* Fixers may be allowed to select PC or NPC if permissions allow.
+
+**Acceptance criteria**
+
+* Non-fixer users only create PC sheets.
+* Sheet type is hidden or locked to PC for non-fixers.
+* Fixers can create NPCs if permitted.
+
+---
+
+## 6. Physical Description / Style Section
+
+### Remove “Visible Cyberware” Text
+
+* In the “Physical Description and Style” section, remove the wording that says “Visible Cyberware.”
+* This information does not need to be called out separately there.
+
+**Acceptance criteria**
+
+* Physical description/style remains.
+* “Visible Cyberware” wording is removed from that section.
+
+---
+
+## 7. Psychological Profile Section
+
+### Personality, Motivation, and Fears
+
+* Keep this section as-is.
+
+**Acceptance criteria**
+
+* Personality, motivation, and fears remain part of character creation.
+
+---
+
+## 8. Background Section
+
+### Lifepath and Background
+
+* Keep this section as-is.
+
+**Acceptance criteria**
+
+* Lifepath/background remains part of character creation.
+
+---
+
+## 9. Remove Attributes Section
+
+* Delete the Attributes section entirely.
+
+**Acceptance criteria**
+
+* Attributes no longer appear in the character creation form.
+* Users are not asked to enter attribute values.
+
+---
+
+## 10. Skills Section
+
+### Convert Skills to Free Text
+
+* Keep a Skills section.
+* Skills should be a free-text field.
+* There should be no numeric skill values associated with it.
+
+**Acceptance criteria**
+
+* Skills field accepts free-text descriptions.
+* No skill number inputs appear.
+* Users can describe what their character is good at narratively.
+
+---
+
+## 11. Gear Section
+
+### Move Gear Under Skills
+
+* Move the Gear section so it appears directly under the Skills section.
+
+**Acceptance criteria**
+
+* Form order places Gear immediately after Skills.
+* Gear remains a free-text/narrative field.
+
+---
+
+## 12. Cyberware Section
+
+### Rename Foundational Chrome to Cyberware
+
+* Rename the “Foundational Chrome” section to **Cyberware**.
+
+**Acceptance criteria**
+
+* Section title reads “Cyberware.”
+* “Foundational Chrome” is no longer used as the section name.
+
+---
+
+### Cyberware Rules Text
+
+* In the Cyberware section, include NCRP-specific guidance:
+
+  * One install per named slot.
+  * Characters may start with up to **6 CWP / Cyberware Points** total.
+  * Some characters may have no cyberware and are considered organic.
+
+**Acceptance criteria**
+
+* Cyberware section clearly explains the 6 CWP creation limit.
+* Cyberware is optional.
+* Organic characters can submit without cyberware.
+
+---
+
+### Cyberware Slot Dropdown
+
+* The “Slot” field should be a dropdown.
+* The dropdown should include each different cyberware slot/type.
+* The final option should be **Custom**.
+* If Custom is selected, show a free-text field for the custom slot/name.
+
+**Acceptance criteria**
+
+* Slot is no longer only free text.
+* Users select from predefined slot options.
+* Custom option allows free-text entry.
+
+---
+
+### Install Dropdown Depends on Slot
+
+* The “Install” field to the right should depend on the selected Slot.
+* Once a slot is selected, the Install dropdown should only show cyberware valid for that slot.
+* Each dropdown option should include a brief description of the cyberware.
+
+**Example behavior**
+
+* User selects a specific cyberware slot.
+* Install dropdown updates to show valid cyberware choices for that slot.
+* Each cyberware option includes a short description explaining what it is.
+
+**Acceptance criteria**
+
+* Install options filter based on selected slot.
+* Cyberware descriptions are visible in the dropdown or helper text.
+* Invalid slot/install combinations are prevented.
+
+---
+
+### Remove Points and Humanity Loss Fields
+
+* Remove the **Points** field from the user-facing form.
+* Remove the **HL / Humanity Loss** field from the user-facing form.
+* Players should not manually enter point values.
+* CWP should be automatically assigned based on selected cyberware.
+
+**Acceptance criteria**
+
+* No user-facing Points input.
+* No user-facing Humanity Loss input.
+* Selected cyberware automatically determines CWP cost internally.
+* Total CWP can still be calculated/displayed if useful.
+
+---
+
+### Remove Miscellaneous Chrome
+
+* Remove the “Miscellaneous Chrome” section entirely.
+* Optional alternative: rename it to **Miscellaneous** only if there is still a non-cyberware reason to keep it.
+* Do not keep it as a chrome/cyberware field.
+
+**Acceptance criteria**
+
+* “Miscellaneous Chrome” no longer appears.
+* No duplicate/unclear chrome field exists outside the main Cyberware section.
+
+---
+
+## 13. Required Fields
+
+The following sections should be required for character submission:
+
+* Identity
+* Physical Description
+* Psychological Profile
+* Background
+* Skills
+* Gear
+
+Cyberware should **not** be required because some characters are organic and have no chrome.
+
+**Acceptance criteria**
+
+* Users must complete Identity.
+* Users must complete Physical Description.
+* Users must complete Psychological Profile.
+* Users must complete Background.
+* Users must complete Skills.
+* Users must complete Gear.
+* Users can submit with no cyberware selected.
