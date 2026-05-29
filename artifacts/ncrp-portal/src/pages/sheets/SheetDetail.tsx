@@ -33,7 +33,18 @@ export default function SheetDetail() {
   if (!sheet) return <div className="font-display text-destructive">SHEET NOT FOUND</div>;
 
   const data = sheet.data as unknown as Record<string, unknown>;
-  const cw = (data.cyberware as Array<{ slot: string; name: string; points: number; humanityLoss: number }>) ?? [];
+  const legacyCw = [
+    ...((data.cyberwareBySlot as Array<{ slot: string; name: string; points: number }>) ?? []),
+    ...((data.cyberwareMisc as Array<{ slot: string; name: string; points: number }>) ?? []),
+  ];
+  const cwRaw = (data.cyberware as Array<{ slot: string; name: string; points: number }>) ?? [];
+  const cw = (cwRaw.length > 0 ? cwRaw : legacyCw).filter((c) => c?.name && String(c.name).trim().length > 0);
+  const skills = typeof data.skills === "string"
+    ? data.skills
+    : data.skills && typeof data.skills === "object"
+    ? Object.entries(data.skills as Record<string, unknown>).map(([k, v]) => (v != null && v !== "" ? `${k} ${v}` : k)).join("\n")
+    : "";
+  const gear = (data.gear as string[]) ?? [];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -52,7 +63,7 @@ export default function SheetDetail() {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PROFILE</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 text-sm font-mono">
-          {["fullName", "nickname", "archetype", "age", "gender", "startingEddies"].map((k) => (
+          {["fullName", "nickname", "archetype", "age", "gender", "occupation"].map((k) => (
             <div key={k}><span className="text-muted-foreground uppercase tracking-widest">{k}: </span>{String(data[k] ?? "—")}</div>
           ))}
         </CardContent>
@@ -64,19 +75,36 @@ export default function SheetDetail() {
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">SKILLS</CardTitle></CardHeader>
+        <CardContent className="whitespace-pre-wrap font-mono text-sm">{skills || "—"}</CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">GEAR</CardTitle></CardHeader>
+        <CardContent className="font-mono text-sm">
+          {gear.filter((g) => g && g.trim()).length === 0 ? (
+            <p className="text-muted-foreground">—</p>
+          ) : (
+            <ul className="list-disc list-inside space-y-1">
+              {gear.filter((g) => g && g.trim()).map((g, i) => <li key={i}>{g}</li>)}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
           <CardTitle className="font-display tracking-widest">
-            CYBERWARE ({cw.length}/11) · HUM SPENT: {data.cyberwarePointsSpent as number ?? 0}
+            CYBERWARE ({cw.length}) · CWP: {data.cyberwarePointsSpent as number ?? cw.reduce((s, c) => s + (Number(c.points) || 0), 0)}/6
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
-          {cw.length === 0 ? <p className="text-muted-foreground font-mono text-sm">None.</p> :
+          {cw.length === 0 ? <p className="text-muted-foreground font-mono text-sm">None — fully organic.</p> :
             cw.map((c, i) => (
-              <div key={i} className="grid grid-cols-5 gap-2 border-b border-border/30 py-1 text-sm font-mono">
+              <div key={i} className="grid grid-cols-4 gap-2 border-b border-border/30 py-1 text-sm font-mono">
                 <span className="text-nc-cyan">{c.slot}</span>
                 <span className="col-span-2">{c.name}</span>
-                <span className="text-nc-yellow">PTS {c.points}</span>
-                <span className="text-destructive">HL {c.humanityLoss}</span>
+                <span className="text-nc-yellow">CWP {c.points}</span>
               </div>
             ))}
         </CardContent>

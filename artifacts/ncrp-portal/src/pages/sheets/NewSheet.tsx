@@ -7,9 +7,11 @@ import {
   useSubmitDraftSheet,
   useDeleteSheet,
   useGetSheet,
+  useListCyberware,
   getListMySheetsQueryKey,
   getGetSheetQueryKey,
 } from "@workspace/api-client-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,34 +20,50 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-interface Pair { name: string; value: number }
-interface CW { slot: string; name: string; points: number; humanityLoss: number; notes: string }
-
-const SLOTS = [
-  "Arms & Arm Attachments (Left)",
-  "Arms & Arm Attachments (Right)",
-  "Auditory System",
-  "Circulatory & Immune Systems",
-  "Hands",
-  "Feet",
-  "Integumentary System",
-  "Legs & Mobility (Left)",
-  "Legs & Mobility (Right)",
-  "Neural",
-  "Ocular System",
-  "Skeleton & Torso Musculature",
-  "Universal Muscular (Arms/Legs/Tail)",
-] as const;
-
-function emptyChrome(): CW[] {
-  return SLOTS.map((s) => ({ slot: s, name: "", points: 0, humanityLoss: 0, notes: "" }));
+interface CW {
+  slot: string;
+  name: string;
+  points: number;
+  humanityLoss: number;
+  notes: string;
+  isCustom: boolean;
 }
 
-function pairsFromObject(o: unknown): Pair[] {
-  if (!o || typeof o !== "object") return [{ name: "", value: 0 }];
-  const entries = Object.entries(o as Record<string, unknown>);
-  if (entries.length === 0) return [{ name: "", value: 0 }];
-  return entries.map(([name, value]) => ({ name, value: Number(value) || 0 }));
+const CUSTOM_SLOT = "__custom__";
+
+// Turn whatever skills shape an older sheet stored (object of skill->rank, or a
+// plain string) into the free-text value the form now uses.
+function skillsToText(o: unknown): string {
+  if (typeof o === "string") return o;
+  if (o && typeof o === "object") {
+    return Object.entries(o as Record<string, unknown>)
+      .map(([k, v]) => (v != null && v !== "" ? `${k} ${v}` : k))
+      .join("\n");
+  }
+  return "";
+}
+
+// Load cyberware from the current `cyberware` list, falling back to the legacy
+// foundational-by-slot + misc lists so older drafts can still be edited.
+function loadCyberware(init: Record<string, any>): CW[] {
+  const current = Array.isArray(init.cyberware) ? init.cyberware : null;
+  const legacy = current
+    ? null
+    : [
+        ...(Array.isArray(init.cyberwareBySlot) ? init.cyberwareBySlot : []),
+        ...(Array.isArray(init.cyberwareMisc) ? init.cyberwareMisc : []),
+      ];
+  const src: any[] = current ?? legacy ?? [];
+  return src
+    .filter((c) => typeof c?.name === "string" && c.name.trim().length > 0)
+    .map((c) => ({
+      slot: String(c.slot ?? ""),
+      name: String(c.name ?? ""),
+      points: Number(c.points) || 0,
+      humanityLoss: Number(c.humanityLoss) || 0,
+      notes: String(c.notes ?? ""),
+      isCustom: false,
+    }));
 }
 
 export default function NewSheet() {
@@ -82,6 +100,20 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const { toast } = useToast();
   const init = (initialSheet?.data ?? {}) as Record<string, any>;
 
+  const { data: me, isLoading: meLoading } = useAuthMe();
+  const isFixer = !!(me?.isFixer || me?.isAdmin);
+  const { data: catalog } = useListCyberware();
+
+  // Distinct slot names from the cyberware catalog, plus a quick lookup set.
+  const catalogSlots = useMemo(() => {
+    const set = new Set<string>();
+    (catalog ?? []).forEach((c) => {
+      if (c.slot) set.add(c.slot);
+    });
+    return Array.from(set).sort();
+  }, [catalog]);
+  const catalogSlotSet = useMemo(() => new Set(catalogSlots), [catalogSlots]);
+
   const [draftId, setDraftId] = useState<number | null>(initialDraftId);
   const [sheetType, setSheetType] = useState<"PC" | "NPC">(init.sheetType === "NPC" ? "NPC" : "PC");
   const [fullName, setFullName] = useState<string>(init.fullName ?? initialSheet?.name ?? "");
@@ -96,53 +128,62 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const [psychProfile, setPsychProfile] = useState<string>(init.psychProfile ?? "");
   const [background, setBackground] = useState<string>(init.background ?? "");
   const [notes, setNotes] = useState<string>(init.notes ?? "");
-  const [startingEddies, setStartingEddies] = useState<number>(Number(init.startingEddies) || 0);
-  const [attributes, setAttributes] = useState<Pair[]>(pairsFromObject(init.attributes));
-  const [skills, setSkills] = useState<Pair[]>(pairsFromObject(init.skills));
-  const [chrome, setChrome] = useState<CW[]>(() => {
-    const incoming = Array.isArray(init.cyberwareBySlot) ? init.cyberwareBySlot : null;
-    if (!incoming || incoming.length !== SLOTS.length) return emptyChrome();
-    return SLOTS.map((s, i) => ({
-      slot: s,
-      name: String(incoming[i]?.name ?? ""),
-      points: Number(incoming[i]?.points) || 0,
-      humanityLoss: Number(incoming[i]?.humanityLoss) || 0,
-      notes: String(incoming[i]?.notes ?? ""),
-    }));
-  });
-  const [misc, setMisc] = useState<CW[]>(() => {
-    const incoming = Array.isArray(init.cyberwareMisc) ? init.cyberwareMisc : [];
-    return incoming.map((m: any) => ({
-      slot: String(m?.slot ?? "Misc"),
-      name: String(m?.name ?? ""),
-      points: Number(m?.points) || 0,
-      humanityLoss: Number(m?.humanityLoss) || 0,
-      notes: String(m?.notes ?? ""),
-    }));
-  });
+  const [skills, setSkills] = useState<string>(skillsToText(init.skills));
+  const [chrome, setChrome] = useState<CW[]>(() => loadCyberware(init));
   const [gear, setGear] = useState<string[]>(
     Array.isArray(init.gear) && init.gear.length > 0 ? init.gear.map(String) : [""],
   );
 
+  // Non-fixers may only create PCs — force PC if a stale NPC value slips in.
+  // Wait for auth to resolve first so a fixer's NPC draft is never downgraded
+  // during the brief window before `me` loads.
+  useEffect(() => {
+    if (!meLoading && !isFixer && sheetType !== "PC") setSheetType("PC");
+  }, [meLoading, isFixer, sheetType]);
+
   const filledChrome = chrome.filter((c) => c.name.trim().length > 0);
-  const filledMisc = misc.filter((c) => c.name.trim().length > 0);
-  const pointsSpent =
-    filledChrome.reduce((s, c) => s + (Number(c.points) || 0), 0) +
-    filledMisc.reduce((s, c) => s + (Number(c.points) || 0), 0);
+  const pointsSpent = filledChrome.reduce((s, c) => s + (Number(c.points) || 0), 0);
   const overCap = pointsSpent > 6;
-  const overSlots = filledChrome.length > SLOTS.length;
+
+  // A row renders in "custom" mode when the user explicitly chose Custom, or
+  // when a loaded slot isn't part of the catalog (e.g. legacy free-text slots).
+  const rowIsCustom = (cw: CW) => cw.isCustom || (cw.slot !== "" && !catalogSlotSet.has(cw.slot));
+
+  function updateRow(i: number, patch: Partial<CW>) {
+    setChrome(chrome.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  }
+
+  function onSlotChange(i: number, value: string) {
+    if (value === CUSTOM_SLOT) {
+      updateRow(i, { isCustom: true, slot: "", name: "", points: 0, humanityLoss: 0, notes: "" });
+    } else {
+      updateRow(i, { isCustom: false, slot: value, name: "", points: 0, humanityLoss: 0, notes: "" });
+    }
+  }
+
+  function onInstallChange(i: number, name: string, slot: string) {
+    const item = (catalog ?? []).find((c) => c.slot === slot && c.name === name);
+    updateRow(i, {
+      name,
+      points: item ? Number(item.cwp) || 0 : 0,
+      humanityLoss: item ? Number(item.humanityLoss) || 0 : 0,
+      notes: item?.description ?? "",
+    });
+  }
 
   const buildPayload = () => ({
     sheetType,
     fullName, nickname, pronouns, occupation, archetype,
     age: Number(age) || 0, gender,
     physicalDescription, appearance, psychProfile, background, notes,
-    startingEddies: Number(startingEddies) || 0,
-    attributes: attributes.filter((a) => a.name).reduce((o, a) => ({ ...o, [a.name]: Number(a.value) }), {}),
-    skills: skills.filter((s) => s.name).reduce((o, s) => ({ ...o, [s.name]: Number(s.value) }), {}),
-    cyberware: [...filledChrome, ...filledMisc],
-    cyberwareBySlot: chrome,
-    cyberwareMisc: filledMisc,
+    skills,
+    cyberware: filledChrome.map((c) => ({
+      slot: c.slot.trim() || "Custom",
+      name: c.name,
+      points: Number(c.points) || 0,
+      humanityLoss: Number(c.humanityLoss) || 0,
+      notes: c.notes,
+    })),
     cyberwarePointsSpent: pointsSpent,
     gear: gear.filter(Boolean),
   });
@@ -156,6 +197,10 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const lastPersistedRef = useRef<string>(JSON.stringify({ fullName: init.fullName ?? "", payload: init }));
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
+  // Mirror of autoSaveStatus so the unmount cleanup (which has empty deps) can
+  // read the *latest* value instead of the stale mount-time closure value.
+  const autoSaveStatusRef = useRef(autoSaveStatus);
+  autoSaveStatusRef.current = autoSaveStatus;
 
   function invalidateLists() {
     qc.invalidateQueries({ queryKey: getListMySheetsQueryKey() });
@@ -202,7 +247,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, notes, startingEddies, attributes, skills, chrome, misc, gear],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, notes, skills, chrome, gear],
   );
 
   useEffect(() => {
@@ -228,7 +273,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
-        if (autoSaveStatus === "dirty" || autoSaveStatus === "saving") {
+        if (autoSaveStatusRef.current === "dirty" || autoSaveStatusRef.current === "saving") {
           // best-effort fire-and-forget
           saveDraft({ silent: true });
         }
@@ -239,7 +284,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (overCap || overSlots) return;
+    if (overCap) return;
     if (!fullName.trim()) {
       toast({ title: "Name required", variant: "destructive" });
       return;
@@ -299,7 +344,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
             {draftId ? "EDIT CHARACTER" : "NEW CHARACTER"}
           </h1>
           <p className="text-muted-foreground font-mono mt-2 text-sm">
-            Cyberpunk Red rules · max 11 cyberware slots · 6 humanity pts at creation.
+            Night City RP · cyberware is optional · up to 6 CWP at creation.
           </p>
         </div>
         <div className="font-mono text-xs text-muted-foreground">
@@ -334,12 +379,14 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">IDENTITY</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Sheet Type">
-            <select data-testid="select-sheet-type" className="w-full h-9 bg-background border border-border px-2 text-sm font-mono" value={sheetType} onChange={(e) => setSheetType(e.target.value as "PC" | "NPC")}>
-              <option value="PC">PC</option>
-              <option value="NPC">NPC</option>
-            </select>
-          </Field>
+          {isFixer && (
+            <Field label="Sheet Type">
+              <select data-testid="select-sheet-type" className="w-full h-9 bg-background border border-border px-2 text-sm font-mono" value={sheetType} onChange={(e) => setSheetType(e.target.value as "PC" | "NPC")}>
+                <option value="PC">PC</option>
+                <option value="NPC">NPC</option>
+              </select>
+            </Field>
+          )}
           <Field label="Full Name"><Input data-testid="input-fullname" value={fullName} onChange={(e) => setFullName(e.target.value)} /></Field>
           <Field label="Nickname / Handle"><Input data-testid="input-nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} /></Field>
           <Field label="Pronouns"><Input data-testid="input-pronouns" value={pronouns} onChange={(e) => setPronouns(e.target.value)} /></Field>
@@ -347,7 +394,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           <Field label="Archetype"><Input data-testid="input-archetype" value={archetype} onChange={(e) => setArchetype(e.target.value)} /></Field>
           <Field label="Age"><Input data-testid="input-age" type="number" value={age} onChange={(e) => setAge(e.target.value)} /></Field>
           <Field label="Gender"><Input data-testid="input-gender" value={gender} onChange={(e) => setGender(e.target.value)} /></Field>
-          <Field label="Starting Eddies"><Input data-testid="input-eddies" type="number" value={startingEddies} onChange={(e) => setStartingEddies(Number(e.target.value))} /></Field>
         </CardContent>
       </Card>
 
@@ -355,7 +401,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardHeader><CardTitle className="font-display tracking-widest">PHYSICAL DESCRIPTION</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Field label="Build, Height, Distinguishing Features"><Textarea data-testid="input-physical" rows={3} value={physicalDescription} onChange={(e) => setPhysicalDescription(e.target.value)} /></Field>
-          <Field label="Style & Visible Cyberware"><Textarea data-testid="input-appearance" rows={3} value={appearance} onChange={(e) => setAppearance(e.target.value)} /></Field>
+          <Field label="Style"><Textarea data-testid="input-appearance" rows={3} value={appearance} onChange={(e) => setAppearance(e.target.value)} /></Field>
         </CardContent>
       </Card>
 
@@ -373,53 +419,12 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </CardContent>
       </Card>
 
-      <PairsCard title="ATTRIBUTES" pairs={attributes} setPairs={setAttributes} placeholder="INT, REF, etc." testid="attr" />
-      <PairsCard title="SKILLS" pairs={skills} setPairs={setSkills} placeholder="Handgun, Stealth..." testid="skill" />
-
       <Card className="rounded-none border-border bg-card/50">
-        <CardHeader>
-          <CardTitle className="font-display tracking-widest">
-            FOUNDATIONAL CHROME — {SLOTS.length} SLOTS <span className={overSlots ? "text-destructive" : "text-nc-cyan"}>({filledChrome.length}/{SLOTS.length})</span>
-            <span className={`ml-4 ${overCap ? "text-destructive" : "text-nc-yellow"}`}>HUM PTS: {pointsSpent}/6</span>
-          </CardTitle>
-          <p className="text-xs font-mono text-muted-foreground mt-1">One install per named slot (per-arm, per-leg semantics). Leave INSTALL blank to mark slot empty.</p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {chrome.map((cw, i) => (
-            <div key={cw.slot} className="grid grid-cols-12 gap-2 items-end border border-border/50 p-3" data-testid={`row-cyberware-${i}`}>
-              <div className="col-span-3">
-                <Label className="text-xs font-mono">SLOT</Label>
-                <div className="h-9 flex items-center px-2 text-sm font-mono text-nc-cyan border border-border bg-background/50">{cw.slot}</div>
-              </div>
-              <div className="col-span-4"><Label className="text-xs font-mono">INSTALL</Label><Input value={cw.name} placeholder="(empty)" onChange={(e) => setChrome(chrome.map((c, j) => j === i ? { ...c, name: e.target.value } : c))} data-testid={`input-cyberware-name-${i}`} /></div>
-              <div className="col-span-1"><Label className="text-xs font-mono">PTS</Label><Input type="number" min={0} value={cw.points} onChange={(e) => setChrome(chrome.map((c, j) => j === i ? { ...c, points: Number(e.target.value) } : c))} /></div>
-              <div className="col-span-1"><Label className="text-xs font-mono">HL</Label><Input type="number" min={0} value={cw.humanityLoss} onChange={(e) => setChrome(chrome.map((c, j) => j === i ? { ...c, humanityLoss: Number(e.target.value) } : c))} /></div>
-              <div className="col-span-3"><Label className="text-xs font-mono">NOTES</Label><Input value={cw.notes} onChange={(e) => setChrome(chrome.map((c, j) => j === i ? { ...c, notes: e.target.value } : c))} /></div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-none border-border bg-card/50">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display tracking-widest">
-            MISC CHROME — UNLIMITED <span className="text-nc-cyan">({filledMisc.length})</span>
-          </CardTitle>
-          <Button type="button" onClick={() => setMisc([...misc, { slot: "Misc", name: "", points: 0, humanityLoss: 0, notes: "" }])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-misc"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs font-mono text-muted-foreground">Fashionware, internal/external, borgware, cyberweapons, other implants. Counted toward the 6 humanity-pt cap at creation.</p>
-          {misc.length === 0 && <p className="text-muted-foreground font-mono text-sm">No misc chrome.</p>}
-          {misc.map((cw, i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 items-end border border-border/50 p-3" data-testid={`row-misc-${i}`}>
-              <div className="col-span-2"><Label className="text-xs font-mono">CATEGORY</Label><Input value={cw.slot} placeholder="Fashionware" onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, slot: e.target.value } : c))} /></div>
-              <div className="col-span-4"><Label className="text-xs font-mono">INSTALL</Label><Input value={cw.name} onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, name: e.target.value } : c))} data-testid={`input-misc-name-${i}`} /></div>
-              <div className="col-span-1"><Label className="text-xs font-mono">PTS</Label><Input type="number" min={0} value={cw.points} onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, points: Number(e.target.value) } : c))} /></div>
-              <div className="col-span-1"><Label className="text-xs font-mono">HL</Label><Input type="number" min={0} value={cw.humanityLoss} onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, humanityLoss: Number(e.target.value) } : c))} /></div>
-              <div className="col-span-3"><Label className="text-xs font-mono">NOTES</Label><Input value={cw.notes} onChange={(e) => setMisc(misc.map((c, j) => j === i ? { ...c, notes: e.target.value } : c))} /></div>
-              <Button type="button" variant="ghost" size="icon" onClick={() => setMisc(misc.filter((_, j) => j !== i))} className="text-destructive" data-testid={`button-remove-misc-${i}`}><Trash2 className="w-4 h-4" /></Button>
-            </div>
-          ))}
+        <CardHeader><CardTitle className="font-display tracking-widest">SKILLS</CardTitle></CardHeader>
+        <CardContent>
+          <Field label="What is your character good at?">
+            <Textarea data-testid="input-skills" rows={4} value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Describe your character's skills and talents in your own words..." />
+          </Field>
         </CardContent>
       </Card>
 
@@ -438,6 +443,88 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest">
+            CYBERWARE <span className={`ml-2 ${overCap ? "text-destructive" : "text-nc-yellow"}`}>CWP: {pointsSpent}/6</span>
+          </CardTitle>
+          <Button type="button" onClick={() => setChrome([...chrome, { slot: "", name: "", points: 0, humanityLoss: 0, notes: "", isCustom: false }])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-cyberware"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs font-mono text-muted-foreground">
+            Optional. Pick a slot, then choose an install from the NCRP catalog — CWP is set automatically.
+            Fully organic characters can leave this empty. Total CWP is capped at 6 at character creation.
+          </p>
+          {chrome.length === 0 && <p className="text-muted-foreground font-mono text-sm">No cyberware — fully organic.</p>}
+          {chrome.map((cw, i) => {
+            const isCustom = rowIsCustom(cw);
+            const installs = (catalog ?? []).filter((c) => c.slot === cw.slot);
+            return (
+              <div key={i} className="grid grid-cols-12 gap-2 items-end border border-border/50 p-3" data-testid={`row-cyberware-${i}`}>
+                <div className="col-span-4">
+                  <Label className="text-xs font-mono">SLOT</Label>
+                  <select
+                    className="w-full h-9 bg-background border border-border px-2 text-sm font-mono"
+                    value={isCustom ? CUSTOM_SLOT : cw.slot}
+                    onChange={(e) => onSlotChange(i, e.target.value)}
+                    data-testid={`select-cyberware-slot-${i}`}
+                  >
+                    <option value="">— select slot —</option>
+                    {catalogSlots.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                    <option value={CUSTOM_SLOT}>Custom…</option>
+                  </select>
+                  {isCustom && (
+                    <Input
+                      className="mt-1"
+                      value={cw.slot}
+                      placeholder="Custom slot name"
+                      onChange={(e) => updateRow(i, { slot: e.target.value })}
+                      data-testid={`input-cyberware-customslot-${i}`}
+                    />
+                  )}
+                </div>
+                <div className="col-span-6">
+                  <Label className="text-xs font-mono">INSTALL</Label>
+                  {isCustom ? (
+                    <Input
+                      value={cw.name}
+                      placeholder="Custom install name"
+                      onChange={(e) => updateRow(i, { name: e.target.value })}
+                      data-testid={`input-cyberware-name-${i}`}
+                    />
+                  ) : (
+                    <select
+                      className="w-full h-9 bg-background border border-border px-2 text-sm font-mono"
+                      value={cw.name}
+                      disabled={!cw.slot}
+                      onChange={(e) => onInstallChange(i, e.target.value, cw.slot)}
+                      data-testid={`select-cyberware-name-${i}`}
+                    >
+                      <option value="">{cw.slot ? "— select install —" : "select a slot first"}</option>
+                      {installs.map((it) => (
+                        <option key={it.id} value={it.name}>
+                          {it.name}{it.cwp ? ` · CWP ${it.cwp}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {cw.notes && <p className="text-xs font-mono text-muted-foreground mt-1">{cw.notes}</p>}
+                </div>
+                <div className="col-span-1">
+                  <Label className="text-xs font-mono">CWP</Label>
+                  <div className="h-9 flex items-center px-2 text-sm font-mono text-nc-yellow border border-border bg-background/50">{cw.points || 0}</div>
+                </div>
+                <div className="col-span-1 flex justify-end">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setChrome(chrome.filter((_, j) => j !== i))} className="text-destructive" data-testid={`button-remove-cyberware-${i}`}><Trash2 className="w-4 h-4" /></Button>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">NOTES</CardTitle></CardHeader>
         <CardContent><Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="input-notes" /></CardContent>
       </Card>
@@ -452,7 +539,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <Button type="button" onClick={() => saveDraft()} disabled={saving || createMut.isPending} className="rounded-none border border-nc-cyan bg-transparent text-nc-cyan hover:bg-nc-cyan/10 font-display" data-testid="button-save-draft">
           {saving ? "SAVING..." : "SAVE DRAFT"}
         </Button>
-        <Button type="submit" disabled={submitting || overCap || overSlots} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest" data-testid="button-submit-sheet">
+        <Button type="submit" disabled={submitting || overCap} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest" data-testid="button-submit-sheet">
           {submitting ? "TRANSMITTING..." : "SUBMIT FOR REVIEW"}
         </Button>
       </div>
@@ -462,26 +549,4 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><Label className="text-xs font-mono text-muted-foreground tracking-widest">{label.toUpperCase()}</Label>{children}</div>;
-}
-
-function PairsCard({ title, pairs, setPairs, placeholder, testid }: {
-  title: string; pairs: Pair[]; setPairs: (p: Pair[]) => void; placeholder: string; testid: string;
-}) {
-  return (
-    <Card className="rounded-none border-border bg-card/50">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="font-display tracking-widest">{title}</CardTitle>
-        <Button type="button" onClick={() => setPairs([...pairs, { name: "", value: 0 }])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid={`button-add-${testid}`}><Plus className="w-4 h-4 mr-1" /> ADD</Button>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {pairs.map((p, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <Input className="flex-1" placeholder={placeholder} value={p.name} onChange={(e) => setPairs(pairs.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} data-testid={`input-${testid}-name-${i}`} />
-            <Input className="w-24" type="number" value={p.value} onChange={(e) => setPairs(pairs.map((x, j) => j === i ? { ...x, value: Number(e.target.value) } : x))} data-testid={`input-${testid}-value-${i}`} />
-            <Button type="button" variant="ghost" size="icon" onClick={() => setPairs(pairs.filter((_, j) => j !== i))} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
 }

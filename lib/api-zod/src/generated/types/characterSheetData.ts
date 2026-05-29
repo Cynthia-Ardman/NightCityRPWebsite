@@ -8,17 +8,15 @@
 import type { CharacterSheetCyberwareEntry } from './characterSheetCyberwareEntry';
 import type { CharacterSheetDataAttributes } from './characterSheetDataAttributes';
 import type { CharacterSheetDataSheetType } from './characterSheetDataSheetType';
-import type { CharacterSheetDataSkills } from './characterSheetDataSkills';
 
 /**
- * NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13
-entries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &
-Arm Attachments (Right), Auditory System, Circulatory & Immune Systems,
-Hands, Feet, Integumentary System, Legs & Mobility (Left), Legs &
-Mobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,
-Universal Muscular (Arms/Legs/Tail). `cyberwareMisc` is unlimited (per
-NCRP Miscellaneous slot). Total humanity points across all chrome
-(foundational + misc) is capped at 6 at character creation.
+ * NCRP character sheet payload. `skills` and `gear` are free-text/narrative
+(no numeric values). `cyberware` is an optional list — organic characters
+may have none. Each cyberware entry's `points` carries the CWP cost
+(derived from the cyberware catalog), and the total CWP across all
+cyberware is capped at 6 at character creation. The legacy
+`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`
+fields are deprecated and only retained for reading older records.
 
  */
 export interface CharacterSheetData {
@@ -39,23 +37,29 @@ export interface CharacterSheetData {
   /** @nullable */
   psychProfile: string | null;
   background: string;
+  /** @deprecated */
   attributes?: CharacterSheetDataAttributes;
-  skills: CharacterSheetDataSkills;
-  cyberware: CharacterSheetCyberwareEntry[];
+  /** Free-text narrative description of what the character is good at. */
+  skills: string;
+  /** Optional list of installed cyberware. Each entry's `points` is the CWP
+  cost auto-derived from the catalog. Empty for organic characters.
+   */
+  cyberware?: CharacterSheetCyberwareEntry[];
   /**
-     * Full 11-slot foundational chrome layout. One entry per named NCRP slot,
-  in canonical order. Leave `name` empty to mark a slot unused.
-
-     * @minItems 13
-     * @maxItems 13
+     * Deprecated. Legacy fixed-slot foundational chrome layout.
+     * @deprecated
      */
-  cyberwareBySlot: CharacterSheetCyberwareEntry[];
-  /** Unlimited list for fashionware, internal/external, borgware, cyberweapons. */
+  cyberwareBySlot?: CharacterSheetCyberwareEntry[];
+  /**
+     * Deprecated. Legacy unlimited misc chrome list.
+     * @deprecated
+     */
   cyberwareMisc?: CharacterSheetCyberwareEntry[];
   /** @maximum 6 */
   cyberwarePointsSpent?: number;
   gear: string[];
-  startingEddies: number;
+  /** @deprecated */
+  startingEddies?: number;
   /** @nullable */
   notes?: string | null;
 }

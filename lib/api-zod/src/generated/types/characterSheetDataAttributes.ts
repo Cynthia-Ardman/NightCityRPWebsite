@@ -6,4 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * @deprecated
+ */
 export type CharacterSheetDataAttributes = {[key: string]: number};

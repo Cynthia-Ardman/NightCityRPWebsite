@@ -4,7 +4,6 @@ import { useListMyCharacters, useListMySheets, type Character } from "@workspace
 import { Users, Plus, Shield, ShieldAlert, FileText, Clock, AlertCircle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
@@ -193,24 +192,36 @@ function CharacterSection({
               <Pencil className="w-3 h-3 mr-1" /> EDIT
             </Button>
             <Link href={`/characters/${char.id}`}>
-              <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan hover:shadow-[0_0_15px_rgba(0,255,255,0.1)] transition-all cursor-pointer group h-full flex flex-col" data-testid={`card-character-${char.id}`}>
-                <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2">
-                  <Avatar className="h-24 w-24 border border-border rounded-none group-hover:border-nc-cyan transition-colors shadow-sm">
-                    <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ""} className="object-cover" />
-                    <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-3xl">
+              <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan hover:shadow-[0_0_15px_rgba(0,255,255,0.1)] transition-all cursor-pointer group h-full flex flex-col overflow-hidden p-0" data-testid={`card-character-${char.id}`}>
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-background border-b border-border group-hover:border-nc-cyan transition-colors">
+                  {char.portraitUrl || char.portraitUrls?.[0] ? (
+                    <img
+                      src={char.portraitUrl || char.portraitUrls?.[0] || ""}
+                      alt={char.name}
+                      className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-nc-cyan font-display text-5xl opacity-60">
                       {char.name.substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-xl font-display group-hover:text-nc-cyan transition-colors truncate" title={char.name}>{char.name}</CardTitle>
-                    <CardDescription className="font-mono text-xs uppercase mt-1">
-                      <span className={char.kind === "pc" ? "text-nc-magenta" : "text-nc-yellow"}>{char.kind}</span>
-                      {char.archetype && ` // ${char.archetype}`}
-                    </CardDescription>
-                  </div>
+                    </div>
+                  )}
+                </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl font-display group-hover:text-nc-cyan transition-colors truncate" title={char.name}>{char.name}</CardTitle>
+                  <CardDescription className="font-mono text-xs uppercase mt-1">
+                    <Badge variant="outline" className={`rounded-none mr-2 ${char.kind === "pc" ? "border-nc-magenta text-nc-magenta" : "border-nc-yellow text-nc-yellow"}`}>
+                      {char.kind === "pc" ? "PC" : "NPC"}
+                    </Badge>
+                    {char.archetype && <span className="text-muted-foreground">{char.archetype}</span>}
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="mt-auto pt-4 border-t border-border/50">
-                  <div className="flex items-center justify-between text-xs font-mono">
+                <CardContent className="flex-1 flex flex-col pb-4">
+                  {char.background && (
+                    <p className="font-mono text-xs text-muted-foreground line-clamp-2 mb-3" title={char.background}>
+                      {char.background}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between text-xs font-mono mt-auto pt-3 border-t border-border/50">
                     <LifeStatusPill status={char.lifeStatus ?? "active"} />
                     {char.approved ? (
                       <span className="flex items-center gap-1 text-nc-cyan">

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, characterSheets, users, activityEvents, type User } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
-import { postToChannel } from "../lib/discord";
+import { postToChannel, hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -54,22 +54,10 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(s);
 });
 
-// NCRP canonical chrome taxonomy (matches client form / NCRP creation guidelines).
-const NCRP_SLOTS = [
-  "Arms & Arm Attachments (Left)",
-  "Arms & Arm Attachments (Right)",
-  "Auditory System",
-  "Circulatory & Immune Systems",
-  "Hands",
-  "Feet",
-  "Integumentary System",
-  "Legs & Mobility (Left)",
-  "Legs & Mobility (Right)",
-  "Neural",
-  "Ocular System",
-  "Skeleton & Torso Musculature",
-  "Universal Muscular (Arms/Legs/Tail)",
-] as const;
+// Fields that must be present (non-empty strings) on every submitted sheet:
+// Identity (sheetType/fullName/pronouns/occupation), Physical Description,
+// Psychological Profile, and Background. Skills/Gear are validated separately
+// (free-text + list). Cyberware is optional — organic characters are valid.
 const REQUIRED_SHEET_FIELDS = [
   "sheetType",
   "fullName",
@@ -77,10 +65,23 @@ const REQUIRED_SHEET_FIELDS = [
   "occupation",
   "psychProfile",
   "physicalDescription",
+  "background",
 ] as const;
 
+// Collects every cyberware entry regardless of which (current or legacy) field
+// it lives in, so CWP totals stay correct for older records too.
+function collectCyberware(d: Record<string, unknown>): Array<{ name?: string; points?: number }> {
+  const current = Array.isArray(d.cyberware) ? (d.cyberware as Array<{ name?: string; points?: number }>) : [];
+  if (current.length > 0) return current.filter((c) => typeof c.name === "string" && c.name.trim().length > 0);
+  // Legacy fallback: foundational-by-slot + misc lists.
+  const bySlot = Array.isArray(d.cyberwareBySlot) ? (d.cyberwareBySlot as Array<{ name?: string; points?: number }>) : [];
+  const misc = Array.isArray(d.cyberwareMisc) ? (d.cyberwareMisc as Array<{ name?: string; points?: number }>) : [];
+  return [...bySlot, ...misc].filter((c) => typeof c.name === "string" && c.name.trim().length > 0);
+}
+
 // Runs full submission validation. Returns null on success, error message on failure.
-function validateSheetForSubmission(data: unknown): string | null {
+// `user` is used to gate NPC sheets to fixers/admins only.
+function validateSheetForSubmission(data: unknown, user: User): string | null {
   if (!data || typeof data !== "object") return "data required";
   const d = data as Record<string, unknown>;
   for (const f of REQUIRED_SHEET_FIELDS) {
@@ -91,50 +92,39 @@ function validateSheetForSubmission(data: unknown): string | null {
   if (!["PC", "NPC"].includes(d.sheetType as string)) {
     return "sheetType must be PC or NPC";
   }
+  if (d.sheetType === "NPC" && !hasRole(user.roles, "FIXER") && !hasRole(user.roles, "ADMIN")) {
+    return "Only fixers can create NPC sheets";
+  }
   if (typeof d.age !== "number" || (d.age as number) <= 0) {
     return "Missing required field: age (positive integer)";
   }
-  const skillsObj = d.skills;
-  if (!skillsObj || typeof skillsObj !== "object" || Object.keys(skillsObj as object).length === 0) {
-    return "Missing required field: skills (at least one)";
+  // Skills is now free-text. Accept a non-empty string (current) or a legacy
+  // non-empty object (older drafts) so they can still be resubmitted.
+  const skills = d.skills;
+  const skillsOk =
+    (typeof skills === "string" && skills.trim().length > 0) ||
+    (skills != null && typeof skills === "object" && Object.keys(skills as object).length > 0);
+  if (!skillsOk) {
+    return "Missing required field: skills";
   }
   const gearList = d.gear;
   if (!Array.isArray(gearList) || gearList.filter((g) => typeof g === "string" && g.trim()).length === 0) {
     return "Missing required field: gear/equipment (at least one entry)";
   }
-  const bySlot = Array.isArray(d.cyberwareBySlot)
-    ? (d.cyberwareBySlot as Array<{ slot?: string }>)
-    : null;
-  if (!bySlot || bySlot.length !== NCRP_SLOTS.length) {
-    return `cyberwareBySlot must contain exactly ${NCRP_SLOTS.length} entries in the canonical NCRP order`;
+  // Cyberware is optional. If present, total CWP is capped at 6 at creation.
+  // Reject negative CWP so a crafted payload can't offset over-cap entries.
+  const entries = collectCyberware(d);
+  if (entries.some((c) => (Number(c.points) || 0) < 0)) {
+    return "Cyberware CWP cannot be negative";
   }
-  for (let i = 0; i < NCRP_SLOTS.length; i++) {
-    if (bySlot[i]?.slot !== NCRP_SLOTS[i]) {
-      return `cyberwareBySlot[${i}].slot must be "${NCRP_SLOTS[i]}"`;
-    }
-  }
-  const miscEntries = Array.isArray(d.cyberwareMisc)
-    ? (d.cyberwareMisc as Array<{ slot?: string; name?: string }>)
-    : [];
-  for (const m of miscEntries) {
-    if (!m?.slot || !m?.name) {
-      return "Each misc chrome entry requires slot (category) and name";
-    }
-  }
-  const filledFoundational = bySlot.filter((c) => typeof (c as { name?: string }).name === "string" && ((c as { name: string }).name).trim().length > 0);
-  const allChrome = [...filledFoundational, ...miscEntries] as Array<{ points?: number }>;
-  const points = allChrome.reduce((s, c) => s + (Number(c.points) || 0), 0);
-  if (points > 6) return "Max 6 cyberware humanity points at creation";
-  if (filledFoundational.length > NCRP_SLOTS.length) return `Max ${NCRP_SLOTS.length} foundational chrome slots`;
+  const points = entries.reduce((s, c) => s + (Number(c.points) || 0), 0);
+  if (points > 6) return "Max 6 cyberware points (CWP) at creation";
   return null;
 }
 
 function computePoints(data: unknown): number {
   const d = (data ?? {}) as Record<string, unknown>;
-  const bySlot = Array.isArray(d.cyberwareBySlot) ? (d.cyberwareBySlot as Array<{ name?: string; points?: number }>) : [];
-  const misc = Array.isArray(d.cyberwareMisc) ? (d.cyberwareMisc as Array<{ points?: number }>) : [];
-  const filled = bySlot.filter((c) => typeof c.name === "string" && c.name.trim().length > 0);
-  return [...filled, ...misc].reduce((s, c) => s + (Number(c.points) || 0), 0);
+  return collectCyberware(d).reduce((s, c) => s + (Number(c.points) || 0), 0);
 }
 
 async function announceSubmission(sheetId: number, name: string, data: any, user: User): Promise<void> {
@@ -178,7 +168,7 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
   }
   const wantsDraft = status === "draft";
   if (!wantsDraft) {
-    const err = validateSheetForSubmission(data);
+    const err = validateSheetForSubmission(data, req.user!);
     if (err) {
       res.status(400).json({ error: err });
       return;
@@ -255,7 +245,7 @@ router.post("/sheets/:id/submit", requireAuth, async (req, res): Promise<void> =
     res.status(409).json({ error: "Sheet is not in a submittable state" });
     return;
   }
-  const err = validateSheetForSubmission(existing.data);
+  const err = validateSheetForSubmission(existing.data, req.user!);
   if (err) {
     res.status(400).json({ error: err });
     return;

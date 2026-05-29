@@ -37,7 +37,6 @@ export * from './characterSheetCyberwareEntry';
 export * from './characterSheetData';
 export * from './characterSheetDataAttributes';
 export * from './characterSheetDataSheetType';
-export * from './characterSheetDataSkills';
 export * from './characterSheetInput';
 export * from './characterSheetInputStatus';
 export * from './characterSheetPatchInput';

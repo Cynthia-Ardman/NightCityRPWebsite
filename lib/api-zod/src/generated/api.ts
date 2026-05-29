@@ -1679,9 +1679,6 @@ export const UpdateFixerNpcResponse = zod.object({
 /**
  * @summary My submitted character sheets
  */
-export const listMySheetsResponseDataCyberwareBySlotMin = 13;
-export const listMySheetsResponseDataCyberwareBySlotMax = 13;
-
 export const listMySheetsResponseDataCyberwarePointsSpentMax = 6;
 
 
@@ -1712,41 +1709,38 @@ export const ListMySheetsResponseItem = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.record(zod.string(), zod.number()),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})),
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).min(listMySheetsResponseDataCyberwareBySlotMin).max(listMySheetsResponseDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(listMySheetsResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
-  "startingEddies": zod.number(),
+  "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
 })
 export const ListMySheetsResponse = zod.array(ListMySheetsResponseItem)
 
 
 export const submitSheetBodyNameMax = 64;
-
-export const submitSheetBodyDataCyberwareBySlotMin = 13;
-export const submitSheetBodyDataCyberwareBySlotMax = 13;
 
 export const submitSheetBodyDataCyberwarePointsSpentMax = 6;
 
@@ -1770,42 +1764,39 @@ export const SubmitSheetBody = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.record(zod.string(), zod.number()),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})),
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).min(submitSheetBodyDataCyberwareBySlotMin).max(submitSheetBodyDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(submitSheetBodyDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
-  "startingEddies": zod.number(),
+  "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
 })
 
 
 /**
  * @summary Pending sheets (CS approvers only)
  */
-export const listPendingSheetsResponseDataCyberwareBySlotMin = 13;
-export const listPendingSheetsResponseDataCyberwareBySlotMax = 13;
-
 export const listPendingSheetsResponseDataCyberwarePointsSpentMax = 6;
 
 
@@ -1836,33 +1827,33 @@ export const ListPendingSheetsResponseItem = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.record(zod.string(), zod.number()),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})),
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).min(listPendingSheetsResponseDataCyberwareBySlotMin).max(listPendingSheetsResponseDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(listPendingSheetsResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
-  "startingEddies": zod.number(),
+  "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
 })
 export const ListPendingSheetsResponse = zod.array(ListPendingSheetsResponseItem)
 
@@ -1870,9 +1861,6 @@ export const ListPendingSheetsResponse = zod.array(ListPendingSheetsResponseItem
 export const GetSheetParams = zod.object({
   "id": zod.coerce.number()
 })
-
-export const getSheetResponseDataCyberwareBySlotMin = 13;
-export const getSheetResponseDataCyberwareBySlotMax = 13;
 
 export const getSheetResponseDataCyberwarePointsSpentMax = 6;
 
@@ -1904,33 +1892,33 @@ export const GetSheetResponse = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.record(zod.string(), zod.number()),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})),
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).min(getSheetResponseDataCyberwareBySlotMin).max(getSheetResponseDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(getSheetResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
-  "startingEddies": zod.number(),
+  "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
 })
 
 
@@ -1942,9 +1930,6 @@ export const UpdateSheetParams = zod.object({
 })
 
 export const updateSheetBodyNameMax = 64;
-
-export const updateSheetBodyDataCyberwareBySlotMin = 13;
-export const updateSheetBodyDataCyberwareBySlotMax = 13;
 
 export const updateSheetBodyDataCyberwarePointsSpentMax = 6;
 
@@ -1967,37 +1952,34 @@ export const UpdateSheetBody = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.record(zod.string(), zod.number()),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})),
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).min(updateSheetBodyDataCyberwareBySlotMin).max(updateSheetBodyDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(updateSheetBodyDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
-  "startingEddies": zod.number(),
+  "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).optional().describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+}).optional().describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
 })
-
-export const updateSheetResponseDataCyberwareBySlotMin = 13;
-export const updateSheetResponseDataCyberwareBySlotMax = 13;
 
 export const updateSheetResponseDataCyberwarePointsSpentMax = 6;
 
@@ -2029,33 +2011,33 @@ export const UpdateSheetResponse = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.record(zod.string(), zod.number()),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})),
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).min(updateSheetResponseDataCyberwareBySlotMin).max(updateSheetResponseDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(updateSheetResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
-  "startingEddies": zod.number(),
+  "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
 })
 
 
@@ -2073,9 +2055,6 @@ export const DeleteSheetParams = zod.object({
 export const SubmitDraftSheetParams = zod.object({
   "id": zod.coerce.number()
 })
-
-export const submitDraftSheetResponseDataCyberwareBySlotMin = 13;
-export const submitDraftSheetResponseDataCyberwareBySlotMax = 13;
 
 export const submitDraftSheetResponseDataCyberwarePointsSpentMax = 6;
 
@@ -2107,33 +2086,33 @@ export const SubmitDraftSheetResponse = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.record(zod.string(), zod.number()),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})),
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).min(submitDraftSheetResponseDataCyberwareBySlotMin).max(submitDraftSheetResponseDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(submitDraftSheetResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
-  "startingEddies": zod.number(),
+  "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
 })
 
 
@@ -2148,9 +2127,6 @@ export const DecideSheetBody = zod.object({
   "decision": zod.enum(['approved', 'rejected', 'changes_requested']),
   "note": zod.string().optional()
 })
-
-export const decideSheetResponseDataCyberwareBySlotMin = 13;
-export const decideSheetResponseDataCyberwareBySlotMax = 13;
 
 export const decideSheetResponseDataCyberwarePointsSpentMax = 6;
 
@@ -2182,33 +2158,33 @@ export const DecideSheetResponse = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.record(zod.string(), zod.number()),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})),
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).min(decideSheetResponseDataCyberwareBySlotMin).max(decideSheetResponseDataCyberwareBySlotMax).describe('Full 11-slot foundational chrome layout. One entry per named NCRP slot,\nin canonical order. Leave `name` empty to mark a slot unused.\n'),
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
-})).optional().describe('Unlimited list for fashionware, internal\/external, borgware, cyberweapons.'),
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(decideSheetResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
-  "startingEddies": zod.number(),
+  "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `cyberwareBySlot` MUST contain exactly 13\nentries in canonical NCRP order: Arms & Arm Attachments (Left), Arms &\nArm Attachments (Right), Auditory System, Circulatory & Immune Systems,\nHands, Feet, Integumentary System, Legs & Mobility (Left), Legs &\nMobility (Right), Neural, Ocular System, Skeleton & Torso Musculature,\nUniversal Muscular (Arms\/Legs\/Tail). `cyberwareMisc` is unlimited (per\nNCRP Miscellaneous slot). Total humanity points across all chrome\n(foundational + misc) is capped at 6 at character creation.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
 })
 
 
