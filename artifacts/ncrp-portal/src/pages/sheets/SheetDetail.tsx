@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSheet,
   useDecideSheet,
+  useListCyberware,
   getGetSheetQueryKey,
   getListPendingSheetsQueryKey,
 } from "@workspace/api-client-react";
@@ -11,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export default function SheetDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,7 +20,24 @@ export default function SheetDetail() {
   const qc = useQueryClient();
   const { data: sheet, isLoading } = useGetSheet(sheetId);
   const { data: me } = useAuthMe();
+  const { data: catalog } = useListCyberware();
   const [note, setNote] = useState("");
+
+  // Mirror the server's catalog-authoritative CWP resolution
+  // (loadCyberwareCostMap / entryPoints in api-server sheets.ts): cost is keyed
+  // by normalized name and where multiple catalog rows share a name the highest
+  // CWP wins, so the reviewer sees exactly what the cap was enforced against.
+  const cwpCostMap = useMemo(() => {
+    const map = new Map<string, number>();
+    (catalog ?? []).forEach((c) => {
+      const key = String(c.name ?? "").trim().toLowerCase();
+      if (!key) return;
+      const cost = Number(c.cwp) || 0;
+      const prev = map.get(key);
+      if (prev === undefined || cost > prev) map.set(key, cost);
+    });
+    return map;
+  }, [catalog]);
   const decide = useDecideSheet({
     mutation: {
       onSuccess: () => {
@@ -38,7 +56,18 @@ export default function SheetDetail() {
     ...((data.cyberwareMisc as Array<{ slot: string; name: string; points: number }>) ?? []),
   ];
   const cwRaw = (data.cyberware as Array<{ slot: string; name: string; points: number }>) ?? [];
-  const cw = (cwRaw.length > 0 ? cwRaw : legacyCw).filter((c) => c?.name && String(c.name).trim().length > 0);
+  const cwBase = (cwRaw.length > 0 ? cwRaw : legacyCw).filter((c) => c?.name && String(c.name).trim().length > 0);
+  // Resolve each entry against the catalog the same way the server did. Catalog
+  // matches show the authoritative CWP (and flag a disagreement with the stored
+  // value); custom entries keep their stored value.
+  const cw = cwBase.map((c) => {
+    const stored = Number(c.points) || 0;
+    const catalogCost = cwpCostMap.get(String(c.name ?? "").trim().toLowerCase());
+    const isCatalog = catalogCost !== undefined;
+    const effective = isCatalog ? catalogCost : stored;
+    return { ...c, stored, effective, isCatalog, mismatch: isCatalog && catalogCost !== stored };
+  });
+  const totalCwp = cw.reduce((s, c) => s + c.effective, 0);
   const skills = typeof data.skills === "string"
     ? data.skills
     : data.skills && typeof data.skills === "object"
@@ -95,16 +124,30 @@ export default function SheetDetail() {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
           <CardTitle className="font-display tracking-widest">
-            CYBERWARE ({cw.length}) · CWP: {data.cyberwarePointsSpent as number ?? cw.reduce((s, c) => s + (Number(c.points) || 0), 0)}/6
+            CYBERWARE ({cw.length}) · CWP:{" "}
+            <span className={totalCwp > 6 ? "text-destructive" : "text-nc-yellow"} data-testid="text-total-cwp">
+              {totalCwp}
+            </span>
+            /6
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
           {cw.length === 0 ? <p className="text-muted-foreground font-mono text-sm">None — fully organic.</p> :
             cw.map((c, i) => (
-              <div key={i} className="grid grid-cols-4 gap-2 border-b border-border/30 py-1 text-sm font-mono">
+              <div key={i} className="grid grid-cols-4 gap-2 border-b border-border/30 py-1 text-sm font-mono" data-testid={`row-cyberware-${i}`}>
                 <span className="text-nc-cyan">{c.slot}</span>
-                <span className="col-span-2">{c.name}</span>
-                <span className="text-nc-yellow">CWP {c.points}</span>
+                <span className="col-span-2">
+                  {c.name}
+                  {!c.isCatalog && <span className="ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">custom</span>}
+                </span>
+                <span className="text-nc-yellow" data-testid={`text-cwp-${i}`}>
+                  CWP {c.effective}
+                  {c.mismatch && (
+                    <span className="ml-2 text-[10px] text-destructive" title={`Sheet stored CWP ${c.stored}; catalog says ${c.effective}`} data-testid={`badge-cwp-mismatch-${i}`}>
+                      (sheet said {c.stored})
+                    </span>
+                  )}
+                </span>
               </div>
             ))}
         </CardContent>
