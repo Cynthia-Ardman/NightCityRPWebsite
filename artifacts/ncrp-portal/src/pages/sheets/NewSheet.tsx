@@ -15,6 +15,7 @@ import { useAuthMe } from "@/hooks/useAuthMe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import MarkdownEditor from "@/components/MarkdownEditor";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
@@ -417,7 +418,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           <Field label="Full Name"><Input data-testid="input-fullname" value={fullName} onChange={(e) => setFullName(e.target.value)} /></Field>
           <Field label="Nickname / Handle"><Input data-testid="input-nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} /></Field>
           <Field label="Pronouns"><Input data-testid="input-pronouns" value={pronouns} onChange={(e) => setPronouns(e.target.value)} /></Field>
-          <Field label="Occupation / Role"><Input data-testid="input-occupation" value={occupation} onChange={(e) => setOccupation(e.target.value)} /></Field>
           <Field label="Archetype"><Input data-testid="input-archetype" value={archetype} onChange={(e) => setArchetype(e.target.value)} /></Field>
           <Field label="Age"><Input data-testid="input-age" type="number" value={age} onChange={(e) => setAge(e.target.value)} /></Field>
           <Field label="Gender"><Input data-testid="input-gender" value={gender} onChange={(e) => setGender(e.target.value)} /></Field>
@@ -425,9 +425,16 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">OCCUPATION / ROLE</CardTitle></CardHeader>
+        <CardContent>
+          <MarkdownEditor testId="input-occupation" rows={2} value={occupation} onChange={setOccupation} placeholder="Fixer, solo, netrunner..." />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PHYSICAL DESCRIPTION</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <Field label="Build, Height, Distinguishing Features"><Textarea data-testid="input-physical" rows={3} value={physicalDescription} onChange={(e) => setPhysicalDescription(e.target.value)} /></Field>
+          <Field label="Build, Height, Distinguishing Features"><MarkdownEditor testId="input-physical" rows={3} value={physicalDescription} onChange={setPhysicalDescription} /></Field>
           <Field label="Style"><Textarea data-testid="input-appearance" rows={3} value={appearance} onChange={(e) => setAppearance(e.target.value)} /></Field>
         </CardContent>
       </Card>
@@ -435,14 +442,14 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PSYCHOLOGICAL PROFILE</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <Field label="Personality, Motivations, Fears"><Textarea data-testid="input-psych" rows={4} value={psychProfile} onChange={(e) => setPsychProfile(e.target.value)} /></Field>
+          <Field label="Personality, Motivations, Fears"><MarkdownEditor testId="input-psych" rows={4} value={psychProfile} onChange={setPsychProfile} /></Field>
         </CardContent>
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">BACKGROUND</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <Field label="Lifepath / Background"><Textarea data-testid="input-background" rows={5} value={background} onChange={(e) => setBackground(e.target.value)} /></Field>
+          <Field label="Lifepath / Background"><MarkdownEditor testId="input-background" rows={5} value={background} onChange={setBackground} /></Field>
         </CardContent>
       </Card>
 
@@ -450,7 +457,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardHeader><CardTitle className="font-display tracking-widest">SKILLS</CardTitle></CardHeader>
         <CardContent>
           <Field label="What is your character good at?">
-            <Textarea data-testid="input-skills" rows={4} value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Describe your character's skills and talents in your own words..." />
+            <MarkdownEditor testId="input-skills" rows={4} value={skills} onChange={setSkills} placeholder="Describe your character's skills and talents in your own words..." />
           </Field>
         </CardContent>
       </Card>

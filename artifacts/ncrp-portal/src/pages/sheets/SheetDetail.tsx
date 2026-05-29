@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import Markdown from "@/components/Markdown";
 import { useMemo, useState } from "react";
 
 export default function SheetDetail() {
@@ -81,6 +82,11 @@ export default function SheetDetail() {
     ? Object.entries(data.skills as Record<string, unknown>).map(([k, v]) => (v != null && v !== "" ? `${k} ${v}` : k)).join("\n")
     : "";
   const gear = (data.gear as string[]) ?? [];
+  const occupation = String(data.occupation ?? "");
+  const background = String(data.background ?? "");
+  const physicalDescription = String(data.physicalDescription ?? "");
+  const appearance = String(data.appearance ?? "");
+  const psychProfile = String(data.psychProfile ?? "");
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -108,20 +114,64 @@ export default function SheetDetail() {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PROFILE</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 text-sm font-mono">
-          {["fullName", "nickname", "archetype", "age", "gender", "occupation"].map((k) => (
+          {["fullName", "nickname", "archetype", "age", "gender"].map((k) => (
             <div key={k}><span className="text-muted-foreground uppercase tracking-widest">{k}: </span>{String(data[k] ?? "—")}</div>
           ))}
         </CardContent>
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">OCCUPATION / ROLE</CardTitle></CardHeader>
+        <CardContent>
+          {occupation.trim()
+            ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{occupation}</Markdown>
+            : <span className="font-mono text-sm text-muted-foreground">—</span>}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">PHYSICAL DESCRIPTION</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-1">Build, Height, Distinguishing Features</p>
+            {physicalDescription.trim()
+              ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{physicalDescription}</Markdown>
+              : <span className="font-mono text-sm text-muted-foreground">—</span>}
+          </div>
+          <div>
+            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-1">Style</p>
+            {appearance.trim()
+              ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{appearance}</Markdown>
+              : <span className="font-mono text-sm text-muted-foreground">—</span>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">PSYCHOLOGICAL PROFILE</CardTitle></CardHeader>
+        <CardContent>
+          {psychProfile.trim()
+            ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{psychProfile}</Markdown>
+            : <span className="font-mono text-sm text-muted-foreground">—</span>}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">BACKGROUND</CardTitle></CardHeader>
-        <CardContent className="whitespace-pre-wrap font-mono text-sm">{String(data.background ?? "—")}</CardContent>
+        <CardContent>
+          {background.trim()
+            ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{background}</Markdown>
+            : <span className="font-mono text-sm text-muted-foreground">—</span>}
+        </CardContent>
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">SKILLS</CardTitle></CardHeader>
-        <CardContent className="whitespace-pre-wrap font-mono text-sm">{skills || "—"}</CardContent>
+        <CardContent>
+          {skills.trim()
+            ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{skills}</Markdown>
+            : <span className="font-mono text-sm text-muted-foreground">—</span>}
+        </CardContent>
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
