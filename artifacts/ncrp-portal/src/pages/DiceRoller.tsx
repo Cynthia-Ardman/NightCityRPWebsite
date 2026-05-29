@@ -17,6 +17,51 @@ const diceSchema = z.object({
   label: z.string().optional(),
 });
 
+// Pure dice-rolling helper used for client-side unit tests. The portal itself
+// dispatches rolls through the API for auditability — this helper mirrors the
+// classic NdM(+K) expression grammar and is intentionally side-effect free so
+// the test suite can pin down its math with a deterministic RNG.
+//
+// Supported grammar (whitespace ignored):
+//   NdM           — roll N M-sided dice (N defaults to 1)
+//   NdM+K / NdM-K — same, plus a flat modifier
+//
+// Invalid expressions throw. Counts/sides are bounded to keep the helper
+// well-defined (matches the server limits in api-server/src/lib/dice.ts).
+export interface ClientRollResult {
+  expression: string;
+  rolls: number[];
+  modifier: number;
+  total: number;
+}
+
+const SIMPLE_DICE_RE = /^(\d+)?d(\d+)(?:\s*([+-])\s*(\d+))?$/i;
+
+export function rollExpression(
+  expression: string,
+  rng: () => number = Math.random,
+): ClientRollResult {
+  const m = expression.replace(/\s+/g, "").match(SIMPLE_DICE_RE);
+  if (!m) throw new Error("Invalid expression");
+  const count = m[1] ? parseInt(m[1], 10) : 1;
+  const sides = parseInt(m[2], 10);
+  if (!Number.isFinite(count) || !Number.isFinite(sides)) {
+    throw new Error("Invalid expression");
+  }
+  if (count < 1 || count > 100 || sides < 2 || sides > 1000) {
+    throw new Error("Dice out of bounds");
+  }
+  const rolls: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const r = rng();
+    if (!(r >= 0 && r < 1)) throw new Error("rng() must return [0, 1)");
+    rolls.push(1 + Math.floor(r * sides));
+  }
+  const modifier = m[4] ? parseInt(m[4], 10) * (m[3] === "-" ? -1 : 1) : 0;
+  const total = rolls.reduce((s, n) => s + n, 0) + modifier;
+  return { expression, rolls, modifier, total };
+}
+
 export default function DiceRoller() {
   const { data: history, isLoading } = useGetDiceHistory();
   const rollDice = useRollDice();

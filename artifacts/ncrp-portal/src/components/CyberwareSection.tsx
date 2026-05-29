@@ -69,7 +69,7 @@ type Item = { name: string; cwp: number | null; description: string | null };
 
 // Pull a "<n> CWP" / "<n> point(s)" cost out of an item line. Returns the
 // numeric cost (if any) and the remaining line text with that token removed.
-function extractCwp(raw: string): { cwp: number | null; remainder: string } {
+export function extractCwp(raw: string): { cwp: number | null; remainder: string } {
   // Match (2 CWP), [2 CWP], - 2 CWP, 2 CWP, 2 Points, 2 pts, etc.
   const patterns = [
     /[\s\-–—(\[]\s*(\d+(?:\.\d+)?)\s*(?:cwp|c\.w\.p\.?|points?|pts?\.?)\s*[)\]]?/i,
@@ -97,7 +97,7 @@ function splitNameDesc(line: string): { name: string; description: string | null
   return { name: line.trim().replace(/[.,;:]+$/, ""), description: null };
 }
 
-function parseItemLine(raw: string): Item | null {
+export function parseItemLine(raw: string): Item | null {
   // Strip bullet markers, leading dashes, list markers, surrounding emoji.
   let s = raw
     .replace(/^[\s>•·▪●◦*+\-–—]+/, "")
@@ -195,7 +195,7 @@ export function parseCyberwareBody(body: string): ParseResult {
   };
 }
 
-function totalCwp(parsed: ParseResult): number | null {
+export function totalCwp(parsed: ParseResult): number | null {
   let any = false;
   let sum = 0;
   for (const g of parsed.groups) {

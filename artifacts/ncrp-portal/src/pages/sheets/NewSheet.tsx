@@ -34,7 +34,7 @@ const CUSTOM_SLOT = "__custom__";
 
 // Turn whatever skills shape an older sheet stored (object of skill->rank, or a
 // plain string) into the free-text value the form now uses.
-function skillsToText(o: unknown): string {
+export function skillsToText(o: unknown): string {
   if (typeof o === "string") return o;
   if (o && typeof o === "object") {
     return Object.entries(o as Record<string, unknown>)
