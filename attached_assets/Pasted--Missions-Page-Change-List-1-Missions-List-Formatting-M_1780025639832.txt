@@ -1,0 +1,155 @@
+# Missions Page Change List
+
+## 1. Missions List Formatting
+
+### Make Mission Title More Prominent
+
+* Mission title should be much larger and more visually dominant.
+* The title should be the first thing users notice on each mission entry/card.
+
+**Acceptance criteria**
+
+* Mission title is large, bold, and easy to scan.
+* Title has stronger visual priority than metadata like status, date, fixer, or player list.
+
+---
+
+## 2. Mission Description Display
+
+### Do Not Cut Off Description
+
+* Mission descriptions should not be truncated/cut off.
+* If more vertical space is needed, expand the mission card/row downward.
+* Description should be readable without forcing the user to guess what the mission was.
+
+**Acceptance criteria**
+
+* Full mission description is visible.
+* Description wraps cleanly.
+* Card height expands as needed.
+* No important mission text is hidden behind ellipses or clipping.
+
+---
+
+## 3. Remove Total Payout
+
+* Remove “Total Payout” from the mission list/card display.
+* Payout information should not be shown in this list view unless needed somewhere else later.
+
+**Acceptance criteria**
+
+* Mission cards no longer show Total Payout.
+* Removing this does not break mission payment logic elsewhere.
+
+---
+
+## 4. Rename “Runners” to “Players”
+
+* Replace the word **Runners** with **Players** anywhere it appears on the Missions list.
+* This should apply to labels, headers, and display text.
+
+**Acceptance criteria**
+
+* Missions list uses “Players,” not “Runners.”
+* Player list still displays the same people as before.
+
+---
+
+## 5. Mission Status Values
+
+### Allowed Statuses
+
+Mission status should be limited to:
+
+* Pending
+* Completed
+* Completed and Paid
+* Canceled
+
+**Acceptance criteria**
+
+* Mission status only uses the four approved values.
+* Old/invalid statuses no longer appear.
+* Existing mission data should be mapped cleanly to the new statuses if needed.
+
+---
+
+## 6. Status Visual Styling
+
+### Big, Bold, Color-Coded Status Labels
+
+* Each mission status should display in large, bold text.
+* Each status should have a distinct color.
+
+**Suggested styling**
+
+* Pending: yellow/orange
+* Completed: blue or green
+* Completed and Paid: green
+* Canceled: red/gray
+
+**Acceptance criteria**
+
+* Status is easy to see at a glance.
+* Each status has a different visual color.
+* Status text is bold and prominent.
+* Styling is consistent across all mission cards.
+
+---
+
+## 7. Add Mission Date
+
+* Show the mission date on each mission entry/card.
+* Date should be visible in the list view.
+
+**Acceptance criteria**
+
+* Each mission displays its date.
+* Date format is readable and consistent.
+* Date does not crowd the title or description.
+
+---
+
+## 8. Add Clickable Fixer
+
+* Show the fixer for each mission.
+* The fixer name should be clickable.
+* Clicking the fixer should open that fixer’s relevant profile/user/character view, depending on how the app currently handles user links.
+
+**Acceptance criteria**
+
+* Each mission displays the assigned fixer.
+* Fixer name is clickable.
+* Click target opens the correct fixer/user detail page or panel.
+
+---
+
+## 9. Make Players Clickable
+
+* Each player listed on the mission should be clickable.
+* Clicking a player should open that player’s relevant profile/user/character view, depending on how the app currently handles user links.
+
+**Acceptance criteria**
+
+* Mission player names are clickable.
+* Each click opens the correct player/user/character detail page or panel.
+* Multiple players display cleanly without cluttering the card.
+
+---
+
+## 10. Suggested Mission Card Display Order
+
+Recommended order for each mission card:
+
+1. Mission title
+2. Status badge/label
+3. Full mission description
+4. Date
+5. Fixer
+6. Players
+
+**Acceptance criteria**
+
+* Mission cards are easier to read.
+* Title and description are prioritized.
+* Status, date, fixer, and players are still easy to find.
