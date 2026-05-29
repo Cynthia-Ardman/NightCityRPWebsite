@@ -54,6 +54,16 @@ const queryClient = new QueryClient({
   },
 });
 
+// The Character Archive is a fixer/admin management surface. The nav link is
+// already staff-gated, but a non-staff player could still reach it by typing
+// the URL — so guard the routes themselves and bounce them home.
+function StaffArchiveGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useAuthMe();
+  if (isLoading) return null;
+  if (!user || !(user.isFixer || user.isAdmin)) return <Redirect to="/" />;
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   const { isLoading } = useAuthMe();
 
@@ -89,8 +99,12 @@ function AppRoutes() {
           <Route path="/directory/stores/:id" component={DirectoryStoreDetail} />
           <Route path="/directory/ripperdocs" component={DirectoryRipperdocs} />
           <Route path="/directory/ripperdocs/:id" component={DirectoryRipperdocDetail} />
-          <Route path="/directory/characters" component={DirectoryCharacters} />
-          <Route path="/directory/characters/:id" component={DirectoryCharacterDetail} />
+          <Route path="/directory/characters">
+            <StaffArchiveGuard><DirectoryCharacters /></StaffArchiveGuard>
+          </Route>
+          <Route path="/directory/characters/:id">
+            <StaffArchiveGuard><DirectoryCharacterDetail /></StaffArchiveGuard>
+          </Route>
           <Route path="/catalog/guns" component={CatalogGuns} />
           <Route path="/catalog/cyberware" component={CatalogCyberware} />
           <Route path="/catalog/rent" component={CatalogRent} />

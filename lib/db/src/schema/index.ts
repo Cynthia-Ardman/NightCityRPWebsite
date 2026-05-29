@@ -76,6 +76,12 @@ export const characters = pgTable("characters", {
   // names at import time, e.g. ["Solo", "Active", "Edgerunner"]). Used for
   // archive filtering. Empty array for non-imported / pre-tagging chars.
   appliedTags: text("applied_tags").array().notNull().default([]),
+  // Staff-managed tags added through the Character Archive UI. Kept in a
+  // SEPARATE column from appliedTags (which the Discord importer overwrites
+  // on every re-sync) so a re-import can never silently wipe a tag a fixer
+  // added by hand. The archive UI shows/filters the UNION of the two arrays,
+  // so to the user they are one merged "Tags" list.
+  manualTags: text("manual_tags").array().notNull().default([]),
   discordChannelId: text("discord_channel_id"),
   // Player-visible life status. One of: active | dead | missing | loa |
   // retired. Defaults to 'active'; the importer/admin backfill maps

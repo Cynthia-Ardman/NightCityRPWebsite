@@ -25,3 +25,13 @@ actually the endpoint failing, not a real empty.
 - Whenever you touch an endpoint that filters by `myChars.map(c => c.id)`
   or similar, grep the file for `= ANY(\${` before shipping — these bugs
   are silent until a user has 2+ characters/rows.
+
+**Same trap with array overlap `&&`:** `sql\`${col} && ${jsArray}::text[]\``
+also spreads the JS array into N scalar params, so it 500s the moment the
+filter has 2+ values (single-value calls fail too — the lone element binds
+as text, not text[], → "malformed array literal"). This bit the directory
+tag filter (`/directory/characters`, `/directory/archive`) in prod. Use the
+typed `arrayOverlaps(col, jsArray)` helper from `drizzle-orm`. To overlap the
+UNION of two array columns, OR two helper calls:
+`or(arrayOverlaps(a.appliedTags, list), arrayOverlaps(a.manualTags, list))`
+— overlapping either column equals overlapping their concatenation.

@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, ilike, isNull, isNotNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, ilike, isNull, isNotNull, desc, asc, sql, arrayOverlaps } from "drizzle-orm";
+import { z } from "zod";
 import {
   db,
   ripperdocs,
@@ -7,6 +8,9 @@ import {
   ripperdocEmployees,
   storeEmployees,
   characters,
+  characterUpdates,
+  activityEvents,
+  auditLog,
   users,
   catalogGuns,
   catalogCyberware,
@@ -17,6 +21,65 @@ import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 
 const router: IRouter = Router();
+
+// ---- Tag helpers -----------------------------------------------------------
+// The archive presents ONE merged tag list, but storage is split:
+//   - appliedTags  : owned by the Discord importer (overwritten on re-sync)
+//   - manualTags   : owned by staff via the archive UI (never touched by import)
+// Display/filter = the case-insensitive union of the two, preserving the first
+// occurrence's casing (applied tags win the casing tie since they list first).
+function normalizeTag(s: string): string {
+  return s.trim().replace(/\s+/g, " ");
+}
+function mergeTags(applied: string[] | null, manual: string[] | null): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const t of [...(applied ?? []), ...(manual ?? [])]) {
+    const norm = normalizeTag(t);
+    if (norm.length === 0) continue;
+    const key = norm.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(norm);
+  }
+  return out;
+}
+// Split a desired merged tag set back into the two storage columns. Tags that
+// already exist on the Discord-synced list stay there (so we don't duplicate
+// them into manualTags); everything else becomes a manual tag. A tag the user
+// removed simply won't appear in `desired`, so it drops from whichever column
+// held it. NOTE: removing a Discord-origin tag here only suppresses it until
+// the next import re-derives appliedTags from the live thread.
+function splitDesiredTags(
+  desired: string[],
+  currentApplied: string[] | null,
+): { applied: string[]; manual: string[] } {
+  const desiredMerged = mergeTags(desired, []);
+  const appliedLower = new Set((currentApplied ?? []).map((t) => normalizeTag(t).toLowerCase()));
+  const applied: string[] = [];
+  const manual: string[] = [];
+  for (const t of desiredMerged) {
+    if (appliedLower.has(t.toLowerCase())) applied.push(t);
+    else manual.push(t);
+  }
+  return { applied, manual };
+}
+
+// ---- CWP / cyberware band helpers -----------------------------------------
+// The card shows a single "band": Organic, or the chrome load (None / Medium /
+// High / Extreme). Storage is two fields: isOrganic (a fully-meat character)
+// and cyberwareLevel. Organic wins — an organic character has no chrome band.
+type CwpBand = "organic" | "none" | "medium" | "high" | "extreme";
+const CWP_BANDS: readonly CwpBand[] = ["organic", "none", "medium", "high", "extreme"];
+function deriveCwpBand(isOrganic: boolean | null, cyberwareLevel: string | null): CwpBand {
+  if (isOrganic) return "organic";
+  const lvl = (cyberwareLevel ?? "none").toLowerCase();
+  return (CWP_BANDS as readonly string[]).includes(lvl) && lvl !== "organic" ? (lvl as CwpBand) : "none";
+}
+function bandToFields(band: CwpBand): { isOrganic: boolean; cyberwareLevel: string } {
+  if (band === "organic") return { isOrganic: true, cyberwareLevel: "none" };
+  return { isOrganic: false, cyberwareLevel: band };
+}
 
 // Character sheets contain IC backstory, contacts, and chrome loadouts that
 // players and staff have agreed should NOT be visible to the wider community.
@@ -90,12 +153,18 @@ router.get("/directory/characters", requireAuth, async (req, res): Promise<void>
   else if (scope === "npc") conds.push(eq(characters.kind, "npc"));
 
   if (tagList.length > 0) {
-    // Postgres array overlap: returns characters tagged with ANY of the
-    // requested tags. "Solo OR Netrunner" is a more useful filter than
-    // "Solo AND Netrunner" for a multi-faceted archive — players almost
-    // never want the intersection.
+    // Postgres array overlap on the UNION of applied + manual tags: returns
+    // characters tagged with ANY of the requested tags. "Solo OR Netrunner"
+    // is a more useful filter than the intersection for a multi-faceted
+    // archive — players almost never want "Solo AND Netrunner". Overlapping
+    // either column is equivalent to overlapping their union, and lets us use
+    // the typed arrayOverlaps helper (a raw `&& ${arr}::text[]` mis-binds the
+    // JS array — drizzle spreads it into N scalar params).
     conds.push(
-      sql`${characters.appliedTags} && ${tagList}::text[]` as unknown as ReturnType<typeof eq>,
+      or(
+        arrayOverlaps(characters.appliedTags, tagList),
+        arrayOverlaps(characters.manualTags, tagList),
+      ) as unknown as ReturnType<typeof eq>,
     );
   }
 
@@ -112,6 +181,7 @@ router.get("/directory/characters", requireAuth, async (req, res): Promise<void>
       legacyDiscordUsername: characters.legacyDiscordUsername,
       ownerName: users.username,
       appliedTags: characters.appliedTags,
+      manualTags: characters.manualTags,
     })
     .from(characters)
     .leftJoin(users, eq(users.id, characters.ownerId))
@@ -119,16 +189,18 @@ router.get("/directory/characters", requireAuth, async (req, res): Promise<void>
     .orderBy(desc(characters.createdAt))
     .limit(2000);
 
-  res.json(rows);
+  res.json(rows.map(({ manualTags, ...r }) => ({ ...r, tags: mergeTags(r.appliedTags, manualTags) })));
 });
 
 // Distinct tag names across the whole archive, so the filter UI can render
 // chips without each client having to derive the union from a 2000-row list.
+// Returns the merged set (Discord-applied ∪ staff-added) so a manually-added
+// tag becomes a filter chip immediately, even before any import re-sync.
 router.get("/directory/character-tags", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.execute<{ tag: string }>(
-    sql`SELECT DISTINCT unnest(applied_tags) AS tag
+    sql`SELECT DISTINCT unnest(applied_tags || manual_tags) AS tag
         FROM characters
-        WHERE array_length(applied_tags, 1) > 0
+        WHERE array_length(applied_tags || manual_tags, 1) > 0
         ORDER BY tag`,
   );
   res.json(rows.rows.map((r) => r.tag));
@@ -155,6 +227,8 @@ router.get("/directory/characters/:id", requireAuth, async (req, res): Promise<v
       lifeStatus: characters.lifeStatus,
       legacyDiscordUsername: characters.legacyDiscordUsername,
       importedFromChannelName: characters.importedFromChannelName,
+      appliedTags: characters.appliedTags,
+      manualTags: characters.manualTags,
       ownerId: characters.ownerId,
       ownerName: users.username,
       ownerAvatarUrl: users.avatarUrl,
@@ -173,8 +247,338 @@ router.get("/directory/characters/:id", requireAuth, async (req, res): Promise<v
     res.status(403).json({ error: "Character sheets are visible only to the owner, fixers, and admins" });
     return;
   }
-  const { ownerId: _ownerId, ...safe } = row;
-  res.json({ ...safe, background: cleanBackground(safe.background) });
+  const { ownerId: _ownerId, manualTags, ...safe } = row;
+  res.json({ ...safe, tags: mergeTags(safe.appliedTags, manualTags), background: cleanBackground(safe.background) });
+});
+
+// ======================= CHARACTER ARCHIVE (staff) =========================
+// The archive is the fixer/admin management surface. Unlike the shared
+// /directory/characters roster (which every authenticated player can hit for
+// recipient pickers), these endpoints are FIXER/ADMIN-only and expose the
+// fuller management projection (owner id, CWP band, merged tags) plus the
+// immediate-apply edit path.
+const staffOnly = requireAnyRole(["ADMIN", "FIXER"]);
+
+// Full archive roster — one row per character with everything the card needs.
+router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
+  const mode = req.query.mode === "content" ? "content" : "name";
+  const sort = req.query.sort === "name" ? "name" : "recent";
+  const tagsRaw = typeof req.query.tags === "string" ? req.query.tags : "";
+  const tagList = tagsRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+
+  const conds = [] as Array<ReturnType<typeof eq>>;
+  if (q.length > 0) {
+    const like = `%${q}%`;
+    const clauses = [
+      ilike(characters.name, like),
+      ilike(characters.legacyDiscordUsername, like),
+      ilike(users.username, like),
+      ilike(users.globalName, like),
+    ];
+    if (mode === "content") {
+      clauses.push(ilike(characters.background, like));
+      clauses.push(ilike(characters.archetype, like));
+      clauses.push(sql`${characters.sheetData}::text ILIKE ${like}` as unknown as ReturnType<typeof eq>);
+    }
+    conds.push(or(...clauses) as unknown as ReturnType<typeof eq>);
+  }
+  if (scope === "active") conds.push(eq(characters.archived, false));
+  else if (scope === "retired") conds.push(eq(characters.archived, true));
+  else if (scope === "claimed") conds.push(eq(characters.claimed, true));
+  else if (scope === "unclaimed") conds.push(eq(characters.claimed, false));
+  else if (scope === "pc") conds.push(eq(characters.kind, "pc"));
+  else if (scope === "npc") conds.push(eq(characters.kind, "npc"));
+  if (tagList.length > 0) {
+    conds.push(
+      or(
+        arrayOverlaps(characters.appliedTags, tagList),
+        arrayOverlaps(characters.manualTags, tagList),
+      ) as unknown as ReturnType<typeof eq>,
+    );
+  }
+
+  const rows = await db
+    .select({
+      id: characters.id,
+      name: characters.name,
+      kind: characters.kind,
+      archetype: characters.archetype,
+      portraitUrl: characters.portraitUrl,
+      claimed: characters.claimed,
+      archived: characters.archived,
+      lifeStatus: characters.lifeStatus,
+      isOrganic: characters.isOrganic,
+      cyberwareLevel: characters.cyberwareLevel,
+      legacyDiscordUsername: characters.legacyDiscordUsername,
+      importedFromChannelName: characters.importedFromChannelName,
+      ownerId: characters.ownerId,
+      ownerName: users.username,
+      ownerAvatarUrl: users.avatarUrl,
+      appliedTags: characters.appliedTags,
+      manualTags: characters.manualTags,
+      createdAt: characters.createdAt,
+    })
+    .from(characters)
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .orderBy(sort === "name" ? asc(characters.name) : desc(characters.createdAt))
+    .limit(2000);
+
+  res.json(
+    rows.map(({ appliedTags, manualTags, isOrganic, cyberwareLevel, ...r }) => ({
+      ...r,
+      tags: mergeTags(appliedTags, manualTags),
+      cwpBand: deriveCwpBand(isOrganic, cyberwareLevel),
+    })),
+  );
+});
+
+// Owner picker search — staff need to look up the internal user to (re)assign
+// ownership. Returns a small projection, capped, name/handle match only.
+router.get("/directory/archive/users", staffOnly, async (req, res): Promise<void> => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const like = `%${q}%`;
+  const rows = await db
+    .select({ id: users.id, username: users.username, globalName: users.globalName, avatarUrl: users.avatarUrl })
+    .from(users)
+    .where(q.length > 0 ? or(ilike(users.username, like), ilike(users.globalName, like)) : undefined)
+    .orderBy(asc(users.username))
+    .limit(25);
+  res.json(rows);
+});
+
+// Full editable detail for the archive editor. Staff-only, so unlike the
+// shared detail endpoint it DOES return ownerId + the CWP band + both tag
+// columns so the edit dialog can pre-fill every control.
+router.get("/directory/archive/:id", staffOnly, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [row] = await db
+    .select({
+      id: characters.id,
+      name: characters.name,
+      kind: characters.kind,
+      archetype: characters.archetype,
+      background: characters.background,
+      portraitUrl: characters.portraitUrl,
+      portraitUrls: characters.portraitUrls,
+      statsImageUrls: characters.statsImageUrls,
+      sheetData: characters.sheetData,
+      claimed: characters.claimed,
+      archived: characters.archived,
+      lifeStatus: characters.lifeStatus,
+      isOrganic: characters.isOrganic,
+      cyberwareLevel: characters.cyberwareLevel,
+      legacyDiscordUsername: characters.legacyDiscordUsername,
+      importedFromChannelName: characters.importedFromChannelName,
+      appliedTags: characters.appliedTags,
+      manualTags: characters.manualTags,
+      ownerId: characters.ownerId,
+      ownerName: users.username,
+      ownerAvatarUrl: users.avatarUrl,
+    })
+    .from(characters)
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .where(eq(characters.id, id));
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { isOrganic, cyberwareLevel, appliedTags, manualTags, ...rest } = row;
+  res.json({
+    ...rest,
+    background: cleanBackground(rest.background),
+    tags: mergeTags(appliedTags, manualTags),
+    cwpBand: deriveCwpBand(isOrganic, cyberwareLevel),
+  });
+});
+
+// Immediate-apply edit. Staff edits land on the character row directly (no
+// player review/voting flow), but EVERY edit requires a non-empty commit
+// message and writes both an audit_log entry (before/after) and a
+// character_updates changelog note so the change is traceable in the existing
+// admin audit view and on the character's own history.
+const ArchiveEditSchema = z
+  .object({
+    commitMessage: z.string().trim().min(1).max(2000),
+    name: z.string().trim().min(1).optional(),
+    archetype: z.string().nullable().optional(),
+    ownerId: z.string().nullable().optional(),
+    claimed: z.boolean().optional(),
+    kind: z.enum(["pc", "npc"]).optional(),
+    archived: z.boolean().optional(),
+    cwpBand: z.enum(["organic", "none", "medium", "high", "extreme"]).optional(),
+    tags: z.array(z.string()).optional(),
+    sheetData: z
+      .object({
+        preamble: z.string(),
+        sections: z.record(z.string(), z.string()),
+      })
+      .optional(),
+  })
+  .strict();
+
+router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = ArchiveEditSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid edit", details: parsed.error.issues });
+    return;
+  }
+  const { commitMessage, ...edit } = parsed.data;
+
+  const [cur] = await db.select().from(characters).where(eq(characters.id, id));
+  if (!cur) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const patch: Record<string, unknown> = {};
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+  const mark = (field: string, prev: unknown, next: unknown): void => {
+    if (JSON.stringify(prev) === JSON.stringify(next)) return;
+    before[field] = prev ?? null;
+    after[field] = next ?? null;
+  };
+
+  if (edit.name !== undefined) {
+    patch.name = edit.name;
+    mark("name", cur.name, edit.name);
+  }
+  if (edit.archetype !== undefined) {
+    const v = edit.archetype && edit.archetype.trim().length > 0 ? edit.archetype.trim() : null;
+    patch.archetype = v;
+    mark("archetype", cur.archetype, v);
+  }
+  if (edit.kind !== undefined) {
+    patch.kind = edit.kind;
+    mark("kind", cur.kind, edit.kind);
+  }
+  if (edit.archived !== undefined) {
+    patch.archived = edit.archived;
+    patch.archivedAt = edit.archived ? (cur.archivedAt ?? new Date()) : null;
+    mark("archived", cur.archived, edit.archived);
+  }
+  if (edit.sheetData !== undefined) {
+    patch.sheetData = edit.sheetData;
+    mark("sheetData", cur.sheetData, edit.sheetData);
+  }
+
+  // Owner (re)assignment. ownerId === null clears ownership AND marks
+  // unclaimed; a non-null ownerId must reference a real user and marks the
+  // character claimed unless `claimed` is explicitly overridden.
+  if (edit.ownerId !== undefined) {
+    if (edit.ownerId === null) {
+      patch.ownerId = null;
+      patch.claimed = edit.claimed ?? false;
+      mark("ownerId", cur.ownerId, null);
+    } else {
+      const [u] = await db.select().from(users).where(eq(users.id, edit.ownerId));
+      if (!u) {
+        res.status(404).json({ error: "Assigned user not found" });
+        return;
+      }
+      patch.ownerId = edit.ownerId;
+      patch.claimed = edit.claimed ?? true;
+      mark("ownerId", cur.ownerId, edit.ownerId);
+    }
+  }
+  if (edit.claimed !== undefined && patch.claimed === undefined) {
+    patch.claimed = edit.claimed;
+  }
+  if (patch.claimed !== undefined) mark("claimed", cur.claimed, patch.claimed);
+
+  // CWP band → the two underlying storage fields.
+  if (edit.cwpBand !== undefined) {
+    const { isOrganic, cyberwareLevel } = bandToFields(edit.cwpBand);
+    patch.isOrganic = isOrganic;
+    patch.cyberwareLevel = cyberwareLevel;
+    mark("cwpBand", deriveCwpBand(cur.isOrganic, cur.cyberwareLevel), edit.cwpBand);
+  }
+
+  // Tags: the client sends the FULL desired merged set; we split it back into
+  // the applied/manual columns so the manual column survives re-import.
+  if (edit.tags !== undefined) {
+    const { applied, manual } = splitDesiredTags(edit.tags, cur.appliedTags);
+    patch.appliedTags = applied;
+    patch.manualTags = manual;
+    mark("tags", mergeTags(cur.appliedTags, cur.manualTags), mergeTags(applied, manual));
+  }
+
+  if (Object.keys(after).length === 0) {
+    res.status(400).json({ error: "No changes" });
+    return;
+  }
+
+  // The character mutation, its audit_log entry, and the character_updates
+  // changelog note MUST land together: the spec requires every edit to be
+  // traceable. recordAudit() is deliberately fire-and-forget elsewhere, so we
+  // write the audit row inline within a transaction here — if any insert
+  // fails, the whole edit rolls back rather than silently applying without a
+  // trail.
+  const fwd = req.headers["x-forwarded-for"];
+  const ip = (Array.isArray(fwd) ? fwd[0] : (fwd?.toString().split(",")[0] ?? req.ip)) ?? null;
+  const ua = req.headers["user-agent"]?.toString().slice(0, 500) ?? null;
+
+  const updated = await db.transaction(async (tx) => {
+    const [u] = await tx.update(characters).set(patch).where(eq(characters.id, id)).returning();
+    await tx.insert(auditLog).values({
+      category: "character",
+      action: "archive_edit",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "character",
+      targetId: String(id),
+      message: commitMessage,
+      beforeJson: before as never,
+      afterJson: after as never,
+    });
+    await tx.insert(characterUpdates).values({
+      characterId: id,
+      authorId: req.user!.id,
+      note: commitMessage,
+    });
+    return u;
+  });
+
+  // Activity feed is non-critical social surface — never roll back a valid,
+  // fully-audited edit just because the feed insert hiccups.
+  try {
+    await db.insert(activityEvents).values({
+      kind: "character_archive_edit",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorAvatarUrl: req.user!.avatarUrl,
+      message: `${req.user!.username} edited ${updated.name}: ${commitMessage}`.slice(0, 500),
+    });
+  } catch (err) {
+    console.error("[archive] activity event insert failed", err);
+  }
+
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    kind: updated.kind,
+    archetype: updated.archetype,
+    claimed: updated.claimed,
+    archived: updated.archived,
+    ownerId: updated.ownerId,
+    cwpBand: deriveCwpBand(updated.isOrganic, updated.cyberwareLevel),
+    tags: mergeTags(updated.appliedTags, updated.manualTags),
+    changed: Object.keys(after),
+  });
 });
 
 router.get("/directory/ripperdocs", async (_req, res): Promise<void> => {

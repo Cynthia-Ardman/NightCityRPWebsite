@@ -1,14 +1,27 @@
+import { useState } from "react";
 import { useParams } from "wouter";
-import { useGetPublicCharacter } from "@workspace/api-client-react";
+import { useGetArchiveCharacter } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Pencil } from "lucide-react";
 import Markdown from "@/components/Markdown";
+import {
+  KindBadge,
+  LifecycleBadge,
+  ClaimBadge,
+  CwpBadge,
+  TagPill,
+  type CwpBand,
+} from "@/components/directory/CharacterBadges";
+import ArchiveEditDialog from "@/components/directory/ArchiveEditDialog";
 
 export default function DirectoryCharacterDetail() {
   const { id } = useParams();
   const charId = Number(id);
-  const { data: char, isLoading } = useGetPublicCharacter(charId);
+  const { data: char, isLoading } = useGetArchiveCharacter(charId);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (isLoading) return <div className="p-8 text-nc-cyan font-display text-xl animate-pulse">DECRYPTING_IDENTITY...</div>;
   if (!char) return <div className="p-8 text-destructive font-display text-xl">ERROR: IDENTITY_NOT_FOUND</div>;
@@ -36,17 +49,31 @@ export default function DirectoryCharacterDetail() {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 space-y-2">
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap justify-between">
             <h1 className="text-4xl md:text-5xl font-display font-bold text-foreground" data-testid="text-public-char-name">
               {char.name}
             </h1>
-            {char.archived && (
-              <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow font-mono text-xs">RETIRED</Badge>
-            )}
-            {!char.claimed && (
-              <Badge variant="outline" className="rounded-none border-nc-magenta text-nc-magenta font-mono text-xs">UNCLAIMED</Badge>
-            )}
+            <Button
+              onClick={() => setEditOpen(true)}
+              className="rounded-none font-display tracking-widest"
+              data-testid="button-open-edit"
+            >
+              <Pencil className="h-4 w-4 mr-1" /> Edit
+            </Button>
           </div>
+          <div className="flex flex-wrap gap-1">
+            <KindBadge kind={char.kind} />
+            <LifecycleBadge archived={char.archived} />
+            <ClaimBadge claimed={char.claimed} />
+            <CwpBadge band={char.cwpBand as CwpBand} />
+          </div>
+          {(char.tags ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {(char.tags ?? []).map((t) => (
+                <TagPill key={t} tag={t} />
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-4 text-sm font-mono uppercase tracking-widest text-muted-foreground">
             {char.archetype && (
               <div className="flex items-center gap-2">
@@ -96,6 +123,8 @@ export default function DirectoryCharacterDetail() {
 
       <Gallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
       <Gallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
+
+      <ArchiveEditDialog character={char} open={editOpen} onOpenChange={setEditOpen} />
     </div>
   );
 }

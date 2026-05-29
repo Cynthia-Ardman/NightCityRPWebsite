@@ -1556,6 +1556,77 @@ paths:
               schema: { $ref: "#/components/schemas/PublicCharacter" }
         "404": { description: Not found }
 
+  # ---------------- CHARACTER ARCHIVE (fixer/admin management) ----------------
+  /directory/archive:
+    get:
+      operationId: listArchiveCharacters
+      tags: [directory]
+      summary: "Staff-only archive roster with full management fields (FIXER/ADMIN)."
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
+        - { in: query, name: scope, schema: { type: string, enum: [all, active, retired, claimed, unclaimed, pc, npc] } }
+        - { in: query, name: tags, schema: { type: string }, description: "Comma-separated tag names; matches the union of applied + manual tags." }
+        - { in: query, name: mode, schema: { type: string, enum: [name, content] } }
+        - { in: query, name: sort, schema: { type: string, enum: [recent, name] } }
+      responses:
+        "200":
+          description: Archive roster
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ArchiveCharacterSummary" }
+        "403": { description: Forbidden }
+  /directory/archive/users:
+    get:
+      operationId: listArchiveUsers
+      tags: [directory]
+      summary: "Owner-picker user search for the archive editor (FIXER/ADMIN)."
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
+      responses:
+        "200":
+          description: Matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ArchiveUser" }
+        "403": { description: Forbidden }
+  /directory/archive/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getArchiveCharacter
+      tags: [directory]
+      summary: "Full editable character detail for the archive editor (FIXER/ADMIN)."
+      responses:
+        "200":
+          description: Character
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArchiveCharacter" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+    patch:
+      operationId: updateArchiveCharacter
+      tags: [directory]
+      summary: "Immediate-apply staff edit. Requires a non-empty commitMessage; audit-logged."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArchiveEditInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArchiveEditResult" }
+        "400": { description: Invalid edit or blank commit message }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+
   # ---------------- STORAGE ----------------
   /storage/uploads/request-url:
     post:
@@ -1971,6 +2042,7 @@ components:
         legacyDiscordUsername: { type: ["string", "null"] }
         ownerName: { type: ["string", "null"] }
         appliedTags: { type: array, items: { type: string }, description: "Discord forum tags applied to the source thread, resolved to display names." }
+        tags: { type: array, items: { type: string }, description: "Merged display tag list (Discord-applied ∪ staff-added)." }
         lifeStatus:
           type: string
           enum: [active, dead, missing, loa, retired]
@@ -1982,6 +2054,108 @@ components:
           properties:
             ownerName: { type: ["string", "null"] }
             ownerAvatarUrl: { type: ["string", "null"] }
+            tags: { type: array, items: { type: string }, description: "Merged display tag list (Discord-applied ∪ staff-added)." }
+
+    ArchiveCharacterSummary:
+      type: object
+      required: [id, name, kind, claimed, archived, cwpBand, tags]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        archetype: { type: ["string", "null"] }
+        portraitUrl: { type: ["string", "null"] }
+        claimed: { type: boolean }
+        archived: { type: boolean }
+        lifeStatus:
+          type: string
+          enum: [active, dead, missing, loa, retired]
+        cwpBand:
+          type: string
+          enum: [organic, none, medium, high, extreme]
+        legacyDiscordUsername: { type: ["string", "null"] }
+        importedFromChannelName: { type: ["string", "null"] }
+        ownerId: { type: ["string", "null"] }
+        ownerName: { type: ["string", "null"] }
+        ownerAvatarUrl: { type: ["string", "null"] }
+        appliedTags: { type: array, items: { type: string } }
+        tags: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+
+    ArchiveCharacter:
+      type: object
+      required: [id, name, kind, claimed, archived, cwpBand, tags]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        archetype: { type: ["string", "null"] }
+        background: { type: ["string", "null"] }
+        portraitUrl: { type: ["string", "null"] }
+        portraitUrls: { type: array, items: { type: string } }
+        statsImageUrls: { type: array, items: { type: string } }
+        sheetData: {}
+        claimed: { type: boolean }
+        archived: { type: boolean }
+        lifeStatus:
+          type: string
+          enum: [active, dead, missing, loa, retired]
+        cwpBand:
+          type: string
+          enum: [organic, none, medium, high, extreme]
+        legacyDiscordUsername: { type: ["string", "null"] }
+        importedFromChannelName: { type: ["string", "null"] }
+        appliedTags: { type: array, items: { type: string } }
+        tags: { type: array, items: { type: string } }
+        ownerId: { type: ["string", "null"] }
+        ownerName: { type: ["string", "null"] }
+        ownerAvatarUrl: { type: ["string", "null"] }
+
+    ArchiveUser:
+      type: object
+      required: [id, username]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        globalName: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+
+    ArchiveEditInput:
+      type: object
+      required: [commitMessage]
+      properties:
+        commitMessage: { type: string, minLength: 1, description: "Required non-empty rationale; written to the audit log and changelog." }
+        name: { type: string, minLength: 1 }
+        archetype: { type: ["string", "null"] }
+        ownerId: { type: ["string", "null"], description: "Internal users.id; null clears ownership (marks unclaimed)." }
+        claimed: { type: boolean }
+        kind: { type: string, enum: [pc, npc] }
+        archived: { type: boolean }
+        cwpBand: { type: string, enum: [organic, none, medium, high, extreme] }
+        tags: { type: array, items: { type: string }, description: "Full desired merged tag set." }
+        sheetData:
+          type: object
+          required: [preamble, sections]
+          properties:
+            preamble: { type: string }
+            sections: { type: object, additionalProperties: { type: string } }
+
+    ArchiveEditResult:
+      type: object
+      required: [id, name, changed]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        archetype: { type: ["string", "null"] }
+        claimed: { type: boolean }
+        archived: { type: boolean }
+        ownerId: { type: ["string", "null"] }
+        cwpBand:
+          type: string
+          enum: [organic, none, medium, high, extreme]
+        tags: { type: array, items: { type: string } }
+        changed: { type: array, items: { type: string } }
 
     AdminCharacterSummary:
       type: object

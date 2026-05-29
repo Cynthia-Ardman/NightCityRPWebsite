@@ -26,6 +26,11 @@ import type {
   AdminListAuditParams,
   AdminRecordCheckup200,
   AdminUser,
+  ArchiveCharacter,
+  ArchiveCharacterSummary,
+  ArchiveEditInput,
+  ArchiveEditResult,
+  ArchiveUser,
   AssignOwnerInput,
   AuditLogRow,
   BotConfigEntry,
@@ -77,6 +82,8 @@ import type {
   LifestyleTierInput,
   LifestyleTierPatch,
   ListAllMissionsParams,
+  ListArchiveCharactersParams,
+  ListArchiveUsersParams,
   ListHousingRequestsParams,
   ListMissionsParams,
   ListPublicCharactersParams,
@@ -7634,6 +7641,323 @@ export function useGetPublicCharacter<TData = Awaited<ReturnType<typeof getPubli
 
 
 
+
+export const getListArchiveCharactersUrl = (params?: ListArchiveCharactersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/directory/archive?${stringifiedParams}` : `/api/directory/archive`
+}
+
+/**
+ * @summary Staff-only archive roster with full management fields (FIXER/ADMIN).
+ */
+export const listArchiveCharacters = async (params?: ListArchiveCharactersParams, options?: RequestInit): Promise<ArchiveCharacterSummary[]> => {
+
+  return customFetch<ArchiveCharacterSummary[]>(getListArchiveCharactersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListArchiveCharactersQueryKey = (params?: ListArchiveCharactersParams,) => {
+    return [
+    `/api/directory/archive`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListArchiveCharactersQueryOptions = <TData = Awaited<ReturnType<typeof listArchiveCharacters>>, TError = ErrorType<void>>(params?: ListArchiveCharactersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArchiveCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListArchiveCharactersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listArchiveCharacters>>> = ({ signal }) => listArchiveCharacters(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listArchiveCharacters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListArchiveCharactersQueryResult = NonNullable<Awaited<ReturnType<typeof listArchiveCharacters>>>
+export type ListArchiveCharactersQueryError = ErrorType<void>
+
+
+/**
+ * @summary Staff-only archive roster with full management fields (FIXER/ADMIN).
+ */
+
+export function useListArchiveCharacters<TData = Awaited<ReturnType<typeof listArchiveCharacters>>, TError = ErrorType<void>>(
+ params?: ListArchiveCharactersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArchiveCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListArchiveCharactersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListArchiveUsersUrl = (params?: ListArchiveUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/directory/archive/users?${stringifiedParams}` : `/api/directory/archive/users`
+}
+
+/**
+ * @summary Owner-picker user search for the archive editor (FIXER/ADMIN).
+ */
+export const listArchiveUsers = async (params?: ListArchiveUsersParams, options?: RequestInit): Promise<ArchiveUser[]> => {
+
+  return customFetch<ArchiveUser[]>(getListArchiveUsersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListArchiveUsersQueryKey = (params?: ListArchiveUsersParams,) => {
+    return [
+    `/api/directory/archive/users`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListArchiveUsersQueryOptions = <TData = Awaited<ReturnType<typeof listArchiveUsers>>, TError = ErrorType<void>>(params?: ListArchiveUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArchiveUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListArchiveUsersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listArchiveUsers>>> = ({ signal }) => listArchiveUsers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listArchiveUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListArchiveUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listArchiveUsers>>>
+export type ListArchiveUsersQueryError = ErrorType<void>
+
+
+/**
+ * @summary Owner-picker user search for the archive editor (FIXER/ADMIN).
+ */
+
+export function useListArchiveUsers<TData = Awaited<ReturnType<typeof listArchiveUsers>>, TError = ErrorType<void>>(
+ params?: ListArchiveUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArchiveUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListArchiveUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetArchiveCharacterUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/archive/${id}`
+}
+
+/**
+ * @summary Full editable character detail for the archive editor (FIXER/ADMIN).
+ */
+export const getArchiveCharacter = async (id: number, options?: RequestInit): Promise<ArchiveCharacter> => {
+
+  return customFetch<ArchiveCharacter>(getGetArchiveCharacterUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetArchiveCharacterQueryKey = (id: number,) => {
+    return [
+    `/api/directory/archive/${id}`
+    ] as const;
+    }
+
+
+export const getGetArchiveCharacterQueryOptions = <TData = Awaited<ReturnType<typeof getArchiveCharacter>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArchiveCharacter>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetArchiveCharacterQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArchiveCharacter>>> = ({ signal }) => getArchiveCharacter(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getArchiveCharacter>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetArchiveCharacterQueryResult = NonNullable<Awaited<ReturnType<typeof getArchiveCharacter>>>
+export type GetArchiveCharacterQueryError = ErrorType<void>
+
+
+/**
+ * @summary Full editable character detail for the archive editor (FIXER/ADMIN).
+ */
+
+export function useGetArchiveCharacter<TData = Awaited<ReturnType<typeof getArchiveCharacter>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArchiveCharacter>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetArchiveCharacterQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateArchiveCharacterUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/archive/${id}`
+}
+
+/**
+ * @summary Immediate-apply staff edit. Requires a non-empty commitMessage; audit-logged.
+ */
+export const updateArchiveCharacter = async (id: number,
+    archiveEditInput: ArchiveEditInput, options?: RequestInit): Promise<ArchiveEditResult> => {
+
+  return customFetch<ArchiveEditResult>(getUpdateArchiveCharacterUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      archiveEditInput,)
+  }
+);}
+
+
+
+
+export const getUpdateArchiveCharacterMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateArchiveCharacter>>, TError,{id: number;data: BodyType<ArchiveEditInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateArchiveCharacter>>, TError,{id: number;data: BodyType<ArchiveEditInput>}, TContext> => {
+
+const mutationKey = ['updateArchiveCharacter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateArchiveCharacter>>, {id: number;data: BodyType<ArchiveEditInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateArchiveCharacter(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateArchiveCharacterMutationResult = NonNullable<Awaited<ReturnType<typeof updateArchiveCharacter>>>
+    export type UpdateArchiveCharacterMutationBody = BodyType<ArchiveEditInput>
+    export type UpdateArchiveCharacterMutationError = ErrorType<void>
+
+    /**
+ * @summary Immediate-apply staff edit. Requires a non-empty commitMessage; audit-logged.
+ */
+export const useUpdateArchiveCharacter = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateArchiveCharacter>>, TError,{id: number;data: BodyType<ArchiveEditInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateArchiveCharacter>>,
+        TError,
+        {id: number;data: BodyType<ArchiveEditInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateArchiveCharacterMutationOptions(options));
+    }
 
 export const getRequestUploadUrlUrl = () => {
 

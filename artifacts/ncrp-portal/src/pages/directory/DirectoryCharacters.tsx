@@ -1,27 +1,41 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import {
-  useListPublicCharacters,
+  useListArchiveCharacters,
   useListPublicCharacterTags,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import {
+  KindBadge,
+  LifecycleBadge,
+  ClaimBadge,
+  CwpBadge,
+  TagPill,
+  type CwpBand,
+} from "@/components/directory/CharacterBadges";
+import AddTagsDialog from "@/components/directory/AddTagsDialog";
 
-type Scope = "all" | "active" | "retired" | "unclaimed" | "pc" | "npc";
+type Scope = "all" | "active" | "retired" | "claimed" | "unclaimed" | "pc" | "npc";
 type Mode = "name" | "content";
+type Sort = "recent" | "name";
 
 export default function DirectoryCharacters() {
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("all");
   const [mode, setMode] = useState<Mode>("name");
+  const [sort, setSort] = useState<Sort>("recent");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [addTagsOpen, setAddTagsOpen] = useState(false);
 
   const { data: tagList } = useListPublicCharacterTags();
-  const { data, isLoading } = useListPublicCharacters({
+  const { data, isLoading } = useListArchiveCharacters({
     q: q || undefined,
     scope,
     mode,
+    sort,
     tags: selectedTags.length > 0 ? selectedTags.join(",") : undefined,
   });
 
@@ -32,18 +46,27 @@ export default function DirectoryCharacters() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      <div>
-        <h1 className="text-3xl md:text-4xl font-display text-nc-cyan tracking-widest">CHARACTER ARCHIVE</h1>
-        <p className="text-muted-foreground font-mono text-sm mt-1">
-          Sheets imported from the Discord forums. Includes retired and unclaimed identities.
-        </p>
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-display text-nc-cyan tracking-widest">CHARACTER ARCHIVE</h1>
+          <p className="text-muted-foreground font-mono text-sm mt-1">
+            Fixer / admin roster of every identity. Includes retired and unclaimed characters.
+          </p>
+        </div>
+        <Button
+          onClick={() => setAddTagsOpen(true)}
+          className="rounded-none font-display tracking-widest"
+          data-testid="button-open-add-tags"
+        >
+          <Plus className="h-4 w-4 mr-1" /> Add Tags
+        </Button>
       </div>
 
       <Card className="rounded-none border-border bg-card/50">
         <CardContent className="pt-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-            <div className="sm:col-span-6">
+            <div className="sm:col-span-5">
               <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
                 {mode === "content" ? "Search sheet contents" : "Filter by name"}
               </label>
@@ -55,7 +78,7 @@ export default function DirectoryCharacters() {
                 data-testid="input-search-characters"
               />
             </div>
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-4">
               <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
                 Search mode
               </label>
@@ -77,30 +100,53 @@ export default function DirectoryCharacters() {
                 ))}
               </div>
             </div>
-            <div className="sm:col-span-3 flex flex-wrap gap-2">
-              {(["all", "pc", "npc", "active", "retired", "unclaimed"] as Scope[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setScope(s)}
-                  className={`px-3 py-2 border font-display text-xs uppercase tracking-widest ${
-                    scope === s
-                      ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
-                      : "border-border text-muted-foreground hover:border-nc-cyan/40"
-                  }`}
-                  data-testid={`button-scope-${s}`}
-                >
-                  {s}
-                </button>
-              ))}
+            <div className="sm:col-span-3">
+              <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                Sort
+              </label>
+              <div className="flex gap-2 mt-1">
+                {(["recent", "name"] as Sort[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSort(s)}
+                    className={`flex-1 px-3 py-2 border font-display text-xs uppercase tracking-widest ${
+                      sort === s
+                        ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
+                        : "border-border text-muted-foreground hover:border-nc-cyan/40"
+                    }`}
+                    data-testid={`button-sort-${s}`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(["all", "pc", "npc", "active", "retired", "claimed", "unclaimed"] as Scope[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setScope(s)}
+                className={`px-3 py-2 border font-display text-xs uppercase tracking-widest ${
+                  scope === s
+                    ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
+                    : "border-border text-muted-foreground hover:border-nc-cyan/40"
+                }`}
+                data-testid={`button-scope-${s}`}
+              >
+                {s}
+              </button>
+            ))}
           </div>
 
           {tagList && tagList.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                  Discord tags {selectedTags.length > 0 && `(${selectedTags.length} selected)`}
+                  Tags {selectedTags.length > 0 && `(${selectedTags.length} selected)`}
                 </label>
                 {selectedTags.length > 0 && (
                   <button
@@ -147,55 +193,62 @@ export default function DirectoryCharacters() {
           <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
             {data.length} character{data.length === 1 ? "" : "s"}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="grid-public-characters">
+          <div className="flex flex-col gap-3" data-testid="grid-public-characters">
             {data.map((c) => (
               <Link
                 key={c.id}
                 href={`/directory/characters/${c.id}`}
-                className="border border-border bg-card/50 hover:border-nc-cyan transition p-3 flex gap-3"
+                className="border border-border bg-card/50 hover:border-nc-cyan transition p-4 flex gap-4"
                 data-testid={`row-public-character-${c.id}`}
               >
-                <div className="w-24 h-24 border border-border bg-background flex-shrink-0">
-                  {(c.portraitUrl || c.portraitUrls?.[0]) ? (
-                    <img src={c.portraitUrl || c.portraitUrls![0]} alt={c.name} className="w-full h-full object-cover" loading="lazy" />
+                <div className="w-20 h-20 border border-border bg-background flex-shrink-0">
+                  {c.portraitUrl ? (
+                    <img src={c.portraitUrl} alt={c.name} className="w-full h-full object-cover" loading="lazy" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-display text-nc-cyan/40 text-2xl">
                       {c.name.substring(0, 2).toUpperCase()}
                     </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-display text-foreground truncate">{c.name}</div>
-                  <div className="text-xs font-mono text-muted-foreground truncate">{c.archetype ?? "—"}</div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {c.archived && (
-                      <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow text-[10px] font-mono">RETIRED</Badge>
-                    )}
-                    {!c.claimed && (
-                      <Badge variant="outline" className="rounded-none border-nc-magenta text-nc-magenta text-[10px] font-mono">UNCLAIMED</Badge>
-                    )}
-                    {c.ownerName && (
-                      <Badge variant="outline" className="rounded-none border-nc-cyan/50 text-nc-cyan/70 text-[10px] font-mono">@{c.ownerName}</Badge>
-                    )}
-                    {!c.ownerName && c.legacyDiscordUsername && (
-                      <Badge variant="outline" className="rounded-none border-muted text-muted-foreground text-[10px] font-mono">legacy: {c.legacyDiscordUsername}</Badge>
-                    )}
-                    {(c.appliedTags ?? []).map((t) => (
-                      <Badge
-                        key={t}
-                        variant="outline"
-                        className="rounded-none border-nc-yellow/60 text-nc-yellow/80 text-[10px] font-mono"
-                      >
-                        {t}
-                      </Badge>
-                    ))}
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                    <div className="font-display text-lg text-foreground truncate" data-testid={`text-char-name-${c.id}`}>
+                      {c.name}
+                    </div>
+                    <div className="text-xs font-mono text-muted-foreground truncate">
+                      {c.ownerName ? (
+                        <>OWNER: <span className="text-nc-cyan">@{c.ownerName}</span></>
+                      ) : c.legacyDiscordUsername ? (
+                        <>LEGACY: <span className="text-muted-foreground">{c.legacyDiscordUsername}</span></>
+                      ) : (
+                        <span className="text-muted-foreground">NO OWNER</span>
+                      )}
+                    </div>
                   </div>
+                  <div className="text-xs font-mono text-muted-foreground truncate">
+                    {c.archetype ?? "—"}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <KindBadge kind={c.kind} />
+                    <LifecycleBadge archived={c.archived} />
+                    <ClaimBadge claimed={c.claimed} />
+                    <CwpBadge band={c.cwpBand as CwpBand} />
+                  </div>
+                  {(c.tags ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(c.tags ?? []).map((t) => (
+                        <TagPill key={t} tag={t} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Link>
             ))}
           </div>
         </>
       )}
+
+      <AddTagsDialog open={addTagsOpen} onOpenChange={setAddTagsOpen} allTags={tagList ?? []} />
     </div>
   );
 }

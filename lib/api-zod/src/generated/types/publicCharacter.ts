@@ -12,4 +12,6 @@ export type PublicCharacter = Character & ({
   ownerName?: string | null;
   /** @nullable */
   ownerAvatarUrl?: string | null;
+  /** Merged display tag list (Discord-applied ∪ staff-added). */
+  tags?: string[];
 });

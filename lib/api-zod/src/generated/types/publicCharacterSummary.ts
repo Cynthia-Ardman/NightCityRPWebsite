@@ -24,5 +24,7 @@ export interface PublicCharacterSummary {
   ownerName?: string | null;
   /** Discord forum tags applied to the source thread, resolved to display names. */
   appliedTags?: string[];
+  /** Merged display tag list (Discord-applied ∪ staff-added). */
+  tags?: string[];
   lifeStatus?: PublicCharacterSummaryLifeStatus;
 }

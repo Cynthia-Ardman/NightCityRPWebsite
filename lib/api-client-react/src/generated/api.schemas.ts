@@ -175,6 +175,8 @@ export interface PublicCharacterSummary {
   ownerName?: string | null;
   /** Discord forum tags applied to the source thread, resolved to display names. */
   appliedTags?: string[];
+  /** Merged display tag list (Discord-applied ∪ staff-added). */
+  tags?: string[];
   lifeStatus?: PublicCharacterSummaryLifeStatus;
 }
 
@@ -183,7 +185,196 @@ export type PublicCharacter = Character & ({
   ownerName?: string | null;
   /** @nullable */
   ownerAvatarUrl?: string | null;
+  /** Merged display tag list (Discord-applied ∪ staff-added). */
+  tags?: string[];
 });
+
+export type ArchiveCharacterSummaryLifeStatus = typeof ArchiveCharacterSummaryLifeStatus[keyof typeof ArchiveCharacterSummaryLifeStatus];
+
+
+export const ArchiveCharacterSummaryLifeStatus = {
+  active: 'active',
+  dead: 'dead',
+  missing: 'missing',
+  loa: 'loa',
+  retired: 'retired',
+} as const;
+
+export type ArchiveCharacterSummaryCwpBand = typeof ArchiveCharacterSummaryCwpBand[keyof typeof ArchiveCharacterSummaryCwpBand];
+
+
+export const ArchiveCharacterSummaryCwpBand = {
+  organic: 'organic',
+  none: 'none',
+  medium: 'medium',
+  high: 'high',
+  extreme: 'extreme',
+} as const;
+
+export interface ArchiveCharacterSummary {
+  id: number;
+  name: string;
+  kind: string;
+  /** @nullable */
+  archetype?: string | null;
+  /** @nullable */
+  portraitUrl?: string | null;
+  claimed: boolean;
+  archived: boolean;
+  lifeStatus?: ArchiveCharacterSummaryLifeStatus;
+  cwpBand: ArchiveCharacterSummaryCwpBand;
+  /** @nullable */
+  legacyDiscordUsername?: string | null;
+  /** @nullable */
+  importedFromChannelName?: string | null;
+  /** @nullable */
+  ownerId?: string | null;
+  /** @nullable */
+  ownerName?: string | null;
+  /** @nullable */
+  ownerAvatarUrl?: string | null;
+  appliedTags?: string[];
+  tags: string[];
+  createdAt?: string;
+}
+
+export type ArchiveCharacterLifeStatus = typeof ArchiveCharacterLifeStatus[keyof typeof ArchiveCharacterLifeStatus];
+
+
+export const ArchiveCharacterLifeStatus = {
+  active: 'active',
+  dead: 'dead',
+  missing: 'missing',
+  loa: 'loa',
+  retired: 'retired',
+} as const;
+
+export type ArchiveCharacterCwpBand = typeof ArchiveCharacterCwpBand[keyof typeof ArchiveCharacterCwpBand];
+
+
+export const ArchiveCharacterCwpBand = {
+  organic: 'organic',
+  none: 'none',
+  medium: 'medium',
+  high: 'high',
+  extreme: 'extreme',
+} as const;
+
+export interface ArchiveCharacter {
+  id: number;
+  name: string;
+  kind: string;
+  /** @nullable */
+  archetype?: string | null;
+  /** @nullable */
+  background?: string | null;
+  /** @nullable */
+  portraitUrl?: string | null;
+  portraitUrls?: string[];
+  statsImageUrls?: string[];
+  sheetData?: unknown;
+  claimed: boolean;
+  archived: boolean;
+  lifeStatus?: ArchiveCharacterLifeStatus;
+  cwpBand: ArchiveCharacterCwpBand;
+  /** @nullable */
+  legacyDiscordUsername?: string | null;
+  /** @nullable */
+  importedFromChannelName?: string | null;
+  appliedTags?: string[];
+  tags: string[];
+  /** @nullable */
+  ownerId?: string | null;
+  /** @nullable */
+  ownerName?: string | null;
+  /** @nullable */
+  ownerAvatarUrl?: string | null;
+}
+
+export interface ArchiveUser {
+  id: string;
+  username: string;
+  /** @nullable */
+  globalName?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+}
+
+export type ArchiveEditInputKind = typeof ArchiveEditInputKind[keyof typeof ArchiveEditInputKind];
+
+
+export const ArchiveEditInputKind = {
+  pc: 'pc',
+  npc: 'npc',
+} as const;
+
+export type ArchiveEditInputCwpBand = typeof ArchiveEditInputCwpBand[keyof typeof ArchiveEditInputCwpBand];
+
+
+export const ArchiveEditInputCwpBand = {
+  organic: 'organic',
+  none: 'none',
+  medium: 'medium',
+  high: 'high',
+  extreme: 'extreme',
+} as const;
+
+export type ArchiveEditInputSheetDataSections = {[key: string]: string};
+
+export type ArchiveEditInputSheetData = {
+  preamble: string;
+  sections: ArchiveEditInputSheetDataSections;
+};
+
+export interface ArchiveEditInput {
+  /**
+     * Required non-empty rationale; written to the audit log and changelog.
+     * @minLength 1
+     */
+  commitMessage: string;
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  archetype?: string | null;
+  /**
+     * Internal users.id; null clears ownership (marks unclaimed).
+     * @nullable
+     */
+  ownerId?: string | null;
+  claimed?: boolean;
+  kind?: ArchiveEditInputKind;
+  archived?: boolean;
+  cwpBand?: ArchiveEditInputCwpBand;
+  /** Full desired merged tag set. */
+  tags?: string[];
+  sheetData?: ArchiveEditInputSheetData;
+}
+
+export type ArchiveEditResultCwpBand = typeof ArchiveEditResultCwpBand[keyof typeof ArchiveEditResultCwpBand];
+
+
+export const ArchiveEditResultCwpBand = {
+  organic: 'organic',
+  none: 'none',
+  medium: 'medium',
+  high: 'high',
+  extreme: 'extreme',
+} as const;
+
+export interface ArchiveEditResult {
+  id: number;
+  name: string;
+  kind?: string;
+  /** @nullable */
+  archetype?: string | null;
+  claimed?: boolean;
+  archived?: boolean;
+  /** @nullable */
+  ownerId?: string | null;
+  cwpBand?: ArchiveEditResultCwpBand;
+  tags?: string[];
+  changed: string[];
+}
 
 export type AdminCharacterSummaryLifeStatus = typeof AdminCharacterSummaryLifeStatus[keyof typeof AdminCharacterSummaryLifeStatus];
 
@@ -1933,6 +2124,50 @@ export const ListPublicCharactersMode = {
   name: 'name',
   content: 'content',
 } as const;
+
+export type ListArchiveCharactersParams = {
+q?: string;
+scope?: ListArchiveCharactersScope;
+/**
+ * Comma-separated tag names; matches the union of applied + manual tags.
+ */
+tags?: string;
+mode?: ListArchiveCharactersMode;
+sort?: ListArchiveCharactersSort;
+};
+
+export type ListArchiveCharactersScope = typeof ListArchiveCharactersScope[keyof typeof ListArchiveCharactersScope];
+
+
+export const ListArchiveCharactersScope = {
+  all: 'all',
+  active: 'active',
+  retired: 'retired',
+  claimed: 'claimed',
+  unclaimed: 'unclaimed',
+  pc: 'pc',
+  npc: 'npc',
+} as const;
+
+export type ListArchiveCharactersMode = typeof ListArchiveCharactersMode[keyof typeof ListArchiveCharactersMode];
+
+
+export const ListArchiveCharactersMode = {
+  name: 'name',
+  content: 'content',
+} as const;
+
+export type ListArchiveCharactersSort = typeof ListArchiveCharactersSort[keyof typeof ListArchiveCharactersSort];
+
+
+export const ListArchiveCharactersSort = {
+  recent: 'recent',
+  name: 'name',
+} as const;
+
+export type ListArchiveUsersParams = {
+q?: string;
+};
 
 export type ListWholesalerItemsParams = {
 /**

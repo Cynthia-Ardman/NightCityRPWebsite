@@ -2710,6 +2710,7 @@ export const ListPublicCharactersResponseItem = zod.object({
   "legacyDiscordUsername": zod.string().nullish(),
   "ownerName": zod.string().nullish(),
   "appliedTags": zod.array(zod.string()).optional().describe('Discord forum tags applied to the source thread, resolved to display names.'),
+  "tags": zod.array(zod.string()).optional().describe('Merged display tag list (Discord-applied ∪ staff-added).'),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional()
 })
 export const ListPublicCharactersResponse = zod.array(ListPublicCharactersResponseItem)
@@ -2771,8 +2772,130 @@ export const GetPublicCharacterResponse = zod.object({
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "ownerName": zod.string().nullish(),
-  "ownerAvatarUrl": zod.string().nullish()
+  "ownerAvatarUrl": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged display tag list (Discord-applied ∪ staff-added).')
 }))
+
+
+/**
+ * @summary Staff-only archive roster with full management fields (FIXER/ADMIN).
+ */
+export const ListArchiveCharactersQueryParams = zod.object({
+  "q": zod.coerce.string().optional(),
+  "scope": zod.enum(['all', 'active', 'retired', 'claimed', 'unclaimed', 'pc', 'npc']).optional(),
+  "tags": zod.coerce.string().optional().describe('Comma-separated tag names; matches the union of applied + manual tags.'),
+  "mode": zod.enum(['name', 'content']).optional(),
+  "sort": zod.enum(['recent', 'name']).optional()
+})
+
+export const ListArchiveCharactersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "kind": zod.string(),
+  "archetype": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
+  "cwpBand": zod.enum(['organic', 'none', 'medium', 'high', 'extreme']),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
+  "ownerId": zod.string().nullish(),
+  "ownerName": zod.string().nullish(),
+  "ownerAvatarUrl": zod.string().nullish(),
+  "appliedTags": zod.array(zod.string()).optional(),
+  "tags": zod.array(zod.string()),
+  "createdAt": zod.coerce.date().optional()
+})
+export const ListArchiveCharactersResponse = zod.array(ListArchiveCharactersResponseItem)
+
+
+/**
+ * @summary Owner-picker user search for the archive editor (FIXER/ADMIN).
+ */
+export const ListArchiveUsersQueryParams = zod.object({
+  "q": zod.coerce.string().optional()
+})
+
+export const ListArchiveUsersResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+})
+export const ListArchiveUsersResponse = zod.array(ListArchiveUsersResponseItem)
+
+
+/**
+ * @summary Full editable character detail for the archive editor (FIXER/ADMIN).
+ */
+export const GetArchiveCharacterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetArchiveCharacterResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "kind": zod.string(),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()).optional(),
+  "statsImageUrls": zod.array(zod.string()).optional(),
+  "sheetData": zod.unknown().optional(),
+  "claimed": zod.boolean(),
+  "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
+  "cwpBand": zod.enum(['organic', 'none', 'medium', 'high', 'extreme']),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
+  "appliedTags": zod.array(zod.string()).optional(),
+  "tags": zod.array(zod.string()),
+  "ownerId": zod.string().nullish(),
+  "ownerName": zod.string().nullish(),
+  "ownerAvatarUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Immediate-apply staff edit. Requires a non-empty commitMessage; audit-logged.
+ */
+export const UpdateArchiveCharacterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateArchiveCharacterBody = zod.object({
+  "commitMessage": zod.string().min(1).describe('Required non-empty rationale; written to the audit log and changelog.'),
+  "name": zod.string().min(1).optional(),
+  "archetype": zod.string().nullish(),
+  "ownerId": zod.string().nullish().describe('Internal users.id; null clears ownership (marks unclaimed).'),
+  "claimed": zod.boolean().optional(),
+  "kind": zod.enum(['pc', 'npc']).optional(),
+  "archived": zod.boolean().optional(),
+  "cwpBand": zod.enum(['organic', 'none', 'medium', 'high', 'extreme']).optional(),
+  "tags": zod.array(zod.string()).optional().describe('Full desired merged tag set.'),
+  "sheetData": zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+}).optional()
+})
+
+export const UpdateArchiveCharacterResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "kind": zod.string().optional(),
+  "archetype": zod.string().nullish(),
+  "claimed": zod.boolean().optional(),
+  "archived": zod.boolean().optional(),
+  "ownerId": zod.string().nullish(),
+  "cwpBand": zod.enum(['organic', 'none', 'medium', 'high', 'extreme']).optional(),
+  "tags": zod.array(zod.string()).optional(),
+  "changed": zod.array(zod.string())
+})
 
 
 /**
