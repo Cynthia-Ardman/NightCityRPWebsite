@@ -1,397 +1,442 @@
-import { Router, type IRouter } from "express";
-import { and, eq, desc, inArray, sql } from "drizzle-orm";
+import { Router, type IRouter, type Request } from "express";
+import { eq, inArray } from "drizzle-orm";
 import {
   db,
-  missionLog,
+  missions,
+  missionAssignments,
   characters,
-  users,
+  botConfig,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
+import { getMissionContext, MISSION_CONFIG_KEYS } from "../lib/missionsConfig";
+import { recordAudit } from "../lib/audit";
+import {
+  listMissionSummaries,
+  listMyMissionSummaries,
+  getMissionDetail,
+  payMissionPlayers,
+  payMissionActors,
+  syncMissionDiscordEvent,
+  getActorReport,
+  getAttendanceReport,
+  isMissionStatus,
+  type MissionViewer,
+} from "../lib/missionsService";
 
 const router: IRouter = Router();
 
-// A "mission" in the UI sense is a group of mission_log rows sharing the
-// same fixer, title, and calendar day (occurredAt if set, otherwise
-// createdAt). That mirrors how fixers actually log them — one row per
-// participant typed into the form with the same title in the same sitting.
-// The composite ID we expose to the client is `${fixerId}:${title}:${date}`,
-// base64'd so it's URL-safe.
-//
-// We never collapse rows at the DB level — each row keeps its own
-// payoutEddies and characterId. The grouping is purely a presentation
-// concern that the API computes on read.
-
-type MissionRow = {
-  id: number;
-  characterId: number | null;
-  characterName: string | null;
-  characterPortraitUrl: string | null;
-  fixerId: string | null;
-  fixerName: string | null;
-  fixerAvatarUrl: string | null;
-  title: string;
-  summary: string | null;
-  payoutEddies: number;
-  status: string;
-  occurredAt: Date | null;
-  createdAt: Date;
-};
-
-// Extract the attendee Discord ID embedded in a [legacy-mission:<missionId>:<attendeeId>]
-// tag (stamped by the prod importer). Used to fall back to a Discord
-// username when characterId couldn't be resolved on a legacy row.
-function legacyAttendeeId(s: string | null): string | null {
-  if (!s) return null;
-  const m = s.match(/\[legacy-mission:[^:]+:([^\]]+)\]/);
-  return m ? m[1] : null;
+function viewerOf(req: Request): MissionViewer {
+  const u = req.user!;
+  return { id: u.id, isManager: hasRole(u.roles, "ADMIN") || hasRole(u.roles, "FIXER") };
 }
 
-// Strip internal anchors stamped by the prod importer ([legacy-mission:...]
-// and [legacy:...]). These were never meant to surface in the UI — they
-// exist only so the importer can detect previously-imported rows on rerun.
-function stripLegacyTags(s: string | null): string | null {
-  if (!s) return s;
-  const cleaned = s
-    .replace(/\[legacy-mission:[^\]]+\]/g, "")
-    .replace(/\[legacy(?:-[a-z]+)?:[^\]]+\]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return cleaned.length ? cleaned : null;
+function isManager(req: Request): boolean {
+  const roles = req.user?.roles ?? [];
+  return hasRole(roles, "ADMIN") || hasRole(roles, "FIXER");
 }
 
-function dayKey(d: Date | null | undefined, fallback: Date): string {
-  const dt = d ?? fallback;
-  // YYYY-MM-DD in UTC. Avoids local-timezone drift between API/UI.
-  return dt.toISOString().slice(0, 10);
+function parseTier(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 4 ? n : null;
 }
 
-function groupKey(r: MissionRow): string {
-  return `${r.fixerId ?? "_"}|${r.title}|${dayKey(r.occurredAt, r.createdAt)}`;
+function parseDate(v: unknown): Date | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
-function encodeGroupId(key: string): string {
-  return Buffer.from(key, "utf8").toString("base64url");
-}
-function decodeGroupId(id: string): string | null {
-  try {
-    const s = Buffer.from(id, "base64url").toString("utf8");
-    return s.includes("|") ? s : null;
-  } catch {
-    return null;
+// Resolve an assignment list to {userId, characterId} pairs, nulling any
+// character that isn't actually owned by the named player (the UI filters the
+// dropdown, but never trust the client).
+async function normalizeAssignments(
+  raw: unknown,
+): Promise<Array<{ userId: string; characterId: number | null }> | null> {
+  if (raw === undefined) return null;
+  if (!Array.isArray(raw)) return [];
+  // First pass: collect the explicit userId (if any) and characterId for each
+  // entry. An entry may carry a userId, a characterId, or both.
+  type Pending = { userId: string | null; characterId: number | null };
+  const pending: Pending[] = [];
+  const charIds = new Set<number>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const userIdRaw = (item as { userId?: unknown }).userId;
+    const userId = typeof userIdRaw === "string" && userIdRaw ? userIdRaw : null;
+    const cidRaw = (item as { characterId?: unknown }).characterId;
+    const cid = cidRaw == null ? null : Number(cidRaw);
+    const characterId = cid != null && Number.isInteger(cid) ? cid : null;
+    if (userId == null && characterId == null) continue;
+    if (characterId != null) charIds.add(characterId);
+    pending.push({ userId, characterId });
   }
-}
 
-const baseSelect = () =>
-  db
-    .select({
-      id: missionLog.id,
-      characterId: missionLog.characterId,
-      characterName: characters.name,
-      characterPortraitUrl: characters.portraitUrl,
-      fixerId: missionLog.fixerId,
-      fixerName: users.username,
-      fixerAvatarUrl: users.avatarUrl,
-      title: missionLog.title,
-      summary: missionLog.summary,
-      payoutEddies: missionLog.payoutEddies,
-      status: missionLog.status,
-      occurredAt: missionLog.occurredAt,
-      createdAt: missionLog.createdAt,
-    })
-    .from(missionLog)
-    .leftJoin(characters, eq(characters.id, missionLog.characterId))
-    .leftJoin(users, eq(users.id, missionLog.fixerId));
+  // Resolve character owners once so we can both (a) derive userId for entries
+  // that only supplied a characterId, and (b) null out characterIds whose
+  // owner doesn't match an explicitly-supplied userId.
+  const ownerById = new Map<number, string | null>();
+  if (charIds.size > 0) {
+    const owned = await db
+      .select({ id: characters.id, ownerId: characters.ownerId })
+      .from(characters)
+      .where(inArray(characters.id, [...charIds]));
+    for (const c of owned) ownerById.set(c.id, c.ownerId);
+  }
 
-type MissionGroupSummary = {
-  id: string;
-  title: string;
-  summary: string | null;
-  status: string;
-  occurredAt: string | null;
-  createdAt: string;
-  fixerId: string | null;
-  fixerName: string | null;
-  fixerAvatarUrl: string | null;
-  participantCount: number;
-  totalPayoutEddies: number;
-  // For "my missions" view: the entries that belong to the requesting
-  // player (or the single representative entry for global views).
-  myPayoutEddies: number | null;
-  myCharacters: Array<{
-    id: number;
-    name: string;
-    portraitUrl: string | null;
-    payoutEddies: number;
-  }>;
-  // Every resolved participating character in the group (deduped by id),
-  // regardless of who is asking. Powers the clickable "Players" list on
-  // the mission card. Legacy rows without a resolved characterId are still
-  // counted in participantCount but cannot be listed/linked here.
-  players: Array<{
-    characterId: number;
-    name: string;
-    portraitUrl: string | null;
-  }>;
-};
-
-function groupRows(rows: MissionRow[], mineCharacterIds: Set<number> | null): MissionGroupSummary[] {
-  const buckets = new Map<string, MissionRow[]>();
-  // Preserve discovery order so the most-recent group (rows are pre-sorted
-  // by createdAt desc) lands first.
-  const order: string[] = [];
-  for (const r of rows) {
-    const k = groupKey(r);
-    if (!buckets.has(k)) {
-      buckets.set(k, []);
-      order.push(k);
+  // Second pass: produce final assignments keyed by userId. Dedupe so the same
+  // player can't be inserted twice (the last character wins).
+  const byUser = new Map<string, number | null>();
+  for (const p of pending) {
+    let userId = p.userId;
+    let characterId = p.characterId;
+    if (userId == null && characterId != null) {
+      // Derive the owning player from the character.
+      userId = ownerById.get(characterId) ?? null;
+    } else if (userId != null && characterId != null && ownerById.get(characterId) !== userId) {
+      // Explicit userId/character mismatch: keep the player, drop the character.
+      characterId = null;
     }
-    buckets.get(k)!.push(r);
+    if (userId == null) continue; // unclaimed character with no explicit player
+    byUser.set(userId, characterId ?? byUser.get(userId) ?? null);
   }
-  return order.map((k) => {
-    const rs = buckets.get(k)!;
-    const head = rs[0];
-    const myRows = mineCharacterIds
-      ? rs.filter((r) => r.characterId != null && mineCharacterIds.has(r.characterId))
-      : [];
-    return {
-      id: encodeGroupId(k),
-      title: stripLegacyTags(head.title) ?? head.title,
-      summary: stripLegacyTags(head.summary),
-      status: head.status,
-      occurredAt: head.occurredAt ? head.occurredAt.toISOString() : null,
-      createdAt: head.createdAt.toISOString(),
-      fixerId: head.fixerId,
-      fixerName: head.fixerName,
-      fixerAvatarUrl: head.fixerAvatarUrl,
-      participantCount: countParticipants(rs),
-      totalPayoutEddies: rs.reduce((a, r) => a + (r.payoutEddies ?? 0), 0),
-      myPayoutEddies: mineCharacterIds
-        ? myRows.reduce((a, r) => a + (r.payoutEddies ?? 0), 0)
-        : null,
-      myCharacters: myRows
-        .filter((r) => r.characterId != null)
-        .map((r) => ({
-          id: r.characterId!,
-          name: r.characterName ?? "(unknown)",
-          portraitUrl: r.characterPortraitUrl,
-          payoutEddies: r.payoutEddies ?? 0,
-        })),
-      players: dedupePlayers(rs),
-    };
-  });
+  return [...byUser.entries()].map(([userId, characterId]) => ({ userId, characterId }));
 }
 
-// Count distinct participants in a group: resolved characters (by id) plus
-// legacy attendees that couldn't be resolved (by their embedded Discord id).
-// This keeps pure-legacy missions showing the "N players (legacy)" fallback
-// on the card even when none can be linked.
-function countParticipants(rs: MissionRow[]): number {
-  const resolved = new Set<number>();
-  const legacy = new Set<string>();
-  for (const r of rs) {
-    if (r.characterId != null) {
-      resolved.add(r.characterId);
+// Replace the full assignment set for a mission. Unpaid assignments no longer
+// in the set are deleted; paid/simulated ones are preserved (so we never erase
+// a payout record). Incoming assignments are inserted or have their character
+// updated without disturbing payment state.
+async function applyAssignments(
+  missionId: number,
+  desired: Array<{ userId: string; characterId: number | null }>,
+): Promise<void> {
+  const existing = await db
+    .select()
+    .from(missionAssignments)
+    .where(eq(missionAssignments.missionId, missionId));
+  const existingByUser = new Map(existing.map((a) => [a.userId, a]));
+  const desiredUserIds = new Set(desired.map((d) => d.userId));
+
+  // Delete unpaid assignments dropped from the set.
+  const toDelete = existing.filter((a) => !desiredUserIds.has(a.userId) && a.paymentStatus === "unpaid");
+  if (toDelete.length > 0) {
+    await db.delete(missionAssignments).where(inArray(missionAssignments.id, toDelete.map((a) => a.id)));
+  }
+
+  for (const d of desired) {
+    const cur = existingByUser.get(d.userId);
+    if (cur) {
+      if (cur.characterId !== d.characterId) {
+        await db.update(missionAssignments).set({ characterId: d.characterId }).where(eq(missionAssignments.id, cur.id));
+      }
     } else {
-      const lid = legacyAttendeeId(r.summary);
-      if (lid) legacy.add(lid);
+      await db.insert(missionAssignments).values({ missionId, userId: d.userId, characterId: d.characterId });
     }
   }
-  return resolved.size + legacy.size;
 }
 
-// Collect every resolved participating character in a group, deduped by id,
-// preserving first-seen order. Legacy rows with a null characterId are
-// dropped here (they're still reflected in participantCount).
-function dedupePlayers(rs: MissionRow[]): MissionGroupSummary["players"] {
-  const seen = new Set<number>();
-  const out: MissionGroupSummary["players"] = [];
-  for (const r of rs) {
-    if (r.characterId == null || seen.has(r.characterId)) continue;
-    seen.add(r.characterId);
-    out.push({
-      characterId: r.characterId,
-      name: r.characterName ?? "(unknown)",
-      portraitUrl: r.characterPortraitUrl,
-    });
-  }
-  return out;
-}
-
-// Player view: missions where ANY of my characters participated.
-router.get("/missions/mine", requireAuth, async (req, res): Promise<void> => {
-  // Find every character owned by the caller (claimed or transferred to
-  // them). We need the IDs both to filter the SQL and to mark "my" entries
-  // inside each group.
-  const myChars = await db
-    .select({ id: characters.id })
-    .from(characters)
-    .where(eq(characters.ownerId, req.user!.id));
-  const myCharIds = myChars.map((c) => c.id);
-  if (myCharIds.length === 0) {
-    res.json([]);
-    return;
-  }
-
-  // 1) Find the (title, fixerId, day) groups the player participated in.
-  //    We need this set because grouping only on the rows that involve the
-  //    player would hide the other participants — but we want them as
-  //    co-participants in the group summary.
-  const myRows = await baseSelect()
-    .where(inArray(missionLog.characterId, myCharIds))
-    .orderBy(desc(missionLog.createdAt))
-    .limit(500);
-  const keys = new Set<string>();
-  for (const r of myRows) keys.add(groupKey(r as MissionRow));
-  if (keys.size === 0) {
-    res.json([]);
-    return;
-  }
-
-  // 2) Re-query all rows for those groups so the summary's participant
-  //    count + totalPayout reflect the whole mission, not just the
-  //    player's slice.
-  const titles = [...new Set(myRows.map((r) => r.title))];
-  const fixerIds = [...new Set(myRows.map((r) => r.fixerId).filter((x): x is string => !!x))];
-  let allRowsForGroups: MissionRow[];
-  if (fixerIds.length > 0) {
-    allRowsForGroups = (await baseSelect()
-      .where(and(inArray(missionLog.title, titles), inArray(missionLog.fixerId, fixerIds)))
-      .orderBy(desc(missionLog.createdAt))) as MissionRow[];
-  } else {
-    allRowsForGroups = (await baseSelect()
-      .where(inArray(missionLog.title, titles))
-      .orderBy(desc(missionLog.createdAt))) as MissionRow[];
-  }
-  // Filter down to only the exact groups the player belongs to (the
-  // title+fixerId join above can over-fetch if a fixer reused a title for
-  // a different mission on a different day).
-  const filtered = allRowsForGroups.filter((r) => keys.has(groupKey(r)));
-
-  res.json(groupRows(filtered, new Set(myCharIds)));
+// ---------------- LIST / CREATE ----------------
+router.get("/missions", requireAuth, async (req, res): Promise<void> => {
+  const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  const limit = Math.min(1000, parseInt(String(req.query.limit ?? "200"), 10) || 200);
+  const rows = await listMissionSummaries({ viewer: viewerOf(req), status, limit });
+  res.json(rows);
 });
 
-// Fixer/admin view: every mission, with group summaries.
-router.get("/missions/all", requireAuth, async (req, res): Promise<void> => {
-  const me = req.user!;
-  if (!hasRole(me.roles, "FIXER") && !hasRole(me.roles, "ADMIN")) {
+router.post("/missions", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
     res.status(403).json({ error: "Fixer or admin role required" });
     return;
   }
-  const limit = Math.min(2000, parseInt(String(req.query.limit ?? "1000"), 10) || 1000);
-  const rows = (await baseSelect()
-    .orderBy(desc(missionLog.createdAt))
-    .limit(limit)) as MissionRow[];
-  res.json(groupRows(rows, null));
+  const b = req.body ?? {};
+  const title = typeof b.title === "string" ? b.title.trim() : "";
+  const tier = parseTier(b.tier);
+  if (!title) {
+    res.status(400).json({ error: "Title is required" });
+    return;
+  }
+  if (tier == null) {
+    res.status(400).json({ error: "Tier (1-4) is required" });
+    return;
+  }
+  const startAt = parseDate(b.startAt);
+  if (startAt === undefined && b.startAt !== undefined) {
+    res.status(400).json({ error: "Invalid start date" });
+    return;
+  }
+  const status = isMissionStatus(b.status) ? b.status : "open";
+  const ctx = await getMissionContext();
+
+  const [created] = await db
+    .insert(missions)
+    .values({
+      title,
+      tier,
+      playerPay: Number.isFinite(Number(b.playerPay)) ? Math.max(0, Math.trunc(Number(b.playerPay))) : 0,
+      location: typeof b.location === "string" ? b.location : null,
+      description: typeof b.description === "string" ? b.description : null,
+      imageUrl: typeof b.imageUrl === "string" && b.imageUrl ? b.imageUrl : null,
+      startAt: startAt ?? null,
+      durationMinutes: Number.isFinite(Number(b.durationMinutes)) ? Math.max(1, Math.trunc(Number(b.durationMinutes))) : 120,
+      slots: Number.isFinite(Number(b.slots)) ? Math.max(0, Math.trunc(Number(b.slots))) : 0,
+      status,
+      fixerId: req.user!.id,
+    })
+    .returning();
+
+  const assignments = await normalizeAssignments(b.assignments);
+  if (assignments) await applyAssignments(created.id, assignments);
+
+  // Discord sync (Test/Live gated). Persist event id / error without blocking.
+  const sync = await syncMissionDiscordEvent(created, ctx, created.imageUrl);
+  if (sync.discordEventId !== created.discordEventId || sync.discordSyncError !== created.discordSyncError) {
+    await db.update(missions).set(sync).where(eq(missions.id, created.id));
+  }
+
+  await recordAudit({
+    req,
+    category: "mission",
+    action: "mission.create",
+    targetType: "mission",
+    targetId: created.id,
+    message: `Created mission "${title}" (tier ${tier}, ${ctx.live ? "LIVE" : "TEST"})`,
+    after: { id: created.id, title, tier, status },
+  });
+
+  const detail = await getMissionDetail(created.id, viewerOf(req));
+  res.status(201).json(detail);
 });
 
-// Mission group detail: all participants + fixer + every entry.
-router.get("/missions/:id", requireAuth, async (req, res): Promise<void> => {
-  const key = decodeGroupId(String(req.params.id));
-  if (!key) {
-    res.status(400).json({ error: "Invalid mission id" });
-    return;
-  }
-  const [rawFixerId, ...titleAndDay] = key.split("|");
-  // Title may itself contain "|" — reassemble all but the last segment as
-  // the title; the last segment is always the YYYY-MM-DD day key.
-  const day = titleAndDay[titleAndDay.length - 1];
-  const title = titleAndDay.slice(0, -1).join("|");
-  if (!title || !day) {
-    res.status(400).json({ error: "Invalid mission id" });
-    return;
-  }
-  const fixerId = rawFixerId === "_" ? null : rawFixerId;
+// ---------------- SPECIFIC ROUTES (must precede /missions/:id) ----------------
+router.get("/missions/mine", requireAuth, async (req, res): Promise<void> => {
+  res.json(await listMyMissionSummaries(viewerOf(req)));
+});
 
-  // Fetch every row for (title, fixerId) and then filter by the day so we
-  // don't have to teach SQL the UTC date-truncation rule.
-  const candidates = (await baseSelect().where(
-    fixerId
-      ? and(eq(missionLog.title, title), eq(missionLog.fixerId, fixerId))
-      : eq(missionLog.title, title),
-  )) as MissionRow[];
-  const rows = candidates.filter(
-    (r) => dayKey(r.occurredAt, r.createdAt) === day && (fixerId == null || r.fixerId === fixerId),
-  );
-  if (rows.length === 0) {
+router.get("/missions/config", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const ctx = await getMissionContext();
+  res.json({
+    live: ctx.live,
+    bankingChannelId: ctx.bankingChannelId,
+    npcSpendingChannelId: ctx.npcSpendingChannelId,
+    defaultImageUrl: ctx.defaultImageUrl || null,
+    autopayDelayHours: Math.round((ctx.autopayDelayMs / 3_600_000) * 100) / 100,
+  });
+});
+
+router.put("/missions/config", requireAuth, async (req, res): Promise<void> => {
+  if (!hasRole(req.user!.roles, "ADMIN")) {
+    res.status(403).json({ error: "Admin role required" });
+    return;
+  }
+  const b = req.body ?? {};
+  const updates: Array<{ key: string; value: unknown }> = [];
+  if (typeof b.live === "boolean") updates.push({ key: MISSION_CONFIG_KEYS.liveMode, value: b.live });
+  if (typeof b.bankingChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.bankingChannel, value: b.bankingChannelId.trim() });
+  if (typeof b.npcSpendingChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.npcSpendingChannel, value: b.npcSpendingChannelId.trim() });
+  if (typeof b.defaultImageUrl === "string") updates.push({ key: MISSION_CONFIG_KEYS.defaultImage, value: b.defaultImageUrl.trim() });
+  if (Number.isFinite(Number(b.autopayDelayHours)) && Number(b.autopayDelayHours) > 0) {
+    updates.push({ key: MISSION_CONFIG_KEYS.autopayDelayHours, value: Number(b.autopayDelayHours) });
+  }
+  for (const u of updates) {
+    await db
+      .insert(botConfig)
+      .values({ key: u.key, value: u.value as never })
+      .onConflictDoUpdate({ target: botConfig.key, set: { value: u.value as never, updatedAt: new Date() } });
+  }
+  if (typeof b.live === "boolean") {
+    await recordAudit({
+      req,
+      category: "mission",
+      action: "mission.mode_change",
+      targetType: "config",
+      targetId: MISSION_CONFIG_KEYS.liveMode,
+      message: `Missions mode set to ${b.live ? "LIVE" : "TEST"}`,
+      after: { live: b.live },
+    });
+  }
+  const ctx = await getMissionContext();
+  res.json({
+    live: ctx.live,
+    bankingChannelId: ctx.bankingChannelId,
+    npcSpendingChannelId: ctx.npcSpendingChannelId,
+    defaultImageUrl: ctx.defaultImageUrl || null,
+    autopayDelayHours: Math.round((ctx.autopayDelayMs / 3_600_000) * 100) / 100,
+  });
+});
+
+router.get("/missions/actor-report", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const isAdmin = hasRole(req.user!.roles, "ADMIN");
+  const override = typeof req.query.fixerId === "string" ? req.query.fixerId : null;
+  // Admins may query any fixer (or all when fixerId omitted); fixers are
+  // locked to their own report.
+  const fixerId = isAdmin ? override : req.user!.id;
+  res.json(await getActorReport(fixerId));
+});
+
+router.get("/missions/attendance-report", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  res.json(await getAttendanceReport());
+});
+
+// ---------------- DETAIL / UPDATE ----------------
+router.get("/missions/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const detail = await getMissionDetail(id, viewerOf(req));
+  if (!detail) {
     res.status(404).json({ error: "Mission not found" });
     return;
   }
+  res.json(detail);
+});
 
-  // Authorization: this is a mission *log* (already happened), so we
-  // disclose to:
-  //   - The fixer who ran it
-  //   - Any character owner who participated
-  //   - Admins
-  // Other authenticated players don't get to read someone else's mission.
-  const me = req.user!;
-  const isStaff = hasRole(me.roles, "ADMIN") || hasRole(me.roles, "FIXER");
-  let isParticipantOwner = false;
-  if (!isStaff && rows.some((r) => r.characterId != null)) {
-    const charIds = rows.map((r) => r.characterId).filter((x): x is number => x != null);
-    const owners = await db
-      .select({ ownerId: characters.ownerId })
-      .from(characters)
-      .where(inArray(characters.id, charIds));
-    isParticipantOwner = owners.some((o) => o.ownerId === me.id);
-  }
-  const isFixerOnThisMission = fixerId === me.id;
-  if (!isStaff && !isParticipantOwner && !isFixerOnThisMission) {
-    res.status(403).json({ error: "You are not a participant on this mission" });
+router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
     return;
   }
-
-  // For any row whose characterId couldn't be resolved, fall back to the
-  // Discord username embedded in the legacy-mission tag so the player still
-  // appears with a real name instead of "(deleted character)".
-  const needFallback = rows
-    .filter((r) => r.characterId == null)
-    .map((r) => legacyAttendeeId(r.summary))
-    .filter((x): x is string => !!x);
-  const discordToName = new Map<string, { username: string; avatarUrl: string | null }>();
-  if (needFallback.length) {
-    const uniq = [...new Set(needFallback)];
-    const found = await db
-      .select({ discordId: users.discordId, username: users.username, avatarUrl: users.avatarUrl })
-      .from(users)
-      .where(inArray(users.discordId, uniq));
-    for (const u of found) discordToName.set(u.discordId, { username: u.username, avatarUrl: u.avatarUrl });
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const [before] = await db.select().from(missions).where(eq(missions.id, id));
+  if (!before) {
+    res.status(404).json({ error: "Mission not found" });
+    return;
+  }
+  const b = req.body ?? {};
+  const set: Record<string, unknown> = {};
+  if (typeof b.title === "string" && b.title.trim()) set.title = b.title.trim();
+  if (b.tier !== undefined) {
+    const tier = parseTier(b.tier);
+    if (tier == null) {
+      res.status(400).json({ error: "Tier must be 1-4" });
+      return;
+    }
+    set.tier = tier;
+  }
+  if (b.playerPay !== undefined) set.playerPay = Math.max(0, Math.trunc(Number(b.playerPay) || 0));
+  if (b.location !== undefined) set.location = typeof b.location === "string" ? b.location : null;
+  if (b.description !== undefined) set.description = typeof b.description === "string" ? b.description : null;
+  if (b.imageUrl !== undefined) set.imageUrl = typeof b.imageUrl === "string" && b.imageUrl ? b.imageUrl : null;
+  if (b.startAt !== undefined) {
+    const d = parseDate(b.startAt);
+    if (d === undefined) {
+      res.status(400).json({ error: "Invalid start date" });
+      return;
+    }
+    set.startAt = d;
+  }
+  if (b.durationMinutes !== undefined) set.durationMinutes = Math.max(1, Math.trunc(Number(b.durationMinutes) || 120));
+  if (b.slots !== undefined) set.slots = Math.max(0, Math.trunc(Number(b.slots) || 0));
+  if (b.status !== undefined) {
+    if (!isMissionStatus(b.status)) {
+      res.status(400).json({ error: "Invalid status" });
+      return;
+    }
+    set.status = b.status;
   }
 
-  const head = rows[0];
-  res.json({
-    id: encodeGroupId(key),
-    title: stripLegacyTags(head.title) ?? head.title,
-    summary: stripLegacyTags(head.summary),
-    status: head.status,
-    occurredAt: head.occurredAt ? head.occurredAt.toISOString() : null,
-    createdAt: head.createdAt.toISOString(),
-    fixerId: head.fixerId,
-    fixerName: head.fixerName,
-    fixerAvatarUrl: head.fixerAvatarUrl,
-    totalPayoutEddies: rows.reduce((a, r) => a + (r.payoutEddies ?? 0), 0),
-    participants: rows.map((r) => {
-      let charName = r.characterName;
-      let portrait = r.characterPortraitUrl;
-      if (!charName) {
-        const did = legacyAttendeeId(r.summary);
-        const fb = did ? discordToName.get(did) : null;
-        if (fb) {
-          charName = `@${fb.username}`;
-          portrait = portrait ?? fb.avatarUrl;
-        }
-      }
-      return {
-        entryId: r.id,
-        characterId: r.characterId,
-        characterName: charName,
-        characterPortraitUrl: portrait,
-        payoutEddies: r.payoutEddies ?? 0,
-        status: r.status,
-        summary: stripLegacyTags(r.summary),
-      };
-    }),
+  if (Object.keys(set).length > 0) {
+    await db.update(missions).set(set).where(eq(missions.id, id));
+  }
+  const assignments = await normalizeAssignments(b.assignments);
+  if (assignments) await applyAssignments(id, assignments);
+
+  // Re-read and re-sync the Discord event for the new state.
+  const [after] = await db.select().from(missions).where(eq(missions.id, id));
+  const ctx = await getMissionContext();
+  const sync = await syncMissionDiscordEvent(after, ctx, after.imageUrl);
+  if (sync.discordEventId !== after.discordEventId || sync.discordSyncError !== after.discordSyncError) {
+    await db.update(missions).set(sync).where(eq(missions.id, id));
+  }
+
+  const action =
+    set.status === "cancelled" && before.status !== "cancelled"
+      ? "mission.cancel"
+      : set.startAt !== undefined && before.startAt?.getTime() !== (set.startAt as Date | null)?.getTime()
+        ? "mission.reschedule"
+        : "mission.update";
+  await recordAudit({
+    req,
+    category: "mission",
+    action,
+    targetType: "mission",
+    targetId: id,
+    message: `${action} (${ctx.live ? "LIVE" : "TEST"})`,
+    before: { status: before.status, startAt: before.startAt, title: before.title, tier: before.tier, playerPay: before.playerPay },
+    after: { ...set },
   });
+
+  const detail = await getMissionDetail(id, viewerOf(req));
+  res.json(detail);
+});
+
+// ---------------- PAYMENTS ----------------
+router.post("/missions/:id/pay-players", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const result = await payMissionPlayers(id, { source: "manual", req });
+  if (result == null) {
+    res.status(404).json({ error: "Mission not found" });
+    return;
+  }
+  const detail = await getMissionDetail(id, viewerOf(req));
+  res.json(detail);
+});
+
+router.post("/missions/:id/pay-actors", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const b = req.body ?? {};
+  const userIds = Array.isArray(b.userIds) ? b.userIds.filter((x: unknown): x is string => typeof x === "string" && !!x) : [];
+  const amount = Math.trunc(Number(b.amount));
+  if (userIds.length === 0) {
+    res.status(400).json({ error: "Select at least one actor" });
+    return;
+  }
+  if (!Number.isFinite(amount) || amount < 0) {
+    res.status(400).json({ error: "Amount must be a non-negative number" });
+    return;
+  }
+  const result = await payMissionActors(id, userIds, amount, { req });
+  if (result == null) {
+    res.status(404).json({ error: "Mission not found" });
+    return;
+  }
+  const detail = await getMissionDetail(id, viewerOf(req));
+  res.json(detail);
 });
 
 export default router;

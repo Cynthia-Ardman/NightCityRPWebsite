@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, Users, FileText, Search, Briefcase } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase, BarChart3 } from "lucide-react";
 
 export default function FixerHub() {
   const qc = useQueryClient();
@@ -43,6 +43,7 @@ export default function FixerHub() {
         <div className="flex flex-wrap gap-2">
           <Link href="/directory/characters" className="px-3 py-2 border border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-archive"><FileText className="w-3 h-3" /> CHARACTER ARCHIVE</Link>
           <Link href="/fixer/missions" className="px-3 py-2 border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-missions"><Briefcase className="w-3 h-3" /> MISSION LOG</Link>
+          <Link href="/fixer/reports" className="px-3 py-2 border border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-reports"><BarChart3 className="w-3 h-3" /> MISSION REPORTS</Link>
           <Link href="/fixer/items" className="px-3 py-2 border border-nc-yellow text-nc-yellow hover:bg-nc-yellow hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-items"><Search className="w-3 h-3" /> INVENTORY SEARCH</Link>
         </div>
       </div>

@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type MissionGroupSummaryMyCharactersItem = {
-  id: number;
+export type MissionSummaryPlayersItem = {
+  characterId: number;
   name: string;
   /** @nullable */
   portraitUrl?: string | null;
-  payoutEddies: number;
+  /** @nullable */
+  userId?: string | null;
 };

@@ -21,6 +21,7 @@ import type {
 
 import type {
   ActivityEvent,
+  ActorReportRow,
   AdminCharacterSummary,
   AdminListAuditLogParams,
   AdminListAuditParams,
@@ -65,6 +66,7 @@ import type {
   FixerNpc,
   FixerNpcInput,
   FixerNpcUpdate,
+  GetActorReportParams,
   GetCharacterPendingEdit200,
   HealthStatus,
   HousingLease,
@@ -85,7 +87,6 @@ import type {
   LifestyleTier,
   LifestyleTierInput,
   LifestyleTierPatch,
-  ListAllMissionsParams,
   ListArchiveCharactersParams,
   ListArchiveUsersParams,
   ListHousingRequestsParams,
@@ -94,14 +95,18 @@ import type {
   ListWholesalerItemsParams,
   ListWholesalerOrdersParams,
   Me,
-  Mission,
+  MissionConfig,
+  MissionConfigUpdate,
+  MissionCreateInput,
   MissionDetail,
-  MissionGroupSummary,
-  MissionInput,
+  MissionSummary,
+  MissionUpdateInput,
+  PayActorsInput,
   PendingEditDetail,
   PendingEditSummary,
   PendingEditVoteInput,
   PendingEditVoteResult,
+  PlayerAttendanceRow,
   PublicCharacter,
   PublicCharacterSummary,
   ReactivateCharacter200,
@@ -4517,15 +4522,15 @@ export const getListMissionsUrl = (params?: ListMissionsParams,) => {
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/fixer/missions?${stringifiedParams}` : `/api/fixer/missions`
+  return stringifiedParams.length > 0 ? `/api/missions?${stringifiedParams}` : `/api/missions`
 }
 
 /**
- * @summary List recent missions (fixer view).
+ * @summary List missions (compact summaries).
  */
-export const listMissions = async (params?: ListMissionsParams, options?: RequestInit): Promise<Mission[]> => {
+export const listMissions = async (params?: ListMissionsParams, options?: RequestInit): Promise<MissionSummary[]> => {
 
-  return customFetch<Mission[]>(getListMissionsUrl(params),
+  return customFetch<MissionSummary[]>(getListMissionsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4540,7 +4545,7 @@ export const listMissions = async (params?: ListMissionsParams, options?: Reques
 
 export const getListMissionsQueryKey = (params?: ListMissionsParams,) => {
     return [
-    `/api/fixer/missions`, ...(params ? [params] : [])
+    `/api/missions`, ...(params ? [params] : [])
     ] as const;
     }
 
@@ -4568,7 +4573,7 @@ export type ListMissionsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List recent missions (fixer view).
+ * @summary List missions (compact summaries).
  */
 
 export function useListMissions<TData = Awaited<ReturnType<typeof listMissions>>, TError = ErrorType<unknown>>(
@@ -4594,18 +4599,21 @@ export const getCreateMissionUrl = () => {
 
 
 
-  return `/api/fixer/missions`
+  return `/api/missions`
 }
 
-export const createMission = async (missionInput: MissionInput, options?: RequestInit): Promise<Mission> => {
+/**
+ * @summary Create a mission. Fixer/admin only.
+ */
+export const createMission = async (missionCreateInput: MissionCreateInput, options?: RequestInit): Promise<MissionDetail> => {
 
-  return customFetch<Mission>(getCreateMissionUrl(),
+  return customFetch<MissionDetail>(getCreateMissionUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      missionInput,)
+      missionCreateInput,)
   }
 );}
 
@@ -4613,8 +4621,8 @@ export const createMission = async (missionInput: MissionInput, options?: Reques
 
 
 export const getCreateMissionMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionCreateInput>}, TContext> => {
 
 const mutationKey = ['createMission'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -4626,7 +4634,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMission>>, {data: BodyType<MissionInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMission>>, {data: BodyType<MissionCreateInput>}> = (props) => {
           const {data} = props ?? {};
 
           return  createMission(data,requestOptions)
@@ -4640,15 +4648,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CreateMissionMutationResult = NonNullable<Awaited<ReturnType<typeof createMission>>>
-    export type CreateMissionMutationBody = BodyType<MissionInput>
+    export type CreateMissionMutationBody = BodyType<MissionCreateInput>
     export type CreateMissionMutationError = ErrorType<void>
 
-    export const useCreateMission = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    /**
+ * @summary Create a mission. Fixer/admin only.
+ */
+export const useCreateMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMission>>, TError,{data: BodyType<MissionCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createMission>>,
         TError,
-        {data: BodyType<MissionInput>},
+        {data: BodyType<MissionCreateInput>},
         TContext
       > => {
       return useMutation(getCreateMissionMutationOptions(options));
@@ -4663,11 +4674,11 @@ export const getListMyMissionsUrl = () => {
 }
 
 /**
- * @summary Missions any of the caller's characters participated in.
+ * @summary Upcoming/active missions the caller is assigned to.
  */
-export const listMyMissions = async ( options?: RequestInit): Promise<MissionGroupSummary[]> => {
+export const listMyMissions = async ( options?: RequestInit): Promise<MissionSummary[]> => {
 
-  return customFetch<MissionGroupSummary[]>(getListMyMissionsUrl(),
+  return customFetch<MissionSummary[]>(getListMyMissionsUrl(),
   {
     ...options,
     method: 'GET'
@@ -4710,7 +4721,7 @@ export type ListMyMissionsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Missions any of the caller's characters participated in.
+ * @summary Upcoming/active missions the caller is assigned to.
  */
 
 export function useListMyMissions<TData = Awaited<ReturnType<typeof listMyMissions>>, TError = ErrorType<unknown>>(
@@ -4731,27 +4742,20 @@ export function useListMyMissions<TData = Awaited<ReturnType<typeof listMyMissio
 
 
 
-export const getListAllMissionsUrl = (params?: ListAllMissionsParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGetMissionConfigUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/missions/all?${stringifiedParams}` : `/api/missions/all`
+  return `/api/missions/config`
 }
 
 /**
- * @summary Every mission, grouped. Fixer/admin only.
+ * @summary Mission system config + Test/Live mode. Fixer/admin only.
  */
-export const listAllMissions = async (params?: ListAllMissionsParams, options?: RequestInit): Promise<MissionGroupSummary[]> => {
+export const getMissionConfig = async ( options?: RequestInit): Promise<MissionConfig> => {
 
-  return customFetch<MissionGroupSummary[]>(getListAllMissionsUrl(params),
+  return customFetch<MissionConfig>(getGetMissionConfigUrl(),
   {
     ...options,
     method: 'GET'
@@ -4764,45 +4768,45 @@ export const listAllMissions = async (params?: ListAllMissionsParams, options?: 
 
 
 
-export const getListAllMissionsQueryKey = (params?: ListAllMissionsParams,) => {
+export const getGetMissionConfigQueryKey = () => {
     return [
-    `/api/missions/all`, ...(params ? [params] : [])
+    `/api/missions/config`
     ] as const;
     }
 
 
-export const getListAllMissionsQueryOptions = <TData = Awaited<ReturnType<typeof listAllMissions>>, TError = ErrorType<void>>(params?: ListAllMissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAllMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetMissionConfigQueryOptions = <TData = Awaited<ReturnType<typeof getMissionConfig>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMissionConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListAllMissionsQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getGetMissionConfigQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAllMissions>>> = ({ signal }) => listAllMissions(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMissionConfig>>> = ({ signal }) => getMissionConfig({ signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAllMissions>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMissionConfig>>, TError, TData> & { queryKey: QueryKey }
 }
 
-export type ListAllMissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listAllMissions>>>
-export type ListAllMissionsQueryError = ErrorType<void>
+export type GetMissionConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getMissionConfig>>>
+export type GetMissionConfigQueryError = ErrorType<void>
 
 
 /**
- * @summary Every mission, grouped. Fixer/admin only.
+ * @summary Mission system config + Test/Live mode. Fixer/admin only.
  */
 
-export function useListAllMissions<TData = Awaited<ReturnType<typeof listAllMissions>>, TError = ErrorType<void>>(
- params?: ListAllMissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAllMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useGetMissionConfig<TData = Awaited<ReturnType<typeof getMissionConfig>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMissionConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListAllMissionsQueryOptions(params,options)
+  const queryOptions = getGetMissionConfigQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -4815,7 +4819,239 @@ export function useListAllMissions<TData = Awaited<ReturnType<typeof listAllMiss
 
 
 
-export const getGetMissionUrl = (id: string,) => {
+export const getUpdateMissionConfigUrl = () => {
+
+
+
+
+  return `/api/missions/config`
+}
+
+/**
+ * @summary Update mission config / flip Test↔Live mode. Admin only.
+ */
+export const updateMissionConfig = async (missionConfigUpdate: MissionConfigUpdate, options?: RequestInit): Promise<MissionConfig> => {
+
+  return customFetch<MissionConfig>(getUpdateMissionConfigUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      missionConfigUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateMissionConfigMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMissionConfig>>, TError,{data: BodyType<MissionConfigUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMissionConfig>>, TError,{data: BodyType<MissionConfigUpdate>}, TContext> => {
+
+const mutationKey = ['updateMissionConfig'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMissionConfig>>, {data: BodyType<MissionConfigUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMissionConfig(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMissionConfigMutationResult = NonNullable<Awaited<ReturnType<typeof updateMissionConfig>>>
+    export type UpdateMissionConfigMutationBody = BodyType<MissionConfigUpdate>
+    export type UpdateMissionConfigMutationError = ErrorType<void>
+
+    /**
+ * @summary Update mission config / flip Test↔Live mode. Admin only.
+ */
+export const useUpdateMissionConfig = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMissionConfig>>, TError,{data: BodyType<MissionConfigUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMissionConfig>>,
+        TError,
+        {data: BodyType<MissionConfigUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateMissionConfigMutationOptions(options));
+    }
+
+export const getGetActorReportUrl = (params?: GetActorReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/missions/actor-report?${stringifiedParams}` : `/api/missions/actor-report`
+}
+
+/**
+ * @summary Actors who acted (for the calling fixer, or all for admin).
+ */
+export const getActorReport = async (params?: GetActorReportParams, options?: RequestInit): Promise<ActorReportRow[]> => {
+
+  return customFetch<ActorReportRow[]>(getGetActorReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetActorReportQueryKey = (params?: GetActorReportParams,) => {
+    return [
+    `/api/missions/actor-report`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetActorReportQueryOptions = <TData = Awaited<ReturnType<typeof getActorReport>>, TError = ErrorType<void>>(params?: GetActorReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActorReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetActorReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getActorReport>>> = ({ signal }) => getActorReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getActorReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetActorReportQueryResult = NonNullable<Awaited<ReturnType<typeof getActorReport>>>
+export type GetActorReportQueryError = ErrorType<void>
+
+
+/**
+ * @summary Actors who acted (for the calling fixer, or all for admin).
+ */
+
+export function useGetActorReport<TData = Awaited<ReturnType<typeof getActorReport>>, TError = ErrorType<void>>(
+ params?: GetActorReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActorReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetActorReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetAttendanceReportUrl = () => {
+
+
+
+
+  return `/api/missions/attendance-report`
+}
+
+/**
+ * @summary Per-player mission attendance counts. Fixer/admin only.
+ */
+export const getAttendanceReport = async ( options?: RequestInit): Promise<PlayerAttendanceRow[]> => {
+
+  return customFetch<PlayerAttendanceRow[]>(getGetAttendanceReportUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAttendanceReportQueryKey = () => {
+    return [
+    `/api/missions/attendance-report`
+    ] as const;
+    }
+
+
+export const getGetAttendanceReportQueryOptions = <TData = Awaited<ReturnType<typeof getAttendanceReport>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAttendanceReportQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAttendanceReport>>> = ({ signal }) => getAttendanceReport({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAttendanceReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAttendanceReportQueryResult = NonNullable<Awaited<ReturnType<typeof getAttendanceReport>>>
+export type GetAttendanceReportQueryError = ErrorType<void>
+
+
+/**
+ * @summary Per-player mission attendance counts. Fixer/admin only.
+ */
+
+export function useGetAttendanceReport<TData = Awaited<ReturnType<typeof getAttendanceReport>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAttendanceReportQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetMissionUrl = (id: number,) => {
 
 
 
@@ -4824,9 +5060,9 @@ export const getGetMissionUrl = (id: string,) => {
 }
 
 /**
- * @summary Mission detail (all participants, fixer, payouts). Restricted to participants, the fixer, and admins.
+ * @summary Mission detail. Fixer-only fields populated for fixers/admins.
  */
-export const getMission = async (id: string, options?: RequestInit): Promise<MissionDetail> => {
+export const getMission = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
 
   return customFetch<MissionDetail>(getGetMissionUrl(id),
   {
@@ -4841,14 +5077,14 @@ export const getMission = async (id: string, options?: RequestInit): Promise<Mis
 
 
 
-export const getGetMissionQueryKey = (id: string,) => {
+export const getGetMissionQueryKey = (id: number,) => {
     return [
     `/api/missions/${id}`
     ] as const;
     }
 
 
-export const getGetMissionQueryOptions = <TData = Awaited<ReturnType<typeof getMission>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetMissionQueryOptions = <TData = Awaited<ReturnType<typeof getMission>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -4871,11 +5107,11 @@ export type GetMissionQueryError = ErrorType<void>
 
 
 /**
- * @summary Mission detail (all participants, fixer, payouts). Restricted to participants, the fixer, and admins.
+ * @summary Mission detail. Fixer-only fields populated for fixers/admins.
  */
 
 export function useGetMission<TData = Awaited<ReturnType<typeof getMission>>, TError = ErrorType<void>>(
- id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
@@ -4891,6 +5127,220 @@ export function useGetMission<TData = Awaited<ReturnType<typeof getMission>>, TE
 
 
 
+
+export const getUpdateMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}`
+}
+
+/**
+ * @summary Edit / reschedule / cancel / set status. Fixer/admin only.
+ */
+export const updateMission = async (id: number,
+    missionUpdateInput: MissionUpdateInput, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getUpdateMissionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      missionUpdateInput,)
+  }
+);}
+
+
+
+
+export const getUpdateMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMission>>, TError,{id: number;data: BodyType<MissionUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMission>>, TError,{id: number;data: BodyType<MissionUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMission>>, {id: number;data: BodyType<MissionUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateMission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMissionMutationResult = NonNullable<Awaited<ReturnType<typeof updateMission>>>
+    export type UpdateMissionMutationBody = BodyType<MissionUpdateInput>
+    export type UpdateMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit / reschedule / cancel / set status. Fixer/admin only.
+ */
+export const useUpdateMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMission>>, TError,{id: number;data: BodyType<MissionUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMission>>,
+        TError,
+        {id: number;data: BodyType<MissionUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateMissionMutationOptions(options));
+    }
+
+export const getPayMissionPlayersUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/pay-players`
+}
+
+/**
+ * @summary Manually pay assigned players for a completed mission. Fixer/admin only.
+ */
+export const payMissionPlayers = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getPayMissionPlayersUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getPayMissionPlayersMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payMissionPlayers>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof payMissionPlayers>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['payMissionPlayers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof payMissionPlayers>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  payMissionPlayers(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PayMissionPlayersMutationResult = NonNullable<Awaited<ReturnType<typeof payMissionPlayers>>>
+
+    export type PayMissionPlayersMutationError = ErrorType<void>
+
+    /**
+ * @summary Manually pay assigned players for a completed mission. Fixer/admin only.
+ */
+export const usePayMissionPlayers = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payMissionPlayers>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof payMissionPlayers>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getPayMissionPlayersMutationOptions(options));
+    }
+
+export const getPayMissionActorsUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/pay-actors`
+}
+
+/**
+ * @summary Pay actors (multi-select users + amount). Fixer/admin only.
+ */
+export const payMissionActors = async (id: number,
+    payActorsInput: PayActorsInput, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getPayMissionActorsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      payActorsInput,)
+  }
+);}
+
+
+
+
+export const getPayMissionActorsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payMissionActors>>, TError,{id: number;data: BodyType<PayActorsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof payMissionActors>>, TError,{id: number;data: BodyType<PayActorsInput>}, TContext> => {
+
+const mutationKey = ['payMissionActors'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof payMissionActors>>, {id: number;data: BodyType<PayActorsInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  payMissionActors(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PayMissionActorsMutationResult = NonNullable<Awaited<ReturnType<typeof payMissionActors>>>
+    export type PayMissionActorsMutationBody = BodyType<PayActorsInput>
+    export type PayMissionActorsMutationError = ErrorType<void>
+
+    /**
+ * @summary Pay actors (multi-select users + amount). Fixer/admin only.
+ */
+export const usePayMissionActors = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payMissionActors>>, TError,{id: number;data: BodyType<PayActorsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof payMissionActors>>,
+        TError,
+        {id: number;data: BodyType<PayActorsInput>},
+        TContext
+      > => {
+      return useMutation(getPayMissionActorsMutationOptions(options));
+    }
 
 export const getAdminListAuditUrl = (params?: AdminListAuditParams,) => {
   const normalizedParams = new URLSearchParams();

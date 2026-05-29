@@ -1313,142 +1313,449 @@ export const RemoveRipperdocEmployeeParams = zod.object({
 
 
 /**
- * @summary List recent missions (fixer view).
+ * @summary List missions (compact summaries).
  */
-export const listMissionsQueryLimitDefault = 100;
+export const listMissionsQueryLimitDefault = 200;
 
 export const ListMissionsQueryParams = zod.object({
-  "characterId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
   "limit": zod.coerce.number().default(listMissionsQueryLimitDefault)
 })
 
 export const ListMissionsResponseItem = zod.object({
   "id": zod.number(),
-  "characterId": zod.number().nullish(),
-  "characterName": zod.string().nullish(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "descriptionPreview": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "assignedCount": zod.number(),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
-  "title": zod.string(),
-  "summary": zod.string().nullish(),
-  "payoutEddies": zod.number(),
-  "status": zod.enum(['pending', 'completed', 'completed_and_paid', 'cancelled']),
-  "occurredAt": zod.coerce.date().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "myCharacterId": zod.number().nullish(),
+  "myCharacterName": zod.string().nullish(),
+  "myPaymentStatus": zod.string().nullish(),
+  "players": zod.array(zod.object({
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish(),
+  "userId": zod.string().nullish()
+})).describe('Assigned characters (deduped), each clickable.'),
   "createdAt": zod.coerce.date()
 })
 export const ListMissionsResponse = zod.array(ListMissionsResponseItem)
 
 
+/**
+ * @summary Create a mission. Fixer/admin only.
+ */
 
-export const createMissionBodyPayoutEddiesMin = 0;
+export const createMissionBodyPlayerPayDefault = 0;
+export const createMissionBodyPlayerPayMin = 0;
+
+export const createMissionBodyDurationMinutesDefault = 120;
+
+export const createMissionBodySlotsDefault = 0;
+export const createMissionBodySlotsMin = 0;
 
 
 
 export const CreateMissionBody = zod.object({
   "title": zod.string().min(1),
-  "characterId": zod.number().optional(),
-  "summary": zod.string().optional(),
-  "payoutEddies": zod.number().min(createMissionBodyPayoutEddiesMin).optional(),
-  "status": zod.enum(['pending', 'completed', 'completed_and_paid', 'cancelled']).optional(),
-  "occurredAt": zod.coerce.date().optional(),
-  "pay": zod.boolean().optional().describe('If true, also debit fixer and credit character via UnbelievaBoat.')
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "playerPay": zod.number().min(createMissionBodyPlayerPayMin).default(createMissionBodyPlayerPayDefault),
+  "location": zod.string().optional(),
+  "description": zod.string().optional(),
+  "imageUrl": zod.string().optional(),
+  "startAt": zod.coerce.date().optional(),
+  "durationMinutes": zod.number().min(1).default(createMissionBodyDurationMinutesDefault),
+  "slots": zod.number().min(createMissionBodySlotsMin).default(createMissionBodySlotsDefault),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']).optional(),
+  "assignments": zod.array(zod.object({
+  "userId": zod.string().optional(),
+  "characterId": zod.number().nullish()
+}).describe('Assign a player to a mission. Provide either userId (the player) or characterId; when only characterId is given the server derives the owning player. Entries that resolve to no player are skipped.')).optional()
 })
 
 
 /**
- * @summary Missions any of the caller's characters participated in.
+ * @summary Upcoming/active missions the caller is assigned to.
  */
 export const ListMyMissionsResponseItem = zod.object({
-  "id": zod.string().describe('Opaque group id; pass to GET \/missions\/{id}.'),
+  "id": zod.number(),
   "title": zod.string(),
-  "summary": zod.string().nullish(),
-  "status": zod.string(),
-  "occurredAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "descriptionPreview": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "assignedCount": zod.number(),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
-  "participantCount": zod.number(),
-  "totalPayoutEddies": zod.number(),
-  "myPayoutEddies": zod.number().nullish().describe('Total paid to the caller\'s characters on this mission. Null on global views.'),
-  "myCharacters": zod.array(zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "portraitUrl": zod.string().nullish(),
-  "payoutEddies": zod.number()
-})),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "myCharacterId": zod.number().nullish(),
+  "myCharacterName": zod.string().nullish(),
+  "myPaymentStatus": zod.string().nullish(),
   "players": zod.array(zod.object({
   "characterId": zod.number(),
   "name": zod.string(),
-  "portraitUrl": zod.string().nullish()
-})).describe('Every resolved participating character in the group (deduped).')
+  "portraitUrl": zod.string().nullish(),
+  "userId": zod.string().nullish()
+})).describe('Assigned characters (deduped), each clickable.'),
+  "createdAt": zod.coerce.date()
 })
 export const ListMyMissionsResponse = zod.array(ListMyMissionsResponseItem)
 
 
 /**
- * @summary Every mission, grouped. Fixer/admin only.
+ * @summary Mission system config + Test/Live mode. Fixer/admin only.
  */
-export const listAllMissionsQueryLimitDefault = 1000;
-
-export const ListAllMissionsQueryParams = zod.object({
-  "limit": zod.coerce.number().default(listAllMissionsQueryLimitDefault)
+export const GetMissionConfigResponse = zod.object({
+  "live": zod.boolean(),
+  "bankingChannelId": zod.string(),
+  "npcSpendingChannelId": zod.string(),
+  "defaultImageUrl": zod.string().nullish(),
+  "autopayDelayHours": zod.number()
 })
-
-export const ListAllMissionsResponseItem = zod.object({
-  "id": zod.string().describe('Opaque group id; pass to GET \/missions\/{id}.'),
-  "title": zod.string(),
-  "summary": zod.string().nullish(),
-  "status": zod.string(),
-  "occurredAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date(),
-  "fixerId": zod.string().nullish(),
-  "fixerName": zod.string().nullish(),
-  "fixerAvatarUrl": zod.string().nullish(),
-  "participantCount": zod.number(),
-  "totalPayoutEddies": zod.number(),
-  "myPayoutEddies": zod.number().nullish().describe('Total paid to the caller\'s characters on this mission. Null on global views.'),
-  "myCharacters": zod.array(zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "portraitUrl": zod.string().nullish(),
-  "payoutEddies": zod.number()
-})),
-  "players": zod.array(zod.object({
-  "characterId": zod.number(),
-  "name": zod.string(),
-  "portraitUrl": zod.string().nullish()
-})).describe('Every resolved participating character in the group (deduped).')
-})
-export const ListAllMissionsResponse = zod.array(ListAllMissionsResponseItem)
 
 
 /**
- * @summary Mission detail (all participants, fixer, payouts). Restricted to participants, the fixer, and admins.
+ * @summary Update mission config / flip Test↔Live mode. Admin only.
+ */
+export const UpdateMissionConfigBody = zod.object({
+  "live": zod.boolean().optional(),
+  "bankingChannelId": zod.string().optional(),
+  "npcSpendingChannelId": zod.string().optional(),
+  "defaultImageUrl": zod.string().optional(),
+  "autopayDelayHours": zod.number().optional()
+})
+
+export const UpdateMissionConfigResponse = zod.object({
+  "live": zod.boolean(),
+  "bankingChannelId": zod.string(),
+  "npcSpendingChannelId": zod.string(),
+  "defaultImageUrl": zod.string().nullish(),
+  "autopayDelayHours": zod.number()
+})
+
+
+/**
+ * @summary Actors who acted (for the calling fixer, or all for admin).
+ */
+export const GetActorReportQueryParams = zod.object({
+  "fixerId": zod.coerce.string().optional().describe('Admin override; defaults to the caller.')
+})
+
+export const GetActorReportResponseItem = zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "actCount": zod.number(),
+  "totalPaid": zod.number(),
+  "missions": zod.array(zod.object({
+  "missionId": zod.number(),
+  "missionName": zod.string().nullish(),
+  "missionDate": zod.coerce.date().nullish(),
+  "amount": zod.number()
+}))
+})
+export const GetActorReportResponse = zod.array(GetActorReportResponseItem)
+
+
+/**
+ * @summary Per-player mission attendance counts. Fixer/admin only.
+ */
+export const GetAttendanceReportResponseItem = zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "attendedCount": zod.number(),
+  "missions": zod.array(zod.object({
+  "missionId": zod.number(),
+  "missionName": zod.string().nullish(),
+  "missionDate": zod.coerce.date().nullish(),
+  "characterName": zod.string().nullish()
+}))
+})
+export const GetAttendanceReportResponse = zod.array(GetAttendanceReportResponseItem)
+
+
+/**
+ * @summary Mission detail. Fixer-only fields populated for fixers/admins.
  */
 export const GetMissionParams = zod.object({
-  "id": zod.coerce.string().describe('Opaque base64url group id from list responses.')
+  "id": zod.coerce.number()
 })
 
 export const GetMissionResponse = zod.object({
-  "id": zod.string(),
+  "id": zod.number(),
   "title": zod.string(),
-  "summary": zod.string().nullish(),
-  "status": zod.string(),
-  "occurredAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
-  "totalPayoutEddies": zod.number(),
-  "participants": zod.array(zod.object({
-  "entryId": zod.number(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "characterPortraitUrl": zod.string().nullish(),
-  "payoutEddies": zod.number(),
-  "status": zod.string(),
-  "summary": zod.string().nullish()
-}))
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Edit / reschedule / cancel / set status. Fixer/admin only.
+ */
+export const UpdateMissionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const updateMissionBodyPlayerPayMin = 0;
+
+
+export const updateMissionBodySlotsMin = 0;
+
+
+
+export const UpdateMissionBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]).optional(),
+  "playerPay": zod.number().min(updateMissionBodyPlayerPayMin).optional(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number().min(1).optional(),
+  "slots": zod.number().min(updateMissionBodySlotsMin).optional(),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']).optional(),
+  "assignments": zod.array(zod.object({
+  "userId": zod.string().optional(),
+  "characterId": zod.number().nullish()
+}).describe('Assign a player to a mission. Provide either userId (the player) or characterId; when only characterId is given the server derives the owning player. Entries that resolve to no player are skipped.')).optional().describe('If present, replaces the full assignment set.')
+})
+
+export const UpdateMissionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Manually pay assigned players for a completed mission. Fixer/admin only.
+ */
+export const PayMissionPlayersParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PayMissionPlayersResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Pay actors (multi-select users + amount). Fixer/admin only.
+ */
+export const PayMissionActorsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const payMissionActorsBodyAmountMin = 0;
+
+
+
+export const PayMissionActorsBody = zod.object({
+  "userIds": zod.array(zod.string()).min(1),
+  "amount": zod.number().min(payMissionActorsBodyAmountMin)
+})
+
+export const PayMissionActorsResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
 })
 
 

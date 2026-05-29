@@ -1,15 +1,20 @@
 import { describe, it, expect } from "vitest";
 import {
   MISSION_STATUSES,
+  MISSION_TIERS,
   missionStatusClass,
   missionStatusLabel,
+  missionTierClass,
+  missionTierLabel,
 } from "./missionStatus";
 
 describe("missionStatusLabel", () => {
   it("maps every known DB token to its human label", () => {
+    expect(missionStatusLabel("open")).toBe("Open");
     expect(missionStatusLabel("pending")).toBe("Pending");
     expect(missionStatusLabel("completed")).toBe("Completed");
-    expect(missionStatusLabel("completed_and_paid")).toBe("Completed and Paid");
+    expect(missionStatusLabel("completed_players_paid")).toBe("Players Paid");
+    expect(missionStatusLabel("completed_paid")).toBe("Fully Paid");
     expect(missionStatusLabel("cancelled")).toBe("Canceled");
   });
 
@@ -42,10 +47,11 @@ describe("missionStatusClass", () => {
     }
   });
 
-  it("colors pending yellow, completed cyan, paid green, cancelled destructive", () => {
+  it("colors open magenta, pending yellow, completed cyan, fully paid green, cancelled destructive", () => {
+    expect(missionStatusClass("open")).toContain("nc-magenta");
     expect(missionStatusClass("pending")).toContain("nc-yellow");
     expect(missionStatusClass("completed")).toContain("nc-cyan");
-    expect(missionStatusClass("completed_and_paid")).toContain("green");
+    expect(missionStatusClass("completed_paid")).toContain("green");
     expect(missionStatusClass("cancelled")).toContain("destructive");
   });
 
@@ -53,5 +59,20 @@ describe("missionStatusClass", () => {
     const cls = missionStatusClass("not_a_real_status");
     expect(cls).toContain("muted");
     expect(cls.trim().length).toBeGreaterThan(0);
+  });
+});
+
+describe("missionTierLabel / missionTierClass", () => {
+  it("labels every tier 1-4", () => {
+    expect(missionTierLabel(1)).toBe("Tier 1");
+    expect(missionTierLabel(4)).toBe("Tier 4");
+  });
+
+  it("returns a non-empty class for every tier", () => {
+    for (const t of MISSION_TIERS) {
+      const cls = missionTierClass(t);
+      expect(typeof cls).toBe("string");
+      expect(cls.trim().length).toBeGreaterThan(0);
+    }
   });
 });

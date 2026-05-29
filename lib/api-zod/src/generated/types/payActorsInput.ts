@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListAllMissionsParams = {
-limit?: number;
-};
+export interface PayActorsInput {
+  /** @minItems 1 */
+  userIds: string[];
+  /** @minimum 0 */
+  amount: number;
+}

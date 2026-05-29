@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useListHousingRequests, useApproveHousingRequest, useRejectHousingRequest, getListHousingRequestsQueryKey, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useListHousingRequests, useApproveHousingRequest, useRejectHousingRequest, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, getListHousingRequestsQueryKey, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -733,6 +733,59 @@ function WalletTab() {
 // Keep in sync with AUTOBILL_FLAGS in api-server/src/lib/jobs.ts.
 const HOUSING_AUTOBILL_KEY = "housing_autobill_enabled";
 const CYBERWARE_AUTOBILL_KEY = "cyberware_autobill_enabled";
+const MISSION_AUTOPAY_KEY = "mission_autopay_enabled";
+
+// Master Test/Live switch for the missions system. In Test mode every external
+// effect (Discord scheduled events, channel posts, UnbelievaBoat payouts) is
+// simulated and recorded but never actually sent.
+function MissionModeToggle() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: config, isLoading } = useGetMissionConfig();
+  const update = useUpdateMissionConfig({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetMissionConfigQueryKey() });
+        toast({ title: "Mission mode updated" });
+      },
+      onError: (err: any) =>
+        toast({ title: "Update failed", description: err.message, variant: "destructive" }),
+    },
+  });
+  const live = config?.live === true;
+  return (
+    <div
+      className={`flex items-center justify-between gap-4 border p-4 ${live ? "border-nc-magenta bg-nc-magenta/10" : "border-nc-yellow bg-nc-yellow/10"}`}
+      data-testid="mission-mode-toggle"
+    >
+      <div>
+        <div className="font-display text-base tracking-widest">
+          MISSIONS:{" "}
+          <span className={live ? "text-nc-magenta" : "text-nc-yellow"}>
+            {isLoading ? "…" : live ? "LIVE" : "TEST MODE"}
+          </span>
+        </div>
+        <div className="font-mono text-[11px] text-muted-foreground max-w-xl mt-1">
+          {live
+            ? "External effects are ACTIVE: Discord scheduled events, channel posts, and payouts are sent for real."
+            : "Test mode: all external effects (Discord events, channel posts, payouts) are simulated and recorded, never sent."}
+        </div>
+      </div>
+      <Button
+        size="sm"
+        disabled={isLoading || update.isPending}
+        onClick={() => {
+          if (!live && !confirm("Switch missions to LIVE? External effects will be sent for real.")) return;
+          update.mutate({ data: { live: !live } });
+        }}
+        className={`rounded-none font-display text-xs ${live ? "bg-nc-yellow text-background" : "bg-nc-magenta text-background"}`}
+        data-testid="button-mission-mode-toggle"
+      >
+        {live ? "SWITCH TO TEST" : "GO LIVE"}
+      </Button>
+    </div>
+  );
+}
 
 function AutobillSwitch({
   configKey,
@@ -811,6 +864,7 @@ function JobsTab() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
+        <MissionModeToggle />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <AutobillSwitch
             configKey={HOUSING_AUTOBILL_KEY}
@@ -827,6 +881,14 @@ function JobsTab() {
             rows={flagRows}
             pending={setFlag.isPending}
             onToggle={(next) => setFlag.mutate({ key: CYBERWARE_AUTOBILL_KEY, data: { value: next } })}
+          />
+          <AutobillSwitch
+            configKey={MISSION_AUTOPAY_KEY}
+            label="Mission Auto-Pay"
+            description="Gates the mission_autopay cron (auto player payout + attendance after the delay window). Every 15 min."
+            rows={flagRows}
+            pending={setFlag.isPending}
+            onToggle={(next) => setFlag.mutate({ key: MISSION_AUTOPAY_KEY, data: { value: next } })}
           />
         </div>
 

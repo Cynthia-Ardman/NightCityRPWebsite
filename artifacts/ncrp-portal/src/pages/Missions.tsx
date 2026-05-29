@@ -1,14 +1,19 @@
 import { Link } from "wouter";
 import {
   useListMyMissions,
-  useListAllMissions,
-  getListAllMissionsQueryKey,
-  type MissionGroupSummary,
+  useListMissions,
+  getListMissionsQueryKey,
+  type MissionSummary,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase, CalendarDays, User, Users } from "lucide-react";
-import { missionStatusClass, missionStatusLabel } from "@/lib/missionStatus";
+import { Briefcase, CalendarDays, MapPin, User, Users } from "lucide-react";
+import {
+  missionStatusClass,
+  missionStatusLabel,
+  missionTierClass,
+  missionTierLabel,
+} from "@/lib/missionStatus";
 
 export default function Missions() {
   const { data: me } = useAuthMe();
@@ -16,8 +21,8 @@ export default function Missions() {
   const isAdmin = !!me?.isAdmin;
 
   const mine = useListMyMissions();
-  const all = useListAllMissions(undefined, {
-    query: { enabled: isStaff, queryKey: getListAllMissionsQueryKey() },
+  const all = useListMissions(undefined, {
+    query: { enabled: isStaff, queryKey: getListMissionsQueryKey() },
   });
 
   return (
@@ -27,7 +32,7 @@ export default function Missions() {
           <Briefcase className="w-7 h-7" /> MISSIONS
         </h1>
         <p className="text-muted-foreground font-mono text-sm mt-1">
-          Jobs logged by fixers, with payouts to your characters.
+          Scheduled jobs run by fixers, with payouts to the players who show up.
         </p>
       </div>
 
@@ -52,7 +57,7 @@ export default function Missions() {
             <div className="font-mono text-nc-cyan animate-pulse">Loading...</div>
           ) : !all.data || all.data.length === 0 ? (
             <div className="font-mono text-muted-foreground italic">
-              No missions logged anywhere yet.
+              No missions scheduled anywhere yet.
             </div>
           ) : (
             <MissionCardList rows={all.data} isAdmin={isAdmin} />
@@ -63,7 +68,7 @@ export default function Missions() {
   );
 }
 
-function MissionCardList({ rows, isAdmin }: { rows: MissionGroupSummary[]; isAdmin: boolean }) {
+function MissionCardList({ rows, isAdmin }: { rows: MissionSummary[]; isAdmin: boolean }) {
   return (
     <div className="space-y-5">
       {rows.map((m) => (
@@ -73,8 +78,8 @@ function MissionCardList({ rows, isAdmin }: { rows: MissionGroupSummary[]; isAdm
   );
 }
 
-function MissionCard({ m, isAdmin }: { m: MissionGroupSummary; isAdmin: boolean }) {
-  const when = new Date(m.occurredAt ?? m.createdAt);
+function MissionCard({ m, isAdmin }: { m: MissionSummary; isAdmin: boolean }) {
+  const when = m.startAt ? new Date(m.startAt) : null;
   return (
     <Card
       className="rounded-none border-border bg-card/50 hover:border-nc-cyan/50 transition-colors"
@@ -87,8 +92,8 @@ function MissionCard({ m, isAdmin }: { m: MissionGroupSummary; isAdmin: boolean 
             {m.title}
           </CardTitle>
         </Link>
-        {/* 2. Big, bold, color-coded status */}
-        <div>
+        {/* 2. Big, bold, color-coded status + tier */}
+        <div className="flex flex-wrap items-center gap-2">
           <span
             className={`inline-block font-display font-bold tracking-widest text-sm md:text-base px-3 py-1 border rounded-none uppercase ${missionStatusClass(
               m.status,
@@ -97,30 +102,64 @@ function MissionCard({ m, isAdmin }: { m: MissionGroupSummary; isAdmin: boolean 
           >
             {missionStatusLabel(m.status)}
           </span>
+          <span
+            className={`inline-block font-display font-bold tracking-widest text-xs px-2 py-1 border rounded-none uppercase ${missionTierClass(
+              m.tier,
+            )}`}
+            data-testid={`tier-mission-${m.id}`}
+          >
+            {missionTierLabel(m.tier)}
+          </span>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 font-mono text-sm">
-        {/* 3. Full description, never truncated */}
-        {m.summary ? (
-          <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed">{m.summary}</p>
+        {/* 3. Description preview */}
+        {m.descriptionPreview ? (
+          <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed">{m.descriptionPreview}</p>
         ) : (
           <p className="text-muted-foreground italic">No description provided.</p>
         )}
 
-        {/* 4. Date */}
+        {/* 4. Schedule */}
         <div className="flex items-center gap-2 text-muted-foreground">
           <CalendarDays className="w-4 h-4 shrink-0" />
-          <span>{when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</span>
+          {when ? (
+            <span>
+              {when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}{" "}
+              {when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              {m.durationMinutes ? ` · ${m.durationMinutes} min` : ""}
+            </span>
+          ) : (
+            <span className="italic">Not scheduled</span>
+          )}
         </div>
 
-        {/* 5. Fixer (clickable for admins) */}
+        {/* 5. Location */}
+        {m.location && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <MapPin className="w-4 h-4 shrink-0" />
+            <span>{m.location}</span>
+          </div>
+        )}
+
+        {/* 6. Slots + player pay */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <Users className="w-4 h-4 shrink-0" />
+            {m.assignedCount}
+            {m.slots > 0 ? ` / ${m.slots}` : ""} players
+          </span>
+          <span className="text-nc-yellow">Player pay: €${m.playerPay.toLocaleString()}</span>
+        </div>
+
+        {/* 7. Fixer (clickable for admins) */}
         <div className="flex items-center gap-2">
           <User className="w-4 h-4 shrink-0 text-muted-foreground" />
           <span className="text-muted-foreground uppercase text-xs tracking-widest">Fixer:</span>
           <FixerLink fixerId={m.fixerId} fixerName={m.fixerName} isAdmin={isAdmin} />
         </div>
 
-        {/* 6. Players (clickable) */}
+        {/* 8. Players (clickable) */}
         <div className="flex items-start gap-2">
           <Users className="w-4 h-4 shrink-0 text-muted-foreground mt-0.5" />
           <span className="text-muted-foreground uppercase text-xs tracking-widest mt-0.5">Players:</span>
@@ -157,27 +196,20 @@ function FixerLink({
   return <span className="text-nc-magenta font-semibold">{fixerName}</span>;
 }
 
-function PlayerLinks({ m }: { m: MissionGroupSummary }) {
-  // Characters the caller owns get the rich owner page; everyone else routes to
-  // the directory profile (visible to owners, fixers, and admins).
-  const mineIds = new Set((m.myCharacters ?? []).map((c) => c.id));
+function PlayerLinks({ m }: { m: MissionSummary }) {
+  // The caller's own assigned character routes to the rich owner page; everyone
+  // else routes to the directory profile (visible to owners, fixers, admins).
   const players = m.players ?? [];
   if (players.length === 0) {
-    if (m.participantCount > 0) {
-      return (
-        <span className="text-muted-foreground italic">
-          {m.participantCount} player{m.participantCount === 1 ? "" : "s"} (legacy)
-        </span>
-      );
-    }
     return <span className="text-muted-foreground">—</span>;
   }
   return (
     <div className="flex flex-wrap gap-x-2 gap-y-1">
       {players.map((p, i) => {
-        const href = mineIds.has(p.characterId)
-          ? `/characters/${p.characterId}`
-          : `/directory/characters/${p.characterId}`;
+        const href =
+          m.myCharacterId === p.characterId
+            ? `/characters/${p.characterId}`
+            : `/directory/characters/${p.characterId}`;
         return (
           <span key={p.characterId} className="inline-flex items-center">
             <Link

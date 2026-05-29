@@ -5,23 +5,44 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
-import type { MissionDetailParticipantsItem } from './missionDetailParticipantsItem';
+import type { MissionActorPaymentView } from './missionActorPaymentView';
+import type { MissionAssignmentView } from './missionAssignmentView';
+import type { MissionDetailStatus } from './missionDetailStatus';
+import type { MissionDetailTier } from './missionDetailTier';
 
 export interface MissionDetail {
-  id: string;
+  id: number;
   title: string;
+  tier: MissionDetailTier;
+  status: MissionDetailStatus;
   /** @nullable */
-  summary?: string | null;
-  status: string;
+  startAt?: Date | null;
+  durationMinutes: number;
   /** @nullable */
-  occurredAt?: Date | null;
-  createdAt: Date;
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  playerPay: number;
+  slots: number;
   /** @nullable */
   fixerId?: string | null;
   /** @nullable */
   fixerName?: string | null;
   /** @nullable */
   fixerAvatarUrl?: string | null;
-  totalPayoutEddies: number;
-  participants: MissionDetailParticipantsItem[];
+  /** @nullable */
+  discordEventId?: string | null;
+  /** @nullable */
+  discordSyncError?: string | null;
+  /** True if caller is fixer/admin (sees Fixer tab + tools). */
+  canManage: boolean;
+  /** True = Live mode; false = Test mode (no real external effects). */
+  live: boolean;
+  assignments: MissionAssignmentView[];
+  actorPayments: MissionActorPaymentView[];
+  createdAt: Date;
+  /** @nullable */
+  updatedAt?: Date | null;
 }

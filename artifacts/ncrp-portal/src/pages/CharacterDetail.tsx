@@ -209,15 +209,15 @@ export default function CharacterDetail() {
 }
 
 function MissionsTab({ characterId }: { characterId: number }) {
-  // Reuse the player-scope mission feed; the detail page is owner-only
-  // so any mission this character ran is in /missions/mine. We filter
-  // groups down to ones that include this specific character.
+  // Reuse the player-scope mission feed; the detail page is owner-only so any
+  // mission this character was assigned to is in /missions/mine. We filter
+  // down to missions whose assigned players include this specific character.
   const { data, isLoading } = useListMyMissions();
-  const groups = (data ?? []).filter((g) =>
-    (g.myCharacters ?? []).some((mc) => mc.id === characterId),
+  const rows = (data ?? []).filter((m) =>
+    (m.players ?? []).some((p) => p.characterId === characterId),
   );
   if (isLoading) return <div className="font-mono text-nc-cyan animate-pulse">Loading missions...</div>;
-  if (groups.length === 0) {
+  if (rows.length === 0) {
     return (
       <Card className="rounded-none border-border bg-card/50">
         <CardContent className="py-8 font-mono text-muted-foreground italic text-center">
@@ -226,6 +226,10 @@ function MissionsTab({ characterId }: { characterId: number }) {
       </Card>
     );
   }
+  // Players are paid once the mission reaches a "players paid" or "fully paid"
+  // state; before that the payout is still pending.
+  const isPaid = (status: string) =>
+    status === "completed_players_paid" || status === "completed_paid";
   return (
     <Card className="rounded-none border-border bg-card/50">
       <CardHeader>
@@ -235,25 +239,23 @@ function MissionsTab({ characterId }: { characterId: number }) {
       </CardHeader>
       <CardContent>
         <ul className="space-y-2">
-          {groups.map((g) => {
-            const myEntry = (g.myCharacters ?? []).find((mc) => mc.id === characterId);
-            const payout = myEntry?.payoutEddies ?? 0;
-            const when = g.occurredAt ?? g.createdAt;
+          {rows.map((m) => {
+            const when = m.startAt ?? m.createdAt;
             return (
-              <li key={g.id} className="border border-border/40 bg-background/40 hover:bg-background/70 transition-colors">
-                <Link href={`/missions/${g.id}`}>
-                  <a className="grid grid-cols-12 gap-2 p-3 items-center text-sm font-mono" data-testid={`char-mission-${g.id}`}>
+              <li key={m.id} className="border border-border/40 bg-background/40 hover:bg-background/70 transition-colors">
+                <Link href={`/missions/${m.id}`}>
+                  <a className="grid grid-cols-12 gap-2 p-3 items-center text-sm font-mono" data-testid={`char-mission-${m.id}`}>
                     <span className="col-span-3 text-muted-foreground text-xs">
                       {new Date(when).toLocaleDateString()}
                     </span>
-                    <span className="col-span-6 text-foreground truncate" title={g.title}>{g.title}</span>
+                    <span className="col-span-6 text-foreground truncate" title={m.title}>{m.title}</span>
                     <span className="col-span-1 text-xs uppercase">
-                      <Badge variant="outline" className={`rounded-none text-[10px] ${missionStatusClass(g.status)}`}>
-                        {missionStatusLabel(g.status)}
+                      <Badge variant="outline" className={`rounded-none text-[10px] ${missionStatusClass(m.status)}`}>
+                        {missionStatusLabel(m.status)}
                       </Badge>
                     </span>
                     <span className="col-span-2 text-right text-nc-yellow">
-                      {payout > 0 ? `${payout.toLocaleString()} €$` : "—"}
+                      {m.playerPay > 0 ? `${m.playerPay.toLocaleString()} €$${isPaid(m.status) ? "" : " (pending)"}` : "—"}
                     </span>
                   </a>
                 </Link>

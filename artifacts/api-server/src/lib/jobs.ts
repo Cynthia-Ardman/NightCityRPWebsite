@@ -4,6 +4,7 @@ import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
+import { runMissionAutoPay } from "./missionsService";
 
 const EVICTION_CHANNEL_ID = process.env.EVICTION_CHANNEL_ID ?? "";
 const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
@@ -173,6 +174,7 @@ async function readTraumaCosts(): Promise<Record<string, number>> {
 export const AUTOBILL_FLAGS = {
   housing: "housing_autobill_enabled",
   cyberware: "cyberware_autobill_enabled",
+  missionAutopay: "mission_autopay_enabled",
 } as const;
 
 export async function isAutobillEnabled(key: string): Promise<boolean> {
@@ -188,7 +190,7 @@ export async function isAutobillEnabled(key: string): Promise<boolean> {
   }
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay";
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
   const [run] = await db.insert(jobRuns).values({ job: name, status: "running" }).returning();
@@ -684,6 +686,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         }
         affected++;
       }
+    } else if (name === "mission_autopay") {
+      // Pay out players for any scheduled mission whose run window (start +
+      // duration + the configured auto-pay delay) has elapsed and which
+      // hasn't already been auto-processed. All external effects inside
+      // payMissionPlayers are themselves gated by the Test/Live toggle, so
+      // running this cron in Test mode simulates + records without paying.
+      affected = await runMissionAutoPay();
     }
   } catch (err) {
     status = "failed";
@@ -724,6 +733,18 @@ export function startCron() {
     // window we want it to resolve cleanly even if autobill is paused.
     cron.schedule("30 4 * * *", () => {
       runJob("eviction_sweep").catch((err) => logger.error({ err }, "eviction_sweep cron"));
+    });
+    // Mission auto-pay sweep every 15 minutes: pays players once a scheduled
+    // mission's run window + auto-pay delay has elapsed. Gated on its own
+    // kill switch (default OFF) so freshly deployed environments never pay
+    // out automatically until an admin enables it. External effects are also
+    // gated by the Test/Live toggle inside the job itself.
+    cron.schedule("*/15 * * * *", async () => {
+      if (!(await isAutobillEnabled(AUTOBILL_FLAGS.missionAutopay))) {
+        logger.info({ flag: AUTOBILL_FLAGS.missionAutopay }, "mission_autopay cron skipped (kill switch off)");
+        return;
+      }
+      runJob("mission_autopay").catch((err) => logger.error({ err }, "mission_autopay cron"));
     });
     logger.info("Cron jobs scheduled");
   });

@@ -6,9 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type MissionGroupSummaryPlayersItem = {
-  characterId: number;
-  name: string;
-  /** @nullable */
-  portraitUrl?: string | null;
+export type GetActorReportParams = {
+/**
+ * Admin override; defaults to the caller.
+ */
+fixerId?: string;
 };

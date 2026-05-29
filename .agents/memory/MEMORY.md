@@ -26,3 +26,4 @@
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
 - [Audit-trail durability](audit-trail-durability.md) — recordAudit() swallows failures; endpoints that MUST be traceable write audit+changelog inline in a db.transaction.
 - [Catalog PATCH response parity](catalog-patch-response-parity.md) — staff edit PATCH must return the SAME computed-field shape as the GET (e.g. rent's `occupied`), or generated clients drift from the contract.
+- [Mission payout idempotency](mission-payout-idempotency.md) — pay paths must acquire a durable uniqueness guard BEFORE the external UB call: 'processing' claim for player rows, onConflictDoNothing 'paid' reservation for actor rows.

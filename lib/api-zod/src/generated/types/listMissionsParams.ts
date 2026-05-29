@@ -7,6 +7,6 @@
  */
 
 export type ListMissionsParams = {
-characterId?: number;
+status?: string;
 limit?: number;
 };

@@ -302,6 +302,142 @@ export function imageAttachmentsOf(msg: DiscordMessage | null | undefined): Thre
     }));
 }
 
+// ---------------------------------------------------------------------------
+// Guild scheduled events (used by the Missions system). We create EXTERNAL
+// events (entity_type 3) so they don't require a voice/stage channel; they
+// carry a location string and an explicit end time. All functions return a
+// discriminated result so callers can persist a sync error for staff without
+// throwing. Requires the bot to have the "Manage Events" permission.
+// ---------------------------------------------------------------------------
+export type ScheduledEventResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string };
+
+export interface ScheduledEventInput {
+  name: string;
+  description?: string | null;
+  location: string;
+  startAt: Date;
+  endAt: Date;
+  /** Optional http(s) image URL; fetched and inlined as a data URI. */
+  imageUrl?: string | null;
+}
+
+const DISCORD_EVENT_PRIVACY_GUILD_ONLY = 2;
+const DISCORD_ENTITY_TYPE_EXTERNAL = 3;
+
+async function imageUrlToDataUri(url: string | null | undefined): Promise<string | null> {
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "image/png";
+    if (!ct.startsWith("image/")) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    // Discord rejects very large cover images; skip anything over ~8MB.
+    if (buf.length > 8 * 1024 * 1024) return null;
+    return `data:${ct};base64,${buf.toString("base64")}`;
+  } catch (err) {
+    logger.warn({ err, url }, "imageUrlToDataUri failed");
+    return null;
+  }
+}
+
+async function buildEventBody(input: ScheduledEventInput): Promise<Record<string, unknown>> {
+  const body: Record<string, unknown> = {
+    name: input.name.slice(0, 100),
+    privacy_level: DISCORD_EVENT_PRIVACY_GUILD_ONLY,
+    scheduled_start_time: input.startAt.toISOString(),
+    scheduled_end_time: input.endAt.toISOString(),
+    entity_type: DISCORD_ENTITY_TYPE_EXTERNAL,
+    entity_metadata: { location: (input.location || "Night City").slice(0, 100) },
+    description: (input.description ?? "").slice(0, 1000) || undefined,
+  };
+  const image = await imageUrlToDataUri(input.imageUrl);
+  if (image) body.image = image;
+  return body;
+}
+
+export async function createGuildScheduledEvent(input: ScheduledEventInput): Promise<ScheduledEventResult> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+    return { ok: false, error: "Discord bot token or guild id not configured" };
+  }
+  try {
+    const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events`, {
+      method: "POST",
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify(await buildEventBody(input)),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn({ status: res.status, body: text }, "createGuildScheduledEvent failed");
+      return { ok: false, error: `Discord event create failed (${res.status}): ${text.slice(0, 300)}` };
+    }
+    const data = (await res.json()) as { id: string };
+    return { ok: true, id: data.id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ err }, "createGuildScheduledEvent error");
+    return { ok: false, error: msg };
+  }
+}
+
+export async function modifyGuildScheduledEvent(
+  eventId: string,
+  input: ScheduledEventInput,
+): Promise<ScheduledEventResult> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+    return { ok: false, error: "Discord bot token or guild id not configured" };
+  }
+  try {
+    const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events/${eventId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify(await buildEventBody(input)),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn({ status: res.status, body: text, eventId }, "modifyGuildScheduledEvent failed");
+      return { ok: false, error: `Discord event update failed (${res.status}): ${text.slice(0, 300)}` };
+    }
+    return { ok: true, id: eventId };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ err, eventId }, "modifyGuildScheduledEvent error");
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Cancel a scheduled event. Discord has no "cancelled" state for events that
+ * haven't started, so we delete it (the spec accepts cancel-or-update). Treats
+ * a 404 as success (already gone).
+ */
+export async function deleteGuildScheduledEvent(eventId: string): Promise<ScheduledEventResult> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+    return { ok: false, error: "Discord bot token or guild id not configured" };
+  }
+  try {
+    const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events/${eventId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok && res.status !== 404) {
+      const text = await res.text();
+      logger.warn({ status: res.status, body: text, eventId }, "deleteGuildScheduledEvent failed");
+      return { ok: false, error: `Discord event delete failed (${res.status}): ${text.slice(0, 300)}` };
+    }
+    return { ok: true, id: eventId };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ err, eventId }, "deleteGuildScheduledEvent error");
+    return { ok: false, error: msg };
+  }
+}
+
 export async function postToChannel(channelId: string, content: string, embeds?: unknown[]): Promise<string | null> {
   if (!DISCORD_BOT_TOKEN) {
     logger.warn("No bot token; cannot post to Discord channel");

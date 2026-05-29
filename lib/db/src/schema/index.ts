@@ -505,6 +505,105 @@ export const missionLog = pgTable("mission_log", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ---------------------------------------------------------------------------
+// First-class Missions (Task #57 overhaul). Distinct from the legacy
+// `mission_log` rows (kept read-only for history). A mission is a scheduled
+// event with a tier, player pay, location, slots, a Discord scheduled-event
+// link, and a 6-status lifecycle:
+//   open | pending | completed | completed_players_paid | completed_paid | cancelled
+// Times are stored as timestamptz (UTC); the UI converts to viewer-local on
+// display and creator-local on input.
+// ---------------------------------------------------------------------------
+export const missions = pgTable("missions", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  // 1=Street Work, 2=Contract Work, 3=High Risk Operation, 4=Extreme.
+  tier: integer("tier").notNull().default(1),
+  // Per-player mission pay (auto-paid after the mission window).
+  playerPay: integer("player_pay").notNull().default(0),
+  location: text("location"),
+  description: text("description"),
+  // Optional custom image; null falls back to a default image at render time.
+  imageUrl: text("image_url"),
+  status: text("status").notNull().default("open"),
+  fixerId: text("fixer_id").references(() => users.id, { onDelete: "set null" }),
+  // Mission start (UTC). Null while the fixer is still drafting/selecting.
+  startAt: timestamp("start_at", { withTimezone: true }),
+  durationMinutes: integer("duration_minutes").notNull().default(120),
+  // Number of attendee/player slots.
+  slots: integer("slots").notNull().default(0),
+  // Linked Discord scheduled-event id (null if sync never succeeded / test mode).
+  discordEventId: text("discord_event_id"),
+  // Last Discord sync failure surfaced to staff (cleared on success).
+  discordSyncError: text("discord_sync_error"),
+  // Set once the auto-pay cron has processed this mission (idempotency guard).
+  autoPayProcessedAt: timestamp("auto_pay_processed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => ({
+  statusIdx: index("missions_status_idx").on(t.status),
+  fixerIdx: index("missions_fixer_idx").on(t.fixerId),
+  startIdx: index("missions_start_idx").on(t.startAt),
+}));
+export type Mission = typeof missions.$inferSelect;
+
+// One row per assigned player on a mission (player + their selected
+// character + per-player payment/attendance state). UNIQUE (mission, user)
+// guarantees a player is assigned (and paid) at most once per mission.
+export const missionAssignments = pgTable("mission_assignments", {
+  id: serial("id").primaryKey(),
+  missionId: integer("mission_id").notNull().references(() => missions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  characterId: integer("character_id").references(() => characters.id, { onDelete: "set null" }),
+  // When attendance was credited by the post-mission cron (null = not yet).
+  attendanceCreditedAt: timestamp("attendance_credited_at", { withTimezone: true }),
+  // Player-pay state: unpaid | paid | failed | simulated.
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  payAmount: integer("pay_amount"),
+  paymentError: text("payment_error"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  oneAssignmentPerUserIdx: uniqueIndex("mission_assignments_mission_user_idx").on(t.missionId, t.userId),
+  missionIdx: index("mission_assignments_mission_idx").on(t.missionId),
+  userIdx: index("mission_assignments_user_idx").on(t.userId),
+}));
+export type MissionAssignment = typeof missionAssignments.$inferSelect;
+
+// Actor payment / participation history (manual "Pay Actors" or future
+// automation). Supports reporting ("who acted for me / how many times").
+// A partial unique index prevents a second SUCCESSFUL pay for the same
+// (mission, actor) pair while still allowing failed/simulated retries.
+export const missionActorPayments = pgTable("mission_actor_payments", {
+  id: serial("id").primaryKey(),
+  missionId: integer("mission_id").notNull().references(() => missions.id, { onDelete: "cascade" }),
+  missionName: text("mission_name"),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userName: text("user_name"),
+  characterId: integer("character_id"),
+  characterName: text("character_name"),
+  fixerId: text("fixer_id"),
+  fixerName: text("fixer_name"),
+  missionDate: timestamp("mission_date", { withTimezone: true }),
+  amount: integer("amount").notNull().default(0),
+  // paid | failed | simulated.
+  paymentStatus: text("payment_status").notNull().default("paid"),
+  // manual | auto.
+  source: text("source").notNull().default("manual"),
+  paymentError: text("payment_error"),
+  attendanceCreditedAt: timestamp("attendance_credited_at", { withTimezone: true }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  onePaidPerActorIdx: uniqueIndex("mission_actor_paid_unique_idx")
+    .on(t.missionId, t.userId)
+    .where(sql`payment_status = 'paid'`),
+  missionIdx: index("mission_actor_payments_mission_idx").on(t.missionId),
+  userIdx: index("mission_actor_payments_user_idx").on(t.userId),
+  fixerIdx: index("mission_actor_payments_fixer_idx").on(t.fixerId),
+}));
+export type MissionActorPayment = typeof missionActorPayments.$inferSelect;
+
 export const wholesalerItems = pgTable("wholesaler_items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

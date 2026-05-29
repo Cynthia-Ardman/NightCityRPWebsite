@@ -931,14 +931,15 @@ paths:
       tags: [ripperdocs]
       responses:
         "204": { description: Removed }
-  /fixer/missions:
+  # ---------------- MISSIONS (first-class Mission entity — Task #57 overhaul) ----------------
+  /missions:
     get:
       operationId: listMissions
-      tags: [fixer]
-      summary: List recent missions (fixer view).
+      tags: [missions]
+      summary: List missions (compact summaries).
       parameters:
-        - { in: query, name: characterId, schema: { type: integer } }
-        - { in: query, name: limit, schema: { type: integer, default: 100 } }
+        - { in: query, name: status, schema: { type: string } }
+        - { in: query, name: limit, schema: { type: integer, default: 200 } }
       responses:
         "200":
           description: OK
@@ -946,69 +947,162 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/Mission" }
+                items: { $ref: "#/components/schemas/MissionSummary" }
     post:
       operationId: createMission
-      tags: [fixer]
+      tags: [missions]
+      summary: Create a mission. Fixer/admin only.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/MissionInput" }
+            schema: { $ref: "#/components/schemas/MissionCreateInput" }
       responses:
         "201":
           description: Created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Mission" }
+              schema: { $ref: "#/components/schemas/MissionDetail" }
         "400": { description: Bad request }
-        "502": { description: Wallet provider unavailable }
-
-  # ---------------- MISSIONS (grouped view: one logical mission = many mission_log rows) ----------------
+        "403": { description: Insufficient role. }
   /missions/mine:
     get:
       operationId: listMyMissions
       tags: [missions]
-      summary: Missions any of the caller's characters participated in.
+      summary: Upcoming/active missions the caller is assigned to.
       responses:
         "200":
-          description: List of mission group summaries.
+          description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/MissionGroupSummary" }
-  /missions/all:
+                items: { $ref: "#/components/schemas/MissionSummary" }
+  /missions/config:
     get:
-      operationId: listAllMissions
+      operationId: getMissionConfig
       tags: [missions]
-      summary: Every mission, grouped. Fixer/admin only.
-      parameters:
-        - { in: query, name: limit, schema: { type: integer, default: 1000 } }
+      summary: Mission system config + Test/Live mode. Fixer/admin only.
       responses:
         "200":
-          description: List of mission group summaries.
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionConfig" }
+        "403": { description: Insufficient role. }
+    put:
+      operationId: updateMissionConfig
+      tags: [missions]
+      summary: Update mission config / flip Test↔Live mode. Admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MissionConfigUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionConfig" }
+        "403": { description: Admin only. }
+  /missions/actor-report:
+    get:
+      operationId: getActorReport
+      tags: [missions]
+      summary: Actors who acted (for the calling fixer, or all for admin).
+      parameters:
+        - { in: query, name: fixerId, schema: { type: string }, description: "Admin override; defaults to the caller." }
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/MissionGroupSummary" }
+                items: { $ref: "#/components/schemas/ActorReportRow" }
+        "403": { description: Insufficient role. }
+  /missions/attendance-report:
+    get:
+      operationId: getAttendanceReport
+      tags: [missions]
+      summary: Per-player mission attendance counts. Fixer/admin only.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlayerAttendanceRow" }
         "403": { description: Insufficient role. }
   /missions/{id}:
     parameters:
-      - { in: path, name: id, required: true, schema: { type: string }, description: "Opaque base64url group id from list responses." }
+      - { in: path, name: id, required: true, schema: { type: integer } }
     get:
       operationId: getMission
       tags: [missions]
-      summary: Mission detail (all participants, fixer, payouts). Restricted to participants, the fixer, and admins.
+      summary: Mission detail. Fixer-only fields populated for fixers/admins.
       responses:
         "200":
-          description: Mission detail
+          description: OK
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MissionDetail" }
-        "400": { description: Malformed id. }
-        "403": { description: Not a participant. }
+        "404": { description: Not found. }
+    patch:
+      operationId: updateMission
+      tags: [missions]
+      summary: Edit / reschedule / cancel / set status. Fixer/admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MissionUpdateInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/pay-players:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: payMissionPlayers
+      tags: [missions]
+      summary: Manually pay assigned players for a completed mission. Fixer/admin only.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/pay-actors:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: payMissionActors
+      tags: [missions]
+      summary: Pay actors (multi-select users + amount). Fixer/admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayActorsInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
         "404": { description: Not found. }
 
   /admin/audit:
@@ -3315,51 +3409,66 @@ components:
             nextMedsWeekly: { type: integer }
             monthlyEstimate: { type: integer }
 
-    Mission:
+    MissionAssignmentView:
       type: object
-      required: [id, title, payoutEddies, status, createdAt]
+      required: [id, userId, paymentStatus]
       properties:
         id: { type: integer }
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        userAvatarUrl: { type: ["string", "null"] }
         characterId: { type: ["integer", "null"] }
         characterName: { type: ["string", "null"] }
-        fixerId: { type: ["string", "null"] }
-        fixerName: { type: ["string", "null"] }
-        title: { type: string }
-        summary: { type: ["string", "null"] }
-        payoutEddies: { type: integer }
-        status: { type: string, enum: [pending, completed, completed_and_paid, cancelled] }
-        occurredAt: { type: ["string", "null"], format: date-time }
+        characterPortraitUrl: { type: ["string", "null"] }
+        attendanceCreditedAt: { type: ["string", "null"], format: date-time }
+        paymentStatus: { type: string, enum: [unpaid, paid, failed, simulated] }
+        payAmount: { type: ["integer", "null"] }
+        paymentError: { type: ["string", "null"] }
+        paidAt: { type: ["string", "null"], format: date-time }
+
+    MissionActorPaymentView:
+      type: object
+      required: [id, userId, amount, paymentStatus, source, createdAt]
+      properties:
+        id: { type: integer }
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
+        amount: { type: integer }
+        paymentStatus: { type: string, enum: [paid, failed, simulated] }
+        source: { type: string, enum: [manual, auto] }
+        paymentError: { type: ["string", "null"] }
+        paidAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
 
-    MissionGroupSummary:
+    MissionSummary:
       type: object
-      required: [id, title, status, createdAt, participantCount, totalPayoutEddies, myCharacters, players]
+      required: [id, title, tier, status, slots, assignedCount, playerPay, durationMinutes, createdAt, players]
       properties:
-        id: { type: string, description: "Opaque group id; pass to GET /missions/{id}." }
+        id: { type: integer }
         title: { type: string }
-        summary: { type: ["string", "null"] }
-        status: { type: string }
-        occurredAt: { type: ["string", "null"], format: date-time }
-        createdAt: { type: string, format: date-time }
+        tier: { type: integer, enum: [1, 2, 3, 4] }
+        status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        startAt: { type: ["string", "null"], format: date-time }
+        durationMinutes: { type: integer }
+        location: { type: ["string", "null"] }
+        descriptionPreview: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        playerPay: { type: integer }
+        slots: { type: integer }
+        assignedCount: { type: integer }
         fixerId: { type: ["string", "null"] }
         fixerName: { type: ["string", "null"] }
         fixerAvatarUrl: { type: ["string", "null"] }
-        participantCount: { type: integer }
-        totalPayoutEddies: { type: integer }
-        myPayoutEddies: { type: ["integer", "null"], description: "Total paid to the caller's characters on this mission. Null on global views." }
-        myCharacters:
-          type: array
-          items:
-            type: object
-            required: [id, name, payoutEddies]
-            properties:
-              id: { type: integer }
-              name: { type: string }
-              portraitUrl: { type: ["string", "null"] }
-              payoutEddies: { type: integer }
+        discordEventId: { type: ["string", "null"] }
+        discordSyncError: { type: ["string", "null"] }
+        myCharacterId: { type: ["integer", "null"] }
+        myCharacterName: { type: ["string", "null"] }
+        myPaymentStatus: { type: ["string", "null"] }
         players:
           type: array
-          description: "Every resolved participating character in the group (deduped)."
+          description: "Assigned characters (deduped), each clickable."
           items:
             type: object
             required: [characterId, name]
@@ -3367,46 +3476,148 @@ components:
               characterId: { type: integer }
               name: { type: string }
               portraitUrl: { type: ["string", "null"] }
+              userId: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
 
     MissionDetail:
       type: object
-      required: [id, title, status, createdAt, totalPayoutEddies, participants]
+      required: [id, title, tier, status, slots, playerPay, durationMinutes, canManage, live, assignments, actorPayments, createdAt]
       properties:
-        id: { type: string }
+        id: { type: integer }
         title: { type: string }
-        summary: { type: ["string", "null"] }
-        status: { type: string }
-        occurredAt: { type: ["string", "null"], format: date-time }
-        createdAt: { type: string, format: date-time }
+        tier: { type: integer, enum: [1, 2, 3, 4] }
+        status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        startAt: { type: ["string", "null"], format: date-time }
+        durationMinutes: { type: integer }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        playerPay: { type: integer }
+        slots: { type: integer }
         fixerId: { type: ["string", "null"] }
         fixerName: { type: ["string", "null"] }
         fixerAvatarUrl: { type: ["string", "null"] }
-        totalPayoutEddies: { type: integer }
-        participants:
+        discordEventId: { type: ["string", "null"] }
+        discordSyncError: { type: ["string", "null"] }
+        canManage: { type: boolean, description: "True if caller is fixer/admin (sees Fixer tab + tools)." }
+        live: { type: boolean, description: "True = Live mode; false = Test mode (no real external effects)." }
+        assignments:
+          type: array
+          items: { $ref: "#/components/schemas/MissionAssignmentView" }
+        actorPayments:
+          type: array
+          items: { $ref: "#/components/schemas/MissionActorPaymentView" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: ["string", "null"], format: date-time }
+
+    MissionAssignmentInput:
+      type: object
+      description: >-
+        Assign a player to a mission. Provide either userId (the player) or
+        characterId; when only characterId is given the server derives the
+        owning player. Entries that resolve to no player are skipped.
+      properties:
+        userId: { type: string }
+        characterId: { type: ["integer", "null"] }
+
+    MissionCreateInput:
+      type: object
+      required: [title, tier]
+      properties:
+        title: { type: string, minLength: 1 }
+        tier: { type: integer, enum: [1, 2, 3, 4] }
+        playerPay: { type: integer, minimum: 0, default: 0 }
+        location: { type: string }
+        description: { type: string }
+        imageUrl: { type: string }
+        startAt: { type: string, format: date-time }
+        durationMinutes: { type: integer, minimum: 1, default: 120 }
+        slots: { type: integer, minimum: 0, default: 0 }
+        status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        assignments:
+          type: array
+          items: { $ref: "#/components/schemas/MissionAssignmentInput" }
+
+    MissionUpdateInput:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        tier: { type: integer, enum: [1, 2, 3, 4] }
+        playerPay: { type: integer, minimum: 0 }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        startAt: { type: ["string", "null"], format: date-time }
+        durationMinutes: { type: integer, minimum: 1 }
+        slots: { type: integer, minimum: 0 }
+        status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        assignments:
+          type: array
+          description: "If present, replaces the full assignment set."
+          items: { $ref: "#/components/schemas/MissionAssignmentInput" }
+
+    PayActorsInput:
+      type: object
+      required: [userIds, amount]
+      properties:
+        userIds: { type: array, items: { type: string }, minItems: 1 }
+        amount: { type: integer, minimum: 0 }
+
+    MissionConfig:
+      type: object
+      required: [live, bankingChannelId, npcSpendingChannelId, autopayDelayHours]
+      properties:
+        live: { type: boolean }
+        bankingChannelId: { type: string }
+        npcSpendingChannelId: { type: string }
+        defaultImageUrl: { type: ["string", "null"] }
+        autopayDelayHours: { type: number }
+
+    MissionConfigUpdate:
+      type: object
+      properties:
+        live: { type: boolean }
+        bankingChannelId: { type: string }
+        npcSpendingChannelId: { type: string }
+        defaultImageUrl: { type: string }
+        autopayDelayHours: { type: number }
+
+    ActorReportRow:
+      type: object
+      required: [userId, actCount, totalPaid, missions]
+      properties:
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        actCount: { type: integer }
+        totalPaid: { type: integer }
+        missions:
           type: array
           items:
             type: object
-            required: [entryId, payoutEddies, status]
+            required: [missionId, amount]
             properties:
-              entryId: { type: integer }
-              characterId: { type: ["integer", "null"] }
-              characterName: { type: ["string", "null"] }
-              characterPortraitUrl: { type: ["string", "null"] }
-              payoutEddies: { type: integer }
-              status: { type: string }
-              summary: { type: ["string", "null"] }
+              missionId: { type: integer }
+              missionName: { type: ["string", "null"] }
+              missionDate: { type: ["string", "null"], format: date-time }
+              amount: { type: integer }
 
-    MissionInput:
+    PlayerAttendanceRow:
       type: object
-      required: [title]
+      required: [userId, attendedCount, missions]
       properties:
-        title: { type: string, minLength: 1 }
-        characterId: { type: integer }
-        summary: { type: string }
-        payoutEddies: { type: integer, minimum: 0 }
-        status: { type: string, enum: [pending, completed, completed_and_paid, cancelled] }
-        occurredAt: { type: string, format: date-time }
-        pay: { type: boolean, description: "If true, also debit fixer and credit character via UnbelievaBoat." }
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        attendedCount: { type: integer }
+        missions:
+          type: array
+          items:
+            type: object
+            required: [missionId]
+            properties:
+              missionId: { type: integer }
+              missionName: { type: ["string", "null"] }
+              missionDate: { type: ["string", "null"], format: date-time }
+              characterName: { type: ["string", "null"] }
 
     BotConfigEntry:
       type: object

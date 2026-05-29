@@ -1830,133 +1830,356 @@ export interface UpcomingBills {
   totals: UpcomingBillsTotals;
 }
 
-export type MissionStatus = typeof MissionStatus[keyof typeof MissionStatus];
+export type MissionAssignmentViewPaymentStatus = typeof MissionAssignmentViewPaymentStatus[keyof typeof MissionAssignmentViewPaymentStatus];
 
 
-export const MissionStatus = {
-  pending: 'pending',
-  completed: 'completed',
-  completed_and_paid: 'completed_and_paid',
-  cancelled: 'cancelled',
+export const MissionAssignmentViewPaymentStatus = {
+  unpaid: 'unpaid',
+  paid: 'paid',
+  failed: 'failed',
+  simulated: 'simulated',
 } as const;
 
-export interface Mission {
+export interface MissionAssignmentView {
   id: number;
+  userId: string;
   /** @nullable */
-  characterId?: number | null;
+  userName?: string | null;
   /** @nullable */
-  characterName?: string | null;
-  /** @nullable */
-  fixerId?: string | null;
-  /** @nullable */
-  fixerName?: string | null;
-  title: string;
-  /** @nullable */
-  summary?: string | null;
-  payoutEddies: number;
-  status: MissionStatus;
-  /** @nullable */
-  occurredAt?: string | null;
-  createdAt: string;
-}
-
-export type MissionGroupSummaryMyCharactersItem = {
-  id: number;
-  name: string;
-  /** @nullable */
-  portraitUrl?: string | null;
-  payoutEddies: number;
-};
-
-export type MissionGroupSummaryPlayersItem = {
-  characterId: number;
-  name: string;
-  /** @nullable */
-  portraitUrl?: string | null;
-};
-
-export interface MissionGroupSummary {
-  /** Opaque group id; pass to GET /missions/{id}. */
-  id: string;
-  title: string;
-  /** @nullable */
-  summary?: string | null;
-  status: string;
-  /** @nullable */
-  occurredAt?: string | null;
-  createdAt: string;
-  /** @nullable */
-  fixerId?: string | null;
-  /** @nullable */
-  fixerName?: string | null;
-  /** @nullable */
-  fixerAvatarUrl?: string | null;
-  participantCount: number;
-  totalPayoutEddies: number;
-  /**
-     * Total paid to the caller's characters on this mission. Null on global views.
-     * @nullable
-     */
-  myPayoutEddies?: number | null;
-  myCharacters: MissionGroupSummaryMyCharactersItem[];
-  /** Every resolved participating character in the group (deduped). */
-  players: MissionGroupSummaryPlayersItem[];
-}
-
-export type MissionDetailParticipantsItem = {
-  entryId: number;
+  userAvatarUrl?: string | null;
   /** @nullable */
   characterId?: number | null;
   /** @nullable */
   characterName?: string | null;
   /** @nullable */
   characterPortraitUrl?: string | null;
-  payoutEddies: number;
-  status: string;
   /** @nullable */
-  summary?: string | null;
+  attendanceCreditedAt?: string | null;
+  paymentStatus: MissionAssignmentViewPaymentStatus;
+  /** @nullable */
+  payAmount?: number | null;
+  /** @nullable */
+  paymentError?: string | null;
+  /** @nullable */
+  paidAt?: string | null;
+}
+
+export type MissionActorPaymentViewPaymentStatus = typeof MissionActorPaymentViewPaymentStatus[keyof typeof MissionActorPaymentViewPaymentStatus];
+
+
+export const MissionActorPaymentViewPaymentStatus = {
+  paid: 'paid',
+  failed: 'failed',
+  simulated: 'simulated',
+} as const;
+
+export type MissionActorPaymentViewSource = typeof MissionActorPaymentViewSource[keyof typeof MissionActorPaymentViewSource];
+
+
+export const MissionActorPaymentViewSource = {
+  manual: 'manual',
+  auto: 'auto',
+} as const;
+
+export interface MissionActorPaymentView {
+  id: number;
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  amount: number;
+  paymentStatus: MissionActorPaymentViewPaymentStatus;
+  source: MissionActorPaymentViewSource;
+  /** @nullable */
+  paymentError?: string | null;
+  /** @nullable */
+  paidAt?: string | null;
+  createdAt: string;
+}
+
+export type MissionSummaryTier = typeof MissionSummaryTier[keyof typeof MissionSummaryTier];
+
+
+export const MissionSummaryTier = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_3: 3,
+  NUMBER_4: 4,
+} as const;
+
+export type MissionSummaryStatus = typeof MissionSummaryStatus[keyof typeof MissionSummaryStatus];
+
+
+export const MissionSummaryStatus = {
+  open: 'open',
+  pending: 'pending',
+  completed: 'completed',
+  completed_players_paid: 'completed_players_paid',
+  completed_paid: 'completed_paid',
+  cancelled: 'cancelled',
+} as const;
+
+export type MissionSummaryPlayersItem = {
+  characterId: number;
+  name: string;
+  /** @nullable */
+  portraitUrl?: string | null;
+  /** @nullable */
+  userId?: string | null;
 };
 
-export interface MissionDetail {
-  id: string;
+export interface MissionSummary {
+  id: number;
   title: string;
+  tier: MissionSummaryTier;
+  status: MissionSummaryStatus;
   /** @nullable */
-  summary?: string | null;
-  status: string;
+  startAt?: string | null;
+  durationMinutes: number;
   /** @nullable */
-  occurredAt?: string | null;
-  createdAt: string;
+  location?: string | null;
+  /** @nullable */
+  descriptionPreview?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  playerPay: number;
+  slots: number;
+  assignedCount: number;
   /** @nullable */
   fixerId?: string | null;
   /** @nullable */
   fixerName?: string | null;
   /** @nullable */
   fixerAvatarUrl?: string | null;
-  totalPayoutEddies: number;
-  participants: MissionDetailParticipantsItem[];
+  /** @nullable */
+  discordEventId?: string | null;
+  /** @nullable */
+  discordSyncError?: string | null;
+  /** @nullable */
+  myCharacterId?: number | null;
+  /** @nullable */
+  myCharacterName?: string | null;
+  /** @nullable */
+  myPaymentStatus?: string | null;
+  /** Assigned characters (deduped), each clickable. */
+  players: MissionSummaryPlayersItem[];
+  createdAt: string;
 }
 
-export type MissionInputStatus = typeof MissionInputStatus[keyof typeof MissionInputStatus];
+export type MissionDetailTier = typeof MissionDetailTier[keyof typeof MissionDetailTier];
 
 
-export const MissionInputStatus = {
+export const MissionDetailTier = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_3: 3,
+  NUMBER_4: 4,
+} as const;
+
+export type MissionDetailStatus = typeof MissionDetailStatus[keyof typeof MissionDetailStatus];
+
+
+export const MissionDetailStatus = {
+  open: 'open',
   pending: 'pending',
   completed: 'completed',
-  completed_and_paid: 'completed_and_paid',
+  completed_players_paid: 'completed_players_paid',
+  completed_paid: 'completed_paid',
   cancelled: 'cancelled',
 } as const;
 
-export interface MissionInput {
+export interface MissionDetail {
+  id: number;
+  title: string;
+  tier: MissionDetailTier;
+  status: MissionDetailStatus;
+  /** @nullable */
+  startAt?: string | null;
+  durationMinutes: number;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  playerPay: number;
+  slots: number;
+  /** @nullable */
+  fixerId?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  /** @nullable */
+  fixerAvatarUrl?: string | null;
+  /** @nullable */
+  discordEventId?: string | null;
+  /** @nullable */
+  discordSyncError?: string | null;
+  /** True if caller is fixer/admin (sees Fixer tab + tools). */
+  canManage: boolean;
+  /** True = Live mode; false = Test mode (no real external effects). */
+  live: boolean;
+  assignments: MissionAssignmentView[];
+  actorPayments: MissionActorPaymentView[];
+  createdAt: string;
+  /** @nullable */
+  updatedAt?: string | null;
+}
+
+/**
+ * Assign a player to a mission. Provide either userId (the player) or characterId; when only characterId is given the server derives the owning player. Entries that resolve to no player are skipped.
+ */
+export interface MissionAssignmentInput {
+  userId?: string;
+  /** @nullable */
+  characterId?: number | null;
+}
+
+export type MissionCreateInputTier = typeof MissionCreateInputTier[keyof typeof MissionCreateInputTier];
+
+
+export const MissionCreateInputTier = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_3: 3,
+  NUMBER_4: 4,
+} as const;
+
+export type MissionCreateInputStatus = typeof MissionCreateInputStatus[keyof typeof MissionCreateInputStatus];
+
+
+export const MissionCreateInputStatus = {
+  open: 'open',
+  pending: 'pending',
+  completed: 'completed',
+  completed_players_paid: 'completed_players_paid',
+  completed_paid: 'completed_paid',
+  cancelled: 'cancelled',
+} as const;
+
+export interface MissionCreateInput {
   /** @minLength 1 */
   title: string;
-  characterId?: number;
-  summary?: string;
+  tier: MissionCreateInputTier;
   /** @minimum 0 */
-  payoutEddies?: number;
-  status?: MissionInputStatus;
-  occurredAt?: string;
-  /** If true, also debit fixer and credit character via UnbelievaBoat. */
-  pay?: boolean;
+  playerPay?: number;
+  location?: string;
+  description?: string;
+  imageUrl?: string;
+  startAt?: string;
+  /** @minimum 1 */
+  durationMinutes?: number;
+  /** @minimum 0 */
+  slots?: number;
+  status?: MissionCreateInputStatus;
+  assignments?: MissionAssignmentInput[];
+}
+
+export type MissionUpdateInputTier = typeof MissionUpdateInputTier[keyof typeof MissionUpdateInputTier];
+
+
+export const MissionUpdateInputTier = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_3: 3,
+  NUMBER_4: 4,
+} as const;
+
+export type MissionUpdateInputStatus = typeof MissionUpdateInputStatus[keyof typeof MissionUpdateInputStatus];
+
+
+export const MissionUpdateInputStatus = {
+  open: 'open',
+  pending: 'pending',
+  completed: 'completed',
+  completed_players_paid: 'completed_players_paid',
+  completed_paid: 'completed_paid',
+  cancelled: 'cancelled',
+} as const;
+
+export interface MissionUpdateInput {
+  /** @minLength 1 */
+  title?: string;
+  tier?: MissionUpdateInputTier;
+  /** @minimum 0 */
+  playerPay?: number;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  /** @nullable */
+  startAt?: string | null;
+  /** @minimum 1 */
+  durationMinutes?: number;
+  /** @minimum 0 */
+  slots?: number;
+  status?: MissionUpdateInputStatus;
+  /** If present, replaces the full assignment set. */
+  assignments?: MissionAssignmentInput[];
+}
+
+export interface PayActorsInput {
+  /** @minItems 1 */
+  userIds: string[];
+  /** @minimum 0 */
+  amount: number;
+}
+
+export interface MissionConfig {
+  live: boolean;
+  bankingChannelId: string;
+  npcSpendingChannelId: string;
+  /** @nullable */
+  defaultImageUrl?: string | null;
+  autopayDelayHours: number;
+}
+
+export interface MissionConfigUpdate {
+  live?: boolean;
+  bankingChannelId?: string;
+  npcSpendingChannelId?: string;
+  defaultImageUrl?: string;
+  autopayDelayHours?: number;
+}
+
+export type ActorReportRowMissionsItem = {
+  missionId: number;
+  /** @nullable */
+  missionName?: string | null;
+  /** @nullable */
+  missionDate?: string | null;
+  amount: number;
+};
+
+export interface ActorReportRow {
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  actCount: number;
+  totalPaid: number;
+  missions: ActorReportRowMissionsItem[];
+}
+
+export type PlayerAttendanceRowMissionsItem = {
+  missionId: number;
+  /** @nullable */
+  missionName?: string | null;
+  /** @nullable */
+  missionDate?: string | null;
+  /** @nullable */
+  characterName?: string | null;
+};
+
+export interface PlayerAttendanceRow {
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  attendedCount: number;
+  missions: PlayerAttendanceRowMissionsItem[];
 }
 
 export interface BotConfigEntry {
@@ -2180,12 +2403,15 @@ export const ListHousingRequestsStatus = {
 } as const;
 
 export type ListMissionsParams = {
-characterId?: number;
+status?: string;
 limit?: number;
 };
 
-export type ListAllMissionsParams = {
-limit?: number;
+export type GetActorReportParams = {
+/**
+ * Admin override; defaults to the caller.
+ */
+fixerId?: string;
 };
 
 export type AdminListAuditParams = {
