@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import Markdown from "@/components/Markdown";
 import { COLOR_PRESETS } from "@/lib/remarkColor";
@@ -29,6 +29,19 @@ export default function MarkdownEditor({
 }: MarkdownEditorProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const hasContent = value.trim().length > 0;
+
+  // Grow the textarea to fit its content so the whole sheet is visible without
+  // manual dragging. We reset to "auto" first so it can shrink as well as grow.
+  const autosize = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    autosize();
+  }, [value, autosize]);
 
   // Wrap the current textarea selection (or insert a placeholder) in a color
   // tag, then restore the selection around the wrapped text.
@@ -87,9 +100,10 @@ export default function MarkdownEditor({
             rows={rows}
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onInput={autosize}
             placeholder={placeholder}
             data-testid={testId}
-            className="font-mono"
+            className="font-mono resize-none overflow-hidden"
           />
         </div>
         <div className="space-y-1">

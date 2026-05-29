@@ -17,7 +17,7 @@ import {
   type Character,
 } from "@workspace/db";
 import { gte } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireRole } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
@@ -238,14 +238,34 @@ router.get("/characters/:id/updates", requireAuth, async (req, res): Promise<voi
   res.json(rows);
 });
 
-router.delete("/characters/:id", requireAuth, async (req, res): Promise<void> => {
+// Permanent, irreversible deletion. ADMIN-only — players archive their own
+// characters via /deactivate instead. All character-scoped rows (inventory,
+// wallet, status, updates, housing, shop opens, …) are removed automatically
+// by ON DELETE CASCADE foreign keys.
+router.delete("/characters/:id", requireRole("ADMIN"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const c = await loadOwnedChar(req.user!.id, id);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [c] = await db.select().from(characters).where(eq(characters.id, id));
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
   }
+  // active_character_id is a plain column (not a cascading FK), so clear any
+  // user still pointing at this character before deleting it.
+  await db.update(users).set({ activeCharacterId: null }).where(eq(users.activeCharacterId, id));
   await db.delete(characters).where(eq(characters.id, id));
+  await recordAudit({
+    req,
+    category: "character",
+    action: "deleted",
+    targetType: "character",
+    targetId: id,
+    message: `${req.user!.username} permanently deleted ${c.name}`,
+    before: { id: c.id, name: c.name, ownerId: c.ownerId },
+  });
   res.sendStatus(204);
 });
 

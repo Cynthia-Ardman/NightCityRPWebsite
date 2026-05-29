@@ -33,6 +33,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
+import DeleteCharacterDialog from "@/components/DeleteCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import Markdown from "@/components/Markdown";
@@ -51,7 +52,10 @@ export default function CharacterDetail() {
   const charId = Number(id);
 
   const { data: char, isLoading: charLoading } = useGetCharacter(charId);
+  const me = useAuthMe();
+  const isAdmin = !!me.data?.isAdmin;
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // 204 means no pending edit; the generated hook returns undefined data in
   // that case so we just check truthiness to decide whether to render the
   // "review pending" banner that links to the queued edit.
@@ -102,15 +106,28 @@ export default function CharacterDetail() {
           </div>
         </div>
 
-        <Button
-          type="button"
-          onClick={() => setEditOpen(true)}
-          disabled={!!pendingEdit}
-          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest disabled:opacity-50"
-          data-testid="button-edit-character"
-        >
-          <Pencil className="w-4 h-4 mr-2" /> EDIT
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            disabled={!!pendingEdit}
+            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest disabled:opacity-50"
+            data-testid="button-edit-character"
+          >
+            <Pencil className="w-4 h-4 mr-2" /> EDIT
+          </Button>
+          {isAdmin && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(true)}
+              className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+              data-testid="button-delete-character"
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> DELETE
+            </Button>
+          )}
+        </div>
       </div>
 
       {pendingEdit ? (
@@ -126,6 +143,9 @@ export default function CharacterDetail() {
       ) : null}
 
       <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} />
+      {isAdmin && (
+        <DeleteCharacterDialog character={char} open={deleteOpen} onOpenChange={setDeleteOpen} />
+      )}
 
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="bg-card border border-border rounded-none p-0 h-auto flex overflow-x-auto w-full max-w-full no-scrollbar">
