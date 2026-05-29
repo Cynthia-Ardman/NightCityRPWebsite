@@ -320,8 +320,9 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
   const existing = data.myApplication;
   const applyErr = errOf(apply.error) ?? errOf(withdraw.error);
 
-  // Only posted missions accept applications.
-  if (data.workflowState !== "posted") return null;
+  // Applications are only accepted on missions that are publicly posted AND
+  // still Open for play (server enforces the same rule).
+  if (data.workflowState !== "posted" || data.status !== "open") return null;
 
   if (existing && existing.status !== "withdrawn") {
     return (

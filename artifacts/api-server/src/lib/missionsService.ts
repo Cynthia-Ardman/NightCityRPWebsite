@@ -466,11 +466,10 @@ export async function applyToMission(opts: {
 }): Promise<ApplyResult> {
   const [m] = await db.select().from(missions).where(eq(missions.id, opts.missionId));
   if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
-  if (m.workflowState !== "posted") {
+  // Applications are only accepted on missions that are publicly posted AND
+  // still Open for play — not pending/completed/cancelled ones.
+  if (m.workflowState !== "posted" || m.status !== "open") {
     return { ok: false, error: "This mission is not open for applications", httpStatus: 409 };
-  }
-  if (m.status === "cancelled") {
-    return { ok: false, error: "This mission has been cancelled", httpStatus: 409 };
   }
   // Character must belong to the applicant.
   const [char] = await db.select().from(characters).where(eq(characters.id, opts.characterId));
@@ -610,6 +609,11 @@ export async function submitMissionProposal(missionId: number, viewer: MissionVi
   if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
   if (m.workflowState !== "draft") {
     return { ok: false, error: `Can only submit a draft (current: ${m.workflowState})`, httpStatus: 409 };
+  }
+  // Job Type is a required field for a real mission; enforce it at the gate so a
+  // draft can't advance into the approval pipeline without one.
+  if (!m.jobType) {
+    return { ok: false, error: "Job Type is required before submitting for approval", httpStatus: 400 };
   }
   await db
     .update(missions)
@@ -816,7 +820,10 @@ export async function syncMissionDiscordEvent(
     return { discordEventId: mission.discordEventId, discordSyncError: null };
   }
 
-  const shouldExist = mission.status !== "cancelled" && !!mission.startAt;
+  // Only POSTED missions appear publicly and own a Discord event. Drafts /
+  // proposals / approved missions stay off Discord until the fixer posts them,
+  // even if a start time is already set.
+  const shouldExist = mission.workflowState === "posted" && mission.status !== "cancelled" && !!mission.startAt;
 
   // Cancelled or unscheduled: tear down any existing event.
   if (!shouldExist) {

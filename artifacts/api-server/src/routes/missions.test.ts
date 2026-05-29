@@ -96,7 +96,9 @@ async function seedMission(opts: Partial<typeof missions.$inferInsert> = {}) {
       // Default workflowState to the schema default unless a test overrides it.
       ...(opts.workflowState !== undefined ? { workflowState: opts.workflowState } : {}),
       worldLink: opts.worldLink ?? null,
-      jobType: opts.jobType ?? null,
+      // Real missions always have a Job Type; the submit gate now requires one,
+      // so default to a valid value unless a test overrides it.
+      jobType: opts.jobType ?? "combat",
       requestedSkills: opts.requestedSkills ?? null,
       fixerId: opts.fixerId ?? null,
       startAt: opts.startAt ?? null,
@@ -439,41 +441,62 @@ describe("auto-pay kill switch", () => {
 // ===========================================================================
 const futureIso = () => new Date(Date.now() + 86_400_000).toISOString();
 
+// Only POSTED missions own a Discord event, so drive a fresh draft all the way
+// through the workflow (draft → proposal → approved → posted). The Discord sync
+// fires on the final /post. Returns the /post response (full MissionDetail).
+async function createPostedMission(
+  managerId: string,
+  body: Record<string, unknown> = {},
+) {
+  const created = await request(app)
+    .post("/api/missions")
+    .set("x-test-user", managerId)
+    .send({ title: "Heist", tier: 2, jobType: "combat", ...body });
+  const id = created.body.id;
+  await request(app).post(`/api/missions/${id}/submit`).set("x-test-user", managerId);
+  await request(app).post(`/api/missions/${id}/approve`).set("x-test-user", managerId);
+  return request(app).post(`/api/missions/${id}/post`).set("x-test-user", managerId);
+}
+
 describe("Discord scheduled-event sync", () => {
-  it("creates an event and persists its id when a scheduled mission is created Live", async () => {
+  it("creates an event and persists its id when a scheduled mission is posted Live", async () => {
     await setLiveMode(true);
     const manager = await createUser({ roles: ["admin"] });
-    const res = await request(app)
-      .post("/api/missions")
-      .set("x-test-user", manager.id)
-      .send({ title: "Heist", tier: 2, startAt: futureIso() });
-    expect(res.status).toBe(201);
+    const res = await createPostedMission(manager.id, { startAt: futureIso() });
+    expect(res.status).toBe(200);
     expect(mockCreateEvent).toHaveBeenCalledTimes(1);
     expect(res.body.discordEventId).toBe("evt-1");
     expect(res.body.discordSyncError).toBeNull();
   });
 
-  it("does NOT create an event for a Live mission with no start date", async () => {
+  it("does NOT create an event for a posted Live mission with no start date", async () => {
     await setLiveMode(true);
     const manager = await createUser({ roles: ["admin"] });
-    const res = await request(app)
-      .post("/api/missions")
-      .set("x-test-user", manager.id)
-      .send({ title: "Open Run", tier: 1 });
-    expect(res.status).toBe(201);
+    const res = await createPostedMission(manager.id, { title: "Open Run", tier: 1 });
+    expect(res.status).toBe(200);
     expect(mockCreateEvent).not.toHaveBeenCalled();
     expect(res.body.discordEventId).toBeNull();
   });
 
-  it("records the sync error and leaves the event id null when create fails", async () => {
+  it("does NOT touch Discord while a scheduled mission is still a draft", async () => {
     await setLiveMode(true);
-    mockCreateEvent.mockResolvedValue({ ok: false, error: "rate limited" });
     const manager = await createUser({ roles: ["admin"] });
     const res = await request(app)
       .post("/api/missions")
       .set("x-test-user", manager.id)
-      .send({ title: "Doomed", tier: 1, startAt: futureIso() });
+      .send({ title: "Heist", tier: 2, jobType: "combat", startAt: futureIso() });
     expect(res.status).toBe(201);
+    expect(res.body.workflowState).toBe("draft");
+    expect(mockCreateEvent).not.toHaveBeenCalled();
+    expect(res.body.discordEventId).toBeNull();
+  });
+
+  it("records the sync error and leaves the event id null when posting fails", async () => {
+    await setLiveMode(true);
+    mockCreateEvent.mockResolvedValue({ ok: false, error: "rate limited" });
+    const manager = await createUser({ roles: ["admin"] });
+    const res = await createPostedMission(manager.id, { title: "Doomed", tier: 1, startAt: futureIso() });
+    expect(res.status).toBe(200);
     expect(res.body.discordEventId).toBeNull();
     expect(res.body.discordSyncError).toBe("rate limited");
     const [row] = await db.select().from(missions).where(eq(missions.id, res.body.id));
@@ -483,10 +506,7 @@ describe("Discord scheduled-event sync", () => {
   it("modifies the existing event when a scheduled Live mission is edited", async () => {
     await setLiveMode(true);
     const manager = await createUser({ roles: ["admin"] });
-    const created = await request(app)
-      .post("/api/missions")
-      .set("x-test-user", manager.id)
-      .send({ title: "Heist", tier: 2, startAt: futureIso() });
+    const created = await createPostedMission(manager.id, { startAt: futureIso() });
     expect(created.body.discordEventId).toBe("evt-1");
 
     const patched = await request(app)
@@ -502,10 +522,7 @@ describe("Discord scheduled-event sync", () => {
   it("tears down the event when a scheduled Live mission is cancelled", async () => {
     await setLiveMode(true);
     const manager = await createUser({ roles: ["admin"] });
-    const created = await request(app)
-      .post("/api/missions")
-      .set("x-test-user", manager.id)
-      .send({ title: "Heist", tier: 2, startAt: futureIso() });
+    const created = await createPostedMission(manager.id, { startAt: futureIso() });
     expect(created.body.discordEventId).toBe("evt-1");
 
     const patched = await request(app)
@@ -792,6 +809,17 @@ describe("Mission applications", () => {
     const player = await createUser();
     const char = await createCharacter({ ownerId: player.id });
     const m = await seedMission({ workflowState: "draft" });
+    const res = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    expect(res.status).toBe(409);
+  });
+
+  it("cannot apply to a posted mission that is no longer Open (409)", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await seedMission({ workflowState: "posted", status: "completed" });
     const res = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)

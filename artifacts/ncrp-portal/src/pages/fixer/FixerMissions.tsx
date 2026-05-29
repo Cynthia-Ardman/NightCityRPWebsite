@@ -6,6 +6,8 @@ import {
   useCreateMission,
   useUpdateMission,
   useGetMission,
+  useCheckMissionConflicts,
+  getCheckMissionConflictsQueryKey,
   getListMissionsQueryKey,
   type MissionCreateInputTier,
   type MissionCreateInputStatus,
@@ -248,6 +250,15 @@ function MissionForm({
 
   const set = <K extends keyof FormValues>(k: K, val: FormValues[K]) => setV((p) => ({ ...p, [k]: val }));
 
+  // Fail-safe Discord scheduling-conflict warning (never blocks). Only queries
+  // once a start time is set; surfaces overlapping events for staff awareness.
+  const startIso = v.startAt ? new Date(v.startAt).toISOString() : "";
+  const conflictParams = { startAt: startIso, durationMinutes: v.durationMinutes || undefined };
+  const conflictQuery = useCheckMissionConflicts(conflictParams, {
+    query: { enabled: !!startIso, queryKey: getCheckMissionConflictsQueryKey(conflictParams) },
+  });
+  const conflict = conflictQuery.data;
+
   const addAssignment = (c: CharacterPickerValue) => {
     if (!c) return;
     setV((p) => {
@@ -368,6 +379,25 @@ function MissionForm({
               data-testid="input-mission-start"
             />
           </div>
+          {conflict && conflict.conflicts.length > 0 && (
+            <div
+              className="md:col-span-12 border border-nc-yellow/50 bg-nc-yellow/10 px-3 py-2 text-xs text-nc-yellow"
+              data-testid="warning-discord-conflict"
+            >
+              <span className="font-display tracking-widest">⚠ DISCORD CONFLICT</span> — this window overlaps{" "}
+              {conflict.conflicts.length} existing event
+              {conflict.conflicts.length > 1 ? "s" : ""}:{" "}
+              {conflict.conflicts.map((c) => c.name).join(", ")}. This is only a warning; you can still save.
+            </div>
+          )}
+          {conflict && !conflict.checked && conflict.error && (
+            <div
+              className="md:col-span-12 border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+              data-testid="warning-discord-conflict-unchecked"
+            >
+              Couldn't check Discord for scheduling conflicts ({conflict.error}). Proceeding anyway.
+            </div>
+          )}
           <div className="md:col-span-2">
             <Label className="text-xs">DURATION (min)</Label>
             <Input
@@ -423,7 +453,7 @@ function MissionForm({
           </div>
 
           <div className="md:col-span-3">
-            <Label className="text-xs">JOB TYPE</Label>
+            <Label className="text-xs">JOB TYPE *</Label>
             <select
               value={v.jobType}
               onChange={(e) => set("jobType", e.target.value as MissionCreateInputJobType | "")}
