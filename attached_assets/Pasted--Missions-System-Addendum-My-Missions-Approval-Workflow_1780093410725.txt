@@ -1,0 +1,423 @@
+# Missions System Addendum: My Missions, Approval Workflow, Applications, and Extra Fields
+
+## 1. Add “My Missions” Section
+
+### My Missions Tab / View
+
+On the Missions page, add a **My Missions** section for fixers/admins.
+
+This section should show missions owned/created by the logged-in fixer, organized by mission workflow tag/state.
+
+**Mission workflow tags/states**
+
+* Draft
+* Proposal
+* Approved
+* Posted
+
+**Acceptance criteria**
+
+* Fixers can view their own missions in My Missions.
+* Admins can view all missions if needed.
+* My Missions clearly shows Draft, Proposal, Approved, and Posted missions.
+* These are workflow tags/states and are separate from runtime mission status like Open, Pending, Completed, etc.
+
+---
+
+## 2. Mission Workflow States
+
+### Draft
+
+**Meaning:** Mission is still being written.
+
+Draft missions should be visible only to:
+
+* The fixer who created it
+* Fixers
+* Admins
+
+**Acceptance criteria**
+
+* Draft missions are not visible to regular players.
+* Draft missions are editable by the creator/fixer/admin.
+* Draft missions are not posted publicly.
+* Draft missions do not create a public mission listing.
+* Draft missions do not create or announce a Discord event yet unless explicitly supported later.
+
+---
+
+### Proposal
+
+**Meaning:** Mission has been submitted for approval.
+
+Proposal missions should be reviewable by:
+
+* Archivist role
+* Admins
+
+**Acceptance criteria**
+
+* Fixers can submit a draft as a proposal.
+* Proposed missions are visible to Archivists and Admins for review.
+* Proposed missions are not visible to regular players.
+* Proposed missions are not considered open for applications yet.
+* Proposed missions cannot be posted publicly until approved.
+
+---
+
+### Approved
+
+**Meaning:** Mission has been approved by an Archivist or Admin but has not yet been posted publicly.
+
+A proposed mission can only become Approved when an authorized user clicks an **Approve** button.
+
+**Who can approve**
+
+* Users with the `Archivist` role
+* Admins
+
+**Acceptance criteria**
+
+* Only Archivists/Admins see the Approve button.
+* Only Archivists/Admins can approve proposed missions.
+* Approval action is logged.
+* Approved missions are still not visible to regular players until posted.
+* Approved missions show a **Post to Missions** button.
+
+---
+
+### Posted
+
+**Meaning:** Mission has been posted publicly to the Missions page.
+
+Once a mission is approved, there should be a button labeled:
+
+`Post to Missions`
+
+Clicking this button should:
+
+* Make the mission visible to everyone.
+* Set the runtime mission status to `Open`.
+* Allow players to apply.
+* Create/sync the Discord mission event if that is part of the posting flow.
+
+**Acceptance criteria**
+
+* Post to Missions only appears for Approved missions.
+* Clicking Post to Missions makes the mission publicly visible.
+* Posting sets the mission runtime status to `Open`.
+* Posted missions appear on the main Missions page.
+* Posting action is logged.
+
+---
+
+## 3. Separate Workflow State From Runtime Status
+
+Mission workflow state and runtime status should be tracked separately.
+
+### Workflow state
+
+Used for creation/approval/publication flow:
+
+* Draft
+* Proposal
+* Approved
+* Posted
+
+### Runtime status
+
+Used for mission lifecycle after posting:
+
+* Open
+* Pending
+* Completed
+* Completed, Players Paid
+* Completed, Paid
+* Cancelled
+
+**Acceptance criteria**
+
+* Draft/Proposal/Approved/Posted are not mixed into the runtime status dropdown.
+* Open/Pending/Completed/etc. are not used as approval states.
+* A mission can be `workflow_state = Posted` and `runtime_status = Open`.
+* Reports and filters make it clear which state/status is being shown.
+
+---
+
+## 4. Additional Create Mission Fields
+
+Add the following fields to the Create Mission form.
+
+### World Link
+
+Add a **World Link** field.
+
+This is primarily for approval/review purposes.
+
+**Visibility**
+
+* Visible to fixers/admins/Archivists.
+* Should not be shown to regular players by default.
+* Should not be included in public player-facing mission postings if it contains spoilers.
+
+**Acceptance criteria**
+
+* World Link can be entered during mission creation/editing.
+* World Link is visible in review/proposal views.
+* World Link is hidden from player-facing public mission views unless explicitly made visible.
+
+---
+
+### Job Type
+
+Add a required **Job Type** dropdown.
+
+**Options**
+
+* Combat
+* Non-Combat
+* Mixed
+
+**Acceptance criteria**
+
+* Job Type is required.
+* Job Type appears in proposal/review views.
+* Job Type appears in mission detail views where appropriate.
+* Job Type can be edited by fixers/admins before posting.
+
+---
+
+### Requested Skills
+
+Add a **Requested Skills** field.
+
+This should be a free-text field where the fixer can describe what kinds of characters are useful.
+
+**Examples**
+
+* Stealth agents
+* Netrunners
+* Smooth talkers
+* Heavy combat mercs
+* Medics
+* Investigators
+
+**Acceptance criteria**
+
+* Requested Skills can be entered during mission creation.
+* Requested Skills appear in the player-facing mission details.
+* Requested Skills can be edited before posting.
+
+---
+
+### Client
+
+Add an optional **Client** field.
+
+The client can be vague if needed.
+
+**Acceptance criteria**
+
+* Client field is optional.
+* Client can be shown to players if appropriate.
+* Fixers/admins can choose vague wording if the real client is a spoiler.
+* Client can be edited before posting.
+
+---
+
+### Notes for Players
+
+Add a **Notes for Players** field.
+
+This is player-facing guidance about expectations, tone, skillsets, warnings, or roleplay style.
+
+**Examples**
+
+* Combat-heavy mission.
+* Social RP encouraged.
+* Stealth recommended.
+* New-player friendly.
+* High risk of injury.
+* Bring characters who can negotiate.
+
+**Acceptance criteria**
+
+* Notes for Players can be entered during mission creation.
+* Notes for Players appear in the player-facing mission details.
+* Notes for Players can be edited before posting.
+
+---
+
+### Max Players
+
+Add a **Max Players** field.
+
+This is specifically for player characters, not actors.
+
+Actors are unlimited unless separately restricted later.
+
+**Meaning**
+
+Max Players tells Archivists/Admins how many player characters the fixer expects to bring on the mission.
+
+**Acceptance criteria**
+
+* Max Players is included in mission creation.
+* Max Players is visible during proposal/approval review.
+* Max Players refers only to player characters.
+* Actor count is not limited by Max Players.
+* The UI should not confuse player slots with actor support.
+
+---
+
+## 5. Player Application Flow
+
+### Apply Button on Open Missions
+
+For missions with runtime status `Open`, players should see an **Apply** button.
+
+Clicking Apply should open an application form.
+
+**Application form fields**
+
+* Character selection dropdown
+* Comment field
+
+**Behavior**
+
+* Player must select one of their own characters.
+* Player may include a comment explaining why they want to join, what they bring, or any scheduling/context notes.
+* Application is tied to the mission, player, and selected character.
+
+**Acceptance criteria**
+
+* Apply button appears only on Open missions.
+* Players cannot apply without selecting a character.
+* Players can add an optional comment.
+* Players can only select characters they own/control.
+* Applications are visible to the mission fixer/admins.
+* Duplicate applications from the same player/character should be prevented or clearly handled.
+
+---
+
+## 6. Fixer Application Review Flow
+
+### Select Players From Applications
+
+Fixers should be able to review applications for their open missions.
+
+From the application list, fixers should be able to add selected applicants and their selected characters to the mission.
+
+**Application review should show**
+
+* Player name
+* Selected character
+* Application comment
+* Character’s recent mission history warning, if applicable
+* Character/player attendance count, if applicable
+
+**Acceptance criteria**
+
+* Fixers can see who applied.
+* Fixers can see which character each player applied with.
+* Fixers can read application comments.
+* Fixers can accept applicants into the mission.
+* Accepted applicants become assigned players/characters for the mission.
+* Once enough players are selected, fixer can move mission from Open to Pending.
+
+---
+
+## 7. Player Recency Warning
+
+When reviewing applicants or assigning players, show a warning if the player/character has recently attended a mission.
+
+Recommended spacing is that characters should ideally not attend more than one mission every 2–3 weeks.
+
+**Warning should show**
+
+* Last mission date
+* Number of missions attended recently
+* Character used
+* Mission names if useful
+
+**Example warning**
+
+`This character attended a mission 8 days ago. Recommended spacing is 2–3 weeks.`
+
+**Acceptance criteria**
+
+* Warning appears during player selection/application review.
+* Warning does not necessarily block selection unless staff later decide to enforce it.
+* Warning helps fixers balance new and experienced players.
+* Warning pulls from the mission attendance records.
+
+---
+
+## 8. Discord Event Conflict Warning
+
+When creating or rescheduling a mission, check for conflicting scheduled Discord events.
+
+The goal is to warn fixers if the mission may interfere with an already scheduled event.
+
+**Behavior**
+
+* Check Discord events for the selected date/time.
+* If there is overlap, display a warning.
+* Fixers/admins may still proceed unless strict blocking is added later.
+
+**Acceptance criteria**
+
+* Mission creation checks for Discord event conflicts.
+* Mission rescheduling checks for Discord event conflicts.
+* Conflict warning shows the conflicting event name and time if available.
+* Conflict warning does not break mission creation if Discord lookup fails; instead show a staff-facing warning.
+
+---
+
+## 9. Automatic NPC Announcement
+
+Automatically post to `#npc-announcements` one hour before the mission start time.
+
+**Channel**
+
+`#npc-announcements`
+Channel ID: `1348654909553250315`
+
+**Timing**
+
+* Post 1 hour before the stated mission start time.
+* Do not post if the mission is Cancelled.
+* If the mission is rescheduled, update the scheduled announcement timing.
+
+**Message should include**
+
+* Mission name
+* Fixer name
+* Start time
+* Location, if appropriate
+* Actor support reminder / gathering notice
+
+**Acceptance criteria**
+
+* System posts automatically to `#npc-announcements` one hour before mission start.
+* Channel ID `1348654909553250315` is configurable.
+* Cancelled missions do not trigger the announcement.
+* Rescheduled missions update the announcement schedule.
+* Failed announcement posts are logged for staff review.
+
+---
+
+## 10. Explicitly Not Needed
+
+Do not add the following from the older process template:
+
+* Actor screenshot upload/link
+* Actor screenshot tracking
+* Pre-mission NPC behavior checklist
+* Major issue report button
+* Copy Player Gig Record export button
+
+**Acceptance criteria**
+
+* These features are not included unless requested later.
+* Mission scope stays focused on approval, posting, applications, scheduling, and payments.
