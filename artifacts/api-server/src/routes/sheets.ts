@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, characterSheets, users, activityEvents, type User } from "@workspace/db";
+import { db, characterSheets, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { postToChannel, hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
@@ -79,9 +79,40 @@ function collectCyberware(d: Record<string, unknown>): Array<{ name?: string; po
   return [...bySlot, ...misc].filter((c) => typeof c.name === "string" && c.name.trim().length > 0);
 }
 
+// Builds a lookup of catalog cyberware CWP cost keyed by normalized name. The
+// catalog is the single source of truth for an install's cost: the client never
+// types CWP, it's set from the catalog. Where multiple catalog rows share a name
+// the highest CWP wins, so a crafted payload can't pick a cheaper duplicate or
+// dodge the match with a tampered slot.
+async function loadCyberwareCostMap(): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ name: catalogCyberware.name, cwp: catalogCyberware.cwp })
+    .from(catalogCyberware);
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const key = r.name.trim().toLowerCase();
+    if (!key) continue;
+    const cost = Number(r.cwp) || 0;
+    const prev = map.get(key);
+    if (prev === undefined || cost > prev) map.set(key, cost);
+  }
+  return map;
+}
+
+// Resolves the CWP an entry actually costs. For any entry whose name matches a
+// catalog item, the catalog's CWP is authoritative and the client-sent `points`
+// is ignored — this is what makes the 6-CWP creation cap tamper-proof. Custom
+// (non-catalog) entries fall back to their client-sent value.
+function entryPoints(c: { name?: string; points?: number }, costMap: Map<string, number>): number {
+  const key = (c.name ?? "").trim().toLowerCase();
+  const catalogCost = costMap.get(key);
+  if (catalogCost !== undefined) return catalogCost;
+  return Number(c.points) || 0;
+}
+
 // Runs full submission validation. Returns null on success, error message on failure.
 // `user` is used to gate NPC sheets to fixers/admins only.
-function validateSheetForSubmission(data: unknown, user: User): string | null {
+async function validateSheetForSubmission(data: unknown, user: User): Promise<string | null> {
   if (!data || typeof data !== "object") return "data required";
   const d = data as Record<string, unknown>;
   for (const f of REQUIRED_SHEET_FIELDS) {
@@ -112,19 +143,25 @@ function validateSheetForSubmission(data: unknown, user: User): string | null {
     return "Missing required field: gear/equipment (at least one entry)";
   }
   // Cyberware is optional. If present, total CWP is capped at 6 at creation.
-  // Reject negative CWP so a crafted payload can't offset over-cap entries.
+  // For catalog installs the cost is taken from the catalog (the client-sent
+  // value is ignored), so the cap can't be bypassed by a crafted payload.
+  // Custom (non-catalog) entries keep their client value; reject negatives so
+  // they can't offset over-cap entries.
   const entries = collectCyberware(d);
-  if (entries.some((c) => (Number(c.points) || 0) < 0)) {
+  const costMap = await loadCyberwareCostMap();
+  const effective = entries.map((c) => entryPoints(c, costMap));
+  if (effective.some((p) => p < 0)) {
     return "Cyberware CWP cannot be negative";
   }
-  const points = entries.reduce((s, c) => s + (Number(c.points) || 0), 0);
+  const points = effective.reduce((s, p) => s + p, 0);
   if (points > 6) return "Max 6 cyberware points (CWP) at creation";
   return null;
 }
 
-function computePoints(data: unknown): number {
+async function computePoints(data: unknown): Promise<number> {
   const d = (data ?? {}) as Record<string, unknown>;
-  return collectCyberware(d).reduce((s, c) => s + (Number(c.points) || 0), 0);
+  const costMap = await loadCyberwareCostMap();
+  return collectCyberware(d).reduce((s, c) => s + entryPoints(c, costMap), 0);
 }
 
 async function announceSubmission(sheetId: number, name: string, data: any, user: User): Promise<void> {
@@ -132,7 +169,7 @@ async function announceSubmission(sheetId: number, name: string, data: any, user
   const sheetType = (data as { sheetType: string }).sheetType;
   const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
   const reviewUrl = portalBase ? `https://${portalBase}/sheets/${sheetId}` : `/sheets/${sheetId}`;
-  const points = computePoints(data);
+  const points = await computePoints(data);
   const msgId = await postToChannel(CS_CHANNEL_ID, `New ${sheetType} sheet pending review: **${name}** by ${user.username}`, [
     {
       title: name,
@@ -168,7 +205,7 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
   }
   const wantsDraft = status === "draft";
   if (!wantsDraft) {
-    const err = validateSheetForSubmission(data, req.user!);
+    const err = await validateSheetForSubmission(data, req.user!);
     if (err) {
       res.status(400).json({ error: err });
       return;
@@ -245,7 +282,7 @@ router.post("/sheets/:id/submit", requireAuth, async (req, res): Promise<void> =
     res.status(409).json({ error: "Sheet is not in a submittable state" });
     return;
   }
-  const err = validateSheetForSubmission(existing.data, req.user!);
+  const err = await validateSheetForSubmission(existing.data, req.user!);
   if (err) {
     res.status(400).json({ error: err });
     return;
