@@ -44,6 +44,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch as UiSwitch } from "@/components/ui/switch";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import { useAuthMe } from "@/hooks/useAuthMe";
+import { missionStatusClass, missionStatusLabel } from "@/lib/missionStatus";
 
 export default function CharacterDetail() {
   const { id } = useParams();
@@ -227,8 +228,8 @@ function MissionsTab({ characterId }: { characterId: number }) {
                     </span>
                     <span className="col-span-6 text-foreground truncate" title={g.title}>{g.title}</span>
                     <span className="col-span-1 text-xs uppercase">
-                      <Badge variant="outline" className={`rounded-none text-[10px] ${g.status === "completed" ? "border-nc-cyan text-nc-cyan" : g.status === "failed" ? "border-destructive text-destructive" : "border-nc-yellow text-nc-yellow"}`}>
-                        {g.status}
+                      <Badge variant="outline" className={`rounded-none text-[10px] ${missionStatusClass(g.status)}`}>
+                        {missionStatusLabel(g.status)}
                       </Badge>
                     </span>
                     <span className="col-span-2 text-right text-nc-yellow">

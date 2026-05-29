@@ -111,6 +111,7 @@ export * from './missionDetail';
 export * from './missionDetailParticipantsItem';
 export * from './missionGroupSummary';
 export * from './missionGroupSummaryMyCharactersItem';
+export * from './missionGroupSummaryPlayersItem';
 export * from './missionInput';
 export * from './missionInputStatus';
 export * from './missionStatus';

@@ -1259,7 +1259,7 @@ export const ListMissionsResponseItem = zod.object({
   "title": zod.string(),
   "summary": zod.string().nullish(),
   "payoutEddies": zod.number(),
-  "status": zod.enum(['planned', 'completed', 'failed', 'cancelled']),
+  "status": zod.enum(['pending', 'completed', 'completed_and_paid', 'cancelled']),
   "occurredAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1276,7 +1276,7 @@ export const CreateMissionBody = zod.object({
   "characterId": zod.number().optional(),
   "summary": zod.string().optional(),
   "payoutEddies": zod.number().min(createMissionBodyPayoutEddiesMin).optional(),
-  "status": zod.enum(['planned', 'completed', 'failed', 'cancelled']).optional(),
+  "status": zod.enum(['pending', 'completed', 'completed_and_paid', 'cancelled']).optional(),
   "occurredAt": zod.coerce.date().optional(),
   "pay": zod.boolean().optional().describe('If true, also debit fixer and credit character via UnbelievaBoat.')
 })
@@ -1303,7 +1303,12 @@ export const ListMyMissionsResponseItem = zod.object({
   "name": zod.string(),
   "portraitUrl": zod.string().nullish(),
   "payoutEddies": zod.number()
-}))
+})),
+  "players": zod.array(zod.object({
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish()
+})).describe('Every resolved participating character in the group (deduped).')
 })
 export const ListMyMissionsResponse = zod.array(ListMyMissionsResponseItem)
 
@@ -1335,7 +1340,12 @@ export const ListAllMissionsResponseItem = zod.object({
   "name": zod.string(),
   "portraitUrl": zod.string().nullish(),
   "payoutEddies": zod.number()
-}))
+})),
+  "players": zod.array(zod.object({
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish()
+})).describe('Every resolved participating character in the group (deduped).')
 })
 export const ListAllMissionsResponse = zod.array(ListAllMissionsResponseItem)
 

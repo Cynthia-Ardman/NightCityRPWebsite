@@ -177,6 +177,21 @@ router.post("/fixer/missions", requireAuth, requireRole("FIXER"), async (req, re
       logger.error({ err }, "mission wallet ledger insert failed");
     }
   }
+  // Status model: pending | completed | completed_and_paid | cancelled.
+  // Reject anything outside the canonical set so the four-status model is
+  // guaranteed at write-time (the OpenAPI enum alone isn't enforced here).
+  const VALID_STATUSES = ["pending", "completed", "completed_and_paid", "cancelled"];
+  let finalStatus = typeof status === "string" && status ? status : "pending";
+  if (!VALID_STATUSES.includes(finalStatus)) {
+    res.status(400).json({ error: "invalid status" });
+    return;
+  }
+  // When a payout was actually issued, auto-promote a "completed" mission to
+  // "completed_and_paid". An explicit "completed_and_paid" or any other
+  // valid selection from the fixer is respected as-is.
+  if (creditedCharacter && finalStatus === "completed") {
+    finalStatus = "completed_and_paid";
+  }
   const [m] = await db
     .insert(missionLog)
     .values({
@@ -185,7 +200,7 @@ router.post("/fixer/missions", requireAuth, requireRole("FIXER"), async (req, re
       title,
       summary: summary ?? null,
       payoutEddies: payout,
-      status: status ?? "planned",
+      status: finalStatus,
       occurredAt: occurredAt ? new Date(occurredAt) : null,
     })
     .returning();

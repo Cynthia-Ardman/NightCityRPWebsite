@@ -378,7 +378,7 @@ for (const m of missionRows.rows) {
       title: m.mission_name,
       summary: `${tag} ${m.mission_description ?? ""}`.trim(),
       payoutEddies: Number(m.pay_per_player),
-      status: m.canceled ? "canceled" : m.paid ? "paid" : "completed",
+      status: m.canceled ? "cancelled" : m.paid ? "completed_and_paid" : "completed",
       occurredAt: m.start_ts,
     });
     counts.missions++;

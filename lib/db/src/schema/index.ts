@@ -472,7 +472,7 @@ export const missionLog = pgTable("mission_log", {
   title: text("title").notNull(),
   summary: text("summary"),
   payoutEddies: integer("payout_eddies").notNull().default(0),
-  status: text("status").notNull().default("planned"),
+  status: text("status").notNull().default("pending"),
   occurredAt: timestamp("occurred_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

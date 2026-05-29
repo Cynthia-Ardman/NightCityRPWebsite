@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MissionGroupSummaryMyCharactersItem } from './missionGroupSummaryMyCharactersItem';
+import type { MissionGroupSummaryPlayersItem } from './missionGroupSummaryPlayersItem';
 
 export interface MissionGroupSummary {
   /** Opaque group id; pass to GET /missions/{id}. */
@@ -31,4 +32,6 @@ export interface MissionGroupSummary {
      */
   myPayoutEddies?: number | null;
   myCharacters: MissionGroupSummaryMyCharactersItem[];
+  /** Every resolved participating character in the group (deduped). */
+  players: MissionGroupSummaryPlayersItem[];
 }

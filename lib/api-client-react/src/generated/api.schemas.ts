@@ -1494,9 +1494,9 @@ export type MissionStatus = typeof MissionStatus[keyof typeof MissionStatus];
 
 
 export const MissionStatus = {
-  planned: 'planned',
+  pending: 'pending',
   completed: 'completed',
-  failed: 'failed',
+  completed_and_paid: 'completed_and_paid',
   cancelled: 'cancelled',
 } as const;
 
@@ -1528,6 +1528,13 @@ export type MissionGroupSummaryMyCharactersItem = {
   payoutEddies: number;
 };
 
+export type MissionGroupSummaryPlayersItem = {
+  characterId: number;
+  name: string;
+  /** @nullable */
+  portraitUrl?: string | null;
+};
+
 export interface MissionGroupSummary {
   /** Opaque group id; pass to GET /missions/{id}. */
   id: string;
@@ -1552,6 +1559,8 @@ export interface MissionGroupSummary {
      */
   myPayoutEddies?: number | null;
   myCharacters: MissionGroupSummaryMyCharactersItem[];
+  /** Every resolved participating character in the group (deduped). */
+  players: MissionGroupSummaryPlayersItem[];
 }
 
 export type MissionDetailParticipantsItem = {
@@ -1591,9 +1600,9 @@ export type MissionInputStatus = typeof MissionInputStatus[keyof typeof MissionI
 
 
 export const MissionInputStatus = {
-  planned: 'planned',
+  pending: 'pending',
   completed: 'completed',
-  failed: 'failed',
+  completed_and_paid: 'completed_and_paid',
   cancelled: 'cancelled',
 } as const;
 

@@ -14,6 +14,7 @@
     "import-cyberware-inventory": "tsx ./src/import-cyberware-inventory.ts",
     "audit-cyberware-coverage": "tsx ./src/audit-cyberware-coverage.ts",
     "backfill-mission-runners": "tsx ./src/backfill-mission-runners.ts",
+    "migrate-mission-statuses": "tsx ./src/migrate-mission-statuses.ts",
     "backfill-cyberware-status": "tsx ./src/backfill-cyberware-status.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

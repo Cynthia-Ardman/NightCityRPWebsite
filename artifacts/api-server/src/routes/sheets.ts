@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, characterSheets, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
-import { postToChannel } from "../lib/discord";
+import { postToChannel, hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields } from "../lib/sheet-validation";

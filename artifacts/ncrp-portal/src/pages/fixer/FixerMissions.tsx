@@ -14,8 +14,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Briefcase } from "lucide-react";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import { MISSION_STATUSES, missionStatusClass, missionStatusLabel } from "@/lib/missionStatus";
 
-const STATUSES = ["planned", "completed", "failed", "cancelled"] as const;
+const STATUSES = MISSION_STATUSES;
 
 export default function FixerMissions() {
   const qc = useQueryClient();
@@ -93,7 +94,7 @@ export default function FixerMissions() {
                 data-testid="select-mission-status"
               >
                 {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s.toUpperCase()}</option>
+                  <option key={s} value={s}>{missionStatusLabel(s).toUpperCase()}</option>
                 ))}
               </select>
             </div>
@@ -194,17 +195,9 @@ export default function FixerMissions() {
                     <td className="p-2">
                       <Badge
                         variant="outline"
-                        className={`rounded-none text-[10px] px-1 py-0 ${
-                          m.status === "completed"
-                            ? "border-nc-cyan text-nc-cyan"
-                            : m.status === "failed"
-                              ? "border-destructive text-destructive"
-                              : m.status === "cancelled"
-                                ? "border-muted-foreground text-muted-foreground"
-                                : "border-nc-yellow text-nc-yellow"
-                        }`}
+                        className={`rounded-none text-[10px] px-1 py-0 ${missionStatusClass(m.status)}`}
                       >
-                        {m.status.toUpperCase()}
+                        {missionStatusLabel(m.status).toUpperCase()}
                       </Badge>
                     </td>
                   </tr>

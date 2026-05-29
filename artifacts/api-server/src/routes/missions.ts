@@ -124,6 +124,15 @@ type MissionGroupSummary = {
     portraitUrl: string | null;
     payoutEddies: number;
   }>;
+  // Every resolved participating character in the group (deduped by id),
+  // regardless of who is asking. Powers the clickable "Players" list on
+  // the mission card. Legacy rows without a resolved characterId are still
+  // counted in participantCount but cannot be listed/linked here.
+  players: Array<{
+    characterId: number;
+    name: string;
+    portraitUrl: string | null;
+  }>;
 };
 
 function groupRows(rows: MissionRow[], mineCharacterIds: Set<number> | null): MissionGroupSummary[] {
@@ -155,7 +164,7 @@ function groupRows(rows: MissionRow[], mineCharacterIds: Set<number> | null): Mi
       fixerId: head.fixerId,
       fixerName: head.fixerName,
       fixerAvatarUrl: head.fixerAvatarUrl,
-      participantCount: rs.filter((r) => r.characterId != null).length,
+      participantCount: countParticipants(rs),
       totalPayoutEddies: rs.reduce((a, r) => a + (r.payoutEddies ?? 0), 0),
       myPayoutEddies: mineCharacterIds
         ? myRows.reduce((a, r) => a + (r.payoutEddies ?? 0), 0)
@@ -168,8 +177,45 @@ function groupRows(rows: MissionRow[], mineCharacterIds: Set<number> | null): Mi
           portraitUrl: r.characterPortraitUrl,
           payoutEddies: r.payoutEddies ?? 0,
         })),
+      players: dedupePlayers(rs),
     };
   });
+}
+
+// Count distinct participants in a group: resolved characters (by id) plus
+// legacy attendees that couldn't be resolved (by their embedded Discord id).
+// This keeps pure-legacy missions showing the "N players (legacy)" fallback
+// on the card even when none can be linked.
+function countParticipants(rs: MissionRow[]): number {
+  const resolved = new Set<number>();
+  const legacy = new Set<string>();
+  for (const r of rs) {
+    if (r.characterId != null) {
+      resolved.add(r.characterId);
+    } else {
+      const lid = legacyAttendeeId(r.summary);
+      if (lid) legacy.add(lid);
+    }
+  }
+  return resolved.size + legacy.size;
+}
+
+// Collect every resolved participating character in a group, deduped by id,
+// preserving first-seen order. Legacy rows with a null characterId are
+// dropped here (they're still reflected in participantCount).
+function dedupePlayers(rs: MissionRow[]): MissionGroupSummary["players"] {
+  const seen = new Set<number>();
+  const out: MissionGroupSummary["players"] = [];
+  for (const r of rs) {
+    if (r.characterId == null || seen.has(r.characterId)) continue;
+    seen.add(r.characterId);
+    out.push({
+      characterId: r.characterId,
+      name: r.characterName ?? "(unknown)",
+      portraitUrl: r.characterPortraitUrl,
+    });
+  }
+  return out;
 }
 
 // Player view: missions where ANY of my characters participated.

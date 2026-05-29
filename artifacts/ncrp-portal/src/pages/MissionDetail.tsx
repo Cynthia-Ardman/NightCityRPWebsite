@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Briefcase, ArrowLeft } from "lucide-react";
+import { missionStatusClass, missionStatusLabel } from "@/lib/missionStatus";
 
 export default function MissionDetail() {
   const { id } = useParams();
@@ -44,8 +45,8 @@ export default function MissionDetail() {
           {data.title}
         </h1>
         <div className="flex flex-wrap gap-3 mt-3 font-mono text-xs uppercase tracking-widest">
-          <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan">
-            {data.status}
+          <Badge variant="outline" className={`rounded-none font-bold ${missionStatusClass(data.status)}`}>
+            {missionStatusLabel(data.status)}
           </Badge>
           <span className="text-muted-foreground">{when.toLocaleDateString()} {when.toLocaleTimeString()}</span>
           <span className="text-nc-yellow">Total payout €${data.totalPayoutEddies.toLocaleString()}</span>
@@ -118,9 +119,9 @@ export default function MissionDetail() {
                     </div>
                     <Badge
                       variant="outline"
-                      className="rounded-none border-nc-cyan/40 text-nc-cyan/70 text-[10px] mt-1"
+                      className={`rounded-none text-[10px] mt-1 ${missionStatusClass(p.status)}`}
                     >
-                      {p.status}
+                      {missionStatusLabel(p.status)}
                     </Badge>
                   </div>
                 </div>

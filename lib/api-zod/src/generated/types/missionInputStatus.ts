@@ -10,8 +10,8 @@ export type MissionInputStatus = typeof MissionInputStatus[keyof typeof MissionI
 
 
 export const MissionInputStatus = {
-  planned: 'planned',
+  pending: 'pending',
   completed: 'completed',
-  failed: 'failed',
+  completed_and_paid: 'completed_and_paid',
   cancelled: 'cancelled',
 } as const;

@@ -2970,13 +2970,13 @@ components:
         title: { type: string }
         summary: { type: ["string", "null"] }
         payoutEddies: { type: integer }
-        status: { type: string, enum: [planned, completed, failed, cancelled] }
+        status: { type: string, enum: [pending, completed, completed_and_paid, cancelled] }
         occurredAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
 
     MissionGroupSummary:
       type: object
-      required: [id, title, status, createdAt, participantCount, totalPayoutEddies, myCharacters]
+      required: [id, title, status, createdAt, participantCount, totalPayoutEddies, myCharacters, players]
       properties:
         id: { type: string, description: "Opaque group id; pass to GET /missions/{id}." }
         title: { type: string }
@@ -3000,6 +3000,16 @@ components:
               name: { type: string }
               portraitUrl: { type: ["string", "null"] }
               payoutEddies: { type: integer }
+        players:
+          type: array
+          description: "Every resolved participating character in the group (deduped)."
+          items:
+            type: object
+            required: [characterId, name]
+            properties:
+              characterId: { type: integer }
+              name: { type: string }
+              portraitUrl: { type: ["string", "null"] }
 
     MissionDetail:
       type: object
@@ -3037,7 +3047,7 @@ components:
         characterId: { type: integer }
         summary: { type: string }
         payoutEddies: { type: integer, minimum: 0 }
-        status: { type: string, enum: [planned, completed, failed, cancelled] }
+        status: { type: string, enum: [pending, completed, completed_and_paid, cancelled] }
         occurredAt: { type: string, format: date-time }
         pay: { type: boolean, description: "If true, also debit fixer and credit character via UnbelievaBoat." }
 
