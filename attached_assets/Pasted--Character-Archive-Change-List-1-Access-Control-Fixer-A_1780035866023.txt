@@ -1,0 +1,279 @@
+# Character Archive Change List
+
+## 1. Access Control
+
+### Fixer/Admin Only
+
+* The Character Archive page should only be accessible to:
+
+  * Fixers
+  * Admins
+* Regular players should not be able to view or access this page.
+
+**Acceptance criteria**
+
+* Non-fixer/non-admin users cannot see the Character Archive nav item.
+* Direct URL access is blocked for unauthorized users.
+* Unauthorized access returns a safe error or redirects appropriately.
+
+---
+
+## 2. Rename Discord Tags to Tags
+
+* Current “Discord Tags” should be labeled simply as **Tags**.
+* These tags may still map to Discord-related tags internally, but the user-facing label should just be “Tags.”
+
+**Acceptance criteria**
+
+* UI says “Tags,” not “Discord Tags.”
+* Existing tag data still displays correctly.
+
+---
+
+## 3. Sort and Filter by Tags
+
+* Fixers/admins should be able to sort or filter the archive by tags.
+* Tag filtering should allow staff to quickly find characters/players with specific tags.
+
+**Acceptance criteria**
+
+* Archive includes tag-based filtering or sorting.
+* Multiple tags display clearly on each card.
+* Filtering updates the visible character list correctly.
+
+---
+
+## 4. Add Tags Button
+
+### Create/Add Tag Flow
+
+* Add an **Add Tags** button.
+* This should allow authorized staff to:
+
+  * Create a new tag if needed.
+  * Add that tag to a player/character.
+* Tag creation and assignment should be staff-only.
+
+**Acceptance criteria**
+
+* Fixers/admins can create new tags.
+* Fixers/admins can assign tags to characters/players.
+* Newly added tags appear immediately in the archive UI.
+* Tag changes are saved persistently.
+
+---
+
+## 5. Character Archive Layout
+
+### Replace Three-Column Name List
+
+* Replace the current three-column list of names with a single-column card layout.
+* Each character should appear as one full-width card.
+* The layout should prioritize readability over density.
+
+**Acceptance criteria**
+
+* Archive displays as one vertical column of cards.
+* Each card is easy to scan.
+* Cards are visually separated from each other.
+* No dense three-column name-only layout remains.
+
+---
+
+## 6. Character Archive Card Content
+
+Each character card should display:
+
+1. Character name
+2. User/player name underneath
+3. PC or NPC label
+4. Active or Retired status
+5. Claimed or Unclaimed status
+6. Cyberware/CWP band
+7. Tags
+
+### Character Name
+
+* Character name should be the most prominent text on the card.
+
+### User Name
+
+* User/player name should appear directly underneath the character name.
+* Label should use clear language, such as:
+
+  * `Player: Cyn`
+  * `User: DiscordName`
+
+### PC/NPC Label
+
+* Clearly show whether the character is:
+
+  * PC
+  * NPC
+
+### Active/Retired Status
+
+* Clearly show whether the character is:
+
+  * Active
+  * Retired
+
+### Claimed/Unclaimed Status
+
+* Clearly show whether the character is:
+
+  * Claimed
+  * Unclaimed
+
+### CWP/Cyberware Band
+
+* Clearly show the character’s CWP band:
+
+  * Organic
+  * None
+  * Medium
+  * High
+  * Extreme
+
+### Tags
+
+* Display all assigned tags on the card.
+* Tags should appear as readable badges/pills.
+
+**Acceptance criteria**
+
+* Every archive card shows character name and user name.
+* Every archive card shows PC/NPC status.
+* Every archive card shows active/retired status.
+* Every archive card shows claimed/unclaimed status.
+* Every archive card shows CWP/cyberware band.
+* Every archive card shows assigned tags.
+* Missing values are handled gracefully.
+
+---
+
+## 7. Visual Styling
+
+### Color-Coded Labels
+
+* PC/NPC, Active/Retired, Claimed/Unclaimed, CWP band, and Tags should use clear visual styling.
+* Use badge/pill-style labels where appropriate.
+* Colors should be distinct and readable.
+* Text contrast must be high enough to read easily.
+
+**Suggested styling**
+
+* PC: blue/purple
+* NPC: gray/orange
+* Active: green
+* Retired: gray
+* Claimed: blue/green
+* Unclaimed: yellow/orange
+* Organic/None: gray
+* Medium CWP: yellow
+* High CWP: orange
+* Extreme CWP: red
+
+**Acceptance criteria**
+
+* Labels are easy to distinguish at a glance.
+* Text is readable against the badge background.
+* Styling is consistent across archive cards.
+* Colors do not rely on color alone; label text remains explicit.
+
+---
+
+## 8. Character Detail Editing
+
+### Edit Button
+
+* When a fixer/admin clicks into a character from the archive, they should be able to edit that character.
+* Add an obvious **Edit** button on the character detail view.
+
+**Editable fields should include**
+
+* Character name
+* Assigned user/player
+* PC/NPC state
+* Active/retired status
+* Claimed/unclaimed status
+* Tags
+* Character sheet sections
+* Any other existing character metadata
+
+**Acceptance criteria**
+
+* Fixers/admins can open a character from the archive.
+* Character detail page has an Edit button.
+* Authorized staff can edit any relevant section.
+* Edits are saved correctly.
+
+---
+
+## 9. Required Commit Message for Edits
+
+* Any fixer/admin edit to an archived character should require a commit message.
+* The commit message should explain what was changed and why.
+* The edit should not be saved unless a commit message is provided.
+
+**Example commit messages**
+
+* `Moved character from active to retired after player request.`
+* `Added Lazarus tag based on current arc involvement.`
+* `Updated PC/NPC state after staff review.`
+* `Corrected character name typo.`
+
+**Acceptance criteria**
+
+* Edit save flow requires a commit message.
+* Empty commit messages are rejected.
+* Commit message is stored with the edit log.
+
+---
+
+## 10. Audit Logging
+
+### Log All Fixer/Admin Edits
+
+All edits made through the Character Archive should be logged for audit purposes.
+
+**Log should include**
+
+* Who made the edit
+* Character affected
+* Timestamp
+* Fields changed
+* Old value
+* New value
+* Commit message
+
+**Acceptance criteria**
+
+* Every archive edit creates an audit log entry.
+* Audit log records before/after values.
+* Audit log records the staff member who made the change.
+* Audit log records the required commit message.
+* Audit data can be reviewed by admins.
+
+---
+
+## 11. Supported Edit Examples
+
+Fixers/admins should be able to easily perform changes such as:
+
+* Add or remove tags
+* Move a character from Unclaimed to Claimed
+* Move a character from Claimed to Unclaimed
+* Move a character from Active to Retired
+* Move a character from Retired to Active
+* Change PC to NPC
+* Change NPC to PC
+* Update character name
+* Update character sheet content
+* Update player/user assignment if needed
+
+**Acceptance criteria**
+
+* These common edits are straightforward in the UI.
+* Each change requires a commit message.
+* Each change is audit logged.
