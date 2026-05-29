@@ -700,10 +700,10 @@ router.get("/directory/stores/:id", async (req, res): Promise<void> => {
   });
 });
 
-// Drafts are work-in-progress catalog entries the fixer team is curating
-// before they go public. Public/anonymous callers and regular players never
-// see draft rows; only ADMIN/FIXER do. Anything else (live, retired, null
-// status) is treated as visible.
+// The player-facing catalog is live-only. "draft" entries are works in
+// progress the fixer team is still curating; "retired" entries have been
+// pulled from sale. Only ADMIN/FIXER see the full catalog (every status);
+// everyone else sees exclusively rows whose status is "live".
 router.get("/catalog/guns", async (req, res): Promise<void> => {
   const all = await db.select().from(catalogGuns);
   const isStaff =
@@ -712,11 +712,11 @@ router.get("/catalog/guns", async (req, res): Promise<void> => {
     res.json(all);
     return;
   }
-  // Non-staff: hide draft entries and scrub wholesalePrice (a fixer-only
+  // Non-staff: live weapons only, and scrub wholesalePrice (a fixer-only
   // margin number that shouldn't leak to regular players via the API).
   res.json(
     all
-      .filter((g) => (g.status ?? "").toLowerCase() !== "draft")
+      .filter((g) => (g.status ?? "").toLowerCase() === "live")
       .map(({ wholesalePrice: _w, ...rest }) => rest),
   );
 });

@@ -682,7 +682,9 @@ export const UpdateGunResponse = zod.object({
   "status": zod.string().nullish(),
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish()
-})
+}).and(zod.object({
+  "changed": zod.array(zod.string())
+})).describe('The updated weapon plus the list of fields that actually changed in\nthis edit (used for audit\/UX context).\n')
 
 
 export const ListCyberwareResponseItem = zod.object({

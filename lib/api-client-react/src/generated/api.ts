@@ -40,6 +40,7 @@ import type {
   CatalogGun,
   CatalogGunInput,
   CatalogGunUpdate,
+  CatalogGunUpdateResult,
   CatalogRent,
   Character,
   CharacterEditSubmission,
@@ -2463,9 +2464,9 @@ with before/after values.
 
  */
 export const updateGun = async (id: number,
-    catalogGunUpdate: CatalogGunUpdate, options?: RequestInit): Promise<CatalogGun> => {
+    catalogGunUpdate: CatalogGunUpdate, options?: RequestInit): Promise<CatalogGunUpdateResult> => {
 
-  return customFetch<CatalogGun>(getUpdateGunUrl(id),
+  return customFetch<CatalogGunUpdateResult>(getUpdateGunUrl(id),
   {
     ...options,
     method: 'PATCH',

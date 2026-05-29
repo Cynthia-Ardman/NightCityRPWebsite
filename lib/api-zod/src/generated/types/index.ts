@@ -38,6 +38,7 @@ export * from './catalogGun';
 export * from './catalogGunInput';
 export * from './catalogGunInputStatus';
 export * from './catalogGunUpdate';
+export * from './catalogGunUpdateResult';
 export * from './catalogGunUpdateStatus';
 export * from './catalogRent';
 export * from './character';

@@ -1010,6 +1010,15 @@ export interface CatalogGunUpdate {
 }
 
 /**
+ * The updated weapon plus the list of fields that actually changed in
+this edit (used for audit/UX context).
+
+ */
+export type CatalogGunUpdateResult = CatalogGun & {
+  changed: string[];
+};
+
+/**
  * Visibility status; defaults to draft.
  * @nullable
  */

@@ -510,7 +510,7 @@ paths:
           description: Updated
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/CatalogGun" }
+              schema: { $ref: "#/components/schemas/CatalogGunUpdateResult" }
         "400": { description: Invalid payload or no changes }
         "404": { description: Gun not found }
   /catalog/cyberware:
@@ -2649,6 +2649,20 @@ components:
           type: ["string", "null"]
           enum: [draft, live, retired, null]
           description: "Visibility status; only ADMIN/FIXER may set."
+    CatalogGunUpdateResult:
+      type: object
+      description: |
+        The updated weapon plus the list of fields that actually changed in
+        this edit (used for audit/UX context).
+      required: [id, name, price, changed]
+      allOf:
+        - $ref: "#/components/schemas/CatalogGun"
+        - type: object
+          required: [changed]
+          properties:
+            changed:
+              type: array
+              items: { type: string }
     CatalogGunInput:
       type: object
       required: [name]

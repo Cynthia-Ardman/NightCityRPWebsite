@@ -20,16 +20,20 @@ async function seedGun(overrides: Partial<typeof catalogGuns.$inferInsert> = {})
 }
 
 describe("GET /catalog/guns (visibility + wholesale scrub)", () => {
-  it("hides drafts and scrubs wholesalePrice for non-staff", async () => {
+  it("shows only live weapons (hides draft/retired/null) and scrubs wholesalePrice for non-staff", async () => {
     const user = await createUser();
     const live = await seedGun({ name: "Live Iron", status: "live", wholesalePrice: 500 });
     const draft = await seedGun({ name: "Secret Proto", status: "draft", wholesalePrice: 99 });
+    const retired = await seedGun({ name: "Old Iron", status: "retired", wholesalePrice: 42 });
+    const nullStatus = await seedGun({ name: "Limbo Iron", status: null, wholesalePrice: 7 });
 
     const res = await request(app).get("/api/catalog/guns").set("x-test-user", user.id);
     expect(res.status).toBe(200);
     const ids = res.body.map((g: { id: number }) => g.id);
     expect(ids).toContain(live.id);
     expect(ids).not.toContain(draft.id);
+    expect(ids).not.toContain(retired.id);
+    expect(ids).not.toContain(nullStatus.id);
     const liveRow = res.body.find((g: { id: number }) => g.id === live.id);
     expect(liveRow.wholesalePrice).toBeUndefined();
   });
