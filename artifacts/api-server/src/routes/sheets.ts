@@ -2,9 +2,10 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, characterSheets, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
-import { postToChannel, hasRole } from "../lib/discord";
+import { postToChannel } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
+import { validateSheetFields } from "../lib/sheet-validation";
 
 const router: IRouter = Router();
 
@@ -58,20 +59,6 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(s);
 });
 
-// Fields that must be present (non-empty strings) on every submitted sheet:
-// Identity (sheetType/fullName/pronouns/occupation), Physical Description,
-// Psychological Profile, and Background. Skills/Gear are validated separately
-// (free-text + list). Cyberware is optional — organic characters are valid.
-const REQUIRED_SHEET_FIELDS = [
-  "sheetType",
-  "fullName",
-  "pronouns",
-  "occupation",
-  "psychProfile",
-  "physicalDescription",
-  "background",
-] as const;
-
 // Loads the catalog cyberware CWP cost map from the database. The catalog is the
 // single source of truth for an install's cost: the client never types CWP, it's
 // set from the catalog. The pure map-building (incl. "highest CWP wins" on
@@ -86,35 +73,11 @@ async function loadCyberwareCostMap(): Promise<Map<string, number>> {
 // Runs full submission validation. Returns null on success, error message on failure.
 // `user` is used to gate NPC sheets to fixers/admins only.
 async function validateSheetForSubmission(data: unknown, user: User): Promise<string | null> {
-  if (!data || typeof data !== "object") return "data required";
+  // Non-cyberware rules (required fields, PC/NPC gating, age, skills, gear) live
+  // in ../lib/sheet-validation so they can be unit-tested without a database.
+  const fieldErr = validateSheetFields(data, user.roles);
+  if (fieldErr) return fieldErr;
   const d = data as Record<string, unknown>;
-  for (const f of REQUIRED_SHEET_FIELDS) {
-    if (typeof d[f] !== "string" || !(d[f] as string).trim()) {
-      return `Missing required field: ${f}`;
-    }
-  }
-  if (!["PC", "NPC"].includes(d.sheetType as string)) {
-    return "sheetType must be PC or NPC";
-  }
-  if (d.sheetType === "NPC" && !hasRole(user.roles, "FIXER") && !hasRole(user.roles, "ADMIN")) {
-    return "Only fixers can create NPC sheets";
-  }
-  if (typeof d.age !== "number" || (d.age as number) <= 0) {
-    return "Missing required field: age (positive integer)";
-  }
-  // Skills is now free-text. Accept a non-empty string (current) or a legacy
-  // non-empty object (older drafts) so they can still be resubmitted.
-  const skills = d.skills;
-  const skillsOk =
-    (typeof skills === "string" && skills.trim().length > 0) ||
-    (skills != null && typeof skills === "object" && Object.keys(skills as object).length > 0);
-  if (!skillsOk) {
-    return "Missing required field: skills";
-  }
-  const gearList = d.gear;
-  if (!Array.isArray(gearList) || gearList.filter((g) => typeof g === "string" && g.trim()).length === 0) {
-    return "Missing required field: gear/equipment (at least one entry)";
-  }
   // Cyberware is optional. If present, total CWP is capped at 6 at creation.
   // For catalog installs the cost is taken from the catalog (the client-sent
   // value is ignored), so the cap can't be bypassed by a crafted payload.
