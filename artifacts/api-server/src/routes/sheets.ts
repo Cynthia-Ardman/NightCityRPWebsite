@@ -45,10 +45,13 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const isOwner = s.ownerId === req.user!.id;
-  const isApprover = req.user!.roles
-    .map((r) => r.toLowerCase())
-    .some((r) => ["cs approver", "character approver", "cs-approver", "admin", "administrator"].includes(r));
-  if (!isOwner && !isApprover) {
+  // Staff who can review/edit a sheet may also view it: CS approvers, admins,
+  // and fixers. Kept in lockstep with the PATCH /sheets/:id edit permission.
+  const isStaff =
+    hasRole(req.user!.roles, "CS_APPROVER") ||
+    hasRole(req.user!.roles, "ADMIN") ||
+    hasRole(req.user!.roles, "FIXER");
+  if (!isOwner && !isStaff) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -209,15 +212,39 @@ router.patch("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  if (existing.ownerId !== req.user!.id) {
+  const isOwner = existing.ownerId === req.user!.id;
+  const isStaff =
+    hasRole(req.user!.roles, "CS_APPROVER") ||
+    hasRole(req.user!.roles, "ADMIN") ||
+    hasRole(req.user!.roles, "FIXER");
+  if (!isOwner && !isStaff) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  if (existing.status !== "draft" && existing.status !== "changes_requested") {
-    res.status(409).json({ error: "Sheet is locked (already submitted/approved)" });
+  // Owners can edit their own draft / changes-requested / in-review sheets.
+  // Staff (reviewers) can edit a sheet while it is in review (pending) so they
+  // can adjust any part of the ticket before approving it. Status is left
+  // unchanged — editing in review does not require a re-submit.
+  const allowed = isOwner ? ["draft", "changes_requested", "pending"] : ["pending"];
+  if (!allowed.includes(existing.status)) {
+    res.status(409).json({ error: "Sheet is locked (already approved/rejected)" });
     return;
   }
   const { name, data, characterId } = req.body ?? {};
+  // A sheet in review can be edited in place (no re-submit), so the full
+  // submission validation is skipped to allow incremental tweaks. The 6-CWP
+  // cap is a hard rule though, so enforce the cyberware cap (and reject
+  // negatives) whenever a pending sheet's data is updated — otherwise it could
+  // be pushed over-cap after submission and approved without re-validation.
+  if (existing.status === "pending" && data && typeof data === "object") {
+    const entries = collectCyberware(data as Record<string, unknown>);
+    const costMap = await loadCyberwareCostMap();
+    const cwErr = validateCyberware(entries, costMap);
+    if (cwErr) {
+      res.status(400).json({ error: cwErr });
+      return;
+    }
+  }
   const [updated] = await db
     .update(characterSheets)
     .set({

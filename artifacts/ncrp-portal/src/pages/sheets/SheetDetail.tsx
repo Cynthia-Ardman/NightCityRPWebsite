@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSheet,
@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 export default function SheetDetail() {
   const { id } = useParams<{ id: string }>();
   const sheetId = Number(id);
+  const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { data: sheet, isLoading } = useGetSheet(sheetId);
   const { data: me } = useAuthMe();
@@ -49,6 +50,12 @@ export default function SheetDetail() {
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING SHEET...</div>;
   if (!sheet) return <div className="font-display text-destructive">SHEET NOT FOUND</div>;
+
+  // While a sheet is in review, both the owner and staff (reviewers) may edit
+  // any part of it before it's approved.
+  const isOwner = (me as any)?.id != null && (sheet as any).ownerId === (me as any).id;
+  const isStaff = !!(me?.isCsApprover || me?.isAdmin || me?.isFixer);
+  const canEdit = sheet.status === "pending" && (isOwner || isStaff);
 
   const data = sheet.data as unknown as Record<string, unknown>;
   const legacyCw = [
@@ -87,6 +94,15 @@ export default function SheetDetail() {
             </Badge>
           </p>
         </div>
+        {canEdit && (
+          <Button
+            onClick={() => setLocation(`/sheets/${sheetId}/edit`)}
+            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+            data-testid="button-edit-sheet"
+          >
+            EDIT
+          </Button>
+        )}
       </div>
 
       <Card className="rounded-none border-border bg-card/50">

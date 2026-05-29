@@ -13,6 +13,7 @@
 - [Character-sheet thread structure](character-sheet-thread-structure.md) — #character-sheets threads span many OP-author messages and use markdown headings, not inline `Label:` lines.
 - [Express sub-router auth scope](express-router-auth-scope.md) — path-less `router.use(requireAuth)` in a sub-router mounted at root gates every later sibling route, not just its own paths.
 - [Pending edit before-snapshot](pending-edit-snapshot.md) — capture diffed fields at submit time, not view time, or admin/other edits silently rewrite the reviewer's BEFORE column.
+- [Pending-PATCH CWP cap](pending-patch-cwp-cap.md) — in-review edits skip submission validation, so PATCH must re-enforce the 6-CWP cap (custom CWP only) or it's a silent bypass.
 - [Auto-claim on login](auto-claim-legacy-username.md) — back-fill characters.ownerId from legacy_discord_username on Discord OAuth callback; guard with isNull(ownerId).
 - [Autobill kill switches](autobill-kill-switches.md) — housing + cyberware crons gated on bot_config flags defaulting OFF; manual admin runs bypass by design.
 - [Autobill parity](autobill-parity.md) — monthly_rent runs 6 bill types in one job; LOA-skip rules differ per type; period guard via paid_through (rent) or wallet kind+month set (personal fees).

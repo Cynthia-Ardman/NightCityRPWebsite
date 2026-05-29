@@ -76,12 +76,18 @@ export default function NewSheet() {
   if (draftId && isLoadingDraft) {
     return <div className="font-display text-nc-cyan animate-pulse">LOADING DRAFT...</div>;
   }
-  if (draftId && loaded && loaded.status !== "draft" && loaded.status !== "changes_requested") {
+  if (
+    draftId &&
+    loaded &&
+    loaded.status !== "draft" &&
+    loaded.status !== "changes_requested" &&
+    loaded.status !== "pending"
+  ) {
     return (
       <div className="max-w-4xl mx-auto py-8 space-y-3">
         <h1 className="text-2xl font-display text-destructive">SHEET LOCKED</h1>
         <p className="font-mono text-sm text-muted-foreground">
-          This sheet has already been submitted and is in status: {loaded.status}. It can no longer be edited.
+          This sheet has already been {loaded.status} and can no longer be edited.
         </p>
       </div>
     );
@@ -102,6 +108,9 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
   const { data: me, isLoading: meLoading } = useAuthMe();
   const isFixer = !!(me?.isFixer || me?.isAdmin);
+  // A pending sheet is being edited in place (by its owner or a reviewer)
+  // while it is still in review — no re-submit, just save changes.
+  const isInReview = initialSheet?.status === "pending";
   const { data: catalog } = useListCyberware();
 
   // Distinct slot names from the cyberware catalog, plus a quick lookup set.
@@ -136,10 +145,12 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
   // Non-fixers may only create PCs — force PC if a stale NPC value slips in.
   // Wait for auth to resolve first so a fixer's NPC draft is never downgraded
-  // during the brief window before `me` loads.
+  // during the brief window before `me` loads. Never coerce a sheet that is
+  // already in review: staff (e.g. a CS approver who isn't a fixer) may be
+  // editing an existing NPC sheet, and coercing it would corrupt the type.
   useEffect(() => {
-    if (!meLoading && !isFixer && sheetType !== "PC") setSheetType("PC");
-  }, [meLoading, isFixer, sheetType]);
+    if (!meLoading && !isFixer && !isInReview && sheetType !== "PC") setSheetType("PC");
+  }, [meLoading, isFixer, isInReview, sheetType]);
 
   const filledChrome = chrome.filter((c) => c.name.trim().length > 0);
   const pointsSpent = filledChrome.reduce((s, c) => s + (Number(c.points) || 0), 0);
@@ -285,6 +296,11 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (overCap) return;
+    // A sheet already in review is saved in place — never re-submitted.
+    if (isInReview) {
+      await saveDraft();
+      return;
+    }
     if (!fullName.trim()) {
       toast({ title: "Name required", variant: "destructive" });
       return;
@@ -372,6 +388,17 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           </CardHeader>
           <CardContent className="font-mono text-sm">
             {(initialSheet as any).decisionNote || "An approver requested changes. Update the fields and resubmit."}
+          </CardContent>
+        </Card>
+      )}
+
+      {isInReview && (
+        <Card className="rounded-none border-nc-cyan bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-nc-cyan">IN REVIEW</CardTitle>
+          </CardHeader>
+          <CardContent className="font-mono text-sm text-muted-foreground">
+            This sheet is awaiting approval. Changes are saved in place and stay visible to reviewers — there's no need to resubmit.
           </CardContent>
         </Card>
       )}
@@ -513,7 +540,18 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
                 </div>
                 <div className="col-span-1">
                   <Label className="text-xs font-mono">CWP</Label>
-                  <div className="h-9 flex items-center px-2 text-sm font-mono text-nc-yellow border border-border bg-background/50">{cw.points || 0}</div>
+                  {isCustom ? (
+                    <Input
+                      type="number"
+                      min={0}
+                      className="h-9 text-nc-yellow"
+                      value={cw.points || 0}
+                      onChange={(e) => updateRow(i, { points: Math.max(0, Number(e.target.value) || 0) })}
+                      data-testid={`input-cyberware-cwp-${i}`}
+                    />
+                  ) : (
+                    <div className="h-9 flex items-center px-2 text-sm font-mono text-nc-yellow border border-border bg-background/50" data-testid={`text-cyberware-cwp-${i}`}>{cw.points || 0}</div>
+                  )}
                 </div>
                 <div className="col-span-1 flex justify-end">
                   <Button type="button" variant="ghost" size="icon" onClick={() => setChrome(chrome.filter((_, j) => j !== i))} className="text-destructive" data-testid={`button-remove-cyberware-${i}`}><Trash2 className="w-4 h-4" /></Button>
@@ -531,17 +569,19 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
       <div className="flex flex-wrap gap-3 justify-end items-center">
         <Button type="button" variant="outline" onClick={() => setLocation("/characters")} className="rounded-none font-display">CANCEL</Button>
-        {draftId && (
+        {draftId && !isInReview && (
           <Button type="button" variant="destructive" onClick={onDeleteDraft} disabled={deleteMut.isPending} className="rounded-none font-display" data-testid="button-discard-draft">
             DISCARD DRAFT
           </Button>
         )}
         <Button type="button" onClick={() => saveDraft()} disabled={saving || createMut.isPending} className="rounded-none border border-nc-cyan bg-transparent text-nc-cyan hover:bg-nc-cyan/10 font-display" data-testid="button-save-draft">
-          {saving ? "SAVING..." : "SAVE DRAFT"}
+          {saving ? "SAVING..." : isInReview ? "SAVE CHANGES" : "SAVE DRAFT"}
         </Button>
-        <Button type="submit" disabled={submitting || overCap} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest" data-testid="button-submit-sheet">
-          {submitting ? "TRANSMITTING..." : "SUBMIT FOR REVIEW"}
-        </Button>
+        {!isInReview && (
+          <Button type="submit" disabled={submitting || overCap} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest" data-testid="button-submit-sheet">
+            {submitting ? "TRANSMITTING..." : "SUBMIT FOR REVIEW"}
+          </Button>
+        )}
       </div>
     </form>
   );
