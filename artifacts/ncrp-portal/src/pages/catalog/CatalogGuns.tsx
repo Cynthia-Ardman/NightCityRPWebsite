@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { useListGuns, useUpdateGun, getListGunsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useListGuns } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -12,53 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useAuthMe } from "@/hooks/useAuthMe";
-import { useToast } from "@/hooks/use-toast";
+import GunDetailDialog from "@/components/catalog/GunDetailDialog";
+import GunCreateDialog from "@/components/catalog/GunCreateDialog";
+import type { Gun } from "@/components/catalog/gunTypes";
+import { humanize } from "@/components/catalog/gunTypes";
 
 const ALL = "__all__";
 
-type Gun = {
-  id: number;
-  name: string;
-  category?: string | null;
-  manufacturer?: string | null;
-  damage?: string | null;
-  magSize?: number | null;
-  price: number;
-  notes?: string | null;
-  wholesalePrice?: number | null;
-  restriction?: string | null;
-  status?: string | null;
-  powerLevel?: string | null;
-  weaponType?: string | null;
-};
-
-// Catalog imports left raw values like "heavy_machine_gun" / "POWER" /
-// "tech-shotgun". Normalise on render so the listing reads like English
-// without having to scrub the database. Underscores AND hyphens collapse
-// to spaces, then we Title Case each word.
-function humanize(v: string | null | undefined): string {
-  if (!v) return "—";
-  const cleaned = String(v).replace(/[_-]+/g, " ").trim();
-  if (!cleaned) return "—";
-  return cleaned
-    .toLowerCase()
-    .split(/\s+/)
-    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
-    .join(" ");
-}
-
 // Single-select filters surfaced as dropdowns. Status is intentionally not
-// here — staff manage drafts in the editor dialog, and regular players
-// never see draft rows in the first place.
+// here — staff manage drafts per-weapon, and regular players never see draft
+// rows in the first place.
 const FILTER_COLUMNS: Array<{ key: keyof Gun; label: string }> = [
   { key: "category", label: "Category" },
   { key: "manufacturer", label: "Manufacturer" },
@@ -73,7 +37,8 @@ export default function CatalogGuns() {
   const isStaff = !!(me?.isAdmin || me?.isFixer);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [selected, setSelected] = useState<Gun | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const rows = (data ?? []) as Gun[];
 
@@ -116,16 +81,18 @@ export default function CatalogGuns() {
           <h1 className="text-4xl font-display" data-testid="text-catalog-guns-title">
             GUN CATALOG
           </h1>
-          <p className="font-mono text-muted-foreground mt-2">Official weapon registry.</p>
+          <p className="font-mono text-muted-foreground mt-2">
+            Official weapon registry.
+            {isStaff ? " Click a weapon to view or edit its full record." : " Click a weapon for details."}
+          </p>
         </div>
         {isStaff && (
           <Button
-            variant="outline"
-            className="rounded-none font-display tracking-widest border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background"
-            onClick={() => setEditorOpen(true)}
-            data-testid="button-edit-gun-catalog"
+            className="rounded-none font-display tracking-widest bg-nc-magenta text-background hover:bg-nc-magenta/80"
+            onClick={() => setCreateOpen(true)}
+            data-testid="button-add-gun"
           >
-            EDIT GUN CATALOG
+            + ADD NEW WEAPON
           </Button>
         )}
       </div>
@@ -190,7 +157,8 @@ export default function CatalogGuns() {
               {filtered.map((g) => (
                 <tr
                   key={g.id}
-                  className="border-b border-border/30 hover:bg-card/80"
+                  className="border-b border-border/30 hover:bg-nc-cyan/5 cursor-pointer"
+                  onClick={() => setSelected(g)}
                   data-testid={`row-gun-${g.id}`}
                 >
                   <td className="p-3 font-bold flex items-center gap-2">
@@ -228,142 +196,15 @@ export default function CatalogGuns() {
         </Card>
       )}
 
-      {isStaff && (
-        <GunCatalogEditor
-          open={editorOpen}
-          onOpenChange={setEditorOpen}
-          rows={rows}
-        />
-      )}
+      <GunDetailDialog
+        gun={selected}
+        isStaff={isStaff}
+        open={selected !== null}
+        onOpenChange={(v) => {
+          if (!v) setSelected(null);
+        }}
+      />
+      {isStaff && <GunCreateDialog open={createOpen} onOpenChange={setCreateOpen} />}
     </div>
-  );
-}
-
-// Minimal editor: lists every gun grouped by status, lets staff flip
-// drafts → live (or live → draft). Anything more involved (price edits,
-// new gun creation) is intentionally out of scope for this pass.
-function GunCatalogEditor({
-  open,
-  onOpenChange,
-  rows,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  rows: Gun[];
-}) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const update = useUpdateGun({
-    mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListGunsQueryKey() });
-      },
-      onError: (e: unknown) => {
-        toast({
-          title: "Update failed",
-          description: e instanceof Error ? e.message : String(e),
-          variant: "destructive",
-        });
-      },
-    },
-  });
-
-  const drafts = rows.filter((g) => (g.status ?? "").toLowerCase() === "draft");
-  const live = rows.filter((g) => (g.status ?? "").toLowerCase() !== "draft");
-
-  function setStatus(id: number, status: "draft" | "live") {
-    update.mutate(
-      { id, data: { status } },
-      {
-        onSuccess: () => {
-          toast({
-            title: `Gun ${status === "live" ? "promoted to LIVE" : "moved to DRAFT"}`,
-          });
-        },
-      },
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl rounded-none border-nc-magenta bg-card font-mono max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-display text-2xl text-nc-magenta">
-            GUN CATALOG EDITOR
-          </DialogTitle>
-          <DialogDescription className="font-mono text-xs text-muted-foreground">
-            Promote drafts to live so all players can see them.
-          </DialogDescription>
-        </DialogHeader>
-
-        <section className="space-y-2">
-          <h3 className="font-display text-nc-yellow tracking-widest text-sm">
-            DRAFTS ({drafts.length})
-          </h3>
-          {drafts.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No drafts.</p>
-          ) : (
-            <ul className="divide-y divide-border/40 border border-border">
-              {drafts.map((g) => (
-                <li
-                  key={g.id}
-                  className="flex items-center justify-between gap-3 p-2"
-                  data-testid={`editor-draft-${g.id}`}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm truncate">{g.name}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {humanize(g.manufacturer)} · {humanize(g.weaponType)}
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-none font-display text-xs border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background"
-                    disabled={update.isPending}
-                    onClick={() => setStatus(g.id, "live")}
-                    data-testid={`button-make-live-${g.id}`}
-                  >
-                    MAKE LIVE
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="space-y-2">
-          <h3 className="font-display text-nc-cyan tracking-widest text-sm">
-            LIVE ({live.length})
-          </h3>
-          <ul className="divide-y divide-border/30 border border-border/60 max-h-64 overflow-y-auto">
-            {live.map((g) => (
-              <li
-                key={g.id}
-                className="flex items-center justify-between gap-3 p-2"
-                data-testid={`editor-live-${g.id}`}
-              >
-                <div className="min-w-0">
-                  <div className="text-sm truncate">{g.name}</div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {humanize(g.manufacturer)} · {humanize(g.weaponType)}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="rounded-none font-display text-xs text-muted-foreground hover:text-nc-yellow"
-                  disabled={update.isPending}
-                  onClick={() => setStatus(g.id, "draft")}
-                  data-testid={`button-make-draft-${g.id}`}
-                >
-                  MOVE TO DRAFT
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </DialogContent>
-    </Dialog>
   );
 }

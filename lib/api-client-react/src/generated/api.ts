@@ -38,6 +38,7 @@ import type {
   CancelPendingEdit200,
   CatalogCyberware,
   CatalogGun,
+  CatalogGunInput,
   CatalogGunUpdate,
   CatalogRent,
   Character,
@@ -2376,6 +2377,77 @@ export function useListGuns<TData = Awaited<ReturnType<typeof listGuns>>, TError
 
 
 
+export const getCreateGunUrl = () => {
+
+
+
+
+  return `/api/catalog/guns`
+}
+
+/**
+ * Fixer/admin endpoint. Creates a new weapon catalog entry. New entries
+default to status="draft" so they stay staff-only until promoted to
+live. The creation is audit-logged.
+
+ */
+export const createGun = async (catalogGunInput: CatalogGunInput, options?: RequestInit): Promise<CatalogGun> => {
+
+  return customFetch<CatalogGun>(getCreateGunUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogGunInput,)
+  }
+);}
+
+
+
+
+export const getCreateGunMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGun>>, TError,{data: BodyType<CatalogGunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createGun>>, TError,{data: BodyType<CatalogGunInput>}, TContext> => {
+
+const mutationKey = ['createGun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGun>>, {data: BodyType<CatalogGunInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createGun(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGunMutationResult = NonNullable<Awaited<ReturnType<typeof createGun>>>
+    export type CreateGunMutationBody = BodyType<CatalogGunInput>
+    export type CreateGunMutationError = ErrorType<void>
+
+    export const useCreateGun = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGun>>, TError,{data: BodyType<CatalogGunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createGun>>,
+        TError,
+        {data: BodyType<CatalogGunInput>},
+        TContext
+      > => {
+      return useMutation(getCreateGunMutationOptions(options));
+    }
+
 export const getUpdateGunUrl = (id: number,) => {
 
 
@@ -2385,8 +2457,9 @@ export const getUpdateGunUrl = (id: number,) => {
 }
 
 /**
- * Fixer/admin endpoint. Currently only the `status` field is editable
-(used to promote a draft entry to live).
+ * Fixer/admin endpoint. Any subset of editable fields may be supplied;
+omitted fields are left unchanged. Every applied edit is audit-logged
+with before/after values.
 
  */
 export const updateGun = async (id: number,
@@ -2405,7 +2478,7 @@ export const updateGun = async (id: number,
 
 
 
-export const getUpdateGunMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateGunMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGun>>, TError,{id: number;data: BodyType<CatalogGunUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateGun>>, TError,{id: number;data: BodyType<CatalogGunUpdate>}, TContext> => {
 
@@ -2434,9 +2507,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateGunMutationResult = NonNullable<Awaited<ReturnType<typeof updateGun>>>
     export type UpdateGunMutationBody = BodyType<CatalogGunUpdate>
-    export type UpdateGunMutationError = ErrorType<unknown>
+    export type UpdateGunMutationError = ErrorType<void>
 
-    export const useUpdateGun = <TError = ErrorType<unknown>,
+    export const useUpdateGun = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGun>>, TError,{id: number;data: BodyType<CatalogGunUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateGun>>,

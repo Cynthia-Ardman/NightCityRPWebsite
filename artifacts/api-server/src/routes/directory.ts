@@ -721,8 +721,115 @@ router.get("/catalog/guns", async (req, res): Promise<void> => {
   );
 });
 
-// Fixer/admin can promote a draft to live (or back to draft). Kept minimal
-// for now: just the status flip; full editor can follow.
+// ---- Gun catalog management (fixer/admin) ---------------------------------
+// The catalog is the fixer team's source of truth for purchasable weapons.
+// Staff get full-field editing + creation here; every mutation writes an
+// inline audit_log row (category "catalog") with before/after so the change
+// is traceable in the admin audit view. Drafts stay staff-only until promoted
+// to live (see GET /catalog/guns).
+const GUN_STATUSES = ["draft", "live", "retired"] as const;
+
+// Optional free-text field that, when present, trims and collapses empty
+// strings to null (the DB stores these columns as nullable).
+const nullableText = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => {
+    if (v === undefined) return undefined;
+    if (v === null) return null;
+    const t = v.trim();
+    return t.length > 0 ? t : null;
+  });
+const nullableInt = z.number().int().min(0).nullable().optional();
+const gunStatus = z
+  .union([z.enum(GUN_STATUSES), z.null()])
+  .optional()
+  .transform((v) => {
+    if (v === undefined) return undefined;
+    return v; // already lowercase enum or null
+  });
+
+const GunEditSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    category: nullableText,
+    manufacturer: nullableText,
+    damage: nullableText,
+    magSize: nullableInt,
+    price: z.number().int().min(0).optional(),
+    wholesalePrice: nullableInt,
+    restriction: nullableText,
+    powerLevel: nullableText,
+    weaponType: nullableText,
+    notes: nullableText,
+    status: gunStatus,
+  })
+  .strict();
+
+const GunCreateSchema = GunEditSchema.extend({
+  name: z.string().trim().min(1),
+});
+
+function auditMeta(req: import("express").Request) {
+  const fwd = req.headers["x-forwarded-for"];
+  const ip = (Array.isArray(fwd) ? fwd[0] : (fwd?.toString().split(",")[0] ?? req.ip)) ?? null;
+  const ua = req.headers["user-agent"]?.toString().slice(0, 500) ?? null;
+  return { ip, ua };
+}
+
+// Create a new weapon. Defaults to draft so it stays staff-only until
+// promoted. Audit-logged with the full created field set as "after".
+router.post(
+  "/catalog/guns",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const parsed = GunCreateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+      return;
+    }
+    const d = parsed.data;
+    const values = {
+      name: d.name,
+      category: d.category ?? null,
+      manufacturer: d.manufacturer ?? null,
+      damage: d.damage ?? null,
+      magSize: d.magSize ?? null,
+      price: d.price ?? 0,
+      wholesalePrice: d.wholesalePrice ?? null,
+      restriction: d.restriction ?? null,
+      powerLevel: d.powerLevel ?? null,
+      weaponType: d.weaponType ?? null,
+      notes: d.notes ?? null,
+      status: d.status ?? "draft",
+    };
+    const { ip, ua } = auditMeta(req);
+    const created = await db.transaction(async (tx) => {
+      const [g] = await tx.insert(catalogGuns).values(values).returning();
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "gun_create",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_gun",
+        targetId: String(g.id),
+        message: `Created weapon "${g.name}" (${g.status ?? "draft"})`,
+        beforeJson: null,
+        afterJson: values as never,
+      });
+      return g;
+    });
+    res.status(201).json(created);
+  },
+);
+
+// Full-field edit. Any subset of editable fields may be supplied; omitted
+// fields are untouched. Mirrors the archive editor: build before/after via
+// mark(), bail with 400 if nothing actually changed, then apply + audit
+// inside one transaction so an edit never lands without its trail.
 router.patch(
   "/catalog/guns/:id",
   requireAnyRole(["ADMIN", "FIXER"]),
@@ -732,26 +839,73 @@ router.patch(
       res.status(400).json({ error: "Invalid id" });
       return;
     }
-    const body = (req.body ?? {}) as { status?: string | null };
-    if (body.status === undefined) {
-      res.status(400).json({ error: "Nothing to update" });
+    const parsed = GunEditSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
       return;
     }
-    const nextStatus = body.status == null ? null : String(body.status).toLowerCase();
-    if (nextStatus !== null && !["draft", "live", "retired"].includes(nextStatus)) {
-      res.status(400).json({ error: "status must be draft|live|retired|null" });
-      return;
-    }
-    const [updated] = await db
-      .update(catalogGuns)
-      .set({ status: nextStatus })
-      .where(eq(catalogGuns.id, id))
-      .returning();
-    if (!updated) {
+    const edit = parsed.data;
+
+    const [cur] = await db.select().from(catalogGuns).where(eq(catalogGuns.id, id));
+    if (!cur) {
       res.status(404).json({ error: "Gun not found" });
       return;
     }
-    res.json(updated);
+
+    const patch: Record<string, unknown> = {};
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+    const mark = (field: string, prev: unknown, next: unknown): void => {
+      if (JSON.stringify(prev ?? null) === JSON.stringify(next ?? null)) return;
+      patch[field] = next ?? null;
+      before[field] = prev ?? null;
+      after[field] = next ?? null;
+    };
+
+    if (edit.name !== undefined) mark("name", cur.name, edit.name);
+    if (edit.category !== undefined) mark("category", cur.category, edit.category);
+    if (edit.manufacturer !== undefined) mark("manufacturer", cur.manufacturer, edit.manufacturer);
+    if (edit.damage !== undefined) mark("damage", cur.damage, edit.damage);
+    if (edit.magSize !== undefined) mark("magSize", cur.magSize, edit.magSize);
+    if (edit.price !== undefined) mark("price", cur.price, edit.price);
+    if (edit.wholesalePrice !== undefined)
+      mark("wholesalePrice", cur.wholesalePrice, edit.wholesalePrice);
+    if (edit.restriction !== undefined) mark("restriction", cur.restriction, edit.restriction);
+    if (edit.powerLevel !== undefined) mark("powerLevel", cur.powerLevel, edit.powerLevel);
+    if (edit.weaponType !== undefined) mark("weaponType", cur.weaponType, edit.weaponType);
+    if (edit.notes !== undefined) mark("notes", cur.notes, edit.notes);
+    if (edit.status !== undefined) mark("status", cur.status, edit.status);
+
+    if (Object.keys(after).length === 0) {
+      res.status(400).json({ error: "No changes" });
+      return;
+    }
+
+    const { ip, ua } = auditMeta(req);
+    const statusChanged = "status" in after;
+    const updated = await db.transaction(async (tx) => {
+      const [u] = await tx
+        .update(catalogGuns)
+        .set(patch)
+        .where(eq(catalogGuns.id, id))
+        .returning();
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: statusChanged && Object.keys(after).length === 1 ? "gun_status" : "gun_edit",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_gun",
+        targetId: String(id),
+        message: `Edited weapon "${u.name}": ${Object.keys(after).join(", ")}`,
+        beforeJson: before as never,
+        afterJson: after as never,
+      });
+      return u;
+    });
+
+    res.json({ ...updated, changed: Object.keys(after) });
   },
 );
 router.get("/catalog/cyberware", async (_req, res): Promise<void> => {

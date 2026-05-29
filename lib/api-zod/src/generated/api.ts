@@ -619,8 +619,34 @@ export const ListGunsResponse = zod.array(ListGunsResponseItem)
 
 
 /**
- * Fixer/admin endpoint. Currently only the `status` field is editable
-(used to promote a draft entry to live).
+ * Fixer/admin endpoint. Creates a new weapon catalog entry. New entries
+default to status="draft" so they stay staff-only until promoted to
+live. The creation is audit-logged.
+
+ */
+export const createGunBodyPriceDefault = 0;
+export const createGunBodyStatusDefault = `draft`;
+
+export const CreateGunBody = zod.object({
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "damage": zod.string().nullish(),
+  "magSize": zod.number().nullish(),
+  "price": zod.number().default(createGunBodyPriceDefault),
+  "wholesalePrice": zod.number().nullish(),
+  "restriction": zod.string().nullish(),
+  "powerLevel": zod.string().nullish(),
+  "weaponType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().default(createGunBodyStatusDefault).describe('Visibility status; defaults to draft.')
+})
+
+
+/**
+ * Fixer/admin endpoint. Any subset of editable fields may be supplied;
+omitted fields are left unchanged. Every applied edit is audit-logged
+with before/after values.
 
  */
 export const UpdateGunParams = zod.object({
@@ -628,8 +654,19 @@ export const UpdateGunParams = zod.object({
 })
 
 export const UpdateGunBody = zod.object({
+  "name": zod.string().optional(),
+  "category": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "damage": zod.string().nullish(),
+  "magSize": zod.number().nullish(),
+  "price": zod.number().optional(),
+  "wholesalePrice": zod.number().nullish(),
+  "restriction": zod.string().nullish(),
+  "powerLevel": zod.string().nullish(),
+  "weaponType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
   "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().describe('Visibility status; only ADMIN\/FIXER may set.')
-})
+}).describe('Fixer\/admin patch. Any subset of these fields may be supplied; omitted\nfields are left unchanged.\n')
 
 export const UpdateGunResponse = zod.object({
   "id": zod.number(),

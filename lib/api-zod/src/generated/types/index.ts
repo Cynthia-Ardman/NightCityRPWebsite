@@ -35,6 +35,8 @@ export * from './botConfigUpdate';
 export * from './cancelPendingEdit200';
 export * from './catalogCyberware';
 export * from './catalogGun';
+export * from './catalogGunInput';
+export * from './catalogGunInputStatus';
 export * from './catalogGunUpdate';
 export * from './catalogGunUpdateStatus';
 export * from './catalogRent';

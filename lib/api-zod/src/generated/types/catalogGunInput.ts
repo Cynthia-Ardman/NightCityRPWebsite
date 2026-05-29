@@ -5,15 +5,10 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
-import type { CatalogGunUpdateStatus } from './catalogGunUpdateStatus';
+import type { CatalogGunInputStatus } from './catalogGunInputStatus';
 
-/**
- * Fixer/admin patch. Any subset of these fields may be supplied; omitted
-fields are left unchanged.
-
- */
-export interface CatalogGunUpdate {
-  name?: string;
+export interface CatalogGunInput {
+  name: string;
   /** @nullable */
   category?: string | null;
   /** @nullable */
@@ -34,8 +29,8 @@ export interface CatalogGunUpdate {
   /** @nullable */
   notes?: string | null;
   /**
-     * Visibility status; only ADMIN/FIXER may set.
+     * Visibility status; defaults to draft.
      * @nullable
      */
-  status?: CatalogGunUpdateStatus;
+  status?: CatalogGunInputStatus;
 }

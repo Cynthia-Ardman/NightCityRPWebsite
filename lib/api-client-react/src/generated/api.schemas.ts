@@ -976,12 +976,78 @@ export const CatalogGunUpdateStatus = {
   retired: 'retired',
 } as const;
 
+/**
+ * Fixer/admin patch. Any subset of these fields may be supplied; omitted
+fields are left unchanged.
+
+ */
 export interface CatalogGunUpdate {
+  name?: string;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  manufacturer?: string | null;
+  /** @nullable */
+  damage?: string | null;
+  /** @nullable */
+  magSize?: number | null;
+  price?: number;
+  /** @nullable */
+  wholesalePrice?: number | null;
+  /** @nullable */
+  restriction?: string | null;
+  /** @nullable */
+  powerLevel?: string | null;
+  /** @nullable */
+  weaponType?: string | null;
+  /** @nullable */
+  notes?: string | null;
   /**
      * Visibility status; only ADMIN/FIXER may set.
      * @nullable
      */
   status?: CatalogGunUpdateStatus;
+}
+
+/**
+ * Visibility status; defaults to draft.
+ * @nullable
+ */
+export type CatalogGunInputStatus = typeof CatalogGunInputStatus[keyof typeof CatalogGunInputStatus] | null;
+
+
+export const CatalogGunInputStatus = {
+  draft: 'draft',
+  live: 'live',
+  retired: 'retired',
+} as const;
+
+export interface CatalogGunInput {
+  name: string;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  manufacturer?: string | null;
+  /** @nullable */
+  damage?: string | null;
+  /** @nullable */
+  magSize?: number | null;
+  price?: number;
+  /** @nullable */
+  wholesalePrice?: number | null;
+  /** @nullable */
+  restriction?: string | null;
+  /** @nullable */
+  powerLevel?: string | null;
+  /** @nullable */
+  weaponType?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /**
+     * Visibility status; defaults to draft.
+     * @nullable
+     */
+  status?: CatalogGunInputStatus;
 }
 
 export interface CatalogCyberware {

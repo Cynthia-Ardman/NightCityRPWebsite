@@ -471,6 +471,25 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CatalogGun" }
+    post:
+      operationId: createGun
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Creates a new weapon catalog entry. New entries
+        default to status="draft" so they stay staff-only until promoted to
+        live. The creation is audit-logged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogGunInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogGun" }
+        "400": { description: Invalid payload }
   /catalog/guns/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -478,8 +497,9 @@ paths:
       operationId: updateGun
       tags: [catalog]
       description: |
-        Fixer/admin endpoint. Currently only the `status` field is editable
-        (used to promote a draft entry to live).
+        Fixer/admin endpoint. Any subset of editable fields may be supplied;
+        omitted fields are left unchanged. Every applied edit is audit-logged
+        with before/after values.
       requestBody:
         required: true
         content:
@@ -491,6 +511,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CatalogGun" }
+        "400": { description: Invalid payload or no changes }
+        "404": { description: Gun not found }
   /catalog/cyberware:
     get:
       operationId: listCyberware
@@ -2608,11 +2630,45 @@ components:
         weaponType: { type: ["string", "null"] }
     CatalogGunUpdate:
       type: object
+      description: |
+        Fixer/admin patch. Any subset of these fields may be supplied; omitted
+        fields are left unchanged.
       properties:
+        name: { type: string }
+        category: { type: ["string", "null"] }
+        manufacturer: { type: ["string", "null"] }
+        damage: { type: ["string", "null"] }
+        magSize: { type: ["integer", "null"] }
+        price: { type: integer }
+        wholesalePrice: { type: ["integer", "null"] }
+        restriction: { type: ["string", "null"] }
+        powerLevel: { type: ["string", "null"] }
+        weaponType: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
         status:
           type: ["string", "null"]
           enum: [draft, live, retired, null]
           description: "Visibility status; only ADMIN/FIXER may set."
+    CatalogGunInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        category: { type: ["string", "null"] }
+        manufacturer: { type: ["string", "null"] }
+        damage: { type: ["string", "null"] }
+        magSize: { type: ["integer", "null"] }
+        price: { type: integer, default: 0 }
+        wholesalePrice: { type: ["integer", "null"] }
+        restriction: { type: ["string", "null"] }
+        powerLevel: { type: ["string", "null"] }
+        weaponType: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        status:
+          type: ["string", "null"]
+          enum: [draft, live, retired, null]
+          default: draft
+          description: "Visibility status; defaults to draft."
 
     CatalogCyberware:
       type: object

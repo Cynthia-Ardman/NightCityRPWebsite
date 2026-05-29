@@ -12,6 +12,7 @@ export type AuditCategory =
   | "housing"
   | "attendance"
   | "shop"
+  | "catalog"
   | "sheet"
   | "admin"
   | "mission";
