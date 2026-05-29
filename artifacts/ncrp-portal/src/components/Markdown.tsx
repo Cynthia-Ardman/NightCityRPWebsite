@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import remarkColor from "@/lib/remarkColor";
 
 export default function Markdown({ children, className }: { children?: string | null; className?: string }) {
   const text = (children ?? "").trim();
@@ -6,6 +7,7 @@ export default function Markdown({ children, className }: { children?: string | 
   return (
     <div className={`${className ?? ""} break-words [overflow-wrap:anywhere]`}>
       <ReactMarkdown
+        remarkPlugins={[remarkColor]}
         components={{
           p: ({ children }) => (
             <p className="mb-3 last:mb-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{children}</p>

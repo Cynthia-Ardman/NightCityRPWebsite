@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import MarkdownEditor from "@/components/MarkdownEditor";
 import { Plus, Trash2, Upload, Star, X, ImagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { uploadImage } from "@/lib/uploadImage";
@@ -228,11 +229,11 @@ export default function EditCharacterDialog({
           {/* Background */}
           <div>
             <Label className="text-xs">BACKGROUND / DOSSIER SUMMARY</Label>
-            <Textarea
+            <MarkdownEditor
               value={background}
-              onChange={(e) => setBackground(e.target.value)}
+              onChange={setBackground}
               rows={6}
-              data-testid="input-edit-background"
+              testId="input-edit-background"
             />
           </div>
 
@@ -281,23 +282,23 @@ export default function EditCharacterDialog({
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
-                <Textarea
+                <MarkdownEditor
                   value={row.value}
-                  onChange={(e) =>
-                    setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, value: e.target.value } : r)))
+                  onChange={(v) =>
+                    setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, value: v } : r)))
                   }
                   rows={4}
-                  data-testid={`input-section-value-${idx}`}
+                  testId={`input-section-value-${idx}`}
                 />
               </div>
             ))}
             <div>
               <Label className="text-xs">PREAMBLE (text above the labeled sections)</Label>
-              <Textarea
+              <MarkdownEditor
                 value={preamble}
-                onChange={(e) => setPreamble(e.target.value)}
+                onChange={setPreamble}
                 rows={3}
-                data-testid="input-edit-preamble"
+                testId="input-edit-preamble"
               />
             </div>
           </div>
