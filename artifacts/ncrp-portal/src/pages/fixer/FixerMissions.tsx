@@ -224,16 +224,26 @@ function EditMissionForm({ missionId, onSaved }: { missionId: number; onSaved: (
       character: a.characterId ? { id: a.characterId, name: a.characterName ?? "(character)" } : null,
     })),
   };
-  return <MissionForm key={`edit-${missionId}`} missionId={missionId} initial={initial} onSaved={onSaved} />;
+  return (
+    <MissionForm
+      key={`edit-${missionId}`}
+      missionId={missionId}
+      initial={initial}
+      excludeEventId={data.discordEventId ?? undefined}
+      onSaved={onSaved}
+    />
+  );
 }
 
 function MissionForm({
   missionId,
   initial,
+  excludeEventId,
   onSaved,
 }: {
   missionId?: number;
   initial?: FormValues;
+  excludeEventId?: string;
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
@@ -253,7 +263,13 @@ function MissionForm({
   // Fail-safe Discord scheduling-conflict warning (never blocks). Only queries
   // once a start time is set; surfaces overlapping events for staff awareness.
   const startIso = v.startAt ? new Date(v.startAt).toISOString() : "";
-  const conflictParams = { startAt: startIso, durationMinutes: v.durationMinutes || undefined };
+  const conflictParams = {
+    startAt: startIso,
+    durationMinutes: v.durationMinutes || undefined,
+    // When editing an already-posted mission, ignore its own Discord event so
+    // a reschedule doesn't warn against itself.
+    ...(excludeEventId ? { excludeEventId } : {}),
+  };
   const conflictQuery = useCheckMissionConflicts(conflictParams, {
     query: { enabled: !!startIso, queryKey: getCheckMissionConflictsQueryKey(conflictParams) },
   });

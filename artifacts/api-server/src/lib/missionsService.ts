@@ -324,8 +324,9 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     client: m.client,
     notesForPlayers: m.notesForPlayers,
     maxPlayers: m.maxPlayers,
-    // World Link is staff-only (OOC planning doc, never shown to players).
-    worldLink: canManage ? m.worldLink : null,
+    // World Link is an OOC staff planning doc: visible to fixers/admins AND to
+    // archivist approvers (who review non-posted missions), never to players.
+    worldLink: canManage || viewer.isArchivist ? m.worldLink : null,
     fixerId: m.fixerId,
     fixerName: m.fixerName,
     fixerAvatarUrl: m.fixerAvatarUrl,
