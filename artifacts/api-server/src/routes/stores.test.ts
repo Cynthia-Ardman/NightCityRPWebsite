@@ -132,11 +132,18 @@ describe("POST /stores/:id/sell", () => {
       .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 1 });
     expect(res.status).toBe(502);
     expect(mockPatch).toHaveBeenCalledTimes(3); // debit, failed credit, refund
+    // The refund must return the debited amount to the BUYER (not the seller).
+    expect(mockPatch.mock.calls[0][0]).toBe(buyerUser.discordId);
+    expect(mockPatch.mock.calls[0][1]).toMatchObject({ cash: -100 });
+    expect(mockPatch.mock.calls[2][0]).toBe(buyerUser.discordId);
+    expect(mockPatch.mock.calls[2][1]).toMatchObject({ cash: 100 });
     // stock was NOT decremented and no inventory/ledger written
     const [stillStock] = await db.select().from(storeStock).where(eq(storeStock.id, stock.id));
     expect(stillStock.quantity).toBe(5);
     const inv = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id));
     expect(inv).toHaveLength(0);
+    const ledger = await db.select().from(walletTransactions);
+    expect(ledger).toHaveLength(0);
   });
 
   it("completes a sale: decrements stock, adds inventory, writes both ledger rows", async () => {

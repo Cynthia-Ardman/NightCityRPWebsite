@@ -117,6 +117,39 @@ describe("POST /wholesaler/restock", () => {
     expect(mockPatch).not.toHaveBeenCalled();
   });
 
+  it("502s with no order/stock/ledger side effects when the wallet provider is unavailable", async () => {
+    mockGetBalance.mockResolvedValue(null);
+    const fixer = await createFixer();
+    const store = await makeStore(fixer.id);
+    const item = await makeItem({ wholesalePrice: 50 });
+    const res = await request(app)
+      .post("/api/wholesaler/restock")
+      .set("x-test-user", fixer.id)
+      .send({ wholesalerItemId: item.id, quantity: 2, targetKind: "store", targetStoreId: store.id });
+    expect(res.status).toBe(502);
+    expect(mockPatch).not.toHaveBeenCalled();
+    expect(await db.select().from(wholesalerOrders)).toHaveLength(0);
+    expect(await db.select().from(storeStock)).toHaveLength(0);
+    expect(await db.select().from(walletTransactions)).toHaveLength(0);
+  });
+
+  it("502s with no order/stock/ledger side effects when the debit is rejected", async () => {
+    mockGetBalance.mockResolvedValue({ cash: 1000, bank: 0, total: 1000, source: "unbelievaboat" });
+    mockPatch.mockResolvedValue(null);
+    const fixer = await createFixer();
+    const store = await makeStore(fixer.id);
+    const item = await makeItem({ wholesalePrice: 50 });
+    const res = await request(app)
+      .post("/api/wholesaler/restock")
+      .set("x-test-user", fixer.id)
+      .send({ wholesalerItemId: item.id, quantity: 2, targetKind: "store", targetStoreId: store.id });
+    expect(res.status).toBe(502);
+    expect(mockPatch).toHaveBeenCalledTimes(1); // debit attempted, rejected; no refund needed
+    expect(await db.select().from(wholesalerOrders)).toHaveLength(0);
+    expect(await db.select().from(storeStock)).toHaveLength(0);
+    expect(await db.select().from(walletTransactions)).toHaveLength(0);
+  });
+
   it("completes a restock: pushes stock, records the order + ledger", async () => {
     mockGetBalance.mockResolvedValue({ cash: 1000, bank: 0, total: 1000, source: "unbelievaboat" });
     mockPatch.mockResolvedValue({ cash: 900, bank: 0, total: 900, source: "unbelievaboat" });
