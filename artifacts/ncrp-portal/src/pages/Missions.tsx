@@ -14,6 +14,7 @@ import {
   missionTierClass,
   missionTierLabel,
 } from "@/lib/missionStatus";
+import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 
 export default function Missions() {
   const { data: me } = useAuthMe();
@@ -35,6 +36,8 @@ export default function Missions() {
           Scheduled jobs run by fixers, with payouts to the players who show up.
         </p>
       </div>
+
+      {isStaff && <MissionTestModeBanner />}
 
       <section className="space-y-4">
         <h2 className="font-display tracking-widest text-lg">YOUR MISSIONS</h2>

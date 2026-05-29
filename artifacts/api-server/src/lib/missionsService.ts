@@ -342,10 +342,16 @@ export async function syncMissionDiscordEvent(
 // PAYMENTS
 // ===========================================================================
 
-function advanceAfterPlayersPaid(status: string): string {
-  // Players just got paid: move any pre-payout state to "players paid".
-  if (status === "open" || status === "pending" || status === "completed") {
-    return "completed_players_paid";
+function advanceAfterPlayersPaid(status: string, actorsPaid: boolean): string {
+  // Players just got paid. If actors were already paid (actors-first ordering),
+  // the mission is fully settled → completed_paid; otherwise it's players-paid.
+  if (
+    status === "open" ||
+    status === "pending" ||
+    status === "completed" ||
+    status === "completed_players_paid"
+  ) {
+    return actorsPaid ? "completed_paid" : "completed_players_paid";
   }
   return status;
 }
@@ -491,7 +497,21 @@ export async function payMissionPlayers(
       ),
     );
   const allResolved = remaining.length === 0;
-  const newStatus = allResolved ? advanceAfterPlayersPaid(mission.status) : mission.status;
+  // Detect actors-first ordering: if any actor payout already settled, paying
+  // players completes the mission outright (completed_paid) rather than leaving
+  // it stuck at completed_players_paid.
+  const actorsSettled = await db
+    .select({ id: missionActorPayments.id })
+    .from(missionActorPayments)
+    .where(
+      and(
+        eq(missionActorPayments.missionId, missionId),
+        inArray(missionActorPayments.paymentStatus, ["paid", "simulated"]),
+      ),
+    )
+    .limit(1);
+  const actorsPaid = actorsSettled.length > 0;
+  const newStatus = allResolved ? advanceAfterPlayersPaid(mission.status, actorsPaid) : mission.status;
   await db
     .update(missions)
     .set({ status: newStatus, autoPayProcessedAt: mission.autoPayProcessedAt ?? now })

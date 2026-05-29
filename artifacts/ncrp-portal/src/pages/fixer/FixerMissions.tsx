@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Briefcase, X } from "lucide-react";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import {
   MISSION_STATUSES,
   MISSION_TIERS,
@@ -58,6 +59,8 @@ export default function FixerMissions() {
       <h1 className="text-4xl font-display flex items-center gap-3" data-testid="text-missions-title">
         <Briefcase className="w-7 h-7 text-nc-magenta" /> MISSIONS
       </h1>
+
+      <MissionTestModeBanner />
 
       {editId != null ? (
         <EditMissionForm missionId={editId} onSaved={invalidateList} />

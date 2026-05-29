@@ -9,7 +9,6 @@ import {
   type MissionDetail as MissionDetailModel,
   type MissionAssignmentView,
 } from "@workspace/api-client-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +32,7 @@ import {
   missionTierClass,
   missionTierLabel,
 } from "@/lib/missionStatus";
+import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 
 function errOf(e: unknown): string | null {
   const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
@@ -71,6 +71,8 @@ export default function MissionDetail() {
       >
         <ArrowLeft className="w-4 h-4" /> back to missions
       </Link>
+
+      <MissionTestModeBanner live={data.live} />
 
       {data.imageUrl && (
         <div className="w-full overflow-hidden border border-border rounded-none bg-card/40">
@@ -273,8 +275,6 @@ function PaymentBadge({
 
 function FixerView({ data }: { data: MissionDetailModel }) {
   const qc = useQueryClient();
-  const { data: me } = useAuthMe();
-  const isAdmin = !!me?.isAdmin;
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
 
   const payPlayers = usePayMissionPlayers({ mutation: { onSuccess: invalidate } });
@@ -292,20 +292,6 @@ function FixerView({ data }: { data: MissionDetailModel }) {
 
   return (
     <>
-      {!data.live && (
-        <div
-          className="border border-nc-yellow bg-nc-yellow/10 text-nc-yellow font-mono text-sm p-3 flex items-center gap-2"
-          data-testid="banner-test-mode"
-        >
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>
-            <strong className="font-display tracking-widest">TEST MODE</strong> — payments and Discord events are
-            simulated and recorded, but no real eddies move and no Discord event is created. Flip the master toggle in
-            Admin to go live.
-          </span>
-        </div>
-      )}
-
       {data.discordSyncError && (
         <div className="border border-destructive bg-destructive/10 text-destructive font-mono text-xs p-3 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -318,15 +304,13 @@ function FixerView({ data }: { data: MissionDetailModel }) {
           <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
             Mission Tools
           </CardTitle>
-          {isAdmin && (
-            <Link
-              href={`/fixer/missions?edit=${data.id}`}
-              className="text-nc-cyan font-mono text-xs hover:underline inline-flex items-center gap-1"
-              data-testid="link-edit-mission"
-            >
-              <Pencil className="w-3 h-3" /> edit
-            </Link>
-          )}
+          <Link
+            href={`/fixer/missions?edit=${data.id}`}
+            className="text-nc-cyan font-mono text-xs hover:underline inline-flex items-center gap-1"
+            data-testid="link-edit-mission"
+          >
+            <Pencil className="w-3 h-3" /> edit
+          </Link>
         </CardHeader>
         <CardContent className="space-y-4 font-mono text-sm">
           <div className="flex flex-wrap items-center gap-3">
