@@ -23,9 +23,21 @@
  *   DATABASE_URL="$LIVE_PROD_DATABASE_URL" DRY_RUN=1 LIMIT=10 \
  *     pnpm --filter @workspace/api-server exec tsx src/_backfill-stats-images.ts
  */
+import { appendFileSync, readFileSync } from "fs";
 import { db, characters } from "@workspace/db";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { ObjectStorageService } from "./lib/objectStorage";
+
+// Synchronous progress sink — survives stdout buffering through pnpm/nohup so
+// the run can be monitored reliably via `tail -f`.
+const PROGRESS_FILE = process.env.PROGRESS_FILE ?? "/tmp/backfill-progress.log";
+function logProgress(line: string): void {
+  try {
+    appendFileSync(PROGRESS_FILE, `${new Date().toISOString()} ${line}\n`);
+  } catch {
+    /* ignore */
+  }
+}
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN ?? "";
 const API = "https://discord.com/api/v10";
@@ -33,6 +45,32 @@ const DRY_RUN = process.env.DRY_RUN === "1";
 const LIMIT = process.env.LIMIT ? Number(process.env.LIMIT) : Infinity;
 const OFFSET = process.env.OFFSET ? Number(process.env.OFFSET) : 0;
 const CONCURRENCY = process.env.CONCURRENCY ? Number(process.env.CONCURRENCY) : 4;
+
+// Optional attempted-set file. Threads listed here are excluded from the run,
+// and every thread is appended the moment processing STARTS (before any await).
+// This lets an external driver wrap each slice in a hard OS-level `timeout`: if
+// a process freezes (event-loop stall we can't catch in-process), the OS kills
+// it, and the next slice skips the frozen thread instead of re-hanging on it.
+const SKIP_FILE = process.env.SKIP_FILE ?? "";
+const attempted = new Set<string>();
+if (SKIP_FILE) {
+  try {
+    for (const line of readFileSync(SKIP_FILE, "utf8").split("\n")) {
+      const t = line.trim();
+      if (t) attempted.add(t);
+    }
+  } catch {
+    /* no file yet — first run */
+  }
+}
+function markAttempted(threadId: string): void {
+  if (!SKIP_FILE) return;
+  try {
+    appendFileSync(SKIP_FILE, `${threadId}\n`);
+  } catch {
+    /* ignore */
+  }
+}
 
 const ANTH_BASE = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL ?? "";
 const ANTH_KEY = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY ?? "";
@@ -86,12 +124,43 @@ type Embed = {
 const PER_CHAR_TIMEOUT_MS = 150_000;
 const MAX_IMAGES_PER_THREAD = 30;
 const MAX_RAW_BYTES = 3_600_000; // base64 inflation keeps us under the 5MB API cap
+// Hard ceiling on bytes we will ever pull into memory for a single download.
+// Without this, a mislabeled huge attachment (e.g. a 500MB file) is fully
+// buffered by arrayBuffer(); with CONCURRENCY parallel downloads that memory
+// pressure triggers long GC stalls that freeze the event loop and defeat every
+// timer (download abort, per-image cap, per-char timeout). Stop reading well
+// before that happens.
+const MAX_DOWNLOAD_BYTES = 12_000_000;
+
+// Global pacing gate for the Anthropic proxy. Serializes classification calls
+// with a minimum interval so we stay under the proxy rate limit instead of
+// retrying through 429s (which made characters appear to hang for ~150s).
+const CLASSIFY_MIN_INTERVAL_MS = process.env.CLASSIFY_MIN_INTERVAL_MS
+  ? Number(process.env.CLASSIFY_MIN_INTERVAL_MS)
+  : 1200;
+// Hard cap per image so one slow/rate-limited classification can't stall the
+// whole character up to the per-char timeout; on cap we treat it as non-stats.
+const CLASSIFY_TIMEOUT_MS = 40_000;
+// Reserve the next time slot synchronously (no growing promise chain). Each
+// caller advances `nextAt`, so requests are paced CLASSIFY_MIN_INTERVAL_MS
+// apart regardless of concurrency, with bounded memory.
+let nextClassifyAt = 0;
+async function classifyThrottle(): Promise<void> {
+  const now = Date.now();
+  const wait = Math.max(0, nextClassifyAt - now);
+  nextClassifyAt = Math.max(now, nextClassifyAt) + CLASSIFY_MIN_INTERVAL_MS;
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+}
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`timeout: ${label}`)), ms)),
-  ]);
+  // Swallow a late rejection from the losing promise so it doesn't surface as
+  // an unhandled rejection after the timeout has already won the race.
+  p.catch(() => {});
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<T>((_, rej) => {
+    timer = setTimeout(() => rej(new Error(`timeout: ${label}`)), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 type Message = {
   id: string;
@@ -171,12 +240,35 @@ async function downloadForClassify(
   try {
     const imgRes = await fetch(url, { signal: dlCtl.signal });
     if (!imgRes.ok) throw new Error(`download ${imgRes.status}`);
+    // Reject before reading the body if the server tells us it's too big.
+    const declared = Number(imgRes.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > MAX_DOWNLOAD_BYTES) {
+      dlCtl.abort();
+      throw new Error(`download too large (${declared})`);
+    }
     const ct = imgRes.headers.get("content-type") ?? "image/png";
     const mediaType = (
       ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(ct) ? ct : "image/png"
     ) as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
-    const buf = Buffer.from(await imgRes.arrayBuffer());
-    return { buf, mediaType };
+    // Stream with a hard byte ceiling so a missing/lying content-length can't let
+    // a huge body get fully buffered (which would stall the event loop via GC).
+    const body = imgRes.body;
+    if (!body) return null;
+    const chunks: Buffer[] = [];
+    let total = 0;
+    const reader = body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_DOWNLOAD_BYTES) {
+        dlCtl.abort();
+        await reader.cancel().catch(() => {});
+        throw new Error(`download too large (streamed ${total})`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+    return { buf: Buffer.concat(chunks), mediaType };
   } finally {
     clearTimeout(dlTimer);
   }
@@ -198,9 +290,11 @@ async function classify(url: string, proxyUrl?: string): Promise<ImgKind> {
     const b64 = buf.toString("base64");
     // Retry on 429 (proxy rate limit) so a real STATS image isn't silently
     // dropped as "other". Throw on exhaustion so the caller skips/retries
-    // the whole character rather than persisting a partial result.
+    // the whole character rather than persisting a partial result. The global
+    // throttle above keeps us under the limit, so a short bounded retry is enough.
     let lastStatus = 0;
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await classifyThrottle();
       const resp = await fetch(`${ANTH_BASE}/v1/messages`, {
         method: "POST",
         headers: {
@@ -208,7 +302,7 @@ async function classify(url: string, proxyUrl?: string): Promise<ImgKind> {
           "x-api-key": ANTH_KEY,
           "anthropic-version": "2023-06-01",
         },
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(15_000),
         body: JSON.stringify({
           model: "claude-haiku-4-5",
           max_tokens: 16,
@@ -230,8 +324,8 @@ async function classify(url: string, proxyUrl?: string): Promise<ImgKind> {
         lastStatus = resp.status;
         const retryAfter = Number(resp.headers.get("retry-after"));
         const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
-          ? retryAfter * 1000
-          : Math.min(1000 * 2 ** attempt, 20_000);
+          ? Math.min(retryAfter * 1000, 8_000)
+          : Math.min(1000 * 2 ** attempt, 6_000);
         await resp.text().catch(() => {});
         await new Promise((r) => setTimeout(r, waitMs));
         continue;
@@ -292,17 +386,30 @@ type CharResult =
   | { status: "ok"; urls: string[]; imageCount: number };
 
 async function processCharacter(threadId: string): Promise<CharResult> {
+  logProgress(`  .. fetch messages (thread ${threadId})`);
   const messages = await fetchAllMessages(threadId);
   let images = extractImages(messages);
+  logProgress(`  .. got ${messages.length} msgs, ${images.length} images`);
   if (images.length === 0) return { status: "none", note: "no images" };
   if (images.length > MAX_IMAGES_PER_THREAD) images = images.slice(0, MAX_IMAGES_PER_THREAD);
-  const kinds = await pMap(images, (img) => classify(img.url, img.proxyUrl), CONCURRENCY);
+  logProgress(`  .. classify ${images.length}`);
+  const kinds = await pMap(
+    images,
+    (img) =>
+      withTimeout(classify(img.url, img.proxyUrl), CLASSIFY_TIMEOUT_MS, "classify").catch(
+        () => "other" as ImgKind,
+      ),
+    CONCURRENCY,
+  );
+  logProgress(`  .. classified`);
   const statsImgs = images.filter((_, i) => kinds[i] === "stats");
   if (statsImgs.length === 0) return { status: "none", note: `${images.length} imgs, 0 stats` };
   if (DRY_RUN) return { status: "ok", urls: statsImgs.map((s) => s.url), imageCount: images.length };
+  logProgress(`  .. rehost ${statsImgs.length}`);
   const rehosted = (await pMap(statsImgs, (img) => rehost(img.url), CONCURRENCY)).filter(
     (p): p is string => !!p,
   );
+  logProgress(`  .. rehosted ${rehosted.length}`);
   if (rehosted.length === 0)
     return { status: "none", note: `${statsImgs.length} stats but rehost failed` };
   return { status: "ok", urls: rehosted, imageCount: images.length };
@@ -328,8 +435,11 @@ async function main() {
     )
     .orderBy(characters.id);
 
-  const targets = rows.slice(OFFSET, OFFSET + LIMIT);
-  console.log(`Found ${rows.length} characters missing stats images; processing ${targets.length}.\n`);
+  const pending = rows.filter((r) => !attempted.has(r.threadId!));
+  const targets = pending.slice(OFFSET, OFFSET + LIMIT);
+  console.log(
+    `Found ${rows.length} characters missing stats images; ${attempted.size} already attempted; processing ${targets.length}.\n`,
+  );
 
   let updated = 0;
   let imagesAdded = 0;
@@ -340,6 +450,10 @@ async function main() {
     const c = targets[idx];
     const threadId = c.threadId!;
     process.stdout.write(`[${idx + 1}/${targets.length}] #${c.id} ${c.name} `);
+    logProgress(`START [${idx + 1}/${targets.length}] #${c.id} ${c.name}`);
+    // Record before the first await so a frozen+OS-killed process won't re-hang
+    // on this thread next slice.
+    markAttempted(threadId);
     try {
       const result = await withTimeout(
         processCharacter(threadId),
@@ -348,11 +462,13 @@ async function main() {
       );
       if (result.status === "none") {
         console.log(`- ${result.note}`);
+        logProgress(`NONE  #${c.id} ${c.name} (${result.note})`);
         noneFound++;
         continue;
       }
       if (DRY_RUN) {
         console.log(`- ${result.imageCount} imgs, ${result.urls.length} STATS (dry-run)`);
+        logProgress(`DRY   #${c.id} ${c.name} ${result.urls.length} stats`);
         imagesAdded += result.urls.length;
         updated++;
         updatedNames.push(c.name);
@@ -363,11 +479,13 @@ async function main() {
         .set({ statsImageUrls: result.urls })
         .where(eq(characters.id, c.id));
       console.log(`- added ${result.urls.length} stats image(s)`);
+      logProgress(`OK    #${c.id} ${c.name} added ${result.urls.length} stats`);
       updated++;
       imagesAdded += result.urls.length;
       updatedNames.push(c.name);
     } catch (err) {
       console.log(`- SKIPPED (${(err as Error).message})`);
+      logProgress(`SKIP  #${c.id} ${c.name} (${(err as Error).message})`);
       noneFound++;
     }
   }
