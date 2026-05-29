@@ -9,6 +9,7 @@
 - [Sheet-importer reconciliation](sheet-importer-reconciliation.md) — when a sheet is source-of-truth, the importer must delete vacated/changed-tenant rows, not just upsert.
 - [Import name dedupe](import-name-dedupe.md) — exact lower(name) match misses "Corpse" vs "The Corpse Hound"; fuzzy-token match, and delete-before-update when collapsing duplicates.
 - [tsx -e top-level await](tsx-top-level-await.md) — `pnpm exec tsx -e 'await ...'` silently no-ops with exit 0; always use a `.ts` file for awaited one-offs.
+- [Background suspension across tool calls](bash-background-suspension.md) — detached/nohup bg jobs freeze when the launching tool call returns; run long jobs foreground in ≤120s slices with a resumable skip-file.
 - [NCRP database targets](db-targets.md) — three DBs (dev, legacy-bot source, live deployed); PROD_DATABASE_URL is the legacy source, NOT the live target.
 - [Character-sheet thread structure](character-sheet-thread-structure.md) — #character-sheets threads span many OP-author messages and use markdown headings, not inline `Label:` lines.
 - [Express sub-router auth scope](express-router-auth-scope.md) — path-less `router.use(requireAuth)` in a sub-router mounted at root gates every later sibling route, not just its own paths.
