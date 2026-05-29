@@ -44,22 +44,28 @@ export default function GunDetailDialog({
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
+  // Local copy of the weapon so the read-only view reflects saved edits
+  // immediately, without waiting for the list query to refetch + reopen.
+  const [current, setCurrent] = useState<Gun | null>(gun);
   const [form, setForm] = useState(() => (gun ? formFromGun(gun) : null));
 
   // Reset edit state whenever a different weapon is opened/closed.
   useEffect(() => {
     setEditing(false);
+    setCurrent(gun);
     setForm(gun ? formFromGun(gun) : null);
   }, [gun]);
 
   const update = useUpdateGun({
     mutation: {
-      onSuccess: (_res, vars) => {
+      onSuccess: (res) => {
         void qc.invalidateQueries({ queryKey: getListGunsQueryKey() });
         toast({ title: "Weapon updated" });
         // Reflect the saved values back as the new baseline, then exit edit.
+        const saved = res as Gun;
+        setCurrent(saved);
+        setForm(formFromGun(saved));
         setEditing(false);
-        void vars;
       },
       onError: (e: unknown) => {
         const msg = (e as { error?: string })?.error;
@@ -72,7 +78,7 @@ export default function GunDetailDialog({
     },
   });
 
-  if (!gun) return null;
+  if (!current) return null;
 
   const save = () => {
     if (!form) return;
@@ -80,22 +86,22 @@ export default function GunDetailDialog({
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
-    const patch = formToPatch(form, gun);
+    const patch = formToPatch(form, current);
     if (Object.keys(patch).length === 0) {
       toast({ title: "No changes to save." });
       return;
     }
-    update.mutate({ id: gun.id, data: patch });
+    update.mutate({ id: current.id, data: patch });
   };
 
-  const status = (gun.status ?? "live").toLowerCase();
+  const status = (current.status ?? "live").toLowerCase();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-none border-nc-cyan/40 bg-card max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display tracking-widest text-nc-cyan flex items-center gap-2">
-            {editing ? "EDIT WEAPON" : gun.name.toUpperCase()}
+            {editing ? "EDIT WEAPON" : current.name.toUpperCase()}
             {!editing && isStaff && status === "draft" && (
               <Badge
                 variant="outline"
@@ -116,16 +122,16 @@ export default function GunDetailDialog({
           <GunFormFields form={form} setForm={setForm as React.Dispatch<React.SetStateAction<typeof form>>} />
         ) : (
           <div className="space-y-1">
-            <Row label="Manufacturer" value={humanize(gun.manufacturer)} />
-            <Row label="Category" value={humanize(gun.category)} />
-            <Row label="Weapon Type" value={humanize(gun.weaponType)} />
-            <Row label="Power Level" value={humanize(gun.powerLevel)} />
-            <Row label="Restriction" value={<span className="text-nc-magenta">{humanize(gun.restriction)}</span>} />
-            <Row label="Damage" value={humanize(gun.damage)} />
-            <Row label="Mag Size" value={gun.magSize ?? "—"} />
+            <Row label="Manufacturer" value={humanize(current.manufacturer)} />
+            <Row label="Category" value={humanize(current.category)} />
+            <Row label="Weapon Type" value={humanize(current.weaponType)} />
+            <Row label="Power Level" value={humanize(current.powerLevel)} />
+            <Row label="Restriction" value={<span className="text-nc-magenta">{humanize(current.restriction)}</span>} />
+            <Row label="Damage" value={humanize(current.damage)} />
+            <Row label="Mag Size" value={current.magSize ?? "—"} />
             <Row
               label="Price"
-              value={<span className="text-nc-yellow">{gun.price.toLocaleString()} €$</span>}
+              value={<span className="text-nc-yellow">{current.price.toLocaleString()} €$</span>}
             />
             {isStaff && (
               <>
@@ -133,20 +139,20 @@ export default function GunDetailDialog({
                   label="Wholesale"
                   value={
                     <span className="text-nc-yellow">
-                      {gun.wholesalePrice == null ? "—" : `${gun.wholesalePrice.toLocaleString()} €$`}
+                      {current.wholesalePrice == null ? "—" : `${current.wholesalePrice.toLocaleString()} €$`}
                     </span>
                   }
                 />
-                <Row label="Status" value={humanize(gun.status)} />
+                <Row label="Status" value={humanize(current.status)} />
               </>
             )}
-            {gun.notes && gun.notes.trim() && (
+            {current.notes && current.notes.trim() && (
               <div className="pt-3">
                 <div className="text-[10px] uppercase tracking-widest text-nc-cyan font-display mb-1">
                   Description / Notes
                 </div>
                 <p className="font-mono text-sm whitespace-pre-wrap text-muted-foreground">
-                  {gun.notes}
+                  {current.notes}
                 </p>
               </div>
             )}
@@ -161,7 +167,7 @@ export default function GunDetailDialog({
                 className="rounded-none"
                 onClick={() => {
                   setEditing(false);
-                  setForm(formFromGun(gun));
+                  setForm(formFromGun(current));
                 }}
                 data-testid="button-gun-cancel-edit"
               >
