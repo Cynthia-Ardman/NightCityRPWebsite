@@ -912,6 +912,91 @@ describe("Mission applications", () => {
       .send({ action: "accept" });
     expect(res.status).toBe(403);
   });
+
+  it("a different fixer cannot see or review another fixer's applications", async () => {
+    const fixerA = await createUser({ roles: ["fixer"] });
+    const fixerB = await createUser({ roles: ["fixer"] });
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await seedMission({ workflowState: "posted", status: "open", fixerId: fixerA.id });
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+
+    // fixerB is a manager but NOT this mission's fixer → no applicant pool and
+    // no ability to act on it.
+    const asB = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", fixerB.id);
+    expect(asB.body.applications).toHaveLength(0);
+    const reviewB = await request(app)
+      .post(`/api/missions/${m.id}/applications/${appId}/review`)
+      .set("x-test-user", fixerB.id)
+      .send({ action: "accept" });
+    expect(reviewB.status).toBe(403);
+
+    // The owning fixer sees the pool and can act on it.
+    const asA = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", fixerA.id);
+    expect(asA.body.applications).toHaveLength(1);
+    const reviewA = await request(app)
+      .post(`/api/missions/${m.id}/applications/${appId}/review`)
+      .set("x-test-user", fixerA.id)
+      .send({ action: "accept" });
+    expect(reviewA.status).toBe(200);
+  });
+
+  it("rejects review/withdraw when the application belongs to a different mission (404)", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m1 = await postedMission();
+    const m2 = await postedMission();
+    const applied = await request(app)
+      .post(`/api/missions/${m1.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+
+    // Pairing m2's id with m1's application must not mutate the record.
+    const reviewMismatch = await request(app)
+      .post(`/api/missions/${m2.id}/applications/${appId}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "accept" });
+    expect(reviewMismatch.status).toBe(404);
+    const withdrawMismatch = await request(app)
+      .delete(`/api/missions/${m2.id}/applications/${appId}`)
+      .set("x-test-user", player.id);
+    expect(withdrawMismatch.status).toBe(404);
+
+    const [appAfter] = await db
+      .select()
+      .from(missionApplications)
+      .where(eq(missionApplications.id, appId));
+    expect(appAfter.status).toBe("pending");
+  });
+
+  it("a player's My Missions excludes non-posted missions they are assigned to", async () => {
+    const player = await createUser();
+    const draft = await seedMission({ workflowState: "draft", status: "open" });
+    const posted = await seedMission({ workflowState: "posted", status: "open" });
+    await seedAssignment(draft.id, player.id);
+    await seedAssignment(posted.id, player.id);
+
+    const res = await request(app).get("/api/missions/mine").set("x-test-user", player.id);
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number }>).map((x) => x.id);
+    expect(ids).toContain(posted.id);
+    expect(ids).not.toContain(draft.id);
+  });
+
+  it("a manager's My Missions still includes non-posted missions they are assigned to", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const draft = await seedMission({ workflowState: "draft", status: "open" });
+    await seedAssignment(draft.id, fixer.id);
+    const res = await request(app).get("/api/missions/mine").set("x-test-user", fixer.id);
+    const ids = (res.body as Array<{ id: number }>).map((x) => x.id);
+    expect(ids).toContain(draft.id);
+  });
 });
 
 // ===========================================================================

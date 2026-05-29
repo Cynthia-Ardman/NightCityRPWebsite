@@ -610,7 +610,7 @@ router.delete("/missions/:id/applications/:appId", requireAuth, async (req, res)
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const result = await withdrawApplication({ applicationId: appId, userId: req.user!.id });
+  const result = await withdrawApplication({ missionId: id, applicationId: appId, userId: req.user!.id });
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
     return;
@@ -636,7 +636,13 @@ router.post("/missions/:id/applications/:appId/review", requireAuth, async (req,
     res.status(400).json({ error: "action must be 'accept' or 'reject'" });
     return;
   }
-  const result = await reviewApplication({ applicationId: appId, action, reviewerId: req.user!.id, req });
+  const result = await reviewApplication({
+    missionId: id,
+    applicationId: appId,
+    action,
+    viewer: viewerOf(req),
+    req,
+  });
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
     return;

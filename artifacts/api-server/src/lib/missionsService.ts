@@ -246,9 +246,26 @@ export async function listMyMissionSummaries(viewer: MissionViewer) {
     .where(eq(missionAssignments.userId, viewer.id));
   const ids = [...new Set(mine.map((m) => m.missionId))];
   if (ids.length === 0) return [];
-  const rows = (await loadMissions(undefined)).filter((m) => ids.includes(m.id) && m.status !== "cancelled");
+  // Non-managers must never see non-posted missions, even ones they were
+  // assigned to before posting — the draft pipeline is staff-internal.
+  const rows = (await loadMissions(undefined)).filter(
+    (m) =>
+      ids.includes(m.id) &&
+      m.status !== "cancelled" &&
+      (viewer.isManager || m.workflowState === "posted"),
+  );
   const byMission = await loadAssignments(rows.map((r) => r.id));
   return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id));
+}
+
+/**
+ * Application data (the applicant pool, accept/reject) is private to the
+ * mission's own fixer and to admins. Other fixers must not see or act on
+ * another fixer's applications. `fixerId` may be null (unclaimed mission) — in
+ * that case only an admin qualifies.
+ */
+function ownsMissionApplications(viewer: MissionViewer, fixerId: string | null): boolean {
+  return viewer.isAdmin || (fixerId != null && fixerId === viewer.id);
 }
 
 export async function getMissionDetail(missionId: number, viewer: MissionViewer) {
@@ -280,11 +297,12 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     .where(eq(missionActorPayments.missionId, missionId))
     .orderBy(desc(missionActorPayments.createdAt));
 
-  // Applications: full list for managers; players only get their own.
-  const applications = canManage
-    ? await listApplicationViews(missionId)
-    : [];
-  const myApplication = canManage
+  // Applications are private to the mission's OWNING fixer (or any admin) — a
+  // different fixer must not see another fixer's applicant pool. Everyone else
+  // (players, non-owning fixers) only gets their own application echoed back.
+  const managesApplications = ownsMissionApplications(viewer, m.fixerId);
+  const applications = managesApplications ? await listApplicationViews(missionId) : [];
+  const myApplication = managesApplications
     ? null
     : (await listApplicationViews(missionId, viewer.id))[0] ?? null;
 
@@ -505,6 +523,7 @@ export async function applyToMission(opts: {
 
 /** Player withdraws their own application. */
 export async function withdrawApplication(opts: {
+  missionId: number;
   applicationId: number;
   userId: string;
 }): Promise<ApplyResult> {
@@ -513,6 +532,11 @@ export async function withdrawApplication(opts: {
     .from(missionApplications)
     .where(eq(missionApplications.id, opts.applicationId));
   if (!app) return { ok: false, error: "Application not found", httpStatus: 404 };
+  // The application must actually belong to the mission named in the URL —
+  // otherwise a mismatched mission/app pair could mutate an unrelated record.
+  if (app.missionId !== opts.missionId) {
+    return { ok: false, error: "Application not found", httpStatus: 404 };
+  }
   if (app.userId !== opts.userId) {
     return { ok: false, error: "Not your application", httpStatus: 403 };
   }
@@ -529,30 +553,49 @@ export async function withdrawApplication(opts: {
  * application accepted; action=reject just marks it rejected.
  */
 export async function reviewApplication(opts: {
+  missionId: number;
   applicationId: number;
   action: "accept" | "reject";
-  reviewerId: string;
+  viewer: MissionViewer;
   req?: Request;
 }): Promise<ApplyResult> {
+  const reviewerId = opts.viewer.id;
   const [app] = await db
     .select()
     .from(missionApplications)
     .where(eq(missionApplications.id, opts.applicationId));
   if (!app) return { ok: false, error: "Application not found", httpStatus: 404 };
+  // The application must belong to the mission named in the URL.
+  if (app.missionId !== opts.missionId) {
+    return { ok: false, error: "Application not found", httpStatus: 404 };
+  }
+  // Only the mission's own fixer (or an admin) may review its applications.
+  const [mission] = await db
+    .select({ fixerId: missions.fixerId })
+    .from(missions)
+    .where(eq(missions.id, app.missionId));
+  if (!mission) return { ok: false, error: "Application not found", httpStatus: 404 };
+  if (!ownsMissionApplications(opts.viewer, mission.fixerId)) {
+    return {
+      ok: false,
+      error: "Only the mission's fixer or an admin can review its applications",
+      httpStatus: 403,
+    };
+  }
 
   if (opts.action === "reject") {
     await db
       .update(missionApplications)
       .set({
         status: "rejected",
-        reviewedBy: opts.reviewerId,
+        reviewedBy: reviewerId,
         reviewedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(missionApplications.id, opts.applicationId));
     await recordAudit({
       req: opts.req,
-      actorId: opts.reviewerId,
+      actorId: reviewerId,
       action: "mission_application_rejected",
       category: "mission",
       targetType: "mission",
@@ -578,14 +621,14 @@ export async function reviewApplication(opts: {
     .update(missionApplications)
     .set({
       status: "accepted",
-      reviewedBy: opts.reviewerId,
+      reviewedBy: reviewerId,
       reviewedAt: new Date(),
       updatedAt: new Date(),
     })
     .where(eq(missionApplications.id, opts.applicationId));
   await recordAudit({
     req: opts.req,
-    actorId: opts.reviewerId,
+    actorId: reviewerId,
     action: "mission_application_accepted",
     category: "mission",
     targetType: "mission",
