@@ -1,0 +1,987 @@
+Yep — here’s the combined **Missions System Change List** with your latest corrections merged in: updated statuses, channel IDs, tiers, local time display, Discord sync, actor/player payment separation, and reporting. Based on the uploaded mission section and the follow-up corrections. 
+
+# Missions System Change List
+
+## 1. Missions Main Page: Simplified Card View
+
+### Collapse Mission Cards
+
+The main Missions page currently shows too much detail per mission.
+
+Mission cards should be more compact in the list view.
+
+The list view should show only high-level mission info.
+
+Full details should be available after clicking into the mission.
+
+**Suggested list card fields**
+
+* Mission name
+* Status
+* Tier
+* Date/time
+* Fixer
+* Location
+* Player count / assigned players summary
+* Short description preview only, if needed
+
+**Acceptance criteria**
+
+* Mission list is easier to scan.
+* Mission cards are shorter and less visually overwhelming.
+* Detailed mission info is moved into the mission detail view.
+* Mission tier is visible from the list view.
+
+---
+
+## 2. Mission Card Formatting
+
+### Title and Description
+
+Mission title should be large, bold, and visually dominant.
+
+The main mission page should not show too much mission detail.
+
+Descriptions can be shortened/collapsed in the list view, but the full description should be available when opening the mission.
+
+**Acceptance criteria**
+
+* Mission title is easy to scan.
+* Main list cards stay compact.
+* Full description is visible in the mission detail view.
+* Description is not permanently cut off or inaccessible.
+
+---
+
+### Remove Total Payout
+
+Remove **Total Payout** from the main mission card/list display.
+
+Payment details can appear in the mission detail view where appropriate.
+
+**Acceptance criteria**
+
+* Main mission cards do not show Total Payout.
+* Payment logic still works elsewhere.
+
+---
+
+### Rename Runners to Players
+
+Replace the word **Runners** with **Players** anywhere it appears on the Missions page.
+
+**Acceptance criteria**
+
+* Missions UI says “Players,” not “Runners.”
+* Existing player assignment logic still works.
+
+---
+
+## 3. Mission Statuses
+
+Mission status should use exactly these values:
+
+1. Open
+2. Pending
+3. Completed
+4. Completed, Players Paid
+5. Completed, Paid
+6. Cancelled
+
+---
+
+## 4. Mission Status Definitions
+
+### Open
+
+**Meaning:** Actively selecting players.
+
+Use this when the mission has been created and the fixer is still choosing/selecting players.
+
+**Acceptance criteria**
+
+* Mission can be visible as Open while player selection is still happening.
+* Open missions should not count as attended.
+* Open missions should not trigger payment.
+* Open missions may still be edited, assigned, rescheduled, or cancelled by fixers/admins.
+
+---
+
+### Pending
+
+**Meaning:** Players selected, waiting for mission to be run.
+
+Use this once players/characters have been selected and the mission is scheduled but has not happened yet.
+
+**Acceptance criteria**
+
+* Pending missions appear on selected players’ dashboards.
+* Pending missions show date/time in the viewer’s local time.
+* Pending missions should not pay anyone until after the mission has occurred.
+* Pending missions may still be rescheduled or cancelled by fixers/admins.
+
+---
+
+### Completed
+
+**Meaning:** Mission has finished.
+
+Use this when the mission is over, but payments have not been completed yet.
+
+**Acceptance criteria**
+
+* Completed missions indicate the mission happened.
+* Attendance may be recorded once the mission is completed.
+* Payment state should still show as incomplete.
+* Fixers/admins should be able to see that payment still needs to happen.
+
+---
+
+### Completed, Players Paid
+
+**Meaning:** Mission is over and player characters have been paid, but actors have not been paid yet.
+
+This status should include a clear reminder/warning to fixers that actors still need to be paid.
+
+**Fixer reminder text example**
+
+`Players have been paid. Actors have not been paid yet.`
+
+**Acceptance criteria**
+
+* Status exists separately from fully paid.
+* Fixers see an obvious reminder that actor payments are still outstanding.
+* Mission should not be considered fully paid while actor payments are missing.
+* Actor payment tools should remain visible/available to fixers/admins.
+
+---
+
+### Completed, Paid
+
+**Meaning:** Mission is over and everyone has been paid.
+
+This is the final successful status after both players and actors have been paid.
+
+**Acceptance criteria**
+
+* Mission only reaches this status once all required player and actor payments are complete.
+* No outstanding payment reminders appear after this status.
+* Mission should be treated as closed/fully resolved.
+* Payment tools should not allow accidental duplicate payment.
+
+---
+
+### Cancelled
+
+**Meaning:** Mission has been cancelled.
+
+If a mission is cancelled:
+
+* No one gets paid.
+* No attendance is recorded.
+* Any scheduled auto-pay should be disabled.
+* Any scheduled attendance credit should be disabled.
+* Discord event should be cancelled or updated to show cancellation if supported.
+
+**Acceptance criteria**
+
+* Cancelled missions do not generate attendance records.
+* Cancelled missions do not trigger player payments.
+* Cancelled missions do not trigger actor payments.
+* Cancelled missions are excluded from mission attendance counts.
+* Discord event reflects cancellation where possible.
+* Cancelled missions remain visible for audit/history unless intentionally hidden by filters.
+
+---
+
+## 5. Status Visual Styling
+
+Each mission status should display in large, bold text.
+
+Each status should have a distinct color.
+
+**Suggested styling**
+
+* Open: blue
+* Pending: yellow/orange
+* Completed: purple/blue
+* Completed, Players Paid: green/yellow
+* Completed, Paid: green
+* Cancelled: red/gray
+
+**Acceptance criteria**
+
+* Status is easy to see at a glance.
+* Each status has a different visual color.
+* Status text is bold and prominent.
+* Styling is consistent across all mission cards.
+* Status text remains explicit and readable.
+
+---
+
+## 6. Status Transition Logic
+
+### Expected Flow
+
+Typical mission lifecycle:
+
+`Open → Pending → Completed → Completed, Players Paid → Completed, Paid`
+
+Alternative flow:
+
+`Open/Pending → Cancelled`
+
+**Acceptance criteria**
+
+* Mission statuses follow the approved lifecycle.
+* Cancelled can happen before completion.
+* Completed is used when the mission happened but payments are not yet complete.
+* Completed, Players Paid is used when player payments are complete but actor payments are still incomplete.
+* Completed, Paid is only used when everyone has been paid.
+
+---
+
+## 7. Mission Date, Fixer, and Players
+
+Mission list should show:
+
+* Mission date
+* Fixer
+* Players
+
+The fixer name should be clickable.
+
+Each player name should be clickable.
+
+**Acceptance criteria**
+
+* Each mission displays its date.
+* Each mission displays the assigned fixer.
+* Fixer name is clickable.
+* Each player listed on the mission is clickable.
+* Click target opens the correct fixer/player/user/character detail page or panel.
+
+---
+
+## 8. Mission Detail View
+
+Clicking a mission card should open a mission detail view or modal.
+
+This view should contain the full mission information and fixer tools.
+
+**Acceptance criteria**
+
+* Main mission card stays compact.
+* Full mission information is available after clicking the mission.
+* Fixer-only controls appear only for fixers/admins.
+
+---
+
+## 9. Mission Detail Tabs
+
+When a fixer clicks into a mission, the mission detail view should have two tabs:
+
+1. Player
+2. Fixer
+
+### Player Tab
+
+Shows player-facing mission information.
+
+Should include:
+
+* Mission name
+* Tier
+* Date/time
+* Location
+* Description
+* Pay
+* Assigned players/characters, if appropriate
+
+### Fixer Tab
+
+Shows fixer/admin tools and internal controls.
+
+Should include:
+
+* Edit Mission
+* Pay Actors
+* Assigned players and characters
+* Attendance/payment status
+* Discord event linkage/status, if available
+* Payment failure warnings, if any
+* Reminder if actors still need to be paid
+
+**Acceptance criteria**
+
+* Fixers/admins see Player and Fixer tabs.
+* Regular players only see player-appropriate mission information.
+* Fixer tools are not exposed to regular players.
+
+---
+
+## 10. Create Mission Flow
+
+On the Missions page, fixers/admins should see a **Create Mission** button.
+
+Regular players should not see this button.
+
+**Acceptance criteria**
+
+* Fixers/admins can access mission creation.
+* Regular players cannot create missions.
+
+---
+
+## 11. Create Mission Form Fields
+
+The Create Mission form should ask for:
+
+* Mission name
+* Mission tier
+* Player pay amount
+* Location
+* Description
+* Date
+* Start hour, using the local time of the fixer creating the mission
+* Duration
+* Number of attendees / player slots
+* Assigned players
+* Assigned character for each selected player
+* Optional image upload/attachment
+
+**Acceptance criteria**
+
+* Required fields are validated before creation.
+* Tier is required.
+* Mission can be created with all needed schedule, pay, and description data.
+* Mission stores both player and character assignments.
+* Optional image can be attached.
+
+---
+
+## 12. Mission Tier Selection
+
+When fixers/admins create a mission, they must select a mission tier.
+
+**Mission tiers**
+
+* Tier 1 — Street Work
+* Tier 2 — Contract Work
+* Tier 3 — High Risk Operation
+* Tier 4 — Extreme
+
+**Acceptance criteria**
+
+* Create Mission form includes a required Tier dropdown.
+* Tier is saved to the mission.
+* Tier is visible on the mission list/detail view.
+* Tier is included in Discord event details.
+* Tier can be edited later by fixers/admins.
+
+---
+
+## 13. Optional Mission Image
+
+Fixers/admins should be able to optionally attach an image when creating a mission.
+
+If no image is attached, use a default mission image.
+
+Default images can be provided separately.
+
+**Acceptance criteria**
+
+* Mission creation supports optional image upload/attachment.
+* Mission displays attached image when provided.
+* Mission falls back to a default image when no custom image exists.
+
+---
+
+## 14. Assigned Players and Characters
+
+When assigning players to a mission, fixers must select the player/user first.
+
+After selecting a player, the fixer must select one of that player’s characters.
+
+**Example flow**
+
+1. Fixer selects Player A.
+2. UI shows Player A’s characters.
+3. Fixer selects Character B.
+4. Mission records both Player A and Character B.
+
+**Acceptance criteria**
+
+* Mission assignment records the user/player.
+* Mission assignment records the specific character attending.
+* A player cannot be assigned without selecting a character.
+* Character dropdown is filtered to only that player’s characters.
+
+---
+
+## 15. Player Dashboard Pending Mission Display
+
+Once a player is assigned to a mission, their dashboard should show a pending mission.
+
+Dashboard should include:
+
+* Mission name
+* Date
+* Time
+* Assigned character
+* Location, if useful
+
+**Acceptance criteria**
+
+* Assigned players see pending missions on their dashboard.
+* Pending mission includes date and time.
+* Pending mission start time displays in the player’s local time.
+* Pending mission disappears or changes state after the mission is completed/cancelled/paid.
+
+---
+
+## 16. Local Time Display
+
+Players should see mission start times in their own local time.
+
+**Acceptance criteria**
+
+* Mission start time is stored in a consistent backend format.
+* Player-facing mission views convert the start time to the viewer’s local time.
+* Dashboard pending mission display also uses the viewer’s local time.
+* Discord event time remains synced with the correct scheduled mission time.
+
+---
+
+## 17. Discord Event Creation
+
+When a fixer creates a mission, the website should also create a Discord event.
+
+### Discord Event Name
+
+Discord event title should start with:
+
+`Actors Needed: <Mission Name>`
+
+### Discord Event Details
+
+The Discord event should include:
+
+* Mission name
+* Tier
+* Location
+* Player pay amount
+* Description
+* Fixer name
+* Number of attendees / player slots
+* Date/time
+* Duration
+* Optional/default image if supported by Discord event integration
+
+**Acceptance criteria**
+
+* Creating a mission creates a corresponding Discord event.
+* Discord event uses the title format `Actors Needed: <Mission Name>`.
+* Discord event contains the same key information from the website.
+* Discord event includes tier, fixer name, and number of attendees.
+* Discord event time matches the mission time.
+* Mission stores a reference to the Discord event ID if possible.
+
+---
+
+## 18. Discord Event Sync on Mission Update
+
+If a mission is updated on the website, the linked Discord event should also update.
+
+**Fields that should sync when changed**
+
+* Mission name
+* Description
+* Location
+* Date
+* Start time
+* Duration
+* Tier
+* Pay
+* Number of attendees/player slots
+* Mission image, if supported
+* Cancelled status, if supported by the Discord event integration
+
+**Acceptance criteria**
+
+* Mission stores the Discord event ID created during mission creation.
+* Editing a mission updates the linked Discord event.
+* Rescheduling a mission updates the Discord event date/time.
+* Cancelling a mission cancels or updates the Discord event.
+* If Discord sync fails, the website still records the edit but shows/logs a clear sync failure for staff.
+
+---
+
+## 19. Mission Attendance Tracking
+
+Once the mission start time has passed, if the mission has not been cancelled or rescheduled, assigned players should be credited as having attended the mission.
+
+Attendance should record:
+
+* User/player
+* Character
+* Mission
+* Mission date
+* Fixer
+* Timestamp attendance was credited
+
+**Acceptance criteria**
+
+* Attendance is not credited before the mission starts.
+* Attendance is not credited for cancelled missions.
+* Attendance uses the selected player and selected character.
+* Attendance records can be queried later.
+
+---
+
+## 20. Pay Actors Button
+
+In the mission detail view, add a **Pay Actors** button for fixers/admins.
+
+Clicking this button should open a payment form/modal.
+
+### Payment Form Fields
+
+The Pay Actors form should include:
+
+* Multi-select dropdown of users
+* Payment amount field
+* Confirmation button
+
+### Behavior
+
+* Fixer can select any number of users.
+* Fixer enters payment amount.
+* On submit, the system records who acted and for what mission.
+* This creates records that can be queried later, such as:
+
+  * User A acted four times.
+  * User A acted on these dates.
+  * User A acted for these missions.
+
+**Acceptance criteria**
+
+* Fixers/admins can open Pay Actors from a mission.
+* Multi-select user dropdown works.
+* Payment amount is required.
+* Payment creates actor/payment records tied to the mission.
+* Regular players cannot access Pay Actors.
+
+---
+
+## 21. Actor History Table
+
+The system should store actor participation/payment records in a table that supports future reporting.
+
+**Recommended fields**
+
+* Record ID
+* Mission ID
+* Mission name
+* User/player ID
+* User/player display name
+* Character ID, if applicable
+* Character name, if applicable
+* Fixer ID
+* Fixer display name
+* Mission date
+* Payment amount
+* Payment status
+* Payment timestamp
+* Attendance credited timestamp
+* Source/action type, such as auto-pay or manual Pay Actors
+
+**Acceptance criteria**
+
+* Actor participation is stored persistently.
+* Records are queryable by user, mission, fixer, and date.
+* Payment records can be audited later.
+
+---
+
+## 22. Auto-Pay Players After Mission
+
+After the mission starts, wait approximately 3–4 hours before auto-paying assigned players.
+
+Auto-pay should only happen if:
+
+* Mission was not cancelled.
+* Mission was not rescheduled to a future time.
+* Player is still assigned to the mission.
+* Player has an assigned character.
+* Mission has not already paid that player.
+
+Auto-pay each assigned player the stated mission pay amount.
+
+**Acceptance criteria**
+
+* Players are paid automatically after the mission window.
+* Cancelled missions do not auto-pay.
+* Rescheduled future missions do not auto-pay early.
+* Players are not double-paid.
+* Mission payment state updates correctly after payment.
+
+---
+
+## 23. UnbelievaBoat Payment Integration
+
+Auto-payment should pay players through UnbelievaBoat.
+
+The system should record:
+
+* Who was paid
+* How much they were paid
+* What mission they were paid for
+* Whether payment succeeded or failed
+
+**Acceptance criteria**
+
+* Payments are sent through UnbelievaBoat.
+* Payment success/failure is stored.
+* Failed payments are visible to fixers/admins for follow-up.
+* Players are not double-paid if a retry happens.
+
+---
+
+## 24. Discord Payment Channel IDs
+
+### Banking Channel
+
+Use this channel for official banking/payment logs:
+
+`#banking`
+Channel ID: `1348640138321989642`
+
+**Acceptance criteria**
+
+* Successful player and actor payments are logged to the banking channel.
+* Channel ID is configurable, but default/current value should be `1348640138321989642`.
+* Failed payments should not be logged as successful payments.
+* Failed payment attempts should still be logged internally for staff review.
+
+---
+
+### NPC Spending Channel
+
+Use this channel so actors can see that they have been paid:
+
+`#npc-spending`
+Channel ID: `1354606166004600903`
+
+**Acceptance criteria**
+
+* Actor payment notices are posted to `#npc-spending`.
+* Channel ID is configurable, but default/current value should be `1354606166004600903`.
+* Actor payment notices should only be posted after a successful payment.
+* Successful actor payments should also be logged to the banking/payment log flow where appropriate.
+
+---
+
+## 25. Banking Channel Payment Log
+
+After payment, the system should post a message in the banking channel showing:
+
+* Who got paid
+* How much they got paid
+* What mission they were paid for
+* Whether they were paid as a player or actor
+
+**Acceptance criteria**
+
+* Banking channel receives a clear payment log.
+* Log includes player/actor name, amount, and mission name.
+* Banking channel ID uses `1348640138321989642`.
+* Failed payments do not post as successful payments.
+
+---
+
+## 26. NPC Spending Channel Actor Payment Notice
+
+When actors are paid, the system should post a payment notice to:
+
+`#npc-spending`
+Channel ID: `1354606166004600903`
+
+This is so actors can see that they have been paid.
+
+**Message should include**
+
+* Actor/player name
+* Payment amount
+* Mission name
+* Fixer name, if available
+* Whether the payment was manual or automatic
+
+**Example message**
+
+`Paid 500 eddies to @PlayerName for acting in Mission Name. Fixer: @FixerName.`
+
+**Acceptance criteria**
+
+* Every successful actor payment posts to `#npc-spending`.
+* Channel ID `1354606166004600903` is used/configured.
+* Message is posted after payment succeeds.
+* Failed payments do not post as successful payments.
+* Failed payment attempts are logged for staff review.
+
+---
+
+## 27. Payment Completion Logic
+
+Player payments and actor payments must be tracked separately.
+
+### Player Payments
+
+When assigned players are paid:
+
+* Record payment.
+* Post payment log to the banking channel.
+* Update mission status appropriately.
+
+If players are paid but actors are not:
+
+* Set status to `Completed, Players Paid`.
+* Show fixer reminder that actor payments are still needed.
+
+**Acceptance criteria**
+
+* Player payments are tracked separately from actor payments.
+* Player payments are tied to the mission, player, and selected character.
+* Player payments are logged to `#banking`.
+* Player payment records prevent duplicate payment for the same mission/player pair.
+
+---
+
+### Actor Payments
+
+When actors are paid:
+
+* Record payment.
+* Post payment notice to `#npc-spending`.
+* Post/log payment to the banking channel where appropriate.
+* If players and actors are both fully paid, set status to `Completed, Paid`.
+
+**Acceptance criteria**
+
+* Actor payments are tracked separately from player payments.
+* Actor payments are tied to the mission and actor/user.
+* Actor payments are posted to `#npc-spending`.
+* Actor payments are logged to `#banking` where appropriate.
+* Actor payment records prevent duplicate payment for the same mission/actor pair.
+
+---
+
+## 28. Completed, Players Paid Reminder
+
+When a mission is in `Completed, Players Paid`, display a clear reminder to fixers.
+
+**Example reminder**
+
+`Players have been paid. Actors have not been paid yet.`
+
+**Acceptance criteria**
+
+* Reminder appears clearly in the mission detail view.
+* Reminder appears only when actor payments are still outstanding.
+* Reminder disappears once status becomes `Completed, Paid`.
+
+---
+
+## 29. Edit Mission Button
+
+Add an **Edit Mission** button in the fixer tools area.
+
+Fixers/admins should be able to edit any aspect of a mission.
+
+**Editable fields should include**
+
+* Mission name
+* Description
+* Location
+* Date
+* Start time
+* Duration
+* Tier
+* Player pay amount
+* Number of attendees/player slots
+* Assigned players
+* Assigned characters
+* Mission image
+* Mission status
+* Discord event details, if supported
+
+**Acceptance criteria**
+
+* Fixers/admins can edit missions.
+* Regular players cannot edit missions.
+* Updates save correctly.
+* Editing assigned players updates dashboard pending mission visibility.
+* Editing time/date updates scheduling logic.
+* Editing relevant fields updates the Discord event if integration supports it.
+
+---
+
+## 30. Reschedule / Cancel Behavior
+
+### Cancelled Missions
+
+If a mission is cancelled:
+
+* Do not credit attendance.
+* Do not auto-pay.
+* Do not pay actors.
+* Update or cancel the Discord event if supported.
+
+### Rescheduled Missions
+
+If a mission is rescheduled:
+
+* Update the mission time.
+* Update pending mission display on player dashboards.
+* Update auto-credit and auto-pay timing.
+* Update the Discord event if supported.
+
+**Acceptance criteria**
+
+* Cancelled missions do not generate attendance or payment.
+* Rescheduled missions use the new time for attendance/payment automation.
+* Players see the updated time on their dashboards.
+* Discord event stays synced with the website mission.
+
+---
+
+## 31. Fixer Hub: Actor History Report
+
+Add a section in the Fixer Hub showing everyone who has acted for that fixer.
+
+This should include:
+
+* Player/user name
+* Number of times they have acted for that fixer
+* Missions they acted in
+* Dates of those missions
+
+**Acceptance criteria**
+
+* Fixers can see who has acted for them.
+* Fixers can see how many times each person has acted.
+* Fixers can see the mission history for each actor.
+
+---
+
+## 32. Player Mission Attendance Report
+
+Add a section that shows all players and their mission attendance count.
+
+This should help staff make sure players are not going on too many missions.
+
+**Report should include**
+
+* Player/user name
+* Number of missions attended
+* List of missions attended
+* Dates of missions
+* Characters used, if useful
+
+**Acceptance criteria**
+
+* Staff can see all players.
+* Staff can see how many missions each player has attended.
+* Staff can see which missions each player attended.
+* Data comes from the attendance/actor history table.
+
+---
+
+## 33. Audit Logging
+
+Because this system affects money, attendance, Discord events, and player records, key actions should be logged.
+
+**Log these actions**
+
+* Mission created
+* Mission edited
+* Mission cancelled
+* Mission rescheduled
+* Player assigned to mission
+* Character assigned to mission
+* Player removed from mission
+* Attendance credited
+* Manual Pay Actors action
+* Auto-pay attempted
+* Auto-pay succeeded
+* Auto-pay failed
+* Actor payment attempted
+* Actor payment succeeded
+* Actor payment failed
+* Mission marked Completed
+* Mission marked Completed, Players Paid
+* Mission marked Completed, Paid
+
+**Acceptance criteria**
+
+* Staff actions are auditable.
+* Automated actions are logged.
+* Logs include timestamp, actor/system, affected mission, affected users, and changed values where applicable.
+
+---
+
+## 34. Prevent Double Payment
+
+The system must prevent accidental double payment.
+
+**Required safeguards**
+
+* Do not allow the same player to be paid twice for the same mission as a player.
+* Do not allow the same actor to be paid twice for the same mission as an actor.
+* Manual payment and auto-payment should check existing records before paying.
+* Failed payment attempts should not mark someone as paid.
+* Partial payment failure should leave the mission in the correct incomplete payment status.
+
+**Acceptance criteria**
+
+* Re-running payment logic does not duplicate payments.
+* Staff can see who has and has not been paid.
+* Mission status accurately reflects payment completion.
+* Payment errors are visible to fixers/admins for follow-up.
+
+---
+
+## 35. Time Zone Handling
+
+Mission creation should use the local time of the fixer creating the mission.
+
+Store mission time in a consistent backend format.
+
+Display times clearly to users.
+
+Player-facing views should show the mission start time in the player’s local time.
+
+**Acceptance criteria**
+
+* Mission time displays correctly for the creator.
+* Mission time displays correctly for players in their local time.
+* Scheduled auto-credit and auto-pay happen at the correct time.
+* Discord event time matches website mission time.
+
+---
+
+## 36. Discord / UnbelievaBoat Config
+
+The following should be configurable and not hardcoded:
+
+* Discord server/guild ID
+* Banking channel ID: `1348640138321989642`
+* NPC spending channel ID: `1354606166004600903`
+* Discord event permissions/config
+* UnbelievaBoat integration credentials/config
+* Default mission images
+
+**Acceptance criteria**
+
+* Config values can be updated without changing mission code.
+* Missing config produces a clear admin-facing error.
