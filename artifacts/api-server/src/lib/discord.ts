@@ -326,10 +326,42 @@ export interface ScheduledEventInput {
 const DISCORD_EVENT_PRIVACY_GUILD_ONLY = 2;
 const DISCORD_ENTITY_TYPE_EXTERNAL = 3;
 
+// Hosts we are willing to server-side fetch images from. Anything else is
+// rejected to avoid an SSRF sink (mission image URLs are user-supplied via the
+// create/edit mission endpoints, so an attacker could otherwise point the
+// backend at internal/metadata endpoints). We only inline images that live on
+// our own public base (object storage), the Replit dev domain, or Discord's CDN.
+function isAllowedImageHost(url: string): boolean {
+  let host: string;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    host = parsed.hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  const allowed = new Set<string>();
+  for (const raw of [process.env.PUBLIC_BASE_URL, process.env.REPLIT_DEV_DOMAIN]) {
+    if (!raw) continue;
+    try {
+      allowed.add(new URL(raw.includes("://") ? raw : `https://${raw}`).hostname.toLowerCase());
+    } catch {
+      /* ignore malformed env */
+    }
+  }
+  if (allowed.has(host)) return true;
+  // Discord's own CDN is a trusted source for cover images.
+  return host === "cdn.discordapp.com" || host === "media.discordapp.net";
+}
+
 async function imageUrlToDataUri(url: string | null | undefined): Promise<string | null> {
   if (!url || !/^https?:\/\//i.test(url)) return null;
+  if (!isAllowedImageHost(url)) {
+    logger.warn({ url }, "imageUrlToDataUri rejected disallowed host (SSRF guard)");
+    return null;
+  }
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: "error" });
     if (!res.ok) return null;
     const ct = res.headers.get("content-type") ?? "image/png";
     if (!ct.startsWith("image/")) return null;

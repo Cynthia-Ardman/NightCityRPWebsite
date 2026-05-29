@@ -475,8 +475,23 @@ export async function payMissionPlayers(
     ).catch((err) => logger.warn({ err, missionId }, "banking post (players) failed"));
   }
 
-  // Mark processed (auto-pay idempotency) and advance status.
-  const newStatus = advanceAfterPlayersPaid(mission.status);
+  // Mark processed (auto-pay idempotency). Only advance status when EVERY
+  // assignment reached a terminal-success state (paid/simulated). If any are
+  // still failed/unpaid/processing (e.g. UB payout failure, or a concurrent
+  // worker mid-flight), leave the status untouched so the mission isn't marked
+  // "players paid" while a player went unpaid. A later manual/auto retry will
+  // resolve the stragglers and then advance.
+  const remaining = await db
+    .select({ id: missionAssignments.id })
+    .from(missionAssignments)
+    .where(
+      and(
+        eq(missionAssignments.missionId, missionId),
+        sql`${missionAssignments.paymentStatus} not in ('paid', 'simulated')`,
+      ),
+    );
+  const allResolved = remaining.length === 0;
+  const newStatus = allResolved ? advanceAfterPlayersPaid(mission.status) : mission.status;
   await db
     .update(missions)
     .set({ status: newStatus, autoPayProcessedAt: mission.autoPayProcessedAt ?? now })
