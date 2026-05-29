@@ -28,3 +28,16 @@ pending_character_edits, character_status/updates, users.active_character_id,
 etc. — all FK refs are `onDelete: cascade`, plus non-FK int columns like
 `*_character_id`). If a survivor must absorb the loser's id references,
 re-point those columns first.
+
+**Dev vs live differ — never assume child data matches.** On the dev DB the
+duplicate/stub rows (Raelyna #540, Wallie #543) had NO attached rows, so they
+were clean deletes. On LIVE prod the SAME stub rows owned the character's real
+`inventory_items` (the cyberware import created both the `<!--cyberware-import-*-->`
+background block AND structured inventory_items on whichever row it ran). A
+blind `DELETE` there would cascade-delete the cyberware. Fix: re-point
+`inventory_items.character_id` (and align `owner_id`) to the survivor BEFORE
+deleting. Generalize: a merge script must re-check attached data on the actual
+target DB and migrate child rows it can safely move (tables with no UNIQUE/PK
+on character_id, e.g. inventory_items), and REFUSE + report anything else
+rather than guess. See `scripts/src/cleanup-character-archive.ts` (id-agnostic,
+content-based strip, dry-run default, empty-stub + no-unhandled-data guards).
