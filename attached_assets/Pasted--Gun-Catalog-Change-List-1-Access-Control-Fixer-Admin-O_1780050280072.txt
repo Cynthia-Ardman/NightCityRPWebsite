@@ -1,0 +1,158 @@
+# Gun Catalog Change List
+
+## 1. Access Control
+
+### Fixer/Admin Only Editing
+
+* Gun catalog editing should only be available to:
+
+  * Fixers
+  * Admins
+* Regular players may view the gun catalog if currently allowed, but they should not be able to edit weapons or add new weapons.
+
+**Acceptance criteria**
+
+* Non-fixer/non-admin users cannot see edit controls.
+* Non-fixer/non-admin users cannot access edit or add weapon routes directly.
+* Fixers/admins can edit and add weapons.
+
+---
+
+## 2. Replace “Edit Gun Catalog” Button
+
+* Remove or de-emphasize the current global **Edit Gun Catalog** button.
+* Instead of editing the catalog through one general edit page/button, each weapon should be editable from its own weapon detail modal.
+
+**Acceptance criteria**
+
+* “Edit Gun Catalog” is no longer the primary editing flow.
+* Staff can edit weapons by clicking individual weapon entries.
+* Existing catalog display remains intact.
+
+---
+
+## 3. Click Weapon to Open Modal
+
+### Weapon Detail Modal
+
+* Clicking any weapon in the catalog should open a modal/interstitial.
+* The modal should show the weapon’s full details.
+* Staff users should see edit options inside the modal.
+* Non-staff users should only see read-only weapon information.
+
+**Acceptance criteria**
+
+* Clicking a weapon opens a modal.
+* Modal displays full weapon details.
+* Modal can be closed without navigating away.
+* Fixers/admins see edit controls.
+* Regular players do not see edit controls.
+
+---
+
+## 4. Edit Weapon From Modal
+
+### Edit Button
+
+* Inside the weapon modal, add an **Edit** button for fixers/admins.
+* Clicking Edit should allow staff to modify weapon fields directly.
+
+**Editable fields should include**
+
+* Weapon name
+* Draft/live status
+* Manufacturer
+* Category
+* Weapon type
+* Power level restriction
+* Price
+* Description/details
+* Any other existing weapon catalog fields
+
+**Acceptance criteria**
+
+* Fixers/admins can open a weapon modal and click Edit.
+* Editable fields become form inputs.
+* Staff can update all major weapon fields.
+* Saved changes persist to the catalog.
+* Canceling edit mode does not save changes.
+
+---
+
+## 5. Draft / Live Status
+
+* Weapons should have an editable publication/status field.
+* Staff should be able to change a weapon from **Draft** to **Live**, or from **Live** back to **Draft** if needed.
+
+**Acceptance criteria**
+
+* Draft/live status is visible in the modal.
+* Fixers/admins can change draft/live status.
+* Player-facing catalog should only show Live weapons unless staff view intentionally includes Draft weapons.
+
+---
+
+## 6. Add New Weapon
+
+### Add New Weapon Button
+
+* Add an **Add New Weapon** button for fixers/admins.
+* This should open a creation form/modal for entering a new weapon.
+
+**New weapon form should include**
+
+* Weapon name
+* Draft/live status
+* Manufacturer
+* Category
+* Weapon type
+* Power level restriction
+* Price
+* Description/details
+* Any other existing weapon catalog fields
+
+**Acceptance criteria**
+
+* Fixers/admins can create a new weapon.
+* New weapon can be saved as Draft or Live.
+* New weapon appears in the catalog after saving.
+* Required fields are validated.
+* Regular players cannot access this button or flow.
+
+---
+
+## 7. Modal UX Requirements
+
+* Modal should be clear and easy to use.
+* Weapon name should be large and prominent.
+* Status should be visually obvious.
+* Edit controls should not clutter the read-only view.
+* Save and Cancel buttons should be obvious while editing.
+
+**Acceptance criteria**
+
+* Read-only modal is clean and readable.
+* Edit mode is clear and does not feel cramped.
+* Staff can confidently save or cancel changes.
+* Closing the modal without saving does not accidentally apply edits.
+
+---
+
+## 8. Recommended Audit Logging
+
+Because this changes catalog data that affects the economy/combat system, weapon edits should be audit logged.
+
+**Log should include**
+
+* Staff member who made the change
+* Weapon affected
+* Timestamp
+* Fields changed
+* Old value
+* New value
+
+**Acceptance criteria**
+
+* Weapon edits create audit log entries.
+* New weapon creation creates an audit log entry.
+* Draft/live changes are logged.
