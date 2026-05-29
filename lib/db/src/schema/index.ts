@@ -82,6 +82,12 @@ export const characters = pgTable("characters", {
   // added by hand. The archive UI shows/filters the UNION of the two arrays,
   // so to the user they are one merged "Tags" list.
   manualTags: text("manual_tags").array().notNull().default([]),
+  // For NPCs: the Discord IDs of the responsible fixer and the player who
+  // runs the NPC. Free-form text (raw Discord snowflake IDs); may be the same
+  // person or different, and either may be null. Purely informational —
+  // distinct from ownerId (the linked portal account).
+  fixerDiscordId: text("fixer_discord_id"),
+  playerDiscordId: text("player_discord_id"),
   discordChannelId: text("discord_channel_id"),
   // Player-visible life status. One of: active | dead | missing | loa |
   // retired. Defaults to 'active'; the importer/admin backfill maps
@@ -339,6 +345,8 @@ export const catalogGuns = pgTable("catalog_guns", {
   powerLevel: text("power_level"),
   weaponType: text("weapon_type"),
   notes: text("notes"),
+  // Single optional product image, stored as a /api/storage/objects/<id> path.
+  imageUrl: text("image_url"),
 });
 
 export const catalogCyberware = pgTable("catalog_cyberware", {
@@ -360,7 +368,21 @@ export const catalogRent = pgTable("catalog_rent", {
   tier: text("tier"),
   monthlyRent: integer("monthly_rent").notNull().default(0),
   description: text("description"),
+  // Single optional listing image, stored as a /api/storage/objects/<id> path.
+  imageUrl: text("image_url"),
 });
+
+// Global, reusable catalog of character tag options. Staff "create" a tag
+// option here (top of the Character Archive), then "add" it to individual
+// characters via the per-character picker (which writes into characters.
+// manualTags). Free-form names, unique case-insensitively at the route layer.
+export const characterTagOptions = pgTable("character_tag_options", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type CharacterTagOption = typeof characterTagOptions.$inferSelect;
 
 export const jobRuns = pgTable("job_runs", {
   id: serial("id").primaryKey(),

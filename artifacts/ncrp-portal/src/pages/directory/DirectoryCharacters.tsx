@@ -3,11 +3,12 @@ import { Link } from "wouter";
 import {
   useListArchiveCharacters,
   useListPublicCharacterTags,
+  type ArchiveCharacterSummary,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Tag } from "lucide-react";
 import {
   KindBadge,
   StatusBadge,
@@ -18,6 +19,7 @@ import {
   type LifeStatus,
 } from "@/components/directory/CharacterBadges";
 import AddTagsDialog from "@/components/directory/AddTagsDialog";
+import CreateTagsDialog from "@/components/directory/CreateTagsDialog";
 
 type Scope = "all" | "active" | "retired" | "claimed" | "unclaimed" | "pc" | "npc";
 type Mode = "name" | "content";
@@ -41,7 +43,8 @@ export default function DirectoryCharacters() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<LifeStatus[]>([]);
   const [selectedBands, setSelectedBands] = useState<CwpBand[]>([]);
-  const [addTagsOpen, setAddTagsOpen] = useState(false);
+  const [createTagsOpen, setCreateTagsOpen] = useState(false);
+  const [addTagsTarget, setAddTagsTarget] = useState<ArchiveCharacterSummary | null>(null);
 
   const { data: tagList } = useListPublicCharacterTags();
   const { data, isLoading } = useListArchiveCharacters({
@@ -80,11 +83,11 @@ export default function DirectoryCharacters() {
           </p>
         </div>
         <Button
-          onClick={() => setAddTagsOpen(true)}
+          onClick={() => setCreateTagsOpen(true)}
           className="rounded-none font-display tracking-widest"
-          data-testid="button-open-add-tags"
+          data-testid="button-open-create-tags"
         >
-          <Plus className="h-4 w-4 mr-1" /> Add Tags
+          <Plus className="h-4 w-4 mr-1" /> Create Tags
         </Button>
       </div>
 
@@ -343,13 +346,33 @@ export default function DirectoryCharacters() {
                     </div>
                   )}
                 </div>
+                <div className="flex-shrink-0 self-start">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-none font-display text-xs"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setAddTagsTarget(c);
+                    }}
+                    data-testid={`button-add-tags-${c.id}`}
+                  >
+                    <Tag className="h-3 w-3 mr-1" /> Add Tags
+                  </Button>
+                </div>
               </Link>
             ))}
           </div>
         </>
       )}
 
-      <AddTagsDialog open={addTagsOpen} onOpenChange={setAddTagsOpen} allTags={tagList ?? []} />
+      <CreateTagsDialog open={createTagsOpen} onOpenChange={setCreateTagsOpen} />
+      <AddTagsDialog
+        character={addTagsTarget}
+        open={!!addTagsTarget}
+        onOpenChange={(v) => !v && setAddTagsTarget(null)}
+      />
     </div>
   );
 }

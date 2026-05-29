@@ -30,6 +30,10 @@ export interface ArchiveCharacterSummary {
   ownerName?: string | null;
   /** @nullable */
   ownerAvatarUrl?: string | null;
+  /** @nullable */
+  fixerDiscordId?: string | null;
+  /** @nullable */
+  playerDiscordId?: string | null;
   appliedTags?: string[];
   tags: string[];
   createdAt?: Date;

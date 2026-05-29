@@ -33,6 +33,8 @@ export interface CatalogGunUpdate {
   weaponType?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   /**
      * Visibility status; only ADMIN/FIXER may set.
      * @nullable

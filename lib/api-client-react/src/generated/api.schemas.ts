@@ -233,6 +233,10 @@ export interface ArchiveCharacterSummary {
   ownerName?: string | null;
   /** @nullable */
   ownerAvatarUrl?: string | null;
+  /** @nullable */
+  fixerDiscordId?: string | null;
+  /** @nullable */
+  playerDiscordId?: string | null;
   appliedTags?: string[];
   tags: string[];
   createdAt?: string;
@@ -289,6 +293,10 @@ export interface ArchiveCharacter {
   ownerName?: string | null;
   /** @nullable */
   ownerAvatarUrl?: string | null;
+  /** @nullable */
+  fixerDiscordId?: string | null;
+  /** @nullable */
+  playerDiscordId?: string | null;
 }
 
 export interface ArchiveUser {
@@ -361,6 +369,16 @@ export interface ArchiveEditInput {
   /** Headline life-status column (drives the status badge/filter). */
   lifeStatus?: ArchiveEditInputLifeStatus;
   cwpBand?: ArchiveEditInputCwpBand;
+  /**
+     * NPC responsible fixer Discord ID; null/empty clears.
+     * @nullable
+     */
+  fixerDiscordId?: string | null;
+  /**
+     * NPC player Discord ID; null/empty clears.
+     * @nullable
+     */
+  playerDiscordId?: string | null;
   /** Full desired merged tag set. */
   tags?: string[];
   sheetData?: ArchiveEditInputSheetData;
@@ -387,6 +405,10 @@ export interface ArchiveEditResult {
   archived?: boolean;
   /** @nullable */
   ownerId?: string | null;
+  /** @nullable */
+  fixerDiscordId?: string | null;
+  /** @nullable */
+  playerDiscordId?: string | null;
   cwpBand?: ArchiveEditResultCwpBand;
   tags?: string[];
   changed: string[];
@@ -961,6 +983,8 @@ export interface CatalogGun {
   powerLevel?: string | null;
   /** @nullable */
   weaponType?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
 }
 
 /**
@@ -1002,6 +1026,8 @@ export interface CatalogGunUpdate {
   weaponType?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   /**
      * Visibility status; only ADMIN/FIXER may set.
      * @nullable
@@ -1052,6 +1078,8 @@ export interface CatalogGunInput {
   weaponType?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   /**
      * Visibility status; defaults to draft.
      * @nullable
@@ -1085,8 +1113,38 @@ export interface CatalogRent {
   monthlyRent: number;
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   /** True when an active lease already references this listing. */
   occupied: boolean;
+}
+
+/**
+ * Fixer/admin patch for a housing listing. Any subset may be supplied;
+omitted fields are left unchanged. Mainly used to attach/clear a single
+listing image.
+
+ */
+export interface CatalogRentUpdate {
+  name?: string;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+  monthlyRent?: number;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+}
+
+export interface TagOption {
+  id: number;
+  name: string;
+}
+
+export interface TagOptionInput {
+  name: string;
 }
 
 /**
@@ -2215,6 +2273,10 @@ export const ListPublicCharactersMode = {
   name: 'name',
   content: 'content',
 } as const;
+
+export type DeleteTagOption200 = {
+  ok: boolean;
+};
 
 export type ListArchiveCharactersParams = {
 q?: string;

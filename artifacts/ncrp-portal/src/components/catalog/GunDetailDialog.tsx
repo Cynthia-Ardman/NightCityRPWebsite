@@ -122,6 +122,14 @@ export default function GunDetailDialog({
           <GunFormFields form={form} setForm={setForm as React.Dispatch<React.SetStateAction<typeof form>>} />
         ) : (
           <div className="space-y-1">
+            {current.imageUrl && (
+              <img
+                src={current.imageUrl}
+                alt={current.name}
+                className="w-full max-h-72 object-contain border border-border bg-black/40 mb-3"
+                data-testid="img-gun-detail"
+              />
+            )}
             <Row label="Manufacturer" value={humanize(current.manufacturer)} />
             <Row label="Category" value={humanize(current.category)} />
             <Row label="Weapon Type" value={humanize(current.weaponType)} />

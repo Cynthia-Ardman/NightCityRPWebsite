@@ -5,6 +5,8 @@ import {
   useCreateHousingRequest,
   useListMyHousingRequests,
   useListLifestyleTiers,
+  useUpdateRentListing,
+  getListRentListingsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -12,7 +14,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Home } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { X, Home, ImageIcon } from "lucide-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
+import { useToast } from "@/hooks/use-toast";
+import SingleImageField from "@/components/catalog/SingleImageField";
 
 const ALL = "__all__";
 
@@ -23,6 +35,7 @@ type Listing = {
   tier?: string | null;
   monthlyRent: number;
   description?: string | null;
+  imageUrl?: string | null;
   occupied?: boolean;
 };
 
@@ -33,9 +46,12 @@ const FILTER_COLUMNS: Array<{ key: keyof Listing; label: string }> = [
 
 export default function CatalogRent() {
   const { data, isLoading } = useListRentListings();
+  const { data: me } = useAuthMe();
+  const isStaff = !!(me?.isAdmin || me?.isFixer);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [leaseTarget, setLeaseTarget] = useState<{ id: number; name: string; monthlyRent: number } | null>(null);
+  const [imageTarget, setImageTarget] = useState<Listing | null>(null);
 
   const listings = (data ?? []) as Listing[];
 
@@ -107,6 +123,7 @@ export default function CatalogRent() {
           <table className="w-full font-mono text-sm min-w-[800px]">
             <thead className="border-b border-border bg-card">
               <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
+                <th className="text-left p-3 w-0">Image</th>
                 <th className="text-left p-3">Name</th>
                 <th className="text-left p-3">District</th>
                 <th className="text-left p-3">Tier</th>
@@ -118,34 +135,62 @@ export default function CatalogRent() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="border-b border-border/30 hover:bg-card/80" data-testid={`row-rent-${r.id}`}>
+                  <td className="p-3">
+                    {r.imageUrl ? (
+                      <img
+                        src={r.imageUrl}
+                        alt={r.name}
+                        className="w-16 h-16 object-cover border border-border"
+                        data-testid={`img-rent-${r.id}`}
+                      />
+                    ) : (
+                      <div className="w-16 h-16 border border-border/40 flex items-center justify-center text-muted-foreground/50">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3 font-bold">{r.name}</td>
                   <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
                   <td className="p-3 uppercase">{r.tier ?? "—"}</td>
                   <td className="p-3 text-muted-foreground max-w-md truncate" title={r.description ?? ""}>{r.description ?? "—"}</td>
                   <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
                   <td className="p-3 text-right">
-                    {r.occupied ? (
-                      <span
-                        className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest"
-                        data-testid={`badge-occupied-${r.id}`}
-                      >
-                        OCCUPIED
-                      </span>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
-                        onClick={() => setLeaseTarget({ id: r.id, name: r.name, monthlyRent: r.monthlyRent })}
-                        data-testid={`button-lease-${r.id}`}
-                      >
-                        <Home className="w-3 h-3 mr-1" /> LEASE
-                      </Button>
-                    )}
+                    <div className="flex justify-end gap-2">
+                      {isStaff && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="rounded-none font-display text-xs"
+                          onClick={() => setImageTarget(r)}
+                          data-testid={`button-rent-image-${r.id}`}
+                        >
+                          <ImageIcon className="w-3 h-3 mr-1" /> IMAGE
+                        </Button>
+                      )}
+                      {r.occupied ? (
+                        <span
+                          className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest"
+                          data-testid={`badge-occupied-${r.id}`}
+                        >
+                          OCCUPIED
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
+                          onClick={() => setLeaseTarget({ id: r.id, name: r.name, monthlyRent: r.monthlyRent })}
+                          data-testid={`button-lease-${r.id}`}
+                        >
+                          <Home className="w-3 h-3 mr-1" /> LEASE
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={6} className="text-center p-8 text-muted-foreground">No results.</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={7} className="text-center p-8 text-muted-foreground">No results.</td></tr>}
             </tbody>
           </table>
         </Card>
@@ -159,7 +204,89 @@ export default function CatalogRent() {
           onDone={() => setLeaseTarget(null)}
         />
       )}
+      <RentImageDialog
+        listing={imageTarget}
+        open={!!imageTarget}
+        onOpenChange={(v) => !v && setImageTarget(null)}
+      />
     </div>
+  );
+}
+
+// Staff-only dialog to attach/replace/clear the single image on a housing
+// listing. Saves immediately via the audit-logged PATCH endpoint.
+function RentImageDialog({
+  listing,
+  open,
+  onOpenChange,
+}: {
+  listing: Listing | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [imageUrl, setImageUrl] = useState("");
+
+  // Re-seed the local value each time a different listing is opened.
+  const seedKey = listing?.id ?? -1;
+  const [seededFor, setSeededFor] = useState(-1);
+  if (open && seededFor !== seedKey) {
+    setImageUrl(listing?.imageUrl ?? "");
+    setSeededFor(seedKey);
+  }
+
+  const update = useUpdateRentListing({
+    mutation: {
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: getListRentListingsQueryKey() });
+        toast({ title: "Listing image updated" });
+        onOpenChange(false);
+      },
+      onError: () => {
+        toast({ title: "Update failed", description: "Could not save the image.", variant: "destructive" });
+      },
+    },
+  });
+
+  if (!listing) return null;
+
+  const save = () => {
+    const next = imageUrl.trim() ? imageUrl.trim() : null;
+    if ((listing.imageUrl ?? null) === next) {
+      onOpenChange(false);
+      return;
+    }
+    update.mutate({ id: listing.id, data: { imageUrl: next } });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="rounded-none border-nc-cyan/40 bg-card max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-display tracking-widest text-nc-cyan">
+            LISTING IMAGE — {listing.name.toUpperCase()}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs text-muted-foreground">
+            Upload a single image for this housing listing. Saved immediately and recorded in the audit log.
+          </DialogDescription>
+        </DialogHeader>
+        <SingleImageField
+          label="Listing image"
+          value={imageUrl}
+          onChange={setImageUrl}
+          testIdPrefix="rent-image"
+        />
+        <div className="flex justify-end gap-2 pt-4 border-t border-border mt-2">
+          <Button variant="ghost" className="rounded-none" onClick={() => onOpenChange(false)} data-testid="button-rent-image-cancel">
+            Cancel
+          </Button>
+          <Button className="rounded-none" disabled={update.isPending} onClick={save} data-testid="button-rent-image-save">
+            {update.isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

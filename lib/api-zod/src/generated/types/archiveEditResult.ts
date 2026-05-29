@@ -17,6 +17,10 @@ export interface ArchiveEditResult {
   archived?: boolean;
   /** @nullable */
   ownerId?: string | null;
+  /** @nullable */
+  fixerDiscordId?: string | null;
+  /** @nullable */
+  playerDiscordId?: string | null;
   cwpBand?: ArchiveEditResultCwpBand;
   tags?: string[];
   changed: string[];

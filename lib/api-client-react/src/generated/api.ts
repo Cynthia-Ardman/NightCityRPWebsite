@@ -42,6 +42,7 @@ import type {
   CatalogGunUpdate,
   CatalogGunUpdateResult,
   CatalogRent,
+  CatalogRentUpdate,
   Character,
   CharacterEditSubmission,
   CharacterInput,
@@ -55,6 +56,7 @@ import type {
   CharacterUpdateNote,
   DashboardSummary,
   DeactivateCharacter200,
+  DeleteTagOption200,
   DiceRollInput,
   DiceRollResult,
   DiscordCallbackParams,
@@ -116,6 +118,8 @@ import type {
   StoreSaleInput,
   StoreSaleResult,
   StoreUpdate,
+  TagOption,
+  TagOptionInput,
   TransferInput,
   UpcomingBills,
   UpdateCharacter409,
@@ -2662,6 +2666,78 @@ export function useListRentListings<TData = Awaited<ReturnType<typeof listRentLi
 
 
 
+
+export const getUpdateRentListingUrl = (id: number,) => {
+
+
+
+
+  return `/api/catalog/rent/${id}`
+}
+
+/**
+ * @summary Edit a housing listing (FIXER/ADMIN); used to attach/clear a single image.
+ */
+export const updateRentListing = async (id: number,
+    catalogRentUpdate: CatalogRentUpdate, options?: RequestInit): Promise<CatalogRent> => {
+
+  return customFetch<CatalogRent>(getUpdateRentListingUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogRentUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateRentListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRentListing>>, TError,{id: number;data: BodyType<CatalogRentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRentListing>>, TError,{id: number;data: BodyType<CatalogRentUpdate>}, TContext> => {
+
+const mutationKey = ['updateRentListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRentListing>>, {id: number;data: BodyType<CatalogRentUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateRentListing(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRentListingMutationResult = NonNullable<Awaited<ReturnType<typeof updateRentListing>>>
+    export type UpdateRentListingMutationBody = BodyType<CatalogRentUpdate>
+    export type UpdateRentListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a housing listing (FIXER/ADMIN); used to attach/clear a single image.
+ */
+export const useUpdateRentListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRentListing>>, TError,{id: number;data: BodyType<CatalogRentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRentListing>>,
+        TError,
+        {id: number;data: BodyType<CatalogRentUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateRentListingMutationOptions(options));
+    }
 
 export const getListLifestyleTiersUrl = () => {
 
@@ -7638,6 +7714,224 @@ export function useListPublicCharacterTags<TData = Awaited<ReturnType<typeof lis
 
 
 
+
+export const getListTagOptionsUrl = () => {
+
+
+
+
+  return `/api/directory/tag-options`
+}
+
+/**
+ * @summary Global reusable character tag options (any authenticated user).
+ */
+export const listTagOptions = async ( options?: RequestInit): Promise<TagOption[]> => {
+
+  return customFetch<TagOption[]>(getListTagOptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTagOptionsQueryKey = () => {
+    return [
+    `/api/directory/tag-options`
+    ] as const;
+    }
+
+
+export const getListTagOptionsQueryOptions = <TData = Awaited<ReturnType<typeof listTagOptions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTagOptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTagOptionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTagOptions>>> = ({ signal }) => listTagOptions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTagOptions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTagOptionsQueryResult = NonNullable<Awaited<ReturnType<typeof listTagOptions>>>
+export type ListTagOptionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Global reusable character tag options (any authenticated user).
+ */
+
+export function useListTagOptions<TData = Awaited<ReturnType<typeof listTagOptions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTagOptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTagOptionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateTagOptionUrl = () => {
+
+
+
+
+  return `/api/directory/tag-options`
+}
+
+/**
+ * @summary Create a new global tag option (FIXER/ADMIN).
+ */
+export const createTagOption = async (tagOptionInput: TagOptionInput, options?: RequestInit): Promise<TagOption> => {
+
+  return customFetch<TagOption>(getCreateTagOptionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      tagOptionInput,)
+  }
+);}
+
+
+
+
+export const getCreateTagOptionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTagOption>>, TError,{data: BodyType<TagOptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTagOption>>, TError,{data: BodyType<TagOptionInput>}, TContext> => {
+
+const mutationKey = ['createTagOption'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTagOption>>, {data: BodyType<TagOptionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTagOption(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTagOptionMutationResult = NonNullable<Awaited<ReturnType<typeof createTagOption>>>
+    export type CreateTagOptionMutationBody = BodyType<TagOptionInput>
+    export type CreateTagOptionMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new global tag option (FIXER/ADMIN).
+ */
+export const useCreateTagOption = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTagOption>>, TError,{data: BodyType<TagOptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTagOption>>,
+        TError,
+        {data: BodyType<TagOptionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTagOptionMutationOptions(options));
+    }
+
+export const getDeleteTagOptionUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/tag-options/${id}`
+}
+
+/**
+ * @summary Delete a global tag option (FIXER/ADMIN).
+ */
+export const deleteTagOption = async (id: number, options?: RequestInit): Promise<DeleteTagOption200> => {
+
+  return customFetch<DeleteTagOption200>(getDeleteTagOptionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteTagOptionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTagOption>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTagOption>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteTagOption'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTagOption>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteTagOption(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTagOptionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTagOption>>>
+
+    export type DeleteTagOptionMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a global tag option (FIXER/ADMIN).
+ */
+export const useDeleteTagOption = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTagOption>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTagOption>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTagOptionMutationOptions(options));
+    }
 
 export const getGetPublicCharacterUrl = (id: number,) => {
 

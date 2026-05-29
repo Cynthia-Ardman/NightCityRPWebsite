@@ -12,6 +12,7 @@ export type Gun = {
   status?: string | null;
   powerLevel?: string | null;
   weaponType?: string | null;
+  imageUrl?: string | null;
 };
 
 // Catalog imports left raw values like "heavy_machine_gun" / "POWER" /
@@ -47,6 +48,7 @@ export type GunFormState = {
   damage: string;
   magSize: string;
   notes: string;
+  imageUrl: string;
 };
 
 export function emptyForm(): GunFormState {
@@ -63,6 +65,7 @@ export function emptyForm(): GunFormState {
     damage: "",
     magSize: "",
     notes: "",
+    imageUrl: "",
   };
 }
 
@@ -83,6 +86,7 @@ export function formFromGun(g: Gun): GunFormState {
     damage: g.damage ?? "",
     magSize: g.magSize == null ? "" : String(g.magSize),
     notes: g.notes ?? "",
+    imageUrl: g.imageUrl ?? "",
   };
 }
 
@@ -116,6 +120,7 @@ export function formToCreatePayload(f: GunFormState) {
     damage: textOrNull(f.damage),
     magSize: intOrNull(f.magSize),
     notes: textOrNull(f.notes),
+    imageUrl: textOrNull(f.imageUrl),
   };
 }
 
@@ -137,6 +142,7 @@ export function formToPatch(f: GunFormState, original: Gun): Record<string, unkn
     damage: original.damage ?? null,
     magSize: original.magSize ?? null,
     notes: original.notes ?? null,
+    imageUrl: original.imageUrl ?? null,
   };
   const patch: Record<string, unknown> = {};
   for (const key of Object.keys(next) as Array<keyof typeof next>) {

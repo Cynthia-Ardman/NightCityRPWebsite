@@ -30,4 +30,6 @@ export interface CatalogGun {
   powerLevel?: string | null;
   /** @nullable */
   weaponType?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
 }

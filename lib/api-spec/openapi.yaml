@@ -537,6 +537,27 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CatalogRent" }
+  /catalog/rent/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateRentListing
+      tags: [catalog]
+      summary: "Edit a housing listing (FIXER/ADMIN); used to attach/clear a single image."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogRentUpdate" }
+      responses:
+        "200":
+          description: Updated listing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogRent" }
+        "400": { description: Invalid payload or no changes }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /catalog/lifestyle:
     get:
       operationId: listLifestyleTiers
@@ -1563,6 +1584,56 @@ paths:
               schema:
                 type: array
                 items: { type: string }
+  /directory/tag-options:
+    get:
+      operationId: listTagOptions
+      tags: [directory]
+      summary: "Global reusable character tag options (any authenticated user)."
+      responses:
+        "200":
+          description: Tag options sorted by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TagOption" }
+    post:
+      operationId: createTagOption
+      tags: [directory]
+      summary: "Create a new global tag option (FIXER/ADMIN)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TagOptionInput" }
+      responses:
+        "201":
+          description: Created tag option
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TagOption" }
+        "400": { description: Invalid payload }
+        "403": { description: Forbidden }
+        "409": { description: A tag with that name already exists }
+  /directory/tag-options/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    delete:
+      operationId: deleteTagOption
+      tags: [directory]
+      summary: "Delete a global tag option (FIXER/ADMIN)."
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /directory/characters/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -2102,6 +2173,8 @@ components:
         ownerId: { type: ["string", "null"] }
         ownerName: { type: ["string", "null"] }
         ownerAvatarUrl: { type: ["string", "null"] }
+        fixerDiscordId: { type: ["string", "null"] }
+        playerDiscordId: { type: ["string", "null"] }
         appliedTags: { type: array, items: { type: string } }
         tags: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }
@@ -2134,6 +2207,8 @@ components:
         ownerId: { type: ["string", "null"] }
         ownerName: { type: ["string", "null"] }
         ownerAvatarUrl: { type: ["string", "null"] }
+        fixerDiscordId: { type: ["string", "null"] }
+        playerDiscordId: { type: ["string", "null"] }
 
     ArchiveUser:
       type: object
@@ -2157,6 +2232,8 @@ components:
         archived: { type: boolean }
         lifeStatus: { type: string, enum: [active, dead, missing, loa, retired], description: "Headline life-status column (drives the status badge/filter)." }
         cwpBand: { type: string, enum: [organic, none, medium, high, extreme] }
+        fixerDiscordId: { type: ["string", "null"], description: "NPC responsible fixer Discord ID; null/empty clears." }
+        playerDiscordId: { type: ["string", "null"], description: "NPC player Discord ID; null/empty clears." }
         tags: { type: array, items: { type: string }, description: "Full desired merged tag set." }
         sheetData:
           type: object
@@ -2176,6 +2253,8 @@ components:
         claimed: { type: boolean }
         archived: { type: boolean }
         ownerId: { type: ["string", "null"] }
+        fixerDiscordId: { type: ["string", "null"] }
+        playerDiscordId: { type: ["string", "null"] }
         cwpBand:
           type: string
           enum: [organic, none, medium, high, extreme]
@@ -2628,6 +2707,7 @@ components:
         status: { type: ["string", "null"] }
         powerLevel: { type: ["string", "null"] }
         weaponType: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
     CatalogGunUpdate:
       type: object
       description: |
@@ -2645,6 +2725,7 @@ components:
         powerLevel: { type: ["string", "null"] }
         weaponType: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         status:
           type: ["string", "null"]
           enum: [draft, live, retired, null]
@@ -2678,6 +2759,7 @@ components:
         powerLevel: { type: ["string", "null"] }
         weaponType: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         status:
           type: ["string", "null"]
           enum: [draft, live, retired, null]
@@ -2708,9 +2790,37 @@ components:
         tier: { type: ["string", "null"] }
         monthlyRent: { type: integer }
         description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         occupied:
           type: boolean
           description: True when an active lease already references this listing.
+
+    CatalogRentUpdate:
+      type: object
+      description: |
+        Fixer/admin patch for a housing listing. Any subset may be supplied;
+        omitted fields are left unchanged. Mainly used to attach/clear a single
+        listing image.
+      properties:
+        name: { type: string }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
+        monthlyRent: { type: integer }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+
+    TagOption:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+
+    TagOptionInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
 
     HousingLease:
       type: object

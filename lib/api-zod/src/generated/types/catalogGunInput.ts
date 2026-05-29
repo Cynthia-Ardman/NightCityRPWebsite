@@ -28,6 +28,8 @@ export interface CatalogGunInput {
   weaponType?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   /**
      * Visibility status; defaults to draft.
      * @nullable

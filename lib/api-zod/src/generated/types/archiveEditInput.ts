@@ -31,6 +31,16 @@ export interface ArchiveEditInput {
   /** Headline life-status column (drives the status badge/filter). */
   lifeStatus?: ArchiveEditInputLifeStatus;
   cwpBand?: ArchiveEditInputCwpBand;
+  /**
+     * NPC responsible fixer Discord ID; null/empty clears.
+     * @nullable
+     */
+  fixerDiscordId?: string | null;
+  /**
+     * NPC player Discord ID; null/empty clears.
+     * @nullable
+     */
+  playerDiscordId?: string | null;
   /** Full desired merged tag set. */
   tags?: string[];
   sheetData?: ArchiveEditInputSheetData;

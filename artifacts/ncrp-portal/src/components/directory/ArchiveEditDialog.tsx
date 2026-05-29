@@ -96,6 +96,8 @@ export default function ArchiveEditDialog({
   const [ownerId, setOwnerId] = useState<string | null>(character.ownerId ?? null);
   const [ownerName, setOwnerName] = useState<string | null>(character.ownerName ?? null);
   const [cwpBand, setCwpBand] = useState<CwpBand>((character.cwpBand as CwpBand) ?? "none");
+  const [fixerDiscordId, setFixerDiscordId] = useState(character.fixerDiscordId ?? "");
+  const [playerDiscordId, setPlayerDiscordId] = useState(character.playerDiscordId ?? "");
   const [tags, setTags] = useState<string[]>(character.tags ?? []);
   const [tagInput, setTagInput] = useState("");
   const [preamble, setPreamble] = useState(sheet.preamble ?? "");
@@ -141,6 +143,8 @@ export default function ArchiveEditDialog({
           claimed,
           ownerId,
           cwpBand,
+          fixerDiscordId: fixerDiscordId.trim() ? fixerDiscordId.trim() : null,
+          playerDiscordId: playerDiscordId.trim() ? playerDiscordId.trim() : null,
           tags,
           sheetData: { preamble, sections: rowsToSections(rows) },
         },
@@ -238,6 +242,31 @@ export default function ArchiveEditDialog({
               testid="toggle-cwp"
             />
           </div>
+
+          {kind === "npc" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Fixer Discord ID</Label>
+                <Input
+                  value={fixerDiscordId}
+                  onChange={(e) => setFixerDiscordId(e.target.value)}
+                  placeholder="e.g. 123456789012345678"
+                  className="rounded-none font-mono"
+                  data-testid="input-edit-fixer-discord"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Player Discord ID</Label>
+                <Input
+                  value={playerDiscordId}
+                  onChange={(e) => setPlayerDiscordId(e.target.value)}
+                  placeholder="e.g. 123456789012345678"
+                  className="rounded-none font-mono"
+                  data-testid="input-edit-player-discord"
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Assigned user</Label>

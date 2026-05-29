@@ -1,102 +1,92 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListArchiveCharacters,
+  useListTagOptions,
   useUpdateArchiveCharacter,
+  getListTagOptionsQueryKey,
   getListArchiveCharactersQueryKey,
   getListPublicCharacterTagsQueryKey,
   getListPublicCharactersQueryKey,
   type ArchiveCharacterSummary,
 } from "@workspace/api-client-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { X } from "lucide-react";
 
-// Staff flow for attaching tags to a character. Tags are a single merged list;
-// adds go into the manual column server-side so re-import can't wipe them. The
-// API requires a non-empty commit message for every edit, so this dialog asks
-// for one too.
+// Per-character tag assignment. Staff multi-select from the GLOBAL tag-option
+// registry (managed in CreateTagsDialog). The selected set is merged with any
+// tags the character already has and sent as the full desired list; the server
+// stores additions in the manual column so re-import can't wipe them. The API
+// requires a non-empty commit message for every edit.
 export default function AddTagsDialog({
+  character,
   open,
   onOpenChange,
-  allTags,
 }: {
+  character: ArchiveCharacterSummary | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  allTags: string[];
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<ArchiveCharacterSummary | null>(null);
-  const [pending, setPending] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
   const [commitMessage, setCommitMessage] = useState("");
+  const [filter, setFilter] = useState("");
 
-  const charSearchParams = { q: search || undefined, sort: "name" as const };
-  const { data: results } = useListArchiveCharacters(charSearchParams, {
-    query: {
-      queryKey: getListArchiveCharactersQueryKey(charSearchParams),
-      enabled: open && !selected && search.trim().length > 0,
-    },
+  const { data: options } = useListTagOptions({
+    query: { queryKey: getListTagOptionsQueryKey(), enabled: open },
   });
 
-  const suggestions = useMemo(() => {
-    const lower = tagInput.trim().toLowerCase();
-    const have = new Set([...(selected?.tags ?? []), ...pending].map((t) => t.toLowerCase()));
-    return allTags
-      .filter((t) => !have.has(t.toLowerCase()))
-      .filter((t) => (lower ? t.toLowerCase().includes(lower) : true))
-      .slice(0, 12);
-  }, [allTags, tagInput, selected, pending]);
+  const existing = useMemo(
+    () => new Set((character?.tags ?? []).map((t) => t.toLowerCase())),
+    [character],
+  );
+
+  // Re-seed local state whenever a different character is opened.
+  const seedKey = character?.id ?? -1;
+  const [seededFor, setSeededFor] = useState(-1);
+  if (open && seededFor !== seedKey) {
+    setSelected([]);
+    setCommitMessage("");
+    setFilter("");
+    setSeededFor(seedKey);
+  }
+
+  const available = useMemo(() => {
+    const lower = filter.trim().toLowerCase();
+    return (options ?? [])
+      .filter((o) => !existing.has(o.name.toLowerCase()))
+      .filter((o) => (lower ? o.name.toLowerCase().includes(lower) : true));
+  }, [options, existing, filter]);
 
   const update = useUpdateArchiveCharacter();
 
-  const reset = () => {
-    setSearch("");
-    setSelected(null);
-    setPending([]);
-    setTagInput("");
-    setCommitMessage("");
-  };
-
-  const close = (v: boolean) => {
-    if (!v) reset();
-    onOpenChange(v);
-  };
-
-  const addPending = (raw: string) => {
-    const t = raw.trim().replace(/\s+/g, " ");
-    if (!t) return;
-    const existing = new Set([...(selected?.tags ?? []), ...pending].map((x) => x.toLowerCase()));
-    if (existing.has(t.toLowerCase())) {
-      setTagInput("");
-      return;
-    }
-    setPending((cur) => [...cur, t]);
-    setTagInput("");
+  const toggle = (name: string) => {
+    setSelected((cur) =>
+      cur.some((x) => x.toLowerCase() === name.toLowerCase())
+        ? cur.filter((x) => x.toLowerCase() !== name.toLowerCase())
+        : [...cur, name],
+    );
   };
 
   const canSave =
-    selected !== null && pending.length > 0 && commitMessage.trim().length > 0 && !update.isPending;
+    character !== null && selected.length > 0 && commitMessage.trim().length > 0 && !update.isPending;
 
   const save = () => {
-    if (!selected || pending.length === 0 || commitMessage.trim().length === 0) return;
-    const desired = [...(selected.tags ?? []), ...pending];
+    if (!character || selected.length === 0 || commitMessage.trim().length === 0) return;
+    const desired = [...(character.tags ?? []), ...selected];
     update.mutate(
-      { id: selected.id, data: { tags: desired, commitMessage: commitMessage.trim() } },
+      { id: character.id, data: { tags: desired, commitMessage: commitMessage.trim() } },
       {
         onSuccess: () => {
-          toast({ title: "Tags added", description: `Updated ${selected.name}.` });
+          toast({ title: "Tags added", description: `Updated ${character.name}.` });
           void qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
           void qc.invalidateQueries({ queryKey: getListPublicCharacterTagsQueryKey() });
           void qc.invalidateQueries({ queryKey: getListPublicCharactersQueryKey() });
-          close(false);
+          onOpenChange(false);
         },
         onError: () => toast({ title: "Failed to add tags", variant: "destructive" }),
       },
@@ -104,162 +94,90 @@ export default function AddTagsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={close}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-none border-nc-cyan/40 bg-card max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-display tracking-widest text-nc-cyan">ADD TAGS</DialogTitle>
+          <DialogTitle className="font-display tracking-widest text-nc-cyan">
+            ADD TAGS{character ? ` — ${character.name.toUpperCase()}` : ""}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs text-muted-foreground">
+            Select from the shared tag list. Manage that list with "Create Tags".
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {!selected ? (
+          {(character?.tags ?? []).length > 0 && (
             <div>
-              <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                Find character
-              </Label>
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name…"
-                className="rounded-none"
-                data-testid="input-addtags-search"
-                autoFocus
-              />
-              {results && results.length > 0 && (
-                <div className="mt-2 max-h-56 overflow-y-auto border border-border divide-y divide-border">
-                  {results.slice(0, 25).map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setSelected(c)}
-                      className="w-full text-left px-3 py-2 hover:bg-nc-cyan/10 flex items-center justify-between gap-2"
-                      data-testid={`option-addtags-char-${c.id}`}
-                    >
-                      <span className="font-mono text-sm text-foreground truncate">{c.name}</span>
-                      <span className="text-[10px] font-mono uppercase text-muted-foreground">
-                        {c.kind === "npc" ? "NPC" : "PC"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between border border-border px-3 py-2">
-                <span className="font-display text-foreground">{selected.name}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelected(null);
-                    setPending([]);
-                  }}
-                  className="text-xs font-mono uppercase text-nc-magenta hover:text-nc-magenta/80"
-                  data-testid="button-addtags-change-char"
-                >
-                  Change
-                </button>
-              </div>
-
-              {(selected.tags ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {(selected.tags ?? []).map((t) => (
-                    <Badge key={t} variant="outline" className="rounded-none text-[10px] font-mono border-border text-muted-foreground">
-                      {t}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              <div>
-                <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                  New tags
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addPending(tagInput);
-                      }
-                    }}
-                    placeholder="Type a tag and press Enter"
-                    className="rounded-none"
-                    data-testid="input-addtags-tag"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-none"
-                    onClick={() => addPending(tagInput)}
-                    data-testid="button-addtags-add"
+              <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Current tags</Label>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {(character?.tags ?? []).map((t) => (
+                  <span
+                    key={t}
+                    className="px-2 py-1 border border-border text-muted-foreground font-mono text-[10px] uppercase tracking-wider"
                   >
-                    Add
-                  </Button>
-                </div>
-                {suggestions.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {suggestions.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => addPending(t)}
-                        className="px-2 py-1 border border-border text-muted-foreground hover:border-nc-yellow/60 font-mono text-[10px] uppercase tracking-wider"
-                        data-testid={`suggest-addtags-${t}`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {pending.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {pending.map((t) => (
-                      <span
-                        key={t}
-                        className="inline-flex items-center gap-1 px-2 py-1 border border-nc-yellow/60 text-nc-yellow/90 font-mono text-[10px] uppercase tracking-wider"
-                      >
-                        {t}
-                        <button
-                          type="button"
-                          onClick={() => setPending((cur) => cur.filter((x) => x !== t))}
-                          data-testid={`remove-pending-${t}`}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                    {t}
+                  </span>
+                ))}
               </div>
-
-              <div>
-                <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                  Reason (required)
-                </Label>
-                <Input
-                  value={commitMessage}
-                  onChange={(e) => setCommitMessage(e.target.value)}
-                  placeholder="Why are you adding these tags?"
-                  className="rounded-none"
-                  data-testid="input-addtags-commit"
-                />
-              </div>
-            </>
+            </div>
           )}
+
+          <div>
+            <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Available tags</Label>
+            <Input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter tags…"
+              className="rounded-none mt-1"
+              data-testid="input-addtags-filter"
+            />
+            {!options || options.length === 0 ? (
+              <p className="font-mono text-xs text-muted-foreground italic mt-2">
+                No tags defined yet. Use "Create Tags" to add some.
+              </p>
+            ) : available.length === 0 ? (
+              <p className="font-mono text-xs text-muted-foreground italic mt-2">No matching tags.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1 mt-2 max-h-56 overflow-y-auto" data-testid="list-addtags-options">
+                {available.map((o) => {
+                  const active = selected.some((x) => x.toLowerCase() === o.name.toLowerCase());
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => toggle(o.name)}
+                      className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-wider transition ${
+                        active
+                          ? "border-nc-yellow text-nc-yellow bg-nc-yellow/10"
+                          : "border-border text-muted-foreground hover:border-nc-yellow/40"
+                      }`}
+                      data-testid={`option-addtags-${o.id}`}
+                    >
+                      {o.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Reason (required)</Label>
+            <Input
+              value={commitMessage}
+              onChange={(e) => setCommitMessage(e.target.value)}
+              placeholder="Why are you adding these tags?"
+              className="rounded-none"
+              data-testid="input-addtags-commit"
+            />
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" className="rounded-none" onClick={() => close(false)} data-testid="button-addtags-cancel">
+          <Button variant="ghost" className="rounded-none" onClick={() => onOpenChange(false)} data-testid="button-addtags-cancel">
             Cancel
           </Button>
-          <Button
-            className="rounded-none"
-            disabled={!canSave}
-            onClick={save}
-            data-testid="button-addtags-save"
-          >
+          <Button className="rounded-none" disabled={!canSave} onClick={save} data-testid="button-addtags-save">
             {update.isPending ? "Saving…" : "Add Tags"}
           </Button>
         </div>

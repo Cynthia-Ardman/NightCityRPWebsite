@@ -24,3 +24,4 @@
 - [Cyberware band source](cyberware-band-source.md) — band is DERIVED from inventory_items CWP (sumCwpByCharacter+deriveCyberwareBand), NOT the empty characters.cyberwareLevel column; lifeStatus is all 'active' in prod.
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
 - [Audit-trail durability](audit-trail-durability.md) — recordAudit() swallows failures; endpoints that MUST be traceable write audit+changelog inline in a db.transaction.
+- [Catalog PATCH response parity](catalog-patch-response-parity.md) — staff edit PATCH must return the SAME computed-field shape as the GET (e.g. rent's `occupied`), or generated clients drift from the contract.

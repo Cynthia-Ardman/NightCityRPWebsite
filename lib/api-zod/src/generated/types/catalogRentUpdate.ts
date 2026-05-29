@@ -6,18 +6,21 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CatalogRent {
-  id: number;
-  name: string;
+/**
+ * Fixer/admin patch for a housing listing. Any subset may be supplied;
+omitted fields are left unchanged. Mainly used to attach/clear a single
+listing image.
+
+ */
+export interface CatalogRentUpdate {
+  name?: string;
   /** @nullable */
   district?: string | null;
   /** @nullable */
   tier?: string | null;
-  monthlyRent: number;
+  monthlyRent?: number;
   /** @nullable */
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
-  /** True when an active lease already references this listing. */
-  occupied: boolean;
 }

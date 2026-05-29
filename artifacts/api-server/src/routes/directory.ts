@@ -15,6 +15,7 @@ import {
   catalogGuns,
   catalogCyberware,
   catalogRent,
+  characterTagOptions,
   housing,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
@@ -362,6 +363,8 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
       ownerId: characters.ownerId,
       ownerName: users.username,
       ownerAvatarUrl: users.avatarUrl,
+      fixerDiscordId: characters.fixerDiscordId,
+      playerDiscordId: characters.playerDiscordId,
       appliedTags: characters.appliedTags,
       manualTags: characters.manualTags,
       createdAt: characters.createdAt,
@@ -435,6 +438,8 @@ router.get("/directory/archive/:id", staffOnly, async (req, res): Promise<void> 
       ownerId: characters.ownerId,
       ownerName: users.username,
       ownerAvatarUrl: users.avatarUrl,
+      fixerDiscordId: characters.fixerDiscordId,
+      playerDiscordId: characters.playerDiscordId,
     })
     .from(characters)
     .leftJoin(users, eq(users.id, characters.ownerId))
@@ -469,6 +474,9 @@ const ArchiveEditSchema = z
     archived: z.boolean().optional(),
     lifeStatus: z.enum(LIFE_STATUSES).optional(),
     cwpBand: z.enum(["organic", "none", "medium", "high", "extreme"]).optional(),
+    // NPC fixer/player Discord IDs — free-form snowflakes, may be cleared.
+    fixerDiscordId: z.string().nullable().optional(),
+    playerDiscordId: z.string().nullable().optional(),
     tags: z.array(z.string()).optional(),
     sheetData: z
       .object({
@@ -566,6 +574,18 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
     mark("cwpBand", deriveCwpBand(cur.isOrganic, cur.cyberwareLevel), edit.cwpBand);
   }
 
+  // NPC fixer/player Discord IDs — trim, treat empty as cleared.
+  if (edit.fixerDiscordId !== undefined) {
+    const v = edit.fixerDiscordId && edit.fixerDiscordId.trim().length > 0 ? edit.fixerDiscordId.trim() : null;
+    patch.fixerDiscordId = v;
+    mark("fixerDiscordId", cur.fixerDiscordId, v);
+  }
+  if (edit.playerDiscordId !== undefined) {
+    const v = edit.playerDiscordId && edit.playerDiscordId.trim().length > 0 ? edit.playerDiscordId.trim() : null;
+    patch.playerDiscordId = v;
+    mark("playerDiscordId", cur.playerDiscordId, v);
+  }
+
   // Tags: the client sends the FULL desired merged set; we split it back into
   // the applied/manual columns so the manual column survives re-import.
   if (edit.tags !== undefined) {
@@ -635,6 +655,8 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
     claimed: updated.claimed,
     archived: updated.archived,
     ownerId: updated.ownerId,
+    fixerDiscordId: updated.fixerDiscordId,
+    playerDiscordId: updated.playerDiscordId,
     cwpBand: resolveBand(
       updated.isOrganic,
       updated.cyberwareLevel,
@@ -763,6 +785,7 @@ const GunEditSchema = z
     powerLevel: nullableText,
     weaponType: nullableText,
     notes: nullableText,
+    imageUrl: nullableText,
     status: gunStatus,
   })
   .strict();
@@ -802,6 +825,7 @@ router.post(
       powerLevel: d.powerLevel ?? null,
       weaponType: d.weaponType ?? null,
       notes: d.notes ?? null,
+      imageUrl: d.imageUrl ?? null,
       status: d.status ?? "draft",
     };
     const { ip, ua } = auditMeta(req);
@@ -874,6 +898,7 @@ router.patch(
     if (edit.powerLevel !== undefined) mark("powerLevel", cur.powerLevel, edit.powerLevel);
     if (edit.weaponType !== undefined) mark("weaponType", cur.weaponType, edit.weaponType);
     if (edit.notes !== undefined) mark("notes", cur.notes, edit.notes);
+    if (edit.imageUrl !== undefined) mark("imageUrl", cur.imageUrl, edit.imageUrl);
     if (edit.status !== undefined) mark("status", cur.status, edit.status);
 
     if (Object.keys(after).length === 0) {
@@ -924,6 +949,185 @@ router.get("/catalog/rent", async (_req, res): Promise<void> => {
   ]);
   const occupiedSet = new Set(occupied.map((r) => r.listingId).filter((id): id is number => id != null));
   res.json(listings.map((l) => ({ ...l, occupied: occupiedSet.has(l.id) })));
+});
+
+// Staff-only edit for a housing listing. Currently used by the catalog UI to
+// attach/replace/clear a single listing image, but also accepts the basic
+// descriptive fields. Audit-logged (category "catalog") with before/after.
+const RentEditSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    district: nullableText,
+    tier: nullableText,
+    monthlyRent: z.number().int().min(0).optional(),
+    description: nullableText,
+    imageUrl: nullableText,
+  })
+  .strict();
+
+router.patch(
+  "/catalog/rent/:id",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = RentEditSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+      return;
+    }
+    const edit = parsed.data;
+
+    const [cur] = await db.select().from(catalogRent).where(eq(catalogRent.id, id));
+    if (!cur) {
+      res.status(404).json({ error: "Listing not found" });
+      return;
+    }
+
+    const patch: Record<string, unknown> = {};
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+    const mark = (field: string, prev: unknown, next: unknown): void => {
+      if (JSON.stringify(prev ?? null) === JSON.stringify(next ?? null)) return;
+      patch[field] = next ?? null;
+      before[field] = prev ?? null;
+      after[field] = next ?? null;
+    };
+
+    if (edit.name !== undefined) mark("name", cur.name, edit.name);
+    if (edit.district !== undefined) mark("district", cur.district, edit.district);
+    if (edit.tier !== undefined) mark("tier", cur.tier, edit.tier);
+    if (edit.monthlyRent !== undefined) mark("monthlyRent", cur.monthlyRent, edit.monthlyRent);
+    if (edit.description !== undefined) mark("description", cur.description, edit.description);
+    if (edit.imageUrl !== undefined) mark("imageUrl", cur.imageUrl, edit.imageUrl);
+
+    if (Object.keys(after).length === 0) {
+      res.status(400).json({ error: "No changes" });
+      return;
+    }
+
+    const { ip, ua } = auditMeta(req);
+    const updated = await db.transaction(async (tx) => {
+      const [u] = await tx
+        .update(catalogRent)
+        .set(patch)
+        .where(eq(catalogRent.id, id))
+        .returning();
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "rent_edit",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_rent",
+        targetId: String(id),
+        message: `Edited listing "${u.name}"`,
+        beforeJson: before as never,
+        afterJson: after as never,
+      });
+      return u;
+    });
+
+    // Match the shape returned by GET /catalog/rent (CatalogRent), which
+    // includes a computed `occupied` flag, so generated clients stay in sync.
+    const [activeLease] = await db
+      .select({ listingId: housing.listingId })
+      .from(housing)
+      .where(eq(housing.listingId, id))
+      .limit(1);
+
+    res.json({ ...updated, occupied: !!activeLease });
+  },
+);
+
+// ======================= CHARACTER TAG OPTIONS (registry) ===================
+// A global, reusable catalog of tag names. Staff "create" options here; the
+// per-character picker then "adds" existing options to a character (writing
+// into characters.manualTags via the archive edit path). Any authenticated
+// user may LIST options (the picker needs them); only staff create/delete.
+router.get("/directory/tag-options", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(characterTagOptions)
+    .orderBy(asc(characterTagOptions.name));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name })));
+});
+
+const TagOptionCreateSchema = z.object({ name: z.string().trim().min(1).max(60) }).strict();
+
+router.post("/directory/tag-options", staffOnly, async (req, res): Promise<void> => {
+  const parsed = TagOptionCreateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+    return;
+  }
+  const name = normalizeTag(parsed.data.name);
+  // Case-insensitive uniqueness — block "Veteran" vs "veteran" duplicates.
+  const [dupe] = await db
+    .select({ id: characterTagOptions.id })
+    .from(characterTagOptions)
+    .where(ilike(characterTagOptions.name, name));
+  if (dupe) {
+    res.status(409).json({ error: "A tag with that name already exists" });
+    return;
+  }
+  const { ip, ua } = auditMeta(req);
+  const created = await db.transaction(async (tx) => {
+    const [t] = await tx
+      .insert(characterTagOptions)
+      .values({ name, createdById: req.user!.id })
+      .returning();
+    await tx.insert(auditLog).values({
+      category: "character",
+      action: "tag_option_create",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "tag_option",
+      targetId: String(t.id),
+      message: `Created tag option "${t.name}"`,
+      beforeJson: null,
+      afterJson: { name: t.name } as never,
+    });
+    return t;
+  });
+  res.status(201).json({ id: created.id, name: created.name });
+});
+
+router.delete("/directory/tag-options/:id", staffOnly, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [cur] = await db.select().from(characterTagOptions).where(eq(characterTagOptions.id, id));
+  if (!cur) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { ip, ua } = auditMeta(req);
+  await db.transaction(async (tx) => {
+    await tx.delete(characterTagOptions).where(eq(characterTagOptions.id, id));
+    await tx.insert(auditLog).values({
+      category: "character",
+      action: "tag_option_delete",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "tag_option",
+      targetId: String(id),
+      message: `Deleted tag option "${cur.name}"`,
+      beforeJson: { name: cur.name } as never,
+      afterJson: null,
+    });
+  });
+  res.json({ ok: true });
 });
 
 export default router;

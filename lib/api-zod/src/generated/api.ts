@@ -613,7 +613,8 @@ export const ListGunsResponseItem = zod.object({
   "restriction": zod.string().nullish(),
   "status": zod.string().nullish(),
   "powerLevel": zod.string().nullish(),
-  "weaponType": zod.string().nullish()
+  "weaponType": zod.string().nullish(),
+  "imageUrl": zod.string().nullish()
 })
 export const ListGunsResponse = zod.array(ListGunsResponseItem)
 
@@ -639,6 +640,7 @@ export const CreateGunBody = zod.object({
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().default(createGunBodyStatusDefault).describe('Visibility status; defaults to draft.')
 })
 
@@ -665,6 +667,7 @@ export const UpdateGunBody = zod.object({
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().describe('Visibility status; only ADMIN\/FIXER may set.')
 }).describe('Fixer\/admin patch. Any subset of these fields may be supplied; omitted\nfields are left unchanged.\n')
 
@@ -681,7 +684,8 @@ export const UpdateGunResponse = zod.object({
   "restriction": zod.string().nullish(),
   "status": zod.string().nullish(),
   "powerLevel": zod.string().nullish(),
-  "weaponType": zod.string().nullish()
+  "weaponType": zod.string().nullish(),
+  "imageUrl": zod.string().nullish()
 }).and(zod.object({
   "changed": zod.array(zod.string())
 })).describe('The updated weapon plus the list of fields that actually changed in\nthis edit (used for audit\/UX context).\n')
@@ -708,9 +712,38 @@ export const ListRentListingsResponseItem = zod.object({
   "tier": zod.string().nullish(),
   "monthlyRent": zod.number(),
   "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "occupied": zod.boolean().describe('True when an active lease already references this listing.')
 })
 export const ListRentListingsResponse = zod.array(ListRentListingsResponseItem)
+
+
+/**
+ * @summary Edit a housing listing (FIXER/ADMIN); used to attach/clear a single image.
+ */
+export const UpdateRentListingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateRentListingBody = zod.object({
+  "name": zod.string().optional(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number().optional(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish()
+}).describe('Fixer\/admin patch for a housing listing. Any subset may be supplied;\nomitted fields are left unchanged. Mainly used to attach\/clear a single\nlisting image.\n')
+
+export const UpdateRentListingResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "occupied": zod.boolean().describe('True when an active lease already references this listing.')
+})
 
 
 /**
@@ -2763,6 +2796,36 @@ export const ListPublicCharacterTagsResponse = zod.array(ListPublicCharacterTags
 
 
 /**
+ * @summary Global reusable character tag options (any authenticated user).
+ */
+export const ListTagOptionsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+})
+export const ListTagOptionsResponse = zod.array(ListTagOptionsResponseItem)
+
+
+/**
+ * @summary Create a new global tag option (FIXER/ADMIN).
+ */
+export const CreateTagOptionBody = zod.object({
+  "name": zod.string()
+})
+
+
+/**
+ * @summary Delete a global tag option (FIXER/ADMIN).
+ */
+export const DeleteTagOptionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteTagOptionResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary Full sheet data for a single imported character (public).
  */
 export const GetPublicCharacterParams = zod.object({
@@ -2844,6 +2907,8 @@ export const ListArchiveCharactersResponseItem = zod.object({
   "ownerId": zod.string().nullish(),
   "ownerName": zod.string().nullish(),
   "ownerAvatarUrl": zod.string().nullish(),
+  "fixerDiscordId": zod.string().nullish(),
+  "playerDiscordId": zod.string().nullish(),
   "appliedTags": zod.array(zod.string()).optional(),
   "tags": zod.array(zod.string()),
   "createdAt": zod.coerce.date().optional()
@@ -2894,7 +2959,9 @@ export const GetArchiveCharacterResponse = zod.object({
   "tags": zod.array(zod.string()),
   "ownerId": zod.string().nullish(),
   "ownerName": zod.string().nullish(),
-  "ownerAvatarUrl": zod.string().nullish()
+  "ownerAvatarUrl": zod.string().nullish(),
+  "fixerDiscordId": zod.string().nullish(),
+  "playerDiscordId": zod.string().nullish()
 })
 
 
@@ -2919,6 +2986,8 @@ export const UpdateArchiveCharacterBody = zod.object({
   "archived": zod.boolean().optional(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline life-status column (drives the status badge\/filter).'),
   "cwpBand": zod.enum(['organic', 'none', 'medium', 'high', 'extreme']).optional(),
+  "fixerDiscordId": zod.string().nullish().describe('NPC responsible fixer Discord ID; null\/empty clears.'),
+  "playerDiscordId": zod.string().nullish().describe('NPC player Discord ID; null\/empty clears.'),
   "tags": zod.array(zod.string()).optional().describe('Full desired merged tag set.'),
   "sheetData": zod.object({
   "preamble": zod.string(),
@@ -2934,6 +3003,8 @@ export const UpdateArchiveCharacterResponse = zod.object({
   "claimed": zod.boolean().optional(),
   "archived": zod.boolean().optional(),
   "ownerId": zod.string().nullish(),
+  "fixerDiscordId": zod.string().nullish(),
+  "playerDiscordId": zod.string().nullish(),
   "cwpBand": zod.enum(['organic', 'none', 'medium', 'high', 'extreme']).optional(),
   "tags": zod.array(zod.string()).optional(),
   "changed": zod.array(zod.string())
