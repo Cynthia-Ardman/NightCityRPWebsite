@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, ilike, isNull, isNotNull, desc, asc, sql, arrayOverlaps } from "drizzle-orm";
+import { eq, and, or, ilike, isNull, isNotNull, desc, asc, sql, arrayOverlaps, inArray, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -80,6 +80,27 @@ function bandToFields(band: CwpBand): { isOrganic: boolean; cyberwareLevel: stri
   if (band === "organic") return { isOrganic: true, cyberwareLevel: "none" };
   return { isOrganic: false, cyberwareLevel: band };
 }
+// SQL predicate that selects rows whose DERIVED band equals `band`, mirroring
+// deriveCwpBand: organic wins outright; "none" is any non-organic row that
+// isn't medium/high/extreme (so unrecognized levels still bucket as none).
+function bandToCondition(band: CwpBand): ReturnType<typeof eq> {
+  if (band === "organic") return eq(characters.isOrganic, true) as ReturnType<typeof eq>;
+  if (band === "none") {
+    return and(
+      eq(characters.isOrganic, false),
+      notInArray(characters.cyberwareLevel, ["medium", "high", "extreme"]),
+    ) as unknown as ReturnType<typeof eq>;
+  }
+  return and(
+    eq(characters.isOrganic, false),
+    eq(characters.cyberwareLevel, band),
+  ) as unknown as ReturnType<typeof eq>;
+}
+
+// Valid life-status values (the headline status column). Kept here so the
+// archive status filter can validate query input against the same set the
+// editor/import paths use.
+const LIFE_STATUSES = ["active", "dead", "missing", "loa", "retired"] as const;
 
 // Character sheets contain IC backstory, contacts, and chrome loadouts that
 // players and staff have agreed should NOT be visible to the wider community.
@@ -267,6 +288,22 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
   const sort = req.query.sort === "name" ? "name" : "recent";
   const tagsRaw = typeof req.query.tags === "string" ? req.query.tags : "";
   const tagList = tagsRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  // Life-status filter (active/dead/missing/loa/retired) — multi-select, matches
+  // ANY of the requested values against characters.lifeStatus (the headline
+  // status column). Unknown values are dropped so a bad query can't 500.
+  const statusRaw = typeof req.query.status === "string" ? req.query.status : "";
+  const statusList = statusRaw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => (LIFE_STATUSES as readonly string[]).includes(s));
+  // CWP band filter (organic/none/medium/high/extreme) — multi-select. The band
+  // is derived (isOrganic + cyberwareLevel), not stored, so each requested band
+  // expands to its underlying column predicate and they're OR'd together.
+  const bandsRaw = typeof req.query.bands === "string" ? req.query.bands : "";
+  const bandList = bandsRaw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => (CWP_BANDS as readonly string[]).includes(s)) as CwpBand[];
 
   const conds = [] as Array<ReturnType<typeof eq>>;
   if (q.length > 0) {
@@ -290,6 +327,12 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
   else if (scope === "unclaimed") conds.push(eq(characters.claimed, false));
   else if (scope === "pc") conds.push(eq(characters.kind, "pc"));
   else if (scope === "npc") conds.push(eq(characters.kind, "npc"));
+  if (statusList.length > 0) {
+    conds.push(inArray(characters.lifeStatus, statusList) as unknown as ReturnType<typeof eq>);
+  }
+  if (bandList.length > 0) {
+    conds.push(or(...bandList.map(bandToCondition)) as unknown as ReturnType<typeof eq>);
+  }
   if (tagList.length > 0) {
     conds.push(
       or(

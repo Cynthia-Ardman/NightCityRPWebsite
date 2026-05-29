@@ -2129,6 +2129,14 @@ export type ListArchiveCharactersParams = {
 q?: string;
 scope?: ListArchiveCharactersScope;
 /**
+ * Comma-separated life-status values (active, dead, missing, loa, retired); matches ANY.
+ */
+status?: string;
+/**
+ * Comma-separated CWP bands (organic, none, medium, high, extreme); matches ANY.
+ */
+bands?: string;
+/**
  * Comma-separated tag names; matches the union of applied + manual tags.
  */
 tags?: string;

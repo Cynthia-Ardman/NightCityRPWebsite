@@ -31,6 +31,33 @@ export function LifecycleBadge({ archived }: { archived: boolean }) {
   );
 }
 
+export type LifeStatus = "active" | "dead" | "missing" | "loa" | "retired";
+
+const STATUS_STYLES: Record<LifeStatus, string> = {
+  active: "border-emerald-400 text-emerald-400",
+  retired: "border-nc-yellow text-nc-yellow",
+  loa: "border-nc-cyan text-nc-cyan",
+  missing: "border-orange-400 text-orange-400",
+  dead: "border-red-500 text-red-500",
+};
+
+const STATUS_LABELS: Record<LifeStatus, string> = {
+  active: "ACTIVE",
+  retired: "RETIRED",
+  loa: "LOA",
+  missing: "MISSING",
+  dead: "DEAD",
+};
+
+export function StatusBadge({ status }: { status: string }) {
+  const s = (STATUS_STYLES[status as LifeStatus] ? status : "active") as LifeStatus;
+  return (
+    <Badge variant="outline" className={`${base} ${STATUS_STYLES[s]}`} data-testid="badge-status">
+      {STATUS_LABELS[s]}
+    </Badge>
+  );
+}
+
 export function ClaimBadge({ claimed }: { claimed: boolean }) {
   return (
     <Badge

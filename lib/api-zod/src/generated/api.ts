@@ -2783,6 +2783,8 @@ export const GetPublicCharacterResponse = zod.object({
 export const ListArchiveCharactersQueryParams = zod.object({
   "q": zod.coerce.string().optional(),
   "scope": zod.enum(['all', 'active', 'retired', 'claimed', 'unclaimed', 'pc', 'npc']).optional(),
+  "status": zod.coerce.string().optional().describe('Comma-separated life-status values (active, dead, missing, loa, retired); matches ANY.'),
+  "bands": zod.coerce.string().optional().describe('Comma-separated CWP bands (organic, none, medium, high, extreme); matches ANY.'),
   "tags": zod.coerce.string().optional().describe('Comma-separated tag names; matches the union of applied + manual tags.'),
   "mode": zod.enum(['name', 'content']).optional(),
   "sort": zod.enum(['recent', 'name']).optional()

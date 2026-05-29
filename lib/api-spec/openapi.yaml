@@ -1565,6 +1565,8 @@ paths:
       parameters:
         - { in: query, name: q, schema: { type: string } }
         - { in: query, name: scope, schema: { type: string, enum: [all, active, retired, claimed, unclaimed, pc, npc] } }
+        - { in: query, name: status, schema: { type: string }, description: "Comma-separated life-status values (active, dead, missing, loa, retired); matches ANY." }
+        - { in: query, name: bands, schema: { type: string }, description: "Comma-separated CWP bands (organic, none, medium, high, extreme); matches ANY." }
         - { in: query, name: tags, schema: { type: string }, description: "Comma-separated tag names; matches the union of applied + manual tags." }
         - { in: query, name: mode, schema: { type: string, enum: [name, content] } }
         - { in: query, name: sort, schema: { type: string, enum: [recent, name] } }

@@ -66,6 +66,125 @@ describe("GET /directory/archive (staff-only roster)", () => {
     expect(ids).toContain(a.id);
     expect(ids).not.toContain(b.id);
   });
+
+  it("filters by a single life status", async () => {
+    const admin = await createAdmin();
+    const dead = await createCharacter({ name: "Dead One", lifeStatus: "dead" });
+    const active = await createCharacter({ name: "Active One", lifeStatus: "active" });
+
+    const res = await request(app)
+      .get("/api/directory/archive?status=dead")
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(dead.id);
+    expect(ids).not.toContain(active.id);
+  });
+
+  it("filters by multiple life statuses (matches ANY)", async () => {
+    const admin = await createAdmin();
+    const loa = await createCharacter({ name: "On LOA", lifeStatus: "loa" });
+    const missing = await createCharacter({ name: "Gone Missing", lifeStatus: "missing" });
+    const active = await createCharacter({ name: "Still Here", lifeStatus: "active" });
+
+    const res = await request(app)
+      .get("/api/directory/archive?status=loa,missing")
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(loa.id);
+    expect(ids).toContain(missing.id);
+    expect(ids).not.toContain(active.id);
+  });
+
+  it("ignores unknown status values instead of erroring", async () => {
+    const admin = await createAdmin();
+    await createCharacter({ name: "Anyone" });
+    const res = await request(app)
+      .get("/api/directory/archive?status=bogus")
+      .set("x-test-user", admin.id);
+    // unknown value drops out → no status filter → full roster returns
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  it("filters by CWP band (medium/high/extreme)", async () => {
+    const admin = await createAdmin();
+    const high = await createCharacter({ name: "Chromed Up", cyberwareLevel: "high" });
+    const none = await createCharacter({ name: "Bare Metal", cyberwareLevel: "none" });
+
+    const res = await request(app)
+      .get("/api/directory/archive?bands=high")
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(high.id);
+    expect(ids).not.toContain(none.id);
+  });
+
+  it("filters by multiple CWP bands (matches ANY)", async () => {
+    const admin = await createAdmin();
+    const high = await createCharacter({ name: "High Chrome", cyberwareLevel: "high" });
+    const extreme = await createCharacter({ name: "Extreme Chrome", cyberwareLevel: "extreme" });
+    const none = await createCharacter({ name: "No Chrome", cyberwareLevel: "none" });
+
+    const res = await request(app)
+      .get("/api/directory/archive?bands=high,extreme")
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(high.id);
+    expect(ids).toContain(extreme.id);
+    expect(ids).not.toContain(none.id);
+  });
+
+  it("filters by the organic band (isOrganic wins over level)", async () => {
+    const admin = await createAdmin();
+    const organic = await createCharacter({ name: "All Meat", cyberwareLevel: "none" });
+    await db.update(characters).set({ isOrganic: true }).where(eq(characters.id, organic.id));
+    const chromed = await createCharacter({ name: "Has Chrome", cyberwareLevel: "medium" });
+
+    const res = await request(app)
+      .get("/api/directory/archive?bands=organic")
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(organic.id);
+    expect(ids).not.toContain(chromed.id);
+  });
+
+  it("the 'none' band excludes organic and chromed characters", async () => {
+    const admin = await createAdmin();
+    const none = await createCharacter({ name: "Plain None", cyberwareLevel: "none" });
+    const organic = await createCharacter({ name: "Meat Bag", cyberwareLevel: "none" });
+    await db.update(characters).set({ isOrganic: true }).where(eq(characters.id, organic.id));
+    const high = await createCharacter({ name: "Loaded", cyberwareLevel: "high" });
+
+    const res = await request(app)
+      .get("/api/directory/archive?bands=none")
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(none.id);
+    expect(ids).not.toContain(organic.id);
+    expect(ids).not.toContain(high.id);
+  });
+
+  it("combines status and band filters (AND across facets)", async () => {
+    const admin = await createAdmin();
+    const match = await createCharacter({ name: "Dead And Chromed", lifeStatus: "dead", cyberwareLevel: "extreme" });
+    const wrongStatus = await createCharacter({ name: "Active Chromed", lifeStatus: "active", cyberwareLevel: "extreme" });
+    const wrongBand = await createCharacter({ name: "Dead Clean", lifeStatus: "dead", cyberwareLevel: "none" });
+
+    const res = await request(app)
+      .get("/api/directory/archive?status=dead&bands=extreme")
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(match.id);
+    expect(ids).not.toContain(wrongStatus.id);
+    expect(ids).not.toContain(wrongBand.id);
+  });
 });
 
 describe("PATCH /directory/archive/:id (immediate-apply staff edit)", () => {

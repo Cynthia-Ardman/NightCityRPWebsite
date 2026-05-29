@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import {
   KindBadge,
-  LifecycleBadge,
+  StatusBadge,
   ClaimBadge,
   CwpBadge,
   TagPill,
   type CwpBand,
+  type LifeStatus,
 } from "@/components/directory/CharacterBadges";
 import AddTagsDialog from "@/components/directory/AddTagsDialog";
 
@@ -22,12 +23,24 @@ type Scope = "all" | "active" | "retired" | "claimed" | "unclaimed" | "pc" | "np
 type Mode = "name" | "content";
 type Sort = "recent" | "name";
 
+const STATUS_OPTIONS: LifeStatus[] = ["active", "retired", "loa", "missing", "dead"];
+const BAND_OPTIONS: CwpBand[] = ["organic", "none", "medium", "high", "extreme"];
+const BAND_LABELS: Record<CwpBand, string> = {
+  organic: "Organic",
+  none: "None",
+  medium: "Medium",
+  high: "High",
+  extreme: "Extreme",
+};
+
 export default function DirectoryCharacters() {
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("all");
   const [mode, setMode] = useState<Mode>("name");
   const [sort, setSort] = useState<Sort>("recent");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<LifeStatus[]>([]);
+  const [selectedBands, setSelectedBands] = useState<CwpBand[]>([]);
   const [addTagsOpen, setAddTagsOpen] = useState(false);
 
   const { data: tagList } = useListPublicCharacterTags();
@@ -37,11 +50,23 @@ export default function DirectoryCharacters() {
     mode,
     sort,
     tags: selectedTags.length > 0 ? selectedTags.join(",") : undefined,
+    status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : undefined,
+    bands: selectedBands.length > 0 ? selectedBands.join(",") : undefined,
   });
 
   const toggleTag = (tag: string) => {
     setSelectedTags((cur) =>
       cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag],
+    );
+  };
+  const toggleStatus = (s: LifeStatus) => {
+    setSelectedStatuses((cur) =>
+      cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s],
+    );
+  };
+  const toggleBand = (b: CwpBand) => {
+    setSelectedBands((cur) =>
+      cur.includes(b) ? cur.filter((x) => x !== b) : [...cur, b],
     );
   };
 
@@ -142,6 +167,82 @@ export default function DirectoryCharacters() {
             ))}
           </div>
 
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                Status {selectedStatuses.length > 0 && `(${selectedStatuses.length} selected)`}
+              </label>
+              {selectedStatuses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatuses([])}
+                  className="text-xs font-mono uppercase tracking-widest text-nc-magenta hover:text-nc-magenta/80"
+                  data-testid="button-clear-statuses"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {STATUS_OPTIONS.map((s) => {
+                const active = selectedStatuses.includes(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleStatus(s)}
+                    className={`px-3 py-2 border font-display text-xs uppercase tracking-widest ${
+                      active
+                        ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
+                        : "border-border text-muted-foreground hover:border-nc-cyan/40"
+                    }`}
+                    data-testid={`button-status-${s}`}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                Cyberware {selectedBands.length > 0 && `(${selectedBands.length} selected)`}
+              </label>
+              {selectedBands.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedBands([])}
+                  className="text-xs font-mono uppercase tracking-widest text-nc-magenta hover:text-nc-magenta/80"
+                  data-testid="button-clear-bands"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {BAND_OPTIONS.map((b) => {
+                const active = selectedBands.includes(b);
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => toggleBand(b)}
+                    className={`px-3 py-2 border font-display text-xs uppercase tracking-widest ${
+                      active
+                        ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
+                        : "border-border text-muted-foreground hover:border-nc-cyan/40"
+                    }`}
+                    data-testid={`button-band-${b}`}
+                  >
+                    {BAND_LABELS[b]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {tagList && tagList.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -230,7 +331,7 @@ export default function DirectoryCharacters() {
                   </div>
                   <div className="flex flex-wrap gap-1">
                     <KindBadge kind={c.kind} />
-                    <LifecycleBadge archived={c.archived} />
+                    <StatusBadge status={c.lifeStatus ?? "active"} />
                     <ClaimBadge claimed={c.claimed} />
                     <CwpBadge band={c.cwpBand as CwpBand} />
                   </div>
