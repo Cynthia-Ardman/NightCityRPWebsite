@@ -14,6 +14,7 @@ import { recordAudit } from "../lib/audit";
 import {
   listMissionSummaries,
   listMyMissionSummaries,
+  listOwnedMissionSummaries,
   getMissionDetail,
   payMissionPlayers,
   payMissionActors,
@@ -21,6 +22,14 @@ import {
   getActorReport,
   getAttendanceReport,
   isMissionStatus,
+  isJobType,
+  submitMissionProposal,
+  approveMission,
+  postMission,
+  applyToMission,
+  withdrawApplication,
+  reviewApplication,
+  checkDiscordEventConflict,
   type MissionViewer,
 } from "../lib/missionsService";
 
@@ -28,7 +37,18 @@ const router: IRouter = Router();
 
 function viewerOf(req: Request): MissionViewer {
   const u = req.user!;
-  return { id: u.id, isManager: hasRole(u.roles, "ADMIN") || hasRole(u.roles, "FIXER") };
+  const isAdmin = hasRole(u.roles, "ADMIN");
+  return {
+    id: u.id,
+    isManager: isAdmin || hasRole(u.roles, "FIXER"),
+    isAdmin,
+    isArchivist: isAdmin || hasRole(u.roles, "ARCHIVIST"),
+  };
+}
+
+function canApprove(req: Request): boolean {
+  const roles = req.user?.roles ?? [];
+  return hasRole(roles, "ADMIN") || hasRole(roles, "ARCHIVIST");
 }
 
 function isManager(req: Request): boolean {
@@ -167,6 +187,12 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const status = isMissionStatus(b.status) ? b.status : "open";
+  // Job type is required by the spec but only enforced at submit/post time;
+  // accept it on create when provided and valid.
+  if (b.jobType !== undefined && b.jobType !== null && b.jobType !== "" && !isJobType(b.jobType)) {
+    res.status(400).json({ error: "Job type must be combat, non_combat, or mixed" });
+    return;
+  }
   const ctx = await getMissionContext();
 
   const [created] = await db
@@ -182,6 +208,13 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
       durationMinutes: Number.isFinite(Number(b.durationMinutes)) ? Math.max(1, Math.trunc(Number(b.durationMinutes))) : 120,
       slots: Number.isFinite(Number(b.slots)) ? Math.max(0, Math.trunc(Number(b.slots))) : 0,
       status,
+      // --- Task #62 fields ---
+      worldLink: typeof b.worldLink === "string" && b.worldLink.trim() ? b.worldLink.trim() : null,
+      jobType: isJobType(b.jobType) ? b.jobType : null,
+      requestedSkills: typeof b.requestedSkills === "string" && b.requestedSkills.trim() ? b.requestedSkills.trim() : null,
+      client: typeof b.client === "string" && b.client.trim() ? b.client.trim() : null,
+      notesForPlayers: typeof b.notesForPlayers === "string" && b.notesForPlayers.trim() ? b.notesForPlayers.trim() : null,
+      maxPlayers: Number.isFinite(Number(b.maxPlayers)) ? Math.max(0, Math.trunc(Number(b.maxPlayers))) : 0,
       fixerId: req.user!.id,
     })
     .returning();
@@ -214,6 +247,34 @@ router.get("/missions/mine", requireAuth, async (req, res): Promise<void> => {
   res.json(await listMyMissionSummaries(viewerOf(req)));
 });
 
+// "My Missions" board for fixers/admins — their own missions across all
+// workflow states (admins see every mission).
+router.get("/missions/owned", requireAuth, async (req, res): Promise<void> => {
+  // Fixers/admins manage their board; archivists (approvers) need it to find
+  // proposals awaiting review.
+  if (!isManager(req) && !canApprove(req)) {
+    res.status(403).json({ error: "Fixer, archivist, or admin role required" });
+    return;
+  }
+  res.json(await listOwnedMissionSummaries(viewerOf(req)));
+});
+
+// Fail-safe Discord scheduling-conflict check for the create/reschedule form.
+router.get("/missions/conflicts", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const startAt = parseDate(req.query.startAt);
+  if (!startAt) {
+    res.status(400).json({ error: "Valid startAt is required" });
+    return;
+  }
+  const durationMinutes = Math.max(1, Math.trunc(Number(req.query.durationMinutes) || 120));
+  const excludeEventId = typeof req.query.excludeEventId === "string" ? req.query.excludeEventId : null;
+  res.json(await checkDiscordEventConflict({ startAt, durationMinutes, excludeEventId }));
+});
+
 router.get("/missions/config", requireAuth, async (req, res): Promise<void> => {
   if (!isManager(req)) {
     res.status(403).json({ error: "Fixer or admin role required" });
@@ -224,6 +285,7 @@ router.get("/missions/config", requireAuth, async (req, res): Promise<void> => {
     live: ctx.live,
     bankingChannelId: ctx.bankingChannelId,
     npcSpendingChannelId: ctx.npcSpendingChannelId,
+    npcAnnouncementChannelId: ctx.npcAnnouncementChannelId,
     defaultImageUrl: ctx.defaultImageUrl || null,
     autopayDelayHours: Math.round((ctx.autopayDelayMs / 3_600_000) * 100) / 100,
   });
@@ -239,6 +301,7 @@ router.put("/missions/config", requireAuth, async (req, res): Promise<void> => {
   if (typeof b.live === "boolean") updates.push({ key: MISSION_CONFIG_KEYS.liveMode, value: b.live });
   if (typeof b.bankingChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.bankingChannel, value: b.bankingChannelId.trim() });
   if (typeof b.npcSpendingChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.npcSpendingChannel, value: b.npcSpendingChannelId.trim() });
+  if (typeof b.npcAnnouncementChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.npcAnnouncementChannel, value: b.npcAnnouncementChannelId.trim() });
   if (typeof b.defaultImageUrl === "string") updates.push({ key: MISSION_CONFIG_KEYS.defaultImage, value: b.defaultImageUrl.trim() });
   if (Number.isFinite(Number(b.autopayDelayHours)) && Number(b.autopayDelayHours) > 0) {
     updates.push({ key: MISSION_CONFIG_KEYS.autopayDelayHours, value: Number(b.autopayDelayHours) });
@@ -265,6 +328,7 @@ router.put("/missions/config", requireAuth, async (req, res): Promise<void> => {
     live: ctx.live,
     bankingChannelId: ctx.bankingChannelId,
     npcSpendingChannelId: ctx.npcSpendingChannelId,
+    npcAnnouncementChannelId: ctx.npcAnnouncementChannelId,
     defaultImageUrl: ctx.defaultImageUrl || null,
     autopayDelayHours: Math.round((ctx.autopayDelayMs / 3_600_000) * 100) / 100,
   });
@@ -353,6 +417,26 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
     }
     set.status = b.status;
   }
+  // --- Task #62 fields ---
+  if (b.worldLink !== undefined) set.worldLink = typeof b.worldLink === "string" && b.worldLink.trim() ? b.worldLink.trim() : null;
+  if (b.jobType !== undefined) {
+    if (b.jobType === null || b.jobType === "") set.jobType = null;
+    else if (isJobType(b.jobType)) set.jobType = b.jobType;
+    else {
+      res.status(400).json({ error: "Job type must be combat, non_combat, or mixed" });
+      return;
+    }
+  }
+  if (b.requestedSkills !== undefined) set.requestedSkills = typeof b.requestedSkills === "string" && b.requestedSkills.trim() ? b.requestedSkills.trim() : null;
+  if (b.client !== undefined) set.client = typeof b.client === "string" && b.client.trim() ? b.client.trim() : null;
+  if (b.notesForPlayers !== undefined) set.notesForPlayers = typeof b.notesForPlayers === "string" && b.notesForPlayers.trim() ? b.notesForPlayers.trim() : null;
+  if (b.maxPlayers !== undefined) set.maxPlayers = Math.max(0, Math.trunc(Number(b.maxPlayers) || 0));
+
+  // Reschedule resets the pre-mission NPC announcement so it re-fires for the
+  // new start time.
+  const rescheduled =
+    set.startAt !== undefined && before.startAt?.getTime() !== (set.startAt as Date | null)?.getTime();
+  if (rescheduled) set.npcAnnouncedAt = null;
 
   if (Object.keys(set).length > 0) {
     await db.update(missions).set(set).where(eq(missions.id, id));
@@ -437,6 +521,127 @@ router.post("/missions/:id/pay-actors", requireAuth, async (req, res): Promise<v
   }
   const detail = await getMissionDetail(id, viewerOf(req));
   res.json(detail);
+});
+
+// ---------------- WORKFLOW TRANSITIONS ----------------
+function missionIdParam(req: Request, res: import("express").Response): number | null {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id)) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  return id;
+}
+
+// Fixer submits a draft for staff review.
+router.post("/missions/:id/submit", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const result = await submitMissionProposal(id, viewerOf(req), req);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Archivist/admin approves a proposal.
+router.post("/missions/:id/approve", requireAuth, async (req, res): Promise<void> => {
+  if (!canApprove(req)) {
+    res.status(403).json({ error: "Archivist or admin role required" });
+    return;
+  }
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const result = await approveMission(id, viewerOf(req), req);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Post an approved mission to the public board (manager).
+router.post("/missions/:id/post", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const result = await postMission(id, viewerOf(req), req);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// ---------------- APPLICATIONS ----------------
+// Player applies to a posted mission with one of their own characters.
+router.post("/missions/:id/applications", requireAuth, async (req, res): Promise<void> => {
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const b = req.body ?? {};
+  const characterId = Number(b.characterId);
+  if (!Number.isInteger(characterId)) {
+    res.status(400).json({ error: "characterId is required" });
+    return;
+  }
+  const comment = typeof b.comment === "string" ? b.comment : null;
+  const result = await applyToMission({ missionId: id, userId: req.user!.id, characterId, comment });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Player withdraws their own application.
+router.delete("/missions/:id/applications/:appId", requireAuth, async (req, res): Promise<void> => {
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const appId = parseInt(String(req.params.appId), 10);
+  if (!Number.isInteger(appId)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const result = await withdrawApplication({ applicationId: appId, userId: req.user!.id });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Fixer/admin accepts or rejects an application.
+router.post("/missions/:id/applications/:appId/review", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const appId = parseInt(String(req.params.appId), 10);
+  if (!Number.isInteger(appId)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const action = req.body?.action;
+  if (action !== "accept" && action !== "reject") {
+    res.status(400).json({ error: "action must be 'accept' or 'reject'" });
+    return;
+  }
+  const result = await reviewApplication({ applicationId: appId, action, reviewerId: req.user!.id, req });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
 });
 
 export default router;

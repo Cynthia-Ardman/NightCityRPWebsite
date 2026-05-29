@@ -978,6 +978,37 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/MissionSummary" }
+  /missions/owned:
+    get:
+      operationId: listOwnedMissions
+      tags: [missions]
+      summary: "My Missions board — missions the caller owns across all workflow states (admins see all). Fixer/admin only."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MissionSummary" }
+        "403": { description: Insufficient role. }
+  /missions/conflicts:
+    get:
+      operationId: checkMissionConflicts
+      tags: [missions]
+      summary: "Fail-safe Discord scheduling-conflict check for the create/reschedule form. Fixer/admin only."
+      parameters:
+        - { in: query, name: startAt, required: true, schema: { type: string, format: date-time } }
+        - { in: query, name: durationMinutes, schema: { type: integer, default: 120 } }
+        - { in: query, name: excludeEventId, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionConflictCheck" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
   /missions/config:
     get:
       operationId: getMissionConfig
@@ -1095,6 +1126,113 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/PayActorsInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/submit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: submitMission
+      tags: [missions]
+      summary: "Submit a draft as a proposal for archivist review. Fixer/admin only."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approveMission
+      tags: [missions]
+      summary: "Approve a proposal. Archivist/admin only."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/post:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: postMission
+      tags: [missions]
+      summary: "Post an approved mission to the public board. Fixer/admin only."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/applications:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: applyToMission
+      tags: [missions]
+      summary: "Apply to a posted mission with one of your own characters."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApplyToMissionInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/applications/{appId}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: appId, required: true, schema: { type: integer } }
+    delete:
+      operationId: withdrawApplication
+      tags: [missions]
+      summary: "Withdraw your own application."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/applications/{appId}/review:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: appId, required: true, schema: { type: integer } }
+    post:
+      operationId: reviewApplication
+      tags: [missions]
+      summary: "Accept or reject an application (accept assigns the character). Fixer/admin only."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewApplicationInput" }
       responses:
         "200":
           description: OK
@@ -2168,7 +2306,7 @@ components:
 
     Me:
       type: object
-      required: [id, discordId, username, avatarUrl, roles, isAdmin, isFixer, isCsApprover, isRipperdoc, isStoreOwner]
+      required: [id, discordId, username, avatarUrl, roles, isAdmin, isFixer, isArchivist, isCsApprover, isRipperdoc, isStoreOwner]
       properties:
         id: { type: string }
         discordId: { type: string }
@@ -2180,6 +2318,7 @@ components:
           items: { type: string }
         isAdmin: { type: boolean }
         isFixer: { type: boolean }
+        isArchivist: { type: boolean }
         isCsApprover: { type: boolean }
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
@@ -3492,12 +3631,13 @@ components:
 
     MissionSummary:
       type: object
-      required: [id, title, tier, status, slots, assignedCount, playerPay, durationMinutes, createdAt, players]
+      required: [id, title, tier, status, workflowState, slots, assignedCount, playerPay, durationMinutes, maxPlayers, createdAt, players]
       properties:
         id: { type: integer }
         title: { type: string }
         tier: { type: integer, enum: [1, 2, 3, 4] }
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        workflowState: { type: string, enum: [draft, proposal, approved, posted] }
         startAt: { type: ["string", "null"], format: date-time }
         durationMinutes: { type: integer }
         location: { type: ["string", "null"] }
@@ -3505,6 +3645,10 @@ components:
         imageUrl: { type: ["string", "null"] }
         playerPay: { type: integer }
         slots: { type: integer }
+        jobType: { type: ["string", "null"], enum: [combat, non_combat, mixed, null] }
+        requestedSkills: { type: ["string", "null"] }
+        client: { type: ["string", "null"] }
+        maxPlayers: { type: integer }
         assignedCount: { type: integer }
         fixerId: { type: ["string", "null"] }
         fixerName: { type: ["string", "null"] }
@@ -3529,12 +3673,13 @@ components:
 
     MissionDetail:
       type: object
-      required: [id, title, tier, status, slots, playerPay, durationMinutes, canManage, live, assignments, actorPayments, createdAt]
+      required: [id, title, tier, status, workflowState, slots, playerPay, durationMinutes, maxPlayers, canManage, canApprove, live, assignments, actorPayments, applications, createdAt]
       properties:
         id: { type: integer }
         title: { type: string }
         tier: { type: integer, enum: [1, 2, 3, 4] }
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        workflowState: { type: string, enum: [draft, proposal, approved, posted] }
         startAt: { type: ["string", "null"], format: date-time }
         durationMinutes: { type: integer }
         location: { type: ["string", "null"] }
@@ -3542,12 +3687,19 @@ components:
         imageUrl: { type: ["string", "null"] }
         playerPay: { type: integer }
         slots: { type: integer }
+        jobType: { type: ["string", "null"], enum: [combat, non_combat, mixed, null] }
+        requestedSkills: { type: ["string", "null"] }
+        client: { type: ["string", "null"] }
+        notesForPlayers: { type: ["string", "null"] }
+        maxPlayers: { type: integer }
+        worldLink: { type: ["string", "null"], description: "Staff-only world/join link (null for players)." }
         fixerId: { type: ["string", "null"] }
         fixerName: { type: ["string", "null"] }
         fixerAvatarUrl: { type: ["string", "null"] }
         discordEventId: { type: ["string", "null"] }
         discordSyncError: { type: ["string", "null"] }
         canManage: { type: boolean, description: "True if caller is fixer/admin (sees Fixer tab + tools)." }
+        canApprove: { type: boolean, description: "True if caller is archivist/admin (can approve proposals)." }
         live: { type: boolean, description: "True = Live mode; false = Test mode (no real external effects)." }
         assignments:
           type: array
@@ -3555,8 +3707,68 @@ components:
         actorPayments:
           type: array
           items: { $ref: "#/components/schemas/MissionActorPaymentView" }
+        applications:
+          type: array
+          description: "Player applications (full list for managers; empty for players)."
+          items: { $ref: "#/components/schemas/MissionApplicationView" }
+        myApplication:
+          oneOf:
+            - $ref: "#/components/schemas/MissionApplicationView"
+            - type: "null"
+          description: "The caller's own application (players only); null for managers or no application."
         createdAt: { type: string, format: date-time }
         updatedAt: { type: ["string", "null"], format: date-time }
+
+    MissionApplicationView:
+      type: object
+      required: [id, userId, characterId, status, createdAt, attendanceCount, recencyWarning]
+      properties:
+        id: { type: integer }
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        userAvatarUrl: { type: ["string", "null"] }
+        characterId: { type: integer }
+        characterName: { type: ["string", "null"] }
+        characterPortraitUrl: { type: ["string", "null"] }
+        comment: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, accepted, withdrawn, rejected] }
+        reviewedBy: { type: ["string", "null"] }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        attendanceCount: { type: integer }
+        lastAttendedAt: { type: ["string", "null"], format: date-time }
+        daysSinceLastMission: { type: ["integer", "null"] }
+        recencyWarning: { type: boolean, description: "True if the character played a mission within the recency window." }
+
+    ApplyToMissionInput:
+      type: object
+      required: [characterId]
+      properties:
+        characterId: { type: integer }
+        comment: { type: ["string", "null"] }
+
+    ReviewApplicationInput:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [accept, reject] }
+
+    MissionConflictCheck:
+      type: object
+      required: [checked, conflicts]
+      properties:
+        checked: { type: boolean, description: "False if Discord couldn't be reached (fail-safe; never blocks)." }
+        error: { type: ["string", "null"] }
+        conflicts:
+          type: array
+          items:
+            type: object
+            required: [id, name, startAt]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              startAt: { type: string, format: date-time }
+              endAt: { type: ["string", "null"], format: date-time }
 
     MissionAssignmentInput:
       type: object
@@ -3582,6 +3794,12 @@ components:
         durationMinutes: { type: integer, minimum: 1, default: 120 }
         slots: { type: integer, minimum: 0, default: 0 }
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        worldLink: { type: string, description: "Staff-only world/join link." }
+        jobType: { type: string, enum: [combat, non_combat, mixed] }
+        requestedSkills: { type: string }
+        client: { type: string }
+        notesForPlayers: { type: string }
+        maxPlayers: { type: integer, minimum: 0, default: 0 }
         assignments:
           type: array
           items: { $ref: "#/components/schemas/MissionAssignmentInput" }
@@ -3599,6 +3817,12 @@ components:
         durationMinutes: { type: integer, minimum: 1 }
         slots: { type: integer, minimum: 0 }
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        worldLink: { type: ["string", "null"] }
+        jobType: { type: ["string", "null"], enum: [combat, non_combat, mixed, null] }
+        requestedSkills: { type: ["string", "null"] }
+        client: { type: ["string", "null"] }
+        notesForPlayers: { type: ["string", "null"] }
+        maxPlayers: { type: integer, minimum: 0 }
         assignments:
           type: array
           description: "If present, replaces the full assignment set."
@@ -3613,11 +3837,12 @@ components:
 
     MissionConfig:
       type: object
-      required: [live, bankingChannelId, npcSpendingChannelId, autopayDelayHours]
+      required: [live, bankingChannelId, npcSpendingChannelId, npcAnnouncementChannelId, autopayDelayHours]
       properties:
         live: { type: boolean }
         bankingChannelId: { type: string }
         npcSpendingChannelId: { type: string }
+        npcAnnouncementChannelId: { type: string }
         defaultImageUrl: { type: ["string", "null"] }
         autopayDelayHours: { type: number }
 
@@ -3627,6 +3852,7 @@ components:
         live: { type: boolean }
         bankingChannelId: { type: string }
         npcSpendingChannelId: { type: string }
+        npcAnnouncementChannelId: { type: string }
         defaultImageUrl: { type: string }
         autopayDelayHours: { type: number }
 

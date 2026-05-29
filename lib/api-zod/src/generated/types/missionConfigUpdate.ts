@@ -10,6 +10,7 @@ export interface MissionConfigUpdate {
   live?: boolean;
   bankingChannelId?: string;
   npcSpendingChannelId?: string;
+  npcAnnouncementChannelId?: string;
   defaultImageUrl?: string;
   autopayDelayHours?: number;
 }

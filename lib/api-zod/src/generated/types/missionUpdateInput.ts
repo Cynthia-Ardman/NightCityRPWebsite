@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MissionAssignmentInput } from './missionAssignmentInput';
+import type { MissionUpdateInputJobType } from './missionUpdateInputJobType';
 import type { MissionUpdateInputStatus } from './missionUpdateInputStatus';
 import type { MissionUpdateInputTier } from './missionUpdateInputTier';
 
@@ -28,6 +29,18 @@ export interface MissionUpdateInput {
   /** @minimum 0 */
   slots?: number;
   status?: MissionUpdateInputStatus;
+  /** @nullable */
+  worldLink?: string | null;
+  /** @nullable */
+  jobType?: MissionUpdateInputJobType;
+  /** @nullable */
+  requestedSkills?: string | null;
+  /** @nullable */
+  client?: string | null;
+  /** @nullable */
+  notesForPlayers?: string | null;
+  /** @minimum 0 */
+  maxPlayers?: number;
   /** If present, replaces the full assignment set. */
   assignments?: MissionAssignmentInput[];
 }

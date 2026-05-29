@@ -5,15 +5,18 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { MissionSummaryJobType } from './missionSummaryJobType';
 import type { MissionSummaryPlayersItem } from './missionSummaryPlayersItem';
 import type { MissionSummaryStatus } from './missionSummaryStatus';
 import type { MissionSummaryTier } from './missionSummaryTier';
+import type { MissionSummaryWorkflowState } from './missionSummaryWorkflowState';
 
 export interface MissionSummary {
   id: number;
   title: string;
   tier: MissionSummaryTier;
   status: MissionSummaryStatus;
+  workflowState: MissionSummaryWorkflowState;
   /** @nullable */
   startAt?: Date | null;
   durationMinutes: number;
@@ -25,6 +28,13 @@ export interface MissionSummary {
   imageUrl?: string | null;
   playerPay: number;
   slots: number;
+  /** @nullable */
+  jobType?: MissionSummaryJobType;
+  /** @nullable */
+  requestedSkills?: string | null;
+  /** @nullable */
+  client?: string | null;
+  maxPlayers: number;
   assignedCount: number;
   /** @nullable */
   fixerId?: string | null;

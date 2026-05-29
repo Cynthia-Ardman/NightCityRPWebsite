@@ -26,6 +26,7 @@ export interface Me {
   roles: string[];
   isAdmin: boolean;
   isFixer: boolean;
+  isArchivist: boolean;
   isCsApprover: boolean;
   isRipperdoc: boolean;
   isStoreOwner: boolean;
@@ -1944,6 +1945,28 @@ export const MissionSummaryStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type MissionSummaryWorkflowState = typeof MissionSummaryWorkflowState[keyof typeof MissionSummaryWorkflowState];
+
+
+export const MissionSummaryWorkflowState = {
+  draft: 'draft',
+  proposal: 'proposal',
+  approved: 'approved',
+  posted: 'posted',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MissionSummaryJobType = typeof MissionSummaryJobType[keyof typeof MissionSummaryJobType] | null;
+
+
+export const MissionSummaryJobType = {
+  combat: 'combat',
+  non_combat: 'non_combat',
+  mixed: 'mixed',
+} as const;
+
 export type MissionSummaryPlayersItem = {
   characterId: number;
   name: string;
@@ -1958,6 +1981,7 @@ export interface MissionSummary {
   title: string;
   tier: MissionSummaryTier;
   status: MissionSummaryStatus;
+  workflowState: MissionSummaryWorkflowState;
   /** @nullable */
   startAt?: string | null;
   durationMinutes: number;
@@ -1969,6 +1993,13 @@ export interface MissionSummary {
   imageUrl?: string | null;
   playerPay: number;
   slots: number;
+  /** @nullable */
+  jobType?: MissionSummaryJobType;
+  /** @nullable */
+  requestedSkills?: string | null;
+  /** @nullable */
+  client?: string | null;
+  maxPlayers: number;
   assignedCount: number;
   /** @nullable */
   fixerId?: string | null;
@@ -2013,11 +2044,73 @@ export const MissionDetailStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type MissionDetailWorkflowState = typeof MissionDetailWorkflowState[keyof typeof MissionDetailWorkflowState];
+
+
+export const MissionDetailWorkflowState = {
+  draft: 'draft',
+  proposal: 'proposal',
+  approved: 'approved',
+  posted: 'posted',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MissionDetailJobType = typeof MissionDetailJobType[keyof typeof MissionDetailJobType] | null;
+
+
+export const MissionDetailJobType = {
+  combat: 'combat',
+  non_combat: 'non_combat',
+  mixed: 'mixed',
+} as const;
+
+export type MissionApplicationViewStatus = typeof MissionApplicationViewStatus[keyof typeof MissionApplicationViewStatus];
+
+
+export const MissionApplicationViewStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  withdrawn: 'withdrawn',
+  rejected: 'rejected',
+} as const;
+
+export interface MissionApplicationView {
+  id: number;
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  /** @nullable */
+  userAvatarUrl?: string | null;
+  characterId: number;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  characterPortraitUrl?: string | null;
+  /** @nullable */
+  comment?: string | null;
+  status: MissionApplicationViewStatus;
+  /** @nullable */
+  reviewedBy?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  createdAt: string;
+  attendanceCount: number;
+  /** @nullable */
+  lastAttendedAt?: string | null;
+  /** @nullable */
+  daysSinceLastMission?: number | null;
+  /** True if the character played a mission within the recency window. */
+  recencyWarning: boolean;
+}
+
 export interface MissionDetail {
   id: number;
   title: string;
   tier: MissionDetailTier;
   status: MissionDetailStatus;
+  workflowState: MissionDetailWorkflowState;
   /** @nullable */
   startAt?: string | null;
   durationMinutes: number;
@@ -2030,6 +2123,20 @@ export interface MissionDetail {
   playerPay: number;
   slots: number;
   /** @nullable */
+  jobType?: MissionDetailJobType;
+  /** @nullable */
+  requestedSkills?: string | null;
+  /** @nullable */
+  client?: string | null;
+  /** @nullable */
+  notesForPlayers?: string | null;
+  maxPlayers: number;
+  /**
+     * Staff-only world/join link (null for players).
+     * @nullable
+     */
+  worldLink?: string | null;
+  /** @nullable */
   fixerId?: string | null;
   /** @nullable */
   fixerName?: string | null;
@@ -2041,13 +2148,53 @@ export interface MissionDetail {
   discordSyncError?: string | null;
   /** True if caller is fixer/admin (sees Fixer tab + tools). */
   canManage: boolean;
+  /** True if caller is archivist/admin (can approve proposals). */
+  canApprove: boolean;
   /** True = Live mode; false = Test mode (no real external effects). */
   live: boolean;
   assignments: MissionAssignmentView[];
   actorPayments: MissionActorPaymentView[];
+  /** Player applications (full list for managers; empty for players). */
+  applications: MissionApplicationView[];
+  /** The caller's own application (players only); null for managers or no application. */
+  myApplication?: MissionApplicationView | null;
   createdAt: string;
   /** @nullable */
   updatedAt?: string | null;
+}
+
+export interface ApplyToMissionInput {
+  characterId: number;
+  /** @nullable */
+  comment?: string | null;
+}
+
+export type ReviewApplicationInputAction = typeof ReviewApplicationInputAction[keyof typeof ReviewApplicationInputAction];
+
+
+export const ReviewApplicationInputAction = {
+  accept: 'accept',
+  reject: 'reject',
+} as const;
+
+export interface ReviewApplicationInput {
+  action: ReviewApplicationInputAction;
+}
+
+export type MissionConflictCheckConflictsItem = {
+  id: string;
+  name: string;
+  startAt: string;
+  /** @nullable */
+  endAt?: string | null;
+};
+
+export interface MissionConflictCheck {
+  /** False if Discord couldn't be reached (fail-safe; never blocks). */
+  checked: boolean;
+  /** @nullable */
+  error?: string | null;
+  conflicts: MissionConflictCheckConflictsItem[];
 }
 
 /**
@@ -2081,6 +2228,15 @@ export const MissionCreateInputStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type MissionCreateInputJobType = typeof MissionCreateInputJobType[keyof typeof MissionCreateInputJobType];
+
+
+export const MissionCreateInputJobType = {
+  combat: 'combat',
+  non_combat: 'non_combat',
+  mixed: 'mixed',
+} as const;
+
 export interface MissionCreateInput {
   /** @minLength 1 */
   title: string;
@@ -2096,6 +2252,14 @@ export interface MissionCreateInput {
   /** @minimum 0 */
   slots?: number;
   status?: MissionCreateInputStatus;
+  /** Staff-only world/join link. */
+  worldLink?: string;
+  jobType?: MissionCreateInputJobType;
+  requestedSkills?: string;
+  client?: string;
+  notesForPlayers?: string;
+  /** @minimum 0 */
+  maxPlayers?: number;
   assignments?: MissionAssignmentInput[];
 }
 
@@ -2121,6 +2285,18 @@ export const MissionUpdateInputStatus = {
   cancelled: 'cancelled',
 } as const;
 
+/**
+ * @nullable
+ */
+export type MissionUpdateInputJobType = typeof MissionUpdateInputJobType[keyof typeof MissionUpdateInputJobType] | null;
+
+
+export const MissionUpdateInputJobType = {
+  combat: 'combat',
+  non_combat: 'non_combat',
+  mixed: 'mixed',
+} as const;
+
 export interface MissionUpdateInput {
   /** @minLength 1 */
   title?: string;
@@ -2140,6 +2316,18 @@ export interface MissionUpdateInput {
   /** @minimum 0 */
   slots?: number;
   status?: MissionUpdateInputStatus;
+  /** @nullable */
+  worldLink?: string | null;
+  /** @nullable */
+  jobType?: MissionUpdateInputJobType;
+  /** @nullable */
+  requestedSkills?: string | null;
+  /** @nullable */
+  client?: string | null;
+  /** @nullable */
+  notesForPlayers?: string | null;
+  /** @minimum 0 */
+  maxPlayers?: number;
   /** If present, replaces the full assignment set. */
   assignments?: MissionAssignmentInput[];
 }
@@ -2155,6 +2343,7 @@ export interface MissionConfig {
   live: boolean;
   bankingChannelId: string;
   npcSpendingChannelId: string;
+  npcAnnouncementChannelId: string;
   /** @nullable */
   defaultImageUrl?: string | null;
   autopayDelayHours: number;
@@ -2164,6 +2353,7 @@ export interface MissionConfigUpdate {
   live?: boolean;
   bankingChannelId?: string;
   npcSpendingChannelId?: string;
+  npcAnnouncementChannelId?: string;
   defaultImageUrl?: string;
   autopayDelayHours?: number;
 }
@@ -2467,6 +2657,12 @@ export const ListHousingRequestsStatus = {
 export type ListMissionsParams = {
 status?: string;
 limit?: number;
+};
+
+export type CheckMissionConflictsParams = {
+startAt: string;
+durationMinutes?: number;
+excludeEventId?: string;
 };
 
 export type GetActorReportParams = {

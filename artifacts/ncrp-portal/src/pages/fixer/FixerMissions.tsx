@@ -9,6 +9,7 @@ import {
   getListMissionsQueryKey,
   type MissionCreateInputTier,
   type MissionCreateInputStatus,
+  type MissionCreateInputJobType,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -160,6 +161,12 @@ type FormValues = {
   durationMinutes: number;
   slots: number;
   status: MissionCreateInputStatus;
+  worldLink: string;
+  jobType: MissionCreateInputJobType | "";
+  requestedSkills: string;
+  client: string;
+  notesForPlayers: string;
+  maxPlayers: number;
   assignments: AssignmentDraft[];
 };
 
@@ -174,8 +181,20 @@ const EMPTY: FormValues = {
   durationMinutes: 120,
   slots: 0,
   status: "open",
+  worldLink: "",
+  jobType: "",
+  requestedSkills: "",
+  client: "",
+  notesForPlayers: "",
+  maxPlayers: 0,
   assignments: [],
 };
+
+const JOB_TYPE_OPTIONS: { value: MissionCreateInputJobType; label: string }[] = [
+  { value: "combat", label: "Combat" },
+  { value: "non_combat", label: "Non-Combat" },
+  { value: "mixed", label: "Mixed" },
+];
 
 function EditMissionForm({ missionId, onSaved }: { missionId: number; onSaved: () => void }) {
   const { data, isLoading } = useGetMission(missionId);
@@ -192,6 +211,12 @@ function EditMissionForm({ missionId, onSaved }: { missionId: number; onSaved: (
     durationMinutes: data.durationMinutes,
     slots: data.slots,
     status: data.status,
+    worldLink: data.worldLink ?? "",
+    jobType: data.jobType ?? "",
+    requestedSkills: data.requestedSkills ?? "",
+    client: data.client ?? "",
+    notesForPlayers: data.notesForPlayers ?? "",
+    maxPlayers: data.maxPlayers,
     assignments: data.assignments.map((a) => ({
       userId: a.userId,
       character: a.characterId ? { id: a.characterId, name: a.characterName ?? "(character)" } : null,
@@ -259,6 +284,12 @@ function MissionForm({
       durationMinutes: v.durationMinutes,
       slots: v.slots,
       status: v.status,
+      worldLink: v.worldLink || undefined,
+      jobType: v.jobType || undefined,
+      requestedSkills: v.requestedSkills || undefined,
+      client: v.client || undefined,
+      notesForPlayers: v.notesForPlayers || undefined,
+      maxPlayers: v.maxPlayers,
       assignments,
     };
 
@@ -391,6 +422,66 @@ function MissionForm({
             />
           </div>
 
+          <div className="md:col-span-3">
+            <Label className="text-xs">JOB TYPE</Label>
+            <select
+              value={v.jobType}
+              onChange={(e) => set("jobType", e.target.value as MissionCreateInputJobType | "")}
+              className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+              data-testid="select-mission-jobtype"
+            >
+              <option value="">— select —</option>
+              {JOB_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-3">
+            <Label className="text-xs">MAX PLAYERS (0 = no cap)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={v.maxPlayers || ""}
+              onChange={(e) => set("maxPlayers", Number(e.target.value))}
+              className="rounded-none"
+              data-testid="input-mission-maxplayers"
+            />
+          </div>
+          <div className="md:col-span-6">
+            <Label className="text-xs">CLIENT</Label>
+            <Input
+              value={v.client}
+              onChange={(e) => set("client", e.target.value)}
+              className="rounded-none"
+              data-testid="input-mission-client"
+            />
+          </div>
+
+          <div className="md:col-span-6">
+            <Label className="text-xs">REQUESTED SKILLS</Label>
+            <Input
+              value={v.requestedSkills}
+              onChange={(e) => set("requestedSkills", e.target.value)}
+              placeholder="e.g. netrunning, stealth, demolitions"
+              className="rounded-none"
+              data-testid="input-mission-skills"
+            />
+          </div>
+          <div className="md:col-span-6">
+            <Label className="text-xs">
+              WORLD / JOIN LINK <span className="text-nc-magenta">(staff only)</span>
+            </Label>
+            <Input
+              value={v.worldLink}
+              onChange={(e) => set("worldLink", e.target.value)}
+              placeholder="https://vrchat.com/home/world/..."
+              className="rounded-none"
+              data-testid="input-mission-worldlink"
+            />
+          </div>
+
           <div className="md:col-span-12">
             <Label className="text-xs">DESCRIPTION</Label>
             <Textarea
@@ -399,6 +490,18 @@ function MissionForm({
               rows={3}
               className="rounded-none"
               data-testid="input-mission-description"
+            />
+          </div>
+
+          <div className="md:col-span-12">
+            <Label className="text-xs">NOTES FOR PLAYERS</Label>
+            <Textarea
+              value={v.notesForPlayers}
+              onChange={(e) => set("notesForPlayers", e.target.value)}
+              rows={2}
+              className="rounded-none"
+              placeholder="Visible to players on the posted mission."
+              data-testid="input-mission-notes"
             />
           </div>
 

@@ -6,15 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MissionActorPaymentView } from './missionActorPaymentView';
+import type { MissionApplicationView } from './missionApplicationView';
 import type { MissionAssignmentView } from './missionAssignmentView';
+import type { MissionDetailJobType } from './missionDetailJobType';
 import type { MissionDetailStatus } from './missionDetailStatus';
 import type { MissionDetailTier } from './missionDetailTier';
+import type { MissionDetailWorkflowState } from './missionDetailWorkflowState';
 
 export interface MissionDetail {
   id: number;
   title: string;
   tier: MissionDetailTier;
   status: MissionDetailStatus;
+  workflowState: MissionDetailWorkflowState;
   /** @nullable */
   startAt?: Date | null;
   durationMinutes: number;
@@ -27,6 +31,20 @@ export interface MissionDetail {
   playerPay: number;
   slots: number;
   /** @nullable */
+  jobType?: MissionDetailJobType;
+  /** @nullable */
+  requestedSkills?: string | null;
+  /** @nullable */
+  client?: string | null;
+  /** @nullable */
+  notesForPlayers?: string | null;
+  maxPlayers: number;
+  /**
+     * Staff-only world/join link (null for players).
+     * @nullable
+     */
+  worldLink?: string | null;
+  /** @nullable */
   fixerId?: string | null;
   /** @nullable */
   fixerName?: string | null;
@@ -38,10 +56,16 @@ export interface MissionDetail {
   discordSyncError?: string | null;
   /** True if caller is fixer/admin (sees Fixer tab + tools). */
   canManage: boolean;
+  /** True if caller is archivist/admin (can approve proposals). */
+  canApprove: boolean;
   /** True = Live mode; false = Test mode (no real external effects). */
   live: boolean;
   assignments: MissionAssignmentView[];
   actorPayments: MissionActorPaymentView[];
+  /** Player applications (full list for managers; empty for players). */
+  applications: MissionApplicationView[];
+  /** The caller's own application (players only); null for managers or no application. */
+  myApplication?: MissionApplicationView | null;
   createdAt: Date;
   /** @nullable */
   updatedAt?: Date | null;

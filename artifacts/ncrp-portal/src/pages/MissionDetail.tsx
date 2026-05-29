@@ -5,14 +5,24 @@ import {
   useGetMission,
   usePayMissionPlayers,
   usePayMissionActors,
+  useSubmitMission,
+  useApproveMission,
+  usePostMission,
+  useApplyToMission,
+  useWithdrawApplication,
+  useReviewApplication,
+  useListMyCharacters,
   getGetMissionQueryKey,
   type MissionDetail as MissionDetailModel,
   type MissionAssignmentView,
+  type MissionApplicationView,
 } from "@workspace/api-client-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,12 +35,17 @@ import {
   Pencil,
   AlertTriangle,
   CheckCircle2,
+  ExternalLink,
+  Clock,
 } from "lucide-react";
 import {
   missionStatusClass,
   missionStatusLabel,
   missionTierClass,
   missionTierLabel,
+  missionWorkflowClass,
+  missionWorkflowLabel,
+  jobTypeLabel,
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 
@@ -89,12 +104,26 @@ export default function MissionDetail() {
           {data.title}
         </h1>
         <div className="flex flex-wrap gap-2 mt-3 items-center">
+          {data.canManage && (
+            <Badge
+              variant="outline"
+              className={`rounded-none font-bold tracking-widest uppercase ${missionWorkflowClass(data.workflowState)}`}
+              data-testid="badge-workflow"
+            >
+              {missionWorkflowLabel(data.workflowState)}
+            </Badge>
+          )}
           <Badge variant="outline" className={`rounded-none font-bold tracking-widest uppercase ${missionStatusClass(data.status)}`}>
             {missionStatusLabel(data.status)}
           </Badge>
           <Badge variant="outline" className={`rounded-none font-bold tracking-widest uppercase ${missionTierClass(data.tier)}`}>
             {missionTierLabel(data.tier)}
           </Badge>
+          {data.jobType && (
+            <Badge variant="outline" className="rounded-none font-bold tracking-widest uppercase border-border text-muted-foreground">
+              {jobTypeLabel(data.jobType)}
+            </Badge>
+          )}
           <span className="text-nc-yellow font-mono text-xs uppercase tracking-widest">
             Player pay €${data.playerPay.toLocaleString()}
           </span>
@@ -121,7 +150,7 @@ export default function MissionDetail() {
           <Users className="w-4 h-4 shrink-0" />
           <span>
             {data.assignments.length}
-            {data.slots > 0 ? ` / ${data.slots}` : ""} players
+            {data.maxPlayers > 0 ? ` / ${data.maxPlayers}` : data.slots > 0 ? ` / ${data.slots}` : ""} players
           </span>
         </div>
       </div>
@@ -144,9 +173,48 @@ export default function MissionDetail() {
           </TabsContent>
         </Tabs>
       ) : (
-        <PlayerView data={data} />
+        <>
+          {data.canApprove && <WorkflowPanel data={data} />}
+          <PlayerView data={data} />
+        </>
       )}
     </div>
+  );
+}
+
+function MissionFacts({ data }: { data: MissionDetailModel }) {
+  const facts: Array<{ label: string; value: string | null | undefined }> = [
+    { label: "Job Type", value: data.jobType ? jobTypeLabel(data.jobType) : null },
+    { label: "Client", value: data.client },
+    { label: "Requested Skills", value: data.requestedSkills },
+    { label: "Max Players", value: data.maxPlayers > 0 ? String(data.maxPlayers) : null },
+  ];
+  const shown = facts.filter((f) => f.value);
+  if (shown.length === 0 && !data.notesForPlayers) return null;
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">Details</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        {shown.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {shown.map((f) => (
+              <div key={f.label} className="flex flex-col">
+                <span className="text-muted-foreground uppercase text-[10px] tracking-widest">{f.label}</span>
+                <span className="text-foreground">{f.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {data.notesForPlayers && (
+          <div className="flex flex-col pt-1">
+            <span className="text-muted-foreground uppercase text-[10px] tracking-widest">Notes for Players</span>
+            <p className="text-foreground whitespace-pre-wrap">{data.notesForPlayers}</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -163,6 +231,33 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
           </CardContent>
         </Card>
       )}
+
+      <MissionFacts data={data} />
+
+      {/* Staff-only world/join link */}
+      {data.canManage && data.worldLink && (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+              World / Join Link <span className="text-nc-magenta">(staff only)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <a
+              href={data.worldLink}
+              target="_blank"
+              rel="noreferrer"
+              className="text-nc-cyan font-mono text-sm hover:underline inline-flex items-center gap-1 break-all"
+              data-testid="link-world"
+            >
+              <ExternalLink className="w-4 h-4 shrink-0" /> {data.worldLink}
+            </a>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Apply (players only, posted missions) */}
+      {!data.canManage && <ApplySection data={data} />}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
@@ -209,6 +304,125 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+function ApplySection({ data }: { data: MissionDetailModel }) {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
+  const chars = useListMyCharacters();
+  const apply = useApplyToMission({ mutation: { onSuccess: invalidate } });
+  const withdraw = useWithdrawApplication({ mutation: { onSuccess: invalidate } });
+
+  const [characterId, setCharacterId] = useState<number | "">("");
+  const [comment, setComment] = useState("");
+
+  const existing = data.myApplication;
+  const applyErr = errOf(apply.error) ?? errOf(withdraw.error);
+
+  // Only posted missions accept applications.
+  if (data.workflowState !== "posted") return null;
+
+  if (existing && existing.status !== "withdrawn") {
+    return (
+      <Card className="rounded-none border-border bg-card/50" data-testid="block-my-application">
+        <CardHeader>
+          <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+            Your Application
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 font-mono text-sm">
+          <div className="flex items-center gap-2">
+            <ApplicationStatusBadge status={existing.status} />
+            <span className="text-foreground">{existing.characterName ?? "(your character)"}</span>
+          </div>
+          {existing.comment && <p className="text-muted-foreground whitespace-pre-wrap">{existing.comment}</p>}
+          {existing.status === "pending" && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={withdraw.isPending}
+              onClick={() => withdraw.mutate({ id: data.id, appId: existing.id })}
+              className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+              data-testid="button-withdraw"
+            >
+              {withdraw.isPending ? "WITHDRAWING..." : "WITHDRAW"}
+            </Button>
+          )}
+          {applyErr && <div className="text-destructive text-xs" data-testid="text-apply-error">{applyErr}</div>}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-nc-cyan/5 border-nc-cyan/40" data-testid="block-apply">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-nc-cyan">Apply for this Mission</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <div>
+          <Label className="text-xs">CHARACTER</Label>
+          <select
+            value={characterId}
+            onChange={(e) => setCharacterId(e.target.value ? Number(e.target.value) : "")}
+            className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+            data-testid="select-apply-character"
+          >
+            <option value="">Select a character…</option>
+            {(chars.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label className="text-xs">COMMENT (optional)</Label>
+          <Textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            rows={2}
+            className="rounded-none"
+            placeholder="Why your character is a good fit…"
+            data-testid="input-apply-comment"
+          />
+        </div>
+        <Button
+          type="button"
+          disabled={apply.isPending || characterId === ""}
+          onClick={() =>
+            apply.mutate(
+              { id: data.id, data: { characterId: Number(characterId), comment: comment || null } },
+              { onSuccess: () => setComment("") },
+            )
+          }
+          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+          data-testid="button-apply-submit"
+        >
+          {apply.isPending ? "APPLYING..." : "APPLY"}
+        </Button>
+        {applyErr && <div className="text-destructive text-xs" data-testid="text-apply-error">{applyErr}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ApplicationStatusBadge({ status }: { status: string }) {
+  const cls =
+    status === "accepted"
+      ? "border-green-500 text-green-400 bg-green-500/10"
+      : status === "rejected"
+        ? "border-destructive text-destructive bg-destructive/10"
+        : status === "withdrawn"
+          ? "border-muted-foreground text-muted-foreground bg-muted/10"
+          : "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  return (
+    <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
+      {label}
+    </Badge>
   );
 }
 
@@ -273,6 +487,201 @@ function PaymentBadge({
   );
 }
 
+function WorkflowPanel({ data }: { data: MissionDetailModel }) {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
+  const submit = useSubmitMission({ mutation: { onSuccess: invalidate } });
+  const approve = useApproveMission({ mutation: { onSuccess: invalidate } });
+  const post = usePostMission({ mutation: { onSuccess: invalidate } });
+  const busy = submit.isPending || approve.isPending || post.isPending;
+  const err = errOf(submit.error) ?? errOf(approve.error) ?? errOf(post.error);
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          Workflow — {missionWorkflowLabel(data.workflowState)}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <p className="text-muted-foreground text-xs">
+          Draft → Proposal → Approved → Posted. Only posted missions are visible to players.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          {data.workflowState === "draft" &&
+            (data.canManage ? (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => submit.mutate({ id: data.id })}
+                className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest"
+                data-testid="button-submit-proposal"
+              >
+                {submit.isPending ? "SUBMITTING..." : "SUBMIT FOR APPROVAL"}
+              </Button>
+            ) : (
+              <span className="text-muted-foreground text-xs">Draft — awaiting the fixer to submit.</span>
+            ))}
+          {data.workflowState === "proposal" &&
+            (data.canApprove ? (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => approve.mutate({ id: data.id })}
+                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                data-testid="button-approve"
+              >
+                {approve.isPending ? "APPROVING..." : "APPROVE"}
+              </Button>
+            ) : (
+              <span className="text-muted-foreground text-xs">Awaiting archivist approval.</span>
+            ))}
+          {data.workflowState === "approved" &&
+            (data.canManage ? (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => post.mutate({ id: data.id })}
+                className="rounded-none bg-green-600 text-background hover:bg-green-600/80 font-display tracking-widest"
+                data-testid="button-post"
+              >
+                {post.isPending ? "POSTING..." : "POST TO MISSIONS"}
+              </Button>
+            ) : (
+              <span className="text-muted-foreground text-xs">Approved — awaiting the fixer to post.</span>
+            ))}
+          {data.workflowState === "posted" && (
+            <span className="text-green-400 text-xs inline-flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Live on the public board.
+            </span>
+          )}
+        </div>
+        {err && <div className="text-destructive text-xs" data-testid="text-workflow-error">{err}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ApplicationsPanel({ data }: { data: MissionDetailModel }) {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
+  const review = useReviewApplication({ mutation: { onSuccess: invalidate } });
+  const err = errOf(review.error);
+
+  const pending = data.applications.filter((a) => a.status === "pending");
+  const decided = data.applications.filter((a) => a.status !== "pending");
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          Applications ({data.applications.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 font-mono text-sm">
+        {data.applications.length === 0 ? (
+          <p className="text-muted-foreground italic">No applications yet.</p>
+        ) : (
+          <>
+            {pending.map((a) => (
+              <ApplicationReviewRow
+                key={a.id}
+                a={a}
+                missionId={data.id}
+                onAction={(action) =>
+                  review.mutate({ id: data.id, appId: a.id, data: { action } })
+                }
+                busy={review.isPending}
+              />
+            ))}
+            {decided.length > 0 && (
+              <div className="pt-2 space-y-2 border-t border-border/40">
+                {decided.map((a) => (
+                  <div key={a.id} className="flex items-center gap-2" data-testid={`row-application-${a.id}`}>
+                    <ApplicationStatusBadge status={a.status} />
+                    <span className="text-foreground">{a.characterName ?? "(character)"}</span>
+                    {a.userName && <span className="text-muted-foreground text-xs">({a.userName})</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {err && <div className="text-destructive text-xs" data-testid="text-review-error">{err}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ApplicationReviewRow({
+  a,
+  missionId,
+  onAction,
+  busy,
+}: {
+  a: MissionApplicationView;
+  missionId: number;
+  onAction: (action: "accept" | "reject") => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="border border-border bg-background/40 p-3 space-y-2" data-testid={`row-application-${a.id}`}>
+      <div className="flex items-start gap-3">
+        <Avatar className="border border-nc-cyan/30 rounded-none w-10 h-10">
+          <AvatarImage src={a.characterPortraitUrl ?? a.userAvatarUrl ?? undefined} />
+          <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-xs">
+            {(a.characterName ?? a.userName ?? "??").substring(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <Link
+            href={`/directory/characters/${a.characterId}`}
+            className="font-display text-foreground hover:text-nc-cyan transition-colors"
+          >
+            {a.characterName ?? "(character)"}
+          </Link>
+          {a.userName && <div className="text-xs text-muted-foreground">{a.userName}</div>}
+          <div className="text-xs text-muted-foreground mt-1">
+            Missions attended: {a.attendanceCount}
+          </div>
+          {a.recencyWarning && (
+            <div className="text-[11px] text-nc-yellow inline-flex items-center gap-1 mt-1" data-testid={`recency-warning-${a.id}`}>
+              <Clock className="w-3 h-3" />
+              {a.daysSinceLastMission != null
+                ? `Played a mission ${a.daysSinceLastMission} day${a.daysSinceLastMission === 1 ? "" : "s"} ago`
+                : "Recently played a mission"}
+            </div>
+          )}
+        </div>
+      </div>
+      {a.comment && <p className="text-muted-foreground whitespace-pre-wrap text-xs pl-1">{a.comment}</p>}
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={busy}
+          onClick={() => onAction("accept")}
+          className="rounded-none bg-green-600 text-background hover:bg-green-600/80 font-display tracking-widest"
+          data-testid={`button-accept-${a.id}`}
+        >
+          ACCEPT
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => onAction("reject")}
+          className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+          data-testid={`button-reject-${a.id}`}
+        >
+          REJECT
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function FixerView({ data }: { data: MissionDetailModel }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
@@ -298,6 +707,10 @@ function FixerView({ data }: { data: MissionDetailModel }) {
           <span>Discord event sync error: {data.discordSyncError}</span>
         </div>
       )}
+
+      <WorkflowPanel data={data} />
+
+      <ApplicationsPanel data={data} />
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between">

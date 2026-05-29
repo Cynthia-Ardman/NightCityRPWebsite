@@ -27,6 +27,7 @@ import type {
   AdminListAuditParams,
   AdminRecordCheckup200,
   AdminUser,
+  ApplyToMissionInput,
   ArchiveCharacter,
   ArchiveCharacterSummary,
   ArchiveEditInput,
@@ -55,6 +56,7 @@ import type {
   CharacterStatusUpdate,
   CharacterUpdate,
   CharacterUpdateNote,
+  CheckMissionConflictsParams,
   DashboardSummary,
   DeactivateCharacter200,
   DeleteTagOption200,
@@ -99,6 +101,7 @@ import type {
   Me,
   MissionConfig,
   MissionConfigUpdate,
+  MissionConflictCheck,
   MissionCreateInput,
   MissionDetail,
   MissionSummary,
@@ -112,6 +115,7 @@ import type {
   PublicCharacter,
   PublicCharacterSummary,
   ReactivateCharacter200,
+  ReviewApplicationInput,
   Ripperdoc,
   RipperdocPublic,
   RipperdocUpdate,
@@ -4745,6 +4749,167 @@ export function useListMyMissions<TData = Awaited<ReturnType<typeof listMyMissio
 
 
 
+export const getListOwnedMissionsUrl = () => {
+
+
+
+
+  return `/api/missions/owned`
+}
+
+/**
+ * @summary My Missions board — missions the caller owns across all workflow states (admins see all). Fixer/admin only.
+ */
+export const listOwnedMissions = async ( options?: RequestInit): Promise<MissionSummary[]> => {
+
+  return customFetch<MissionSummary[]>(getListOwnedMissionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOwnedMissionsQueryKey = () => {
+    return [
+    `/api/missions/owned`
+    ] as const;
+    }
+
+
+export const getListOwnedMissionsQueryOptions = <TData = Awaited<ReturnType<typeof listOwnedMissions>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOwnedMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOwnedMissionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOwnedMissions>>> = ({ signal }) => listOwnedMissions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOwnedMissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOwnedMissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listOwnedMissions>>>
+export type ListOwnedMissionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary My Missions board — missions the caller owns across all workflow states (admins see all). Fixer/admin only.
+ */
+
+export function useListOwnedMissions<TData = Awaited<ReturnType<typeof listOwnedMissions>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOwnedMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOwnedMissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCheckMissionConflictsUrl = (params: CheckMissionConflictsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/missions/conflicts?${stringifiedParams}` : `/api/missions/conflicts`
+}
+
+/**
+ * @summary Fail-safe Discord scheduling-conflict check for the create/reschedule form. Fixer/admin only.
+ */
+export const checkMissionConflicts = async (params: CheckMissionConflictsParams, options?: RequestInit): Promise<MissionConflictCheck> => {
+
+  return customFetch<MissionConflictCheck>(getCheckMissionConflictsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCheckMissionConflictsQueryKey = (params?: CheckMissionConflictsParams,) => {
+    return [
+    `/api/missions/conflicts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCheckMissionConflictsQueryOptions = <TData = Awaited<ReturnType<typeof checkMissionConflicts>>, TError = ErrorType<void>>(params: CheckMissionConflictsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkMissionConflicts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCheckMissionConflictsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof checkMissionConflicts>>> = ({ signal }) => checkMissionConflicts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof checkMissionConflicts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CheckMissionConflictsQueryResult = NonNullable<Awaited<ReturnType<typeof checkMissionConflicts>>>
+export type CheckMissionConflictsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fail-safe Discord scheduling-conflict check for the create/reschedule form. Fixer/admin only.
+ */
+
+export function useCheckMissionConflicts<TData = Awaited<ReturnType<typeof checkMissionConflicts>>, TError = ErrorType<void>>(
+ params: CheckMissionConflictsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkMissionConflicts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCheckMissionConflictsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetMissionConfigUrl = () => {
 
 
@@ -5343,6 +5508,434 @@ export const usePayMissionActors = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getPayMissionActorsMutationOptions(options));
+    }
+
+export const getSubmitMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/submit`
+}
+
+/**
+ * @summary Submit a draft as a proposal for archivist review. Fixer/admin only.
+ */
+export const submitMission = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getSubmitMissionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSubmitMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitMission>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['submitMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitMission>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  submitMission(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitMissionMutationResult = NonNullable<Awaited<ReturnType<typeof submitMission>>>
+
+    export type SubmitMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a draft as a proposal for archivist review. Fixer/admin only.
+ */
+export const useSubmitMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitMission>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitMissionMutationOptions(options));
+    }
+
+export const getApproveMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/approve`
+}
+
+/**
+ * @summary Approve a proposal. Archivist/admin only.
+ */
+export const approveMission = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getApproveMissionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getApproveMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveMission>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveMission>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveMission(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveMissionMutationResult = NonNullable<Awaited<ReturnType<typeof approveMission>>>
+
+    export type ApproveMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a proposal. Archivist/admin only.
+ */
+export const useApproveMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveMission>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveMissionMutationOptions(options));
+    }
+
+export const getPostMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/post`
+}
+
+/**
+ * @summary Post an approved mission to the public board. Fixer/admin only.
+ */
+export const postMission = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getPostMissionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getPostMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postMission>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['postMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postMission>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  postMission(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostMissionMutationResult = NonNullable<Awaited<ReturnType<typeof postMission>>>
+
+    export type PostMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Post an approved mission to the public board. Fixer/admin only.
+ */
+export const usePostMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof postMission>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getPostMissionMutationOptions(options));
+    }
+
+export const getApplyToMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/applications`
+}
+
+/**
+ * @summary Apply to a posted mission with one of your own characters.
+ */
+export const applyToMission = async (id: number,
+    applyToMissionInput: ApplyToMissionInput, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getApplyToMissionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      applyToMissionInput,)
+  }
+);}
+
+
+
+
+export const getApplyToMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyToMission>>, TError,{id: number;data: BodyType<ApplyToMissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyToMission>>, TError,{id: number;data: BodyType<ApplyToMissionInput>}, TContext> => {
+
+const mutationKey = ['applyToMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyToMission>>, {id: number;data: BodyType<ApplyToMissionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  applyToMission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyToMissionMutationResult = NonNullable<Awaited<ReturnType<typeof applyToMission>>>
+    export type ApplyToMissionMutationBody = BodyType<ApplyToMissionInput>
+    export type ApplyToMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Apply to a posted mission with one of your own characters.
+ */
+export const useApplyToMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyToMission>>, TError,{id: number;data: BodyType<ApplyToMissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applyToMission>>,
+        TError,
+        {id: number;data: BodyType<ApplyToMissionInput>},
+        TContext
+      > => {
+      return useMutation(getApplyToMissionMutationOptions(options));
+    }
+
+export const getWithdrawApplicationUrl = (id: number,
+    appId: number,) => {
+
+
+
+
+  return `/api/missions/${id}/applications/${appId}`
+}
+
+/**
+ * @summary Withdraw your own application.
+ */
+export const withdrawApplication = async (id: number,
+    appId: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getWithdrawApplicationUrl(id,appId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getWithdrawApplicationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawApplication>>, TError,{id: number;appId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawApplication>>, TError,{id: number;appId: number}, TContext> => {
+
+const mutationKey = ['withdrawApplication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawApplication>>, {id: number;appId: number}> = (props) => {
+          const {id,appId} = props ?? {};
+
+          return  withdrawApplication(id,appId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawApplication>>>
+
+    export type WithdrawApplicationMutationError = ErrorType<void>
+
+    /**
+ * @summary Withdraw your own application.
+ */
+export const useWithdrawApplication = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawApplication>>, TError,{id: number;appId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawApplication>>,
+        TError,
+        {id: number;appId: number},
+        TContext
+      > => {
+      return useMutation(getWithdrawApplicationMutationOptions(options));
+    }
+
+export const getReviewApplicationUrl = (id: number,
+    appId: number,) => {
+
+
+
+
+  return `/api/missions/${id}/applications/${appId}/review`
+}
+
+/**
+ * @summary Accept or reject an application (accept assigns the character). Fixer/admin only.
+ */
+export const reviewApplication = async (id: number,
+    appId: number,
+    reviewApplicationInput: ReviewApplicationInput, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getReviewApplicationUrl(id,appId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      reviewApplicationInput,)
+  }
+);}
+
+
+
+
+export const getReviewApplicationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewApplication>>, TError,{id: number;appId: number;data: BodyType<ReviewApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewApplication>>, TError,{id: number;appId: number;data: BodyType<ReviewApplicationInput>}, TContext> => {
+
+const mutationKey = ['reviewApplication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewApplication>>, {id: number;appId: number;data: BodyType<ReviewApplicationInput>}> = (props) => {
+          const {id,appId,data} = props ?? {};
+
+          return  reviewApplication(id,appId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof reviewApplication>>>
+    export type ReviewApplicationMutationBody = BodyType<ReviewApplicationInput>
+    export type ReviewApplicationMutationError = ErrorType<void>
+
+    /**
+ * @summary Accept or reject an application (accept assigns the character). Fixer/admin only.
+ */
+export const useReviewApplication = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewApplication>>, TError,{id: number;appId: number;data: BodyType<ReviewApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewApplication>>,
+        TError,
+        {id: number;appId: number;data: BodyType<ReviewApplicationInput>},
+        TContext
+      > => {
+      return useMutation(getReviewApplicationMutationOptions(options));
     }
 
 export const getAdminListAuditUrl = (params?: AdminListAuditParams,) => {

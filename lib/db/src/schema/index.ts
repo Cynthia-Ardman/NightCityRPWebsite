@@ -526,22 +526,46 @@ export const missions = pgTable("missions", {
   // Optional custom image; null falls back to a default image at render time.
   imageUrl: text("image_url"),
   status: text("status").notNull().default("open"),
+  // Staff approval workflow state, tracked SEPARATELY from runtime `status`:
+  //   draft | proposal | approved | posted
+  // Only `posted` missions are visible to regular players. A mission can be
+  // posted + open at the same time. New missions default to draft; existing
+  // missions are backfilled to posted (they were already live).
+  workflowState: text("workflow_state").notNull().default("draft"),
   fixerId: text("fixer_id").references(() => users.id, { onDelete: "set null" }),
   // Mission start (UTC). Null while the fixer is still drafting/selecting.
   startAt: timestamp("start_at", { withTimezone: true }),
   durationMinutes: integer("duration_minutes").notNull().default(120),
   // Number of attendee/player slots.
   slots: integer("slots").notNull().default(0),
+  // --- Task #62 mission fields ---
+  // Staff-only VRChat/world join link (hidden from player-facing views).
+  worldLink: text("world_link"),
+  // Required job type: combat | non_combat | mixed (player-facing).
+  jobType: text("job_type"),
+  // Free-text requested skills (player-facing).
+  requestedSkills: text("requested_skills"),
+  // Optional in-fiction client (player-facing).
+  client: text("client"),
+  // Player-facing notes shown on the mission brief.
+  notesForPlayers: text("notes_for_players"),
+  // Max player-characters that can be assigned (0 = unlimited). Distinct from
+  // `slots` which is the legacy attendee count.
+  maxPlayers: integer("max_players").notNull().default(0),
   // Linked Discord scheduled-event id (null if sync never succeeded / test mode).
   discordEventId: text("discord_event_id"),
   // Last Discord sync failure surfaced to staff (cleared on success).
   discordSyncError: text("discord_sync_error"),
   // Set once the auto-pay cron has processed this mission (idempotency guard).
   autoPayProcessedAt: timestamp("auto_pay_processed_at", { withTimezone: true }),
+  // Set once the pre-mission NPC announcement was posted (idempotency guard).
+  // Cleared on reschedule so the announcement re-fires for the new time.
+  npcAnnouncedAt: timestamp("npc_announced_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({
   statusIdx: index("missions_status_idx").on(t.status),
+  workflowStateIdx: index("missions_workflow_state_idx").on(t.workflowState),
   fixerIdx: index("missions_fixer_idx").on(t.fixerId),
   startIdx: index("missions_start_idx").on(t.startAt),
 }));
@@ -603,6 +627,30 @@ export const missionActorPayments = pgTable("mission_actor_payments", {
   fixerIdx: index("mission_actor_payments_fixer_idx").on(t.fixerId),
 }));
 export type MissionActorPayment = typeof missionActorPayments.$inferSelect;
+
+// Player applications to open missions (Task #62). A player applies with ONE
+// of their own characters plus an optional comment; the mission's fixer reviews
+// and accepts applicants (which assigns them). A partial unique index keeps at
+// most one ACTIVE application per (mission, character); re-applying after a
+// withdraw/reject upserts the existing row back to pending.
+export const missionApplications = pgTable("mission_applications", {
+  id: serial("id").primaryKey(),
+  missionId: integer("mission_id").notNull().references(() => missions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  comment: text("comment"),
+  // pending | accepted | withdrawn | rejected.
+  status: text("status").notNull().default("pending"),
+  reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => ({
+  oneActivePerCharacterIdx: uniqueIndex("mission_applications_mission_character_idx").on(t.missionId, t.characterId),
+  missionIdx: index("mission_applications_mission_idx").on(t.missionId),
+  userIdx: index("mission_applications_user_idx").on(t.userId),
+}));
+export type MissionApplication = typeof missionApplications.$inferSelect;
 
 export const wholesalerItems = pgTable("wholesaler_items", {
   id: serial("id").primaryKey(),

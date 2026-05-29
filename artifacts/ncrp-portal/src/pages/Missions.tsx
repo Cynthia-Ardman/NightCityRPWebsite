@@ -1,18 +1,29 @@
 import { Link } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMyMissions,
   useListMissions,
+  useListOwnedMissions,
+  useSubmitMission,
+  useApproveMission,
+  usePostMission,
   getListMissionsQueryKey,
+  getListOwnedMissionsQueryKey,
   type MissionSummary,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase, CalendarDays, MapPin, User, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Briefcase, CalendarDays, MapPin, Plus, User, Users } from "lucide-react";
 import {
   missionStatusClass,
   missionStatusLabel,
   missionTierClass,
   missionTierLabel,
+  missionWorkflowClass,
+  missionWorkflowLabel,
+  WORKFLOW_STATES,
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 
@@ -20,27 +31,70 @@ export default function Missions() {
   const { data: me } = useAuthMe();
   const isStaff = !!me && (me.isFixer || me.isAdmin);
   const isAdmin = !!me?.isAdmin;
+  const canApprove = !!me && (me.isArchivist || me.isAdmin);
+  // Archivists are approvers, not creators: they get the board to find proposals
+  // to approve, but not the Create affordance or test-mode banner.
+  const canSeeOwnedBoard = isStaff || canApprove;
 
   const mine = useListMyMissions();
-  const all = useListMissions(undefined, {
-    query: { enabled: isStaff, queryKey: getListMissionsQueryKey() },
+  const owned = useListOwnedMissions({
+    query: { enabled: canSeeOwnedBoard, queryKey: getListOwnedMissionsQueryKey() },
+  });
+  // Players see only posted missions (the server enforces this); staff/approvers
+  // get their full owned board above, so the public list is player-facing only.
+  const available = useListMissions(undefined, {
+    query: { enabled: !canSeeOwnedBoard, queryKey: getListMissionsQueryKey() },
   });
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
-      <div>
-        <h1 className="text-3xl md:text-4xl font-display text-nc-magenta tracking-widest flex items-center gap-3">
-          <Briefcase className="w-7 h-7" /> MISSIONS
-        </h1>
-        <p className="text-muted-foreground font-mono text-sm mt-1">
-          Scheduled jobs run by fixers, with payouts to the players who show up.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-display text-nc-magenta tracking-widest flex items-center gap-3">
+            <Briefcase className="w-7 h-7" /> MISSIONS
+          </h1>
+          <p className="text-muted-foreground font-mono text-sm mt-1">
+            Scheduled jobs run by fixers, with payouts to the players who show up.
+          </p>
+        </div>
+        {isStaff && (
+          <Link href="/fixer/missions">
+            <Button
+              className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
+              data-testid="button-create-mission"
+            >
+              <Plus className="w-4 h-4 mr-1" /> CREATE MISSION
+            </Button>
+          </Link>
+        )}
       </div>
 
       {isStaff && <MissionTestModeBanner />}
 
+      {canSeeOwnedBoard && (
+        <section className="space-y-4" data-testid="card-owned-missions">
+          <h2 className="font-display tracking-widest text-lg text-nc-cyan">
+            MY MISSIONS{" "}
+            <span className="text-xs text-muted-foreground font-mono">
+              ({isAdmin || canApprove ? "all missions" : "missions you run"})
+            </span>
+          </h2>
+          {owned.isLoading ? (
+            <div className="font-mono text-nc-cyan animate-pulse">Loading...</div>
+          ) : !owned.data || owned.data.length === 0 ? (
+            <div className="font-mono text-muted-foreground italic">
+              No missions yet. Use “Create Mission” to draft one.
+            </div>
+          ) : (
+            <OwnedMissionBoard rows={owned.data} isAdmin={isAdmin} canApprove={canApprove} canManage={isStaff} />
+          )}
+        </section>
+      )}
+
       <section className="space-y-4">
-        <h2 className="font-display tracking-widest text-lg">YOUR MISSIONS</h2>
+        <h2 className="font-display tracking-widest text-lg">
+          {isStaff ? "ASSIGNED TO YOU" : "YOUR MISSIONS"}
+        </h2>
         {mine.isLoading ? (
           <div className="font-mono text-nc-cyan animate-pulse">Loading...</div>
         ) : !mine.data || mine.data.length === 0 ? (
@@ -50,20 +104,17 @@ export default function Missions() {
         )}
       </section>
 
-      {isStaff && (
-        <section className="space-y-4" data-testid="card-all-missions">
-          <h2 className="font-display tracking-widest text-lg text-nc-cyan">
-            ALL MISSIONS{" "}
-            <span className="text-xs text-muted-foreground font-mono">(fixer/admin)</span>
-          </h2>
-          {all.isLoading ? (
+      {!isStaff && (
+        <section className="space-y-4" data-testid="card-available-missions">
+          <h2 className="font-display tracking-widest text-lg text-nc-cyan">AVAILABLE MISSIONS</h2>
+          {available.isLoading ? (
             <div className="font-mono text-nc-cyan animate-pulse">Loading...</div>
-          ) : !all.data || all.data.length === 0 ? (
+          ) : !available.data || available.data.length === 0 ? (
             <div className="font-mono text-muted-foreground italic">
-              No missions scheduled anywhere yet.
+              No open missions right now. Check back soon.
             </div>
           ) : (
-            <MissionCardList rows={all.data} isAdmin={isAdmin} />
+            <MissionCardList rows={available.data} isAdmin={isAdmin} showApply />
           )}
         </section>
       )}
@@ -71,17 +122,79 @@ export default function Missions() {
   );
 }
 
-function MissionCardList({ rows, isAdmin }: { rows: MissionSummary[]; isAdmin: boolean }) {
+function OwnedMissionBoard({
+  rows,
+  isAdmin,
+  canApprove,
+  canManage,
+}: {
+  rows: MissionSummary[];
+  isAdmin: boolean;
+  canApprove: boolean;
+  canManage: boolean;
+}) {
+  // Group by workflow state so the fixer sees the pipeline at a glance.
+  return (
+    <div className="space-y-6">
+      {WORKFLOW_STATES.map((state) => {
+        const group = rows.filter((m) => m.workflowState === state);
+        if (group.length === 0) return null;
+        return (
+          <div key={state} className="space-y-3" data-testid={`group-workflow-${state}`}>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className={`rounded-none font-bold tracking-widest uppercase ${missionWorkflowClass(state)}`}
+              >
+                {missionWorkflowLabel(state)}
+              </Badge>
+              <span className="text-xs font-mono text-muted-foreground">({group.length})</span>
+            </div>
+            <div className="space-y-5">
+              {group.map((m) => (
+                <MissionCard key={m.id} m={m} isAdmin={isAdmin} canApprove={canApprove} canManage={canManage} showWorkflow />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MissionCardList({
+  rows,
+  isAdmin,
+  showApply,
+}: {
+  rows: MissionSummary[];
+  isAdmin: boolean;
+  showApply?: boolean;
+}) {
   return (
     <div className="space-y-5">
       {rows.map((m) => (
-        <MissionCard key={m.id} m={m} isAdmin={isAdmin} />
+        <MissionCard key={m.id} m={m} isAdmin={isAdmin} showApply={showApply} />
       ))}
     </div>
   );
 }
 
-function MissionCard({ m, isAdmin }: { m: MissionSummary; isAdmin: boolean }) {
+function MissionCard({
+  m,
+  isAdmin,
+  canApprove,
+  canManage,
+  showWorkflow,
+  showApply,
+}: {
+  m: MissionSummary;
+  isAdmin: boolean;
+  canApprove?: boolean;
+  canManage?: boolean;
+  showWorkflow?: boolean;
+  showApply?: boolean;
+}) {
   const when = m.startAt ? new Date(m.startAt) : null;
   return (
     <Card
@@ -95,8 +208,18 @@ function MissionCard({ m, isAdmin }: { m: MissionSummary; isAdmin: boolean }) {
             {m.title}
           </CardTitle>
         </Link>
-        {/* 2. Big, bold, color-coded status + tier */}
+        {/* 2. Big, bold, color-coded status + tier (+ workflow on owned board) */}
         <div className="flex flex-wrap items-center gap-2">
+          {showWorkflow && (
+            <span
+              className={`inline-block font-display font-bold tracking-widest text-xs px-2 py-1 border rounded-none uppercase ${missionWorkflowClass(
+                m.workflowState,
+              )}`}
+              data-testid={`workflow-mission-${m.id}`}
+            >
+              {missionWorkflowLabel(m.workflowState)}
+            </span>
+          )}
           <span
             className={`inline-block font-display font-bold tracking-widest text-sm md:text-base px-3 py-1 border rounded-none uppercase ${missionStatusClass(
               m.status,
@@ -168,9 +291,92 @@ function MissionCard({ m, isAdmin }: { m: MissionSummary; isAdmin: boolean }) {
           <span className="text-muted-foreground uppercase text-xs tracking-widest mt-0.5">Players:</span>
           <PlayerLinks m={m} />
         </div>
+
+        {/* 9. Workflow actions (owned board) or Apply (available list) */}
+        {showWorkflow && <WorkflowActions m={m} canApprove={!!canApprove} canManage={!!canManage} />}
+        {showApply && (
+          <div className="pt-1">
+            <Link href={`/missions/${m.id}`}>
+              <Button
+                size="sm"
+                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                data-testid={`button-apply-${m.id}`}
+              >
+                APPLY
+              </Button>
+            </Link>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
+}
+
+function WorkflowActions({
+  m,
+  canApprove,
+  canManage,
+}: {
+  m: MissionSummary;
+  canApprove: boolean;
+  canManage: boolean;
+}) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getListOwnedMissionsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+  };
+  const submit = useSubmitMission({ mutation: { onSuccess: invalidate } });
+  const approve = useApproveMission({ mutation: { onSuccess: invalidate } });
+  const post = usePostMission({ mutation: { onSuccess: invalidate } });
+  const busy = submit.isPending || approve.isPending || post.isPending;
+
+  if (m.workflowState === "draft" && canManage) {
+    return (
+      <div className="pt-1">
+        <Button
+          size="sm"
+          disabled={busy}
+          onClick={() => submit.mutate({ id: m.id })}
+          className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest"
+          data-testid={`button-submit-${m.id}`}
+        >
+          {submit.isPending ? "SUBMITTING..." : "SUBMIT FOR APPROVAL"}
+        </Button>
+      </div>
+    );
+  }
+  if (m.workflowState === "proposal" && canApprove) {
+    return (
+      <div className="pt-1">
+        <Button
+          size="sm"
+          disabled={busy}
+          onClick={() => approve.mutate({ id: m.id })}
+          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+          data-testid={`button-approve-${m.id}`}
+        >
+          {approve.isPending ? "APPROVING..." : "APPROVE"}
+        </Button>
+      </div>
+    );
+  }
+  if (m.workflowState === "approved" && canManage) {
+    return (
+      <div className="pt-1">
+        <Button
+          size="sm"
+          disabled={busy}
+          onClick={() => post.mutate({ id: m.id })}
+          className="rounded-none bg-green-600 text-background hover:bg-green-600/80 font-display tracking-widest"
+          data-testid={`button-post-${m.id}`}
+        >
+          {post.isPending ? "POSTING..." : "POST TO MISSIONS"}
+        </Button>
+      </div>
+    );
+  }
+  return null;
 }
 
 function FixerLink({

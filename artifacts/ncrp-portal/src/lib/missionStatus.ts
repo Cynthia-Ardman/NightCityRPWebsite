@@ -80,6 +80,58 @@ export function missionTierLabel(tier: number): string {
   }
 }
 
+// The Task #62 workflow lifecycle (distinct from runtime status):
+//   draft → proposal → approved → posted
+// Only `posted` missions are visible to players.
+export const WORKFLOW_STATES = ["draft", "proposal", "approved", "posted"] as const;
+export type WorkflowState = (typeof WORKFLOW_STATES)[number];
+
+export function missionWorkflowLabel(state: string): string {
+  switch (state) {
+    case "draft":
+      return "Draft";
+    case "proposal":
+      return "Proposal";
+    case "approved":
+      return "Approved";
+    case "posted":
+      return "Posted";
+    default:
+      return state.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+}
+
+export function missionWorkflowClass(state: string): string {
+  switch (state) {
+    case "draft":
+      return "border-muted-foreground text-muted-foreground bg-muted/10";
+    case "proposal":
+      return "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
+    case "approved":
+      return "border-nc-cyan text-nc-cyan bg-nc-cyan/10";
+    case "posted":
+      return "border-green-500 text-green-400 bg-green-500/10";
+    default:
+      return "border-muted-foreground text-muted-foreground bg-muted/10";
+  }
+}
+
+export const JOB_TYPES = ["combat", "non_combat", "mixed"] as const;
+export type JobType = (typeof JOB_TYPES)[number];
+
+export function jobTypeLabel(t: string | null | undefined): string {
+  switch (t) {
+    case "combat":
+      return "Combat";
+    case "non_combat":
+      return "Non-Combat";
+    case "mixed":
+      return "Mixed";
+    default:
+      return "—";
+  }
+}
+
 export function missionTierClass(tier: number): string {
   switch (tier) {
     case 1:

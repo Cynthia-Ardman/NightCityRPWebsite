@@ -10,6 +10,7 @@ export const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? process.env.TO
 export const ROLE_NAMES = {
   ADMIN: ["admin", "administrator", "staff"],
   FIXER: ["fixer"],
+  ARCHIVIST: ["archivist"],
   CS_APPROVER: ["cs approver", "character approver", "cs-approver"],
   RIPPERDOC: ["ripperdoc"],
   STORE_OWNER: ["store owner", "shop owner"],
@@ -466,6 +467,58 @@ export async function deleteGuildScheduledEvent(eventId: string): Promise<Schedu
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error({ err, eventId }, "deleteGuildScheduledEvent error");
+    return { ok: false, error: msg };
+  }
+}
+
+export interface GuildScheduledEvent {
+  id: string;
+  name: string;
+  scheduledStartTime: string;
+  scheduledEndTime: string | null;
+}
+
+export type ListScheduledEventsResult =
+  | { ok: true; events: GuildScheduledEvent[] }
+  | { ok: false; error: string };
+
+/**
+ * List the guild's scheduled events (read-only). Used for the create/reschedule
+ * conflict check. Fail-safe: callers treat a non-ok result as "couldn't check"
+ * (a staff-facing notice), never as a hard block.
+ */
+export async function listGuildScheduledEvents(): Promise<ListScheduledEventsResult> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+    return { ok: false, error: "Discord bot token or guild id not configured" };
+  }
+  try {
+    const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events`, {
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn({ status: res.status, body: text }, "listGuildScheduledEvents failed");
+      return { ok: false, error: `Discord events lookup failed (${res.status})` };
+    }
+    const data = (await res.json()) as Array<{
+      id: string;
+      name: string;
+      scheduled_start_time: string;
+      scheduled_end_time: string | null;
+    }>;
+    return {
+      ok: true,
+      events: data.map((e) => ({
+        id: e.id,
+        name: e.name,
+        scheduledStartTime: e.scheduled_start_time,
+        scheduledEndTime: e.scheduled_end_time,
+      })),
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn({ err }, "listGuildScheduledEvents error");
     return { ok: false, error: msg };
   }
 }

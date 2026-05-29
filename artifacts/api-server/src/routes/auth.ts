@@ -187,6 +187,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     activeCharacterId: u.activeCharacterId,
     isAdmin: hasRole(u.roles, "ADMIN"),
     isFixer: hasRole(u.roles, "FIXER"),
+    isArchivist: hasRole(u.roles, "ARCHIVIST"),
     isCsApprover: hasRole(u.roles, "CS_APPROVER"),
     isRipperdoc: hasRole(u.roles, "RIPPERDOC"),
     isStoreOwner: hasRole(u.roles, "STORE_OWNER"),

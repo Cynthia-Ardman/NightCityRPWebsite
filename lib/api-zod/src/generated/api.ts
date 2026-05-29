@@ -37,6 +37,7 @@ export const GetMeResponse = zod.object({
   "roles": zod.array(zod.string()),
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean(),
+  "isArchivist": zod.boolean(),
   "isCsApprover": zod.boolean(),
   "isRipperdoc": zod.boolean(),
   "isStoreOwner": zod.boolean(),
@@ -1332,6 +1333,7 @@ export const ListMissionsResponseItem = zod.object({
   "title": zod.string(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
   "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
   "startAt": zod.coerce.date().nullish(),
   "durationMinutes": zod.number(),
   "location": zod.string().nullish(),
@@ -1339,6 +1341,10 @@ export const ListMissionsResponseItem = zod.object({
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
   "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "maxPlayers": zod.number(),
   "assignedCount": zod.number(),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
@@ -1371,6 +1377,9 @@ export const createMissionBodyDurationMinutesDefault = 120;
 export const createMissionBodySlotsDefault = 0;
 export const createMissionBodySlotsMin = 0;
 
+export const createMissionBodyMaxPlayersDefault = 0;
+export const createMissionBodyMaxPlayersMin = 0;
+
 
 
 export const CreateMissionBody = zod.object({
@@ -1384,6 +1393,12 @@ export const CreateMissionBody = zod.object({
   "durationMinutes": zod.number().min(1).default(createMissionBodyDurationMinutesDefault),
   "slots": zod.number().min(createMissionBodySlotsMin).default(createMissionBodySlotsDefault),
   "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']).optional(),
+  "worldLink": zod.string().optional().describe('Staff-only world\/join link.'),
+  "jobType": zod.enum(['combat', 'non_combat', 'mixed']).optional(),
+  "requestedSkills": zod.string().optional(),
+  "client": zod.string().optional(),
+  "notesForPlayers": zod.string().optional(),
+  "maxPlayers": zod.number().min(createMissionBodyMaxPlayersMin).default(createMissionBodyMaxPlayersDefault),
   "assignments": zod.array(zod.object({
   "userId": zod.string().optional(),
   "characterId": zod.number().nullish()
@@ -1399,6 +1414,7 @@ export const ListMyMissionsResponseItem = zod.object({
   "title": zod.string(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
   "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
   "startAt": zod.coerce.date().nullish(),
   "durationMinutes": zod.number(),
   "location": zod.string().nullish(),
@@ -1406,6 +1422,10 @@ export const ListMyMissionsResponseItem = zod.object({
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
   "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "maxPlayers": zod.number(),
   "assignedCount": zod.number(),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
@@ -1427,12 +1447,76 @@ export const ListMyMissionsResponse = zod.array(ListMyMissionsResponseItem)
 
 
 /**
+ * @summary My Missions board — missions the caller owns across all workflow states (admins see all). Fixer/admin only.
+ */
+export const ListOwnedMissionsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "descriptionPreview": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "assignedCount": zod.number(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "myCharacterId": zod.number().nullish(),
+  "myCharacterName": zod.string().nullish(),
+  "myPaymentStatus": zod.string().nullish(),
+  "players": zod.array(zod.object({
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish(),
+  "userId": zod.string().nullish()
+})).describe('Assigned characters (deduped), each clickable.'),
+  "createdAt": zod.coerce.date()
+})
+export const ListOwnedMissionsResponse = zod.array(ListOwnedMissionsResponseItem)
+
+
+/**
+ * @summary Fail-safe Discord scheduling-conflict check for the create/reschedule form. Fixer/admin only.
+ */
+export const checkMissionConflictsQueryDurationMinutesDefault = 120;
+
+export const CheckMissionConflictsQueryParams = zod.object({
+  "startAt": zod.date(),
+  "durationMinutes": zod.coerce.number().default(checkMissionConflictsQueryDurationMinutesDefault),
+  "excludeEventId": zod.coerce.string().optional()
+})
+
+export const CheckMissionConflictsResponse = zod.object({
+  "checked": zod.boolean().describe('False if Discord couldn\'t be reached (fail-safe; never blocks).'),
+  "error": zod.string().nullish(),
+  "conflicts": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
  * @summary Mission system config + Test/Live mode. Fixer/admin only.
  */
 export const GetMissionConfigResponse = zod.object({
   "live": zod.boolean(),
   "bankingChannelId": zod.string(),
   "npcSpendingChannelId": zod.string(),
+  "npcAnnouncementChannelId": zod.string(),
   "defaultImageUrl": zod.string().nullish(),
   "autopayDelayHours": zod.number()
 })
@@ -1445,6 +1529,7 @@ export const UpdateMissionConfigBody = zod.object({
   "live": zod.boolean().optional(),
   "bankingChannelId": zod.string().optional(),
   "npcSpendingChannelId": zod.string().optional(),
+  "npcAnnouncementChannelId": zod.string().optional(),
   "defaultImageUrl": zod.string().optional(),
   "autopayDelayHours": zod.number().optional()
 })
@@ -1453,6 +1538,7 @@ export const UpdateMissionConfigResponse = zod.object({
   "live": zod.boolean(),
   "bankingChannelId": zod.string(),
   "npcSpendingChannelId": zod.string(),
+  "npcAnnouncementChannelId": zod.string(),
   "defaultImageUrl": zod.string().nullish(),
   "autopayDelayHours": zod.number()
 })
@@ -1509,6 +1595,7 @@ export const GetMissionResponse = zod.object({
   "title": zod.string(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
   "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
   "startAt": zod.coerce.date().nullish(),
   "durationMinutes": zod.number(),
   "location": zod.string().nullish(),
@@ -1516,12 +1603,19 @@ export const GetMissionResponse = zod.object({
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
   "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
   "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
   "assignments": zod.array(zod.object({
   "id": zod.number(),
@@ -1550,6 +1644,42 @@ export const GetMissionResponse = zod.object({
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -1568,6 +1698,8 @@ export const updateMissionBodyPlayerPayMin = 0;
 
 export const updateMissionBodySlotsMin = 0;
 
+export const updateMissionBodyMaxPlayersMin = 0;
+
 
 
 export const UpdateMissionBody = zod.object({
@@ -1581,6 +1713,12 @@ export const UpdateMissionBody = zod.object({
   "durationMinutes": zod.number().min(1).optional(),
   "slots": zod.number().min(updateMissionBodySlotsMin).optional(),
   "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']).optional(),
+  "worldLink": zod.string().nullish(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number().min(updateMissionBodyMaxPlayersMin).optional(),
   "assignments": zod.array(zod.object({
   "userId": zod.string().optional(),
   "characterId": zod.number().nullish()
@@ -1592,6 +1730,7 @@ export const UpdateMissionResponse = zod.object({
   "title": zod.string(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
   "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
   "startAt": zod.coerce.date().nullish(),
   "durationMinutes": zod.number(),
   "location": zod.string().nullish(),
@@ -1599,12 +1738,19 @@ export const UpdateMissionResponse = zod.object({
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
   "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
   "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
   "assignments": zod.array(zod.object({
   "id": zod.number(),
@@ -1633,6 +1779,42 @@ export const UpdateMissionResponse = zod.object({
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -1650,6 +1832,7 @@ export const PayMissionPlayersResponse = zod.object({
   "title": zod.string(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
   "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
   "startAt": zod.coerce.date().nullish(),
   "durationMinutes": zod.number(),
   "location": zod.string().nullish(),
@@ -1657,12 +1840,19 @@ export const PayMissionPlayersResponse = zod.object({
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
   "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
   "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
   "assignments": zod.array(zod.object({
   "id": zod.number(),
@@ -1691,6 +1881,42 @@ export const PayMissionPlayersResponse = zod.object({
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -1718,6 +1944,7 @@ export const PayMissionActorsResponse = zod.object({
   "title": zod.string(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
   "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
   "startAt": zod.coerce.date().nullish(),
   "durationMinutes": zod.number(),
   "location": zod.string().nullish(),
@@ -1725,12 +1952,19 @@ export const PayMissionActorsResponse = zod.object({
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
   "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
   "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
   "assignments": zod.array(zod.object({
   "id": zod.number(),
@@ -1759,6 +1993,665 @@ export const PayMissionActorsResponse = zod.object({
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Submit a draft as a proposal for archivist review. Fixer/admin only.
+ */
+export const SubmitMissionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitMissionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Approve a proposal. Archivist/admin only.
+ */
+export const ApproveMissionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveMissionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Post an approved mission to the public board. Fixer/admin only.
+ */
+export const PostMissionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostMissionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Apply to a posted mission with one of your own characters.
+ */
+export const ApplyToMissionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApplyToMissionBody = zod.object({
+  "characterId": zod.number(),
+  "comment": zod.string().nullish()
+})
+
+export const ApplyToMissionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Withdraw your own application.
+ */
+export const WithdrawApplicationParams = zod.object({
+  "id": zod.coerce.number(),
+  "appId": zod.coerce.number()
+})
+
+export const WithdrawApplicationResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Accept or reject an application (accept assigns the character). Fixer/admin only.
+ */
+export const ReviewApplicationParams = zod.object({
+  "id": zod.coerce.number(),
+  "appId": zod.coerce.number()
+})
+
+export const ReviewApplicationBody = zod.object({
+  "action": zod.enum(['accept', 'reject'])
+})
+
+export const ReviewApplicationResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })

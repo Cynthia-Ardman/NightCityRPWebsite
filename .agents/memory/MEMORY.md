@@ -27,4 +27,5 @@
 - [Audit-trail durability](audit-trail-durability.md) — recordAudit() swallows failures; endpoints that MUST be traceable write audit+changelog inline in a db.transaction.
 - [Catalog PATCH response parity](catalog-patch-response-parity.md) — staff edit PATCH must return the SAME computed-field shape as the GET (e.g. rent's `occupied`), or generated clients drift from the contract.
 - [Mission payout idempotency](mission-payout-idempotency.md) — pay paths must acquire a durable uniqueness guard BEFORE the external UB call: 'processing' claim for player rows, onConflictDoNothing 'paid' reservation for actor rows.
+- [Archivist approver ≠ manager](archivist-approver-not-manager.md) — ARCHIVIST gates approve only; canManage stays isManager; broaden visibility/owned-board for archivists but gate submit/post UI on canManage or it 403s.
 - [Live-mode dual gate](live-mode-dual-gate.md) — Test/Live = master AND per-system (default OFF); runJob gates housing/cyberware/evictions; tests wanting real effects must set BOTH flags.

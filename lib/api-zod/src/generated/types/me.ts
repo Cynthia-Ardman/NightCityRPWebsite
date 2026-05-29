@@ -18,6 +18,7 @@ export interface Me {
   roles: string[];
   isAdmin: boolean;
   isFixer: boolean;
+  isArchivist: boolean;
   isCsApprover: boolean;
   isRipperdoc: boolean;
   isStoreOwner: boolean;

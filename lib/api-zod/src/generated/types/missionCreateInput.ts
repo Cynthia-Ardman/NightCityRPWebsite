@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MissionAssignmentInput } from './missionAssignmentInput';
+import type { MissionCreateInputJobType } from './missionCreateInputJobType';
 import type { MissionCreateInputStatus } from './missionCreateInputStatus';
 import type { MissionCreateInputTier } from './missionCreateInputTier';
 
@@ -24,5 +25,13 @@ export interface MissionCreateInput {
   /** @minimum 0 */
   slots?: number;
   status?: MissionCreateInputStatus;
+  /** Staff-only world/join link. */
+  worldLink?: string;
+  jobType?: MissionCreateInputJobType;
+  requestedSkills?: string;
+  client?: string;
+  notesForPlayers?: string;
+  /** @minimum 0 */
+  maxPlayers?: number;
   assignments?: MissionAssignmentInput[];
 }

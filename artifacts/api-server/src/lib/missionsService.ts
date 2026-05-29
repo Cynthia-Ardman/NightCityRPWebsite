@@ -1,10 +1,11 @@
 import type { Request } from "express";
-import { and, eq, desc, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, desc, gt, lte, inArray, isNull, isNotNull, ne, sql } from "drizzle-orm";
 import {
   db,
   missions,
   missionAssignments,
   missionActorPayments,
+  missionApplications,
   characters,
   users,
   type Mission,
@@ -17,8 +18,30 @@ import {
   createGuildScheduledEvent,
   modifyGuildScheduledEvent,
   deleteGuildScheduledEvent,
+  listGuildScheduledEvents,
 } from "./discord";
 import { getMissionContext, type MissionExternalContext } from "./missionsConfig";
+
+// ---------------------------------------------------------------------------
+// Workflow state (Task #62) — staff approval pipeline, SEPARATE from runtime
+// status. draft → proposal → approved → posted. Only `posted` missions are
+// visible to regular players.
+// ---------------------------------------------------------------------------
+export const WORKFLOW_STATES = ["draft", "proposal", "approved", "posted"] as const;
+export type WorkflowState = (typeof WORKFLOW_STATES)[number];
+export function isWorkflowState(s: unknown): s is WorkflowState {
+  return typeof s === "string" && (WORKFLOW_STATES as readonly string[]).includes(s);
+}
+
+export const JOB_TYPES = ["combat", "non_combat", "mixed"] as const;
+export type JobType = (typeof JOB_TYPES)[number];
+export function isJobType(s: unknown): s is JobType {
+  return typeof s === "string" && (JOB_TYPES as readonly string[]).includes(s);
+}
+
+// Recommended spacing between a character's missions. Attendance more recent
+// than this triggers a (non-blocking) recency warning during application review.
+export const RECENCY_WARNING_DAYS = 21;
 
 // ---------------------------------------------------------------------------
 // Mission status lifecycle (Task #57).
@@ -75,6 +98,8 @@ function resolveAbsoluteImageUrl(raw: string | null | undefined): string | null 
 export interface MissionViewer {
   id: string;
   isManager: boolean; // fixer or admin
+  isAdmin: boolean;
+  isArchivist: boolean; // archivist or admin (can approve proposals)
 }
 
 type AssignmentJoin = {
@@ -158,6 +183,7 @@ function toSummary(m: MissionWithFixer, assignments: AssignmentJoin[], viewerId:
     title: m.title,
     tier: m.tier,
     status: m.status,
+    workflowState: m.workflowState,
     startAt: iso(m.startAt),
     durationMinutes: m.durationMinutes,
     location: m.location,
@@ -165,6 +191,10 @@ function toSummary(m: MissionWithFixer, assignments: AssignmentJoin[], viewerId:
     imageUrl: m.imageUrl,
     playerPay: m.playerPay,
     slots: m.slots,
+    jobType: m.jobType,
+    requestedSkills: m.requestedSkills,
+    client: m.client,
+    maxPlayers: m.maxPlayers,
     assignedCount: assignments.length,
     fixerId: m.fixerId,
     fixerName: m.fixerName,
@@ -184,10 +214,28 @@ export async function listMissionSummaries(opts: {
   status?: string;
   limit?: number;
 }) {
-  const where = opts.status && isMissionStatus(opts.status) ? eq(missions.status, opts.status) : undefined;
+  const filters = [];
+  if (opts.status && isMissionStatus(opts.status)) filters.push(eq(missions.status, opts.status));
+  // Visibility: regular players only ever see Posted missions. Managers
+  // (fixers/admins) see the full pipeline so they can shepherd drafts.
+  if (!opts.viewer.isManager) filters.push(eq(missions.workflowState, "posted"));
+  const where = filters.length ? and(...filters) : undefined;
   const rows = await loadMissions(where, opts.limit ?? 200);
   const byMission = await loadAssignments(rows.map((r) => r.id));
   return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], opts.viewer.id));
+}
+
+/**
+ * Missions the caller owns/oversees, for the "My Missions" board grouped by
+ * workflow state. Fixers see missions they're the fixer of; admins see all.
+ */
+export async function listOwnedMissionSummaries(viewer: MissionViewer) {
+  // Admins and archivists (approvers) see every mission so they can find
+  // proposals awaiting review; plain fixers see only their own.
+  const where = viewer.isAdmin || viewer.isArchivist ? undefined : eq(missions.fixerId, viewer.id);
+  const rows = await loadMissions(where);
+  const byMission = await loadAssignments(rows.map((r) => r.id));
+  return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id));
 }
 
 /** Missions the caller is assigned to that are not cancelled/fully closed. */
@@ -207,6 +255,11 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
   const rows = await loadMissions(eq(missions.id, missionId));
   const m = rows[0];
   if (!m) return null;
+  const canManage = viewer.isManager;
+  // Visibility: regular players only see Posted missions (the draft pipeline is
+  // staff-internal). Archivists are approvers, so they must be able to view a
+  // non-posted mission to approve it — even though they don't get fixer tools.
+  if (!canManage && !viewer.isArchivist && m.workflowState !== "posted") return null;
   const ctx = await getMissionContext();
   const assignments = (await loadAssignments([missionId])).get(missionId) ?? [];
   const actorRows = await db
@@ -227,12 +280,20 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     .where(eq(missionActorPayments.missionId, missionId))
     .orderBy(desc(missionActorPayments.createdAt));
 
-  const canManage = viewer.isManager;
+  // Applications: full list for managers; players only get their own.
+  const applications = canManage
+    ? await listApplicationViews(missionId)
+    : [];
+  const myApplication = canManage
+    ? null
+    : (await listApplicationViews(missionId, viewer.id))[0] ?? null;
+
   return {
     id: m.id,
     title: m.title,
     tier: m.tier,
     status: m.status,
+    workflowState: m.workflowState,
     startAt: iso(m.startAt),
     durationMinutes: m.durationMinutes,
     location: m.location,
@@ -240,13 +301,23 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     imageUrl: m.imageUrl,
     playerPay: m.playerPay,
     slots: m.slots,
+    jobType: m.jobType,
+    requestedSkills: m.requestedSkills,
+    client: m.client,
+    notesForPlayers: m.notesForPlayers,
+    maxPlayers: m.maxPlayers,
+    // World Link is staff-only (OOC planning doc, never shown to players).
+    worldLink: canManage ? m.worldLink : null,
     fixerId: m.fixerId,
     fixerName: m.fixerName,
     fixerAvatarUrl: m.fixerAvatarUrl,
     discordEventId: m.discordEventId,
     discordSyncError: m.discordSyncError,
     canManage,
+    canApprove: viewer.isArchivist,
     live: ctx.live,
+    applications,
+    myApplication,
     assignments: assignments.map((a) => ({
       id: a.id,
       userId: a.userId,
@@ -281,6 +352,444 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     createdAt: m.createdAt.toISOString(),
     updatedAt: iso(m.updatedAt),
   };
+}
+
+// ===========================================================================
+// APPLICATIONS (Task #62) — players apply with one of their own characters;
+// fixers review and accept (which assigns the player) or reject.
+// ===========================================================================
+
+/**
+ * Per-character recency: most recent credited attendance (excluding the given
+ * mission) and total credited-attendance count. Used for the non-blocking
+ * "played recently" warning shown to fixers during application review.
+ */
+async function loadRecencyByCharacter(
+  characterIds: number[],
+  excludeMissionId: number,
+): Promise<Map<number, { lastAttendedAt: Date | null; attendanceCount: number }>> {
+  const out = new Map<number, { lastAttendedAt: Date | null; attendanceCount: number }>();
+  if (characterIds.length === 0) return out;
+  const rows = await db
+    .select({
+      characterId: missionAssignments.characterId,
+      lastAttendedAt: sql<Date | null>`max(${missionAssignments.attendanceCreditedAt})`,
+      attendanceCount: sql<number>`count(${missionAssignments.attendanceCreditedAt})`,
+    })
+    .from(missionAssignments)
+    .where(
+      and(
+        inArray(missionAssignments.characterId, characterIds),
+        isNotNull(missionAssignments.attendanceCreditedAt),
+        ne(missionAssignments.missionId, excludeMissionId),
+      ),
+    )
+    .groupBy(missionAssignments.characterId);
+  for (const r of rows) {
+    if (r.characterId == null) continue;
+    out.set(r.characterId, {
+      lastAttendedAt: r.lastAttendedAt ? new Date(r.lastAttendedAt) : null,
+      attendanceCount: Number(r.attendanceCount),
+    });
+  }
+  return out;
+}
+
+/**
+ * Build application view rows for a mission. When `onlyUserId` is given, returns
+ * just that player's application (for the player's own view).
+ */
+async function listApplicationViews(missionId: number, onlyUserId?: string) {
+  const filters = [eq(missionApplications.missionId, missionId)];
+  if (onlyUserId) filters.push(eq(missionApplications.userId, onlyUserId));
+  const rows = await db
+    .select({
+      id: missionApplications.id,
+      userId: missionApplications.userId,
+      userName: users.username,
+      userAvatarUrl: users.avatarUrl,
+      characterId: missionApplications.characterId,
+      characterName: characters.name,
+      characterPortraitUrl: characters.portraitUrl,
+      comment: missionApplications.comment,
+      status: missionApplications.status,
+      reviewedBy: missionApplications.reviewedBy,
+      reviewedAt: missionApplications.reviewedAt,
+      createdAt: missionApplications.createdAt,
+    })
+    .from(missionApplications)
+    .leftJoin(users, eq(users.id, missionApplications.userId))
+    .leftJoin(characters, eq(characters.id, missionApplications.characterId))
+    .where(and(...filters))
+    .orderBy(missionApplications.createdAt);
+
+  const recency = await loadRecencyByCharacter(
+    rows.map((r) => r.characterId),
+    missionId,
+  );
+  const now = Date.now();
+  return rows.map((r) => {
+    const rec = recency.get(r.characterId);
+    const last = rec?.lastAttendedAt ?? null;
+    const daysSince = last ? Math.floor((now - last.getTime()) / 86_400_000) : null;
+    return {
+      id: r.id,
+      userId: r.userId,
+      userName: r.userName,
+      userAvatarUrl: r.userAvatarUrl,
+      characterId: r.characterId,
+      characterName: r.characterName,
+      characterPortraitUrl: r.characterPortraitUrl,
+      comment: r.comment,
+      status: r.status,
+      reviewedBy: r.reviewedBy,
+      reviewedAt: iso(r.reviewedAt),
+      createdAt: r.createdAt.toISOString(),
+      attendanceCount: rec?.attendanceCount ?? 0,
+      lastAttendedAt: iso(last),
+      daysSinceLastMission: daysSince,
+      recencyWarning: daysSince != null && daysSince < RECENCY_WARNING_DAYS,
+    };
+  });
+}
+
+export type ApplyResult =
+  | { ok: true }
+  | { ok: false; error: string; httpStatus: number };
+
+/** Player applies to a posted mission with one of their own characters. */
+export async function applyToMission(opts: {
+  missionId: number;
+  userId: string;
+  characterId: number;
+  comment?: string | null;
+}): Promise<ApplyResult> {
+  const [m] = await db.select().from(missions).where(eq(missions.id, opts.missionId));
+  if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  if (m.workflowState !== "posted") {
+    return { ok: false, error: "This mission is not open for applications", httpStatus: 409 };
+  }
+  if (m.status === "cancelled") {
+    return { ok: false, error: "This mission has been cancelled", httpStatus: 409 };
+  }
+  // Character must belong to the applicant.
+  const [char] = await db.select().from(characters).where(eq(characters.id, opts.characterId));
+  if (!char) return { ok: false, error: "Character not found", httpStatus: 404 };
+  if (char.ownerId !== opts.userId) {
+    return { ok: false, error: "That character isn't yours", httpStatus: 403 };
+  }
+  const comment = opts.comment?.trim() || null;
+  // Dedupe on (mission, character): re-applying re-opens a withdrawn/rejected
+  // application back to pending and refreshes the comment.
+  await db
+    .insert(missionApplications)
+    .values({
+      missionId: opts.missionId,
+      userId: opts.userId,
+      characterId: opts.characterId,
+      comment,
+      status: "pending",
+    })
+    .onConflictDoUpdate({
+      target: [missionApplications.missionId, missionApplications.characterId],
+      set: {
+        userId: opts.userId,
+        comment,
+        status: "pending",
+        reviewedBy: null,
+        reviewedAt: null,
+        updatedAt: new Date(),
+      },
+    });
+  return { ok: true };
+}
+
+/** Player withdraws their own application. */
+export async function withdrawApplication(opts: {
+  applicationId: number;
+  userId: string;
+}): Promise<ApplyResult> {
+  const [app] = await db
+    .select()
+    .from(missionApplications)
+    .where(eq(missionApplications.id, opts.applicationId));
+  if (!app) return { ok: false, error: "Application not found", httpStatus: 404 };
+  if (app.userId !== opts.userId) {
+    return { ok: false, error: "Not your application", httpStatus: 403 };
+  }
+  await db
+    .update(missionApplications)
+    .set({ status: "withdrawn", updatedAt: new Date() })
+    .where(eq(missionApplications.id, opts.applicationId));
+  return { ok: true };
+}
+
+/**
+ * Fixer reviews an application. action=accept assigns the player+character to
+ * the mission (idempotent on the (mission,user) assignment) and marks the
+ * application accepted; action=reject just marks it rejected.
+ */
+export async function reviewApplication(opts: {
+  applicationId: number;
+  action: "accept" | "reject";
+  reviewerId: string;
+  req?: Request;
+}): Promise<ApplyResult> {
+  const [app] = await db
+    .select()
+    .from(missionApplications)
+    .where(eq(missionApplications.id, opts.applicationId));
+  if (!app) return { ok: false, error: "Application not found", httpStatus: 404 };
+
+  if (opts.action === "reject") {
+    await db
+      .update(missionApplications)
+      .set({
+        status: "rejected",
+        reviewedBy: opts.reviewerId,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(missionApplications.id, opts.applicationId));
+    await recordAudit({
+      req: opts.req,
+      actorId: opts.reviewerId,
+      action: "mission_application_rejected",
+      category: "mission",
+      targetType: "mission",
+      targetId: String(app.missionId),
+      message: `Rejected application ${app.id} (character ${app.characterId})`,
+    });
+    return { ok: true };
+  }
+
+  // Accept: create/refresh the assignment for this player & character.
+  await db
+    .insert(missionAssignments)
+    .values({
+      missionId: app.missionId,
+      userId: app.userId,
+      characterId: app.characterId,
+    })
+    .onConflictDoUpdate({
+      target: [missionAssignments.missionId, missionAssignments.userId],
+      set: { characterId: app.characterId },
+    });
+  await db
+    .update(missionApplications)
+    .set({
+      status: "accepted",
+      reviewedBy: opts.reviewerId,
+      reviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(missionApplications.id, opts.applicationId));
+  await recordAudit({
+    req: opts.req,
+    actorId: opts.reviewerId,
+    action: "mission_application_accepted",
+    category: "mission",
+    targetType: "mission",
+    targetId: String(app.missionId),
+    message: `Accepted application ${app.id}; assigned character ${app.characterId}`,
+  });
+  return { ok: true };
+}
+
+// ===========================================================================
+// WORKFLOW TRANSITIONS (Task #62) — draft → proposal → approved → posted.
+// ===========================================================================
+
+export type TransitionResult =
+  | { ok: true }
+  | { ok: false; error: string; httpStatus: number };
+
+/** Fixer submits a draft for staff review (draft → proposal). */
+export async function submitMissionProposal(missionId: number, viewer: MissionViewer, req?: Request): Promise<TransitionResult> {
+  const [m] = await db.select().from(missions).where(eq(missions.id, missionId));
+  if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  if (m.workflowState !== "draft") {
+    return { ok: false, error: `Can only submit a draft (current: ${m.workflowState})`, httpStatus: 409 };
+  }
+  await db
+    .update(missions)
+    .set({ workflowState: "proposal", updatedAt: new Date() })
+    .where(eq(missions.id, missionId));
+  await recordAudit({
+    req,
+    actorId: viewer.id,
+    action: "mission_submitted",
+    category: "mission",
+    targetType: "mission",
+    targetId: String(missionId),
+    message: `Submitted mission "${m.title}" as a proposal`,
+  });
+  return { ok: true };
+}
+
+/** Archivist/admin approves a proposal (proposal → approved). */
+export async function approveMission(missionId: number, viewer: MissionViewer, req?: Request): Promise<TransitionResult> {
+  const [m] = await db.select().from(missions).where(eq(missions.id, missionId));
+  if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  if (m.workflowState !== "proposal") {
+    return { ok: false, error: `Can only approve a proposal (current: ${m.workflowState})`, httpStatus: 409 };
+  }
+  await db
+    .update(missions)
+    .set({ workflowState: "approved", updatedAt: new Date() })
+    .where(eq(missions.id, missionId));
+  await recordAudit({
+    req,
+    actorId: viewer.id,
+    action: "mission_approved",
+    category: "mission",
+    targetType: "mission",
+    targetId: String(missionId),
+    message: `Approved mission "${m.title}"`,
+  });
+  return { ok: true };
+}
+
+/**
+ * Post an approved mission: make it public (workflowState → posted), open it for
+ * play (status → open), and sync the Discord event. Audit-logged.
+ */
+export async function postMission(missionId: number, viewer: MissionViewer, req?: Request): Promise<TransitionResult> {
+  const [m] = await db.select().from(missions).where(eq(missions.id, missionId));
+  if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  if (m.workflowState !== "approved") {
+    return { ok: false, error: `Can only post an approved mission (current: ${m.workflowState})`, httpStatus: 409 };
+  }
+  const nextStatus = m.status === "cancelled" ? "open" : m.status === "open" ? m.status : "open";
+  const updated: Mission = { ...m, workflowState: "posted", status: nextStatus };
+  const ctx = await getMissionContext();
+  const sync = await syncMissionDiscordEvent(updated, ctx, m.imageUrl);
+  await db
+    .update(missions)
+    .set({
+      workflowState: "posted",
+      status: nextStatus,
+      discordEventId: sync.discordEventId,
+      discordSyncError: sync.discordSyncError,
+      updatedAt: new Date(),
+    })
+    .where(eq(missions.id, missionId));
+  await recordAudit({
+    req,
+    actorId: viewer.id,
+    action: "mission_posted",
+    category: "mission",
+    targetType: "mission",
+    targetId: String(missionId),
+    message: `Posted mission "${m.title}" to the public board`,
+  });
+  return { ok: true };
+}
+
+// ===========================================================================
+// DISCORD SCHEDULING CONFLICT CHECK (Task #62) — fail-safe, never blocks.
+// ===========================================================================
+
+export interface ConflictCheckResult {
+  checked: boolean;
+  conflicts: { id: string; name: string; startAt: string; endAt: string | null }[];
+  error: string | null;
+}
+
+/**
+ * Look for existing Discord scheduled events that overlap the proposed window.
+ * Fail-safe: if Discord can't be reached, returns checked=false with an error
+ * message for staff — it never blocks creation/rescheduling.
+ */
+export async function checkDiscordEventConflict(opts: {
+  startAt: Date;
+  durationMinutes: number;
+  excludeEventId?: string | null;
+}): Promise<ConflictCheckResult> {
+  const res = await listGuildScheduledEvents();
+  if (!res.ok) return { checked: false, conflicts: [], error: res.error };
+  const start = opts.startAt.getTime();
+  const end = start + Math.max(1, opts.durationMinutes) * 60_000;
+  const conflicts = res.events
+    .filter((e) => e.id !== opts.excludeEventId)
+    .map((e) => {
+      const eStart = new Date(e.scheduledStartTime).getTime();
+      const eEnd = e.scheduledEndTime ? new Date(e.scheduledEndTime).getTime() : eStart + 60 * 60_000;
+      return { e, eStart, eEnd };
+    })
+    .filter(({ eStart, eEnd }) => eStart < end && eEnd > start)
+    .map(({ e }) => ({
+      id: e.id,
+      name: e.name,
+      startAt: e.scheduledStartTime,
+      endAt: e.scheduledEndTime,
+    }));
+  return { checked: true, conflicts, error: null };
+}
+
+// ===========================================================================
+// PRE-MISSION NPC ANNOUNCEMENT (Task #62) — posts to #npc-announcements ~1h
+// before start, once per mission (idempotent via npcAnnouncedAt; cleared on
+// reschedule). Gated by Test/Live mode.
+// ===========================================================================
+
+/**
+ * Find posted, non-cancelled missions starting within the next hour that
+ * haven't been announced yet, and post an "actors needed" call to the NPC
+ * announcement channel. In Test mode it logs instead of posting. Idempotent.
+ */
+export async function runMissionNpcAnnouncements(): Promise<{ announced: number }> {
+  const ctx = await getMissionContext();
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 60 * 60_000);
+  const due = await db
+    .select()
+    .from(missions)
+    .where(
+      and(
+        eq(missions.workflowState, "posted"),
+        ne(missions.status, "cancelled"),
+        isNull(missions.npcAnnouncedAt),
+        isNotNull(missions.startAt),
+        gt(missions.startAt, now),
+        lte(missions.startAt, horizon),
+      ),
+    );
+  let announced = 0;
+  for (const m of due) {
+    const startUnix = m.startAt ? Math.floor(m.startAt.getTime() / 1000) : null;
+    const lines = [
+      `**Actors Needed — ${m.title}**`,
+      m.jobType ? `Job type: ${jobTypeLabel(m.jobType)}` : null,
+      m.location ? `Location: ${m.location}` : null,
+      startUnix ? `Starts: <t:${startUnix}:R>` : null,
+      m.requestedSkills ? `Requested skills: ${m.requestedSkills}` : null,
+      `React or reach out to the fixer if you can NPC for this mission.`,
+    ].filter(Boolean);
+    const content = lines.join("\n");
+    try {
+      if (ctx.live) {
+        await postToChannel(ctx.npcAnnouncementChannelId, content);
+      } else {
+        logger.info({ missionId: m.id, channel: ctx.npcAnnouncementChannelId }, "[test mode] would post NPC announcement");
+      }
+      await db
+        .update(missions)
+        .set({ npcAnnouncedAt: new Date() })
+        .where(eq(missions.id, m.id));
+      announced += 1;
+    } catch (err) {
+      logger.error({ err, missionId: m.id }, "NPC announcement failed");
+    }
+  }
+  return { announced };
+}
+
+function jobTypeLabel(jt: string): string {
+  if (jt === "combat") return "Combat";
+  if (jt === "non_combat") return "Non-Combat";
+  if (jt === "mixed") return "Mixed";
+  return jt;
 }
 
 // ===========================================================================

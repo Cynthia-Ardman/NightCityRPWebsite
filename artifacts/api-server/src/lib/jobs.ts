@@ -4,7 +4,7 @@ import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
-import { runMissionAutoPay } from "./missionsService";
+import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
 
 const EVICTION_CHANNEL_ID = process.env.EVICTION_CHANNEL_ID ?? "";
@@ -191,7 +191,7 @@ export async function isAutobillEnabled(key: string): Promise<boolean> {
   }
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce";
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
   const [run] = await db.insert(jobRuns).values({ job: name, status: "running" }).returning();
@@ -709,6 +709,12 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // payMissionPlayers are themselves gated by the Test/Live toggle, so
       // running this cron in Test mode simulates + records without paying.
       affected = await runMissionAutoPay();
+    } else if (name === "mission_npc_announce") {
+      // Pre-mission "actors needed" announcement. Posting is gated by the
+      // missions Test/Live toggle inside the service (Test mode logs only),
+      // so this is intentionally NOT listed in liveSystemByJob.
+      const r = await runMissionNpcAnnouncements();
+      affected = r.announced;
     }
   } catch (err) {
     status = "failed";
@@ -761,6 +767,13 @@ export function startCron() {
         return;
       }
       runJob("mission_autopay").catch((err) => logger.error({ err }, "mission_autopay cron"));
+    });
+    // Pre-mission NPC announcement sweep every 5 minutes: posts an "actors
+    // needed" call ~1h before a posted mission starts (once per mission, via
+    // npcAnnouncedAt). Posting is gated by the missions Test/Live toggle inside
+    // the service, so Test mode only logs.
+    cron.schedule("*/5 * * * *", () => {
+      runJob("mission_npc_announce").catch((err) => logger.error({ err }, "mission_npc_announce cron"));
     });
     logger.info("Cron jobs scheduled");
   });

@@ -27,6 +27,7 @@ import {
   missions,
   missionAssignments,
   missionActorPayments,
+  missionApplications,
   botConfig,
 } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
@@ -40,6 +41,7 @@ import {
   payMissionPlayers,
   payMissionActors,
   runMissionAutoPay,
+  runMissionNpcAnnouncements,
 } from "../lib/missionsService";
 import { MISSION_CONFIG_KEYS } from "../lib/missionsConfig";
 import { LIVE_MODE_KEYS } from "../lib/liveMode";
@@ -91,10 +93,16 @@ async function seedMission(opts: Partial<typeof missions.$inferInsert> = {}) {
       tier: opts.tier ?? 1,
       playerPay: opts.playerPay ?? 100,
       status: opts.status ?? "completed",
+      // Default workflowState to the schema default unless a test overrides it.
+      ...(opts.workflowState !== undefined ? { workflowState: opts.workflowState } : {}),
+      worldLink: opts.worldLink ?? null,
+      jobType: opts.jobType ?? null,
+      requestedSkills: opts.requestedSkills ?? null,
       fixerId: opts.fixerId ?? null,
       startAt: opts.startAt ?? null,
       durationMinutes: opts.durationMinutes ?? 120,
       slots: opts.slots ?? 4,
+      npcAnnouncedAt: opts.npcAnnouncedAt ?? null,
       autoPayProcessedAt: opts.autoPayProcessedAt ?? null,
     })
     .returning();
@@ -113,6 +121,7 @@ async function seedAssignment(
       userId,
       characterId: opts.characterId ?? null,
       paymentStatus: opts.paymentStatus ?? "unpaid",
+      attendanceCreditedAt: opts.attendanceCreditedAt ?? null,
     })
     .returning();
   return a;
@@ -591,5 +600,393 @@ describe("GET /missions/attendance-report", () => {
     const row = res.body.find((r: { userId: string }) => r.userId === player.id);
     expect(row).toBeTruthy();
     expect(row.attendedCount).toBe(1);
+  });
+});
+
+// ===========================================================================
+// WORKFLOW TRANSITIONS (Task #62) — draft → proposal → approved → posted.
+// Role-gated and audit-logged; enforced through the real HTTP endpoints.
+// ===========================================================================
+describe("Mission workflow transitions", () => {
+  it("a new mission defaults to the draft workflow state", async () => {
+    const manager = await createUser({ roles: ["admin"] });
+    const res = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Draft Run", tier: 1 });
+    expect(res.status).toBe(201);
+    expect(res.body.workflowState).toBe("draft");
+  });
+
+  it("submit → approve → post walks the full pipeline (admin can do all)", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ workflowState: "draft", status: "open" });
+
+    const submitted = await request(app).post(`/api/missions/${m.id}/submit`).set("x-test-user", admin.id);
+    expect(submitted.status).toBe(200);
+    expect(submitted.body.workflowState).toBe("proposal");
+
+    const approved = await request(app).post(`/api/missions/${m.id}/approve`).set("x-test-user", admin.id);
+    expect(approved.status).toBe(200);
+    expect(approved.body.workflowState).toBe("approved");
+
+    const posted = await request(app).post(`/api/missions/${m.id}/post`).set("x-test-user", admin.id);
+    expect(posted.status).toBe(200);
+    expect(posted.body.workflowState).toBe("posted");
+  });
+
+  it("a fixer can submit but cannot approve (archivist/admin only)", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const m = await seedMission({ workflowState: "draft" });
+
+    const submitted = await request(app).post(`/api/missions/${m.id}/submit`).set("x-test-user", fixer.id);
+    expect(submitted.status).toBe(200);
+    expect(submitted.body.workflowState).toBe("proposal");
+
+    const approved = await request(app).post(`/api/missions/${m.id}/approve`).set("x-test-user", fixer.id);
+    expect(approved.status).toBe(403);
+  });
+
+  it("an archivist can approve a proposal", async () => {
+    const archivist = await createUser({ roles: ["archivist"] });
+    const m = await seedMission({ workflowState: "proposal" });
+    const approved = await request(app).post(`/api/missions/${m.id}/approve`).set("x-test-user", archivist.id);
+    expect(approved.status).toBe(200);
+    expect(approved.body.workflowState).toBe("approved");
+  });
+
+  it("a plain user cannot drive any transition (403)", async () => {
+    const user = await createUser();
+    const m = await seedMission({ workflowState: "draft" });
+    expect((await request(app).post(`/api/missions/${m.id}/submit`).set("x-test-user", user.id)).status).toBe(403);
+    expect((await request(app).post(`/api/missions/${m.id}/approve`).set("x-test-user", user.id)).status).toBe(403);
+    expect((await request(app).post(`/api/missions/${m.id}/post`).set("x-test-user", user.id)).status).toBe(403);
+  });
+
+  it("an archivist can approve but cannot submit or post (manager-only)", async () => {
+    const archivist = await createUser({ roles: ["archivist"] });
+    const draft = await seedMission({ workflowState: "draft" });
+    // submit is a fixer/admin action — an archivist must be rejected.
+    expect((await request(app).post(`/api/missions/${draft.id}/submit`).set("x-test-user", archivist.id)).status).toBe(
+      403,
+    );
+    const approved = await seedMission({ workflowState: "approved" });
+    // post is a fixer/admin action — an archivist must be rejected.
+    expect((await request(app).post(`/api/missions/${approved.id}/post`).set("x-test-user", archivist.id)).status).toBe(
+      403,
+    );
+  });
+
+  it("rejects out-of-order transitions with 409 (cannot approve a draft)", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ workflowState: "draft" });
+    const approved = await request(app).post(`/api/missions/${m.id}/approve`).set("x-test-user", admin.id);
+    expect(approved.status).toBe(409);
+    // And cannot post something that isn't approved.
+    const posted = await request(app).post(`/api/missions/${m.id}/post`).set("x-test-user", admin.id);
+    expect(posted.status).toBe(409);
+  });
+
+  it("posting an approved mission opens it and (Live) syncs a Discord event", async () => {
+    await setLiveMode(true);
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ workflowState: "approved", status: "open", startAt: new Date(Date.now() + 86_400_000) });
+    const posted = await request(app).post(`/api/missions/${m.id}/post`).set("x-test-user", admin.id);
+    expect(posted.status).toBe(200);
+    expect(posted.body.workflowState).toBe("posted");
+    expect(mockCreateEvent).toHaveBeenCalledTimes(1);
+    expect(posted.body.discordEventId).toBe("evt-1");
+  });
+});
+
+// ===========================================================================
+// VISIBILITY — the draft pipeline is staff-internal; players only ever see
+// posted missions in both the list and the detail endpoints.
+// ===========================================================================
+describe("Mission visibility for non-managers", () => {
+  it("the public list shows only posted missions to a plain user", async () => {
+    const user = await createUser();
+    await seedMission({ title: "Hidden Draft", workflowState: "draft", status: "open" });
+    await seedMission({ title: "Hidden Proposal", workflowState: "proposal", status: "open" });
+    const live = await seedMission({ title: "Live One", workflowState: "posted", status: "open" });
+
+    const res = await request(app).get("/api/missions").set("x-test-user", user.id);
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number }>).map((m) => m.id);
+    expect(ids).toContain(live.id);
+    const titles = (res.body as Array<{ title: string }>).map((m) => m.title);
+    expect(titles).not.toContain("Hidden Draft");
+    expect(titles).not.toContain("Hidden Proposal");
+  });
+
+  it("a manager's owned board shows missions across every workflow state", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    await seedMission({ title: "D", workflowState: "draft" });
+    await seedMission({ title: "P", workflowState: "proposal" });
+    await seedMission({ title: "Posted", workflowState: "posted" });
+    const res = await request(app).get("/api/missions/owned").set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    expect((res.body as unknown[]).length).toBe(3);
+  });
+
+  it("a plain user gets 404 on a draft detail but 200 on a posted detail", async () => {
+    const user = await createUser();
+    const draft = await seedMission({ workflowState: "draft" });
+    const posted = await seedMission({ workflowState: "posted" });
+    expect((await request(app).get(`/api/missions/${draft.id}`).set("x-test-user", user.id)).status).toBe(404);
+    expect((await request(app).get(`/api/missions/${posted.id}`).set("x-test-user", user.id)).status).toBe(200);
+  });
+
+  it("hides the staff-only worldLink from players but shows it to managers", async () => {
+    const user = await createUser();
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ workflowState: "posted", worldLink: "https://example.com/world" });
+    const asPlayer = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", user.id);
+    expect(asPlayer.body.worldLink).toBeNull();
+    const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
+    expect(asAdmin.body.worldLink).toBe("https://example.com/world");
+  });
+});
+
+// ===========================================================================
+// APPLICATIONS — players apply with their OWN character; dedupe per character;
+// fixers accept (which assigns) or reject.
+// ===========================================================================
+describe("Mission applications", () => {
+  async function postedMission() {
+    return seedMission({ workflowState: "posted", status: "open" });
+  }
+
+  it("a player applies with their own character and the fixer sees it", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await postedMission();
+
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, comment: "I'm in" });
+    expect(applied.status).toBe(200);
+    // The applicant sees their own application echoed back.
+    expect(applied.body.myApplication?.characterId).toBe(char.id);
+
+    const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
+    expect(asAdmin.body.applications).toHaveLength(1);
+    expect(asAdmin.body.applications[0].comment).toBe("I'm in");
+  });
+
+  it("rejects applying with a character the player does not own (403)", async () => {
+    const player = await createUser();
+    const other = await createUser();
+    const notMine = await createCharacter({ ownerId: other.id });
+    const m = await postedMission();
+    const res = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: notMine.id });
+    expect(res.status).toBe(403);
+  });
+
+  it("cannot apply to a non-posted (draft) mission (409)", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await seedMission({ workflowState: "draft" });
+    const res = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    expect(res.status).toBe(409);
+  });
+
+  it("re-applying with the same character dedupes to a single application", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id, comment: "first" });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id, comment: "second" });
+
+    const rows = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].comment).toBe("second");
+    expect(rows[0].status).toBe("pending");
+  });
+
+  it("accepting an application assigns the player+character to the mission", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await postedMission();
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+
+    const reviewed = await request(app)
+      .post(`/api/missions/${m.id}/applications/${appId}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "accept" });
+    expect(reviewed.status).toBe(200);
+
+    const assigns = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
+    expect(assigns).toHaveLength(1);
+    expect(assigns[0].userId).toBe(player.id);
+    expect(assigns[0].characterId).toBe(char.id);
+    const [appAfter] = await db.select().from(missionApplications).where(eq(missionApplications.id, appId));
+    expect(appAfter.status).toBe("accepted");
+  });
+
+  it("rejecting an application does NOT create an assignment", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await postedMission();
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+    await request(app).post(`/api/missions/${m.id}/applications/${appId}/review`).set("x-test-user", admin.id).send({ action: "reject" });
+
+    const assigns = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
+    expect(assigns).toHaveLength(0);
+  });
+
+  it("a player can withdraw their own application", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+    const res = await request(app).delete(`/api/missions/${m.id}/applications/${appId}`).set("x-test-user", player.id);
+    expect(res.status).toBe(200);
+    const [appAfter] = await db.select().from(missionApplications).where(eq(missionApplications.id, appId));
+    expect(appAfter.status).toBe("withdrawn");
+  });
+
+  it("a player cannot review applications (manager only)", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const other = await createUser();
+    const m = await postedMission();
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+    const res = await request(app)
+      .post(`/api/missions/${m.id}/applications/${appId}/review`)
+      .set("x-test-user", other.id)
+      .send({ action: "accept" });
+    expect(res.status).toBe(403);
+  });
+});
+
+// ===========================================================================
+// RECENCY WARNING — non-blocking flag when an applicant's character played a
+// mission within the last 21 days.
+// ===========================================================================
+describe("Application recency warning", () => {
+  it("flags a character that recently attended a mission", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+
+    // A previous mission this character attended just 3 days ago.
+    const past = await seedMission({ status: "completed_players_paid" });
+    await seedAssignment(past.id, player.id, {
+      characterId: char.id,
+      attendanceCreditedAt: new Date(Date.now() - 3 * 86_400_000),
+    });
+
+    const m = await seedMission({ workflowState: "posted", status: "open" });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id });
+
+    const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
+    const appView = asAdmin.body.applications[0];
+    expect(appView.recencyWarning).toBe(true);
+    expect(appView.daysSinceLastMission).toBe(3);
+    expect(appView.attendanceCount).toBe(1);
+  });
+
+  it("does NOT flag a character whose last mission was long ago", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+
+    const past = await seedMission({ status: "completed_players_paid" });
+    await seedAssignment(past.id, player.id, {
+      characterId: char.id,
+      attendanceCreditedAt: new Date(Date.now() - 60 * 86_400_000),
+    });
+
+    const m = await seedMission({ workflowState: "posted", status: "open" });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id });
+
+    const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
+    expect(asAdmin.body.applications[0].recencyWarning).toBe(false);
+  });
+
+  it("does NOT flag a first-time applicant (no prior attendance)", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ workflowState: "posted", status: "open" });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id });
+    const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
+    expect(asAdmin.body.applications[0].recencyWarning).toBe(false);
+    expect(asAdmin.body.applications[0].daysSinceLastMission).toBeNull();
+  });
+});
+
+// ===========================================================================
+// PRE-MISSION NPC ANNOUNCEMENT — fires ~1h before start, once, only for
+// posted non-cancelled missions; gated by the Test/Live toggle.
+// ===========================================================================
+describe("runMissionNpcAnnouncements", () => {
+  it("Test mode: marks announced but posts NOTHING to Discord", async () => {
+    const m = await seedMission({
+      workflowState: "posted",
+      status: "open",
+      startAt: new Date(Date.now() + 30 * 60_000), // 30 min out → within the 1h window
+    });
+    const r = await runMissionNpcAnnouncements();
+    expect(r.announced).toBe(1);
+    expect(mockPost).not.toHaveBeenCalled();
+    const [after] = await db.select().from(missions).where(eq(missions.id, m.id));
+    expect(after.npcAnnouncedAt).not.toBeNull();
+  });
+
+  it("Live mode: posts the announcement to the configured channel exactly once", async () => {
+    await setLiveMode(true);
+    const m = await seedMission({
+      workflowState: "posted",
+      status: "open",
+      startAt: new Date(Date.now() + 30 * 60_000),
+    });
+    const r = await runMissionNpcAnnouncements();
+    expect(r.announced).toBe(1);
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    // Idempotent: a second pass announces nothing (npcAnnouncedAt is set).
+    mockPost.mockClear();
+    const second = await runMissionNpcAnnouncements();
+    expect(second.announced).toBe(0);
+    expect(mockPost).not.toHaveBeenCalled();
+    expect(m.id).toBeGreaterThan(0);
+  });
+
+  it("skips draft, cancelled, far-future, and unscheduled missions", async () => {
+    await seedMission({ workflowState: "draft", status: "open", startAt: new Date(Date.now() + 30 * 60_000) });
+    await seedMission({ workflowState: "posted", status: "cancelled", startAt: new Date(Date.now() + 30 * 60_000) });
+    await seedMission({ workflowState: "posted", status: "open", startAt: new Date(Date.now() + 5 * 3_600_000) }); // 5h out
+    await seedMission({ workflowState: "posted", status: "open", startAt: null }); // unscheduled
+    const r = await runMissionNpcAnnouncements();
+    expect(r.announced).toBe(0);
+    expect(mockPost).not.toHaveBeenCalled();
   });
 });
