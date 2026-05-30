@@ -505,8 +505,11 @@ function PaymentBadge({
       ? "border-green-500 text-green-400 bg-green-500/10"
       : status === "failed"
         ? "border-destructive text-destructive bg-destructive/10"
-        : "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
-  const label = status === "paid" ? "Paid" : status === "failed" ? "Failed" : "Unpaid";
+        : status === "simulated"
+          ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
+          : "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
+  const label =
+    status === "paid" ? "Paid" : status === "failed" ? "Failed" : status === "simulated" ? "Test" : "Unpaid";
   return (
     <div className="inline-flex flex-col items-end gap-0.5">
       <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
