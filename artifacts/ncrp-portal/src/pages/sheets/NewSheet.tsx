@@ -93,7 +93,20 @@ export default function NewSheet() {
       </div>
     );
   }
-  return <SheetForm key={draftId ?? "new"} initialSheet={loaded ?? null} draftId={draftId} />;
+  // Include the requested type in the key so navigating between a fresh PC sheet
+  // and a fresh NPC sheet (?type=NPC) remounts the form with the right default.
+  const newKeyType =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("type")?.toUpperCase() === "NPC"
+      ? "npc"
+      : "pc";
+  return (
+    <SheetForm
+      key={draftId ?? `new-${newKeyType}`}
+      initialSheet={loaded ?? null}
+      draftId={draftId}
+    />
+  );
 }
 
 interface SheetFormProps {

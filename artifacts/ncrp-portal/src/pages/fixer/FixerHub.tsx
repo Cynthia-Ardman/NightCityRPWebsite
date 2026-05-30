@@ -1,40 +1,12 @@
-import { useState } from "react";
 import { Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
-import {
-  useListMyFixerNpcs,
-  useListAllFixerNpcs,
-  useCreateFixerNpc,
-  getListMyFixerNpcsQueryKey,
-  getListAllFixerNpcsQueryKey,
-} from "@workspace/api-client-react";
+import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, Users, FileText, Search, Briefcase, BarChart3 } from "lucide-react";
 
 export default function FixerHub() {
-  const qc = useQueryClient();
   const { data: mine } = useListMyFixerNpcs();
   const { data: all } = useListAllFixerNpcs();
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [archetype, setArchetype] = useState("");
-  const [district, setDistrict] = useState("");
-  const [description, setDescription] = useState("");
-  const create = useCreateFixerNpc({
-    mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListMyFixerNpcsQueryKey() });
-        qc.invalidateQueries({ queryKey: getListAllFixerNpcsQueryKey() });
-        setOpen(false);
-        setName(""); setArchetype(""); setDistrict(""); setDescription("");
-      },
-    },
-  });
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
@@ -47,23 +19,20 @@ export default function FixerHub() {
           <Link href="/fixer/items" className="px-3 py-2 border border-nc-yellow text-nc-yellow hover:bg-nc-yellow hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-items"><Search className="w-3 h-3" /> INVENTORY SEARCH</Link>
         </div>
       </div>
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-display text-muted-foreground tracking-widest">FIXER NPCS</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-new-npc"><Plus className="w-4 h-4 mr-2" /> NEW NPC</Button>
-          </DialogTrigger>
-          <DialogContent className="rounded-none border-nc-cyan bg-card">
-            <DialogHeader><DialogTitle className="font-display tracking-widest">CREATE NPC</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} data-testid="input-npc-name" />
-              <Input placeholder="Archetype (e.g. Mercenary)" value={archetype} onChange={(e) => setArchetype(e.target.value)} data-testid="input-npc-archetype" />
-              <Input placeholder="District" value={district} onChange={(e) => setDistrict(e.target.value)} data-testid="input-npc-district" />
-              <Textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} data-testid="input-npc-description" />
-              <Button disabled={!name || create.isPending} onClick={() => create.mutate({ data: { name, archetype, district, description } })} className="w-full rounded-none bg-nc-cyan text-background font-display" data-testid="button-create-npc">CREATE</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-xl font-display text-muted-foreground tracking-widest">FIXER NPCS</h2>
+          <p className="font-mono text-xs text-muted-foreground/70">
+            New NPCs use the full character sheet and go through staff review. Existing roster shown below.
+          </p>
+        </div>
+        <Link
+          href="/sheets/new?type=NPC"
+          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display inline-flex items-center px-4 py-2 text-sm"
+          data-testid="button-new-npc"
+        >
+          <Plus className="w-4 h-4 mr-2" /> NEW NPC
+        </Link>
       </div>
 
       <Tabs defaultValue="mine">
