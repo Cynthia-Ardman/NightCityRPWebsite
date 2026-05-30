@@ -114,6 +114,9 @@ async function seedMission(opts: Partial<typeof missions.$inferInsert> = {}) {
       slots: opts.slots ?? 4,
       npcAnnouncedAt: opts.npcAnnouncedAt ?? null,
       autoPayProcessedAt: opts.autoPayProcessedAt ?? null,
+      // createdAt normally defaults to now(); allow tests to pin it so we can
+      // force startAt/createdAt ties and exercise the id-descending tiebreaker.
+      ...(opts.createdAt !== undefined ? { createdAt: opts.createdAt } : {}),
     })
     .returning();
   return m;
@@ -1487,6 +1490,54 @@ describe("Mission listing tabs", () => {
     for (const id of seeded) expect(allIds).toContain(id);
     // No row appears on both pages.
     expect(new Set(allIds).size).toBe(3);
+  });
+
+  it("history: ties on startAt/createdAt fall back to a stable id-descending order with no page overlap or skip", async () => {
+    const player = await createUser();
+    // Five terminal attended missions that ALL share the exact same startAt and
+    // createdAt. Without the desc(missions.id) tiebreaker the ORDER BY is
+    // non-deterministic, so limit/offset paging could duplicate or skip rows.
+    const sharedStartAt = new Date("2026-01-15T20:00:00.000Z");
+    const sharedCreatedAt = new Date("2026-01-10T12:00:00.000Z");
+    const seeded: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const m = await seedMission({
+        title: `Tie ${i}`,
+        workflowState: "posted",
+        status: "completed_paid",
+        startAt: sharedStartAt,
+        createdAt: sharedCreatedAt,
+      });
+      await seedAssignment(m.id, player.id);
+      seeded.push(m.id);
+    }
+    // Highest id first: insertion order ascending, so reverse to get expected.
+    const expectedOrder = [...seeded].sort((a, b) => b - a);
+
+    // A single full page must already be id-descending.
+    const all = await request(app)
+      .get("/api/missions/history?limit=10&offset=0")
+      .set("x-test-user", player.id);
+    expect(all.status).toBe(200);
+    const allIds = (all.body.items as Array<{ id: number }>).map((m) => m.id);
+    expect(allIds).toEqual(expectedOrder);
+
+    // Walk the same data two rows at a time; every page must be the matching
+    // slice of the deterministic order — no row repeated, none skipped.
+    const paged: number[] = [];
+    for (let offset = 0; offset < 5; offset += 2) {
+      const res = await request(app)
+        .get(`/api/missions/history?limit=2&offset=${offset}`)
+        .set("x-test-user", player.id);
+      expect(res.status).toBe(200);
+      const ids = (res.body.items as Array<{ id: number }>).map((m) => m.id);
+      expect(ids).toEqual(expectedOrder.slice(offset, offset + 2));
+      paged.push(...ids);
+    }
+    // The concatenated pages exactly reconstruct the full ordering with no
+    // duplicates and no gaps.
+    expect(paged).toEqual(expectedOrder);
+    expect(new Set(paged).size).toBe(5);
   });
 
   it("my-applications: returns the caller's own applications across all states", async () => {
