@@ -116,6 +116,42 @@ export function missionWorkflowClass(state: string): string {
   }
 }
 
+// Player application lifecycle (mission_applications.status):
+//   pending → accepted | rejected | withdrawn
+// Shared by the My Applications tab and the in-portal outcome banner.
+export const APPLICATION_STATUSES = ["pending", "accepted", "withdrawn", "rejected"] as const;
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+export function applicationStatusLabel(status: string): string {
+  switch (status) {
+    case "pending":
+      return "Pending";
+    case "accepted":
+      return "Accepted";
+    case "rejected":
+      return "Declined";
+    case "withdrawn":
+      return "Withdrawn";
+    default:
+      return status.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+}
+
+export function applicationStatusClass(status: string): string {
+  switch (status) {
+    case "pending":
+      return "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
+    case "accepted":
+      return "border-green-500 text-green-400 bg-green-500/10";
+    case "rejected":
+      return "border-destructive text-destructive bg-destructive/10";
+    case "withdrawn":
+      return "border-muted-foreground text-muted-foreground bg-muted/10";
+    default:
+      return "border-muted-foreground text-muted-foreground bg-muted/10";
+  }
+}
+
 export const JOB_TYPES = ["combat", "non_combat", "mixed"] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 

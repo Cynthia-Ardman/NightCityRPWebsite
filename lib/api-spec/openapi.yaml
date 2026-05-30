@@ -1005,6 +1005,46 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/MissionSummary" }
         "403": { description: Insufficient role. }
+  /missions/created:
+    get:
+      operationId: listCreatedMissions
+      tags: [missions]
+      summary: "Missions the caller personally runs (fixerId === caller), across all workflow states. Fixer/archivist/admin only."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MissionSummary" }
+        "403": { description: Insufficient role. }
+  /missions/history:
+    get:
+      operationId: listMissionHistory
+      tags: [missions]
+      summary: "Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MissionSummary" }
+  /missions/my-applications:
+    get:
+      operationId: listMyApplications
+      tags: [missions]
+      summary: "Every application the caller has submitted (all states), enriched with mission/fixer/character context, newest first."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MissionApplicationListItem" }
   /missions/conflicts:
     get:
       operationId: checkMissionConflicts
@@ -3848,6 +3888,24 @@ components:
         characterName: { type: ["string", "null"] }
         status: { type: string, enum: [accepted, rejected] }
         reviewedAt: { type: ["string", "null"], format: date-time }
+
+    MissionApplicationListItem:
+      type: object
+      required: [id, missionId, missionTitle, missionStatus, characterId, status, createdAt]
+      properties:
+        id: { type: integer }
+        missionId: { type: integer }
+        missionTitle: { type: string }
+        missionStatus: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
+        missionStartAt: { type: ["string", "null"], format: date-time }
+        fixerName: { type: ["string", "null"] }
+        characterId: { type: integer }
+        characterName: { type: ["string", "null"] }
+        characterPortraitUrl: { type: ["string", "null"] }
+        comment: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, accepted, withdrawn, rejected] }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
 
     ApplyToMissionInput:
       type: object

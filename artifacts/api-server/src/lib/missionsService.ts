@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { and, eq, desc, gt, lte, inArray, isNull, isNotNull, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   db,
   missions,
@@ -228,16 +229,103 @@ export async function listMissionSummaries(opts: {
 }
 
 /**
- * Missions the caller owns/oversees, for the "My Missions" board grouped by
- * workflow state. Fixers see missions they're the fixer of; admins see all.
+ * The staff-wide "All Missions" board: every mission in the system, across all
+ * workflow states. The route gates this to managers (fixers/admins) and
+ * approvers (archivists), so there is no per-fixer filter here — staff who can
+ * see this board see everything.
  */
 export async function listOwnedMissionSummaries(viewer: MissionViewer) {
-  // Admins and archivists (approvers) see every mission so they can find
-  // proposals awaiting review; plain fixers see only their own.
-  const where = viewer.isAdmin || viewer.isArchivist ? undefined : eq(missions.fixerId, viewer.id);
-  const rows = await loadMissions(where);
+  const rows = await loadMissions(undefined);
   const byMission = await loadAssignments(rows.map((r) => r.id));
   return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id));
+}
+
+/**
+ * Missions the caller personally created (fixerId === viewer.id), across all
+ * workflow states. Distinct from the all-missions board: even admins see only
+ * the missions they themselves run here, so they can shepherd their own
+ * pipeline separately from the global view.
+ */
+export async function listCreatedMissionSummaries(viewer: MissionViewer) {
+  const rows = await loadMissions(eq(missions.fixerId, viewer.id));
+  const byMission = await loadAssignments(rows.map((r) => r.id));
+  return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id));
+}
+
+// Terminal runtime statuses that put a mission in the history view.
+const HISTORY_STATUSES = new Set<string>([
+  "completed",
+  "completed_players_paid",
+  "completed_paid",
+  "cancelled",
+]);
+
+/**
+ * Completed/cancelled missions relevant to the caller, most recent first
+ * (loadMissions already orders by startAt desc). Viewer-scoped: players see
+ * missions they were assigned to; managers additionally see missions they ran.
+ * Non-managers never see non-posted missions.
+ */
+export async function listMissionHistory(viewer: MissionViewer) {
+  const mine = await db
+    .select({ missionId: missionAssignments.missionId })
+    .from(missionAssignments)
+    .where(eq(missionAssignments.userId, viewer.id));
+  const assignedIds = new Set(mine.map((m) => m.missionId));
+  const rows = (await loadMissions(undefined)).filter((m) => {
+    if (!HISTORY_STATUSES.has(m.status)) return false;
+    if (!viewer.isManager && m.workflowState !== "posted") return false;
+    return assignedIds.has(m.id) || (viewer.isManager && m.fixerId === viewer.id);
+  });
+  const byMission = await loadAssignments(rows.map((r) => r.id));
+  return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id));
+}
+
+/**
+ * Every application the caller has submitted (all states: pending / accepted /
+ * rejected / withdrawn), enriched with mission + fixer + character context,
+ * newest first. Only ever the caller's own rows — players never see anyone
+ * else's applications.
+ */
+export async function listMyApplications(userId: string) {
+  const fixerUser = alias(users, "fixer_user");
+  const rows = await db
+    .select({
+      id: missionApplications.id,
+      missionId: missionApplications.missionId,
+      missionTitle: missions.title,
+      missionStatus: missions.status,
+      missionStartAt: missions.startAt,
+      fixerName: fixerUser.username,
+      characterId: missionApplications.characterId,
+      characterName: characters.name,
+      characterPortraitUrl: characters.portraitUrl,
+      comment: missionApplications.comment,
+      status: missionApplications.status,
+      reviewedAt: missionApplications.reviewedAt,
+      createdAt: missionApplications.createdAt,
+    })
+    .from(missionApplications)
+    .innerJoin(missions, eq(missions.id, missionApplications.missionId))
+    .leftJoin(fixerUser, eq(fixerUser.id, missions.fixerId))
+    .leftJoin(characters, eq(characters.id, missionApplications.characterId))
+    .where(eq(missionApplications.userId, userId))
+    .orderBy(desc(missionApplications.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    missionId: r.missionId,
+    missionTitle: r.missionTitle,
+    missionStatus: r.missionStatus,
+    missionStartAt: iso(r.missionStartAt),
+    fixerName: r.fixerName,
+    characterId: r.characterId,
+    characterName: r.characterName,
+    characterPortraitUrl: r.characterPortraitUrl,
+    comment: r.comment,
+    status: r.status,
+    reviewedAt: iso(r.reviewedAt),
+    createdAt: r.createdAt.toISOString(),
+  }));
 }
 
 /** Missions the caller is assigned to that are not cancelled/fully closed. */

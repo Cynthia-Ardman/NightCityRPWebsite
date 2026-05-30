@@ -80,6 +80,8 @@ function Dashboard() {
         </div>
       )}
 
+      <NextMissionBanner />
+
       {/* Layout flipped: characters live on /characters, so on the dashboard they
           collapse to a compact left-rail list. Bills / attendance / system logs
           are the actual reason you visit the dashboard, so they get the wide
@@ -326,6 +328,78 @@ interface AttendInfo {
   nextWindowOpensAt: string | null;
   windowHint: string;
   history: Array<{ weekStart: string; amount: number; claimedAt: string }>;
+}
+
+// Hero banner for the caller's next upcoming ACCEPTED mission — i.e. one they
+// were assigned to (their application was accepted) that is still upcoming and
+// active (open/pending) with a future start time. Picks the soonest. Renders in
+// the viewer's local time. Hidden entirely when there is nothing upcoming.
+function NextMissionBanner() {
+  const { data: missions } = useListMyMissions();
+  const now = Date.now();
+  const next = (missions ?? [])
+    .filter(
+      (m: MissionSummary) =>
+        (m.status === "open" || m.status === "pending") &&
+        !!m.startAt &&
+        new Date(m.startAt).getTime() > now,
+    )
+    .sort(
+      (a: MissionSummary, b: MissionSummary) =>
+        new Date(a.startAt!).getTime() - new Date(b.startAt!).getTime(),
+    )[0];
+
+  if (!next) return null;
+
+  const start = new Date(next.startAt!);
+  const diffMs = start.getTime() - now;
+  const days = Math.floor(diffMs / 86_400_000);
+  const hours = Math.floor((diffMs % 86_400_000) / 3_600_000);
+  const countdown =
+    days > 0 ? `in ${days}d ${hours}h` : hours > 0 ? `in ${hours}h` : "starting soon";
+  const whenStr = `${start.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  })} · ${start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+
+  return (
+    <Link href={`/missions/${next.id}`}>
+      <Card
+        className="rounded-none border-nc-magenta/50 bg-gradient-to-r from-nc-magenta/15 via-nc-magenta/5 to-transparent hover:border-nc-magenta cursor-pointer group shadow-[0_0_20px_rgba(255,0,255,0.15)]"
+        data-testid="card-next-mission"
+      >
+        <CardContent className="p-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <Briefcase className="w-6 h-6 text-nc-magenta shrink-0" />
+            <div className="min-w-0">
+              <div className="text-[10px] font-mono tracking-widest text-nc-magenta uppercase">
+                Next Mission · {countdown}
+              </div>
+              <div className="font-display text-lg md:text-xl text-foreground truncate group-hover:text-nc-magenta transition-colors" data-testid="text-next-mission-title">
+                {next.title}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground uppercase">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" /> {whenStr}
+            </span>
+            {next.location && (
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3 h-3" /> {next.location}
+              </span>
+            )}
+            {next.myCharacterName && (
+              <span className="flex items-center gap-1 text-nc-cyan">
+                <Users className="w-3 h-3" /> {next.myCharacterName}
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
 }
 
 // Shows the signed-in player the missions they're assigned to that haven't

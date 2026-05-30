@@ -102,6 +102,7 @@ import type {
   LiveModeState,
   LiveModeUpdate,
   Me,
+  MissionApplicationListItem,
   MissionApplicationOutcome,
   MissionConfig,
   MissionConfigUpdate,
@@ -4897,6 +4898,237 @@ export function useListOwnedMissions<TData = Awaited<ReturnType<typeof listOwned
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListOwnedMissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListCreatedMissionsUrl = () => {
+
+
+
+
+  return `/api/missions/created`
+}
+
+/**
+ * @summary Missions the caller personally runs (fixerId === caller), across all workflow states. Fixer/archivist/admin only.
+ */
+export const listCreatedMissions = async ( options?: RequestInit): Promise<MissionSummary[]> => {
+
+  return customFetch<MissionSummary[]>(getListCreatedMissionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCreatedMissionsQueryKey = () => {
+    return [
+    `/api/missions/created`
+    ] as const;
+    }
+
+
+export const getListCreatedMissionsQueryOptions = <TData = Awaited<ReturnType<typeof listCreatedMissions>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCreatedMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCreatedMissionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCreatedMissions>>> = ({ signal }) => listCreatedMissions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCreatedMissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCreatedMissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listCreatedMissions>>>
+export type ListCreatedMissionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Missions the caller personally runs (fixerId === caller), across all workflow states. Fixer/archivist/admin only.
+ */
+
+export function useListCreatedMissions<TData = Awaited<ReturnType<typeof listCreatedMissions>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCreatedMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCreatedMissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListMissionHistoryUrl = () => {
+
+
+
+
+  return `/api/missions/history`
+}
+
+/**
+ * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first.
+ */
+export const listMissionHistory = async ( options?: RequestInit): Promise<MissionSummary[]> => {
+
+  return customFetch<MissionSummary[]>(getListMissionHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMissionHistoryQueryKey = () => {
+    return [
+    `/api/missions/history`
+    ] as const;
+    }
+
+
+export const getListMissionHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listMissionHistory>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMissionHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMissionHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMissionHistory>>> = ({ signal }) => listMissionHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMissionHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMissionHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listMissionHistory>>>
+export type ListMissionHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first.
+ */
+
+export function useListMissionHistory<TData = Awaited<ReturnType<typeof listMissionHistory>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMissionHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMissionHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListMyApplicationsUrl = () => {
+
+
+
+
+  return `/api/missions/my-applications`
+}
+
+/**
+ * @summary Every application the caller has submitted (all states), enriched with mission/fixer/character context, newest first.
+ */
+export const listMyApplications = async ( options?: RequestInit): Promise<MissionApplicationListItem[]> => {
+
+  return customFetch<MissionApplicationListItem[]>(getListMyApplicationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyApplicationsQueryKey = () => {
+    return [
+    `/api/missions/my-applications`
+    ] as const;
+    }
+
+
+export const getListMyApplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listMyApplications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyApplicationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyApplications>>> = ({ signal }) => listMyApplications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyApplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyApplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyApplications>>>
+export type ListMyApplicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every application the caller has submitted (all states), enriched with mission/fixer/character context, newest first.
+ */
+
+export function useListMyApplications<TData = Awaited<ReturnType<typeof listMyApplications>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyApplicationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

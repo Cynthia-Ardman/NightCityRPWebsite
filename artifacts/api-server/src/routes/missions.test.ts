@@ -1386,3 +1386,91 @@ describe("runMissionNpcAnnouncements", () => {
     expect(mockPost).not.toHaveBeenCalled();
   });
 });
+
+// ===========================================================================
+// MISSION LISTING TABS — created / history / my-applications endpoints that
+// back the role-aware Missions page.
+// ===========================================================================
+describe("Mission listing tabs", () => {
+  it("created: a fixer sees ONLY missions they personally run", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const other = await createUser({ roles: ["fixer"] });
+    const mine = await seedMission({ title: "Mine", fixerId: fixer.id, workflowState: "draft" });
+    await seedMission({ title: "Theirs", fixerId: other.id, workflowState: "draft" });
+
+    const res = await request(app).get("/api/missions/created").set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number }>).map((m) => m.id);
+    expect(ids).toEqual([mine.id]);
+  });
+
+  it("created: a plain player is forbidden", async () => {
+    const player = await createUser();
+    const res = await request(app).get("/api/missions/created").set("x-test-user", player.id);
+    expect(res.status).toBe(403);
+  });
+
+  it("history: a player sees terminal missions they attended, not active ones", async () => {
+    const player = await createUser();
+    const done = await seedMission({ title: "Done", workflowState: "posted", status: "completed_paid" });
+    const active = await seedMission({ title: "Active", workflowState: "posted", status: "open" });
+    await seedAssignment(done.id, player.id);
+    await seedAssignment(active.id, player.id);
+
+    const res = await request(app).get("/api/missions/history").set("x-test-user", player.id);
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number }>).map((m) => m.id);
+    expect(ids).toContain(done.id);
+    expect(ids).not.toContain(active.id);
+  });
+
+  it("history: a non-manager never sees non-posted missions", async () => {
+    const player = await createUser();
+    const hiddenDraft = await seedMission({ title: "Draft", workflowState: "draft", status: "cancelled" });
+    await seedAssignment(hiddenDraft.id, player.id);
+    const res = await request(app).get("/api/missions/history").set("x-test-user", player.id);
+    const ids = (res.body as Array<{ id: number }>).map((m) => m.id);
+    expect(ids).not.toContain(hiddenDraft.id);
+  });
+
+  it("history: a manager also sees terminal missions they ran", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const ran = await seedMission({ title: "Ran", fixerId: fixer.id, workflowState: "posted", status: "cancelled" });
+    const res = await request(app).get("/api/missions/history").set("x-test-user", fixer.id);
+    const ids = (res.body as Array<{ id: number }>).map((m) => m.id);
+    expect(ids).toContain(ran.id);
+  });
+
+  it("my-applications: returns the caller's own applications across all states", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await seedMission({ title: "Recruiting", workflowState: "posted", status: "open" });
+    await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, comment: "pick me" });
+
+    const res = await request(app).get("/api/missions/my-applications").set("x-test-user", player.id);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].missionTitle).toBe("Recruiting");
+    expect(res.body[0].status).toBe("pending");
+    expect(res.body[0].comment).toBe("pick me");
+    expect(res.body[0].characterId).toBe(char.id);
+  });
+
+  it("my-applications: never leaks another player's applications", async () => {
+    const player = await createUser();
+    const intruder = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await seedMission({ workflowState: "posted", status: "open" });
+    await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+
+    const res = await request(app).get("/api/missions/my-applications").set("x-test-user", intruder.id);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+});

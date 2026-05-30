@@ -1502,6 +1502,107 @@ export const ListOwnedMissionsResponse = zod.array(ListOwnedMissionsResponseItem
 
 
 /**
+ * @summary Missions the caller personally runs (fixerId === caller), across all workflow states. Fixer/archivist/admin only.
+ */
+export const ListCreatedMissionsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "descriptionPreview": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "assignedCount": zod.number(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "myCharacterId": zod.number().nullish(),
+  "myCharacterName": zod.string().nullish(),
+  "myPaymentStatus": zod.string().nullish(),
+  "players": zod.array(zod.object({
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish(),
+  "userId": zod.string().nullish()
+})).describe('Assigned characters (deduped), each clickable.'),
+  "createdAt": zod.coerce.date()
+})
+export const ListCreatedMissionsResponse = zod.array(ListCreatedMissionsResponseItem)
+
+
+/**
+ * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first.
+ */
+export const ListMissionHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "descriptionPreview": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "assignedCount": zod.number(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "myCharacterId": zod.number().nullish(),
+  "myCharacterName": zod.string().nullish(),
+  "myPaymentStatus": zod.string().nullish(),
+  "players": zod.array(zod.object({
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish(),
+  "userId": zod.string().nullish()
+})).describe('Assigned characters (deduped), each clickable.'),
+  "createdAt": zod.coerce.date()
+})
+export const ListMissionHistoryResponse = zod.array(ListMissionHistoryResponseItem)
+
+
+/**
+ * @summary Every application the caller has submitted (all states), enriched with mission/fixer/character context, newest first.
+ */
+export const ListMyApplicationsResponseItem = zod.object({
+  "id": zod.number(),
+  "missionId": zod.number(),
+  "missionTitle": zod.string(),
+  "missionStatus": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "missionStartAt": zod.coerce.date().nullish(),
+  "fixerName": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyApplicationsResponse = zod.array(ListMyApplicationsResponseItem)
+
+
+/**
  * @summary Fail-safe Discord scheduling-conflict check for the create/reschedule form. Fixer/admin only.
  */
 export const checkMissionConflictsQueryDurationMinutesDefault = 120;

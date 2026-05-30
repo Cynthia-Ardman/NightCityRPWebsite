@@ -16,6 +16,9 @@ import {
   listMissionSummaries,
   listMyMissionSummaries,
   listOwnedMissionSummaries,
+  listCreatedMissionSummaries,
+  listMissionHistory,
+  listMyApplications,
   getMissionDetail,
   payMissionActors,
   setMissionCompleted,
@@ -269,6 +272,29 @@ router.get("/missions/owned", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   res.json(await listOwnedMissionSummaries(viewerOf(req)));
+});
+
+// "My Created Missions" — missions the caller personally runs (fixerId ===
+// caller), across all workflow states. Creators/approvers only.
+router.get("/missions/created", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req) && !canApprove(req)) {
+    res.status(403).json({ error: "Fixer, archivist, or admin role required" });
+    return;
+  }
+  res.json(await listCreatedMissionSummaries(viewerOf(req)));
+});
+
+// "Mission History" — completed/cancelled missions relevant to the caller.
+// Any authenticated user; the service scopes rows to ones they attended (and,
+// for managers, ones they ran).
+router.get("/missions/history", requireAuth, async (req, res): Promise<void> => {
+  res.json(await listMissionHistory(viewerOf(req)));
+});
+
+// "My Applications" — every application the caller has submitted, all states.
+// Any authenticated player reads only their own rows.
+router.get("/missions/my-applications", requireAuth, async (req, res): Promise<void> => {
+  res.json(await listMyApplications(req.user!.id));
 });
 
 // Fail-safe Discord scheduling-conflict check for the create/reschedule form.

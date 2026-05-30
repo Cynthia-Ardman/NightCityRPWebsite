@@ -2212,6 +2212,50 @@ export interface MissionApplicationOutcome {
   reviewedAt?: string | null;
 }
 
+export type MissionApplicationListItemMissionStatus = typeof MissionApplicationListItemMissionStatus[keyof typeof MissionApplicationListItemMissionStatus];
+
+
+export const MissionApplicationListItemMissionStatus = {
+  open: 'open',
+  pending: 'pending',
+  completed: 'completed',
+  completed_players_paid: 'completed_players_paid',
+  completed_paid: 'completed_paid',
+  cancelled: 'cancelled',
+} as const;
+
+export type MissionApplicationListItemStatus = typeof MissionApplicationListItemStatus[keyof typeof MissionApplicationListItemStatus];
+
+
+export const MissionApplicationListItemStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  withdrawn: 'withdrawn',
+  rejected: 'rejected',
+} as const;
+
+export interface MissionApplicationListItem {
+  id: number;
+  missionId: number;
+  missionTitle: string;
+  missionStatus: MissionApplicationListItemMissionStatus;
+  /** @nullable */
+  missionStartAt?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  characterId: number;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  characterPortraitUrl?: string | null;
+  /** @nullable */
+  comment?: string | null;
+  status: MissionApplicationListItemStatus;
+  /** @nullable */
+  reviewedAt?: string | null;
+  createdAt: string;
+}
+
 export interface ApplyToMissionInput {
   characterId: number;
   /** @nullable */

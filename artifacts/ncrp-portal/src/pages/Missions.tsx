@@ -1,21 +1,37 @@
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMyMissions,
   useListMissions,
   useListOwnedMissions,
+  useListCreatedMissions,
+  useListMissionHistory,
+  useListMyApplications,
   useSubmitMission,
   useApproveMission,
   usePostMission,
   getListMissionsQueryKey,
   getListOwnedMissionsQueryKey,
+  getListCreatedMissionsQueryKey,
   type MissionSummary,
+  type MissionApplicationListItem,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, CalendarDays, MapPin, Plus, User, Users } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import {
+  Briefcase,
+  CalendarDays,
+  MapPin,
+  Plus,
+  User,
+  Users,
+  Clock,
+} from "lucide-react";
 import {
   missionStatusClass,
   missionStatusLabel,
@@ -23,29 +39,75 @@ import {
   missionTierLabel,
   missionWorkflowClass,
   missionWorkflowLabel,
+  applicationStatusClass,
+  applicationStatusLabel,
   WORKFLOW_STATES,
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
+
+type TabKey = "open" | "accepted" | "applications" | "created" | "history" | "all";
 
 export default function Missions() {
   const { data: me } = useAuthMe();
   const isStaff = !!me && (me.isFixer || me.isAdmin);
   const isAdmin = !!me?.isAdmin;
   const canApprove = !!me && (me.isArchivist || me.isAdmin);
-  // Archivists are approvers, not creators: they get the board to find proposals
-  // to approve, but not the Create affordance or test-mode banner.
-  const canSeeOwnedBoard = isStaff || canApprove;
+  // Archivists approve but don't create; fixers/admins both create and manage.
+  // Staff tabs (My Created / All Missions) are visible to anyone in those roles.
+  const canSeeStaffTabs = isStaff || canApprove;
 
-  const mine = useListMyMissions();
-  const owned = useListOwnedMissions({
-    query: { enabled: canSeeOwnedBoard, queryKey: getListOwnedMissionsQueryKey() },
-  });
-  // Players see only posted missions (the server enforces this); staff/approvers
-  // get their full owned board above, so the public list is player-facing only.
+  const [tab, setTab] = useState<TabKey>("open");
+
+  // --- Data sources, each scoped + enabled by role ---
+  // Open: posted + open missions anyone can apply to. The server returns only
+  // posted missions to players; staff get all, so we filter to posted here too.
   const available = useListMissions(undefined, {
-    query: { enabled: !canSeeOwnedBoard, queryKey: getListMissionsQueryKey() },
+    query: { queryKey: getListMissionsQueryKey() },
   });
+  const openMissions = useMemo(
+    () =>
+      (available.data ?? []).filter(
+        (m) => m.workflowState === "posted" && m.status === "open",
+      ),
+    [available.data],
+  );
+
+  // Accepted: missions the caller is assigned to that are still upcoming/active.
+  const mine = useListMyMissions();
+  const acceptedMissions = useMemo(
+    () =>
+      (mine.data ?? []).filter(
+        (m) => m.status === "open" || m.status === "pending",
+      ),
+    [mine.data],
+  );
+
+  // My Applications: every application the caller submitted (all states).
+  const myApps = useListMyApplications();
+
+  // My Created: missions the caller personally runs (staff only).
+  const created = useListCreatedMissions({
+    query: { enabled: isStaff, queryKey: getListCreatedMissionsQueryKey() },
+  });
+
+  // Mission History: completed/cancelled missions relevant to the caller.
+  const history = useListMissionHistory();
+
+  // All Missions: the staff-wide board (managers + approvers only).
+  const owned = useListOwnedMissions({
+    query: { enabled: canSeeStaffTabs, queryKey: getListOwnedMissionsQueryKey() },
+  });
+
+  const tabs: { key: TabKey; label: string; count?: number; show: boolean }[] = [
+    { key: "open", label: "Open", count: openMissions.length, show: true },
+    { key: "accepted", label: "Accepted", count: acceptedMissions.length, show: true },
+    { key: "applications", label: "My Applications", count: myApps.data?.length, show: true },
+    { key: "created", label: "My Created", count: created.data?.length, show: isStaff },
+    { key: "history", label: "History", count: history.data?.length, show: true },
+    { key: "all", label: "All Missions", count: owned.data?.length, show: canSeeStaffTabs },
+  ];
+  const visibleTabs = tabs.filter((t) => t.show);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
@@ -74,53 +136,224 @@ export default function Missions() {
 
       <MissionOutcomesBanner />
 
-      {canSeeOwnedBoard && (
-        <section className="space-y-4" data-testid="card-owned-missions">
-          <h2 className="font-display tracking-widest text-lg text-nc-cyan">
-            MY MISSIONS{" "}
-            <span className="text-xs text-muted-foreground font-mono">
-              ({isAdmin || canApprove ? "all missions" : "missions you run"})
-            </span>
-          </h2>
-          {owned.isLoading ? (
-            <div className="font-mono text-nc-cyan animate-pulse">Loading...</div>
-          ) : !owned.data || owned.data.length === 0 ? (
-            <div className="font-mono text-muted-foreground italic">
-              No missions yet. Use “Create Mission” to draft one.
-            </div>
-          ) : (
-            <OwnedMissionBoard rows={owned.data} isAdmin={isAdmin} canApprove={canApprove} canManage={isStaff} />
-          )}
-        </section>
-      )}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="space-y-6">
+        <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">
+          {visibleTabs.map((t) => (
+            <TabsTrigger
+              key={t.key}
+              value={t.key}
+              className="rounded-none font-display tracking-widest text-xs data-[state=active]:bg-nc-magenta data-[state=active]:text-background"
+              data-testid={`tab-${t.key}`}
+            >
+              {t.label.toUpperCase()}
+              {typeof t.count === "number" && (
+                <span className="ml-1.5 opacity-70">({t.count})</span>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      <section className="space-y-4">
-        <h2 className="font-display tracking-widest text-lg">
-          {isStaff ? "ASSIGNED TO YOU" : "YOUR MISSIONS"}
-        </h2>
-        {mine.isLoading ? (
-          <div className="font-mono text-nc-cyan animate-pulse">Loading...</div>
-        ) : !mine.data || mine.data.length === 0 ? (
-          <div className="font-mono text-muted-foreground italic">No missions yet.</div>
-        ) : (
-          <MissionCardList rows={mine.data} isAdmin={isAdmin} />
+        <TabsContent value="open" data-testid="tabpanel-open">
+          <ListSection
+            isLoading={available.isLoading}
+            isEmpty={openMissions.length === 0}
+            emptyText="No open missions right now. Check back soon."
+          >
+            <MissionCardList rows={openMissions} isAdmin={isAdmin} showApply />
+          </ListSection>
+        </TabsContent>
+
+        <TabsContent value="accepted" data-testid="tabpanel-accepted">
+          <ListSection
+            isLoading={mine.isLoading}
+            isEmpty={acceptedMissions.length === 0}
+            emptyText="You're not on any upcoming missions yet. Apply to one from the Open tab."
+          >
+            <MissionCardList rows={acceptedMissions} isAdmin={isAdmin} />
+          </ListSection>
+        </TabsContent>
+
+        <TabsContent value="applications" data-testid="tabpanel-applications">
+          <ListSection
+            isLoading={myApps.isLoading}
+            isEmpty={(myApps.data?.length ?? 0) === 0}
+            emptyText="You haven't applied to any missions yet."
+          >
+            <MyApplicationsList rows={myApps.data ?? []} />
+          </ListSection>
+        </TabsContent>
+
+        {isStaff && (
+          <TabsContent value="created" data-testid="tabpanel-created">
+            <ListSection
+              isLoading={created.isLoading}
+              isEmpty={(created.data?.length ?? 0) === 0}
+              emptyText="No missions yet. Use “Create Mission” to draft one."
+            >
+              <OwnedMissionBoard
+                rows={created.data ?? []}
+                isAdmin={isAdmin}
+                canApprove={canApprove}
+                canManage={isStaff}
+              />
+            </ListSection>
+          </TabsContent>
         )}
-      </section>
 
-      {!isStaff && (
-        <section className="space-y-4" data-testid="card-available-missions">
-          <h2 className="font-display tracking-widest text-lg text-nc-cyan">AVAILABLE MISSIONS</h2>
-          {available.isLoading ? (
-            <div className="font-mono text-nc-cyan animate-pulse">Loading...</div>
-          ) : !available.data || available.data.length === 0 ? (
-            <div className="font-mono text-muted-foreground italic">
-              No open missions right now. Check back soon.
-            </div>
-          ) : (
-            <MissionCardList rows={available.data} isAdmin={isAdmin} showApply />
-          )}
-        </section>
-      )}
+        <TabsContent value="history" data-testid="tabpanel-history">
+          <ListSection
+            isLoading={history.isLoading}
+            isEmpty={(history.data?.length ?? 0) === 0}
+            emptyText="No completed missions in your history yet."
+          >
+            <MissionCardList rows={history.data ?? []} isAdmin={isAdmin} />
+          </ListSection>
+        </TabsContent>
+
+        {canSeeStaffTabs && (
+          <TabsContent value="all" data-testid="tabpanel-all">
+            <AllMissionsTab
+              rows={owned.data ?? []}
+              isLoading={owned.isLoading}
+              isAdmin={isAdmin}
+              canApprove={canApprove}
+              canManage={isStaff}
+            />
+          </TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+}
+
+function ListSection({
+  isLoading,
+  isEmpty,
+  emptyText,
+  children,
+}: {
+  isLoading: boolean;
+  isEmpty: boolean;
+  emptyText: string;
+  children: React.ReactNode;
+}) {
+  if (isLoading) {
+    return <div className="font-mono text-nc-cyan animate-pulse">Loading...</div>;
+  }
+  if (isEmpty) {
+    return <div className="font-mono text-muted-foreground italic">{emptyText}</div>;
+  }
+  return <>{children}</>;
+}
+
+function AllMissionsTab({
+  rows,
+  isLoading,
+  isAdmin,
+  canApprove,
+  canManage,
+}: {
+  rows: MissionSummary[];
+  isLoading: boolean;
+  isAdmin: boolean;
+  canApprove: boolean;
+  canManage: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [workflow, setWorkflow] = useState("");
+  const [tier, setTier] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((m) => {
+      if (status && m.status !== status) return false;
+      if (workflow && m.workflowState !== workflow) return false;
+      if (tier && String(m.tier) !== tier) return false;
+      if (q) {
+        const hay = `${m.title} ${m.fixerName ?? ""} ${m.location ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, search, status, workflow, tier]);
+
+  const selectClass =
+    "rounded-none bg-background border border-border font-mono text-xs px-2 py-1 text-foreground";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search title, fixer, location…"
+          className="rounded-none font-mono text-xs h-8 max-w-xs"
+          data-testid="input-all-search"
+        />
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className={selectClass}
+          data-testid="select-all-status"
+        >
+          <option value="">All statuses</option>
+          <option value="open">Open</option>
+          <option value="pending">Pending</option>
+          <option value="completed">Completed</option>
+          <option value="completed_players_paid">Players Paid</option>
+          <option value="completed_paid">Fully Paid</option>
+          <option value="cancelled">Canceled</option>
+        </select>
+        <select
+          value={workflow}
+          onChange={(e) => setWorkflow(e.target.value)}
+          className={selectClass}
+          data-testid="select-all-workflow"
+        >
+          <option value="">All stages</option>
+          {WORKFLOW_STATES.map((w) => (
+            <option key={w} value={w}>
+              {missionWorkflowLabel(w)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={tier}
+          onChange={(e) => setTier(e.target.value)}
+          className={selectClass}
+          data-testid="select-all-tier"
+        >
+          <option value="">All tiers</option>
+          {[1, 2, 3, 4].map((t) => (
+            <option key={t} value={String(t)}>
+              Tier {t}
+            </option>
+          ))}
+        </select>
+        <span className="font-mono text-xs text-muted-foreground" data-testid="text-all-count">
+          {filtered.length} / {rows.length}
+        </span>
+      </div>
+
+      <ListSection
+        isLoading={isLoading}
+        isEmpty={filtered.length === 0}
+        emptyText="No missions match these filters."
+      >
+        <div className="space-y-5">
+          {filtered.map((m) => (
+            <MissionCard
+              key={m.id}
+              m={m}
+              isAdmin={isAdmin}
+              canApprove={canApprove}
+              canManage={canManage}
+              showWorkflow
+            />
+          ))}
+        </div>
+      </ListSection>
     </div>
   );
 }
@@ -180,6 +413,100 @@ function MissionCardList({
         <MissionCard key={m.id} m={m} isAdmin={isAdmin} showApply={showApply} />
       ))}
     </div>
+  );
+}
+
+function MyApplicationsList({ rows }: { rows: MissionApplicationListItem[] }) {
+  return (
+    <div className="space-y-4">
+      {rows.map((a) => (
+        <MyApplicationCard key={a.id} a={a} />
+      ))}
+    </div>
+  );
+}
+
+function MyApplicationCard({ a }: { a: MissionApplicationListItem }) {
+  const when = a.missionStartAt ? new Date(a.missionStartAt) : null;
+  const reviewed = a.reviewedAt ? new Date(a.reviewedAt) : null;
+  return (
+    <Card
+      className="rounded-none border-border bg-card/50 hover:border-nc-cyan/50 transition-colors"
+      data-testid={`row-application-${a.id}`}
+    >
+      <CardHeader className="space-y-3">
+        <Link href={`/missions/${a.missionId}`}>
+          <CardTitle className="font-display text-xl md:text-2xl leading-tight text-foreground hover:text-nc-cyan transition-colors cursor-pointer break-words">
+            {a.missionTitle}
+          </CardTitle>
+        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-block font-display font-bold tracking-widest text-sm px-3 py-1 border rounded-none uppercase ${applicationStatusClass(
+              a.status,
+            )}`}
+            data-testid={`application-status-${a.id}`}
+          >
+            {applicationStatusLabel(a.status)}
+          </span>
+          <span
+            className={`inline-block font-display font-bold tracking-widest text-xs px-2 py-1 border rounded-none uppercase ${missionStatusClass(
+              a.missionStatus,
+            )}`}
+          >
+            Mission: {missionStatusLabel(a.missionStatus)}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 shrink-0" />
+            {when ? (
+              <span>
+                {when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}{" "}
+                {when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            ) : (
+              <span className="italic">Not scheduled</span>
+            )}
+          </span>
+          <span className="flex items-center gap-2">
+            <User className="w-4 h-4 shrink-0" />
+            Fixer: <span className="text-nc-magenta">{a.fixerName ?? "—"}</span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Users className="w-4 h-4 shrink-0" />
+          <span className="uppercase text-xs tracking-widest">Character:</span>
+          {a.characterId ? (
+            <Link
+              href={`/characters/${a.characterId}`}
+              className="text-nc-cyan hover:underline"
+              data-testid={`link-app-character-${a.characterId}`}
+            >
+              {a.characterName ?? "—"}
+            </Link>
+          ) : (
+            <span>{a.characterName ?? "—"}</span>
+          )}
+        </div>
+
+        {a.comment && (
+          <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed border-l-2 border-border pl-3">
+            {a.comment}
+          </p>
+        )}
+
+        {reviewed && (
+          <div className="text-xs text-muted-foreground/80 uppercase tracking-widest">
+            Reviewed {reviewed.toLocaleDateString()}{" "}
+            {reviewed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -295,7 +622,7 @@ function MissionCard({
           <PlayerLinks m={m} />
         </div>
 
-        {/* 9. Workflow actions (owned board) or Apply (available list) */}
+        {/* 9. Workflow actions (owned board) or Apply (open list) */}
         {showWorkflow && <WorkflowActions m={m} canApprove={!!canApprove} canManage={!!canManage} />}
         {showApply && (
           <div className="pt-1">
@@ -327,6 +654,7 @@ function WorkflowActions({
   const qc = useQueryClient();
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListOwnedMissionsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListCreatedMissionsQueryKey() });
     qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
   };
   const submit = useSubmitMission({ mutation: { onSuccess: invalidate } });
