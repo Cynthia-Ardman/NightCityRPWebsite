@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import MarkdownEditor from "@/components/MarkdownEditor";
+import ImageEditor from "@/components/ImageEditor";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
@@ -168,6 +169,13 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const [gear, setGear] = useState<string[]>(
     Array.isArray(init.gear) && init.gear.length > 0 ? init.gear.map(String) : [""],
   );
+  const [portraitUrls, setPortraitUrls] = useState<string[]>(
+    Array.isArray(init.portraitUrls) ? init.portraitUrls.map(String) : [],
+  );
+  const [profileUrl, setProfileUrl] = useState<string>(init.profileUrl ?? "");
+  const [statsImageUrls, setStatsImageUrls] = useState<string[]>(
+    Array.isArray(init.statsImageUrls) ? init.statsImageUrls.map(String) : [],
+  );
 
   // Non-fixers may only create PCs — force PC if a stale NPC value slips in.
   // Wait for auth to resolve first so a fixer's NPC draft is never downgraded
@@ -223,6 +231,9 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     })),
     cyberwarePointsSpent: pointsSpent,
     gear: gear.filter(Boolean),
+    portraitUrls: portraitUrls.filter((u) => u.trim()),
+    profileUrl: profileUrl.trim() || undefined,
+    statsImageUrls: statsImageUrls.filter((u) => u.trim()),
   });
 
   const createMut = useSubmitSheet();
@@ -284,7 +295,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, notes, skills, chrome, gear],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, notes, skills, chrome, gear, portraitUrls, profileUrl, statsImageUrls],
   );
 
   useEffect(() => {
@@ -329,6 +340,15 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     }
     if (!fullName.trim()) {
       toast({ title: "Name required", variant: "destructive" });
+      return;
+    }
+    // Portrait + stats images are required to submit (drafts can omit them).
+    if (portraitUrls.filter((u) => u.trim()).length === 0) {
+      toast({ title: "Portrait required", description: "Upload at least one portrait image before submitting.", variant: "destructive" });
+      return;
+    }
+    if (statsImageUrls.filter((u) => u.trim()).length === 0) {
+      toast({ title: "Stats image required", description: "Upload at least one stats screenshot before submitting.", variant: "destructive" });
       return;
     }
     try {
@@ -591,6 +611,30 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">PORTRAIT &amp; STATS</CardTitle></CardHeader>
+        <CardContent className="space-y-6 font-mono">
+          <p className="text-xs text-muted-foreground">
+            A portrait and a stats screenshot are required to submit for review. Drafts can be saved without them.
+          </p>
+          <ImageEditor
+            title="Portrait *"
+            urls={portraitUrls}
+            onChange={setPortraitUrls}
+            profileUrl={profileUrl}
+            onSetProfile={setProfileUrl}
+            allowProfile
+            testIdPrefix="sheet-portrait"
+          />
+          <ImageEditor
+            title="Stats Screenshot *"
+            urls={statsImageUrls}
+            onChange={setStatsImageUrls}
+            testIdPrefix="sheet-stats"
+          />
         </CardContent>
       </Card>
 

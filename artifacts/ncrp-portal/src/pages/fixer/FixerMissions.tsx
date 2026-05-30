@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Briefcase, X } from "lucide-react";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import SingleImageUpload from "@/components/SingleImageUpload";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import {
   MISSION_STATUSES,
@@ -458,14 +459,15 @@ function MissionForm({
             />
           </div>
           <div className="md:col-span-6">
-            <Label className="text-xs">IMAGE URL</Label>
-            <Input
-              value={v.imageUrl}
-              onChange={(e) => set("imageUrl", e.target.value)}
-              placeholder="/api/storage/objects/..."
-              className="rounded-none"
-              data-testid="input-mission-image"
-            />
+            <Label className="text-xs">IMAGE</Label>
+            <div className="mt-1">
+              <SingleImageUpload
+                value={v.imageUrl}
+                onChange={(url) => set("imageUrl", url)}
+                testIdPrefix="mission"
+                alt="mission"
+              />
+            </div>
           </div>
 
           <div className="md:col-span-3">

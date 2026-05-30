@@ -499,6 +499,8 @@ export const customRequests = pgTable("custom_requests", {
   // Player-facing label: location/address (property) or item name (gun/cyberware).
   title: text("title").notNull(),
   description: text("description"),
+  // Optional reference image the player attaches at submit time.
+  imageUrl: text("image_url"),
   // Optional type-specific payload captured at submit time.
   details: jsonb("details"),
   status: text("status").notNull().default("pending"),

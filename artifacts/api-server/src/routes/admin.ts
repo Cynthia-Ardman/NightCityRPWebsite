@@ -300,7 +300,14 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
 });
 
 router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> => {
-  const { characterId, amount, memo } = req.body ?? {};
+  const { characterId, amount, memo, reason } = req.body ?? {};
+  // The portal sends `reason`; older callers may send `memo`. Accept either.
+  const note =
+    typeof memo === "string" && memo.trim()
+      ? memo.trim()
+      : typeof reason === "string" && reason.trim()
+        ? reason.trim()
+        : null;
   if (!characterId || typeof amount !== "number") {
     res.status(400).json({ error: "characterId and amount required" });
     return;
@@ -320,7 +327,7 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
     return;
   }
   // UB is authoritative — do not write a local ledger entry unless UB write succeeds.
-  const ubResult = await patchBalance(owner.discordId, { cash: amount, reason: memo ?? "Admin adjustment" });
+  const ubResult = await patchBalance(owner.discordId, { cash: amount, reason: note ?? "Admin adjustment" });
   if (!ubResult) {
     res.status(502).json({ error: "Wallet provider unavailable or rejected adjustment" });
     return;
@@ -329,7 +336,7 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
     characterId,
     amount,
     kind: "admin",
-    memo: memo ?? null,
+    memo: note,
     counterpartyName: req.user!.username,
   });
   await recordAudit({
@@ -339,7 +346,7 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
     targetType: "character",
     targetId: characterId,
     message: `${req.user!.username} adjusted ${c.name} by ${amount >= 0 ? "+" : ""}${amount}`,
-    after: { amount, memo: memo ?? null, ownerDiscordId: owner.discordId },
+    after: { amount, memo: note, ownerDiscordId: owner.discordId },
   });
   res.json({ success: true });
 });

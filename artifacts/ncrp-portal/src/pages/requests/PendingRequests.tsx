@@ -89,6 +89,23 @@ function MiscRequestsTab() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col flex-1 gap-4">
+              {r.imageUrl ? (
+                <a
+                  href={r.imageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block border border-border bg-background"
+                  data-testid={`link-misc-image-${r.id}`}
+                >
+                  <img
+                    src={r.imageUrl}
+                    alt={r.title}
+                    className="w-full h-40 object-contain"
+                    loading="lazy"
+                    data-testid={`img-misc-request-${r.id}`}
+                  />
+                </a>
+              ) : null}
               {r.description ? (
                 <p className="font-mono text-sm text-muted-foreground whitespace-pre-wrap">{r.description}</p>
               ) : (

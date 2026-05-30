@@ -12,4 +12,6 @@ export interface CustomRequestInput {
   characterId: number;
   title: string;
   description?: string;
+  /** Optional reference image object path. */
+  imageUrl?: string;
 }

@@ -63,5 +63,15 @@ export function validateSheetFields(data: unknown, roles: string[]): string | nu
     return "Missing required field: gear/equipment (at least one entry)";
   }
 
+  // Portrait and stats images are required to submit (but not to save a draft).
+  const portraits = d.portraitUrls;
+  if (!Array.isArray(portraits) || portraits.filter((u) => typeof u === "string" && u.trim()).length === 0) {
+    return "Missing required field: portrait image (at least one)";
+  }
+  const stats = d.statsImageUrls;
+  if (!Array.isArray(stats) || stats.filter((u) => typeof u === "string" && u.trim()).length === 0) {
+    return "Missing required field: stats image (at least one)";
+  }
+
   return null;
 }

@@ -20,6 +20,11 @@ export interface CustomRequest {
   title: string;
   /** @nullable */
   description?: string | null;
+  /**
+     * Optional reference image the player attached.
+     * @nullable
+     */
+  imageUrl?: string | null;
   /** Optional type-specific payload captured at submit time. */
   details?: unknown | null;
   status: CustomRequestStatus;

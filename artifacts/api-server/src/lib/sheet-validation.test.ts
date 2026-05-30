@@ -15,6 +15,8 @@ function validSheet(overrides: Record<string, unknown> = {}): Record<string, unk
     age: 27,
     skills: "Handguns, Stealth, Netrunning",
     gear: ["Pistol"],
+    portraitUrls: ["/api/storage/objects/portrait-1"],
+    statsImageUrls: ["/api/storage/objects/stats-1"],
     ...overrides,
   };
 }
@@ -187,5 +189,44 @@ describe("validateSheetFields - gear", () => {
 
   it("accepts a gear array with at least one non-empty entry", () => {
     expect(validateSheetFields(validSheet({ gear: ["", "Katana"] }), [])).toBeNull();
+  });
+});
+
+describe("validateSheetFields - portrait & stats images", () => {
+  it("rejects a missing portrait list", () => {
+    const d = validSheet();
+    delete d.portraitUrls;
+    expect(validateSheetFields(d, [])).toBe(
+      "Missing required field: portrait image (at least one)",
+    );
+  });
+
+  it("rejects a portrait list with only blank entries", () => {
+    expect(validateSheetFields(validSheet({ portraitUrls: ["", "   "] }), [])).toBe(
+      "Missing required field: portrait image (at least one)",
+    );
+  });
+
+  it("rejects a missing stats list", () => {
+    const d = validSheet();
+    delete d.statsImageUrls;
+    expect(validateSheetFields(d, [])).toBe(
+      "Missing required field: stats image (at least one)",
+    );
+  });
+
+  it("rejects a stats list with only blank entries", () => {
+    expect(validateSheetFields(validSheet({ statsImageUrls: [] }), [])).toBe(
+      "Missing required field: stats image (at least one)",
+    );
+  });
+
+  it("accepts portrait and stats lists with at least one non-empty entry", () => {
+    expect(
+      validateSheetFields(
+        validSheet({ portraitUrls: ["", "/api/storage/objects/p"], statsImageUrls: ["/api/storage/objects/s"] }),
+        [],
+      ),
+    ).toBeNull();
   });
 });

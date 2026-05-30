@@ -50,6 +50,7 @@ type RequestRow = {
   requestedByName: string | null;
   title: string;
   description: string | null;
+  imageUrl: string | null;
   details: unknown;
   status: string;
   reviewedById: string | null;
@@ -69,6 +70,7 @@ function shape(row: RequestRow): Record<string, unknown> {
     requestedByName: row.requestedByName,
     title: row.title,
     description: row.description,
+    imageUrl: row.imageUrl ?? null,
     details: row.details ?? null,
     status: row.status,
     reviewedById: row.reviewedById,
@@ -90,6 +92,7 @@ async function selectWhere(predicate: ReturnType<typeof and> | ReturnType<typeof
       requestedByName: users.username,
       title: customRequests.title,
       description: customRequests.description,
+      imageUrl: customRequests.imageUrl,
       details: customRequests.details,
       status: customRequests.status,
       reviewedById: customRequests.reviewedById,
@@ -137,7 +140,7 @@ async function notifyRequesterOfDecision(row: RequestRow, summary: string | null
 // Submit a custom request. Player picks one of their own characters and types
 // a free-text title (location / item name) and description.
 router.post("/requests", requireAuth, async (req, res): Promise<void> => {
-  const { type, characterId, title, description } = req.body ?? {};
+  const { type, characterId, title, description, imageUrl } = req.body ?? {};
   const reqType = String(type) as RequestType;
   if (!REQUEST_TYPES.includes(reqType)) {
     res.status(400).json({ error: `type must be one of: ${REQUEST_TYPES.join(", ")}` });
@@ -170,6 +173,7 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
       requestedById: req.user!.id,
       title: String(title).trim(),
       description: typeof description === "string" && description.trim() ? description.trim() : null,
+      imageUrl: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
     })
     .returning();
   const [row] = await selectWhere(eq(customRequests.id, inserted.id));

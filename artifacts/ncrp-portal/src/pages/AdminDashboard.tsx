@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useListHousingRequests, useApproveHousingRequest, useRejectHousingRequest, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminScanVrchatLinks, type LiveModeUpdate, type VrchatScanResult, getListHousingRequestsQueryKey, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminScanVrchatLinks, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -58,14 +58,13 @@ export default function AdminDashboard() {
       )}
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-8 max-w-6xl w-full">
+        <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-7 max-w-6xl w-full">
           <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
           <TabsTrigger value="characters" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-chars">Characters</TabsTrigger>
           <TabsTrigger value="wallet" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-wallet">Wallets</TabsTrigger>
           <TabsTrigger value="jobs" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-jobs">Cron Jobs</TabsTrigger>
           <TabsTrigger value="audit" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-audit">Audit Log</TabsTrigger>
           <TabsTrigger value="flags" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-flags">System Flags</TabsTrigger>
-          <TabsTrigger value="housing" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-housing-requests">Housing</TabsTrigger>
           <TabsTrigger value="maintenance" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-maintenance">Maintenance</TabsTrigger>
         </TabsList>
 
@@ -87,9 +86,6 @@ export default function AdminDashboard() {
           </TabsContent>
           <TabsContent value="flags">
             <FlagsTab />
-          </TabsContent>
-          <TabsContent value="housing">
-            <HousingRequestsTab />
           </TabsContent>
           <TabsContent value="maintenance">
             <MaintenanceTab />
@@ -641,8 +637,9 @@ function CharactersTab() {
   );
 }
 
+// characterId is supplied from the CharacterPicker (see onSubmit), not a form
+// field — validating it here would silently block submit since it never syncs.
 const walletSchema = z.object({
-  characterId: z.coerce.number().min(1, "Character ID is required"),
   amount: z.coerce.number(),
   reason: z.string().min(1, "Reason is required"),
 });
@@ -655,7 +652,6 @@ function WalletTab() {
   const form = useForm<z.infer<typeof walletSchema>>({
     resolver: zodResolver(walletSchema),
     defaultValues: {
-      characterId: 0,
       amount: 0,
       reason: "",
     },
@@ -1035,88 +1031,6 @@ function JobsTab() {
               </TableBody>
             </Table>
           </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function HousingRequestsTab() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const { data, isLoading } = useListHousingRequests({ status: "pending" });
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListHousingRequestsQueryKey({ status: "pending" }) });
-  const approve = useApproveHousingRequest({
-    mutation: {
-      onSuccess: () => { toast({ title: "Lease approved", description: "Housing row created." }); invalidate(); },
-      onError: (err: any) => toast({ title: "Approve failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
-    },
-  });
-  const reject = useRejectHousingRequest({
-    mutation: {
-      onSuccess: () => { toast({ title: "Request rejected" }); invalidate(); },
-      onError: (err: any) => toast({ title: "Reject failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
-    },
-  });
-  const rows = data ?? [];
-  return (
-    <Card className="rounded-none border-border bg-card/50" data-testid="card-housing-requests">
-      <CardHeader>
-        <CardTitle className="font-display tracking-widest text-nc-cyan">PENDING HOUSING REQUESTS</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="font-mono text-muted-foreground animate-pulse">Loading...</div>
-        ) : rows.length === 0 ? (
-          <div className="font-mono text-muted-foreground italic">No pending requests.</div>
-        ) : (
-          <ul className="space-y-2 font-mono text-sm">
-            {rows.map((r) => (
-              <li
-                key={r.id}
-                className="border border-border/40 p-3 flex flex-wrap items-center gap-3 justify-between"
-                data-testid={`row-housing-request-${r.id}`}
-              >
-                <div className="flex-1 min-w-[260px]">
-                  <div className="text-foreground">
-                    <span className="text-nc-cyan">{r.characterName}</span> → {r.listingName}
-                    {r.district ? <span className="text-muted-foreground"> · {r.district}</span> : null}
-                    <Badge variant="outline" className={`ml-2 rounded-none text-[10px] px-1 py-0 ${r.kind === "business" ? "border-nc-magenta text-nc-magenta" : "border-nc-cyan/40 text-nc-cyan"}`}>
-                      {r.kind.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    <span className="text-nc-yellow">€${r.monthlyRent.toLocaleString()}/mo</span>
-                    {" · "}requested by {r.requestedByName ?? r.requestedById}
-                    {" · "}{new Date(r.createdAt).toLocaleString()}
-                  </div>
-                  {r.notes ? <div className="text-xs text-muted-foreground italic mt-1">"{r.notes}"</div> : null}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => approve.mutate({ id: r.id, data: {} })}
-                    disabled={approve.isPending || reject.isPending}
-                    className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display"
-                    data-testid={`button-approve-housing-${r.id}`}
-                  >APPROVE</Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const note = prompt("Reason for rejecting? (optional)") ?? "";
-                      reject.mutate({ id: r.id, data: { reviewerNote: note || undefined } });
-                    }}
-                    disabled={approve.isPending || reject.isPending}
-                    className="rounded-none border-destructive text-destructive hover:bg-destructive hover:text-background font-display"
-                    data-testid={`button-reject-housing-${r.id}`}
-                  >REJECT</Button>
-                </div>
-              </li>
-            ))}
-          </ul>
         )}
       </CardContent>
     </Card>

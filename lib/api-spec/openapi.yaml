@@ -3419,6 +3419,7 @@ components:
         requestedByName: { type: ["string", "null"] }
         title: { type: string, description: "Player label: location/address (property) or item name (gun/cyberware)." }
         description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"], description: "Optional reference image the player attached." }
         details: { description: "Optional type-specific payload captured at submit time.", nullable: true }
         status: { type: string, enum: [pending, approved, rejected] }
         reviewedById: { type: ["string", "null"] }
@@ -3435,6 +3436,7 @@ components:
         characterId: { type: integer }
         title: { type: string }
         description: { type: string }
+        imageUrl: { type: string, description: "Optional reference image object path." }
 
     CustomRequestApproval:
       type: object

@@ -5137,6 +5137,7 @@ export const ListCustomRequestsResponseItem = zod.object({
   "requestedByName": zod.string().nullish(),
   "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
   "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewedById": zod.string().nullish(),
@@ -5155,7 +5156,8 @@ export const SubmitCustomRequestBody = zod.object({
   "type": zod.enum(['property', 'gun', 'cyberware']),
   "characterId": zod.number(),
   "title": zod.string(),
-  "description": zod.string().optional()
+  "description": zod.string().optional(),
+  "imageUrl": zod.string().optional().describe('Optional reference image object path.')
 })
 
 
@@ -5175,6 +5177,7 @@ export const ListMyCustomRequestsResponseItem = zod.object({
   "requestedByName": zod.string().nullish(),
   "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
   "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewedById": zod.string().nullish(),
@@ -5215,6 +5218,7 @@ export const ApproveCustomRequestResponse = zod.object({
   "requestedByName": zod.string().nullish(),
   "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
   "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewedById": zod.string().nullish(),
@@ -5245,6 +5249,7 @@ export const RejectCustomRequestResponse = zod.object({
   "requestedByName": zod.string().nullish(),
   "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
   "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewedById": zod.string().nullish(),

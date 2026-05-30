@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
+import SingleImageUpload from "@/components/SingleImageUpload";
 
 type RequestType = "property" | "gun" | "cyberware";
 
@@ -54,6 +55,7 @@ export default function CatalogRequestSection({
   const [characterId, setCharacterId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
 
   // Only the player's own, non-archived PCs can hold a request target.
   const ownChars = (characters ?? []).filter((c) => !c.archived);
@@ -67,6 +69,7 @@ export default function CatalogRequestSection({
         setTitle("");
         setDescription("");
         setCharacterId("");
+        setImageUrl("");
       },
       onError: (err) => {
         toast({
@@ -164,6 +167,10 @@ export default function CatalogRequestSection({
                 data-testid={`input-description-${type}`}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Reference Image (optional)</Label>
+              <SingleImageUpload value={imageUrl} onChange={setImageUrl} testIdPrefix={`request-${type}`} alt="reference" />
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -183,6 +190,7 @@ export default function CatalogRequestSection({
                     characterId: parseInt(characterId, 10),
                     title: title.trim(),
                     description: description.trim() || undefined,
+                    imageUrl: imageUrl || undefined,
                   },
                 })
               }
