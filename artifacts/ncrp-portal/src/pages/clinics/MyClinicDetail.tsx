@@ -5,6 +5,7 @@ import {
   useGetRipperdoc,
   useUpdateRipperdoc,
   useAddRipperdocEmployee,
+  useUpdateRipperdocEmployee,
   useRemoveRipperdocEmployee,
   useAddRipperdocStock,
   useRemoveRipperdocStock,
@@ -21,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
 import SellStockDialog from "@/components/SellStockDialog";
+import PurchaseStockDialog from "@/components/PurchaseStockDialog";
 import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
 import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
@@ -37,6 +39,7 @@ export default function MyClinicDetail() {
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetRipperdocQueryKey(rid) });
   const update = useUpdateRipperdoc({ mutation: { onSuccess: invalidate } });
   const addEmp = useAddRipperdocEmployee({ mutation: { onSuccess: invalidate } });
+  const updateEmp = useUpdateRipperdocEmployee({ mutation: { onSuccess: invalidate } });
   const removeEmp = useRemoveRipperdocEmployee({ mutation: { onSuccess: invalidate } });
   const addStock = useAddRipperdocStock({ mutation: { onSuccess: invalidate } });
   const removeStock = useRemoveRipperdocStock({ mutation: { onSuccess: invalidate } });
@@ -50,11 +53,13 @@ export default function MyClinicDetail() {
 
   const [empChar, setEmpChar] = useState<CharacterPickerValue>(null);
   const [empRole, setEmpRole] = useState("doc");
+  const [empCommission, setEmpCommission] = useState(0);
   const [stockName, setStockName] = useState("");
   const [stockCategory, setStockCategory] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
   const [restockOpen, setRestockOpen] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
   const { data: me } = useAuthMe();
   const canRestock = !!me && (me.isFixer || me.isAdmin);
 
@@ -101,20 +106,47 @@ export default function MyClinicDetail() {
         <CardHeader><CardTitle className="font-display tracking-widest">DOCS</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {data.employees.map((e) => (
-            <div key={e.id} className="flex justify-between border-b border-border/30 py-2 font-mono text-sm">
+            <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 py-2 font-mono text-sm" data-testid={`row-doc-${e.id}`}>
               <span>{e.name} <span className="text-nc-magenta uppercase ml-2">{e.role}</span></span>
-              <Button size="icon" variant="ghost" onClick={() => removeEmp.mutate({ id: rid, employeeId: e.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs uppercase">Commission</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  defaultValue={e.commissionPct}
+                  onBlur={(ev) => {
+                    const pct = Math.max(0, Math.min(100, Number(ev.target.value)));
+                    if (pct !== e.commissionPct) updateEmp.mutate({ id: rid, employeeId: e.id, data: { commissionPct: pct } });
+                  }}
+                  className="w-20 h-8"
+                  data-testid={`input-doc-commission-${e.id}`}
+                />
+                <span className="text-muted-foreground text-xs">%</span>
+                <Button size="icon" variant="ghost" onClick={() => removeEmp.mutate({ id: rid, employeeId: e.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+              </div>
             </div>
           ))}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-3">
-            <div className="md:col-span-7"><CharacterPicker value={empChar} onChange={setEmpChar} testId="input-add-doc-id" /></div>
+            <div className="md:col-span-5"><CharacterPicker value={empChar} onChange={setEmpChar} testId="input-add-doc-id" /></div>
             <Input className="md:col-span-3" placeholder="Role" value={empRole} onChange={(e) => setEmpRole(e.target.value)} data-testid="input-add-doc-role" />
+            <Input
+              className="md:col-span-2"
+              type="number"
+              min={0}
+              max={100}
+              placeholder="Comm %"
+              value={empCommission || ""}
+              onChange={(e) => setEmpCommission(Number(e.target.value))}
+              data-testid="input-add-doc-commission"
+            />
             <Button
               disabled={!empChar?.id}
               onClick={() => {
                 if (!empChar?.id) return;
-                addEmp.mutate({ id: rid, data: { characterId: empChar.id, role: empRole } });
+                addEmp.mutate({ id: rid, data: { characterId: empChar.id, role: empRole, commissionPct: Math.max(0, Math.min(100, empCommission)) } });
                 setEmpChar(null);
+                setEmpCommission(0);
               }}
               className="md:col-span-2 rounded-none bg-nc-magenta text-background font-display"
               data-testid="button-add-doc"
@@ -126,18 +158,28 @@ export default function MyClinicDetail() {
       </Card>
 
       <Card className="rounded-none border-border bg-card/50">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="font-display tracking-widest">CYBERWARE STOCK</CardTitle>
-          {canRestock && (
+          <div className="flex items-center gap-2">
             <Button
               size="sm"
-              onClick={() => setRestockOpen(true)}
-              className="rounded-none bg-nc-magenta text-background font-display"
-              data-testid="button-open-restock"
+              onClick={() => setPurchaseOpen(true)}
+              className="rounded-none bg-nc-cyan text-background font-display"
+              data-testid="button-open-purchase"
             >
-              <Plus className="w-3 h-3 mr-1" /> RESTOCK FROM WHOLESALER
+              <Plus className="w-3 h-3 mr-1" /> BUY STOCK (CLINIC-FUNDED)
             </Button>
-          )}
+            {canRestock && (
+              <Button
+                size="sm"
+                onClick={() => setRestockOpen(true)}
+                className="rounded-none bg-nc-magenta text-background font-display"
+                data-testid="button-open-restock"
+              >
+                <Plus className="w-3 h-3 mr-1" /> RESTOCK FROM WHOLESALER
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-2">
           {data.stock.map((s) => (
@@ -211,6 +253,18 @@ export default function MyClinicDetail() {
           onDone={() => {
             invalidate();
             setRestockOpen(false);
+          }}
+        />
+      )}
+      {purchaseOpen && (
+        <PurchaseStockDialog
+          kind="ripperdoc"
+          venueId={rid}
+          balance={data.balance ?? 0}
+          onClose={() => setPurchaseOpen(false)}
+          onDone={() => {
+            invalidate();
+            setPurchaseOpen(false);
           }}
         />
       )}

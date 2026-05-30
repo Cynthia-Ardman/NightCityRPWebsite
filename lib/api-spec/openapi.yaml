@@ -808,6 +808,23 @@ paths:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
       - { in: path, name: employeeId, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateStoreEmployee
+      tags: [stores]
+      summary: Update an employee's role and/or commission percentage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmployeePatch" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Employee" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
     delete:
       operationId: removeStoreEmployee
       tags: [stores]
@@ -819,22 +836,59 @@ paths:
     post:
       operationId: sellStoreItem
       tags: [stores]
-      summary: Owner/employee rings up a sale to a buyer character
+      summary: Owner/employee sends a buyer a purchase offer (no money moves until approved)
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/StoreSaleInput" }
       responses:
-        "200":
-          description: Sold
+        "201":
+          description: Offer created and buyer notified
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/StoreSaleResult" }
+              schema: { $ref: "#/components/schemas/SaleOffer" }
         "400": { description: Bad request }
         "404": { description: Not found }
         "409": { description: Out of stock or buyer unclaimed }
-        "502": { description: Wallet provider unavailable }
+  /stores/{id}/purchase:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: purchaseStoreStock
+      tags: [stores]
+      summary: Owner/employee buys catalog stock into the store, paid from the store account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockPurchaseInput" }
+      responses:
+        "201":
+          description: Stock purchased
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockPurchaseResult" }
+        "400": { description: Bad request or store account has insufficient funds }
+        "403": { description: Not authorized to buy stock for this venue }
+        "404": { description: Venue or catalog item not found }
+  /stores/{id}/offers:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listStoreOffers
+      tags: [stores]
+      summary: Sale offers for a store (owner/employee/staff)
+      responses:
+        "200":
+          description: Offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SaleOffer" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /stores/{id}/deposit:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1007,11 +1061,90 @@ paths:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
       - { in: path, name: employeeId, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateRipperdocEmployee
+      tags: [ripperdocs]
+      summary: Update an employee's role and/or commission percentage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmployeePatch" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Employee" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
     delete:
       operationId: removeRipperdocEmployee
       tags: [ripperdocs]
       responses:
         "204": { description: Removed }
+  /offers/mine:
+    get:
+      operationId: listMyOffers
+      tags: [offers]
+      summary: The caller's purchase offers (pending approvals + history)
+      responses:
+        "200":
+          description: Offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SaleOffer" }
+  /offers/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getOffer
+      tags: [offers]
+      summary: A single offer (buyer, venue operator, or staff)
+      responses:
+        "200":
+          description: Offer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+  /offers/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approveOffer
+      tags: [offers]
+      summary: Buyer approves the offer (debits buyer, pays the venue + commission)
+      responses:
+        "200":
+          description: Approved (or dry-run preview in Test mode)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApproveOfferResult" }
+        "400": { description: Buyer has insufficient funds }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+        "409": { description: "Offer not pending, expired, or economy disabled" }
+        "502": { description: Wallet provider unavailable }
+  /offers/{id}/deny:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: denyOffer
+      tags: [offers]
+      summary: Buyer denies the offer (no money or stock moves)
+      responses:
+        "200":
+          description: Denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+        "409": { description: Offer not pending }
   # ---------------- MISSIONS (first-class Mission entity — Task #57 overhaul) ----------------
   /missions:
     get:
@@ -1684,22 +1817,59 @@ paths:
     post:
       operationId: sellRipperdocItem
       tags: [ripperdocs]
-      summary: Owner/employee installs cyberware on a buyer character
+      summary: Owner/employee sends a buyer a cyberware purchase offer (no money moves until approved)
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/StoreSaleInput" }
       responses:
-        "200":
-          description: Sold
+        "201":
+          description: Offer created and buyer notified
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/StoreSaleResult" }
+              schema: { $ref: "#/components/schemas/SaleOffer" }
         "400": { description: Bad request }
         "404": { description: Not found }
         "409": { description: Out of stock or buyer unclaimed }
-        "502": { description: Wallet provider unavailable }
+  /ripperdocs/{id}/purchase:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: purchaseRipperdocStock
+      tags: [ripperdocs]
+      summary: Owner/employee buys catalog cyberware into the clinic, paid from the clinic account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockPurchaseInput" }
+      responses:
+        "201":
+          description: Stock purchased
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockPurchaseResult" }
+        "400": { description: Bad request or clinic account has insufficient funds }
+        "403": { description: Not authorized to buy stock for this venue }
+        "404": { description: Venue or catalog item not found }
+  /ripperdocs/{id}/offers:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listRipperdocOffers
+      tags: [ripperdocs]
+      summary: Sale offers for a clinic (owner/employee/staff)
+      responses:
+        "200":
+          description: Offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SaleOffer" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /ripperdocs/{id}/stock:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3355,12 +3525,13 @@ components:
 
     Employee:
       type: object
-      required: [id, characterId, name, role]
+      required: [id, characterId, name, role, commissionPct]
       properties:
         id: { type: integer }
         characterId: { type: integer }
         name: { type: string }
         role: { type: string }
+        commissionPct: { type: integer, minimum: 0, maximum: 100, description: "Percent of each sale this employee earns as commission." }
 
     EmployeeInput:
       type: object
@@ -3368,6 +3539,73 @@ components:
       properties:
         characterId: { type: integer }
         role: { type: string, minLength: 1 }
+        commissionPct: { type: integer, minimum: 0, maximum: 100 }
+
+    EmployeePatch:
+      type: object
+      properties:
+        role: { type: string, minLength: 1 }
+        commissionPct: { type: integer, minimum: 0, maximum: 100 }
+
+    StockPurchaseInput:
+      type: object
+      required: [catalogId]
+      properties:
+        catalogId: { type: integer, description: "Catalog gun (store) or cyberware (ripperdoc) id." }
+        qty: { type: integer, minimum: 1, description: "Defaults to 1." }
+        retailPrice: { type: integer, minimum: 0, description: "Shelf price for the new stock. Defaults to the catalog price." }
+
+    StockPurchaseResult:
+      type: object
+      required: [stock, balance, totalCost, unitCost]
+      properties:
+        stock: { $ref: "#/components/schemas/StockItem" }
+        balance: { type: integer, description: "Venue account balance after the purchase." }
+        totalCost: { type: integer }
+        unitCost: { type: integer, description: "Wholesale cost per unit." }
+
+    SaleOffer:
+      type: object
+      required: [id, kind, itemName, unitPrice, quantity, totalPrice, buyerCharacterId, buyerUserId, commissionPct, status]
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [store, ripperdoc] }
+        storeId: { type: ["integer", "null"] }
+        ripperdocId: { type: ["integer", "null"] }
+        stockId: { type: ["integer", "null"] }
+        itemName: { type: string }
+        itemCategory: { type: ["string", "null"] }
+        unitPrice: { type: integer }
+        quantity: { type: integer }
+        totalPrice: { type: integer }
+        buyerCharacterId: { type: integer }
+        buyerUserId: { type: string }
+        sellerCharacterId: { type: ["integer", "null"] }
+        sellerEmployeeId: { type: ["integer", "null"] }
+        commissionPct: { type: integer }
+        commissionAmount: { type: ["integer", "null"] }
+        commissionSettledAt: { type: ["string", "null"], format: date-time }
+        createdById: { type: string }
+        memo: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, approved, denied, expired] }
+        expiresAt: { type: ["string", "null"], format: date-time }
+        decidedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        venueName: { type: ["string", "null"] }
+        buyerName: { type: ["string", "null"] }
+
+    ApproveOfferResult:
+      type: object
+      properties:
+        offer: { $ref: "#/components/schemas/SaleOffer" }
+        inventoryItem: { $ref: "#/components/schemas/InventoryItem" }
+        commissionPaid: { type: integer }
+        venueBalance: { type: integer }
+        duplicate: { type: boolean, description: "True when the offer was already approved (idempotent retry)." }
+        dryRun: { type: boolean, description: "True in Test mode — nothing was written." }
+        wouldDebitBuyer: { type: integer }
+        wouldCreditStore: { type: integer }
+        wouldPayCommission: { type: integer }
 
     StockItem:
       type: object

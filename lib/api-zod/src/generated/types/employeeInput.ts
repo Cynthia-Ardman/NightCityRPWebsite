@@ -10,4 +10,9 @@ export interface EmployeeInput {
   characterId: number;
   /** @minLength 1 */
   role: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  commissionPct?: number;
 }

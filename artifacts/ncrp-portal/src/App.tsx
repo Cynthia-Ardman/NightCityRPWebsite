@@ -22,6 +22,7 @@ import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
 import PendingEditDetail from "@/pages/pending-edits/PendingEditDetail";
 import PendingRequests from "@/pages/requests/PendingRequests";
 import MyRequests from "@/pages/MyRequests";
+import MyOffers from "@/pages/MyOffers";
 import Ledger from "@/pages/Ledger";
 import { Redirect } from "wouter";
 import DirectoryStores from "@/pages/directory/DirectoryStores";
@@ -111,6 +112,7 @@ function AppRoutes() {
           <Route path="/pending-edits"><PendingEditsList /></Route>
           <Route path="/pending-edits/:id" component={PendingEditDetail} />
           <Route path="/requests/mine" component={MyRequests} />
+          <Route path="/offers/mine" component={MyOffers} />
           <Route path="/requests">
             <StaffRequestsGuard><PendingRequests /></StaffRequestsGuard>
           </Route>

@@ -1,8 +1,8 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetMyWallet, getGetMyWalletQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase, Search, Receipt, ClipboardList } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase, Search, Receipt, ClipboardList, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -46,8 +46,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 function SidebarContent() {
   const { data: user } = useAuthMe();
   const [location] = useLocation();
+  const { data: offers } = useListMyOffers({ query: { enabled: !!user, queryKey: getListMyOffersQueryKey() } });
+  const pendingOffers = (offers ?? []).filter((o) => o.status === "pending").length;
 
-  const NavItem = ({ href, icon: Icon, label, disabled }: { href: string, icon: any, label: string, disabled?: boolean }) => {
+  const NavItem = ({ href, icon: Icon, label, disabled, badge }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number }) => {
     const isActive = location === href || location.startsWith(href + '/');
     if (disabled) return null;
     
@@ -55,6 +57,14 @@ function SidebarContent() {
       <Link href={href} className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors border-l-2 ${isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground border-nc-cyan' : 'text-sidebar-foreground border-transparent hover:bg-sidebar-accent/50 hover:text-nc-cyan'}`}>
         <Icon className="h-4 w-4" />
         <span className="font-display tracking-widest uppercase">{label}</span>
+        {badge ? (
+          <span
+            className="ml-auto min-w-5 h-5 px-1.5 flex items-center justify-center bg-nc-yellow text-background font-mono text-xs font-bold"
+            data-testid={`badge-nav-${label.toLowerCase().replace(/\s+/g, '-')}`}
+          >
+            {badge}
+          </span>
+        ) : null}
       </Link>
     );
   };
@@ -87,6 +97,7 @@ function SidebarContent() {
         <NavItem href="/characters" icon={Users} label="Characters" />
         <NavItem href="/ledger" icon={Receipt} label="Ledger" />
         <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" />
+        <NavItem href="/offers/mine" icon={ShoppingBag} label="Pending Approvals" badge={pendingOffers} />
         <NavItem href="/missions" icon={Briefcase} label="Missions" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
 

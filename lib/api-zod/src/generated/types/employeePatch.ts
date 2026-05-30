@@ -6,15 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Employee {
-  id: number;
-  characterId: number;
-  name: string;
-  role: string;
+export interface EmployeePatch {
+  /** @minLength 1 */
+  role?: string;
   /**
-     * Percent of each sale this employee earns as commission.
      * @minimum 0
      * @maximum 100
      */
-  commissionPct: number;
+  commissionPct?: number;
 }

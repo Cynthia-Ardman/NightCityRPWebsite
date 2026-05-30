@@ -1010,6 +1010,11 @@ export const VacateHousingParams = zod.object({
 /**
  * @summary Stores I own or am employed at
  */
+export const listMyStoresResponseEmployeesItemCommissionPctMin = 0;
+export const listMyStoresResponseEmployeesItemCommissionPctMax = 100;
+
+
+
 export const ListMyStoresResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1025,7 +1030,8 @@ export const ListMyStoresResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "name": zod.string(),
-  "role": zod.string()
+  "role": zod.string(),
+  "commissionPct": zod.number().min(listMyStoresResponseEmployeesItemCommissionPctMin).max(listMyStoresResponseEmployeesItemCommissionPctMax).describe('Percent of each sale this employee earns as commission.')
 })),
   "stock": zod.array(zod.object({
   "id": zod.number(),
@@ -1043,6 +1049,11 @@ export const GetStoreParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getStoreResponseEmployeesItemCommissionPctMin = 0;
+export const getStoreResponseEmployeesItemCommissionPctMax = 100;
+
+
+
 export const GetStoreResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1058,7 +1069,8 @@ export const GetStoreResponse = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "name": zod.string(),
-  "role": zod.string()
+  "role": zod.string(),
+  "commissionPct": zod.number().min(getStoreResponseEmployeesItemCommissionPctMin).max(getStoreResponseEmployeesItemCommissionPctMax).describe('Percent of each sale this employee earns as commission.')
 })),
   "stock": zod.array(zod.object({
   "id": zod.number(),
@@ -1086,6 +1098,11 @@ export const UpdateStoreBody = zod.object({
   "ownerCharacterId": zod.number().nullish()
 })
 
+export const updateStoreResponseEmployeesItemCommissionPctMin = 0;
+export const updateStoreResponseEmployeesItemCommissionPctMax = 100;
+
+
+
 export const UpdateStoreResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1101,7 +1118,8 @@ export const UpdateStoreResponse = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "name": zod.string(),
-  "role": zod.string()
+  "role": zod.string(),
+  "commissionPct": zod.number().min(updateStoreResponseEmployeesItemCommissionPctMin).max(updateStoreResponseEmployeesItemCommissionPctMax).describe('Percent of each sale this employee earns as commission.')
 })),
   "stock": zod.array(zod.object({
   "id": zod.number(),
@@ -1127,11 +1145,48 @@ export const AddStoreEmployeeParams = zod.object({
 })
 
 
+export const addStoreEmployeeBodyCommissionPctMin = 0;
+export const addStoreEmployeeBodyCommissionPctMax = 100;
+
 
 
 export const AddStoreEmployeeBody = zod.object({
   "characterId": zod.number(),
-  "role": zod.string().min(1)
+  "role": zod.string().min(1),
+  "commissionPct": zod.number().min(addStoreEmployeeBodyCommissionPctMin).max(addStoreEmployeeBodyCommissionPctMax).optional()
+})
+
+
+/**
+ * @summary Update an employee's role and/or commission percentage
+ */
+export const UpdateStoreEmployeeParams = zod.object({
+  "id": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+
+export const updateStoreEmployeeBodyCommissionPctMin = 0;
+export const updateStoreEmployeeBodyCommissionPctMax = 100;
+
+
+
+export const UpdateStoreEmployeeBody = zod.object({
+  "role": zod.string().min(1).optional(),
+  "commissionPct": zod.number().min(updateStoreEmployeeBodyCommissionPctMin).max(updateStoreEmployeeBodyCommissionPctMax).optional()
+})
+
+export const updateStoreEmployeeResponseCommissionPctMin = 0;
+export const updateStoreEmployeeResponseCommissionPctMax = 100;
+
+
+
+export const UpdateStoreEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "commissionPct": zod.number().min(updateStoreEmployeeResponseCommissionPctMin).max(updateStoreEmployeeResponseCommissionPctMax).describe('Percent of each sale this employee earns as commission.')
 })
 
 
@@ -1142,7 +1197,7 @@ export const RemoveStoreEmployeeParams = zod.object({
 
 
 /**
- * @summary Owner/employee rings up a sale to a buyer character
+ * @summary Owner/employee sends a buyer a purchase offer (no money moves until approved)
  */
 export const SellStoreItemParams = zod.object({
   "id": zod.coerce.number()
@@ -1158,27 +1213,61 @@ export const SellStoreItemBody = zod.object({
   "memo": zod.string().optional()
 })
 
-export const SellStoreItemResponse = zod.object({
-  "stock": zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "category": zod.string().nullish(),
-  "price": zod.number(),
-  "quantity": zod.number(),
-  "notes": zod.string().nullish()
-}),
-  "inventoryItem": zod.object({
-  "id": zod.number(),
-  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
-  "characterId": zod.number().nullable(),
-  "name": zod.string(),
-  "category": zod.string().nullish(),
-  "quantity": zod.number(),
-  "notes": zod.string().nullish(),
-  "equipped": zod.boolean().optional()
-}),
-  "totalPaid": zod.number().optional()
+
+/**
+ * @summary Owner/employee buys catalog stock into the store, paid from the store account
+ */
+export const PurchaseStoreStockParams = zod.object({
+  "id": zod.coerce.number()
 })
+
+
+export const purchaseStoreStockBodyRetailPriceMin = 0;
+
+
+
+export const PurchaseStoreStockBody = zod.object({
+  "catalogId": zod.number().describe('Catalog gun (store) or cyberware (ripperdoc) id.'),
+  "qty": zod.number().min(1).optional().describe('Defaults to 1.'),
+  "retailPrice": zod.number().min(purchaseStoreStockBodyRetailPriceMin).optional().describe('Shelf price for the new stock. Defaults to the catalog price.')
+})
+
+
+/**
+ * @summary Sale offers for a store (owner/employee/staff)
+ */
+export const ListStoreOffersParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListStoreOffersResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+})
+export const ListStoreOffersResponse = zod.array(ListStoreOffersResponseItem)
 
 
 /**
@@ -1312,6 +1401,11 @@ export const RemoveStoreStockParams = zod.object({
 })
 
 
+export const listMyRipperdocsResponseEmployeesItemCommissionPctMin = 0;
+export const listMyRipperdocsResponseEmployeesItemCommissionPctMax = 100;
+
+
+
 export const ListMyRipperdocsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1326,7 +1420,8 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "name": zod.string(),
-  "role": zod.string()
+  "role": zod.string(),
+  "commissionPct": zod.number().min(listMyRipperdocsResponseEmployeesItemCommissionPctMin).max(listMyRipperdocsResponseEmployeesItemCommissionPctMax).describe('Percent of each sale this employee earns as commission.')
 })),
   "stock": zod.array(zod.object({
   "id": zod.number(),
@@ -1344,6 +1439,11 @@ export const GetRipperdocParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getRipperdocResponseEmployeesItemCommissionPctMin = 0;
+export const getRipperdocResponseEmployeesItemCommissionPctMax = 100;
+
+
+
 export const GetRipperdocResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1358,7 +1458,8 @@ export const GetRipperdocResponse = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "name": zod.string(),
-  "role": zod.string()
+  "role": zod.string(),
+  "commissionPct": zod.number().min(getRipperdocResponseEmployeesItemCommissionPctMin).max(getRipperdocResponseEmployeesItemCommissionPctMax).describe('Percent of each sale this employee earns as commission.')
 })),
   "stock": zod.array(zod.object({
   "id": zod.number(),
@@ -1385,6 +1486,11 @@ export const UpdateRipperdocBody = zod.object({
   "ownerCharacterId": zod.number().nullish()
 })
 
+export const updateRipperdocResponseEmployeesItemCommissionPctMin = 0;
+export const updateRipperdocResponseEmployeesItemCommissionPctMax = 100;
+
+
+
 export const UpdateRipperdocResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1399,7 +1505,8 @@ export const UpdateRipperdocResponse = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
   "name": zod.string(),
-  "role": zod.string()
+  "role": zod.string(),
+  "commissionPct": zod.number().min(updateRipperdocResponseEmployeesItemCommissionPctMin).max(updateRipperdocResponseEmployeesItemCommissionPctMax).describe('Percent of each sale this employee earns as commission.')
 })),
   "stock": zod.array(zod.object({
   "id": zod.number(),
@@ -1425,17 +1532,214 @@ export const AddRipperdocEmployeeParams = zod.object({
 })
 
 
+export const addRipperdocEmployeeBodyCommissionPctMin = 0;
+export const addRipperdocEmployeeBodyCommissionPctMax = 100;
+
 
 
 export const AddRipperdocEmployeeBody = zod.object({
   "characterId": zod.number(),
-  "role": zod.string().min(1)
+  "role": zod.string().min(1),
+  "commissionPct": zod.number().min(addRipperdocEmployeeBodyCommissionPctMin).max(addRipperdocEmployeeBodyCommissionPctMax).optional()
+})
+
+
+/**
+ * @summary Update an employee's role and/or commission percentage
+ */
+export const UpdateRipperdocEmployeeParams = zod.object({
+  "id": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+
+export const updateRipperdocEmployeeBodyCommissionPctMin = 0;
+export const updateRipperdocEmployeeBodyCommissionPctMax = 100;
+
+
+
+export const UpdateRipperdocEmployeeBody = zod.object({
+  "role": zod.string().min(1).optional(),
+  "commissionPct": zod.number().min(updateRipperdocEmployeeBodyCommissionPctMin).max(updateRipperdocEmployeeBodyCommissionPctMax).optional()
+})
+
+export const updateRipperdocEmployeeResponseCommissionPctMin = 0;
+export const updateRipperdocEmployeeResponseCommissionPctMax = 100;
+
+
+
+export const UpdateRipperdocEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "commissionPct": zod.number().min(updateRipperdocEmployeeResponseCommissionPctMin).max(updateRipperdocEmployeeResponseCommissionPctMax).describe('Percent of each sale this employee earns as commission.')
 })
 
 
 export const RemoveRipperdocEmployeeParams = zod.object({
   "id": zod.coerce.number(),
   "employeeId": zod.coerce.number()
+})
+
+
+/**
+ * @summary The caller's purchase offers (pending approvals + history)
+ */
+export const ListMyOffersResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+})
+export const ListMyOffersResponse = zod.array(ListMyOffersResponseItem)
+
+
+/**
+ * @summary A single offer (buyer, venue operator, or staff)
+ */
+export const GetOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetOfferResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+})
+
+
+/**
+ * @summary Buyer approves the offer (debits buyer, pays the venue + commission)
+ */
+export const ApproveOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveOfferResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+}).optional(),
+  "inventoryItem": zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}).optional(),
+  "commissionPaid": zod.number().optional(),
+  "venueBalance": zod.number().optional(),
+  "duplicate": zod.boolean().optional().describe('True when the offer was already approved (idempotent retry).'),
+  "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
+  "wouldDebitBuyer": zod.number().optional(),
+  "wouldCreditStore": zod.number().optional(),
+  "wouldPayCommission": zod.number().optional()
+})
+
+
+/**
+ * @summary Buyer denies the offer (no money or stock moves)
+ */
+export const DenyOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DenyOfferResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
 })
 
 
@@ -3479,7 +3783,7 @@ export const GetRipperdocTransactionsResponse = zod.array(GetRipperdocTransactio
 
 
 /**
- * @summary Owner/employee installs cyberware on a buyer character
+ * @summary Owner/employee sends a buyer a cyberware purchase offer (no money moves until approved)
  */
 export const SellRipperdocItemParams = zod.object({
   "id": zod.coerce.number()
@@ -3495,27 +3799,61 @@ export const SellRipperdocItemBody = zod.object({
   "memo": zod.string().optional()
 })
 
-export const SellRipperdocItemResponse = zod.object({
-  "stock": zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "category": zod.string().nullish(),
-  "price": zod.number(),
-  "quantity": zod.number(),
-  "notes": zod.string().nullish()
-}),
-  "inventoryItem": zod.object({
-  "id": zod.number(),
-  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
-  "characterId": zod.number().nullable(),
-  "name": zod.string(),
-  "category": zod.string().nullish(),
-  "quantity": zod.number(),
-  "notes": zod.string().nullish(),
-  "equipped": zod.boolean().optional()
-}),
-  "totalPaid": zod.number().optional()
+
+/**
+ * @summary Owner/employee buys catalog cyberware into the clinic, paid from the clinic account
+ */
+export const PurchaseRipperdocStockParams = zod.object({
+  "id": zod.coerce.number()
 })
+
+
+export const purchaseRipperdocStockBodyRetailPriceMin = 0;
+
+
+
+export const PurchaseRipperdocStockBody = zod.object({
+  "catalogId": zod.number().describe('Catalog gun (store) or cyberware (ripperdoc) id.'),
+  "qty": zod.number().min(1).optional().describe('Defaults to 1.'),
+  "retailPrice": zod.number().min(purchaseRipperdocStockBodyRetailPriceMin).optional().describe('Shelf price for the new stock. Defaults to the catalog price.')
+})
+
+
+/**
+ * @summary Sale offers for a clinic (owner/employee/staff)
+ */
+export const ListRipperdocOffersParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListRipperdocOffersResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+})
+export const ListRipperdocOffersResponse = zod.array(ListRipperdocOffersResponseItem)
 
 
 export const AddRipperdocStockParams = zod.object({

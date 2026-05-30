@@ -10,18 +10,18 @@ import {
   ripperdocEmployees,
   ripperdocStock,
   characters,
-  inventoryItems,
   walletTransactions,
   activityEvents,
   auditLog,
   users,
+  catalogGuns,
+  catalogCyberware,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
-import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { logger } from "../lib/logger";
-import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { applyWalletDelta } from "../lib/economy";
+import { createOffer } from "../lib/saleOffers";
 
 const router: IRouter = Router();
 
@@ -40,8 +40,95 @@ function auditMeta(req: Request): { ip: string | null; ua: string | null } {
   return { ip, ua };
 }
 
+// Coerce an incoming commission percentage to an integer in [0, 100]. Undefined
+// or non-numeric input defaults to 0 so a missing field never throws.
+function clampPct(raw: unknown): number {
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+// Shared PATCH for store/ripperdoc employees — updates role and/or commission
+// percentage (owner or staff, enforced by the caller's load* guard) and writes
+// a shop audit row. Both venue kinds use identical employee columns.
+async function patchVenueEmployee(args: {
+  req: Request;
+  res: Response;
+  table: typeof storeEmployees | typeof ripperdocEmployees;
+  venueCol: typeof storeEmployees.storeId | typeof ripperdocEmployees.ripperdocId;
+  venueId: number;
+  employeeId: number;
+  targetType: "store" | "ripperdoc";
+  action: string;
+}): Promise<void> {
+  const { req, res, table, venueCol, venueId, employeeId, targetType, action } = args;
+  const [emp] = await db.select().from(table).where(and(eq(table.id, employeeId), eq(venueCol, venueId)));
+  if (!emp) {
+    res.status(404).json({ error: "Employee not found" });
+    return;
+  }
+  const patch: { role?: string; commissionPct?: number } = {};
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+  if (typeof req.body?.role === "string" && req.body.role.trim() && req.body.role !== emp.role) {
+    patch.role = req.body.role.trim();
+    before.role = emp.role;
+    after.role = patch.role;
+  }
+  if (req.body?.commissionPct !== undefined) {
+    const next = clampPct(req.body.commissionPct);
+    if (next !== emp.commissionPct) {
+      patch.commissionPct = next;
+      before.commissionPct = emp.commissionPct;
+      after.commissionPct = next;
+    }
+  }
+  if (Object.keys(patch).length === 0) {
+    res.json(emp);
+    return;
+  }
+  const { ip, ua } = auditMeta(req);
+  const updated = await db.transaction(async (tx) => {
+    const [u] = await tx.update(table).set(patch).where(eq(table.id, employeeId)).returning();
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action,
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: `${targetType}_employee`,
+      targetId: String(employeeId),
+      message: `Updated ${targetType} employee #${employeeId}`,
+      beforeJson: before as never,
+      afterJson: after as never,
+    });
+    return u;
+  });
+  res.json(updated);
+}
+
 type StoreRow = typeof stores.$inferSelect;
 type RipperdocRow = typeof ripperdocs.$inferSelect;
+
+// True when the actor may operate (sell / buy stock) for a venue: the owner,
+// an admin, or any employee linked via one of the actor's characters.
+async function isVenueOperator(
+  kind: "store" | "ripperdoc",
+  venue: { ownerId: string },
+  venueId: number,
+  actor: { id: string; roles: string[] },
+): Promise<boolean> {
+  if (venue.ownerId === actor.id || hasRole(actor.roles, "ADMIN")) return true;
+  const empTable = kind === "store" ? storeEmployees : ripperdocEmployees;
+  const empVenueCol = kind === "store" ? storeEmployees.storeId : ripperdocEmployees.ripperdocId;
+  const employed = await db
+    .select({ id: empTable.id })
+    .from(empTable)
+    .innerJoin(characters, eq(characters.id, empTable.characterId))
+    .where(and(eq(empVenueCol, venueId), eq(characters.ownerId, actor.id)));
+  return employed.length > 0;
+}
 
 // Load a store by :id and enforce that the caller is its owner or staff.
 // Writes the 404/403 response and returns null when the caller may not manage
@@ -121,7 +208,7 @@ router.get("/stores/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const emps = await db
-    .select({ id: storeEmployees.id, characterId: characters.id, name: characters.name, role: storeEmployees.role, ownerId: characters.ownerId })
+    .select({ id: storeEmployees.id, characterId: characters.id, name: characters.name, role: storeEmployees.role, commissionPct: storeEmployees.commissionPct, ownerId: characters.ownerId })
     .from(storeEmployees)
     .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
     .where(eq(storeEmployees.storeId, id));
@@ -203,8 +290,27 @@ router.post("/stores/:id/employees", requireAuth, async (req, res): Promise<void
     res.status(400).json({ error: "characterId required" });
     return;
   }
-  const [e] = await db.insert(storeEmployees).values({ storeId: s.id, characterId, role: role ?? "clerk" }).returning();
+  const [e] = await db
+    .insert(storeEmployees)
+    .values({ storeId: s.id, characterId, role: role ?? "clerk", commissionPct: clampPct(req.body?.commissionPct) })
+    .returning();
   res.status(201).json(e);
+});
+
+// Edit an employee's role and/or commission percentage. Owner or staff.
+router.patch("/stores/:id/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
+  await patchVenueEmployee({
+    req,
+    res,
+    table: storeEmployees,
+    venueCol: storeEmployees.storeId,
+    venueId: s.id,
+    employeeId: parseInt(String(req.params.employeeId), 10),
+    targetType: "store",
+    action: "store_employee_update",
+  });
 });
 
 router.delete("/stores/:id/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
@@ -261,187 +367,10 @@ router.delete("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promi
   res.sendStatus(204);
 });
 
-// Atomic-ish sale: validate, debit buyer via UB, credit seller via UB
-// (with compensating refund on credit failure), decrement stock, append
-// buyer inventory item, log ledger + activity. Authorized actors are the
-// venue owner or any character-employee of theirs.
-async function sellFromVenue(opts: {
-  kind: "store" | "ripperdoc";
-  venueId: number;
-  stockId: number;
-  buyerCharacterId: number;
-  qty: number;
-  memo?: string;
-  actor: { id: string; discordId: string; roles: string[]; username: string; avatarUrl: string | null };
-  res: import("express").Response;
-}) {
-  const { kind, venueId, stockId, buyerCharacterId, qty, memo, actor, res } = opts;
-  const venueTable = kind === "store" ? stores : ripperdocs;
-  const stockTable = kind === "store" ? storeStock : ripperdocStock;
-  const stockVenueCol = kind === "store" ? storeStock.storeId : ripperdocStock.ripperdocId;
-  const empTable = kind === "store" ? storeEmployees : ripperdocEmployees;
-  const empVenueCol = kind === "store" ? storeEmployees.storeId : ripperdocEmployees.ripperdocId;
-
-  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
-  if (!venue) {
-    res.status(404).json({ error: "Venue not found" });
-    return;
-  }
-  // Authorization: owner OR employee (via any of actor's characters) OR admin.
-  let authorized = venue.ownerId === actor.id || hasRole(actor.roles, "ADMIN");
-  if (!authorized) {
-    const employed = await db
-      .select()
-      .from(empTable)
-      .innerJoin(characters, eq(characters.id, empTable.characterId))
-      .where(and(eq(empVenueCol, venueId), eq(characters.ownerId, actor.id)));
-    authorized = employed.length > 0;
-  }
-  if (!authorized) {
-    res.status(403).json({ error: "Not authorized to sell from this venue" });
-    return;
-  }
-  const [item] = await db.select().from(stockTable).where(and(eq(stockTable.id, stockId), eq(stockVenueCol, venueId)));
-  if (!item) {
-    res.status(404).json({ error: "Stock item not found" });
-    return;
-  }
-  if (qty > item.quantity) {
-    res.status(409).json({ error: "Insufficient stock" });
-    return;
-  }
-  const totalPaid = item.price * qty;
-  const [buyer] = await db.select().from(characters).where(eq(characters.id, buyerCharacterId));
-  if (!buyer) {
-    res.status(404).json({ error: "Buyer character not found" });
-    return;
-  }
-  if (buyer.archived) {
-    res.status(400).json({ error: "Buyer character is archived" });
-    return;
-  }
-  if (!buyer.ownerId) {
-    res.status(409).json({ error: "Buyer character is unclaimed" });
-    return;
-  }
-  const [buyerOwner] = await db.select().from(users).where(eq(users.id, buyer.ownerId));
-  const [sellerOwner] = await db.select().from(users).where(eq(users.id, venue.ownerId));
-  if (!buyerOwner || !sellerOwner) {
-    res.status(409).json({ error: "Owner account missing" });
-    return;
-  }
-  const buyerBal = await getBalance(buyerOwner.discordId);
-  if (!buyerBal) {
-    res.status(502).json({ error: "Wallet provider unavailable" });
-    return;
-  }
-  if (buyerBal.cash < totalPaid) {
-    res.status(400).json({ error: "Buyer has insufficient funds" });
-    return;
-  }
-  const debited = await patchBalance(buyerOwner.discordId, {
-    cash: -totalPaid,
-    reason: memo ?? `Purchase: ${item.name} x${qty} @ ${venue.name}`,
-  });
-  if (!debited) {
-    res.status(502).json({ error: "Wallet provider rejected debit" });
-    return;
-  }
-  const credited = await patchBalance(sellerOwner.discordId, {
-    cash: totalPaid,
-    reason: memo ?? `Sale: ${item.name} x${qty} @ ${venue.name}`,
-  });
-  if (!credited) {
-    const refund = await patchBalance(buyerOwner.discordId, {
-      cash: totalPaid,
-      reason: `Refund: seller credit failed for ${item.name}`,
-    });
-    if (!refund) {
-      logger.error(
-        { buyerDiscordId: buyerOwner.discordId, venueId, stockId, itemName: item.name, totalPaid },
-        "SALE_REFUND_FAILED: buyer debited but seller credit AND refund failed — manual reconciliation required",
-      );
-      res.status(502).json({ error: "Purchase failed and refund failed; contact staff for reconciliation." });
-      return;
-    }
-    res.status(502).json({ error: "Wallet provider rejected credit; buyer refunded" });
-    return;
-  }
-  // Decrement stock (delete row if it hits zero).
-  let updatedStock = { ...item, quantity: item.quantity - qty };
-  if (updatedStock.quantity <= 0) {
-    await db.delete(stockTable).where(eq(stockTable.id, stockId));
-  } else {
-    await db.update(stockTable).set({ quantity: updatedStock.quantity }).where(eq(stockTable.id, stockId));
-  }
-  // Insert into buyer inventory.
-  let inserted;
-  try {
-    const [row] = await db
-      .insert(inventoryItems)
-      .values({
-        characterId: buyer.id,
-        ownerId: buyer.ownerId,
-        name: item.name,
-        category: item.category ?? (kind === "ripperdoc" ? "cyberware" : null),
-        quantity: qty,
-        notes: item.notes,
-        pricePaid: totalPaid,
-        acquiredAt: new Date(),
-      })
-      .returning();
-    inserted = row;
-  } catch (err) {
-    logger.error({ err, venueId, stockId, buyerCharacterId }, "sale inventory insert failed after wallet writes");
-    res.status(500).json({ error: "Inventory write failed after wallet writes; contact an admin." });
-    return;
-  }
-  await recordInventoryEvent({
-    instanceUuid: inserted.instanceUuid,
-    kind: "created",
-    actorId: actor.id,
-    actorName: actor.username,
-    toCharacterId: buyer.id,
-    toCharacterName: buyer.name,
-    itemName: inserted.name,
-    quantity: qty,
-    price: totalPaid,
-    reason: `Sold at ${venue.name}`,
-    metadata: { venueKind: kind, venueId, venueName: venue.name, stockId, memo: memo ?? null },
-  });
-  // Ledger entries (cosmetic; UB is authoritative for balance).
-  await db.insert(walletTransactions).values([
-    {
-      characterId: buyer.id,
-      counterpartyName: venue.name,
-      amount: -totalPaid,
-      kind: "shop",
-      memo: memo ?? `Bought ${item.name} x${qty}`,
-    },
-    {
-      characterId: venue.ownerCharacterId ?? null,
-      userId: sellerOwner.id,
-      counterpartyCharacterId: buyer.id,
-      counterpartyName: buyer.name,
-      amount: totalPaid,
-      kind: "shop",
-      memo: memo ?? `Sold ${item.name} x${qty}`,
-    },
-  ]);
-  await db.insert(activityEvents).values({
-    kind: "transfer",
-    actorId: actor.id,
-    actorName: actor.username,
-    actorAvatarUrl: actor.avatarUrl,
-    message: `${venue.name} sold ${item.name} x${qty} to ${buyer.name} for €$${totalPaid}`,
-  });
-  res.json({
-    stock: { id: item.id, name: item.name, category: item.category, price: item.price, quantity: updatedStock.quantity, notes: item.notes },
-    inventoryItem: inserted,
-    totalPaid,
-  });
-}
-
+// Selling no longer moves money immediately. The owner/employee "sell" action
+// now creates a PENDING sale offer (snapshotting price + the seller's
+// commission) and notifies the buyer; nothing moves until the buyer approves.
+// See lib/saleOffers.ts for the crash-safe approval flow.
 router.post("/stores/:id/sell", requireAuth, async (req, res): Promise<void> => {
   const venueId = parseInt(String(req.params.id), 10);
   const { stockId, buyerCharacterId, qty, memo } = req.body ?? {};
@@ -449,7 +378,7 @@ router.post("/stores/:id/sell", requireAuth, async (req, res): Promise<void> => 
     res.status(400).json({ error: "stockId and buyerCharacterId required" });
     return;
   }
-  await sellFromVenue({
+  const result = await createOffer({
     kind: "store",
     venueId,
     stockId: parseInt(String(stockId), 10),
@@ -457,8 +386,8 @@ router.post("/stores/:id/sell", requireAuth, async (req, res): Promise<void> => 
     qty: Math.max(1, Number(qty) || 1),
     memo,
     actor: req.user!,
-    res,
   });
+  res.status(result.status).json(result.body);
 });
 
 router.post("/ripperdocs/:id/sell", requireAuth, async (req, res): Promise<void> => {
@@ -468,13 +397,191 @@ router.post("/ripperdocs/:id/sell", requireAuth, async (req, res): Promise<void>
     res.status(400).json({ error: "stockId and buyerCharacterId required" });
     return;
   }
-  await sellFromVenue({
+  const result = await createOffer({
     kind: "ripperdoc",
     venueId,
     stockId: parseInt(String(stockId), 10),
     buyerCharacterId: parseInt(String(buyerCharacterId), 10),
     qty: Math.max(1, Number(qty) || 1),
     memo,
+    actor: req.user!,
+  });
+  res.status(result.status).json(result.body);
+});
+
+// ===== Store-funded catalog stock purchase =====
+// Owner/employee buys a catalog item (catalogGuns for stores, catalogCyberware
+// for ripperdocs) into the venue's stock at WHOLESALE cost (wholesalePrice ??
+// price), debited from the venue's website-only balance. The venue account
+// never has a UB leg, so a single guarded atomic decrement
+// (WHERE balance >= cost) is fully crash-safe — no reserve/refund dance needed.
+// Stock is merged into an existing same-name row (price refreshed to the chosen
+// retail) or inserted. The retail price defaults to the catalog price.
+async function purchaseFromCatalog(opts: {
+  kind: "store" | "ripperdoc";
+  venueId: number;
+  catalogId: number;
+  qty: number;
+  retailPrice?: number;
+  actor: { id: string; roles: string[]; username: string; avatarUrl: string | null };
+  res: Response;
+}): Promise<void> {
+  const { kind, venueId, catalogId, qty, retailPrice, actor, res } = opts;
+  const venueTable = kind === "store" ? stores : ripperdocs;
+  const stockTable = kind === "store" ? storeStock : ripperdocStock;
+  const stockVenueCol = kind === "store" ? storeStock.storeId : ripperdocStock.ripperdocId;
+
+  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
+  if (!venue) {
+    res.status(404).json({ error: "Venue not found" });
+    return;
+  }
+  if (!(await isVenueOperator(kind, venue, venueId, actor))) {
+    res.status(403).json({ error: "Not authorized to buy stock for this venue" });
+    return;
+  }
+  // Resolve the catalog item and its wholesale cost.
+  let name: string;
+  let category: string | null;
+  let unitCost: number;
+  let catalogPrice: number;
+  if (kind === "store") {
+    const [g] = await db.select().from(catalogGuns).where(eq(catalogGuns.id, catalogId));
+    if (!g) {
+      res.status(404).json({ error: "Catalog item not found" });
+      return;
+    }
+    name = g.name;
+    category = g.category ?? g.weaponType ?? null;
+    catalogPrice = g.price;
+    unitCost = g.wholesalePrice ?? g.price;
+  } else {
+    const [c] = await db.select().from(catalogCyberware).where(eq(catalogCyberware.id, catalogId));
+    if (!c) {
+      res.status(404).json({ error: "Catalog item not found" });
+      return;
+    }
+    name = c.name;
+    category = "cyberware";
+    catalogPrice = c.price;
+    unitCost = c.wholesalePrice ?? c.price;
+  }
+  const totalCost = unitCost * qty;
+  const retail = retailPrice !== undefined && Number.isFinite(Number(retailPrice))
+    ? Math.max(0, Math.round(Number(retailPrice)))
+    : catalogPrice;
+
+  // Atomic: guarded venue debit + stock merge/insert + ledger all-or-nothing so a
+  // crash after the debit can never leave money gone without stock or a trace.
+  let insufficient = false;
+  let newBalance = 0;
+  let stockRow: typeof storeStock.$inferSelect | typeof ripperdocStock.$inferSelect | undefined;
+  await db.transaction(async (tx) => {
+    const [debited] = await tx
+      .update(venueTable)
+      .set({ balance: sql`${venueTable.balance} - ${totalCost}` })
+      .where(and(eq(venueTable.id, venueId), gte(venueTable.balance, totalCost)))
+      .returning();
+    if (!debited) {
+      insufficient = true;
+      throw new Error("insufficient-funds"); // rolls back (nothing else ran yet)
+    }
+    newBalance = debited.balance;
+    const previousBalance = newBalance + totalCost;
+
+    // Merge into an existing same-name stock row, else insert.
+    const [existing] = await tx
+      .select()
+      .from(stockTable)
+      .where(and(eq(stockVenueCol, venueId), eq(stockTable.name, name)));
+    if (existing) {
+      const [u] = await tx
+        .update(stockTable)
+        .set({ quantity: existing.quantity + qty, price: retail, category: existing.category ?? category })
+        .where(eq(stockTable.id, existing.id))
+        .returning();
+      stockRow = u;
+    } else {
+      const [ins] = await tx
+        .insert(stockTable)
+        .values({ [kind === "store" ? "storeId" : "ripperdocId"]: venueId, name, category, price: retail, quantity: qty } as never)
+        .returning();
+      stockRow = ins;
+    }
+
+    // Venue ledger row (website-only; no player wallet moved).
+    await tx.insert(walletTransactions).values({
+      storeId: kind === "store" ? venueId : null,
+      ripperdocId: kind === "ripperdoc" ? venueId : null,
+      amount: -totalCost,
+      kind: "stock_purchase",
+      source: kind,
+      counterpartyName: "Wholesale catalog",
+      memo: `Bought ${name} x${qty} @ €$${unitCost} wholesale`,
+      previousBalance,
+      newBalance,
+    });
+  }).catch((err) => {
+    if (!insufficient) throw err;
+  });
+  if (insufficient) {
+    res.status(400).json({ error: "Store account has insufficient funds" });
+    return;
+  }
+
+  const { ip, ua } = auditMeta(opts.res.req as Request);
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "venue_stock_purchase",
+    actorId: actor.id,
+    actorName: actor.username,
+    actorIp: ip,
+    actorUa: ua,
+    targetType: kind,
+    targetId: String(venueId),
+    message: `Bought ${name} x${qty} into ${venue.name} for €$${totalCost}`,
+    afterJson: { catalogId, name, qty, unitCost, totalCost, retail } as never,
+  });
+  await db.insert(activityEvents).values({
+    kind: "shop",
+    actorId: actor.id,
+    actorName: actor.username,
+    actorAvatarUrl: actor.avatarUrl,
+    message: `${venue.name} restocked ${name} x${qty} from the catalog (€$${totalCost})`,
+  });
+
+  res.status(201).json({ stock: stockRow, balance: newBalance, totalCost, unitCost });
+}
+
+router.post("/stores/:id/purchase", requireAuth, async (req, res): Promise<void> => {
+  const catalogId = parseInt(String(req.body?.catalogId), 10);
+  if (!catalogId) {
+    res.status(400).json({ error: "catalogId required" });
+    return;
+  }
+  await purchaseFromCatalog({
+    kind: "store",
+    venueId: parseInt(String(req.params.id), 10),
+    catalogId,
+    qty: Math.max(1, Number(req.body?.qty) || 1),
+    retailPrice: req.body?.retailPrice,
+    actor: req.user!,
+    res,
+  });
+});
+
+router.post("/ripperdocs/:id/purchase", requireAuth, async (req, res): Promise<void> => {
+  const catalogId = parseInt(String(req.body?.catalogId), 10);
+  if (!catalogId) {
+    res.status(400).json({ error: "catalogId required" });
+    return;
+  }
+  await purchaseFromCatalog({
+    kind: "ripperdoc",
+    venueId: parseInt(String(req.params.id), 10),
+    catalogId,
+    qty: Math.max(1, Number(req.body?.qty) || 1),
+    retailPrice: req.body?.retailPrice,
     actor: req.user!,
     res,
   });
@@ -504,7 +611,7 @@ router.get("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const emps = await db
-    .select({ id: ripperdocEmployees.id, characterId: characters.id, name: characters.name, role: ripperdocEmployees.role, ownerId: characters.ownerId })
+    .select({ id: ripperdocEmployees.id, characterId: characters.id, name: characters.name, role: ripperdocEmployees.role, commissionPct: ripperdocEmployees.commissionPct, ownerId: characters.ownerId })
     .from(ripperdocEmployees)
     .innerJoin(characters, eq(characters.id, ripperdocEmployees.characterId))
     .where(eq(ripperdocEmployees.ripperdocId, id));
@@ -582,8 +689,27 @@ router.post("/ripperdocs/:id/employees", requireAuth, async (req, res): Promise<
     res.status(400).json({ error: "characterId required" });
     return;
   }
-  const [e] = await db.insert(ripperdocEmployees).values({ ripperdocId: r.id, characterId, role: role ?? "doc" }).returning();
+  const [e] = await db
+    .insert(ripperdocEmployees)
+    .values({ ripperdocId: r.id, characterId, role: role ?? "doc", commissionPct: clampPct(req.body?.commissionPct) })
+    .returning();
   res.status(201).json(e);
+});
+
+// Edit an employee's role and/or commission percentage. Owner or staff.
+router.patch("/ripperdocs/:id/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
+  await patchVenueEmployee({
+    req,
+    res,
+    table: ripperdocEmployees,
+    venueCol: ripperdocEmployees.ripperdocId,
+    venueId: r.id,
+    employeeId: parseInt(String(req.params.employeeId), 10),
+    targetType: "ripperdoc",
+    action: "ripperdoc_employee_update",
+  });
 });
 
 router.delete("/ripperdocs/:id/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {

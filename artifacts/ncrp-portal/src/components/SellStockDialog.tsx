@@ -24,14 +24,14 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
   const m = kind === "store" ? sellStore : sellDoc;
   const errMsg =
     (m.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (m.error ? "Sale failed" : null);
+    (m.error ? "Offer failed" : null);
   const total = stock.price * Math.max(1, qty || 1);
   const accent = kind === "store" ? "nc-cyan" : "nc-magenta";
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-sell">
       <Card className={`rounded-none border-${accent} bg-card w-full max-w-md`}>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className={`font-display tracking-widest text-${accent}`}>SELL: {stock.name}</CardTitle>
+          <CardTitle className={`font-display tracking-widest text-${accent}`}>SEND OFFER: {stock.name}</CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-sell">
             <X className="w-4 h-4" />
           </Button>
@@ -51,6 +51,9 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
           >
             <p className="text-muted-foreground">
               Unit price <span className="text-nc-yellow">€${stock.price.toLocaleString()}</span> · In stock {stock.quantity}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              No money or stock moves yet — the buyer must approve the offer from their Pending Approvals page before anything is charged.
             </p>
             <div>
               <Label className="text-xs">BUYER</Label>
@@ -84,7 +87,7 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
               className={`w-full rounded-none bg-${accent} text-background hover:bg-${accent}/80 font-display`}
               data-testid="button-confirm-sell"
             >
-              {m.isPending ? "PROCESSING..." : "RING IT UP"}
+              {m.isPending ? "SENDING..." : "SEND OFFER"}
             </Button>
           </form>
         </CardContent>

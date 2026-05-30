@@ -302,6 +302,9 @@ export const storeEmployees = pgTable("store_employees", {
   storeId: integer("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
   characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
   role: text("role").notNull().default("clerk"),
+  // Per-employee commission percentage (0-100) of each sale they broker. Owner
+  // sets it; staff can audit. Snapshotted onto a sale_offer at creation time.
+  commissionPct: integer("commission_pct").notNull().default(0),
 });
 
 export const storeStock = pgTable("store_stock", {
@@ -333,6 +336,8 @@ export const ripperdocEmployees = pgTable("ripperdoc_employees", {
   ripperdocId: integer("ripperdoc_id").notNull().references(() => ripperdocs.id, { onDelete: "cascade" }),
   characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
   role: text("role").notNull().default("doc"),
+  // See store_employees.commission_pct.
+  commissionPct: integer("commission_pct").notNull().default(0),
 });
 
 export const ripperdocStock = pgTable("ripperdoc_stock", {
@@ -568,6 +573,54 @@ export const customRequests = pgTable("custom_requests", {
   requesterIdx: index("custom_requests_requester_idx").on(t.requestedById),
 }));
 export type CustomRequest = typeof customRequests.$inferSelect;
+
+// Buyer-approval sale offers. A store/ripperdoc owner or employee creates an
+// offer for a buyer character; the buyer must approve before any money/stock
+// moves. Lifecycle: pending | approved | denied | expired. Approve runs the
+// atomic buyer-debit -> store-credit -> commission -> stock-decrement ->
+// inventory-add flow (see lib/saleOffers.ts). Deny/expiry move nothing.
+// Item/price/commission are snapshotted at creation so later stock or
+// commission edits never change a pending offer's terms.
+export const saleOffers = pgTable("sale_offers", {
+  id: serial("id").primaryKey(),
+  // "store" | "ripperdoc" — exactly one of storeId/ripperdocId is set.
+  kind: text("kind").notNull(),
+  storeId: integer("store_id").references(() => stores.id, { onDelete: "cascade" }),
+  ripperdocId: integer("ripperdoc_id").references(() => ripperdocs.id, { onDelete: "cascade" }),
+  // The stock row being sold. Kept for decrement; nullable in case the stock
+  // row is deleted before approval (then approve fails on the guarded read).
+  stockId: integer("stock_id"),
+  // Snapshot of the item at offer time.
+  itemName: text("item_name").notNull(),
+  itemCategory: text("item_category"),
+  unitPrice: integer("unit_price").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  totalPrice: integer("total_price").notNull(),
+  // Buyer (must be a claimed character so we can debit a wallet).
+  buyerCharacterId: integer("buyer_character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  buyerUserId: text("buyer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Seller: the acting character + the employee row (null when the owner sells
+  // directly — owners earn via the store account, not commission).
+  sellerCharacterId: integer("seller_character_id"),
+  sellerEmployeeId: integer("seller_employee_id"),
+  commissionPct: integer("commission_pct").notNull().default(0),
+  // Set once commission is paid out (idempotency guard for the store-side leg).
+  commissionAmount: integer("commission_amount"),
+  commissionSettledAt: timestamp("commission_settled_at", { withTimezone: true }),
+  // Who created the offer (for audit/display).
+  createdById: text("created_by_id").notNull().references(() => users.id),
+  memo: text("memo"),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index("sale_offers_status_idx").on(t.status),
+  buyerIdx: index("sale_offers_buyer_idx").on(t.buyerUserId),
+  storeIdx: index("sale_offers_store_idx").on(t.storeId),
+  ripperdocIdx: index("sale_offers_ripperdoc_idx").on(t.ripperdocId),
+}));
+export type SaleOffer = typeof saleOffers.$inferSelect;
 
 export const traumaTeamCalls = pgTable("trauma_team_calls", {
   id: serial("id").primaryKey(),

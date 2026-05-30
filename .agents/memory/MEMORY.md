@@ -38,3 +38,4 @@
 - [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.
 - [Cyberware CWP cap & dedup](cyberware-cwp-cap.md) — non-NPCs hard-capped at 15 CWP; over-cap = double-import dup rows; dedupe by name+per-unit-CWP keeping newest id (scripts/src/dedupe-cyberware.ts).
 - [Raw tx.execute snake_case trap](raw-execute-snakecase-trap.md) — casting `SELECT *` result to `$inferSelect` makes camelCase cols undefined; use `.select()....for("update")` to lock-and-read typed.
+- [Offer approve debit-before-flip refund](offer-approve-refund-races.md) — buyer debit precedes the guarded pending→approved flip; if flip fails, refund unless final status is 'approved', and never claim "refunded" without checking applyWalletDelta.ok.

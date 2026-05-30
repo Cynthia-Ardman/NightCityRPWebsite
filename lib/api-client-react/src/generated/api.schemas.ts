@@ -888,6 +888,12 @@ export interface Employee {
   characterId: number;
   name: string;
   role: string;
+  /**
+     * Percent of each sale this employee earns as commission.
+     * @minimum 0
+     * @maximum 100
+     */
+  commissionPct: number;
 }
 
 export interface StockItem {
@@ -988,6 +994,118 @@ export interface EmployeeInput {
   characterId: number;
   /** @minLength 1 */
   role: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  commissionPct?: number;
+}
+
+export interface EmployeePatch {
+  /** @minLength 1 */
+  role?: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  commissionPct?: number;
+}
+
+export interface StockPurchaseInput {
+  /** Catalog gun (store) or cyberware (ripperdoc) id. */
+  catalogId: number;
+  /**
+     * Defaults to 1.
+     * @minimum 1
+     */
+  qty?: number;
+  /**
+     * Shelf price for the new stock. Defaults to the catalog price.
+     * @minimum 0
+     */
+  retailPrice?: number;
+}
+
+export interface StockPurchaseResult {
+  stock: StockItem;
+  /** Venue account balance after the purchase. */
+  balance: number;
+  totalCost: number;
+  /** Wholesale cost per unit. */
+  unitCost: number;
+}
+
+export type SaleOfferKind = typeof SaleOfferKind[keyof typeof SaleOfferKind];
+
+
+export const SaleOfferKind = {
+  store: 'store',
+  ripperdoc: 'ripperdoc',
+} as const;
+
+export type SaleOfferStatus = typeof SaleOfferStatus[keyof typeof SaleOfferStatus];
+
+
+export const SaleOfferStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  denied: 'denied',
+  expired: 'expired',
+} as const;
+
+export interface SaleOffer {
+  id: number;
+  kind: SaleOfferKind;
+  /** @nullable */
+  storeId?: number | null;
+  /** @nullable */
+  ripperdocId?: number | null;
+  /** @nullable */
+  stockId?: number | null;
+  itemName: string;
+  /** @nullable */
+  itemCategory?: string | null;
+  unitPrice: number;
+  quantity: number;
+  totalPrice: number;
+  buyerCharacterId: number;
+  buyerUserId: string;
+  /** @nullable */
+  sellerCharacterId?: number | null;
+  /** @nullable */
+  sellerEmployeeId?: number | null;
+  commissionPct: number;
+  /** @nullable */
+  commissionAmount?: number | null;
+  /** @nullable */
+  commissionSettledAt?: string | null;
+  createdById?: string;
+  /** @nullable */
+  memo?: string | null;
+  status: SaleOfferStatus;
+  /** @nullable */
+  expiresAt?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  createdAt?: string;
+  /** @nullable */
+  venueName?: string | null;
+  /** @nullable */
+  buyerName?: string | null;
+}
+
+export interface ApproveOfferResult {
+  offer?: SaleOffer;
+  inventoryItem?: InventoryItem;
+  commissionPaid?: number;
+  venueBalance?: number;
+  /** True when the offer was already approved (idempotent retry). */
+  duplicate?: boolean;
+  /** True in Test mode — nothing was written. */
+  dryRun?: boolean;
+  wouldDebitBuyer?: number;
+  wouldCreditStore?: number;
+  wouldPayCommission?: number;
 }
 
 export interface StockInput {
