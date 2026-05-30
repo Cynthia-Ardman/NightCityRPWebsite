@@ -13,8 +13,10 @@ import {
   useDepositToStore,
   useWithdrawFromStore,
   useGetStoreTransactions,
+  useListStoreOffers,
   getGetStoreQueryKey,
   getGetStoreTransactionsQueryKey,
+  getListStoreOffersQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,7 @@ import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
 import SellStockDialog from "@/components/SellStockDialog";
 import PurchaseStockDialog from "@/components/PurchaseStockDialog";
+import VenueOffersPanel from "@/components/VenueOffersPanel";
 import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
 import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
@@ -48,6 +51,7 @@ export default function MyStoreDetail() {
   const updateStock = useUpdateStoreStock({ mutation: { onSuccess: invalidate } });
   const removeStock = useRemoveStoreStock({ mutation: { onSuccess: invalidate } });
   const { data: txns } = useGetStoreTransactions(storeId);
+  const { data: offers } = useListStoreOffers(storeId);
   const invalidateWallet = () => {
     invalidate();
     qc.invalidateQueries({ queryKey: getGetStoreTransactionsQueryKey(storeId) });
@@ -254,6 +258,7 @@ export default function MyStoreDetail() {
         </CardContent>
       </Card>
       <WholesalerOrdersPanel kind="store" venueId={storeId} />
+      <VenueOffersPanel offers={offers ?? []} />
       {sellTarget && (
         <SellStockDialog
           kind="store"
@@ -262,6 +267,7 @@ export default function MyStoreDetail() {
           onClose={() => setSellTarget(null)}
           onDone={() => {
             invalidate();
+            qc.invalidateQueries({ queryKey: getListStoreOffersQueryKey(storeId) });
             setSellTarget(null);
           }}
         />

@@ -12,8 +12,10 @@ import {
   useDepositToRipperdoc,
   useWithdrawFromRipperdoc,
   useGetRipperdocTransactions,
+  useListRipperdocOffers,
   getGetRipperdocQueryKey,
   getGetRipperdocTransactionsQueryKey,
+  getListRipperdocOffersQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
 import SellStockDialog from "@/components/SellStockDialog";
 import PurchaseStockDialog from "@/components/PurchaseStockDialog";
+import VenueOffersPanel from "@/components/VenueOffersPanel";
 import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
 import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
@@ -44,6 +47,7 @@ export default function MyClinicDetail() {
   const addStock = useAddRipperdocStock({ mutation: { onSuccess: invalidate } });
   const removeStock = useRemoveRipperdocStock({ mutation: { onSuccess: invalidate } });
   const { data: txns } = useGetRipperdocTransactions(rid);
+  const { data: offers } = useListRipperdocOffers(rid);
   const invalidateWallet = () => {
     invalidate();
     qc.invalidateQueries({ queryKey: getGetRipperdocTransactionsQueryKey(rid) });
@@ -233,6 +237,7 @@ export default function MyClinicDetail() {
         </CardContent>
       </Card>
       <WholesalerOrdersPanel kind="ripperdoc" venueId={rid} />
+      <VenueOffersPanel offers={offers ?? []} />
       {sellTarget && (
         <SellStockDialog
           kind="ripperdoc"
@@ -241,6 +246,7 @@ export default function MyClinicDetail() {
           onClose={() => setSellTarget(null)}
           onDone={() => {
             invalidate();
+            qc.invalidateQueries({ queryKey: getListRipperdocOffersQueryKey(rid) });
             setSellTarget(null);
           }}
         />

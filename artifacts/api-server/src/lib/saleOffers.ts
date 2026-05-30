@@ -105,7 +105,7 @@ async function resolveSeller(
 // Build the absolute portal URL for an offer's approval page. Mirrors sheets.ts.
 function offerLink(): string {
   const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
-  return portalBase ? `https://${portalBase}/offers` : `/offers`;
+  return portalBase ? `https://${portalBase}/offers/mine` : `/offers/mine`;
 }
 
 // Best-effort buyer notification (Discord DM). The in-portal surface is
@@ -284,6 +284,7 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
   let insertedItem: typeof inventoryItems.$inferSelect | null = null;
   let stockGuardFailed = false;
   let alreadyApproved = false;
+  let completionError: unknown = null;
   let venueBalanceAfter = venue.balance;
   await db.transaction(async (tx) => {
     const [flipped] = await tx
@@ -341,18 +342,24 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
       newBalance: venueBalanceAfter,
     } as never);
   }).catch((err) => {
-    if (!stockGuardFailed) throw err;
+    // Capture any failure (stock-guard miss OR unexpected error). The tx is
+    // all-or-nothing, so on any throw nothing committed and the buyer debit
+    // (which ran before the tx) must be compensated below.
+    completionError = err;
   });
 
-  if (stockGuardFailed) {
-    // Buyer was debited but stock vanished — refund and leave the offer pending.
+  if (completionError) {
+    // The completion tx rolled back entirely; the buyer was already debited, so
+    // refund and leave the offer pending. stockGuardFailed only tunes the message.
     const refund = await applyWalletDelta({
       userId: buyerUser.id,
       discordId: buyerUser.discordId,
       amount: offer.totalPrice,
       source: kind,
       kind: "shop_refund",
-      reason: `Refund: ${offer.itemName} out of stock @ ${venue.name}`,
+      reason: stockGuardFailed
+        ? `Refund: ${offer.itemName} out of stock @ ${venue.name}`
+        : `Refund: sale could not be completed @ ${venue.name}`,
       characterId: buyer.id,
       counterpartyName: venue.name,
       relatedEntityType: "sale_offer",
@@ -360,14 +367,15 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
       idempotencyKey: `offer:${offer.id}:buyer-refund`,
       allowNegative: true,
     });
+    const reason = stockGuardFailed ? "Item is out of stock" : "Sale could not be completed";
     if (!refund.ok) {
       logger.error(
-        { offerId: offer.id, venueId, status: refund.status },
-        "OFFER_REFUND_FAILED: stock-guard miss but buyer refund failed; buyer remains debited, manual reconciliation required",
+        { offerId: offer.id, venueId, status: refund.status, err: String(completionError) },
+        "OFFER_REFUND_FAILED: completion failed and buyer refund failed; buyer remains debited, manual reconciliation required",
       );
-      return { status: 409, body: { error: "Item is out of stock; refund failed — please contact staff." } };
+      return { status: 409, body: { error: `${reason}; refund failed — please contact staff.` } };
     }
-    return { status: 409, body: { error: "Item is out of stock; buyer was refunded." } };
+    return { status: 409, body: { error: `${reason}; buyer was refunded.` } };
   }
 
   if (alreadyApproved) {
