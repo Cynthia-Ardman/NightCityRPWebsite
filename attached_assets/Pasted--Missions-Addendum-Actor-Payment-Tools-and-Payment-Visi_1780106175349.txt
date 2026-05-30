@@ -1,0 +1,117 @@
+# Missions Addendum: Actor Payment Tools and Payment Visibility
+
+## 1. Remove Manual Player Payment From Fixer Mission Tools
+
+On the Missions tab, under fixer tools, remove any manual “Pay Players” option.
+
+Players should be paid automatically by the mission auto-pay system after the mission has occurred.
+
+**Expected behavior**
+
+* Fixers should not manually pay assigned player characters from the mission page.
+* Player payment should happen through the automated mission payment flow.
+* Fixers/admins should still be able to view player payment status, success, or failure.
+
+**Acceptance criteria**
+
+* No manual Pay Players button appears in the fixer mission tools.
+* Player payment is handled automatically.
+* Fixers/admins can still see whether players were paid.
+* Failed automatic player payments are visible for staff follow-up.
+* Manual actor payment remains available.
+
+---
+
+## 2. Pay Actors Search and Multi-Select
+
+The **Pay Actors** tool should allow fixers/admins to search for actor names and select any number of actors to pay.
+
+**Pay Actors form should include**
+
+* Search field for actor/player name
+* Multi-select actor results
+* Payment amount field
+* Confirmation button
+
+**Behavior**
+
+* Fixer searches by name.
+* Matching users/actors appear in the selectable list.
+* Fixer can select one actor or multiple actors.
+* Fixer enters the payment amount.
+* On submit, each selected actor is paid that amount.
+* Payment records are tied to the mission.
+
+**Acceptance criteria**
+
+* Pay Actors supports name search.
+* Pay Actors supports selecting multiple actors.
+* Payment amount is required.
+* Selected actors are paid through the configured payment flow.
+* Actor payments are recorded against the mission.
+* Actor payment notices are posted to `#npc-spending`.
+* Actor payments are logged to `#banking` where appropriate.
+* Duplicate actor payments for the same mission are prevented or clearly warned.
+
+---
+
+## 3. Actor Payment List / Payment History Tab
+
+Add a tab or section in the mission detail view that shows actors paid for that mission and how much they were paid.
+
+**Suggested location**
+
+Inside the mission detail view, under fixer tools, add a tab or section called:
+
+`Actor Payments`
+
+**Actor Payments should show**
+
+* Actor/user name
+* Payment amount
+* Payment status
+* Payment timestamp
+* Paid by / fixer who initiated payment
+* Payment method/source, such as manual Pay Actors
+* Any failed payment/error state
+
+**Acceptance criteria**
+
+* Fixers/admins can see a list of actors paid for the mission.
+* Fixers/admins can see how much each actor was paid.
+* Fixers/admins can see whether each payment succeeded or failed.
+* Actor payment records update after using Pay Actors.
+* Failed payments are visible and actionable.
+* Regular players do not see staff-only payment management details unless intentionally allowed.
+
+---
+
+## 4. Payment Tracking Separation
+
+Player payments and actor payments should remain separate.
+
+### Player payments
+
+* Automated only.
+* Based on assigned players/characters.
+* Visible to fixers/admins as payment status.
+* Not manually initiated from the mission fixer tools.
+
+### Actor payments
+
+* Manual through Pay Actors.
+* Searchable by actor/player name.
+* Multi-select.
+* Payment amount entered by fixer/admin.
+* Visible in Actor Payments tab/section.
+
+**Acceptance criteria**
+
+* Player and actor payment records are stored separately or clearly typed.
+* Player auto-pay does not interfere with actor payment.
+* Actor payment does not affect player auto-pay.
+* Mission status logic can correctly tell:
+
+  * Players unpaid
+  * Players paid but actors unpaid
+  * Everyone paid
