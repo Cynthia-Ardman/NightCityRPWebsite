@@ -8,17 +8,36 @@
 
 export interface WalletTransaction {
   id: number;
-  characterId: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  userId?: string | null;
   amount: number;
   /** Wallet transaction kind. Includes legacy values plus per-billing-line
   kinds emitted by the autobill cron (rent, business_rent, lifestyle,
   baseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,
-  and others). Treat as an open vocabulary.
+  and others) plus economy kinds (store_deposit, store_withdraw,
+  ripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).
+  Treat as an open vocabulary.
    */
   kind: string;
   /** @nullable */
   memo?: string | null;
   /** @nullable */
   counterpartyName?: string | null;
+  /** Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary. */
+  source?: string;
+  /** UB sync state: synced, pending, failed, reconciled. Open vocabulary. */
+  syncStatus?: string;
+  /** @nullable */
+  previousBalance?: number | null;
+  /** @nullable */
+  newBalance?: number | null;
+  /** @nullable */
+  errorMessage?: string | null;
+  /** @nullable */
+  storeId?: number | null;
+  /** @nullable */
+  ripperdocId?: number | null;
   createdAt: Date;
 }

@@ -15,6 +15,8 @@ export interface Store {
   ownerId: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /** Website-only business account balance (eddies). */
+  balance?: number;
   kind: StoreKind;
   /** @nullable */
   purpose?: string | null;

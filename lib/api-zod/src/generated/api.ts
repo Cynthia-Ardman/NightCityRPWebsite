@@ -442,11 +442,19 @@ export const GetWalletTransactionsParams = zod.object({
 
 export const GetWalletTransactionsResponseItem = zod.object({
   "id": zod.number(),
-  "characterId": zod.number(),
+  "characterId": zod.number().nullish(),
+  "userId": zod.string().nullish(),
   "amount": zod.number(),
-  "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others). Treat as an open vocabulary.\n'),
+  "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
   "memo": zod.string().nullish(),
   "counterpartyName": zod.string().nullish(),
+  "source": zod.string().optional().describe('Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary.'),
+  "syncStatus": zod.string().optional().describe('UB sync state: synced, pending, failed, reconciled. Open vocabulary.'),
+  "previousBalance": zod.number().nullish(),
+  "newBalance": zod.number().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const GetWalletTransactionsResponse = zod.array(GetWalletTransactionsResponseItem)
@@ -1007,6 +1015,7 @@ export const ListMyStoresResponseItem = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -1039,6 +1048,7 @@ export const GetStoreResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -1081,6 +1091,7 @@ export const UpdateStoreResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -1170,6 +1181,81 @@ export const SellStoreItemResponse = zod.object({
 })
 
 
+/**
+ * @summary Owner moves eddies from their personal wallet into the store account
+ */
+export const DepositToStoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const DepositToStoreBody = zod.object({
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.')
+})
+
+export const DepositToStoreResponse = zod.object({
+  "ok": zod.boolean(),
+  "venueBalance": zod.number().describe('Venue balance after the move (unchanged when dryRun).'),
+  "walletBalance": zod.number().describe('Owner personal wallet balance after the move (unchanged when dryRun).'),
+  "dryRun": zod.boolean().optional().describe('True when the economy is in Test mode — nothing was written.'),
+  "proposedVenueBalance": zod.number().optional().describe('What the venue balance WOULD become (Test mode only).'),
+  "proposedWalletBalance": zod.number().optional().describe('What the wallet balance WOULD become (Test mode only).')
+})
+
+
+/**
+ * @summary Owner moves eddies from the store account into their personal wallet
+ */
+export const WithdrawFromStoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const WithdrawFromStoreBody = zod.object({
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.')
+})
+
+export const WithdrawFromStoreResponse = zod.object({
+  "ok": zod.boolean(),
+  "venueBalance": zod.number().describe('Venue balance after the move (unchanged when dryRun).'),
+  "walletBalance": zod.number().describe('Owner personal wallet balance after the move (unchanged when dryRun).'),
+  "dryRun": zod.boolean().optional().describe('True when the economy is in Test mode — nothing was written.'),
+  "proposedVenueBalance": zod.number().optional().describe('What the venue balance WOULD become (Test mode only).'),
+  "proposedWalletBalance": zod.number().optional().describe('What the wallet balance WOULD become (Test mode only).')
+})
+
+
+/**
+ * @summary Per-store account transaction history (owner or staff)
+ */
+export const GetStoreTransactionsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetStoreTransactionsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "userId": zod.string().nullish(),
+  "amount": zod.number(),
+  "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
+  "memo": zod.string().nullish(),
+  "counterpartyName": zod.string().nullish(),
+  "source": zod.string().optional().describe('Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary.'),
+  "syncStatus": zod.string().optional().describe('UB sync state: synced, pending, failed, reconciled. Open vocabulary.'),
+  "previousBalance": zod.number().nullish(),
+  "newBalance": zod.number().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const GetStoreTransactionsResponse = zod.array(GetStoreTransactionsResponseItem)
+
+
 export const AddStoreStockParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -1231,6 +1317,7 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1262,6 +1349,7 @@ export const GetRipperdocResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1302,6 +1390,7 @@ export const UpdateRipperdocResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -3279,6 +3368,117 @@ export const AdminScanVrchatLinksResponse = zod.object({
 
 
 /**
+ * @summary Players whose website wallet differs from their live UnbelievaBoat balance.
+ */
+export const AdminGetEconomyOutOfSyncResponse = zod.object({
+  "mode": zod.enum(['disabled', 'test', 'enabled']).describe('Current economy processing mode.'),
+  "entries": zod.array(zod.object({
+  "userId": zod.string(),
+  "discordId": zod.string().optional(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "walletBalance": zod.number().describe('Website-stored wallet balance.'),
+  "ubBalance": zod.number().nullish().describe('Live UnbelievaBoat total, or null if UB could not be reached.'),
+  "lastSyncedUbBalance": zod.number().nullish(),
+  "diff": zod.number().nullish().describe('ubBalance - walletBalance, or null if UB unavailable.'),
+  "lastSyncedAt": zod.coerce.date().nullish(),
+  "lastSyncStatus": zod.string().nullish(),
+  "lastSyncError": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Re-sync one player's wallet to UnbelievaBoat (folds any external delta in).
+ */
+export const AdminRetryEconomySyncParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const AdminRetryEconomySyncResponse = zod.object({
+  "ok": zod.boolean(),
+  "status": zod.string().describe('Outcome of the retry (synced, failed, disabled, dry_run, duplicate, pending, insufficient_funds).'),
+  "balance": zod.number().optional(),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * @summary Owner moves eddies from their personal wallet into the clinic account
+ */
+export const DepositToRipperdocParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const DepositToRipperdocBody = zod.object({
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.')
+})
+
+export const DepositToRipperdocResponse = zod.object({
+  "ok": zod.boolean(),
+  "venueBalance": zod.number().describe('Venue balance after the move (unchanged when dryRun).'),
+  "walletBalance": zod.number().describe('Owner personal wallet balance after the move (unchanged when dryRun).'),
+  "dryRun": zod.boolean().optional().describe('True when the economy is in Test mode — nothing was written.'),
+  "proposedVenueBalance": zod.number().optional().describe('What the venue balance WOULD become (Test mode only).'),
+  "proposedWalletBalance": zod.number().optional().describe('What the wallet balance WOULD become (Test mode only).')
+})
+
+
+/**
+ * @summary Owner moves eddies from the clinic account into their personal wallet
+ */
+export const WithdrawFromRipperdocParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const WithdrawFromRipperdocBody = zod.object({
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.')
+})
+
+export const WithdrawFromRipperdocResponse = zod.object({
+  "ok": zod.boolean(),
+  "venueBalance": zod.number().describe('Venue balance after the move (unchanged when dryRun).'),
+  "walletBalance": zod.number().describe('Owner personal wallet balance after the move (unchanged when dryRun).'),
+  "dryRun": zod.boolean().optional().describe('True when the economy is in Test mode — nothing was written.'),
+  "proposedVenueBalance": zod.number().optional().describe('What the venue balance WOULD become (Test mode only).'),
+  "proposedWalletBalance": zod.number().optional().describe('What the wallet balance WOULD become (Test mode only).')
+})
+
+
+/**
+ * @summary Per-clinic account transaction history (owner or staff)
+ */
+export const GetRipperdocTransactionsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetRipperdocTransactionsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "userId": zod.string().nullish(),
+  "amount": zod.number(),
+  "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
+  "memo": zod.string().nullish(),
+  "counterpartyName": zod.string().nullish(),
+  "source": zod.string().optional().describe('Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary.'),
+  "syncStatus": zod.string().optional().describe('UB sync state: synced, pending, failed, reconciled. Open vocabulary.'),
+  "previousBalance": zod.number().nullish(),
+  "newBalance": zod.number().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const GetRipperdocTransactionsResponse = zod.array(GetRipperdocTransactionsResponseItem)
+
+
+/**
  * @summary Owner/employee installs cyberware on a buyer character
  */
 export const SellRipperdocItemParams = zod.object({
@@ -5141,11 +5341,19 @@ export const GetMyWalletResponse = zod.object({
  */
 export const GetMyWalletTransactionsResponseItem = zod.object({
   "id": zod.number(),
-  "characterId": zod.number(),
+  "characterId": zod.number().nullish(),
+  "userId": zod.string().nullish(),
   "amount": zod.number(),
-  "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others). Treat as an open vocabulary.\n'),
+  "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
   "memo": zod.string().nullish(),
   "counterpartyName": zod.string().nullish(),
+  "source": zod.string().optional().describe('Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary.'),
+  "syncStatus": zod.string().optional().describe('UB sync state: synced, pending, failed, reconciled. Open vocabulary.'),
+  "previousBalance": zod.number().nullish(),
+  "newBalance": zod.number().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const GetMyWalletTransactionsResponse = zod.array(GetMyWalletTransactionsResponseItem)

@@ -774,18 +774,37 @@ export interface TransferInput {
 
 export interface WalletTransaction {
   id: number;
-  characterId: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  userId?: string | null;
   amount: number;
   /** Wallet transaction kind. Includes legacy values plus per-billing-line
   kinds emitted by the autobill cron (rent, business_rent, lifestyle,
   baseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,
-  and others). Treat as an open vocabulary.
+  and others) plus economy kinds (store_deposit, store_withdraw,
+  ripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).
+  Treat as an open vocabulary.
    */
   kind: string;
   /** @nullable */
   memo?: string | null;
   /** @nullable */
   counterpartyName?: string | null;
+  /** Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary. */
+  source?: string;
+  /** UB sync state: synced, pending, failed, reconciled. Open vocabulary. */
+  syncStatus?: string;
+  /** @nullable */
+  previousBalance?: number | null;
+  /** @nullable */
+  newBalance?: number | null;
+  /** @nullable */
+  errorMessage?: string | null;
+  /** @nullable */
+  storeId?: number | null;
+  /** @nullable */
+  ripperdocId?: number | null;
   createdAt: string;
 }
 
@@ -888,6 +907,8 @@ export interface Store {
   ownerId: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /** Website-only business account balance (eddies). */
+  balance?: number;
   kind: StoreKind;
   /** @nullable */
   purpose?: string | null;
@@ -934,6 +955,8 @@ export interface Ripperdoc {
   ownerId: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /** Website-only business account balance (eddies). */
+  balance?: number;
   /** @nullable */
   purpose?: string | null;
   /** @nullable */
@@ -993,6 +1016,83 @@ export interface StoreSaleResult {
   stock: StockItem;
   inventoryItem: InventoryItem;
   totalPaid?: number;
+}
+
+export interface VenueAccountInput {
+  /**
+     * Whole eddies to move between the owner's personal wallet and the venue account.
+     * @minimum 1
+     */
+  amount: number;
+}
+
+export interface VenueAccountResult {
+  ok: boolean;
+  /** Venue balance after the move (unchanged when dryRun). */
+  venueBalance: number;
+  /** Owner personal wallet balance after the move (unchanged when dryRun). */
+  walletBalance: number;
+  /** True when the economy is in Test mode — nothing was written. */
+  dryRun?: boolean;
+  /** What the venue balance WOULD become (Test mode only). */
+  proposedVenueBalance?: number;
+  /** What the wallet balance WOULD become (Test mode only). */
+  proposedWalletBalance?: number;
+}
+
+export interface EconomyOutOfSyncEntry {
+  userId: string;
+  discordId?: string;
+  username: string;
+  /** @nullable */
+  globalName?: string | null;
+  /** Website-stored wallet balance. */
+  walletBalance: number;
+  /**
+     * Live UnbelievaBoat total, or null if UB could not be reached.
+     * @nullable
+     */
+  ubBalance?: number | null;
+  /** @nullable */
+  lastSyncedUbBalance?: number | null;
+  /**
+     * ubBalance - walletBalance, or null if UB unavailable.
+     * @nullable
+     */
+  diff?: number | null;
+  /** @nullable */
+  lastSyncedAt?: string | null;
+  /** @nullable */
+  lastSyncStatus?: string | null;
+  /** @nullable */
+  lastSyncError?: string | null;
+}
+
+/**
+ * Current economy processing mode.
+ */
+export type EconomyOutOfSyncListMode = typeof EconomyOutOfSyncListMode[keyof typeof EconomyOutOfSyncListMode];
+
+
+export const EconomyOutOfSyncListMode = {
+  disabled: 'disabled',
+  test: 'test',
+  enabled: 'enabled',
+} as const;
+
+export interface EconomyOutOfSyncList {
+  /** Current economy processing mode. */
+  mode: EconomyOutOfSyncListMode;
+  entries: EconomyOutOfSyncEntry[];
+}
+
+export interface EconomyRetryResult {
+  ok: boolean;
+  /** Outcome of the retry (synced, failed, disabled, dry_run, duplicate, pending, insufficient_funds). */
+  status: string;
+  balance?: number;
+  /** @nullable */
+  error?: string | null;
 }
 
 export interface StockUpdate {

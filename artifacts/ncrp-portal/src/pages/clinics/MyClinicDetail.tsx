@@ -8,7 +8,11 @@ import {
   useRemoveRipperdocEmployee,
   useAddRipperdocStock,
   useRemoveRipperdocStock,
+  useDepositToRipperdoc,
+  useWithdrawFromRipperdoc,
+  useGetRipperdocTransactions,
   getGetRipperdocQueryKey,
+  getGetRipperdocTransactionsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +26,7 @@ import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import StaffVenuePanel from "@/components/StaffVenuePanel";
 import SingleImageUpload from "@/components/SingleImageUpload";
+import VenueWalletPanel from "@/components/VenueWalletPanel";
 import { useAuthMe } from "@/hooks/useAuthMe";
 
 export default function MyClinicDetail() {
@@ -35,6 +40,13 @@ export default function MyClinicDetail() {
   const removeEmp = useRemoveRipperdocEmployee({ mutation: { onSuccess: invalidate } });
   const addStock = useAddRipperdocStock({ mutation: { onSuccess: invalidate } });
   const removeStock = useRemoveRipperdocStock({ mutation: { onSuccess: invalidate } });
+  const { data: txns } = useGetRipperdocTransactions(rid);
+  const invalidateWallet = () => {
+    invalidate();
+    qc.invalidateQueries({ queryKey: getGetRipperdocTransactionsQueryKey(rid) });
+  };
+  const deposit = useDepositToRipperdoc({ mutation: { onSuccess: invalidateWallet } });
+  const withdraw = useWithdrawFromRipperdoc({ mutation: { onSuccess: invalidateWallet } });
 
   const [empChar, setEmpChar] = useState<CharacterPickerValue>(null);
   const [empRole, setEmpRole] = useState("doc");
@@ -74,6 +86,16 @@ export default function MyClinicDetail() {
       {!!me && (me.isAdmin || me.isFixer) && (
         <StaffVenuePanel kind="ripperdoc" venueId={rid} onChanged={invalidate} />
       )}
+
+      <VenueWalletPanel
+        balance={data.balance ?? 0}
+        transactions={txns ?? []}
+        busy={deposit.isPending || withdraw.isPending}
+        onDeposit={(amount) => deposit.mutate({ id: rid, data: { amount } })}
+        onWithdraw={(amount) => withdraw.mutate({ id: rid, data: { amount } })}
+        accent="magenta"
+        testIdPrefix="clinic"
+      />
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">DOCS</CardTitle></CardHeader>

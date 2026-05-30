@@ -14,6 +14,8 @@ export interface Ripperdoc {
   ownerId: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /** Website-only business account balance (eddies). */
+  balance?: number;
   /** @nullable */
   purpose?: string | null;
   /** @nullable */

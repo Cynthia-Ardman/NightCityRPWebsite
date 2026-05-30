@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminScanVrchatLinks, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -58,10 +58,11 @@ export default function AdminDashboard() {
       )}
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-7 max-w-6xl w-full">
+        <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-8 max-w-6xl w-full">
           <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
           <TabsTrigger value="characters" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-chars">Characters</TabsTrigger>
           <TabsTrigger value="wallet" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-wallet">Wallets</TabsTrigger>
+          <TabsTrigger value="economy" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-economy">Economy</TabsTrigger>
           <TabsTrigger value="jobs" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-jobs">Cron Jobs</TabsTrigger>
           <TabsTrigger value="audit" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-audit">Audit Log</TabsTrigger>
           <TabsTrigger value="flags" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-flags">System Flags</TabsTrigger>
@@ -77,6 +78,9 @@ export default function AdminDashboard() {
           </TabsContent>
           <TabsContent value="wallet">
             <WalletTab />
+          </TabsContent>
+          <TabsContent value="economy">
+            <EconomyTab />
           </TabsContent>
           <TabsContent value="jobs">
             <JobsTab />
@@ -643,6 +647,117 @@ const walletSchema = z.object({
   amount: z.coerce.number(),
   reason: z.string().min(1, "Reason is required"),
 });
+
+function EconomyTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data, isLoading, isFetching, refetch } = useAdminGetEconomyOutOfSync();
+  const retry = useAdminRetryEconomySync({
+    mutation: {
+      onSuccess: (res: any) => {
+        toast({ title: "Re-sync complete", description: `Status: ${res?.status ?? "ok"}` });
+        qc.invalidateQueries({ queryKey: getAdminGetEconomyOutOfSyncQueryKey() });
+      },
+      onError: (err: any) => {
+        toast({ title: "Re-sync failed", description: err?.message ?? "Error", variant: "destructive" });
+      },
+    },
+  });
+
+  const mode = data?.mode;
+  const entries = data?.entries ?? [];
+  const modeColor =
+    mode === "enabled" ? "text-nc-cyan" : mode === "test" ? "text-nc-yellow" : "text-muted-foreground";
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="font-display tracking-widest">Economy Sync</CardTitle>
+          <CardDescription className="font-mono">
+            Players whose website wallet has drifted from UnbelievaBoat, failed to sync, or can't be reached.
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs uppercase">
+            Mode: <span className={modeColor} data-testid="text-economy-mode">{mode ?? "…"}</span>
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-none font-display"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            data-testid="button-economy-refresh"
+          >
+            {isFetching ? "REFRESHING…" : "REFRESH"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="font-mono text-sm text-muted-foreground animate-pulse">LOADING…</p>
+        ) : entries.length === 0 ? (
+          <p className="font-mono text-sm text-nc-cyan py-4" data-testid="text-economy-empty">
+            All linked wallets are in sync.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="font-display text-nc-cyan">Player</TableHead>
+                <TableHead className="font-display text-nc-cyan text-right">Website</TableHead>
+                <TableHead className="font-display text-nc-cyan text-right">UnbelievaBoat</TableHead>
+                <TableHead className="font-display text-nc-cyan text-right">Diff</TableHead>
+                <TableHead className="font-display text-nc-cyan">Last Sync</TableHead>
+                <TableHead className="font-display text-nc-cyan">Status</TableHead>
+                <TableHead className="font-display text-nc-cyan text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="font-mono text-xs">
+              {entries.map((e) => (
+                <TableRow key={e.userId} data-testid={`row-economy-${e.userId}`}>
+                  <TableCell>{e.globalName || e.username}</TableCell>
+                  <TableCell className="text-right">{e.walletBalance.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    {e.ubBalance === null || e.ubBalance === undefined ? (
+                      <span className="text-destructive">unreachable</span>
+                    ) : (
+                      e.ubBalance.toLocaleString()
+                    )}
+                  </TableCell>
+                  <TableCell className={`text-right ${e.diff ? "text-nc-yellow" : ""}`}>
+                    {e.diff === null || e.diff === undefined ? "—" : `${e.diff > 0 ? "+" : ""}${e.diff.toLocaleString()}`}
+                  </TableCell>
+                  <TableCell>{e.lastSyncedAt ? new Date(e.lastSyncedAt).toLocaleString() : "never"}</TableCell>
+                  <TableCell>
+                    <span className={e.lastSyncStatus === "failed" ? "text-destructive" : "text-muted-foreground"}>
+                      {e.lastSyncStatus ?? "—"}
+                    </span>
+                    {e.lastSyncError ? (
+                      <span className="block text-destructive/70 truncate max-w-[16rem]">{e.lastSyncError}</span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      className="rounded-none bg-nc-cyan text-background font-display"
+                      disabled={retry.isPending || mode === "disabled"}
+                      onClick={() => retry.mutate({ userId: e.userId })}
+                      data-testid={`button-economy-retry-${e.userId}`}
+                    >
+                      RE-SYNC
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function WalletTab() {
   const adjustWallet = useAdminAdjustWallet();

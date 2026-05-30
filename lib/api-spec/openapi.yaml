@@ -835,6 +835,69 @@ paths:
         "404": { description: Not found }
         "409": { description: Out of stock or buyer unclaimed }
         "502": { description: Wallet provider unavailable }
+  /stores/{id}/deposit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: depositToStore
+      tags: [stores]
+      summary: Owner moves eddies from their personal wallet into the store account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueAccountInput" }
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueAccountResult" }
+        "400": { description: Bad amount or insufficient personal wallet balance }
+        "403": { description: Not the owner }
+        "404": { description: Not found }
+        "409": { description: Economy disabled }
+        "502": { description: Wallet sync failed }
+  /stores/{id}/withdraw:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: withdrawFromStore
+      tags: [stores]
+      summary: Owner moves eddies from the store account into their personal wallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueAccountInput" }
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueAccountResult" }
+        "400": { description: Bad amount or insufficient venue balance }
+        "403": { description: Not the owner }
+        "404": { description: Not found }
+        "409": { description: Economy disabled }
+        "502": { description: Wallet sync failed }
+  /stores/{id}/transactions:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getStoreTransactions
+      tags: [stores]
+      summary: Per-store account transaction history (owner or staff)
+      responses:
+        "200":
+          description: History
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WalletTransaction" }
+        "403": { description: Not owner / not staff }
+        "404": { description: Not found }
   /stores/{id}/stock:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1523,6 +1586,97 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VrchatScanResult" }
+
+  /admin/economy/out-of-sync:
+    get:
+      operationId: adminGetEconomyOutOfSync
+      tags: [admin]
+      summary: "Players whose website wallet differs from their live UnbelievaBoat balance."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EconomyOutOfSyncList" }
+  /admin/economy/retry/{userId}:
+    parameters:
+      - { in: path, name: userId, required: true, schema: { type: string } }
+    post:
+      operationId: adminRetryEconomySync
+      tags: [admin]
+      summary: "Re-sync one player's wallet to UnbelievaBoat (folds any external delta in)."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EconomyRetryResult" }
+        "404": { description: Unknown user }
+        "409": { description: Economy disabled }
+
+  /ripperdocs/{id}/deposit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: depositToRipperdoc
+      tags: [ripperdocs]
+      summary: Owner moves eddies from their personal wallet into the clinic account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueAccountInput" }
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueAccountResult" }
+        "400": { description: Bad amount or insufficient personal wallet balance }
+        "403": { description: Not the owner }
+        "404": { description: Not found }
+        "409": { description: Economy disabled }
+        "502": { description: Wallet sync failed }
+  /ripperdocs/{id}/withdraw:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: withdrawFromRipperdoc
+      tags: [ripperdocs]
+      summary: Owner moves eddies from the clinic account into their personal wallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueAccountInput" }
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueAccountResult" }
+        "400": { description: Bad amount or insufficient venue balance }
+        "403": { description: Not the owner }
+        "404": { description: Not found }
+        "409": { description: Economy disabled }
+        "502": { description: Wallet sync failed }
+  /ripperdocs/{id}/transactions:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getRipperdocTransactions
+      tags: [ripperdocs]
+      summary: Per-clinic account transaction history (owner or staff)
+      responses:
+        "200":
+          description: History
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WalletTransaction" }
+        "403": { description: Not owner / not staff }
+        "404": { description: Not found }
 
   /ripperdocs/{id}/sell:
     parameters:
@@ -3053,10 +3207,11 @@ components:
 
     WalletTransaction:
       type: object
-      required: [id, characterId, amount, kind, createdAt]
+      required: [id, amount, kind, createdAt]
       properties:
         id: { type: integer }
-        characterId: { type: integer }
+        characterId: { type: ["integer", "null"] }
+        userId: { type: ["string", "null"] }
         amount: { type: integer }
         kind:
           type: string
@@ -3064,9 +3219,22 @@ components:
             Wallet transaction kind. Includes legacy values plus per-billing-line
             kinds emitted by the autobill cron (rent, business_rent, lifestyle,
             baseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,
-            and others). Treat as an open vocabulary.
+            and others) plus economy kinds (store_deposit, store_withdraw,
+            ripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).
+            Treat as an open vocabulary.
         memo: { type: ["string", "null"] }
         counterpartyName: { type: ["string", "null"] }
+        source:
+          type: string
+          description: "Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary."
+        syncStatus:
+          type: string
+          description: "UB sync state: synced, pending, failed, reconciled. Open vocabulary."
+        previousBalance: { type: ["integer", "null"] }
+        newBalance: { type: ["integer", "null"] }
+        errorMessage: { type: ["string", "null"] }
+        storeId: { type: ["integer", "null"] }
+        ripperdocId: { type: ["integer", "null"] }
         createdAt: { type: string, format: date-time }
 
     CharacterStatus:
@@ -3129,6 +3297,7 @@ components:
         name: { type: string }
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
+        balance: { type: integer, description: "Website-only business account balance (eddies)." }
         kind: { type: string, enum: [guns, gear, clothing, mixed, other] }
         purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
@@ -3161,6 +3330,7 @@ components:
         name: { type: string }
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
+        balance: { type: integer, description: "Website-only business account balance (eddies)." }
         purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
@@ -3236,6 +3406,57 @@ components:
         stock: { $ref: "#/components/schemas/StockItem" }
         inventoryItem: { $ref: "#/components/schemas/InventoryItem" }
         totalPaid: { type: integer }
+
+    VenueAccountInput:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: integer, minimum: 1, description: "Whole eddies to move between the owner's personal wallet and the venue account." }
+
+    VenueAccountResult:
+      type: object
+      required: [ok, venueBalance, walletBalance]
+      properties:
+        ok: { type: boolean }
+        venueBalance: { type: integer, description: "Venue balance after the move (unchanged when dryRun)." }
+        walletBalance: { type: integer, description: "Owner personal wallet balance after the move (unchanged when dryRun)." }
+        dryRun: { type: boolean, description: "True when the economy is in Test mode — nothing was written." }
+        proposedVenueBalance: { type: integer, description: "What the venue balance WOULD become (Test mode only)." }
+        proposedWalletBalance: { type: integer, description: "What the wallet balance WOULD become (Test mode only)." }
+
+    EconomyOutOfSyncEntry:
+      type: object
+      required: [userId, username, walletBalance]
+      properties:
+        userId: { type: string }
+        discordId: { type: string }
+        username: { type: string }
+        globalName: { type: ["string", "null"] }
+        walletBalance: { type: integer, description: "Website-stored wallet balance." }
+        ubBalance: { type: ["integer", "null"], description: "Live UnbelievaBoat total, or null if UB could not be reached." }
+        lastSyncedUbBalance: { type: ["integer", "null"] }
+        diff: { type: ["integer", "null"], description: "ubBalance - walletBalance, or null if UB unavailable." }
+        lastSyncedAt: { type: ["string", "null"], format: date-time }
+        lastSyncStatus: { type: ["string", "null"] }
+        lastSyncError: { type: ["string", "null"] }
+
+    EconomyOutOfSyncList:
+      type: object
+      required: [mode, entries]
+      properties:
+        mode: { type: string, enum: [disabled, test, enabled], description: "Current economy processing mode." }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/EconomyOutOfSyncEntry" }
+
+    EconomyRetryResult:
+      type: object
+      required: [ok, status]
+      properties:
+        ok: { type: boolean }
+        status: { type: string, description: "Outcome of the retry (synced, failed, disabled, dry_run, duplicate, pending, insufficient_funds)." }
+        balance: { type: integer }
+        error: { type: ["string", "null"] }
 
     StockUpdate:
       type: object

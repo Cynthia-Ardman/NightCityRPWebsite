@@ -29,6 +29,21 @@ export const users = pgTable(
     activeCharacterId: integer("active_character_id"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow(),
     rolesSyncedAt: timestamp("roles_synced_at", { withTimezone: true }),
+    // ---- Economy: website-authoritative player wallet (synced to UnbelievaBoat) ----
+    // The website's own balance for this player, in eddies. Every website-side
+    // money change goes through the sync wrapper which updates this AND UB. UB
+    // stays authoritative for external (Discord) changes, which the
+    // reconciliation job folds back in. Defaults to 0 until first sync.
+    walletBalance: integer("wallet_balance").notNull().default(0),
+    // UB `total` at the moment of the last successful sync/reconcile. Used to
+    // detect external deltas: any difference between current UB total and this
+    // value is a Discord-side change to reconcile. Null = never synced.
+    lastSyncedUbBalance: integer("last_synced_ub_balance"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    // Outcome of the most recent sync attempt for this user: synced | failed |
+    // pending. Surfaced in the admin sync dashboard. Null = never attempted.
+    lastSyncStatus: text("last_sync_status"),
+    lastSyncError: text("last_sync_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -229,10 +244,40 @@ export const walletTransactions = pgTable("wallet_transactions", {
   amount: integer("amount").notNull(),
   kind: text("kind").notNull(),
   memo: text("memo"),
+  // ---- Economy ledger extension ----
+  // Where this entry originated. One of: website | ub | reconciliation |
+  // mission | store | ripperdoc | commission | admin. Drives reporting and
+  // tells reconciliation which rows it created.
+  source: text("source").notNull().default("website"),
+  // Sync lifecycle for website-originated player changes: pending (reserved,
+  // UB not yet confirmed) | synced (UB applied) | failed (UB rejected, balance
+  // NOT changed) | reconciled (created by the reconciliation job to mirror a
+  // UB-side change). Venue-only rows are 'synced' (no UB leg).
+  syncStatus: text("sync_status").notNull().default("synced"),
+  // Idempotency key for website-originated changes. Unique so a retry of the
+  // same logical change can find the existing row instead of double-applying.
+  idempotencyKey: text("idempotency_key"),
+  // Optional pointer to the domain entity that caused this change.
+  relatedEntityType: text("related_entity_type"),
+  relatedEntityId: integer("related_entity_id"),
+  // Player website balance immediately before / after this entry (for player
+  // rows). Null for legacy/venue rows that don't move a player wallet.
+  previousBalance: integer("previous_balance"),
+  newBalance: integer("new_balance"),
+  // Failure detail when syncStatus = 'failed'.
+  errorMessage: text("error_message"),
+  // Venue account this entry belongs to (mutually exclusive with each other;
+  // a deposit/withdraw writes one player row AND one venue row). Null for
+  // pure player transactions.
+  storeId: integer("store_id").references(() => stores.id, { onDelete: "cascade" }),
+  ripperdocId: integer("ripperdoc_id").references(() => ripperdocs.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   charIdx: index("wt_char_idx").on(t.characterId),
   userIdx: index("wt_user_idx").on(t.userId),
+  idemIdx: uniqueIndex("wt_idem_idx").on(t.idempotencyKey),
+  storeIdx: index("wt_store_idx").on(t.storeId),
+  ripperdocIdx: index("wt_ripperdoc_idx").on(t.ripperdocId),
 }));
 
 export const stores = pgTable("stores", {
@@ -245,6 +290,10 @@ export const stores = pgTable("stores", {
   location: text("location"),
   description: text("description"),
   bannerUrl: text("banner_url"),
+  // Website-only business account balance (eddies). Never synced to UB —
+  // owners move money between this and their personal wallet via deposit/
+  // withdraw. Reconciliation never touches this.
+  balance: integer("balance").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -274,6 +323,8 @@ export const ripperdocs = pgTable("ripperdocs", {
   location: text("location"),
   description: text("description"),
   bannerUrl: text("banner_url"),
+  // Website-only business account balance (eddies). See stores.balance.
+  balance: integer("balance").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

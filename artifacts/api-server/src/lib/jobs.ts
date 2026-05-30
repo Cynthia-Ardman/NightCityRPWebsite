@@ -6,6 +6,7 @@ import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
+import { runEconomyReconcile, getEconomyMode } from "./economy";
 
 const EVICTION_CHANNEL_ID = process.env.EVICTION_CHANNEL_ID ?? "";
 const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
@@ -231,7 +232,7 @@ async function chargePersonalFeeWithReservation(opts: {
   return true;
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile";
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
   const [run] = await db.insert(jobRuns).values({ job: name, status: "running" }).returning();
@@ -804,6 +805,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // so this is intentionally NOT listed in liveSystemByJob.
       const r = await runMissionNpcAnnouncements();
       affected = r.announced;
+    } else if (name === "economy_reconcile") {
+      // UB->website wallet reconciliation. Handles its own tri-state mode
+      // (disabled/test/enabled) internally, so it is intentionally NOT listed
+      // in liveSystemByJob (it must still run as a dry-run in Test mode).
+      const r = await runEconomyReconcile();
+      affected = r.changed + r.seeded;
+      message = `economy reconcile (${r.mode}): scanned ${r.scanned}, changed ${r.changed}, seeded ${r.seeded}, ub-unavailable ${r.failed}${r.dryRun ? " [dry-run: no writes]" : ""}`;
     }
   } catch (err) {
     status = "failed";
@@ -863,6 +871,16 @@ export function startCron() {
     // the service, so Test mode only logs.
     cron.schedule("*/5 * * * *", () => {
       runJob("mission_npc_announce").catch((err) => logger.error({ err }, "mission_npc_announce cron"));
+    });
+    // UB->website wallet reconciliation every 30 minutes. Skipped entirely when
+    // the economy system is disabled (kill switch off); runs as a dry-run in
+    // Test mode and performs live balance folds only when economy is Enabled.
+    cron.schedule("*/30 * * * *", async () => {
+      if ((await getEconomyMode()) === "disabled") {
+        logger.info("economy_reconcile cron skipped (economy disabled)");
+        return;
+      }
+      runJob("economy_reconcile").catch((err) => logger.error({ err }, "economy_reconcile cron"));
     });
     logger.info("Cron jobs scheduled");
   });

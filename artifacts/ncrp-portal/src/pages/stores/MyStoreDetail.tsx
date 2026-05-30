@@ -9,7 +9,11 @@ import {
   useAddStoreStock,
   useUpdateStoreStock,
   useRemoveStoreStock,
+  useDepositToStore,
+  useWithdrawFromStore,
+  useGetStoreTransactions,
   getGetStoreQueryKey,
+  getGetStoreTransactionsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +27,7 @@ import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import StaffVenuePanel from "@/components/StaffVenuePanel";
 import SingleImageUpload from "@/components/SingleImageUpload";
+import VenueWalletPanel from "@/components/VenueWalletPanel";
 import { useAuthMe } from "@/hooks/useAuthMe";
 
 const STORE_KINDS = ["guns", "gear", "clothing", "mixed", "other"] as const;
@@ -39,6 +44,13 @@ export default function MyStoreDetail() {
   const addStock = useAddStoreStock({ mutation: { onSuccess: invalidate } });
   const updateStock = useUpdateStoreStock({ mutation: { onSuccess: invalidate } });
   const removeStock = useRemoveStoreStock({ mutation: { onSuccess: invalidate } });
+  const { data: txns } = useGetStoreTransactions(storeId);
+  const invalidateWallet = () => {
+    invalidate();
+    qc.invalidateQueries({ queryKey: getGetStoreTransactionsQueryKey(storeId) });
+  };
+  const deposit = useDepositToStore({ mutation: { onSuccess: invalidateWallet } });
+  const withdraw = useWithdrawFromStore({ mutation: { onSuccess: invalidateWallet } });
 
   const [empChar, setEmpChar] = useState<CharacterPickerValue>(null);
   const [empRole, setEmpRole] = useState("clerk");
@@ -89,6 +101,16 @@ export default function MyStoreDetail() {
       {!!me && (me.isAdmin || me.isFixer) && (
         <StaffVenuePanel kind="store" venueId={storeId} onChanged={invalidate} />
       )}
+
+      <VenueWalletPanel
+        balance={store.balance ?? 0}
+        transactions={txns ?? []}
+        busy={deposit.isPending || withdraw.isPending}
+        onDeposit={(amount) => deposit.mutate({ id: storeId, data: { amount } })}
+        onWithdraw={(amount) => withdraw.mutate({ id: storeId, data: { amount } })}
+        accent="cyan"
+        testIdPrefix="store"
+      />
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">EMPLOYEES</CardTitle></CardHeader>

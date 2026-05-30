@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, sql, gte } from "drizzle-orm";
 import {
   db,
   stores,
@@ -21,6 +21,7 @@ import { hasRole } from "../lib/discord";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { logger } from "../lib/logger";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
+import { applyWalletDelta } from "../lib/economy";
 
 const router: IRouter = Router();
 
@@ -614,6 +615,236 @@ router.delete("/ripperdocs/:id/stock/:stockId", requireAuth, async (req, res): P
   const stockId = parseInt(String(req.params.stockId), 10);
   await db.delete(ripperdocStock).where(and(eq(ripperdocStock.id, stockId), eq(ripperdocStock.ripperdocId, r.id)));
   res.sendStatus(204);
+});
+
+// ===== Venue accounts: deposit / withdraw / transaction history =====
+// Stores and ripperdocs each have a website-only `balance`. The OWNER can move
+// money between their personal wallet and the venue account:
+//   - deposit  : personal wallet  -> venue   (personal leg syncs to UB)
+//   - withdraw : venue            -> personal wallet (personal leg syncs to UB)
+// The personal leg goes through the economy sync wrapper (UB + idempotency +
+// tri-state mode). The venue leg is website-only. Two ledger rows are written:
+// the personal-leg row (userId set, from the wrapper) and a venue-leg row
+// (storeId/ripperdocId set, userId null) so the player history and the
+// per-venue history stay cleanly separated. Reconciliation never touches venue
+// balances.
+type VenueKind = "store" | "ripperdoc";
+
+async function venueDepositWithdraw(opts: {
+  kind: VenueKind;
+  venueId: number;
+  direction: "deposit" | "withdraw";
+  amount: number;
+  req: Request;
+  res: Response;
+}): Promise<void> {
+  const { kind, venueId, direction, amount, req, res } = opts;
+  if (!Number.isInteger(amount) || amount <= 0) {
+    res.status(400).json({ error: "amount must be a positive whole number" });
+    return;
+  }
+  const venueTable = kind === "store" ? stores : ripperdocs;
+  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
+  if (!venue) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  // Owner-only: the personal leg is the owner's wallet. Staff/employees cannot
+  // move money in/out of someone else's business account.
+  if (venue.ownerId !== req.user!.id) {
+    res.status(403).json({ error: "Only the owner can move money to or from this account." });
+    return;
+  }
+  const [owner] = await db.select().from(users).where(eq(users.id, venue.ownerId));
+  if (!owner) {
+    res.status(400).json({ error: "Owner account is missing" });
+    return;
+  }
+
+  const personalDelta = direction === "deposit" ? -amount : amount;
+  const venueDelta = direction === "deposit" ? amount : -amount;
+
+  // Venue-side overdraw guard (personal-side overdraw is enforced by the wrapper).
+  if (direction === "withdraw" && venue.balance < amount) {
+    res.status(400).json({ error: "Insufficient venue balance" });
+    return;
+  }
+
+  const idempotencyKey = `venue-${kind}-${venueId}-${direction}-${Date.now()}-${owner.id}`;
+  const result = await applyWalletDelta({
+    userId: owner.id,
+    discordId: owner.discordId,
+    amount: personalDelta,
+    source: kind,
+    kind: `${kind}_${direction}`,
+    reason: `${direction === "deposit" ? "Deposit to" : "Withdrawal from"} ${venue.name}`,
+    memo: `${direction} ${kind} "${venue.name}"`,
+    storeId: kind === "store" ? venueId : null,
+    ripperdocId: kind === "ripperdoc" ? venueId : null,
+    relatedEntityType: kind,
+    relatedEntityId: venueId,
+    idempotencyKey,
+  });
+
+  if (result.status === "disabled") {
+    res.status(409).json({ error: "The economy system is currently disabled." });
+    return;
+  }
+  if (result.status === "insufficient_funds") {
+    res.status(400).json({ error: "Insufficient personal wallet balance" });
+    return;
+  }
+  if (result.status === "dry_run") {
+    res.json({
+      ok: true,
+      dryRun: true,
+      venueBalance: venue.balance,
+      proposedVenueBalance: venue.balance + venueDelta,
+      walletBalance: result.balance,
+      proposedWalletBalance: result.proposedBalance,
+    });
+    return;
+  }
+  if (!result.ok) {
+    res.status(502).json({ error: result.error ?? "Wallet sync failed; no money moved." });
+    return;
+  }
+
+  // Personal leg is live-synced. Move the venue side (website-only) + write the
+  // venue-leg ledger row and audit, atomically. For withdrawals the venue debit
+  // is guarded (balance >= amount) in the same statement so concurrent
+  // withdrawals cannot drive the venue negative; if the guard loses the race we
+  // reverse the already-applied personal credit below so no money is minted.
+  const { ip, ua } = auditMeta(req);
+  let finalVenueBalance = venue.balance + venueDelta;
+  let venueGuardFailed = false;
+  await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(venueTable)
+      .set({ balance: sql`${venueTable.balance} + ${venueDelta}` })
+      .where(
+        direction === "withdraw"
+          ? and(eq(venueTable.id, venueId), gte(venueTable.balance, amount))
+          : eq(venueTable.id, venueId),
+      )
+      .returning({ balance: venueTable.balance });
+    if (updated.length === 0) {
+      // Withdraw lost the concurrency race: venue dropped below `amount`.
+      venueGuardFailed = true;
+      return;
+    }
+    finalVenueBalance = updated[0].balance;
+    await tx.insert(walletTransactions).values({
+      amount: venueDelta,
+      kind: `${kind}_${direction}`,
+      source: kind,
+      syncStatus: "synced",
+      memo: `${direction === "deposit" ? "Owner deposit" : "Owner withdrawal"} — ${venue.name}`,
+      previousBalance: finalVenueBalance - venueDelta,
+      newBalance: finalVenueBalance,
+      storeId: kind === "store" ? venueId : null,
+      ripperdocId: kind === "ripperdoc" ? venueId : null,
+      relatedEntityType: kind,
+      relatedEntityId: venueId,
+    });
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: `${kind}_${direction}`,
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: kind,
+      targetId: String(venueId),
+      message: `${direction === "deposit" ? "Deposited" : "Withdrew"} ${amount} eddies ${direction === "deposit" ? "to" : "from"} ${venue.name}`,
+    });
+  });
+
+  if (venueGuardFailed) {
+    // The personal leg already credited the owner via UB, so reverse it to keep
+    // the books balanced. Derived idempotency key keeps the reversal retry-safe;
+    // allowNegative bypasses overdraw protection (we are undoing our own credit).
+    const reversal = await applyWalletDelta({
+      userId: owner.id,
+      discordId: owner.discordId,
+      amount: -personalDelta,
+      source: kind,
+      kind: `${kind}_${direction}_reversal`,
+      reason: `Reversed ${direction} — insufficient ${kind} balance: ${venue.name}`,
+      memo: `reversal of ${direction} ${kind} "${venue.name}"`,
+      storeId: kind === "store" ? venueId : null,
+      ripperdocId: kind === "ripperdoc" ? venueId : null,
+      relatedEntityType: kind,
+      relatedEntityId: venueId,
+      idempotencyKey: `${idempotencyKey}-reversal`,
+      allowNegative: true,
+    });
+    // Only a confirmed reversal (synced now or already applied) means no money
+    // was minted. A failed/pending reversal leaves the owner credited without a
+    // venue debit — surface it loudly and write a high-severity audit marker so
+    // it is discoverable and can be retried; do NOT report a clean 400.
+    if (reversal.status === "synced" || reversal.status === "duplicate") {
+      res.status(400).json({ error: "Insufficient venue balance" });
+      return;
+    }
+    const { ip: rip, ua: rua } = auditMeta(req);
+    logger.error(
+      { venueKind: kind, venueId, ownerId: owner.id, amount, reversalStatus: reversal.status, reversalError: reversal.error, ledgerId: reversal.ledgerId },
+      "venue withdraw reversal NOT confirmed — owner credited without venue debit; manual reconciliation required",
+    );
+    await db.insert(auditLog).values({
+      category: "shop",
+      action: `${kind}_${direction}_reversal_failed`,
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: rip,
+      actorUa: rua,
+      targetType: kind,
+      targetId: String(venueId),
+      message: `Reversal of ${amount} eddies ${direction} on ${venue.name} did not confirm (${reversal.status}). Owner ${owner.id} may have been credited without a venue debit — needs manual reconciliation.`,
+    });
+    res.status(502).json({ error: "Withdrawal could not be completed and the reversal did not confirm. This has been flagged for review; please do not retry." });
+    return;
+  }
+
+  res.json({ ok: true, venueBalance: finalVenueBalance, walletBalance: result.balance });
+}
+
+router.post("/stores/:id/deposit", requireAuth, async (req, res): Promise<void> => {
+  await venueDepositWithdraw({ kind: "store", venueId: parseInt(String(req.params.id), 10), direction: "deposit", amount: Number(req.body?.amount), req, res });
+});
+router.post("/stores/:id/withdraw", requireAuth, async (req, res): Promise<void> => {
+  await venueDepositWithdraw({ kind: "store", venueId: parseInt(String(req.params.id), 10), direction: "withdraw", amount: Number(req.body?.amount), req, res });
+});
+router.post("/ripperdocs/:id/deposit", requireAuth, async (req, res): Promise<void> => {
+  await venueDepositWithdraw({ kind: "ripperdoc", venueId: parseInt(String(req.params.id), 10), direction: "deposit", amount: Number(req.body?.amount), req, res });
+});
+router.post("/ripperdocs/:id/withdraw", requireAuth, async (req, res): Promise<void> => {
+  await venueDepositWithdraw({ kind: "ripperdoc", venueId: parseInt(String(req.params.id), 10), direction: "withdraw", amount: Number(req.body?.amount), req, res });
+});
+
+// Per-venue transaction history (owner or staff only).
+router.get("/stores/:id/transactions", requireAuth, async (req, res): Promise<void> => {
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
+  const rows = await db
+    .select()
+    .from(walletTransactions)
+    .where(eq(walletTransactions.storeId, s.id))
+    .orderBy(desc(walletTransactions.createdAt))
+    .limit(100);
+  res.json(rows);
+});
+router.get("/ripperdocs/:id/transactions", requireAuth, async (req, res): Promise<void> => {
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
+  const rows = await db
+    .select()
+    .from(walletTransactions)
+    .where(eq(walletTransactions.ripperdocId, r.id))
+    .orderBy(desc(walletTransactions.createdAt))
+    .limit(100);
+  res.json(rows);
 });
 
 export default router;

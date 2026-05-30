@@ -71,6 +71,8 @@ import type {
   DiceRollInput,
   DiceRollResult,
   DiscordCallbackParams,
+  EconomyOutOfSyncList,
+  EconomyRetryResult,
   Employee,
   EmployeeInput,
   FixerNpc,
@@ -153,6 +155,8 @@ import type {
   UploadUrlRequest,
   UploadUrlResponse,
   UserWallet,
+  VenueAccountInput,
+  VenueAccountResult,
   VrchatScanResult,
   Wallet,
   WalletAdjustmentInput,
@@ -4063,6 +4067,227 @@ export const useSellStoreItem = <TError = ErrorType<void>,
       return useMutation(getSellStoreItemMutationOptions(options));
     }
 
+export const getDepositToStoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/deposit`
+}
+
+/**
+ * @summary Owner moves eddies from their personal wallet into the store account
+ */
+export const depositToStore = async (id: number,
+    venueAccountInput: VenueAccountInput, options?: RequestInit): Promise<VenueAccountResult> => {
+
+  return customFetch<VenueAccountResult>(getDepositToStoreUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueAccountInput,)
+  }
+);}
+
+
+
+
+export const getDepositToStoreMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depositToStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof depositToStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext> => {
+
+const mutationKey = ['depositToStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof depositToStore>>, {id: number;data: BodyType<VenueAccountInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  depositToStore(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DepositToStoreMutationResult = NonNullable<Awaited<ReturnType<typeof depositToStore>>>
+    export type DepositToStoreMutationBody = BodyType<VenueAccountInput>
+    export type DepositToStoreMutationError = ErrorType<void>
+
+    /**
+ * @summary Owner moves eddies from their personal wallet into the store account
+ */
+export const useDepositToStore = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depositToStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof depositToStore>>,
+        TError,
+        {id: number;data: BodyType<VenueAccountInput>},
+        TContext
+      > => {
+      return useMutation(getDepositToStoreMutationOptions(options));
+    }
+
+export const getWithdrawFromStoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/withdraw`
+}
+
+/**
+ * @summary Owner moves eddies from the store account into their personal wallet
+ */
+export const withdrawFromStore = async (id: number,
+    venueAccountInput: VenueAccountInput, options?: RequestInit): Promise<VenueAccountResult> => {
+
+  return customFetch<VenueAccountResult>(getWithdrawFromStoreUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueAccountInput,)
+  }
+);}
+
+
+
+
+export const getWithdrawFromStoreMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawFromStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawFromStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext> => {
+
+const mutationKey = ['withdrawFromStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawFromStore>>, {id: number;data: BodyType<VenueAccountInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  withdrawFromStore(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawFromStoreMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawFromStore>>>
+    export type WithdrawFromStoreMutationBody = BodyType<VenueAccountInput>
+    export type WithdrawFromStoreMutationError = ErrorType<void>
+
+    /**
+ * @summary Owner moves eddies from the store account into their personal wallet
+ */
+export const useWithdrawFromStore = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawFromStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawFromStore>>,
+        TError,
+        {id: number;data: BodyType<VenueAccountInput>},
+        TContext
+      > => {
+      return useMutation(getWithdrawFromStoreMutationOptions(options));
+    }
+
+export const getGetStoreTransactionsUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/transactions`
+}
+
+/**
+ * @summary Per-store account transaction history (owner or staff)
+ */
+export const getStoreTransactions = async (id: number, options?: RequestInit): Promise<WalletTransaction[]> => {
+
+  return customFetch<WalletTransaction[]>(getGetStoreTransactionsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStoreTransactionsQueryKey = (id: number,) => {
+    return [
+    `/api/stores/${id}/transactions`
+    ] as const;
+    }
+
+
+export const getGetStoreTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof getStoreTransactions>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStoreTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStoreTransactionsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStoreTransactions>>> = ({ signal }) => getStoreTransactions(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStoreTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStoreTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof getStoreTransactions>>>
+export type GetStoreTransactionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Per-store account transaction history (owner or staff)
+ */
+
+export function useGetStoreTransactions<TData = Awaited<ReturnType<typeof getStoreTransactions>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStoreTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStoreTransactionsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getAddStoreStockUrl = (id: number,) => {
 
 
@@ -7451,6 +7676,374 @@ export const useAdminScanVrchatLinks = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getAdminScanVrchatLinksMutationOptions(options));
     }
+
+export const getAdminGetEconomyOutOfSyncUrl = () => {
+
+
+
+
+  return `/api/admin/economy/out-of-sync`
+}
+
+/**
+ * @summary Players whose website wallet differs from their live UnbelievaBoat balance.
+ */
+export const adminGetEconomyOutOfSync = async ( options?: RequestInit): Promise<EconomyOutOfSyncList> => {
+
+  return customFetch<EconomyOutOfSyncList>(getAdminGetEconomyOutOfSyncUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetEconomyOutOfSyncQueryKey = () => {
+    return [
+    `/api/admin/economy/out-of-sync`
+    ] as const;
+    }
+
+
+export const getAdminGetEconomyOutOfSyncQueryOptions = <TData = Awaited<ReturnType<typeof adminGetEconomyOutOfSync>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetEconomyOutOfSync>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetEconomyOutOfSyncQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetEconomyOutOfSync>>> = ({ signal }) => adminGetEconomyOutOfSync({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetEconomyOutOfSync>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetEconomyOutOfSyncQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetEconomyOutOfSync>>>
+export type AdminGetEconomyOutOfSyncQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Players whose website wallet differs from their live UnbelievaBoat balance.
+ */
+
+export function useAdminGetEconomyOutOfSync<TData = Awaited<ReturnType<typeof adminGetEconomyOutOfSync>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetEconomyOutOfSync>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetEconomyOutOfSyncQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminRetryEconomySyncUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/economy/retry/${userId}`
+}
+
+/**
+ * @summary Re-sync one player's wallet to UnbelievaBoat (folds any external delta in).
+ */
+export const adminRetryEconomySync = async (userId: string, options?: RequestInit): Promise<EconomyRetryResult> => {
+
+  return customFetch<EconomyRetryResult>(getAdminRetryEconomySyncUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminRetryEconomySyncMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRetryEconomySync>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminRetryEconomySync>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['adminRetryEconomySync'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminRetryEconomySync>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  adminRetryEconomySync(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminRetryEconomySyncMutationResult = NonNullable<Awaited<ReturnType<typeof adminRetryEconomySync>>>
+
+    export type AdminRetryEconomySyncMutationError = ErrorType<void>
+
+    /**
+ * @summary Re-sync one player's wallet to UnbelievaBoat (folds any external delta in).
+ */
+export const useAdminRetryEconomySync = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRetryEconomySync>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminRetryEconomySync>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getAdminRetryEconomySyncMutationOptions(options));
+    }
+
+export const getDepositToRipperdocUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/deposit`
+}
+
+/**
+ * @summary Owner moves eddies from their personal wallet into the clinic account
+ */
+export const depositToRipperdoc = async (id: number,
+    venueAccountInput: VenueAccountInput, options?: RequestInit): Promise<VenueAccountResult> => {
+
+  return customFetch<VenueAccountResult>(getDepositToRipperdocUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueAccountInput,)
+  }
+);}
+
+
+
+
+export const getDepositToRipperdocMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depositToRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof depositToRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext> => {
+
+const mutationKey = ['depositToRipperdoc'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof depositToRipperdoc>>, {id: number;data: BodyType<VenueAccountInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  depositToRipperdoc(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DepositToRipperdocMutationResult = NonNullable<Awaited<ReturnType<typeof depositToRipperdoc>>>
+    export type DepositToRipperdocMutationBody = BodyType<VenueAccountInput>
+    export type DepositToRipperdocMutationError = ErrorType<void>
+
+    /**
+ * @summary Owner moves eddies from their personal wallet into the clinic account
+ */
+export const useDepositToRipperdoc = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depositToRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof depositToRipperdoc>>,
+        TError,
+        {id: number;data: BodyType<VenueAccountInput>},
+        TContext
+      > => {
+      return useMutation(getDepositToRipperdocMutationOptions(options));
+    }
+
+export const getWithdrawFromRipperdocUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/withdraw`
+}
+
+/**
+ * @summary Owner moves eddies from the clinic account into their personal wallet
+ */
+export const withdrawFromRipperdoc = async (id: number,
+    venueAccountInput: VenueAccountInput, options?: RequestInit): Promise<VenueAccountResult> => {
+
+  return customFetch<VenueAccountResult>(getWithdrawFromRipperdocUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueAccountInput,)
+  }
+);}
+
+
+
+
+export const getWithdrawFromRipperdocMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawFromRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawFromRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext> => {
+
+const mutationKey = ['withdrawFromRipperdoc'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawFromRipperdoc>>, {id: number;data: BodyType<VenueAccountInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  withdrawFromRipperdoc(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawFromRipperdocMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawFromRipperdoc>>>
+    export type WithdrawFromRipperdocMutationBody = BodyType<VenueAccountInput>
+    export type WithdrawFromRipperdocMutationError = ErrorType<void>
+
+    /**
+ * @summary Owner moves eddies from the clinic account into their personal wallet
+ */
+export const useWithdrawFromRipperdoc = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawFromRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawFromRipperdoc>>,
+        TError,
+        {id: number;data: BodyType<VenueAccountInput>},
+        TContext
+      > => {
+      return useMutation(getWithdrawFromRipperdocMutationOptions(options));
+    }
+
+export const getGetRipperdocTransactionsUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/transactions`
+}
+
+/**
+ * @summary Per-clinic account transaction history (owner or staff)
+ */
+export const getRipperdocTransactions = async (id: number, options?: RequestInit): Promise<WalletTransaction[]> => {
+
+  return customFetch<WalletTransaction[]>(getGetRipperdocTransactionsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRipperdocTransactionsQueryKey = (id: number,) => {
+    return [
+    `/api/ripperdocs/${id}/transactions`
+    ] as const;
+    }
+
+
+export const getGetRipperdocTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof getRipperdocTransactions>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRipperdocTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRipperdocTransactionsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRipperdocTransactions>>> = ({ signal }) => getRipperdocTransactions(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRipperdocTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRipperdocTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof getRipperdocTransactions>>>
+export type GetRipperdocTransactionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Per-clinic account transaction history (owner or staff)
+ */
+
+export function useGetRipperdocTransactions<TData = Awaited<ReturnType<typeof getRipperdocTransactions>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRipperdocTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRipperdocTransactionsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getSellRipperdocItemUrl = (id: number,) => {
 

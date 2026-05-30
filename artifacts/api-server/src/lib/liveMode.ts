@@ -17,7 +17,7 @@ import { logger } from "./logger";
 // explicitly opts a system into Live. In Test mode each system records/logs
 // what it WOULD have done without performing the live effect.
 // ---------------------------------------------------------------------------
-export type LiveSystem = "missions" | "housing" | "cyberware" | "evictions";
+export type LiveSystem = "missions" | "housing" | "cyberware" | "evictions" | "economy";
 
 export const LIVE_MODE_KEYS = {
   master: "master_live_mode",
@@ -25,9 +25,10 @@ export const LIVE_MODE_KEYS = {
   housing: "housing_live_mode",
   cyberware: "cyberware_live_mode",
   evictions: "evictions_live_mode",
+  economy: "economy_live_mode",
 } as const;
 
-export const LIVE_SYSTEMS: LiveSystem[] = ["missions", "housing", "cyberware", "evictions"];
+export const LIVE_SYSTEMS: LiveSystem[] = ["missions", "housing", "cyberware", "evictions", "economy"];
 
 /**
  * Read a bot_config flag as a strict boolean. Only the literal JSON `true`
@@ -76,14 +77,15 @@ export interface LiveModeState {
 
 /** Snapshot of the full switchboard for the admin UI. */
 export async function getLiveModeState(): Promise<LiveModeState> {
-  const [master, missions, housing, cyberware, evictions] = await Promise.all([
+  const [master, missions, housing, cyberware, evictions, economy] = await Promise.all([
     readBool(LIVE_MODE_KEYS.master),
     readBool(LIVE_MODE_KEYS.missions),
     readBool(LIVE_MODE_KEYS.housing),
     readBool(LIVE_MODE_KEYS.cyberware),
     readBool(LIVE_MODE_KEYS.evictions),
+    readBool(LIVE_MODE_KEYS.economy),
   ]);
-  const flags: Record<LiveSystem, boolean> = { missions, housing, cyberware, evictions };
+  const flags: Record<LiveSystem, boolean> = { missions, housing, cyberware, evictions, economy };
   const systems = {} as Record<LiveSystem, SystemLiveState>;
   for (const sys of LIVE_SYSTEMS) {
     systems[sys] = { configured: flags[sys], effective: master && flags[sys] };
