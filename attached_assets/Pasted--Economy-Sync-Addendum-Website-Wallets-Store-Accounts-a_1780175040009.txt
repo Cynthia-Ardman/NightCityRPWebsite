@@ -1,0 +1,382 @@
+# Economy Sync Addendum: Website Wallets, Store Accounts, and UnbelievaBoat
+
+## 1. Economy Model Overview
+
+The website economy and UnbelievaBoat economy need to stay synced for individual player wallets, but the website will support additional account types that UnbelievaBoat does not support.
+
+### UnbelievaBoat should continue supporting
+
+* Individual player wallet balances
+* Discord gambling
+* Discord-based user-to-user payments
+* Any existing Discord economy commands players are already using
+
+### Website should support
+
+* Individual player wallet balances
+* Player ledger history
+* Store accounts
+* Ripperdoc accounts
+* Store/Ripperdoc transaction history
+* Store/Ripperdoc inventory
+* Employee commissions
+* Purchases, sales, installs, removals
+* Audit logs
+* Payment reconciliation
+
+**Acceptance criteria**
+
+* Individual player money stays synced between UnbelievaBoat and the website.
+* Store/Ripperdoc money exists only on the website.
+* Store/Ripperdoc money does not need to appear in UnbelievaBoat.
+* Players can still gamble/use money commands in Discord through UnbelievaBoat.
+* Discord-side balance changes are reflected on the website ledger.
+* Website-side player balance changes update UnbelievaBoat.
+
+---
+
+## 2. Player Wallet Sync Requirement
+
+Individual player wallets must stay synced between:
+
+1. Website wallet balance
+2. UnbelievaBoat Discord balance
+
+If a player balance changes on the website, the website should update UnbelievaBoat.
+
+If a player balance changes in UnbelievaBoat, the website should update its local wallet/ledger.
+
+**Acceptance criteria**
+
+* Website-to-UnbelievaBoat sync works.
+* UnbelievaBoat-to-website sync works.
+* Player wallet balances do not silently diverge.
+* Sync failures are logged and visible to admins.
+* Ledger entries are created for synced balance changes.
+
+---
+
+## 3. Website as Source of Truth for Complex Economy
+
+The website should become the source of truth for advanced economy features that UnbelievaBoat cannot represent.
+
+### Website-only account types
+
+* Store accounts
+* Ripperdoc accounts
+* Possibly future faction/business accounts
+
+These accounts should not be represented as UnbelievaBoat user wallets unless intentionally added later.
+
+**Acceptance criteria**
+
+* Store balances are stored on the website.
+* Ripperdoc balances are stored on the website.
+* Store/Ripperdoc balances do not need to sync to UnbelievaBoat.
+* Store/Ripperdoc transactions still appear in website ledgers and audit logs.
+
+---
+
+## 4. Website-to-UnbelievaBoat Sync
+
+When the website changes an individual player’s money, it should update UnbelievaBoat.
+
+### Examples
+
+* Mission player auto-pay
+* Actor payment
+* Store sale purchase
+* Ripperdoc sale/install/removal purchase
+* Employee commission payout
+* Owner withdrawal from store account to personal account
+* Owner deposit from personal account into store account
+* Admin wallet adjustment
+
+### Required behavior
+
+When the website modifies a player wallet:
+
+1. Create a pending transaction record.
+2. Attempt UnbelievaBoat API update.
+3. If successful:
+
+   * Update website player wallet balance.
+   * Mark transaction as synced.
+   * Add ledger entry.
+   * Add audit log entry.
+4. If failed:
+
+   * Do not silently ignore.
+   * Mark transaction as sync failed.
+   * Show admin-facing warning/retry option.
+   * Avoid double-applying on retry.
+
+**Acceptance criteria**
+
+* Website player wallet changes sync to UnbelievaBoat.
+* Sync success/failure is tracked.
+* Failed syncs are visible to admins.
+* Retrying failed syncs does not duplicate payment.
+* Ledger records show the source of each change.
+
+---
+
+## 5. UnbelievaBoat-to-Website Sync
+
+Players may still use UnbelievaBoat directly in Discord for gambling, payments, and other economy commands.
+
+Those balance changes need to be reflected on the website.
+
+### Examples
+
+* Player wins/loses money gambling.
+* Player pays another player through Discord.
+* Admin adjusts a player balance through UnbelievaBoat.
+* Any other UnbelievaBoat-side wallet change.
+
+### Required behavior
+
+The website should periodically reconcile player balances from UnbelievaBoat.
+
+Recommended approach:
+
+* Scheduled sync job pulls current UnbelievaBoat balances for linked users.
+* Compare UnbelievaBoat balance to website player wallet balance.
+* If different, create a reconciliation ledger entry.
+* Update website player wallet balance to match UnbelievaBoat for individual player wallets.
+* Record the difference and timestamp.
+
+**Acceptance criteria**
+
+* Website detects player wallet changes made in UnbelievaBoat.
+* Website updates player wallet balances accordingly.
+* Website creates ledger entries for external Discord-side changes.
+* Website audit logs reconciliation events.
+* Reconciliation does not affect store/Ripperdoc accounts.
+
+---
+
+## 6. Ledger Entries for Synced Changes
+
+Every player balance change should create a ledger entry.
+
+### Ledger entry should include
+
+* Player/user ID
+* Discord ID
+* Amount changed
+* Previous website balance
+* New website balance
+* Source system
+
+  * Website
+  * UnbelievaBoat
+  * Reconciliation
+  * Mission payment
+  * Store sale
+  * Ripperdoc transaction
+  * Commission
+  * Admin adjustment
+* Related entity ID, if applicable
+
+  * Mission ID
+  * Store ID
+  * Ripperdoc ID
+  * Transaction ID
+* Sync status
+
+  * Pending
+  * Synced
+  * Failed
+  * Reconciled
+* Timestamp
+* Error message, if failed
+
+**Acceptance criteria**
+
+* Website ledger shows all meaningful balance changes.
+* Discord-originated changes are labeled clearly.
+* Website-originated changes are labeled clearly.
+* Failed syncs are visible and traceable.
+
+---
+
+## 7. Store/Ripperdoc Account Handling
+
+Store and Ripperdoc accounts are website-only balances.
+
+### Store/Ripperdoc money movement
+
+Store/Ripperdoc account changes should happen only inside the website system.
+
+Examples:
+
+* Store receives money from a player purchase.
+* Ripperdoc receives money from a cyberware install.
+* Store spends money buying stock.
+* Ripperdoc spends money buying cyberware stock.
+* Owner deposits money into store account.
+* Owner withdraws money from store account.
+* Employee commission is paid from sale proceeds/store account.
+
+**Acceptance criteria**
+
+* Store/Ripperdoc balances are stored on the website.
+* Store/Ripperdoc transactions do not attempt to sync as UnbelievaBoat accounts.
+* Any transaction involving a player wallet still syncs the player side with UnbelievaBoat.
+* Store/Ripperdoc account history is visible in store transaction history.
+
+---
+
+## 8. Example Store Sale Sync Flow
+
+### Scenario
+
+Employee sells a gun to a player.
+
+### Flow
+
+1. Employee selects store stock item.
+2. Employee selects buyer/player.
+3. Employee enters sale price.
+4. Buyer receives purchase approval notification.
+5. Buyer approves.
+6. Website checks buyer player wallet balance.
+7. Website subtracts money from player wallet.
+8. Website syncs player wallet change to UnbelievaBoat.
+9. Website adds sale money to store account.
+10. Website removes item from store inventory.
+11. Website adds item to player inventory.
+12. Website pays employee commission if configured.
+13. Website syncs employee commission to UnbelievaBoat.
+14. Website logs ledger/audit/transaction entries.
+
+**Acceptance criteria**
+
+* Player wallet change syncs to UnbelievaBoat.
+* Store account change stays website-only.
+* Employee commission syncs to UnbelievaBoat because it affects an individual player wallet.
+* Inventory changes only happen after buyer approval and successful transaction processing.
+* Transaction is atomic or safely rolled back if a required step fails.
+
+---
+
+## 9. Example Discord Gambling Sync Flow
+
+### Scenario
+
+Player gambles in Discord through UnbelievaBoat and wins/loses money.
+
+### Flow
+
+1. Player uses UnbelievaBoat gambling command.
+2. UnbelievaBoat balance changes.
+3. Website reconciliation job detects new UnbelievaBoat balance.
+4. Website compares against local player wallet.
+5. Website creates ledger entry for the difference.
+6. Website updates player wallet balance to match UnbelievaBoat.
+7. Website audit logs the reconciliation.
+
+**Acceptance criteria**
+
+* Player can still gamble in Discord.
+* Website eventually reflects the changed balance.
+* Ledger shows the money change came from UnbelievaBoat/reconciliation.
+* Store/Ripperdoc balances are unaffected.
+
+---
+
+## 10. Sync Job Modes
+
+UnbelievaBoat sync jobs must respect the system processing modes:
+
+* Disabled
+* Test
+* Enabled
+
+### Disabled
+
+* No UnbelievaBoat sync occurs.
+* No balances are changed.
+* No Discord/API calls are made.
+
+### Test
+
+* System calculates what would sync.
+* System shows/logs proposed changes.
+* No website balances are changed.
+* No UnbelievaBoat API writes occur.
+* No Discord posts occur.
+
+### Enabled
+
+* System performs live reconciliation.
+* Website player wallets update from UnbelievaBoat.
+* Website-originated player wallet changes update UnbelievaBoat.
+* Ledger and audit logs are written.
+
+**Acceptance criteria**
+
+* Sync mode is visible in System Admin.
+* Test mode is a true dry run.
+* Disabled mode does nothing.
+* Enabled mode performs real sync.
+* Sync runs are logged.
+
+---
+
+## 11. Sync Conflict / Failure Handling
+
+Because two systems can modify balances, failures and conflicts need to be handled carefully.
+
+### Required safeguards
+
+* Use transaction IDs/idempotency keys for website-originated changes.
+* Prevent duplicate UnbelievaBoat updates on retry.
+* Store the last known synced UnbelievaBoat balance.
+* Store last sync timestamp.
+* Log all sync failures.
+* Provide admin retry/resolution tools.
+
+### Admin should be able to see
+
+* Player
+* Website balance
+* UnbelievaBoat balance
+* Difference
+* Last sync time
+* Last sync status
+* Failed sync reason
+* Retry button, if safe
+
+**Acceptance criteria**
+
+* Sync failures do not silently corrupt balances.
+* Admins can identify out-of-sync users.
+* Retrying failed syncs does not duplicate money.
+* Reconciliation creates clear ledger entries.
+
+---
+
+## 12. Audit Logging
+
+Audit logs should include:
+
+* Website-to-UnbelievaBoat sync attempted
+* Website-to-UnbelievaBoat sync succeeded
+* Website-to-UnbelievaBoat sync failed
+* UnbelievaBoat-to-website reconciliation detected
+* Website wallet updated from reconciliation
+* Admin manually resolved a wallet sync issue
+* Store/Ripperdoc account deposit
+* Store/Ripperdoc account withdrawal
+* Store/Ripperdoc account transaction
+* Employee commission paid
+* Any failed economy transaction
+
+**Acceptance criteria**
+
+* Economy sync is fully auditable.
+* Admins can determine why a player balance changed.
+* Admins can determine whether the change came from website, Discord, or reconciliation.
+* Failed actions include enough detail to debug safely.
