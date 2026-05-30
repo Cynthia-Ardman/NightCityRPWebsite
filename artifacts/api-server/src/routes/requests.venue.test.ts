@@ -13,7 +13,7 @@ vi.mock("../lib/discord", async (importActual) => {
 import { db, customRequests, stores, ripperdocs, housing, inventoryItems, auditLog } from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
-import { createUser, createCharacter } from "../test/testDb";
+import { createUser, createAdmin, createCharacter } from "../test/testDb";
 
 const app = buildTestApp();
 const mockDm = vi.mocked(sendDirectMessage);
@@ -158,6 +158,31 @@ describe("POST /requests/:id/approve (venue materialization)", () => {
     expect(docs[0].ownerId).toBe(owner.id);
     expect(docs[0].ownerCharacterId).toBe(char.id);
     expect(docs[0].name).toBe("Vik's Clinic");
+  });
+
+  it("assigns venue ownership to the character owner, not the admin submitter", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const fixer = await createFixer();
+    const char = await createCharacter({ ownerId: owner.id });
+    // Admin submits on behalf of another player's character.
+    const submit = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", admin.id)
+      .send({ type: "store", characterId: char.id, ...VENUE_BODY });
+    expect(submit.status).toBe(201);
+
+    const res = await request(app)
+      .post(`/api/requests/${submit.body.id}/approve`)
+      .set("x-test-user", fixer.id)
+      .send({});
+    expect(res.status).toBe(200);
+
+    const createdStores = await db.select().from(stores);
+    expect(createdStores).toHaveLength(1);
+    expect(createdStores[0].ownerId).toBe(owner.id);
+    expect(createdStores[0].ownerId).not.toBe(admin.id);
+    expect(createdStores[0].ownerCharacterId).toBe(char.id);
   });
 
   it("403s when the approver is not fixer/admin", async () => {

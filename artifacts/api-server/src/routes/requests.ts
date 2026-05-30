@@ -356,7 +356,7 @@ router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void
         const [s] = await tx
           .insert(stores)
           .values({
-            ownerId: reqRow.requestedById,
+            ownerId: c.ownerId,
             ownerCharacterId: reqRow.characterId,
             name: reqRow.title,
             purpose: det.purpose ?? null,
@@ -370,7 +370,7 @@ router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void
         const [r] = await tx
           .insert(ripperdocs)
           .values({
-            ownerId: reqRow.requestedById,
+            ownerId: c.ownerId,
             ownerCharacterId: reqRow.characterId,
             name: reqRow.title,
             purpose: det.purpose ?? null,
