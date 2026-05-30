@@ -269,6 +269,45 @@ describe("runJob('monthly_rent') crash-window: debit succeeded, ledger write mis
   });
 });
 
+// Same crash-window race as monthly_rent, but for the weekly cyberpsychosis-meds
+// job. The external UB debit can succeed and then the process dies before the
+// 'meds' ledger row commits — a manual rerun in the same week would historically
+// re-debit. The reserve-before-debit fix commits the ledger guard BEFORE the
+// debit, so a recovery rerun must NOT charge again.
+describe("runJob('cyberware_humanity') crash-window: debit succeeded, ledger write missing", () => {
+  it("does not double-charge meds on a rerun after a mid-run crash", async () => {
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    await addChrome(char.id, owner.id, 8); // medium band
+
+    // First run: UB debit "succeeds" then the process crashes before the run
+    // can finish.
+    let debits = 0;
+    mockPatch.mockImplementation(async () => {
+      debits++;
+      throw new Error("simulated crash after external debit succeeded");
+    });
+    const first = await runJob("cyberware_humanity");
+    expect(first.status).toBe("failed");
+    expect(debits).toBe(1);
+
+    // The 'meds' ledger row was reserved BEFORE the debit, so it survived the
+    // crash.
+    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
+    expect(afterCrash).toHaveLength(1);
+
+    // Recovery run with a healthy UB: the committed ledger row trips the weekly
+    // guard, so meds is NOT debited again.
+    mockPatch.mockReset();
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    await runJob("cyberware_humanity");
+    expect(mockPatch).not.toHaveBeenCalled();
+
+    const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
+    expect(meds).toHaveLength(1);
+  });
+});
+
 // Proves the LOA boolean (set by the dashboard switch, see
 // PlayerLoaControl.test.tsx) is actually honored by the billing job across
 // EVERY per-character fee branch — not just residential rent. Each case runs an

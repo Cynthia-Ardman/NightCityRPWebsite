@@ -712,28 +712,36 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
 
         const [owner] = await db.select().from(users).where(eq(users.id, ownerId));
         if (!owner) continue;
-        // UB is authoritative — only insert a local ledger entry after a
-        // confirmed UB debit. Skip cleanly on UB unavailability.
-        const ub = await patchBalance(owner.discordId, {
-          cash: -proj.charge,
-          reason: `Cyberpsychosis meds (${proj.level}, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
-        });
-        if (!ub) {
-          logger.warn({ ownerId }, "cyberware_humanity UB debit failed; skipping local ledger insert");
-          continue;
-        }
-        try {
-          await db.insert(walletTransactions).values({
+        // Reserve-before-debit (mirrors chargePersonalFeeWithReservation):
+        // write the idempotency guard — the 'meds' ledger row plus the
+        // in-memory per-user weekly flag — BEFORE the external UB debit, and
+        // roll it back ONLY on a clean UB failure (patchBalance returns null).
+        // If the process crashes after the debit succeeds but before this
+        // commit, the guard is already committed, so a rerun in the same week
+        // skips this owner and can't double-charge. The trade-off is a
+        // recoverable under-charge if UB never actually ran.
+        const [medsRow] = await db
+          .insert(walletTransactions)
+          .values({
             userId: ownerId,
             characterId: null,
             amount: -proj.charge,
             kind: "meds",
             memo: `Weekly cyberpsychosis meds (${proj.level}, ${maxChromeCount} chrome, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
-          });
-          affected++;
-        } catch (err) {
-          logger.warn({ err, ownerId }, "cyberware_humanity ledger insert failed");
+          })
+          .returning({ id: walletTransactions.id });
+        recentMedsUserSet.add(ownerId);
+        const ub = await patchBalance(owner.discordId, {
+          cash: -proj.charge,
+          reason: `Cyberpsychosis meds (${proj.level}, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
+        });
+        if (!ub) {
+          await db.delete(walletTransactions).where(eq(walletTransactions.id, medsRow.id));
+          recentMedsUserSet.delete(ownerId);
+          logger.warn({ ownerId }, "cyberware_humanity UB debit failed; rolled back local ledger reservation");
+          continue;
         }
+        affected++;
       }
     } else if (name === "eviction_sweep") {
       // Daily housing eviction sweep. Any lease whose delinquentSince is

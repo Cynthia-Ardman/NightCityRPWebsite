@@ -40,9 +40,12 @@ row + `paid_through` bump; personal fees: ledger row + in-memory
 null). A crash leaves the guard committed, so a rerun skips → no
 double-charge; the trade-off is a recoverable under-charge if UB never
 ran. Personal fees go through the `chargePersonalFeeWithReservation`
-helper. NOTE: `shop_income` (credit) and the `cyberware_humanity`
-weekly meds job still debit/credit BEFORE their guard — same race,
-not yet fixed.
+helper. The `cyberware_humanity` weekly meds job now ALSO uses
+reserve-before-debit (inline, not the helper): it inserts the 'meds'
+ledger row + adds ownerId to the in-memory `recentMedsUserSet` weekly
+guard BEFORE `patchBalance`, deleting both only on a clean UB null.
+NOTE: `shop_income` (credit) still credits BEFORE its guard — same
+race, not yet fixed.
 
 **How to apply:** Any new monthly bill type belongs in this same job
 under the same kill switch. Add its kind to `TRACKED_PERSONAL_KINDS`
