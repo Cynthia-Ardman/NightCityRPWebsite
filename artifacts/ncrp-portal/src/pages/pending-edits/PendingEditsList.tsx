@@ -35,23 +35,25 @@ function statusBadge(status: string) {
   }
 }
 
-export default function PendingEditsList() {
+export default function PendingEditsList({ embedded = false }: { embedded?: boolean } = {}) {
   const { data: edits, isLoading } = useListPendingEdits();
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <div className="border-b border-border pb-4">
-        <h1 className="font-display text-3xl tracking-widest text-nc-cyan flex items-center gap-2">
-          <ShieldAlert className="w-7 h-7" /> CHARACTER EDIT QUEUE
-        </h1>
-        <p className="font-mono text-xs text-muted-foreground mt-2 leading-relaxed">
-          Edits to characters require a majority of fixers / approvers / admins to sign off before they apply.
-          Submitters cannot vote on their own edits.
-          <br />
-          <span className="text-muted-foreground/80">
-            Reviewers see every pending edit. Players see only their own submissions and can withdraw them from the detail view.
-          </span>
-        </p>
-      </div>
+    <div className={embedded ? "space-y-6" : "max-w-5xl mx-auto p-6 space-y-6"}>
+      {!embedded && (
+        <div className="border-b border-border pb-4">
+          <h1 className="font-display text-3xl tracking-widest text-nc-cyan flex items-center gap-2">
+            <ShieldAlert className="w-7 h-7" /> CHARACTER EDIT QUEUE
+          </h1>
+          <p className="font-mono text-xs text-muted-foreground mt-2 leading-relaxed">
+            Edits to characters require a majority of fixers / approvers / admins to sign off before they apply.
+            Submitters cannot vote on their own edits.
+            <br />
+            <span className="text-muted-foreground/80">
+              Reviewers see every pending edit. Players see only their own submissions and can withdraw them from the detail view.
+            </span>
+          </p>
+        </div>
+      )}
       {isLoading ? (
         <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>
       ) : !edits || edits.length === 0 ? (

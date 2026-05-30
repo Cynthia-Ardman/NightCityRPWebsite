@@ -20,6 +20,8 @@ import SheetDetail from "@/pages/sheets/SheetDetail";
 import PendingSheets from "@/pages/sheets/PendingSheets";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
 import PendingEditDetail from "@/pages/pending-edits/PendingEditDetail";
+import PendingRequests from "@/pages/requests/PendingRequests";
+import Ledger from "@/pages/Ledger";
 import { Redirect } from "wouter";
 import DirectoryStores from "@/pages/directory/DirectoryStores";
 import DirectoryStoreDetail from "@/pages/directory/DirectoryStoreDetail";
@@ -66,6 +68,16 @@ function StaffArchiveGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// The unified Pending Requests page is staff-only. Each tab self-gates by
+// role inside the page, but a plain player typing the URL should never see
+// the queue — bounce them home.
+function StaffRequestsGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useAuthMe();
+  if (isLoading) return null;
+  if (!user || !(user.isFixer || user.isCsApprover || user.isAdmin)) return <Redirect to="/" />;
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   const { isLoading } = useAuthMe();
 
@@ -95,8 +107,12 @@ function AppRoutes() {
           <Route path="/sheets/pending" component={PendingSheets} />
           <Route path="/sheets/:id/edit" component={NewSheet} />
           <Route path="/sheets/:id" component={SheetDetail} />
-          <Route path="/pending-edits" component={PendingEditsList} />
+          <Route path="/pending-edits"><PendingEditsList /></Route>
           <Route path="/pending-edits/:id" component={PendingEditDetail} />
+          <Route path="/requests">
+            <StaffRequestsGuard><PendingRequests /></StaffRequestsGuard>
+          </Route>
+          <Route path="/ledger" component={Ledger} />
           <Route path="/directory/stores" component={DirectoryStores} />
           <Route path="/directory/stores/:id" component={DirectoryStoreDetail} />
           <Route path="/directory/ripperdocs" component={DirectoryRipperdocs} />

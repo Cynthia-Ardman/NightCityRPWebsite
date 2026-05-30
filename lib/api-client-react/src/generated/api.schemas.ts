@@ -1262,6 +1262,100 @@ export interface HousingRequest {
   createdAt: string;
 }
 
+export type CustomRequestType = typeof CustomRequestType[keyof typeof CustomRequestType];
+
+
+export const CustomRequestType = {
+  property: 'property',
+  gun: 'gun',
+  cyberware: 'cyberware',
+} as const;
+
+export type CustomRequestStatus = typeof CustomRequestStatus[keyof typeof CustomRequestStatus];
+
+
+export const CustomRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface CustomRequest {
+  id: number;
+  type: CustomRequestType;
+  characterId: number;
+  characterName: string;
+  requestedById: string;
+  /** @nullable */
+  requestedByName?: string | null;
+  /** Player label: location/address (property) or item name (gun/cyberware). */
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** Optional type-specific payload captured at submit time. */
+  details?: unknown | null;
+  status: CustomRequestStatus;
+  /** @nullable */
+  reviewedById?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  reviewerNote?: string | null;
+  /**
+     * What was materialized on approval (housing:<id> / inventory:<uuid>).
+     * @nullable
+     */
+  appliedRef?: string | null;
+  createdAt: string;
+}
+
+export type CustomRequestInputType = typeof CustomRequestInputType[keyof typeof CustomRequestInputType];
+
+
+export const CustomRequestInputType = {
+  property: 'property',
+  gun: 'gun',
+  cyberware: 'cyberware',
+} as const;
+
+export interface CustomRequestInput {
+  type: CustomRequestInputType;
+  characterId: number;
+  title: string;
+  description?: string;
+}
+
+/**
+ * For property requests; defaults residential.
+ */
+export type CustomRequestApprovalKind = typeof CustomRequestApprovalKind[keyof typeof CustomRequestApprovalKind];
+
+
+export const CustomRequestApprovalKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
+export interface CustomRequestApproval {
+  reviewerNote?: string;
+  /**
+     * Required for property requests.
+     * @minimum 0
+     */
+  monthlyRent?: number;
+  /** For property requests; defaults residential. */
+  kind?: CustomRequestApprovalKind;
+  /**
+     * Required for cyberware requests; sets chrome point cost.
+     * @minimum 0
+     */
+  cwp?: number;
+}
+
+export interface CustomRequestRejection {
+  reviewerNote?: string;
+}
+
 export type HousingLeaseInputKind = typeof HousingLeaseInputKind[keyof typeof HousingLeaseInputKind];
 
 
@@ -3015,5 +3109,31 @@ export type ListWholesalerOrdersKind = typeof ListWholesalerOrdersKind[keyof typ
 export const ListWholesalerOrdersKind = {
   store: 'store',
   ripperdoc: 'ripperdoc',
+} as const;
+
+export type ListCustomRequestsParams = {
+status?: ListCustomRequestsStatus;
+};
+
+export type ListCustomRequestsStatus = typeof ListCustomRequestsStatus[keyof typeof ListCustomRequestsStatus];
+
+
+export const ListCustomRequestsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type ListMyCustomRequestsParams = {
+type?: ListMyCustomRequestsType;
+};
+
+export type ListMyCustomRequestsType = typeof ListMyCustomRequestsType[keyof typeof ListMyCustomRequestsType];
+
+
+export const ListMyCustomRequestsType = {
+  property: 'property',
+  gun: 'gun',
+  cyberware: 'cyberware',
 } as const;
 

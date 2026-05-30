@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 
 const ALL = "__all__";
 
@@ -101,6 +102,14 @@ export default function CatalogCyberware() {
         <h1 className="text-4xl font-display" data-testid="text-catalog-cyberware-title">CYBERWARE CATALOG</h1>
         <p className="font-mono text-muted-foreground mt-2">Approved augmentations.</p>
       </div>
+      <CatalogRequestSection
+        type="cyberware"
+        buttonLabel="REQUEST CUSTOM CYBERWARE"
+        dialogTitle="REQUEST CUSTOM CYBERWARE"
+        dialogDescription="Ask staff to add a custom chrome piece to one of your characters."
+        titleLabel="Cyberware Name"
+        titlePlaceholder="e.g. Custom Sandevistan Mk.5"
+      />
       <div className="space-y-3">
         <Input
           placeholder="SEARCH NAME / SLOT / DESCRIPTION..."

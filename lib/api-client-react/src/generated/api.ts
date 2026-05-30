@@ -60,6 +60,10 @@ import type {
   CharacterUpdate,
   CharacterUpdateNote,
   CheckMissionConflictsParams,
+  CustomRequest,
+  CustomRequestApproval,
+  CustomRequestInput,
+  CustomRequestRejection,
   DashboardSummary,
   DeactivateCharacter200,
   DeleteTagOption200,
@@ -94,8 +98,10 @@ import type {
   LifestyleTierPatch,
   ListArchiveCharactersParams,
   ListArchiveUsersParams,
+  ListCustomRequestsParams,
   ListHousingRequestsParams,
   ListMissionsParams,
+  ListMyCustomRequestsParams,
   ListPublicCharactersParams,
   ListWholesalerItemsParams,
   ListWholesalerOrdersParams,
@@ -11801,4 +11807,387 @@ export function useGetMyWalletTransactions<TData = Awaited<ReturnType<typeof get
 
 
 
+
+export const getListCustomRequestsUrl = (params?: ListCustomRequestsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/requests?${stringifiedParams}` : `/api/requests`
+}
+
+/**
+ * @summary List custom requests across all players (fixer/admin only).
+ */
+export const listCustomRequests = async (params?: ListCustomRequestsParams, options?: RequestInit): Promise<CustomRequest[]> => {
+
+  return customFetch<CustomRequest[]>(getListCustomRequestsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomRequestsQueryKey = (params?: ListCustomRequestsParams,) => {
+    return [
+    `/api/requests`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCustomRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listCustomRequests>>, TError = ErrorType<void>>(params?: ListCustomRequestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomRequestsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomRequests>>> = ({ signal }) => listCustomRequests(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomRequests>>>
+export type ListCustomRequestsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List custom requests across all players (fixer/admin only).
+ */
+
+export function useListCustomRequests<TData = Awaited<ReturnType<typeof listCustomRequests>>, TError = ErrorType<void>>(
+ params?: ListCustomRequestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomRequestsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitCustomRequestUrl = () => {
+
+
+
+
+  return `/api/requests`
+}
+
+/**
+ * @summary Submit a custom request for one of the signed-in user's characters.
+ */
+export const submitCustomRequest = async (customRequestInput: CustomRequestInput, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getSubmitCustomRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      customRequestInput,)
+  }
+);}
+
+
+
+
+export const getSubmitCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCustomRequest>>, TError,{data: BodyType<CustomRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitCustomRequest>>, TError,{data: BodyType<CustomRequestInput>}, TContext> => {
+
+const mutationKey = ['submitCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitCustomRequest>>, {data: BodyType<CustomRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitCustomRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof submitCustomRequest>>>
+    export type SubmitCustomRequestMutationBody = BodyType<CustomRequestInput>
+    export type SubmitCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a custom request for one of the signed-in user's characters.
+ */
+export const useSubmitCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCustomRequest>>, TError,{data: BodyType<CustomRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitCustomRequest>>,
+        TError,
+        {data: BodyType<CustomRequestInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitCustomRequestMutationOptions(options));
+    }
+
+export const getListMyCustomRequestsUrl = (params?: ListMyCustomRequestsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/requests/mine?${stringifiedParams}` : `/api/requests/mine`
+}
+
+/**
+ * @summary The signed-in user's own custom requests.
+ */
+export const listMyCustomRequests = async (params?: ListMyCustomRequestsParams, options?: RequestInit): Promise<CustomRequest[]> => {
+
+  return customFetch<CustomRequest[]>(getListMyCustomRequestsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyCustomRequestsQueryKey = (params?: ListMyCustomRequestsParams,) => {
+    return [
+    `/api/requests/mine`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMyCustomRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listMyCustomRequests>>, TError = ErrorType<unknown>>(params?: ListMyCustomRequestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyCustomRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyCustomRequestsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyCustomRequests>>> = ({ signal }) => listMyCustomRequests(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyCustomRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyCustomRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyCustomRequests>>>
+export type ListMyCustomRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The signed-in user's own custom requests.
+ */
+
+export function useListMyCustomRequests<TData = Awaited<ReturnType<typeof listMyCustomRequests>>, TError = ErrorType<unknown>>(
+ params?: ListMyCustomRequestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyCustomRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyCustomRequestsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getApproveCustomRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/approve`
+}
+
+/**
+ * @summary Approve and auto-apply a custom request (fixer/admin only).
+ */
+export const approveCustomRequest = async (id: number,
+    customRequestApproval?: CustomRequestApproval, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getApproveCustomRequestUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      customRequestApproval,)
+  }
+);}
+
+
+
+
+export const getApproveCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext> => {
+
+const mutationKey = ['approveCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveCustomRequest>>, {id: number;data?: BodyType<CustomRequestApproval>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveCustomRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof approveCustomRequest>>>
+    export type ApproveCustomRequestMutationBody = BodyType<CustomRequestApproval> | undefined
+    export type ApproveCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve and auto-apply a custom request (fixer/admin only).
+ */
+export const useApproveCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveCustomRequest>>,
+        TError,
+        {id: number;data?: BodyType<CustomRequestApproval>},
+        TContext
+      > => {
+      return useMutation(getApproveCustomRequestMutationOptions(options));
+    }
+
+export const getRejectCustomRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/reject`
+}
+
+/**
+ * @summary Reject a custom request (fixer/admin only).
+ */
+export const rejectCustomRequest = async (id: number,
+    customRequestRejection?: CustomRequestRejection, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getRejectCustomRequestUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      customRequestRejection,)
+  }
+);}
+
+
+
+
+export const getRejectCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestRejection>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestRejection>}, TContext> => {
+
+const mutationKey = ['rejectCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectCustomRequest>>, {id: number;data?: BodyType<CustomRequestRejection>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectCustomRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof rejectCustomRequest>>>
+    export type RejectCustomRequestMutationBody = BodyType<CustomRequestRejection> | undefined
+    export type RejectCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Reject a custom request (fixer/admin only).
+ */
+export const useRejectCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestRejection>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectCustomRequest>>,
+        TError,
+        {id: number;data?: BodyType<CustomRequestRejection>},
+        TContext
+      > => {
+      return useMutation(getRejectCustomRequestMutationOptions(options));
+    }
 

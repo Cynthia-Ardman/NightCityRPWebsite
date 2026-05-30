@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import GunDetailDialog from "@/components/catalog/GunDetailDialog";
 import GunCreateDialog from "@/components/catalog/GunCreateDialog";
+import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import type { Gun } from "@/components/catalog/gunTypes";
 import { humanize } from "@/components/catalog/gunTypes";
 
@@ -96,6 +97,15 @@ export default function CatalogGuns() {
           </Button>
         )}
       </div>
+
+      <CatalogRequestSection
+        type="gun"
+        buttonLabel="REQUEST A CUSTOM GUN"
+        dialogTitle="REQUEST A CUSTOM GUN"
+        dialogDescription="Ask staff to add an off-sheet weapon to one of your characters."
+        titleLabel="Gun Name"
+        titlePlaceholder="e.g. Custom Malorian Arms 3516"
+      />
 
       <div className="space-y-3">
         <Input

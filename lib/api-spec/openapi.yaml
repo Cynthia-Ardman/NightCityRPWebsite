@@ -25,6 +25,8 @@ tags:
   - name: dashboard
   - name: storage
     description: Object storage upload and serving endpoints.
+  - name: requests
+    description: Off-catalog custom requests (off-map property, custom guns, custom cyberware).
 
 paths:
   /healthz:
@@ -2425,6 +2427,103 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/WalletTransaction" }
+  /requests:
+    get:
+      operationId: listCustomRequests
+      tags: [requests]
+      summary: List custom requests across all players (fixer/admin only).
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [pending, approved, rejected], default: pending }
+      responses:
+        "200":
+          description: Custom requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CustomRequest" }
+        "403": { description: Fixer or admin only }
+    post:
+      operationId: submitCustomRequest
+      tags: [requests]
+      summary: Submit a custom request for one of the signed-in user's characters.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomRequestInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: Bad request }
+        "404": { description: Character not found }
+  /requests/mine:
+    get:
+      operationId: listMyCustomRequests
+      tags: [requests]
+      summary: The signed-in user's own custom requests.
+      parameters:
+        - in: query
+          name: type
+          required: false
+          schema: { type: string, enum: [property, gun, cyberware] }
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CustomRequest" }
+  /requests/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approveCustomRequest
+      tags: [requests]
+      summary: Approve and auto-apply a custom request (fixer/admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomRequestApproval" }
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: Bad request }
+        "403": { description: Fixer or admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+  /requests/{id}/reject:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: rejectCustomRequest
+      tags: [requests]
+      summary: Reject a custom request (fixer/admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomRequestRejection" }
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "403": { description: Fixer or admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
 
 components:
   schemas:
@@ -3287,6 +3386,48 @@ components:
         reviewedAt: { type: ["string", "null"], format: date-time }
         reviewerNote: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
+
+    CustomRequest:
+      type: object
+      required: [id, type, characterId, characterName, requestedById, title, status, createdAt]
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [property, gun, cyberware] }
+        characterId: { type: integer }
+        characterName: { type: string }
+        requestedById: { type: string }
+        requestedByName: { type: ["string", "null"] }
+        title: { type: string, description: "Player label: location/address (property) or item name (gun/cyberware)." }
+        description: { type: ["string", "null"] }
+        details: { description: "Optional type-specific payload captured at submit time.", nullable: true }
+        status: { type: string, enum: [pending, approved, rejected] }
+        reviewedById: { type: ["string", "null"] }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        reviewerNote: { type: ["string", "null"] }
+        appliedRef: { type: ["string", "null"], description: "What was materialized on approval (housing:<id> / inventory:<uuid>)." }
+        createdAt: { type: string, format: date-time }
+
+    CustomRequestInput:
+      type: object
+      required: [type, characterId, title]
+      properties:
+        type: { type: string, enum: [property, gun, cyberware] }
+        characterId: { type: integer }
+        title: { type: string }
+        description: { type: string }
+
+    CustomRequestApproval:
+      type: object
+      properties:
+        reviewerNote: { type: string }
+        monthlyRent: { type: integer, minimum: 0, description: "Required for property requests." }
+        kind: { type: string, enum: [residential, business], description: "For property requests; defaults residential." }
+        cwp: { type: number, minimum: 0, description: "Required for cyberware requests; sets chrome point cost." }
+
+    CustomRequestRejection:
+      type: object
+      properties:
+        reviewerNote: { type: string }
 
     HousingLeaseInput:
       type: object

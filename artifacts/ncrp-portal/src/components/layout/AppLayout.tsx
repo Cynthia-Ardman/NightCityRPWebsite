@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMyWallet, getGetMyWalletQueryKey } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase, Search } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase, Search, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -85,6 +85,7 @@ function SidebarContent() {
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-4 uppercase tracking-widest">Personal</div>
         <NavItem href="/" icon={User} label="Dashboard" />
         <NavItem href="/characters" icon={Users} label="Characters" />
+        <NavItem href="/ledger" icon={Receipt} label="Ledger" />
         <NavItem href="/missions" icon={Briefcase} label="Missions" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
 
@@ -104,7 +105,7 @@ function SidebarContent() {
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Catalogs</div>
         <NavItem href="/catalog/guns" icon={Skull} label="Guns" />
         <NavItem href="/catalog/cyberware" icon={Syringe} label="Cyberware" />
-        <NavItem href="/catalog/rent" icon={Store} label="Housing" />
+        <NavItem href="/catalog/rent" icon={Store} label="Property" />
 
         {user && (user.isStoreOwner || user.isRipperdoc || user.isFixer || user.isCsApprover || user.isAdmin) && (
           <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Authorized Access</div>
@@ -115,14 +116,12 @@ function SidebarContent() {
         {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Syringe} label="Ripperdoc Console" />}
         {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
         {user?.isFixer && <NavItem href="/fixer/items" icon={Search} label="Item Trace" />}
-        {user?.isCsApprover && <NavItem href="/sheets/pending" icon={FileText} label="Pending Sheets" />}
-        {/* Pending Edits — everyone can open this. The API filters per-role:
-            fixers / cs-approvers / admins see the full review queue;
-            regular players see only their OWN pending submissions, so this
-            doubles as a "where's my edit?" inbox for players who submitted
-            a sheet change and want to track the vote. */}
-        {user && (
-          <NavItem href="/pending-edits" icon={FileText} label="Pending Edits" />
+        {/* Unified staff review queue (misc requests / character edits /
+            new characters). Each tab self-gates by role inside the page,
+            but only fixers / cs-approvers / admins have anything to do here,
+            so the nav link is staff-gated. */}
+        {user && (user.isFixer || user.isCsApprover || user.isAdmin) && (
+          <NavItem href="/requests" icon={FileText} label="Pending Requests" />
         )}
         {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" />}
       </div>

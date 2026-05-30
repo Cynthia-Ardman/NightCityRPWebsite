@@ -25,6 +25,7 @@ import { X, Home, ImageIcon } from "lucide-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
 import SingleImageField from "@/components/catalog/SingleImageField";
+import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 
 const ALL = "__all__";
 
@@ -85,9 +86,17 @@ export default function CatalogRent() {
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
       <div>
-        <h1 className="text-4xl font-display" data-testid="text-catalog-rent-title">HOUSING CATALOG</h1>
-        <p className="font-mono text-muted-foreground mt-2">Available rooms and apartments.</p>
+        <h1 className="text-4xl font-display" data-testid="text-catalog-rent-title">PROPERTY CATALOG</h1>
+        <p className="font-mono text-muted-foreground mt-2">Available homes, apartments, and business spaces.</p>
       </div>
+      <CatalogRequestSection
+        type="property"
+        buttonLabel="SUBMIT OFF-MAP PROPERTY REQUEST"
+        dialogTitle="OFF-MAP PROPERTY REQUEST"
+        dialogDescription="Ask staff for a home or business that isn't a listed property."
+        titleLabel="Location / Address"
+        titlePlaceholder="e.g. Loft above the Afterlife, Watson"
+      />
       <div className="space-y-3">
         <Input
           placeholder="SEARCH NAME / DISTRICT / DESCRIPTION..."

@@ -1,9 +1,6 @@
 import {
   useGetCharacter,
   useListCharacterUpdates,
-  useGetWalletTransactions,
-  useGetMyWallet,
-  useTransferEddies,
   useGetCharacterInventory,
   useAddInventoryItem,
   useUpdateInventoryItem,
@@ -12,23 +9,20 @@ import {
   useGetCharacterHousing,
   useVacateHousing,
   getGetCharacterHousingQueryKey,
-  useGetCharacterStatus,
-  useUpdateCharacterStatus,
   getGetWalletTransactionsQueryKey,
   getGetMyWalletQueryKey,
   getGetCharacterInventoryQueryKey,
-  getGetCharacterStatusQueryKey,
   useGetCharacterPendingEdit,
   getGetCharacterQueryKey,
   useListMyMissions,
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
-import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Wallet, Package, Activity, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu } from "lucide-react";
+import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import DeleteCharacterDialog from "@/components/DeleteCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
@@ -149,17 +143,14 @@ export default function CharacterDetail() {
           <TabsTrigger value="profile" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-profile">
             <Terminal className="w-4 h-4 mr-2 hidden sm:inline" /> Profile
           </TabsTrigger>
-          <TabsTrigger value="wallet" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-wallet">
-            <Wallet className="w-4 h-4 mr-2 hidden sm:inline" /> Ledger
+          <TabsTrigger value="property" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-property">
+            <Home className="w-4 h-4 mr-2 hidden sm:inline" /> Property
           </TabsTrigger>
           <TabsTrigger value="inventory" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-inv">
             <Package className="w-4 h-4 mr-2 hidden sm:inline" /> Inventory
           </TabsTrigger>
           <TabsTrigger value="cyberware" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-cyberware">
             <Cpu className="w-4 h-4 mr-2 hidden sm:inline" /> Cyberware
-          </TabsTrigger>
-          <TabsTrigger value="status" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-status">
-            <Activity className="w-4 h-4 mr-2 hidden sm:inline" /> Status
           </TabsTrigger>
           <TabsTrigger value="missions" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-missions">
             <Briefcase className="w-4 h-4 mr-2 hidden sm:inline" /> Missions
@@ -169,14 +160,13 @@ export default function CharacterDetail() {
         <div className="mt-8">
           <TabsContent value="profile" className="space-y-6 outline-none focus:ring-0">
             <SheetSections sections={(char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections} background={char.background} />
-            <HousingCard characterId={char.id} />
             <ImageGallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
             <ImageGallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
             <UpdatesLog characterId={char.id} />
           </TabsContent>
 
-          <TabsContent value="wallet" className="outline-none focus:ring-0">
-            <WalletTab characterId={char.id} />
+          <TabsContent value="property" className="outline-none focus:ring-0">
+            <HousingCard characterId={char.id} />
           </TabsContent>
 
           <TabsContent value="inventory" className="outline-none focus:ring-0">
@@ -185,10 +175,6 @@ export default function CharacterDetail() {
 
           <TabsContent value="cyberware" className="outline-none focus:ring-0">
             <CyberwareTab characterId={char.id} />
-          </TabsContent>
-
-          <TabsContent value="status" className="outline-none focus:ring-0">
-            <StatusTab characterId={char.id} />
           </TabsContent>
 
           <TabsContent value="missions" className="outline-none focus:ring-0">
@@ -507,137 +493,6 @@ function CyberwareTab({ characterId }: { characterId: number }) {
                   </div>
                 );
               })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function WalletTab({ characterId }: { characterId: number }) {
-  const qc = useQueryClient();
-  const { data: txs } = useGetWalletTransactions(characterId);
-  const { data: wallet, isLoading: walletLoading } = useGetMyWallet();
-  const transfer = useTransferEddies({
-    mutation: {
-      onSuccess: () => {
-        // Balance lives on the user (Unbelievaboat); invalidate the per-user
-        // pill in the TopBar and this character's ledger.
-        qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
-        qc.invalidateQueries({ queryKey: getGetWalletTransactionsQueryKey(characterId) });
-        setTo(null);
-        setAmount(0);
-        setMemo("");
-      },
-    },
-  });
-  const [to, setTo] = useState<CharacterPickerValue>(null);
-  const [amount, setAmount] = useState(0);
-  const [memo, setMemo] = useState("");
-
-  return (
-    <div className="space-y-6">
-      <Card className="rounded-none border-border bg-card/50" data-testid="card-wallet-account-notice">
-        <CardContent className="py-4 flex items-start gap-3 font-mono text-sm text-muted-foreground">
-          <Wallet className="w-4 h-4 mt-0.5 text-nc-cyan shrink-0" />
-          <div>
-            <span className="text-nc-cyan">EDDIES ARE ACCOUNT-LEVEL.</span> Your balance lives on your Discord profile via UnbelievaBoat
-            and is shown in the top bar. All buys, sells, transfers, payouts, rent, and meds settle there in real time. The ledger
-            below shows transactions tied to <span className="text-foreground">this character</span>.
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-none border-nc-cyan/40 bg-card/50" data-testid="card-wallet-balance">
-        <CardHeader className="pb-2">
-          <CardTitle className="font-display tracking-widest text-xs text-muted-foreground">LIVE BALANCE</CardTitle>
-        </CardHeader>
-        <CardContent className="font-mono">
-          {walletLoading ? (
-            <div className="text-nc-cyan animate-pulse">SYNCING…</div>
-          ) : wallet ? (
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div>
-                <div className="text-xs text-muted-foreground">CASH</div>
-                <div className="text-2xl text-nc-green" data-testid="text-balance-cash">€${(wallet.cash ?? 0).toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">BANK</div>
-                <div className="text-2xl text-nc-cyan" data-testid="text-balance-bank">€${(wallet.bank ?? 0).toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">TOTAL</div>
-                <div className="text-2xl text-foreground" data-testid="text-balance-total">€${((wallet.cash ?? 0) + (wallet.bank ?? 0)).toLocaleString()}</div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-muted-foreground italic">No wallet data.</div>
-          )}
-        </CardContent>
-      </Card>
-
-      <CheckupStreakCard characterId={characterId} />
-
-      <Card className="rounded-none border-border bg-card/50">
-        <CardHeader>
-          <CardTitle className="font-display tracking-widest">TRANSFER EDDIES</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const toCharacterId = to?.id;
-              if (!toCharacterId || amount <= 0) return;
-              transfer.mutate({ id: characterId, data: { toCharacterId, amount, memo: memo || undefined } });
-            }}
-          >
-            <div className="sm:col-span-3">
-              <Label className="text-xs font-mono">TO</Label>
-              <CharacterPicker value={to} onChange={setTo} testId="input-transfer-to" />
-            </div>
-            <div className="sm:col-span-3">
-              <Label className="text-xs font-mono">AMOUNT (€$)</Label>
-              <Input type="number" min={1} value={amount || ""} onChange={(e) => setAmount(Number(e.target.value))} data-testid="input-transfer-amount" />
-            </div>
-            <div className="sm:col-span-4">
-              <Label className="text-xs font-mono">MEMO</Label>
-              <Input value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="input-transfer-memo" />
-            </div>
-            <div className="sm:col-span-2">
-              <Button type="submit" disabled={transfer.isPending || !to?.id || amount <= 0} className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-transfer">
-                {transfer.isPending ? "SENDING..." : "SEND"}
-              </Button>
-            </div>
-          </form>
-          {transfer.error && (
-            <div className="mt-3 text-destructive font-mono text-sm" data-testid="text-transfer-error">
-              Transfer failed. Check funds or try again.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-none border-border bg-card/50">
-        <CardHeader>
-          <CardTitle className="font-display tracking-widest">LEDGER</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!txs || txs.length === 0 ? (
-            <div className="text-muted-foreground font-mono italic">No transactions yet.</div>
-          ) : (
-            <div className="space-y-1 font-mono text-sm" data-testid="list-wallet-txs">
-              {txs.map((t) => (
-                <div key={t.id} className="grid grid-cols-12 gap-2 border-b border-border/30 py-2 items-center">
-                  <span className="col-span-3 text-muted-foreground">{new Date(t.createdAt).toLocaleString()}</span>
-                  <span className="col-span-2 uppercase text-nc-cyan">{t.kind}</span>
-                  <span className={`col-span-2 text-right ${t.amount < 0 ? "text-destructive" : "text-nc-green"}`}>
-                    {t.amount < 0 ? "-" : "+"}€${Math.abs(t.amount)}
-                  </span>
-                  <span className="col-span-5 truncate text-muted-foreground">{t.counterpartyName ? `${t.counterpartyName} · ` : ""}{t.memo ?? ""}</span>
-                </div>
-              ))}
             </div>
           )}
         </CardContent>
@@ -1042,7 +897,7 @@ function HousingCard({ characterId }: { characterId: number }) {
     <Card className="rounded-none border-border bg-card/50" data-testid="card-housing">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="font-display tracking-widest text-nc-cyan flex items-center gap-2">
-          <Home className="w-4 h-4" /> HOUSING
+          <Home className="w-4 h-4" /> PROPERTY
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -1050,7 +905,7 @@ function HousingCard({ characterId }: { characterId: number }) {
           <div className="font-mono text-muted-foreground animate-pulse">Loading leases...</div>
         ) : !leases || leases.length === 0 ? (
           <p className="font-mono text-muted-foreground italic">
-            No active leases. Browse the <a href="/catalog/rent" className="text-nc-cyan underline">housing catalog</a> to sign one.
+            No active leases. Browse the <a href="/catalog/rent" className="text-nc-cyan underline">property catalog</a> to sign one.
           </p>
         ) : (
           <ul className="space-y-2 font-mono text-sm">
@@ -1114,185 +969,6 @@ function HousingCard({ characterId }: { characterId: number }) {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function StatusTab({ characterId }: { characterId: number }) {
-  const qc = useQueryClient();
-  const { data: status, isLoading } = useGetCharacterStatus(characterId);
-  const update = useUpdateCharacterStatus({
-    mutation: {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getGetCharacterStatusQueryKey(characterId) }),
-    },
-  });
-  const [message, setMessage] = useState("");
-  const [loaReturnsAt, setLoaReturnsAt] = useState("");
-
-  if (isLoading) return <div className="text-nc-cyan font-mono animate-pulse">Pinging biometric sensors...</div>;
-  if (!status) return <div className="text-muted-foreground font-mono">No status data.</div>;
-
-  return (
-    <Card className="rounded-none border-border bg-card/50">
-      <CardHeader>
-        <CardTitle className="font-display tracking-widest text-nc-cyan">STATUS</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 font-mono text-sm">
-        <ToggleRow
-          label="LOA (Leave of Absence)"
-          checked={status.loa}
-          onChange={(v) => update.mutate({ id: characterId, data: { loa: v } })}
-          testid="switch-loa"
-        />
-        <ToggleRow
-          label="ATTENDING (events/scenes)"
-          checked={status.attending}
-          onChange={(v) => update.mutate({ id: characterId, data: { attending: v } })}
-          testid="switch-attending"
-        />
-        <ToggleRow
-          label="OPEN SHOP (vendor)"
-          checked={status.openShop}
-          onChange={(v) => update.mutate({ id: characterId, data: { openShop: v } })}
-          testid="switch-openshop"
-        />
-
-        {/* Daily "press to open shop" button — separate from the visible
-            OPEN SHOP toggle above. The toggle is just a status flag; this
-            button is what actually drives passive income on the next
-            monthly_rent run. The endpoint enforces "owner of an active
-            business lease" + "one click per UTC day" so a character with
-            no lease never sees the action enabled. */}
-        <ShopOpenSection characterId={characterId} />
-
-        {status.loa && (
-          <div className="grid grid-cols-12 gap-2 items-end">
-            <div className="col-span-8">
-              <Label className="text-xs">LOA RETURNS AT (ISO date/time)</Label>
-              <Input
-                value={loaReturnsAt || status.loaReturnsAt?.slice(0, 16) || ""}
-                onChange={(e) => setLoaReturnsAt(e.target.value)}
-                placeholder="2026-06-15T09:00"
-                data-testid="input-loa-returns"
-              />
-            </div>
-            <div className="col-span-4">
-              <Button
-                type="button"
-                disabled={!loaReturnsAt}
-                onClick={() => update.mutate({ id: characterId, data: { loaReturnsAt } })}
-                className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-                data-testid="button-save-loa-date"
-              >
-                SAVE DATE
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div>
-          <Label className="text-xs">STATUS MESSAGE</Label>
-          <Textarea
-            value={message || status.statusMessage || ""}
-            onChange={(e) => setMessage(e.target.value)}
-            data-testid="textarea-status-message"
-          />
-          <Button
-            type="button"
-            className="mt-2 rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-            onClick={() => update.mutate({ id: characterId, data: { statusMessage: message } })}
-            data-testid="button-save-status-message"
-          >
-            UPDATE MESSAGE
-          </Button>
-        </div>
-
-        <div className="text-xs text-muted-foreground">
-          Last updated: {new Date(status.updatedAt).toLocaleString()}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-interface ShopOpenInfo {
-  characterId: number;
-  canOpen: boolean;
-  openedToday: boolean;
-  opensThisMonth: number;
-  opensCountedForIncome: number;
-  businessLeases: Array<{ id: number; address: string; monthlyRent: number }>;
-  history: Array<{ openedOn: string; openedAt: string }>;
-}
-
-// Card slot inside StatusTab for the OPEN SHOP TODAY action. Hidden
-// entirely when the character has no active business lease — there's no
-// useful UI for "you can't open a shop you don't own."
-function ShopOpenSection({ characterId }: { characterId: number }) {
-  const qc = useQueryClient();
-  const queryKey = ["character-shop", characterId] as const;
-  const { data, isLoading } = useQuery<ShopOpenInfo>({
-    queryKey,
-    queryFn: async () => {
-      const r = await fetch(`/api/characters/${characterId}/shop`, { credentials: "include" });
-      if (!r.ok) throw new Error("Failed to load shop status");
-      return r.json();
-    },
-  });
-  const open = useMutation({
-    mutationFn: async () => {
-      const r = await fetch(`/api/characters/${characterId}/open-shop`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (!r.ok && r.status !== 409) {
-        const body = await r.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${r.status}`);
-      }
-      return r.json();
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey }),
-  });
-
-  if (isLoading || !data) return null;
-  if (!data.canOpen) return null;
-
-  const lease = data.businessLeases[0];
-  // The cron caps paying opens at 4/month — anything past that is still
-  // recorded for history but doesn't add to income. Surface both numbers
-  // so a 6-open month doesn't read as a bug.
-  const capped = data.opensThisMonth > data.opensCountedForIncome;
-  const disabled = data.openedToday || open.isPending;
-
-  return (
-    <div className="border border-nc-magenta/40 bg-nc-magenta/5 p-4 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="font-display tracking-widest text-nc-magenta text-sm">SHOP STATUS</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {lease ? `${lease.address} · €$${lease.monthlyRent.toLocaleString()}/mo` : "Business lease"}
-          </div>
-        </div>
-        <Button
-          type="button"
-          disabled={disabled}
-          onClick={() => open.mutate()}
-          className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest disabled:opacity-50"
-          data-testid="button-open-shop-today"
-        >
-          {data.openedToday ? "OPENED TODAY ✓" : open.isPending ? "OPENING..." : "OPEN SHOP TODAY"}
-        </Button>
-      </div>
-      <div className="text-xs font-mono text-muted-foreground">
-        OPENS_THIS_MONTH: <span className="text-nc-cyan">{data.opensCountedForIncome}/4</span>
-        {capped && <span className="text-nc-yellow"> (+{data.opensThisMonth - data.opensCountedForIncome} past cap)</span>}
-        {" · "}NEXT_CHARGE: monthly rent cycle
-      </div>
-      {open.error instanceof Error && (
-        <div className="text-xs font-mono text-destructive">ERR: {open.error.message}</div>
-      )}
-    </div>
   );
 }
 
@@ -1374,14 +1050,5 @@ function ImageGallery({ title, urls }: { title: string; urls: string[] }) {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function ToggleRow({ label, checked, onChange, testid }: { label: string; checked: boolean; onChange: (v: boolean) => void; testid: string }) {
-  return (
-    <div className="flex items-center justify-between border border-border/40 p-3">
-      <span className="text-foreground">{label}</span>
-      <UiSwitch checked={checked} onCheckedChange={onChange} data-testid={testid} />
-    </div>
   );
 }

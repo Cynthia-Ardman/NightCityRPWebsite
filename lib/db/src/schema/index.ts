@@ -483,6 +483,37 @@ export const housingRequests = pgTable("housing_requests", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Off-catalog player requests across three types: off-map property (homes /
+// businesses not tied to a catalog_rent listing), custom/off-sheet guns, and
+// custom cyberware. Players submit free-text (title + description); staff
+// triage in the unified Pending Requests page and on approval the system
+// auto-applies the request (creates a housing lease or an inventory item).
+// `appliedRef` records what was materialized ("housing:<id>" / "inventory:<uuid>")
+// so an approval can never be applied twice.
+export const customRequests = pgTable("custom_requests", {
+  id: serial("id").primaryKey(),
+  // One of: property | gun | cyberware
+  type: text("type").notNull(),
+  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  requestedById: text("requested_by_id").notNull().references(() => users.id),
+  // Player-facing label: location/address (property) or item name (gun/cyberware).
+  title: text("title").notNull(),
+  description: text("description"),
+  // Optional type-specific payload captured at submit time.
+  details: jsonb("details"),
+  status: text("status").notNull().default("pending"),
+  reviewedById: text("reviewed_by_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewerNote: text("reviewer_note"),
+  // Idempotency marker for what was materialized on approval.
+  appliedRef: text("applied_ref"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index("custom_requests_status_idx").on(t.status),
+  requesterIdx: index("custom_requests_requester_idx").on(t.requestedById),
+}));
+export type CustomRequest = typeof customRequests.$inferSelect;
+
 export const traumaTeamCalls = pgTable("trauma_team_calls", {
   id: serial("id").primaryKey(),
   characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),

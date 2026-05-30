@@ -5089,3 +5089,139 @@ export const GetMyWalletTransactionsResponseItem = zod.object({
 export const GetMyWalletTransactionsResponse = zod.array(GetMyWalletTransactionsResponseItem)
 
 
+/**
+ * @summary List custom requests across all players (fixer/admin only).
+ */
+export const listCustomRequestsQueryStatusDefault = `pending`;
+
+export const ListCustomRequestsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'rejected']).default(listCustomRequestsQueryStatusDefault)
+})
+
+export const ListCustomRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
+  "description": zod.string().nullish(),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish(),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "createdAt": zod.coerce.date()
+})
+export const ListCustomRequestsResponse = zod.array(ListCustomRequestsResponseItem)
+
+
+/**
+ * @summary Submit a custom request for one of the signed-in user's characters.
+ */
+export const SubmitCustomRequestBody = zod.object({
+  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "characterId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().optional()
+})
+
+
+/**
+ * @summary The signed-in user's own custom requests.
+ */
+export const ListMyCustomRequestsQueryParams = zod.object({
+  "type": zod.enum(['property', 'gun', 'cyberware']).optional()
+})
+
+export const ListMyCustomRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
+  "description": zod.string().nullish(),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish(),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyCustomRequestsResponse = zod.array(ListMyCustomRequestsResponseItem)
+
+
+/**
+ * @summary Approve and auto-apply a custom request (fixer/admin only).
+ */
+export const ApproveCustomRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const approveCustomRequestBodyMonthlyRentMin = 0;
+
+export const approveCustomRequestBodyCwpMin = 0;
+
+
+
+export const ApproveCustomRequestBody = zod.object({
+  "reviewerNote": zod.string().optional(),
+  "monthlyRent": zod.number().min(approveCustomRequestBodyMonthlyRentMin).optional().describe('Required for property requests.'),
+  "kind": zod.enum(['residential', 'business']).optional().describe('For property requests; defaults residential.'),
+  "cwp": zod.number().min(approveCustomRequestBodyCwpMin).optional().describe('Required for cyberware requests; sets chrome point cost.')
+})
+
+export const ApproveCustomRequestResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
+  "description": zod.string().nullish(),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish(),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject a custom request (fixer/admin only).
+ */
+export const RejectCustomRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectCustomRequestBody = zod.object({
+  "reviewerNote": zod.string().optional()
+})
+
+export const RejectCustomRequestResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
+  "description": zod.string().nullish(),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish(),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "createdAt": zod.coerce.date()
+})
+
+
