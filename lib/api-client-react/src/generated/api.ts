@@ -22,6 +22,8 @@ import type {
 import type {
   ActivityEvent,
   ActorHistoryRow,
+  ActorPayoutEvent,
+  ActorPayoutResult,
   ActorReportRow,
   AdminCharacterSummary,
   AdminListAuditLogParams,
@@ -124,6 +126,7 @@ import type {
   SearchInventoryByOwnerParams,
   SearchMissionActorsParams,
   SheetDecisionInput,
+  StandaloneActorPayInput,
   StockInput,
   StockItem,
   StockUpdate,
@@ -5523,6 +5526,154 @@ export const useUpdateMission = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateMissionMutationOptions(options));
+    }
+
+export const getGetActorPayoutsUrl = () => {
+
+
+
+
+  return `/api/missions/actor-payouts`
+}
+
+/**
+ * @summary Non-mission actor payouts (sessions / open lobbies), grouped by event. Fixer/admin only.
+ */
+export const getActorPayouts = async ( options?: RequestInit): Promise<ActorPayoutEvent[]> => {
+
+  return customFetch<ActorPayoutEvent[]>(getGetActorPayoutsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetActorPayoutsQueryKey = () => {
+    return [
+    `/api/missions/actor-payouts`
+    ] as const;
+    }
+
+
+export const getGetActorPayoutsQueryOptions = <TData = Awaited<ReturnType<typeof getActorPayouts>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActorPayouts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetActorPayoutsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getActorPayouts>>> = ({ signal }) => getActorPayouts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getActorPayouts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetActorPayoutsQueryResult = NonNullable<Awaited<ReturnType<typeof getActorPayouts>>>
+export type GetActorPayoutsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Non-mission actor payouts (sessions / open lobbies), grouped by event. Fixer/admin only.
+ */
+
+export function useGetActorPayouts<TData = Awaited<ReturnType<typeof getActorPayouts>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActorPayouts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetActorPayoutsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateActorPayoutUrl = () => {
+
+
+
+
+  return `/api/missions/actor-payouts`
+}
+
+/**
+ * @summary Pay actors for a non-mission event (label + date). Fixer/admin only.
+ */
+export const createActorPayout = async (standaloneActorPayInput: StandaloneActorPayInput, options?: RequestInit): Promise<ActorPayoutResult> => {
+
+  return customFetch<ActorPayoutResult>(getCreateActorPayoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      standaloneActorPayInput,)
+  }
+);}
+
+
+
+
+export const getCreateActorPayoutMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createActorPayout>>, TError,{data: BodyType<StandaloneActorPayInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createActorPayout>>, TError,{data: BodyType<StandaloneActorPayInput>}, TContext> => {
+
+const mutationKey = ['createActorPayout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createActorPayout>>, {data: BodyType<StandaloneActorPayInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createActorPayout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateActorPayoutMutationResult = NonNullable<Awaited<ReturnType<typeof createActorPayout>>>
+    export type CreateActorPayoutMutationBody = BodyType<StandaloneActorPayInput>
+    export type CreateActorPayoutMutationError = ErrorType<void>
+
+    /**
+ * @summary Pay actors for a non-mission event (label + date). Fixer/admin only.
+ */
+export const useCreateActorPayout = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createActorPayout>>, TError,{data: BodyType<StandaloneActorPayInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createActorPayout>>,
+        TError,
+        {data: BodyType<StandaloneActorPayInput>},
+        TContext
+      > => {
+      return useMutation(getCreateActorPayoutMutationOptions(options));
     }
 
 export const getSearchMissionActorsUrl = (params?: SearchMissionActorsParams,) => {

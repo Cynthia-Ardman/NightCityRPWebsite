@@ -18,6 +18,8 @@ import {
   listOwnedMissionSummaries,
   getMissionDetail,
   payMissionActors,
+  payStandaloneActors,
+  getStandaloneActorPayouts,
   syncMissionDiscordEvent,
   getActorReport,
   getActorHistory,
@@ -391,6 +393,51 @@ router.get("/missions/actor-search", requireAuth, async (req, res): Promise<void
     .orderBy(asc(users.username))
     .limit(25);
   res.json(rows);
+});
+
+// Non-mission ("standalone") actor payouts — pay actors for a regular session,
+// open social lobby, etc. that isn't a formal mission. MUST be registered before
+// "/missions/:id" or that param route shadows it. Fixer/admin only.
+router.get("/missions/actor-payouts", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  res.json(await getStandaloneActorPayouts());
+});
+
+router.post("/missions/actor-payouts", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const b = req.body ?? {};
+  const eventName = typeof b.eventName === "string" ? b.eventName.trim() : "";
+  const eventType = typeof b.eventType === "string" && b.eventType.trim() ? b.eventType.trim() : null;
+  const userIds = Array.isArray(b.userIds) ? b.userIds.filter((x: unknown): x is string => typeof x === "string" && !!x) : [];
+  const amount = Math.trunc(Number(b.amount));
+  let eventDate: Date | null = null;
+  if (typeof b.eventDate === "string" && b.eventDate.trim()) {
+    const parsed = new Date(b.eventDate);
+    if (!Number.isNaN(parsed.getTime())) eventDate = parsed;
+  }
+  if (!eventName) {
+    res.status(400).json({ error: "Event label is required" });
+    return;
+  }
+  if (userIds.length === 0) {
+    res.status(400).json({ error: "Select at least one actor" });
+    return;
+  }
+  if (!Number.isFinite(amount) || amount < 0) {
+    res.status(400).json({ error: "Amount must be a non-negative number" });
+    return;
+  }
+  const result = await payStandaloneActors(
+    { eventName, eventType, eventDate, userIds, amount },
+    { req, actorId: viewerOf(req).id },
+  );
+  res.json({ result, payouts: await getStandaloneActorPayouts() });
 });
 
 // ---------------- DETAIL / UPDATE ----------------

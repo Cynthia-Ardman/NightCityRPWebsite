@@ -1126,6 +1126,37 @@ paths:
         "400": { description: Bad request }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
+  /missions/actor-payouts:
+    get:
+      operationId: getActorPayouts
+      tags: [missions]
+      summary: "Non-mission actor payouts (sessions / open lobbies), grouped by event. Fixer/admin only."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActorPayoutEvent" }
+        "403": { description: Insufficient role. }
+    post:
+      operationId: createActorPayout
+      tags: [missions]
+      summary: "Pay actors for a non-mission event (label + date). Fixer/admin only."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StandaloneActorPayInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActorPayoutResult" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
   /missions/actor-search:
     get:
       operationId: searchMissionActors
@@ -3877,6 +3908,60 @@ components:
         userIds: { type: array, items: { type: string }, minItems: 1 }
         amount: { type: integer, minimum: 0 }
 
+    StandaloneActorPayInput:
+      type: object
+      required: [eventName, userIds, amount]
+      properties:
+        eventName: { type: string, minLength: 1, description: "Free-form event label, e.g. \"Sunday Session\" or \"Open Social Lobby\"." }
+        eventType: { type: ["string", "null"], description: "Preset category: session | social_lobby | other." }
+        eventDate: { type: ["string", "null"], format: date-time, description: "Date the session/lobby took place; defaults to now." }
+        userIds: { type: array, items: { type: string }, minItems: 1 }
+        amount: { type: integer, minimum: 0 }
+
+    ActorPayoutLine:
+      type: object
+      required: [id, userId, amount, paymentStatus]
+      properties:
+        id: { type: integer }
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        amount: { type: integer }
+        paymentStatus: { type: string }
+        paymentError: { type: ["string", "null"] }
+
+    ActorPayoutEvent:
+      type: object
+      required: [key, totalPaid, actorCount, actors]
+      properties:
+        key: { type: string }
+        eventName: { type: ["string", "null"] }
+        eventType: { type: ["string", "null"] }
+        eventDate: { type: ["string", "null"], format: date-time }
+        paidAt: { type: ["string", "null"], format: date-time }
+        fixerName: { type: ["string", "null"] }
+        totalPaid: { type: integer }
+        actorCount: { type: integer }
+        actors:
+          type: array
+          items: { $ref: "#/components/schemas/ActorPayoutLine" }
+
+    ActorPayoutResult:
+      type: object
+      required: [result, payouts]
+      properties:
+        result:
+          type: object
+          required: [paid, simulated, failed, skipped, live]
+          properties:
+            paid: { type: integer }
+            simulated: { type: integer }
+            failed: { type: integer }
+            skipped: { type: integer }
+            live: { type: boolean }
+        payouts:
+          type: array
+          items: { $ref: "#/components/schemas/ActorPayoutEvent" }
+
     MissionConfig:
       type: object
       required: [live, bankingChannelId, npcSpendingChannelId, npcAnnouncementChannelId, autopayDelayHours]
@@ -3961,9 +4046,9 @@ components:
           type: array
           items:
             type: object
-            required: [missionId, amount]
+            required: [amount]
             properties:
-              missionId: { type: integer }
+              missionId: { type: ["integer", "null"], description: "Null for non-mission payouts (sessions / open lobbies); use missionName as the label." }
               missionName: { type: ["string", "null"] }
               missionDate: { type: ["string", "null"], format: date-time }
               amount: { type: integer }

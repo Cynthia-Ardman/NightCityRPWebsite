@@ -39,6 +39,7 @@ import FixerHub from "@/pages/fixer/FixerHub";
 import FixerNpcDetail from "@/pages/fixer/FixerNpcDetail";
 import FixerMissions from "@/pages/fixer/FixerMissions";
 import FixerReports from "@/pages/fixer/FixerReports";
+import PayActors from "@/pages/fixer/PayActors";
 import FixerInventorySearch from "@/pages/fixer/FixerInventorySearch";
 import InventoryItemDetail from "@/pages/InventoryItemDetail";
 import Missions from "@/pages/Missions";
@@ -117,6 +118,7 @@ function AppRoutes() {
           <Route path="/fixer" component={FixerHub} />
           <Route path="/fixer/missions" component={FixerMissions} />
           <Route path="/fixer/reports" component={FixerReports} />
+          <Route path="/fixer/pay-actors" component={PayActors} />
           <Route path="/fixer/items" component={FixerInventorySearch} />
           <Route path="/fixer/npcs/:id" component={FixerNpcDetail} />
           <Route path="/items/:uuid" component={InventoryItemDetail} />

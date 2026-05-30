@@ -2369,6 +2369,69 @@ export interface PayActorsInput {
   amount: number;
 }
 
+export interface StandaloneActorPayInput {
+  /**
+     * Free-form event label, e.g. "Sunday Session" or "Open Social Lobby".
+     * @minLength 1
+     */
+  eventName: string;
+  /**
+     * Preset category: session | social_lobby | other.
+     * @nullable
+     */
+  eventType?: string | null;
+  /**
+     * Date the session/lobby took place; defaults to now.
+     * @nullable
+     */
+  eventDate?: string | null;
+  /** @minItems 1 */
+  userIds: string[];
+  /** @minimum 0 */
+  amount: number;
+}
+
+export interface ActorPayoutLine {
+  id: number;
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  amount: number;
+  paymentStatus: string;
+  /** @nullable */
+  paymentError?: string | null;
+}
+
+export interface ActorPayoutEvent {
+  key: string;
+  /** @nullable */
+  eventName?: string | null;
+  /** @nullable */
+  eventType?: string | null;
+  /** @nullable */
+  eventDate?: string | null;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  totalPaid: number;
+  actorCount: number;
+  actors: ActorPayoutLine[];
+}
+
+export type ActorPayoutResultResult = {
+  paid: number;
+  simulated: number;
+  failed: number;
+  skipped: number;
+  live: boolean;
+};
+
+export interface ActorPayoutResult {
+  result: ActorPayoutResultResult;
+  payouts: ActorPayoutEvent[];
+}
+
 export interface MissionConfig {
   live: boolean;
   bankingChannelId: string;
@@ -2429,7 +2492,11 @@ export interface VrchatScanResult {
 }
 
 export type ActorReportRowMissionsItem = {
-  missionId: number;
+  /**
+     * Null for non-mission payouts (sessions / open lobbies); use missionName as the label.
+     * @nullable
+     */
+  missionId?: number | null;
   /** @nullable */
   missionName?: string | null;
   /** @nullable */

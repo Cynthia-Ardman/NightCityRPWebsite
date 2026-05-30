@@ -7,7 +7,11 @@
  */
 
 export type ActorReportRowMissionsItem = {
-  missionId: number;
+  /**
+     * Null for non-mission payouts (sessions / open lobbies); use missionName as the label.
+     * @nullable
+     */
+  missionId?: number | null;
   /** @nullable */
   missionName?: string | null;
   /** @nullable */

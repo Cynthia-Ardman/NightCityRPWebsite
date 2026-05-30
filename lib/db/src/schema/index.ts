@@ -600,8 +600,15 @@ export type MissionAssignment = typeof missionAssignments.$inferSelect;
 // (mission, actor) pair while still allowing failed/simulated retries.
 export const missionActorPayments = pgTable("mission_actor_payments", {
   id: serial("id").primaryKey(),
-  missionId: integer("mission_id").notNull().references(() => missions.id, { onDelete: "cascade" }),
+  // Nullable: actor payments can be tied to a mission OR to a free-form
+  // non-mission event (regular session, open social lobby). When missionId is
+  // null the event label lives in missionName, the date in missionDate, and the
+  // preset category in eventType.
+  missionId: integer("mission_id").references(() => missions.id, { onDelete: "cascade" }),
   missionName: text("mission_name"),
+  // Preset category for non-mission payouts: 'session' | 'social_lobby' |
+  // 'other'. Null for mission-tied actor payments.
+  eventType: text("event_type"),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   userName: text("user_name"),
   characterId: integer("character_id"),

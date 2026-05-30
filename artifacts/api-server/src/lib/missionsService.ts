@@ -1334,6 +1334,183 @@ export async function payMissionActors(
   return result;
 }
 
+/**
+ * Pay a set of actors a flat amount each for a NON-mission event (a regular
+ * session, an open social lobby, etc). These have no mission row — the event is
+ * identified by a free-form label + date. Rows are stored in
+ * `mission_actor_payments` with missionId = null, missionName = the label,
+ * missionDate = the event date, and eventType = the preset category. They show
+ * up in the reports ACTOR PAYMENTS aggregate alongside mission actor pay.
+ *
+ * Unlike mission payouts there is no all-time double-pay guard (the same actor
+ * legitimately acts at many sessions); we only de-dupe within a single request.
+ */
+export async function payStandaloneActors(
+  input: { eventName: string; eventType?: string | null; eventDate?: Date | null; userIds: string[]; amount: number },
+  opts: { req?: Request; actorId?: string | null; actorName?: string | null },
+): Promise<PayActorsResult> {
+  const ctx = await getMissionContext();
+  const result: PayActorsResult = { paid: 0, simulated: 0, failed: 0, skipped: 0, live: ctx.live };
+
+  const uniqueIds = [...new Set(input.userIds)];
+  if (uniqueIds.length === 0) return result;
+
+  const eventName = input.eventName.trim();
+  const eventDate = input.eventDate ?? new Date();
+  const amount = input.amount;
+
+  const userRows = await db
+    .select({ id: users.id, discordId: users.discordId, username: users.username })
+    .from(users)
+    .where(inArray(users.id, uniqueIds));
+  const userById = new Map(userRows.map((u) => [u.id, u]));
+
+  // Resolve the fixer/admin issuing the payment so history shows WHO paid.
+  const payerId = opts.actorId ?? null;
+  let payerName = opts.actorName ?? null;
+  if (!payerName && payerId) {
+    const [payer] = await db
+      .select({ username: users.username, globalName: users.globalName })
+      .from(users)
+      .where(eq(users.id, payerId));
+    payerName = payer?.globalName ?? payer?.username ?? null;
+  }
+
+  const now = new Date();
+  const postedLines: string[] = [];
+
+  for (const userId of uniqueIds) {
+    const u = userById.get(userId);
+    const base = {
+      missionId: null,
+      missionName: eventName,
+      eventType: input.eventType ?? null,
+      userId,
+      userName: u?.username ?? null,
+      fixerId: payerId,
+      fixerName: payerName,
+      missionDate: eventDate,
+      amount,
+      source: "manual" as const,
+      attendanceCreditedAt: now,
+      paidAt: now,
+    };
+
+    if (!ctx.live) {
+      await db.insert(missionActorPayments).values({ ...base, paymentStatus: "simulated" });
+      result.simulated++;
+      continue;
+    }
+
+    const [inserted] = await db
+      .insert(missionActorPayments)
+      .values({ ...base, paymentStatus: "paid" })
+      .returning({ id: missionActorPayments.id });
+
+    if (!u?.discordId) {
+      await db
+        .update(missionActorPayments)
+        .set({ paymentStatus: "failed", paymentError: "No Discord id for actor", paidAt: null })
+        .where(eq(missionActorPayments.id, inserted.id));
+      result.failed++;
+      continue;
+    }
+    const balance = amount > 0 ? await patchBalance(u.discordId, { cash: amount, reason: `Actor pay: ${eventName}` }) : { cash: 0, bank: 0, total: 0, source: "local" as const };
+    if (balance == null) {
+      await db
+        .update(missionActorPayments)
+        .set({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null })
+        .where(eq(missionActorPayments.id, inserted.id));
+      result.failed++;
+    } else {
+      result.paid++;
+      postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
+    }
+  }
+
+  // Actor payouts are NPC spending — post ONLY to #npc-spending.
+  if (ctx.live && postedLines.length > 0) {
+    const body = [`**Actor payout** — ${eventName}`, ...postedLines].join("\n");
+    await postToChannel(ctx.npcSpendingChannelId, body).catch((err) =>
+      logger.warn({ err, eventName }, "npc spending post failed (standalone actors)"),
+    );
+  }
+
+  await recordAudit({
+    req: opts.req,
+    actorId: opts.actorId ?? null,
+    actorName: opts.actorName ?? null,
+    category: "mission",
+    action: "actor.pay_standalone",
+    targetType: "actor_event",
+    targetId: null,
+    message: `${ctx.live ? "LIVE" : "TEST"} standalone actor payout "${eventName}" (${amount} ea) — paid ${result.paid}, simulated ${result.simulated}, failed ${result.failed}`,
+    after: { eventName, eventType: input.eventType ?? null, ...result },
+  });
+
+  return result;
+}
+
+/**
+ * List non-mission actor payouts (missionId IS NULL), grouped by event
+ * (label + date). Most recent first. Fixer/admin only. Drives the "recent
+ * payouts" log on the standalone Pay Actors page.
+ */
+export async function getStandaloneActorPayouts() {
+  const rows = await db
+    .select()
+    .from(missionActorPayments)
+    .where(isNull(missionActorPayments.missionId))
+    .orderBy(desc(missionActorPayments.attendanceCreditedAt), desc(missionActorPayments.createdAt));
+
+  const byEvent = new Map<string, {
+    key: string;
+    eventName: string | null;
+    eventType: string | null;
+    eventDate: string | null;
+    paidAt: string | null;
+    fixerName: string | null;
+    totalPaid: number;
+    actorCount: number;
+    actors: Array<{ id: number; userId: string; userName: string | null; amount: number; paymentStatus: string; paymentError: string | null }>;
+  }>();
+  for (const r of rows) {
+    // Group by the per-batch timestamp written once to attendanceCreditedAt for
+    // every row in a single payStandaloneActors() call. createdAt is set by a
+    // column default per INSERT statement, so it differs row-to-row and would
+    // fragment one payout batch into many single-actor "events".
+    const batchStamp = iso(r.attendanceCreditedAt) ?? iso(r.createdAt) ?? "";
+    const key = `${r.missionName ?? ""}|${iso(r.missionDate) ?? ""}|${r.eventType ?? ""}|${batchStamp}`;
+    let agg = byEvent.get(key);
+    if (!agg) {
+      agg = {
+        key,
+        eventName: r.missionName,
+        eventType: r.eventType,
+        eventDate: iso(r.missionDate),
+        paidAt: batchStamp || null,
+        fixerName: r.fixerName,
+        totalPaid: 0,
+        actorCount: 0,
+        actors: [],
+      };
+      byEvent.set(key, agg);
+    }
+    agg.actorCount++;
+    if (r.paymentStatus === "paid") agg.totalPaid += r.amount;
+    if (!agg.fixerName && r.fixerName) agg.fixerName = r.fixerName;
+    agg.actors.push({
+      id: r.id,
+      userId: r.userId,
+      userName: r.userName,
+      amount: r.amount,
+      paymentStatus: r.paymentStatus,
+      paymentError: r.paymentError,
+    });
+  }
+  return [...byEvent.values()];
+}
+
 // ===========================================================================
 // AUTO-PAY CRON
 // ===========================================================================
@@ -1443,7 +1620,7 @@ export async function getActorReport(fixerId: string | null) {
     userName: string | null;
     actCount: number;
     totalPaid: number;
-    missions: Array<{ missionId: number; missionName: string | null; missionDate: string | null; amount: number }>;
+    missions: Array<{ missionId: number | null; missionName: string | null; missionDate: string | null; amount: number }>;
   }>();
   for (const r of rows) {
     let agg = byUser.get(r.userId);

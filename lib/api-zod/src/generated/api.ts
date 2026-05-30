@@ -1572,7 +1572,7 @@ export const GetActorReportResponseItem = zod.object({
   "actCount": zod.number(),
   "totalPaid": zod.number(),
   "missions": zod.array(zod.object({
-  "missionId": zod.number(),
+  "missionId": zod.number().nullish().describe('Null for non-mission payouts (sessions \/ open lobbies); use missionName as the label.'),
   "missionName": zod.string().nullish(),
   "missionDate": zod.coerce.date().nullish(),
   "amount": zod.number()
@@ -1854,6 +1854,76 @@ export const UpdateMissionResponse = zod.object({
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Non-mission actor payouts (sessions / open lobbies), grouped by event. Fixer/admin only.
+ */
+export const GetActorPayoutsResponseItem = zod.object({
+  "key": zod.string(),
+  "eventName": zod.string().nullish(),
+  "eventType": zod.string().nullish(),
+  "eventDate": zod.coerce.date().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "fixerName": zod.string().nullish(),
+  "totalPaid": zod.number(),
+  "actorCount": zod.number(),
+  "actors": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.string(),
+  "paymentError": zod.string().nullish()
+}))
+})
+export const GetActorPayoutsResponse = zod.array(GetActorPayoutsResponseItem)
+
+
+/**
+ * @summary Pay actors for a non-mission event (label + date). Fixer/admin only.
+ */
+
+
+export const createActorPayoutBodyAmountMin = 0;
+
+
+
+export const CreateActorPayoutBody = zod.object({
+  "eventName": zod.string().min(1).describe('Free-form event label, e.g. \"Sunday Session\" or \"Open Social Lobby\".'),
+  "eventType": zod.string().nullish().describe('Preset category: session | social_lobby | other.'),
+  "eventDate": zod.coerce.date().nullish().describe('Date the session\/lobby took place; defaults to now.'),
+  "userIds": zod.array(zod.string()).min(1),
+  "amount": zod.number().min(createActorPayoutBodyAmountMin)
+})
+
+export const CreateActorPayoutResponse = zod.object({
+  "result": zod.object({
+  "paid": zod.number(),
+  "simulated": zod.number(),
+  "failed": zod.number(),
+  "skipped": zod.number(),
+  "live": zod.boolean()
+}),
+  "payouts": zod.array(zod.object({
+  "key": zod.string(),
+  "eventName": zod.string().nullish(),
+  "eventType": zod.string().nullish(),
+  "eventDate": zod.coerce.date().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "fixerName": zod.string().nullish(),
+  "totalPaid": zod.number(),
+  "actorCount": zod.number(),
+  "actors": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.string(),
+  "paymentError": zod.string().nullish()
+}))
+}))
 })
 
 
