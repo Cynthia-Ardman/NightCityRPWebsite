@@ -23,6 +23,7 @@ import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -848,8 +849,19 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
   }
   const credited = await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${c.name}` });
   if (!credited) {
-    // Compensate: refund sender to keep UB consistent.
-    await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${to.name} failed` });
+    // Compensate: refund sender to keep UB consistent. If the refund itself
+    // fails the sender has been debited with no offsetting credit and no
+    // record — surface a loud, structured log so an operator can reconcile by
+    // hand, and tell the caller the truth rather than a clean refund message.
+    const refund = await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${to.name} failed` });
+    if (!refund) {
+      logger.error(
+        { fromDiscordId: req.user!.discordId, toCharacterId: to.id, amount },
+        "TRANSFER_REFUND_FAILED: sender debited but credit AND refund failed — manual reconciliation required",
+      );
+      res.status(502).json({ error: "Transfer failed and refund failed; contact staff for reconciliation." });
+      return;
+    }
     res.status(502).json({ error: "Wallet provider rejected credit; sender refunded" });
     return;
   }

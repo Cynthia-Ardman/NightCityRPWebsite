@@ -31,3 +31,4 @@
 - [Mission payout idempotency](mission-payout-idempotency.md) — pay paths must acquire a durable uniqueness guard BEFORE the external UB call: 'processing' claim for player rows, onConflictDoNothing 'paid' reservation for actor rows.
 - [Archivist approver ≠ manager](archivist-approver-not-manager.md) — ARCHIVIST gates approve only; canManage stays isManager; broaden visibility/owned-board for archivists but gate submit/post UI on canManage or it 403s.
 - [Live-mode dual gate](live-mode-dual-gate.md) — Test/Live = master AND per-system (default OFF); runJob gates housing/cyberware/evictions; tests wanting real effects must set BOTH flags.
+- [Mission autopay Test→Live trap](mission-autopay-test-live-trap.md) — simulated missions get autoPayProcessedAt and never pay real; runMissionAutoPay live-retry recovers them (gate on ctx.live, exclude no-Discord failures).

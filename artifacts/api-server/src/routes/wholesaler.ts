@@ -23,9 +23,11 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 // ===== Wholesaler catalog (read) =====
-// Visible to any authenticated user (fixers need to browse; players can see
-// the upstream catalog too). Archived items are hidden unless ?all=true.
-router.get("/wholesaler/items", requireAuth, async (req, res): Promise<void> => {
+// Staff-only: rows carry internal wholesale prices and staff notes, and the
+// only consumers are the admin wholesaler page and the fixer restock dialog.
+// Gating to FIXER/ADMIN prevents regular players from crawling cost/margin
+// data. Archived items are hidden unless ?all=true.
+router.get("/wholesaler/items", requireAuth, requireAnyRole(["FIXER", "ADMIN"]), async (req, res): Promise<void> => {
   const includeArchived = String(req.query.all ?? "") === "true";
   const rows = await db.select().from(wholesalerItems).orderBy(wholesalerItems.name);
   const visible = includeArchived ? rows : rows.filter((r) => !r.archived);
@@ -253,11 +255,21 @@ router.post("/wholesaler/restock", requireAuth, requireAnyRole(["FIXER", "ADMIN"
     }
   } catch (err) {
     logger.error({ err, itemId, venueId, qty }, "wholesaler restock stock insert failed after wallet debit");
-    // Refund the fixer; abandon the order.
-    await patchBalance(req.user!.discordId, {
+    // Refund the fixer; abandon the order. If the refund itself fails the
+    // fixer has been debited with no stock and no record — log loudly so an
+    // operator can reconcile and tell the caller the truth.
+    const refund = await patchBalance(req.user!.discordId, {
       cash: totalCost,
       reason: `Refund: wholesaler restock failed for ${item.name}`,
     });
+    if (!refund) {
+      logger.error(
+        { fixerDiscordId: req.user!.discordId, itemId, venueId, qty, totalCost },
+        "WHOLESALE_REFUND_FAILED: fixer debited but stock write AND refund failed — manual reconciliation required",
+      );
+      res.status(500).json({ error: "Stock write failed and refund failed; contact staff for reconciliation." });
+      return;
+    }
     res.status(500).json({ error: "Stock write failed after wallet debit; refunded." });
     return;
   }

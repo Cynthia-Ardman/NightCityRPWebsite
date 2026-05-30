@@ -53,7 +53,13 @@ router.post("/fixer/npcs", requireAuth, requireRole("FIXER"), async (req, res): 
 
 router.get("/fixer/npcs/:id", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const [n] = await db.select().from(fixerNpcs).where(eq(fixerNpcs.id, id));
+  // Scope to the requesting fixer — NPCs are private to the fixer that created
+  // them, so a fixer must not be able to read another fixer's roster by id.
+  // (Mirrors the ownership filter already used by the PATCH route below.)
+  const [n] = await db
+    .select()
+    .from(fixerNpcs)
+    .where(and(eq(fixerNpcs.id, id), eq(fixerNpcs.fixerId, req.user!.id)));
   if (!n) {
     res.status(404).json({ error: "Not found" });
     return;

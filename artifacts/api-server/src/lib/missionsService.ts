@@ -1346,7 +1346,8 @@ export async function payMissionActors(
 export async function runMissionAutoPay(): Promise<number> {
   const ctx = await getMissionContext();
   const now = Date.now();
-  // Candidates: scheduled, not cancelled, not already processed.
+  // Candidates: scheduled, not cancelled, not already processed. These must
+  // wait for their run window (start + duration + autopay delay) to elapse.
   const candidates = await db
     .select()
     .from(missions)
@@ -1358,16 +1359,67 @@ export async function runMissionAutoPay(): Promise<number> {
       ),
     );
 
+  // Live-retry: missions already swept once (autoPayProcessedAt set) but that
+  // still have players owed real money. The common case is a mission processed
+  // while the system was in Test mode — its assignments are marked "simulated"
+  // and, because the primary query filters on autoPayProcessedAt AND the manual
+  // "Pay Players" button was removed, flipping Test→Live would otherwise never
+  // pay them. payMissionPlayers re-claims simulated/failed/unpaid rows, so
+  // re-running it settles the stragglers (and only moves real money when live).
+  // Gated on ctx.live so Test mode doesn't churn the same missions every tick.
+  let retryCandidates: typeof candidates = [];
+  if (ctx.live) {
+    const outstanding = await db
+      .selectDistinct({ missionId: missionAssignments.missionId })
+      .from(missionAssignments)
+      .where(
+        and(
+          inArray(missionAssignments.paymentStatus, ["simulated", "failed", "unpaid"]),
+          // Exclude permanently-unpayable rows (no Discord account to credit) so
+          // the live-retry doesn't re-select the same mission every tick forever.
+          // Transient UB-payout failures stay eligible and settle once UB recovers.
+          sql`not (${missionAssignments.paymentStatus} = 'failed' and ${missionAssignments.paymentError} = 'No Discord id for player')`,
+        ),
+      );
+    const ids = outstanding.map((r) => r.missionId);
+    if (ids.length > 0) {
+      retryCandidates = await db
+        .select()
+        .from(missions)
+        .where(
+          and(
+            isNotNull(missions.autoPayProcessedAt),
+            sql`${missions.status} <> 'cancelled'`,
+            inArray(missions.id, ids),
+          ),
+        );
+    }
+  }
+
   let processed = 0;
+  const seen = new Set<number>();
   for (const m of candidates) {
     if (!m.startAt) continue;
     const windowEnd = m.startAt.getTime() + Math.max(1, m.durationMinutes) * 60_000 + ctx.autopayDelayMs;
     if (windowEnd > now) continue; // still in the future
+    seen.add(m.id);
     try {
       await payMissionPlayers(m.id, { source: "auto", actorName: "auto-pay cron" });
       processed++;
     } catch (err) {
       logger.error({ err, missionId: m.id }, "mission auto-pay failed");
+    }
+  }
+  // Already-processed missions don't need a window check — they were swept once
+  // already. Skip any handled above to avoid double work in one tick.
+  for (const m of retryCandidates) {
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
+    try {
+      await payMissionPlayers(m.id, { source: "auto", actorName: "auto-pay cron (live retry)" });
+      processed++;
+    } catch (err) {
+      logger.error({ err, missionId: m.id }, "mission auto-pay live-retry failed");
     }
   }
   return processed;

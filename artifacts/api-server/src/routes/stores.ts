@@ -261,10 +261,18 @@ async function sellFromVenue(opts: {
     reason: memo ?? `Sale: ${item.name} x${qty} @ ${venue.name}`,
   });
   if (!credited) {
-    await patchBalance(buyerOwner.discordId, {
+    const refund = await patchBalance(buyerOwner.discordId, {
       cash: totalPaid,
       reason: `Refund: seller credit failed for ${item.name}`,
     });
+    if (!refund) {
+      logger.error(
+        { buyerDiscordId: buyerOwner.discordId, venueId, stockId, itemName: item.name, totalPaid },
+        "SALE_REFUND_FAILED: buyer debited but seller credit AND refund failed — manual reconciliation required",
+      );
+      res.status(502).json({ error: "Purchase failed and refund failed; contact staff for reconciliation." });
+      return;
+    }
     res.status(502).json({ error: "Wallet provider rejected credit; buyer refunded" });
     return;
   }
