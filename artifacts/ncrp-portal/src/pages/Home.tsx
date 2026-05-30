@@ -562,7 +562,7 @@ function AttendCard() {
 // server-side (it drives rent-billing skips), so toggling this fans the change
 // out across every one of the player's characters at once: ON puts them all on
 // leave, OFF brings them all back.
-function PlayerLoaControl({ characters }: { characters: Array<{ id: number; name: string }> }) {
+export function PlayerLoaControl({ characters }: { characters: Array<{ id: number; name: string }> }) {
   const qc = useQueryClient();
   const statusQueries = useQueries({
     queries: characters.map((c) => ({
