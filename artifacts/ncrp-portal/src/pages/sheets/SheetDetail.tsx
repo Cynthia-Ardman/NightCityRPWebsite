@@ -115,7 +115,7 @@ export default function SheetDetail() {
         <CardHeader><CardTitle className="font-display tracking-widest">PROFILE</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 text-sm font-mono">
           {["fullName", "nickname", "archetype", "age", "gender"].map((k) => (
-            <div key={k}><span className="text-muted-foreground uppercase tracking-widest">{k}: </span>{String(data[k] ?? "—")}</div>
+            <div key={k} className="break-words [overflow-wrap:anywhere]"><span className="text-muted-foreground uppercase tracking-widest">{k}: </span>{String(data[k] ?? "—")}</div>
           ))}
         </CardContent>
       </Card>
@@ -236,7 +236,7 @@ export default function SheetDetail() {
       {sheet.decisionNote && (
         <Card className="rounded-none border-border bg-card/50">
           <CardHeader><CardTitle className="font-display tracking-widest">APPROVER NOTE</CardTitle></CardHeader>
-          <CardContent className="font-mono text-sm">{sheet.decisionNote}</CardContent>
+          <CardContent className="font-mono text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{sheet.decisionNote}</CardContent>
         </Card>
       )}
     </div>

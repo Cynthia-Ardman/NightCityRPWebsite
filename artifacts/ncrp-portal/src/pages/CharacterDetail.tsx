@@ -11,7 +11,6 @@ import {
   useTransferInventoryItem,
   useGetCharacterHousing,
   useVacateHousing,
-  useUpdateHousingLease,
   getGetCharacterHousingQueryKey,
   useGetCharacterStatus,
   useUpdateCharacterStatus,
@@ -19,8 +18,6 @@ import {
   getGetMyWalletQueryKey,
   getGetCharacterInventoryQueryKey,
   getGetCharacterStatusQueryKey,
-  useListLifestyleTiers,
-  useSetCharacterLifestyle,
   useGetCharacterPendingEdit,
   getGetCharacterQueryKey,
   useListMyMissions,
@@ -173,11 +170,6 @@ export default function CharacterDetail() {
           <TabsContent value="profile" className="space-y-6 outline-none focus:ring-0">
             <SheetSections sections={(char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections} background={char.background} />
             <HousingCard characterId={char.id} />
-            <LifestyleCard
-              characterId={char.id}
-              currentTierId={char.lifestyleTierId ?? null}
-              currentTier={char.lifestyleTier ?? null}
-            />
             <ImageGallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
             <ImageGallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
             <UpdatesLog characterId={char.id} />
@@ -291,7 +283,7 @@ function UpdatesLog({ characterId }: { characterId: number }) {
                   <span className="text-nc-cyan truncate">{u.authorName ?? "Unknown"}</span>
                   <span className="text-muted-foreground shrink-0">{new Date(u.createdAt).toLocaleString()}</span>
                 </div>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{u.note}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm text-foreground">{u.note}</p>
               </div>
             </li>
           ))}
@@ -1043,12 +1035,9 @@ function TransferItemDialog({
 
 function HousingCard({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
-  const me = useAuthMe();
-  const isAdmin = !!me.data?.isAdmin;
   const { data: leases, isLoading } = useGetCharacterHousing(characterId);
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetCharacterHousingQueryKey(characterId) });
   const vacate = useVacateHousing({ mutation: { onSuccess: invalidate } });
-  const updateLease = useUpdateHousingLease({ mutation: { onSuccess: invalidate } });
   return (
     <Card className="rounded-none border-border bg-card/50" data-testid="card-housing">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -1106,17 +1095,6 @@ function HousingCard({ characterId }: { characterId: number }) {
                       </div>
                     )}
                   </div>
-                  {isAdmin && (
-                    <select
-                      value={l.kind ?? "residential"}
-                      onChange={(e) => updateLease.mutate({ id: l.id, data: { kind: e.target.value as "residential" | "business" } })}
-                      className="h-8 rounded-none border border-input bg-background px-2 text-xs font-mono uppercase tracking-widest text-nc-cyan"
-                      data-testid={`select-lease-kind-${l.id}`}
-                    >
-                      <option value="residential">Residential</option>
-                      <option value="business">Business</option>
-                    </select>
-                  )}
                   <Button
                     type="button"
                     variant="ghost"
@@ -1394,88 +1372,6 @@ function ImageGallery({ title, urls }: { title: string; urls: string[] }) {
             </a>
           ))}
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function LifestyleCard({
-  characterId,
-  currentTierId,
-  currentTier,
-}: {
-  characterId: number;
-  currentTierId: number | null;
-  currentTier: { id: number; name: string; monthlyCost: number; description?: string | null } | null;
-}) {
-  const qc = useQueryClient();
-  const { data: tiers, isLoading } = useListLifestyleTiers();
-  const setLifestyle = useSetCharacterLifestyle({
-    mutation: {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(characterId) }),
-    },
-  });
-  const tierList = (tiers ?? []).filter((t) => !t.archived);
-  // Include the currently selected tier even if it has been archived since it
-  // was picked, so the player can still see what they're paying for.
-  const allOptions = currentTier && !tierList.some((t) => t.id === currentTier.id)
-    ? [...tierList, currentTier as { id: number; name: string; monthlyCost: number; description?: string | null; archived?: boolean }]
-    : tierList;
-
-  return (
-    <Card className="rounded-none border-border bg-card/50" data-testid="card-lifestyle">
-      <CardHeader>
-        <CardTitle className="font-display tracking-widest text-nc-cyan">LIFESTYLE</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 font-mono text-sm">
-        <p className="text-muted-foreground text-xs">
-          Monthly cost-of-living charge, debited on the 1st of each month alongside rent. Switch tiers any time — the new amount applies at the next billing.
-        </p>
-        {isLoading ? (
-          <div className="text-nc-cyan animate-pulse">Loading tiers...</div>
-        ) : (
-          <div className="space-y-2">
-            <label
-              className={`flex items-center justify-between gap-3 p-3 border cursor-pointer ${currentTierId === null ? "border-nc-cyan bg-nc-cyan/10" : "border-border/40"}`}
-              data-testid="option-lifestyle-none"
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="lifestyleTier"
-                  checked={currentTierId === null}
-                  onChange={() => setLifestyle.mutate({ id: characterId, data: { lifestyleTierId: null } })}
-                />
-                <span className="text-foreground">— None —</span>
-              </div>
-              <span className="text-xs text-muted-foreground">No lifestyle billing</span>
-            </label>
-            {allOptions.map((t) => (
-              <label
-                key={t.id}
-                className={`flex items-center justify-between gap-3 p-3 border cursor-pointer ${currentTierId === t.id ? "border-nc-cyan bg-nc-cyan/10" : "border-border/40"}`}
-                data-testid={`option-lifestyle-${t.id}`}
-              >
-                <div className="flex items-center gap-3">
-                  <input
-                    type="radio"
-                    name="lifestyleTier"
-                    checked={currentTierId === t.id}
-                    onChange={() => setLifestyle.mutate({ id: characterId, data: { lifestyleTierId: t.id } })}
-                  />
-                  <div>
-                    <div className="text-foreground">{t.name}</div>
-                    {t.description && <div className="text-xs text-muted-foreground">{t.description}</div>}
-                  </div>
-                </div>
-                <div className="text-nc-yellow">€${t.monthlyCost.toLocaleString()}/mo</div>
-              </label>
-            ))}
-            {allOptions.length === 0 && (
-              <div className="text-muted-foreground italic text-xs">No lifestyle tiers available.</div>
-            )}
-          </div>
-        )}
       </CardContent>
     </Card>
   );

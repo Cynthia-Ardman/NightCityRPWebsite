@@ -25,6 +25,9 @@ export default function Markdown({ children, className }: { children?: string | 
           code: ({ children }) => (
             <code className="bg-background/60 px-1 py-0.5 rounded text-nc-magenta break-all">{children}</code>
           ),
+          pre: ({ children }) => (
+            <pre className="mb-3 last:mb-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{children}</pre>
+          ),
         }}
       >
         {text}
