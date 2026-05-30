@@ -5832,6 +5832,146 @@ export const usePayMissionActors = <TError = ErrorType<void>,
       return useMutation(getPayMissionActorsMutationOptions(options));
     }
 
+export const getCompleteMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/complete`
+}
+
+/**
+ * @summary Mark a mission completed (locks actor payments). Owning fixer, admin, or archivist.
+ */
+export const completeMission = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getCompleteMissionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCompleteMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeMission>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['completeMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeMission>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  completeMission(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteMissionMutationResult = NonNullable<Awaited<ReturnType<typeof completeMission>>>
+
+    export type CompleteMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark a mission completed (locks actor payments). Owning fixer, admin, or archivist.
+ */
+export const useCompleteMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeMission>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCompleteMissionMutationOptions(options));
+    }
+
+export const getUncompleteMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/uncomplete`
+}
+
+/**
+ * @summary Reopen a completed mission (unlocks actor payments). Admin or archivist only.
+ */
+export const uncompleteMission = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getUncompleteMissionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getUncompleteMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uncompleteMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uncompleteMission>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['uncompleteMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uncompleteMission>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  uncompleteMission(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UncompleteMissionMutationResult = NonNullable<Awaited<ReturnType<typeof uncompleteMission>>>
+
+    export type UncompleteMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Reopen a completed mission (unlocks actor payments). Admin or archivist only.
+ */
+export const useUncompleteMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uncompleteMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uncompleteMission>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUncompleteMissionMutationOptions(options));
+    }
+
 export const getSubmitMissionUrl = (id: number,) => {
 
 

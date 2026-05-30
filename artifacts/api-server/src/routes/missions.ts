@@ -18,6 +18,7 @@ import {
   listOwnedMissionSummaries,
   getMissionDetail,
   payMissionActors,
+  setMissionCompleted,
   payStandaloneActors,
   getStandaloneActorPayouts,
   syncMissionDiscordEvent,
@@ -585,6 +586,11 @@ router.post("/missions/:id/pay-actors", requireAuth, async (req, res): Promise<v
     res.status(404).json({ error: "Mission not found" });
     return;
   }
+  if ("blocked" in result) {
+    // A completed mission is read-only for actor payments. Reopen it first.
+    res.status(409).json({ error: "This mission is marked completed. Reopen it before paying actors." });
+    return;
+  }
   const detail = await getMissionDetail(id, viewerOf(req));
   res.json(detail);
 });
@@ -598,6 +604,30 @@ function missionIdParam(req: Request, res: import("express").Response): number |
   }
   return id;
 }
+
+// Mark a mission completed (locks actor payments). Owning fixer/admin/archivist.
+router.post("/missions/:id/complete", requireAuth, async (req, res): Promise<void> => {
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const result = await setMissionCompleted(id, true, viewerOf(req), req);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Reopen a completed mission (unlocks actor payments). Admin/archivist only.
+router.post("/missions/:id/uncomplete", requireAuth, async (req, res): Promise<void> => {
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const result = await setMissionCompleted(id, false, viewerOf(req), req);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
 
 // Fixer submits a draft for staff review.
 router.post("/missions/:id/submit", requireAuth, async (req, res): Promise<void> => {

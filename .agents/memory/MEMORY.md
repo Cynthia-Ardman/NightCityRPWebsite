@@ -31,6 +31,7 @@
 - [Mission payout idempotency](mission-payout-idempotency.md) — pay paths must acquire a durable uniqueness guard BEFORE the external UB call: 'processing' claim for player rows, onConflictDoNothing 'paid' reservation for actor rows.
 - [Archivist approver ≠ manager](archivist-approver-not-manager.md) — ARCHIVIST gates approve only; canManage stays isManager; broaden visibility/owned-board for archivists but gate submit/post UI on canManage or it 403s.
 - [Live-mode dual gate](live-mode-dual-gate.md) — Test/Live = master AND per-system (default OFF); runJob gates housing/cyberware/evictions; tests wanting real effects must set BOTH flags.
+- [Completion-lock payout race](mission-completion-lock-race.md) — a mutable read-only gate (mission.completedAt) must be re-checked atomically inside the paid-row INSERT...SELECT, not a top-level check-then-act read.
 - [Mission autopay Test→Live trap](mission-autopay-test-live-trap.md) — simulated missions get autoPayProcessedAt and never pay real; runMissionAutoPay live-retry recovers them (gate on ctx.live, exclude no-Discord failures).
 - [Batch grouping by timestamp](batch-grouping-timestamp.md) — per-row INSERTs get distinct createdAt/now(); group a logical batch on a single JS timestamp written to every row, never the column default.
 - [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.

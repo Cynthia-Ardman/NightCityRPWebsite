@@ -561,6 +561,11 @@ export const missions = pgTable("missions", {
   // Set once the pre-mission NPC announcement was posted (idempotency guard).
   // Cleared on reschedule so the announcement re-fires for the new time.
   npcAnnouncedAt: timestamp("npc_announced_at", { withTimezone: true }),
+  // Manual completion lock (distinct from the auto-managed `status` enum). When
+  // set, the mission is read-only for actor payments. Set by the owning fixer,
+  // an admin, or an archivist; cleared (reopened) only by an admin/archivist.
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  completedBy: text("completed_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({

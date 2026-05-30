@@ -40,6 +40,7 @@ import {
 import {
   payMissionPlayers,
   payMissionActors,
+  setMissionCompleted,
   runMissionAutoPay,
   runMissionNpcAnnouncements,
 } from "../lib/missionsService";
@@ -57,6 +58,13 @@ const mockModifyEvent = vi.mocked(modifyGuildScheduledEvent);
 const mockDeleteEvent = vi.mocked(deleteGuildScheduledEvent);
 
 const bal = (cash: number) => ({ cash, bank: 0, total: cash, source: "unbelievaboat" as const });
+
+// Narrow payMissionActors' union result (it may return null or a completion
+// "blocked" sentinel) to the success payload for assertions.
+function actorPay(r: Awaited<ReturnType<typeof payMissionActors>>) {
+  if (!r || "blocked" in r) throw new Error(`expected actor-pay result, got ${JSON.stringify(r)}`);
+  return r;
+}
 
 beforeEach(() => {
   mockPatch.mockReset();
@@ -160,10 +168,10 @@ describe("Test mode (default) records simulated rows and fires NO external effec
     const actor = await createUser();
     const m = await seedMission();
 
-    const result = await payMissionActors(m.id, [actor.id], 50, {});
-    expect(result!.live).toBe(false);
-    expect(result!.simulated).toBe(1);
-    expect(result!.paid).toBe(0);
+    const result = actorPay(await payMissionActors(m.id, [actor.id], 50, {}));
+    expect(result.live).toBe(false);
+    expect(result.simulated).toBe(1);
+    expect(result.paid).toBe(0);
     expect(mockPatch).not.toHaveBeenCalled();
     expect(mockPost).not.toHaveBeenCalled();
 
@@ -295,11 +303,11 @@ describe("Actor pay idempotency", () => {
     const actor = await createUser();
     const m = await seedMission();
 
-    const first = await payMissionActors(m.id, [actor.id], 50, {});
-    const second = await payMissionActors(m.id, [actor.id], 50, {});
-    expect(first!.paid).toBe(1);
-    expect(second!.paid).toBe(0);
-    expect(second!.skipped).toBe(1);
+    const first = actorPay(await payMissionActors(m.id, [actor.id], 50, {}));
+    const second = actorPay(await payMissionActors(m.id, [actor.id], 50, {}));
+    expect(first.paid).toBe(1);
+    expect(second.paid).toBe(0);
+    expect(second.skipped).toBe(1);
     expect(mockPatch).toHaveBeenCalledTimes(1);
     const paidRows = await db
       .select()
@@ -314,11 +322,13 @@ describe("Actor pay idempotency", () => {
     const actor = await createUser();
     const m = await seedMission();
 
-    const [r1, r2] = await Promise.all([
-      payMissionActors(m.id, [actor.id], 50, {}),
-      payMissionActors(m.id, [actor.id], 50, {}),
-    ]);
-    expect((r1!.paid ?? 0) + (r2!.paid ?? 0)).toBe(1);
+    const [r1, r2] = (
+      await Promise.all([
+        payMissionActors(m.id, [actor.id], 50, {}),
+        payMissionActors(m.id, [actor.id], 50, {}),
+      ])
+    ).map(actorPay);
+    expect(r1.paid + r2.paid).toBe(1);
     expect(mockPatch).toHaveBeenCalledTimes(1);
     // The partial unique index guarantees a single successful (mission, actor) row.
     const paidRows = await db
@@ -326,6 +336,163 @@ describe("Actor pay idempotency", () => {
       .from(missionActorPayments)
       .where(eq(missionActorPayments.paymentStatus, "paid"));
     expect(paidRows).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// MISSION COMPLETION — the read-only lock that blocks actor payments.
+// ===========================================================================
+describe("Mission completion lock", () => {
+  it("the owning fixer can mark their mission completed", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const m = await seedMission({ fixerId: fixer.id });
+
+    const res = await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    expect(res.body.completedAt).not.toBeNull();
+    expect(res.body.completedBy).toBe(fixer.id);
+
+    const [after] = await db.select().from(missions).where(eq(missions.id, m.id));
+    expect(after.completedAt).not.toBeNull();
+    expect(after.completedBy).toBe(fixer.id);
+  });
+
+  it("a fixer who does not own the mission cannot mark it completed", async () => {
+    const owner = await createUser({ roles: ["fixer"] });
+    const other = await createUser({ roles: ["fixer"] });
+    const m = await seedMission({ fixerId: owner.id });
+
+    const res = await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", other.id);
+    expect(res.status).toBe(403);
+
+    const [after] = await db.select().from(missions).where(eq(missions.id, m.id));
+    expect(after.completedAt).toBeNull();
+  });
+
+  it("an archivist can complete and reopen any mission", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const archivist = await createUser({ roles: ["archivist"] });
+    const m = await seedMission({ fixerId: fixer.id });
+
+    const completed = await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", archivist.id);
+    expect(completed.status).toBe(200);
+    expect(completed.body.completedAt).not.toBeNull();
+
+    const reopened = await request(app).post(`/api/missions/${m.id}/uncomplete`).set("x-test-user", archivist.id);
+    expect(reopened.status).toBe(200);
+    expect(reopened.body.completedAt).toBeNull();
+
+    const [after] = await db.select().from(missions).where(eq(missions.id, m.id));
+    expect(after.completedAt).toBeNull();
+  });
+
+  it("the owning fixer cannot reopen a completed mission", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const m = await seedMission({ fixerId: fixer.id });
+    await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", fixer.id);
+
+    const res = await request(app).post(`/api/missions/${m.id}/uncomplete`).set("x-test-user", fixer.id);
+    expect(res.status).toBe(403);
+
+    const [after] = await db.select().from(missions).where(eq(missions.id, m.id));
+    expect(after.completedAt).not.toBeNull();
+  });
+
+  it("an admin can reopen a completed mission", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ fixerId: fixer.id });
+    await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", fixer.id);
+
+    const res = await request(app).post(`/api/missions/${m.id}/uncomplete`).set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    expect(res.body.completedAt).toBeNull();
+  });
+
+  it("an admin can mark a mission completed", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ fixerId: fixer.id });
+
+    const res = await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    expect(res.body.completedAt).not.toBeNull();
+    expect(res.body.completedBy).toBe(admin.id);
+  });
+
+  it("completing an already-completed mission is an idempotent no-op", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const m = await seedMission({ fixerId: fixer.id });
+
+    const first = await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", fixer.id);
+    expect(first.status).toBe(200);
+    const firstCompletedAt = first.body.completedAt;
+
+    const second = await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", fixer.id);
+    expect(second.status).toBe(200);
+    // The timestamp is not rewritten on a repeat complete.
+    expect(second.body.completedAt).toBe(firstCompletedAt);
+    expect(second.body.completedBy).toBe(fixer.id);
+  });
+
+  it("reopening an already-open mission is an idempotent no-op", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ fixerId: admin.id });
+
+    const res = await request(app).post(`/api/missions/${m.id}/uncomplete`).set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    expect(res.body.completedAt).toBeNull();
+  });
+
+  it("a completion racing a payout never produces an orphaned or duplicate credit", async () => {
+    // Safety invariant under concurrency: the number of real UB credits must
+    // always equal the number of 'paid' rows, and at most one 'paid' row can
+    // exist per (mission, actor). This holds regardless of which op wins the
+    // race, proving the atomic INSERT...SELECT guard leaves no inconsistency.
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(50));
+    const admin = await createUser({ roles: ["admin"] });
+    const actor = await createUser();
+    const m = await seedMission({ fixerId: admin.id });
+
+    await Promise.all([
+      payMissionActors(m.id, [actor.id], 50, { actorId: admin.id }),
+      setMissionCompleted(m.id, true, { id: admin.id, isManager: true, isAdmin: true, isArchivist: true }),
+    ]);
+
+    const paidRows = await db
+      .select()
+      .from(missionActorPayments)
+      .where(eq(missionActorPayments.paymentStatus, "paid"));
+    expect(paidRows.length).toBeLessThanOrEqual(1);
+    expect(mockPatch.mock.calls.length).toBe(paidRows.length);
+  });
+
+  it("paying actors on a completed mission is blocked (409) and credits no money", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(50));
+    const admin = await createUser({ roles: ["admin"] });
+    const actor = await createUser();
+    const m = await seedMission({ fixerId: admin.id });
+    await request(app).post(`/api/missions/${m.id}/complete`).set("x-test-user", admin.id);
+
+    const res = await request(app)
+      .post(`/api/missions/${m.id}/pay-actors`)
+      .set("x-test-user", admin.id)
+      .send({ userIds: [actor.id], amount: 50 });
+    expect(res.status).toBe(409);
+    expect(mockPatch).not.toHaveBeenCalled();
+    const rows = await db.select().from(missionActorPayments).where(eq(missionActorPayments.missionId, m.id));
+    expect(rows).toHaveLength(0);
+
+    // Reopening the mission unlocks actor payments again.
+    await request(app).post(`/api/missions/${m.id}/uncomplete`).set("x-test-user", admin.id);
+    const ok = await request(app)
+      .post(`/api/missions/${m.id}/pay-actors`)
+      .set("x-test-user", admin.id)
+      .send({ userIds: [actor.id], amount: 50 });
+    expect(ok.status).toBe(200);
+    expect(mockPatch).toHaveBeenCalledTimes(1);
   });
 });
 

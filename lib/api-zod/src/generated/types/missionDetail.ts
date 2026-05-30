@@ -58,6 +58,25 @@ export interface MissionDetail {
   canManage: boolean;
   /** True if caller is archivist/admin (can approve proposals). */
   canApprove: boolean;
+  /**
+     * Set when manually marked completed; while set, actor payments are locked.
+     * @nullable
+     */
+  completedAt?: Date | null;
+  /**
+     * User id who marked the mission completed.
+     * @nullable
+     */
+  completedBy?: string | null;
+  /**
+     * Display name of who marked the mission completed.
+     * @nullable
+     */
+  completedByName?: string | null;
+  /** True if caller may mark this mission completed (owning fixer/admin/archivist, not already completed). */
+  canComplete: boolean;
+  /** True if caller may reopen a completed mission (admin/archivist only). */
+  canUncomplete: boolean;
   /** True = Live mode; false = Test mode (no real external effects). */
   live: boolean;
   assignments: MissionAssignmentView[];

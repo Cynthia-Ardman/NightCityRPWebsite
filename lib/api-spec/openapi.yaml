@@ -1194,6 +1194,37 @@ paths:
         "400": { description: Bad request }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
+        "409": { description: "Mission is marked completed; actor payments are locked." }
+  /missions/{id}/complete:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: completeMission
+      tags: [missions]
+      summary: "Mark a mission completed (locks actor payments). Owning fixer, admin, or archivist."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /missions/{id}/uncomplete:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: uncompleteMission
+      tags: [missions]
+      summary: "Reopen a completed mission (unlocks actor payments). Admin or archivist only."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
   /missions/{id}/submit:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3734,7 +3765,7 @@ components:
 
     MissionDetail:
       type: object
-      required: [id, title, tier, status, workflowState, slots, playerPay, durationMinutes, maxPlayers, canManage, canApprove, live, assignments, actorPayments, applications, createdAt]
+      required: [id, title, tier, status, workflowState, slots, playerPay, durationMinutes, maxPlayers, canManage, canApprove, canComplete, canUncomplete, live, assignments, actorPayments, applications, createdAt]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -3761,6 +3792,11 @@ components:
         discordSyncError: { type: ["string", "null"] }
         canManage: { type: boolean, description: "True if caller is fixer/admin (sees Fixer tab + tools)." }
         canApprove: { type: boolean, description: "True if caller is archivist/admin (can approve proposals)." }
+        completedAt: { type: ["string", "null"], format: date-time, description: "Set when manually marked completed; while set, actor payments are locked." }
+        completedBy: { type: ["string", "null"], description: "User id who marked the mission completed." }
+        completedByName: { type: ["string", "null"], description: "Display name of who marked the mission completed." }
+        canComplete: { type: boolean, description: "True if caller may mark this mission completed (owning fixer/admin/archivist, not already completed)." }
+        canUncomplete: { type: boolean, description: "True if caller may reopen a completed mission (admin/archivist only)." }
         live: { type: boolean, description: "True = Live mode; false = Test mode (no real external effects)." }
         assignments:
           type: array

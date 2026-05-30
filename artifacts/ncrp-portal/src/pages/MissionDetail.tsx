@@ -4,6 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetMission,
   usePayMissionActors,
+  useCompleteMission,
+  useUncompleteMission,
   useSearchMissionActors,
   getSearchMissionActorsQueryKey,
   useSubmitMission,
@@ -41,6 +43,8 @@ import {
   Clock,
   Search,
   X,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import {
   missionStatusClass,
@@ -88,6 +92,17 @@ export default function MissionDetail() {
 
   const when = data.startAt ? new Date(data.startAt) : null;
 
+  return <MissionDetailView data={data} when={when} />;
+}
+
+function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Date | null }) {
+  const qc = useQueryClient();
+  const invalidateMission = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
+  const complete = useCompleteMission({ mutation: { onSuccess: invalidateMission } });
+  const uncomplete = useUncompleteMission({ mutation: { onSuccess: invalidateMission } });
+  const completionBusy = complete.isPending || uncomplete.isPending;
+  const completionErr = errOf(complete.error) ?? errOf(uncomplete.error);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
       <Link
@@ -127,6 +142,15 @@ export default function MissionDetail() {
           <Badge variant="outline" className={`rounded-none font-bold tracking-widest uppercase ${missionStatusClass(data.status)}`}>
             {missionStatusLabel(data.status)}
           </Badge>
+          {data.completedAt && (
+            <Badge
+              variant="outline"
+              className="rounded-none font-bold tracking-widest uppercase border-nc-magenta text-nc-magenta inline-flex items-center gap-1"
+              data-testid="badge-completed"
+            >
+              <Lock className="w-3 h-3" /> Completed
+            </Badge>
+          )}
           <Badge variant="outline" className={`rounded-none font-bold tracking-widest uppercase ${missionTierClass(data.tier)}`}>
             {missionTierLabel(data.tier)}
           </Badge>
@@ -140,6 +164,49 @@ export default function MissionDetail() {
           </span>
         </div>
       </div>
+
+      {(data.canComplete || data.canUncomplete || data.completedAt) && (
+        <div className="flex flex-wrap items-center gap-3 border border-border bg-card/40 p-3">
+          {data.completedAt && (
+            <span
+              className="font-mono text-xs text-muted-foreground inline-flex items-center gap-1"
+              data-testid="text-completed-meta"
+            >
+              <Lock className="w-3.5 h-3.5 text-nc-magenta shrink-0" />
+              Completed{data.completedByName ? ` by ${data.completedByName}` : ""} · {fmtDateTime(data.completedAt)} — actor
+              payments are locked.
+            </span>
+          )}
+          {data.canComplete && (
+            <Button
+              type="button"
+              disabled={completionBusy}
+              onClick={() => complete.mutate({ id: data.id })}
+              className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
+              data-testid="button-complete-mission"
+            >
+              <Lock className="w-4 h-4 mr-1" /> {complete.isPending ? "MARKING..." : "MARK COMPLETED"}
+            </Button>
+          )}
+          {data.canUncomplete && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={completionBusy}
+              onClick={() => uncomplete.mutate({ id: data.id })}
+              className="rounded-none border-border font-display tracking-widest"
+              data-testid="button-uncomplete-mission"
+            >
+              <Unlock className="w-4 h-4 mr-1" /> {uncomplete.isPending ? "REOPENING..." : "REOPEN MISSION"}
+            </Button>
+          )}
+          {completionErr && (
+            <span className="text-destructive text-xs" data-testid="text-completion-error">
+              {completionErr}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono text-sm">
         <div className="flex items-center gap-2 text-muted-foreground border border-border bg-card/40 p-3">
@@ -790,6 +857,7 @@ function ActorsView({ data }: { data: MissionDetailModel }) {
   const someAlreadyPaid = selectedActors.some((u) => paidActorIds.has(u.id));
 
   const payActorsErr = errOf(payActors.error);
+  const locked = !!data.completedAt;
 
   return (
     <>
@@ -803,6 +871,17 @@ function ActorsView({ data }: { data: MissionDetailModel }) {
           <p className="text-muted-foreground text-xs">
             Search for any user by name to pay them an actor / NPC fee. Not limited to assigned players.
           </p>
+
+          {locked && (
+            <div
+              className="flex items-center gap-2 border border-nc-magenta/60 bg-nc-magenta/10 text-nc-magenta text-xs p-2"
+              data-testid="text-actor-pay-locked"
+            >
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              This mission is marked completed — actor payments are locked. An admin or archivist can reopen it to pay
+              more actors.
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label className="text-xs">SEARCH USERS</Label>
@@ -890,7 +969,7 @@ function ActorsView({ data }: { data: MissionDetailModel }) {
             </div>
             <Button
               type="button"
-              disabled={payActors.isPending || selectedIds.length === 0 || actorAmount <= 0}
+              disabled={locked || payActors.isPending || selectedIds.length === 0 || actorAmount <= 0}
               onClick={() =>
                 payActors.mutate(
                   { id: data.id, data: { userIds: selectedIds, amount: actorAmount } },

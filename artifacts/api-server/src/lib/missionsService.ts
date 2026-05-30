@@ -310,6 +310,19 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     ? null
     : (await listApplicationViews(missionId, viewer.id))[0] ?? null;
 
+  // Resolve the display name of whoever marked the mission completed (audit
+  // surface for the read-only lock); only looked up when actually completed.
+  let completedByName: string | null = null;
+  if (m.completedBy) {
+    const [u] = await db
+      .select({ username: users.username, globalName: users.globalName })
+      .from(users)
+      .where(eq(users.id, m.completedBy));
+    completedByName = u?.globalName ?? u?.username ?? null;
+  }
+  const isOwnerFixer = m.fixerId != null && m.fixerId === viewer.id;
+  const isCompleted = m.completedAt != null;
+
   return {
     id: m.id,
     title: m.title,
@@ -338,6 +351,13 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     discordSyncError: m.discordSyncError,
     canManage,
     canApprove: viewer.isArchivist,
+    completedAt: iso(m.completedAt),
+    completedBy: m.completedBy,
+    completedByName,
+    // Owner fixer / admin / archivist may lock a not-yet-completed mission.
+    canComplete: (viewer.isAdmin || viewer.isArchivist || isOwnerFixer) && !isCompleted,
+    // Reopening a completed mission is admin/archivist only.
+    canUncomplete: (viewer.isAdmin || viewer.isArchivist) && isCompleted,
     live: ctx.live,
     applications,
     myApplication,
@@ -377,6 +397,64 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     createdAt: m.createdAt.toISOString(),
     updatedAt: iso(m.updatedAt),
   };
+}
+
+/**
+ * Manually lock/unlock a mission's completion state (separate from the
+ * auto-managed `status` enum). Marking completed makes the mission read-only
+ * for actor payments. Permissions:
+ *   - complete  : owning fixer, admin, or archivist
+ *   - uncomplete: admin or archivist only
+ * Idempotent: completing an already-completed mission (or reopening an open
+ * one) is a no-op success.
+ */
+export async function setMissionCompleted(
+  missionId: number,
+  completed: boolean,
+  viewer: MissionViewer,
+  req?: Request,
+): Promise<{ ok: true } | { ok: false; httpStatus: number; error: string }> {
+  const [m] = await db
+    .select({ fixerId: missions.fixerId, completedAt: missions.completedAt })
+    .from(missions)
+    .where(eq(missions.id, missionId));
+  if (!m) return { ok: false, httpStatus: 404, error: "Mission not found" };
+
+  const isOwnerFixer = m.fixerId != null && m.fixerId === viewer.id;
+
+  if (completed) {
+    if (!(viewer.isAdmin || viewer.isArchivist || isOwnerFixer)) {
+      return { ok: false, httpStatus: 403, error: "Only the mission's fixer, an admin, or an archivist can mark it completed" };
+    }
+    if (m.completedAt) return { ok: true };
+    await db
+      .update(missions)
+      .set({ completedAt: new Date(), completedBy: viewer.id })
+      .where(eq(missions.id, missionId));
+  } else {
+    if (!(viewer.isAdmin || viewer.isArchivist)) {
+      return { ok: false, httpStatus: 403, error: "Only an admin or archivist can reopen a completed mission" };
+    }
+    if (!m.completedAt) return { ok: true };
+    await db
+      .update(missions)
+      .set({ completedAt: null, completedBy: null })
+      .where(eq(missions.id, missionId));
+  }
+
+  await recordAudit({
+    req,
+    actorId: viewer.id,
+    category: "mission",
+    action: completed ? "mission.complete" : "mission.uncomplete",
+    targetType: "mission",
+    targetId: missionId,
+    message: completed
+      ? "Mission marked completed (actor payments locked)"
+      : "Mission reopened (actor payments unlocked)",
+  });
+
+  return { ok: true };
 }
 
 // ===========================================================================
@@ -1204,9 +1282,13 @@ export async function payMissionActors(
   userIds: string[],
   amount: number,
   opts: { req?: Request; actorId?: string | null; actorName?: string | null },
-): Promise<PayActorsResult | null> {
+): Promise<PayActorsResult | null | { blocked: "completed" }> {
   const [mission] = await db.select().from(missions).where(eq(missions.id, missionId));
   if (!mission) return null;
+  // Authoritative completion lock: a mission marked completed is read-only for
+  // actor payments. Enforced here (not just at the route) so no caller — present
+  // or future — can bypass it, and to shrink the route's check-then-act window.
+  if (mission.completedAt) return { blocked: "completed" };
   const ctx = await getMissionContext();
   const result: PayActorsResult = { paid: 0, simulated: 0, failed: 0, skipped: 0, live: ctx.live };
 
@@ -1269,13 +1351,30 @@ export async function payMissionActors(
     // Reserve the unique (mission, actor) PAID slot up-front, BEFORE the
     // external payout, so two concurrent runs can't both pay the same actor.
     // The partial unique index covers payment_status='paid' rows; the loser of
-    // the race gets nothing back from onConflictDoNothing and skips.
-    const reserved = await db
-      .insert(missionActorPayments)
-      .values({ ...base, paymentStatus: "paid" })
-      .onConflictDoNothing()
-      .returning({ id: missionActorPayments.id });
+    // the race gets nothing back and skips.
+    //
+    // The reservation is an INSERT ... SELECT gated on the mission still being
+    // open (completed_at IS NULL). This re-checks the completion lock ATOMICALLY
+    // with the reservation: if a concurrent setMissionCompleted committed before
+    // this statement runs, the subquery yields no row and nothing is reserved —
+    // closing the check-then-act race between the top-of-function read and the
+    // payout. The completion guard runs inside the DB, so no lock is held across
+    // the external UnbelievaBoat call below.
+    const reservedRes = await db.execute(sql`
+      INSERT INTO mission_actor_payments
+        (mission_id, mission_name, user_id, user_name, fixer_id, fixer_name,
+         mission_date, amount, source, attendance_credited_at, paid_at, payment_status)
+      SELECT ${missionId}, ${mission.title}, ${userId}, ${u?.username ?? null},
+             ${payerId}, ${payerName}, ${mission.startAt}, ${amount}, 'manual',
+             ${now}, ${now}, 'paid'
+      WHERE EXISTS (SELECT 1 FROM missions WHERE id = ${missionId} AND completed_at IS NULL)
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `);
+    const reserved = (reservedRes.rows ?? []) as Array<{ id: number }>;
     if (reserved.length === 0) {
+      // Either the actor is already paid (conflict) or the mission was completed
+      // mid-flight. Both mean "no payout"; no money has moved.
       result.skipped++;
       continue;
     }
