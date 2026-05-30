@@ -5162,15 +5162,15 @@ export const ListCustomRequestsQueryParams = zod.object({
 
 export const ListCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
   "requestedByName": zod.string().nullish(),
-  "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
-  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
@@ -5185,11 +5185,13 @@ export const ListCustomRequestsResponse = zod.array(ListCustomRequestsResponseIt
  * @summary Submit a custom request for one of the signed-in user's characters.
  */
 export const SubmitCustomRequestBody = zod.object({
-  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
   "characterId": zod.number(),
   "title": zod.string(),
-  "description": zod.string().optional(),
-  "imageUrl": zod.string().optional().describe('Optional reference image object path.')
+  "description": zod.string().optional().describe('Required for store\/ripperdoc requests.'),
+  "imageUrl": zod.string().optional().describe('Optional reference image object path.'),
+  "purpose": zod.string().optional().describe('Required for store\/ripperdoc requests; what the venue is for.'),
+  "location": zod.string().optional().describe('Required for store\/ripperdoc requests; in-world location.')
 })
 
 
@@ -5197,20 +5199,20 @@ export const SubmitCustomRequestBody = zod.object({
  * @summary The signed-in user's own custom requests.
  */
 export const ListMyCustomRequestsQueryParams = zod.object({
-  "type": zod.enum(['property', 'gun', 'cyberware']).optional()
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']).optional()
 })
 
 export const ListMyCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
   "requestedByName": zod.string().nullish(),
-  "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
-  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
@@ -5243,15 +5245,15 @@ export const ApproveCustomRequestBody = zod.object({
 
 export const ApproveCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
   "requestedByName": zod.string().nullish(),
-  "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
-  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
@@ -5274,15 +5276,15 @@ export const RejectCustomRequestBody = zod.object({
 
 export const RejectCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
   "requestedByName": zod.string().nullish(),
-  "title": zod.string().describe('Player label: location\/address (property) or item name (gun\/cyberware).'),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
-  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),

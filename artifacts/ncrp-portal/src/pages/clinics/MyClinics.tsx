@@ -2,12 +2,21 @@ import { Link } from "wouter";
 import { useListMyRipperdocs } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Syringe } from "lucide-react";
+import VenueRequestSection from "@/components/catalog/VenueRequestSection";
 
 export default function MyClinics() {
   const { data, isLoading } = useListMyRipperdocs();
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display" data-testid="text-my-clinics-title">MY CLINICS</h1>
+      <VenueRequestSection
+        type="ripperdoc"
+        buttonLabel="REQUEST NEW RIPPERDOC"
+        dialogTitle="REQUEST NEW RIPPERDOC"
+        dialogDescription="Tell staff about the clinic you want to open. They'll review and create it on approval."
+        nameLabel="Clinic Name"
+        namePlaceholder="e.g. Vik's Clinic"
+      />
       {isLoading ? <div className="text-nc-cyan font-display animate-pulse">LOADING...</div> :
         !data?.length ? (
           <div className="py-20 text-center border border-dashed border-border bg-card/30">

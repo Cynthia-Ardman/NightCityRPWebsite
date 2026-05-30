@@ -30,7 +30,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
@@ -42,7 +42,18 @@ const TYPE_META: Record<
   property: { label: "PROPERTY", Icon: Home },
   gun: { label: "GUN", Icon: Crosshair },
   cyberware: { label: "CYBERWARE", Icon: Cpu },
+  store: { label: "STORE", Icon: Store },
+  ripperdoc: { label: "RIPPERDOC", Icon: Syringe },
 };
+
+// Venue requests stash purpose/location in the details payload — surface them
+// in the review card so staff can act without opening anything else.
+function venueDetails(r: CustomRequest): { purpose?: string; location?: string } | null {
+  if (r.type !== "store" && r.type !== "ripperdoc") return null;
+  const d = r.details;
+  if (!d || typeof d !== "object") return null;
+  return d as { purpose?: string; location?: string };
+}
 
 function MiscRequestsTab() {
   const { data, isLoading } = useListCustomRequests({ status: "pending" });
@@ -106,6 +117,26 @@ function MiscRequestsTab() {
                   />
                 </a>
               ) : null}
+              {(() => {
+                const det = venueDetails(r);
+                if (!det) return null;
+                return (
+                  <div className="space-y-1 font-mono text-xs" data-testid={`venue-details-${r.id}`}>
+                    {det.purpose ? (
+                      <div>
+                        <span className="text-nc-cyan uppercase tracking-widest">Purpose: </span>
+                        <span className="text-muted-foreground">{det.purpose}</span>
+                      </div>
+                    ) : null}
+                    {det.location ? (
+                      <div>
+                        <span className="text-nc-cyan uppercase tracking-widest">Location: </span>
+                        <span className="text-muted-foreground">{det.location}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })()}
               {r.description ? (
                 <p className="font-mono text-sm text-muted-foreground whitespace-pre-wrap">{r.description}</p>
               ) : (

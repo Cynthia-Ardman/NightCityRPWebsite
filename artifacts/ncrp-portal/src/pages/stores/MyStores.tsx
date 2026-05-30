@@ -3,12 +3,21 @@ import { useListMyStores } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Store } from "lucide-react";
+import VenueRequestSection from "@/components/catalog/VenueRequestSection";
 
 export default function MyStores() {
   const { data, isLoading } = useListMyStores();
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display" data-testid="text-my-stores-title">MY STORES</h1>
+      <VenueRequestSection
+        type="store"
+        buttonLabel="REQUEST NEW STORE"
+        dialogTitle="REQUEST NEW STORE"
+        dialogDescription="Tell staff about the storefront you want to open. They'll review and create it on approval."
+        nameLabel="Store Name"
+        namePlaceholder="e.g. Watson Wholesale"
+      />
       {isLoading ? <div className="text-nc-cyan font-display animate-pulse">LOADING...</div> :
         !data?.length ? (
           <div className="py-20 text-center border border-dashed border-border bg-card/30">

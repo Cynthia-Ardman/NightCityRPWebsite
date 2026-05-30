@@ -36,3 +36,4 @@
 - [Request review approve/reject race](request-review-race.md) — both approve AND reject of a reviewable row must lock (FOR UPDATE) + re-check pending status, or reject clobbers an applied approve.
 - [Batch grouping by timestamp](batch-grouping-timestamp.md) — per-row INSERTs get distinct createdAt/now(); group a logical batch on a single JS timestamp written to every row, never the column default.
 - [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.
+- [Raw tx.execute snake_case trap](raw-execute-snakecase-trap.md) — casting `SELECT *` result to `$inferSelect` makes camelCase cols undefined; use `.select()....for("update")` to lock-and-read typed.

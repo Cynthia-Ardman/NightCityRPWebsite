@@ -16,7 +16,7 @@ export interface CustomRequest {
   requestedById: string;
   /** @nullable */
   requestedByName?: string | null;
-  /** Player label: location/address (property) or item name (gun/cyberware). */
+  /** Player label: location/address (property), item name (gun/cyberware), or venue name (store/ripperdoc). */
   title: string;
   /** @nullable */
   description?: string | null;
@@ -25,7 +25,7 @@ export interface CustomRequest {
      * @nullable
      */
   imageUrl?: string | null;
-  /** Optional type-specific payload captured at submit time. */
+  /** Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }. */
   details?: unknown | null;
   status: CustomRequestStatus;
   /** @nullable */

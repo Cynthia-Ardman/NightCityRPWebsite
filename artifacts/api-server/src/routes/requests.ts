@@ -7,6 +7,8 @@ import {
   users,
   inventoryItems,
   housing,
+  stores,
+  ripperdocs,
   characterUpdates,
   activityEvents,
 } from "@workspace/db";
@@ -21,8 +23,42 @@ import { logger } from "../lib/logger";
 // approving one auto-applies it (creates a housing lease or an inventory item).
 // See lib/db schema `custom_requests` for the data model and idempotency marker.
 
-const REQUEST_TYPES = ["property", "gun", "cyberware"] as const;
+const REQUEST_TYPES = ["property", "gun", "cyberware", "store", "ripperdoc"] as const;
 type RequestType = (typeof REQUEST_TYPES)[number];
+
+// Venue requests (store/ripperdoc) carry name/character plus required
+// purpose/location/description and materialize into the stores/ripperdocs
+// tables on approval (owned by the requester + chosen character).
+function isVenueType(type: string): boolean {
+  return type === "store" || type === "ripperdoc";
+}
+
+// Player-facing label for a request type, used in Discord DMs and the
+// activity feed. Keep in sync with REQUEST_TYPES.
+function typeLabelFor(type: string): string {
+  switch (type) {
+    case "property":
+      return "off-map property";
+    case "gun":
+      return "custom gun";
+    case "cyberware":
+      return "custom cyberware";
+    case "store":
+      return "new store";
+    case "ripperdoc":
+      return "new ripperdoc";
+    default:
+      return "request";
+  }
+}
+
+// Audit category for a request decision — venues are shop, property is
+// housing, guns/cyberware are inventory.
+function auditCategoryFor(type: string): "housing" | "shop" | "inventory" {
+  if (type === "property") return "housing";
+  if (isVenueType(type)) return "shop";
+  return "inventory";
+}
 
 function isFixerOrAdmin(user: { roles: string[] }): boolean {
   return hasRole(user.roles, "ADMIN") || hasRole(user.roles, "FIXER");
@@ -120,8 +156,7 @@ async function notifyRequesterOfDecision(row: RequestRow, summary: string | null
       .from(users)
       .where(eq(users.id, row.requestedById));
     if (!u?.discordId) return;
-    const typeLabel =
-      row.type === "property" ? "off-map property" : row.type === "gun" ? "custom gun" : "custom cyberware";
+    const typeLabel = typeLabelFor(row.type);
     const who = row.characterName ?? "your character";
     let content: string;
     if (row.status === "approved") {
@@ -140,7 +175,7 @@ async function notifyRequesterOfDecision(row: RequestRow, summary: string | null
 // Submit a custom request. Player picks one of their own characters and types
 // a free-text title (location / item name) and description.
 router.post("/requests", requireAuth, async (req, res): Promise<void> => {
-  const { type, characterId, title, description, imageUrl } = req.body ?? {};
+  const { type, characterId, title, description, imageUrl, purpose, location } = req.body ?? {};
   const reqType = String(type) as RequestType;
   if (!REQUEST_TYPES.includes(reqType)) {
     res.status(400).json({ error: `type must be one of: ${REQUEST_TYPES.join(", ")}` });
@@ -165,6 +200,25 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Cannot submit a request for an archived character" });
     return;
   }
+
+  // Venue requests require purpose, location, and description (all stored so
+  // the venue can be created verbatim on approval). purpose/location live in
+  // the `details` jsonb; the venue name is the title; description reuses the
+  // shared column.
+  let details: Record<string, unknown> | null = null;
+  let descToStore = typeof description === "string" && description.trim() ? description.trim() : null;
+  if (isVenueType(reqType)) {
+    const p = typeof purpose === "string" ? purpose.trim() : "";
+    const l = typeof location === "string" ? location.trim() : "";
+    const d = typeof description === "string" ? description.trim() : "";
+    if (!p || !l || !d) {
+      res.status(400).json({ error: "purpose, location, and description are required" });
+      return;
+    }
+    details = { purpose: p, location: l };
+    descToStore = d;
+  }
+
   const [inserted] = await db
     .insert(customRequests)
     .values({
@@ -172,8 +226,9 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
       characterId: cid,
       requestedById: req.user!.id,
       title: String(title).trim(),
-      description: typeof description === "string" && description.trim() ? description.trim() : null,
+      description: descToStore,
       imageUrl: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
+      details: details as never,
     })
     .returning();
   const [row] = await selectWhere(eq(customRequests.id, inserted.id));
@@ -214,8 +269,14 @@ router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void
   const reviewerNote = typeof body.reviewerNote === "string" && body.reviewerNote.trim() ? body.reviewerNote.trim() : null;
 
   const txResult = await db.transaction(async (tx) => {
-    const locked = await tx.execute(sql`SELECT * FROM custom_requests WHERE id = ${rid} FOR UPDATE`);
-    const reqRow = (locked.rows ?? locked)[0] as typeof customRequests.$inferSelect | undefined;
+    // Lock the row with a typed select so camelCase fields (characterId,
+    // requestedById) are populated — a raw `SELECT *` returns snake_case keys
+    // and silently yields `undefined` for those, breaking materialization.
+    const [reqRow] = await tx
+      .select()
+      .from(customRequests)
+      .where(eq(customRequests.id, rid))
+      .for("update");
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
     if (reqRow.status !== "pending") {
       return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
@@ -289,6 +350,37 @@ router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void
         .returning();
       appliedRef = `inventory:${item.instanceUuid}`;
       summary = `Custom cyberware approved: ${reqRow.title} (CWP ${cwp})`;
+    } else if (reqRow.type === "store" || reqRow.type === "ripperdoc") {
+      const det = (reqRow.details ?? {}) as { purpose?: string; location?: string };
+      if (reqRow.type === "store") {
+        const [s] = await tx
+          .insert(stores)
+          .values({
+            ownerId: reqRow.requestedById,
+            ownerCharacterId: reqRow.characterId,
+            name: reqRow.title,
+            purpose: det.purpose ?? null,
+            location: det.location ?? null,
+            description: reqRow.description ?? null,
+          })
+          .returning();
+        appliedRef = `store:${s.id}`;
+        summary = `New store approved: ${reqRow.title}`;
+      } else {
+        const [r] = await tx
+          .insert(ripperdocs)
+          .values({
+            ownerId: reqRow.requestedById,
+            ownerCharacterId: reqRow.characterId,
+            name: reqRow.title,
+            purpose: det.purpose ?? null,
+            location: det.location ?? null,
+            description: reqRow.description ?? null,
+          })
+          .returning();
+        appliedRef = `ripperdoc:${r.id}`;
+        summary = `New ripperdoc approved: ${reqRow.title}`;
+      }
     } else {
       return { error: { status: 400, body: { error: `Unknown request type ${reqRow.type}` } } };
     }
@@ -337,7 +429,7 @@ router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void
   }
   await recordAudit({
     req,
-    category: reqRow.type === "property" ? "housing" : "inventory",
+    category: auditCategoryFor(reqRow.type),
     action: "request_approve",
     targetType: "custom_request",
     targetId: rid,
@@ -385,7 +477,7 @@ router.post("/requests/:id/reject", requireAuth, async (req, res): Promise<void>
   const { reqRow } = txResult.ok;
   await recordAudit({
     req,
-    category: reqRow.type === "property" ? "housing" : "inventory",
+    category: auditCategoryFor(reqRow.type),
     action: "request_reject",
     targetType: "custom_request",
     targetId: rid,
@@ -395,8 +487,7 @@ router.post("/requests/:id/reject", requireAuth, async (req, res): Promise<void>
   // Mirror the approve path: surface rejections in the global activity feed.
   // Best-effort — the decision is already committed, so a feed-write failure
   // must not fail the endpoint.
-  const typeLabel =
-    reqRow.type === "property" ? "off-map property" : reqRow.type === "gun" ? "custom gun" : "custom cyberware";
+  const typeLabel = typeLabelFor(reqRow.type);
   try {
     await db.insert(activityEvents).values({
       kind: "request_rejected",

@@ -1293,6 +1293,8 @@ export const CustomRequestType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  store: 'store',
+  ripperdoc: 'ripperdoc',
 } as const;
 
 export type CustomRequestStatus = typeof CustomRequestStatus[keyof typeof CustomRequestStatus];
@@ -1312,7 +1314,7 @@ export interface CustomRequest {
   requestedById: string;
   /** @nullable */
   requestedByName?: string | null;
-  /** Player label: location/address (property) or item name (gun/cyberware). */
+  /** Player label: location/address (property), item name (gun/cyberware), or venue name (store/ripperdoc). */
   title: string;
   /** @nullable */
   description?: string | null;
@@ -1321,7 +1323,7 @@ export interface CustomRequest {
      * @nullable
      */
   imageUrl?: string | null;
-  /** Optional type-specific payload captured at submit time. */
+  /** Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }. */
   details?: unknown | null;
   status: CustomRequestStatus;
   /** @nullable */
@@ -1345,15 +1347,22 @@ export const CustomRequestInputType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  store: 'store',
+  ripperdoc: 'ripperdoc',
 } as const;
 
 export interface CustomRequestInput {
   type: CustomRequestInputType;
   characterId: number;
   title: string;
+  /** Required for store/ripperdoc requests. */
   description?: string;
   /** Optional reference image object path. */
   imageUrl?: string;
+  /** Required for store/ripperdoc requests; what the venue is for. */
+  purpose?: string;
+  /** Required for store/ripperdoc requests; in-world location. */
+  location?: string;
 }
 
 /**
@@ -3221,5 +3230,7 @@ export const ListMyCustomRequestsType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  store: 'store',
+  ripperdoc: 'ripperdoc',
 } as const;
 

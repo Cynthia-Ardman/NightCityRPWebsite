@@ -195,7 +195,7 @@ describe("POST /stores/:id/sell", () => {
 });
 
 async function makeRipperdoc(ownerId: string | null, name = "Vik's Clinic") {
-  const [r] = await db.insert(ripperdocs).values({ ownerId, name }).returning();
+  const [r] = await db.insert(ripperdocs).values({ ownerId: ownerId as string, name }).returning();
   return r;
 }
 

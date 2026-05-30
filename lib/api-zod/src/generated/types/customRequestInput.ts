@@ -11,7 +11,12 @@ export interface CustomRequestInput {
   type: CustomRequestInputType;
   characterId: number;
   title: string;
+  /** Required for store/ripperdoc requests. */
   description?: string;
   /** Optional reference image object path. */
   imageUrl?: string;
+  /** Required for store/ripperdoc requests; what the venue is for. */
+  purpose?: string;
+  /** Required for store/ripperdoc requests; in-world location. */
+  location?: string;
 }

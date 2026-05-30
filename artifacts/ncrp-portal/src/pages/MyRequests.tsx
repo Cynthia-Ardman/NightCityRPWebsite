@@ -16,7 +16,7 @@ import { ClipboardList } from "lucide-react";
 // share a single chronological history table.
 type HistoryRow = {
   key: string;
-  category: "Property" | "Gun" | "Cyberware" | "Lease";
+  category: "Property" | "Gun" | "Cyberware" | "Store" | "Ripperdoc" | "Lease";
   title: string;
   characterName: string;
   status: string;
@@ -29,6 +29,8 @@ const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
   property: "Property",
   gun: "Gun",
   cyberware: "Cyberware",
+  store: "Store",
+  ripperdoc: "Ripperdoc",
 };
 
 const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
@@ -36,6 +38,8 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "Property",
   "Gun",
   "Cyberware",
+  "Store",
+  "Ripperdoc",
   "Lease",
 ];
 
@@ -47,6 +51,10 @@ function categoryColor(category: HistoryRow["category"]): string {
       return "text-nc-magenta";
     case "Cyberware":
       return "text-nc-yellow";
+    case "Store":
+      return "text-nc-cyan";
+    case "Ripperdoc":
+      return "text-nc-magenta";
     case "Lease":
       return "text-nc-green";
   }

@@ -13,4 +13,6 @@ export const CustomRequestInputType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  store: 'store',
+  ripperdoc: 'ripperdoc',
 } as const;

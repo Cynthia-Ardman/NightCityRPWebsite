@@ -2508,7 +2508,7 @@ paths:
         - in: query
           name: type
           required: false
-          schema: { type: string, enum: [property, gun, cyberware] }
+          schema: { type: string, enum: [property, gun, cyberware, store, ripperdoc] }
       responses:
         "200":
           description: Requests
@@ -3438,15 +3438,15 @@ components:
       required: [id, type, characterId, characterName, requestedById, title, status, createdAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [property, gun, cyberware] }
+        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc] }
         characterId: { type: integer }
         characterName: { type: string }
         requestedById: { type: string }
         requestedByName: { type: ["string", "null"] }
-        title: { type: string, description: "Player label: location/address (property) or item name (gun/cyberware)." }
+        title: { type: string, description: "Player label: location/address (property), item name (gun/cyberware), or venue name (store/ripperdoc)." }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], description: "Optional reference image the player attached." }
-        details: { description: "Optional type-specific payload captured at submit time.", nullable: true }
+        details: { description: "Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }.", nullable: true }
         status: { type: string, enum: [pending, approved, rejected] }
         reviewedById: { type: ["string", "null"] }
         reviewedAt: { type: ["string", "null"], format: date-time }
@@ -3458,11 +3458,13 @@ components:
       type: object
       required: [type, characterId, title]
       properties:
-        type: { type: string, enum: [property, gun, cyberware] }
+        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc] }
         characterId: { type: integer }
         title: { type: string }
-        description: { type: string }
+        description: { type: string, description: "Required for store/ripperdoc requests." }
         imageUrl: { type: string, description: "Optional reference image object path." }
+        purpose: { type: string, description: "Required for store/ripperdoc requests; what the venue is for." }
+        location: { type: string, description: "Required for store/ripperdoc requests; in-world location." }
 
     CustomRequestApproval:
       type: object
