@@ -43,7 +43,27 @@ vi.mock("@tanstack/react-query", async (orig) => {
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 
+// Uploads resolve to a deterministic object path so the portrait/stats
+// required-to-submit gate can be satisfied by driving the file inputs.
+vi.mock("@/lib/uploadImage", () => ({
+  uploadImage: vi.fn(async (f: File) => `/api/storage/objects/${f.name}`),
+}));
+
 import NewSheet from "./NewSheet";
+
+// Adds one portrait + one stats image via the shared ImageEditor file inputs.
+async function uploadRequiredImages() {
+  await act(async () => {
+    fireEvent.change(screen.getByTestId("input-upload-sheet-portrait"), {
+      target: { files: [new File(["p"], "portrait.png", { type: "image/png" })] },
+    });
+  });
+  await act(async () => {
+    fireEvent.change(screen.getByTestId("input-upload-sheet-stats"), {
+      target: { files: [new File(["s"], "stats.png", { type: "image/png" })] },
+    });
+  });
+}
 
 describe("NewSheet submit-and-resubmit journey", () => {
   beforeEach(() => {
@@ -62,6 +82,7 @@ describe("NewSheet submit-and-resubmit journey", () => {
     render(<NewSheet />);
 
     fireEvent.change(screen.getByTestId("input-fullname"), { target: { value: "V" } });
+    await uploadRequiredImages();
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("button-submit-sheet"));
@@ -86,6 +107,21 @@ describe("NewSheet submit-and-resubmit journey", () => {
     expect(h.submitDraftMutateAsync).not.toHaveBeenCalled();
     expect(h.toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Name required" }),
+    );
+  });
+
+  it("blocks submit when portrait/stats images are missing", async () => {
+    render(<NewSheet />);
+
+    fireEvent.change(screen.getByTestId("input-fullname"), { target: { value: "V" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("button-submit-sheet"));
+    });
+
+    expect(h.submitDraftMutateAsync).not.toHaveBeenCalled();
+    expect(h.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Portrait required" }),
     );
   });
 
@@ -115,7 +151,11 @@ describe("NewSheet submit-and-resubmit journey", () => {
       name: "V",
       status: "changes_requested",
       decisionNote: "Add more backstory",
-      data: { fullName: "V" },
+      data: {
+        fullName: "V",
+        portraitUrls: ["/api/storage/objects/portrait.png"],
+        statsImageUrls: ["/api/storage/objects/stats.png"],
+      },
     };
     render(<NewSheet />);
 
