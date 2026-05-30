@@ -2126,6 +2126,12 @@ export interface MissionSummary {
   createdAt: string;
 }
 
+export interface MissionHistoryPage {
+  items: MissionSummary[];
+  /** True when more rows exist beyond this page (fetch with offset += limit). */
+  hasMore: boolean;
+}
+
 export type MissionDetailTier = typeof MissionDetailTier[keyof typeof MissionDetailTier];
 
 
@@ -2930,6 +2936,20 @@ export const ListHousingRequestsStatus = {
 export type ListMissionsParams = {
 status?: string;
 limit?: number;
+};
+
+export type ListMissionHistoryParams = {
+/**
+ * Page size (1-100, default 20).
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * Number of rows to skip (default 0).
+ * @minimum 0
+ */
+offset?: number;
 };
 
 export type CheckMissionConflictsParams = {

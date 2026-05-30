@@ -1,16 +1,17 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import {
   useListMyMissions,
   useListMissions,
   useListOwnedMissions,
   useListCreatedMissions,
-  useListMissionHistory,
   useListMyApplications,
   useSubmitMission,
   useApproveMission,
   usePostMission,
+  listMissionHistory,
+  getListMissionHistoryQueryKey,
   getListMissionsQueryKey,
   getListOwnedMissionsQueryKey,
   getListCreatedMissionsQueryKey,
@@ -47,6 +48,8 @@ import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
 
 type TabKey = "open" | "accepted" | "applications" | "created" | "history" | "all";
+
+const HISTORY_PAGE_SIZE = 20;
 
 export default function Missions() {
   const { data: me } = useAuthMe();
@@ -92,7 +95,20 @@ export default function Missions() {
   });
 
   // Mission History: completed/cancelled missions relevant to the caller.
-  const history = useListMissionHistory();
+  // Paginated — players can attend many missions over time, so we load a page
+  // at a time and let them pull more on demand instead of fetching everything.
+  const history = useInfiniteQuery({
+    queryKey: getListMissionHistoryQueryKey({ limit: HISTORY_PAGE_SIZE }),
+    queryFn: ({ pageParam }) =>
+      listMissionHistory({ limit: HISTORY_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasMore ? allPages.length * HISTORY_PAGE_SIZE : undefined,
+  });
+  const historyRows = useMemo(
+    () => (history.data?.pages ?? []).flatMap((p) => p.items),
+    [history.data],
+  );
 
   // All Missions: the staff-wide board (managers + approvers only).
   const owned = useListOwnedMissions({
@@ -104,7 +120,7 @@ export default function Missions() {
     { key: "accepted", label: "Accepted", count: acceptedMissions.length, show: true },
     { key: "applications", label: "My Applications", count: myApps.data?.length, show: true },
     { key: "created", label: "My Created", count: created.data?.length, show: isStaff },
-    { key: "history", label: "History", count: history.data?.length, show: true },
+    { key: "history", label: "History", show: true },
     { key: "all", label: "All Missions", count: owned.data?.length, show: canSeeStaffTabs },
   ];
   const visibleTabs = tabs.filter((t) => t.show);
@@ -203,10 +219,24 @@ export default function Missions() {
         <TabsContent value="history" data-testid="tabpanel-history">
           <ListSection
             isLoading={history.isLoading}
-            isEmpty={(history.data?.length ?? 0) === 0}
+            isEmpty={historyRows.length === 0}
             emptyText="No completed missions in your history yet."
           >
-            <MissionCardList rows={history.data ?? []} isAdmin={isAdmin} />
+            <MissionCardList rows={historyRows} isAdmin={isAdmin} />
+            {history.hasNextPage && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none font-display tracking-widest"
+                  onClick={() => history.fetchNextPage()}
+                  disabled={history.isFetchingNextPage}
+                  data-testid="button-load-more-history"
+                >
+                  {history.isFetchingNextPage ? "LOADING…" : "LOAD MORE"}
+                </Button>
+              </div>
+            )}
           </ListSection>
         </TabsContent>
 

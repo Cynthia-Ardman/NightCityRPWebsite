@@ -1432,9 +1432,10 @@ describe("Mission listing tabs", () => {
 
     const res = await request(app).get("/api/missions/history").set("x-test-user", player.id);
     expect(res.status).toBe(200);
-    const ids = (res.body as Array<{ id: number }>).map((m) => m.id);
+    const ids = (res.body.items as Array<{ id: number }>).map((m) => m.id);
     expect(ids).toContain(done.id);
     expect(ids).not.toContain(active.id);
+    expect(res.body.hasMore).toBe(false);
   });
 
   it("history: a non-manager never sees non-posted missions", async () => {
@@ -1442,7 +1443,7 @@ describe("Mission listing tabs", () => {
     const hiddenDraft = await seedMission({ title: "Draft", workflowState: "draft", status: "cancelled" });
     await seedAssignment(hiddenDraft.id, player.id);
     const res = await request(app).get("/api/missions/history").set("x-test-user", player.id);
-    const ids = (res.body as Array<{ id: number }>).map((m) => m.id);
+    const ids = (res.body.items as Array<{ id: number }>).map((m) => m.id);
     expect(ids).not.toContain(hiddenDraft.id);
   });
 
@@ -1450,8 +1451,42 @@ describe("Mission listing tabs", () => {
     const fixer = await createUser({ roles: ["fixer"] });
     const ran = await seedMission({ title: "Ran", fixerId: fixer.id, workflowState: "posted", status: "cancelled" });
     const res = await request(app).get("/api/missions/history").set("x-test-user", fixer.id);
-    const ids = (res.body as Array<{ id: number }>).map((m) => m.id);
+    const ids = (res.body.items as Array<{ id: number }>).map((m) => m.id);
     expect(ids).toContain(ran.id);
+  });
+
+  it("history: paginates with limit/offset and reports hasMore", async () => {
+    const player = await createUser();
+    // Seed 3 terminal attended missions; with limit=2 the first page returns 2
+    // rows + hasMore, the second page returns the last row + no more.
+    const seeded: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const m = await seedMission({ title: `Done ${i}`, workflowState: "posted", status: "completed_paid" });
+      await seedAssignment(m.id, player.id);
+      seeded.push(m.id);
+    }
+
+    const page1 = await request(app)
+      .get("/api/missions/history?limit=2&offset=0")
+      .set("x-test-user", player.id);
+    expect(page1.status).toBe(200);
+    expect(page1.body.items).toHaveLength(2);
+    expect(page1.body.hasMore).toBe(true);
+
+    const page2 = await request(app)
+      .get("/api/missions/history?limit=2&offset=2")
+      .set("x-test-user", player.id);
+    expect(page2.status).toBe(200);
+    expect(page2.body.items).toHaveLength(1);
+    expect(page2.body.hasMore).toBe(false);
+
+    const allIds = [
+      ...(page1.body.items as Array<{ id: number }>).map((m) => m.id),
+      ...(page2.body.items as Array<{ id: number }>).map((m) => m.id),
+    ];
+    for (const id of seeded) expect(allIds).toContain(id);
+    // No row appears on both pages.
+    expect(new Set(allIds).size).toBe(3);
   });
 
   it("my-applications: returns the caller's own applications across all states", async () => {

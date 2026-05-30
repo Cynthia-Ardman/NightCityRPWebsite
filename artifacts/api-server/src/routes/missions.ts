@@ -288,7 +288,9 @@ router.get("/missions/created", requireAuth, async (req, res): Promise<void> => 
 // Any authenticated user; the service scopes rows to ones they attended (and,
 // for managers, ones they ran).
 router.get("/missions/history", requireAuth, async (req, res): Promise<void> => {
-  res.json(await listMissionHistory(viewerOf(req)));
+  const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "20"), 10) || 20));
+  const offset = Math.max(0, parseInt(String(req.query.offset ?? "0"), 10) || 0);
+  res.json(await listMissionHistory(viewerOf(req), { limit, offset }));
 });
 
 // "My Applications" — every application the caller has submitted, all states.

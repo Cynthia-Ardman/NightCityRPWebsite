@@ -100,6 +100,7 @@ import type {
   ListArchiveUsersParams,
   ListCustomRequestsParams,
   ListHousingRequestsParams,
+  ListMissionHistoryParams,
   ListMissionsParams,
   ListMyCustomRequestsParams,
   ListPublicCharactersParams,
@@ -115,6 +116,7 @@ import type {
   MissionConflictCheck,
   MissionCreateInput,
   MissionDetail,
+  MissionHistoryPage,
   MissionSummary,
   MissionUpdateInput,
   PayActorsInput,
@@ -4993,20 +4995,27 @@ export function useListCreatedMissions<TData = Awaited<ReturnType<typeof listCre
 
 
 
-export const getListMissionHistoryUrl = () => {
+export const getListMissionHistoryUrl = (params?: ListMissionHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/missions/history`
+  return stringifiedParams.length > 0 ? `/api/missions/history?${stringifiedParams}` : `/api/missions/history`
 }
 
 /**
- * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first.
+ * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first. Paged.
  */
-export const listMissionHistory = async ( options?: RequestInit): Promise<MissionSummary[]> => {
+export const listMissionHistory = async (params?: ListMissionHistoryParams, options?: RequestInit): Promise<MissionHistoryPage> => {
 
-  return customFetch<MissionSummary[]>(getListMissionHistoryUrl(),
+  return customFetch<MissionHistoryPage>(getListMissionHistoryUrl(params),
   {
     ...options,
     method: 'GET'
@@ -5019,23 +5028,23 @@ export const listMissionHistory = async ( options?: RequestInit): Promise<Missio
 
 
 
-export const getListMissionHistoryQueryKey = () => {
+export const getListMissionHistoryQueryKey = (params?: ListMissionHistoryParams,) => {
     return [
-    `/api/missions/history`
+    `/api/missions/history`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListMissionHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listMissionHistory>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMissionHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListMissionHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listMissionHistory>>, TError = ErrorType<unknown>>(params?: ListMissionHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMissionHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListMissionHistoryQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListMissionHistoryQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMissionHistory>>> = ({ signal }) => listMissionHistory({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMissionHistory>>> = ({ signal }) => listMissionHistory(params, { signal, ...requestOptions });
 
 
 
@@ -5049,15 +5058,15 @@ export type ListMissionHistoryQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first.
+ * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first. Paged.
  */
 
 export function useListMissionHistory<TData = Awaited<ReturnType<typeof listMissionHistory>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMissionHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListMissionHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMissionHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListMissionHistoryQueryOptions(options)
+  const queryOptions = getListMissionHistoryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

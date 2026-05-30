@@ -1025,15 +1025,22 @@ paths:
     get:
       operationId: listMissionHistory
       tags: [missions]
-      summary: "Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first."
+      summary: "Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first. Paged."
+      parameters:
+        - in: query
+          name: limit
+          description: Page size (1-100, default 20).
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: offset
+          description: Number of rows to skip (default 0).
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/MissionSummary" }
+              schema: { $ref: "#/components/schemas/MissionHistoryPage" }
   /missions/my-applications:
     get:
       operationId: listMyApplications
@@ -3943,6 +3950,17 @@ components:
               portraitUrl: { type: ["string", "null"] }
               userId: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
+
+    MissionHistoryPage:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MissionSummary" }
+        hasMore:
+          type: boolean
+          description: "True when more rows exist beyond this page (fetch with offset += limit)."
 
     MissionDetail:
       type: object

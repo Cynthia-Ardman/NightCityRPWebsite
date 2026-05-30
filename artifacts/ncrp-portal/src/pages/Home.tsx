@@ -1,5 +1,5 @@
-import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useGetUpcomingBills, useListMyMissions, useGetCharacterStatus, useUpdateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useGetUpcomingBills, useListMyMissions, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -9,9 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch as UiSwitch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
@@ -75,6 +72,8 @@ function Dashboard() {
           </a>
         ) : null}
       </div>
+
+      <PlayerLoaControl characters={characters ?? []} />
 
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -140,7 +139,7 @@ function Dashboard() {
         <div className="lg:col-span-2 space-y-6 lg:order-2">
           <PendingMissionsCard />
           <AttendCard />
-          <StatusControlsCard characters={characters ?? []} />
+          <ShopOpenCard characters={characters ?? []} />
           <UpcomingBillsCard />
           <SystemLogsCard />
         </div>
@@ -559,116 +558,77 @@ function AttendCard() {
   );
 }
 
-// Per-character status controls relocated from the old per-character Status
-// tab. LOA still drives rent-billing skips server-side; this is just the UI
-// surface moving onto the dashboard next to the attendance claim.
-function StatusControlsCard({ characters }: { characters: Array<{ id: number; name: string }> }) {
-  if (!characters || characters.length === 0) return null;
+// Single per-PLAYER Leave of Absence control. LOA is stored per character
+// server-side (it drives rent-billing skips), so toggling this fans the change
+// out across every one of the player's characters at once: ON puts them all on
+// leave, OFF brings them all back.
+function PlayerLoaControl({ characters }: { characters: Array<{ id: number; name: string }> }) {
+  const qc = useQueryClient();
+  const statusQueries = useQueries({
+    queries: characters.map((c) => ({
+      queryKey: getGetCharacterStatusQueryKey(c.id),
+      queryFn: () => getCharacterStatus(c.id),
+    })),
+  });
+
+  const setAll = useMutation({
+    mutationFn: async (v: boolean) => {
+      await Promise.all(characters.map((c) => updateCharacterStatus(c.id, { loa: v })));
+    },
+    onSuccess: () => {
+      for (const c of characters) {
+        qc.invalidateQueries({ queryKey: getGetCharacterStatusQueryKey(c.id) });
+      }
+    },
+  });
+
+  if (characters.length === 0) return null;
+
+  const allLoaded = statusQueries.every((q) => q.data);
+  const anyLoading = statusQueries.some((q) => q.isLoading);
+  // "On leave" only when every character is flagged LOA; mixed/partial states
+  // read as OFF so a single toggle re-asserts the player-wide intent.
+  const onLeave = allLoaded && statusQueries.every((q) => q.data?.loa === true);
+  const disabled = anyLoading || setAll.isPending;
+
   return (
-    <div className="space-y-3">
-      <h2 className="text-2xl font-display font-bold text-foreground flex items-center gap-2" data-testid="text-status-controls-title">
-        <Activity className="w-5 h-5 text-nc-cyan" /> CHARACTER_STATUS
-      </h2>
-      <Card className="rounded-none border-border bg-card/50">
-        <CardContent className="p-4 space-y-6">
-          {characters.map((c) => (
-            <CharacterStatusBlock key={c.id} characterId={c.id} name={c.name} />
-          ))}
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="rounded-none border-nc-cyan/40 bg-nc-cyan/5" data-testid="card-player-loa">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="font-display tracking-widest text-nc-cyan text-sm">LEAVE OF ABSENCE</div>
+            <div className="text-xs text-muted-foreground font-mono mt-1">
+              {onLeave
+                ? "You're on leave — billing paused for all your characters."
+                : "Toggle on to pause all your characters while you're away."}
+            </div>
+          </div>
+          <UiSwitch
+            checked={onLeave}
+            disabled={disabled}
+            onCheckedChange={(v) => setAll.mutate(v)}
+            data-testid="switch-player-loa"
+          />
+        </div>
+        {setAll.error instanceof Error && (
+          <div className="text-xs font-mono text-destructive mt-2">ERR: {setAll.error.message}</div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
-function CharacterStatusBlock({ characterId, name }: { characterId: number; name: string }) {
-  const qc = useQueryClient();
-  const { data: status, isLoading } = useGetCharacterStatus(characterId);
-  const update = useUpdateCharacterStatus({
-    mutation: {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getGetCharacterStatusQueryKey(characterId) }),
-    },
-  });
-  const [message, setMessage] = useState("");
-  const [loaReturnsAt, setLoaReturnsAt] = useState("");
-
+// "Open shop today" daily actions — one per shop-owning character. Treated like
+// the weekly attendance claim (a Sunday-only income action). ShopOpenSection
+// renders null for characters without an active business lease, so players who
+// run no shops see nothing here.
+function ShopOpenCard({ characters }: { characters: Array<{ id: number; name: string }> }) {
+  if (!characters || characters.length === 0) return null;
   return (
-    <div className="border border-border/50 bg-background/40 p-4 space-y-4 font-mono text-sm" data-testid={`status-block-${characterId}`}>
-      <div className="font-display tracking-widest text-nc-cyan text-sm">{name.toUpperCase()}</div>
-
-      {isLoading ? (
-        <div className="text-nc-cyan animate-pulse">Pinging biometric sensors...</div>
-      ) : !status ? (
-        <div className="text-muted-foreground">No status data.</div>
-      ) : (
-        <>
-          <ToggleRow
-            label="LOA (Leave of Absence)"
-            checked={status.loa}
-            onChange={(v) => update.mutate({ id: characterId, data: { loa: v } })}
-            testid={`switch-loa-${characterId}`}
-          />
-          <ToggleRow
-            label="ATTENDING (events/scenes)"
-            checked={status.attending}
-            onChange={(v) => update.mutate({ id: characterId, data: { attending: v } })}
-            testid={`switch-attending-${characterId}`}
-          />
-          <ToggleRow
-            label="OPEN SHOP (vendor)"
-            checked={status.openShop}
-            onChange={(v) => update.mutate({ id: characterId, data: { openShop: v } })}
-            testid={`switch-openshop-${characterId}`}
-          />
-
-          <ShopOpenSection characterId={characterId} />
-
-          {status.loa && (
-            <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-8">
-                <Label className="text-xs">LOA RETURNS AT (ISO date/time)</Label>
-                <Input
-                  value={loaReturnsAt || status.loaReturnsAt?.slice(0, 16) || ""}
-                  onChange={(e) => setLoaReturnsAt(e.target.value)}
-                  placeholder="2026-06-15T09:00"
-                  data-testid={`input-loa-returns-${characterId}`}
-                />
-              </div>
-              <div className="col-span-4">
-                <Button
-                  type="button"
-                  disabled={!loaReturnsAt}
-                  onClick={() => update.mutate({ id: characterId, data: { loaReturnsAt } })}
-                  className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-                  data-testid={`button-save-loa-date-${characterId}`}
-                >
-                  SAVE DATE
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <Label className="text-xs">STATUS MESSAGE</Label>
-            <Textarea
-              value={message || status.statusMessage || ""}
-              onChange={(e) => setMessage(e.target.value)}
-              data-testid={`textarea-status-message-${characterId}`}
-            />
-            <Button
-              type="button"
-              className="mt-2 rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-              onClick={() => update.mutate({ id: characterId, data: { statusMessage: message } })}
-              data-testid={`button-save-status-message-${characterId}`}
-            >
-              UPDATE MESSAGE
-            </Button>
-          </div>
-
-          <div className="text-xs text-muted-foreground">
-            Last updated: {new Date(status.updatedAt).toLocaleString()}
-          </div>
-        </>
-      )}
+    <div className="space-y-4">
+      {characters.map((c) => (
+        <ShopOpenSection key={c.id} characterId={c.id} name={c.name} />
+      ))}
     </div>
   );
 }
@@ -685,7 +645,7 @@ interface ShopOpenInfo {
 
 // Hidden entirely when the character has no active business lease — there's
 // no useful UI for "you can't open a shop you don't own."
-function ShopOpenSection({ characterId }: { characterId: number }) {
+function ShopOpenSection({ characterId, name }: { characterId: number; name?: string }) {
   const qc = useQueryClient();
   const queryKey = ["character-shop", characterId] as const;
   const { data, isLoading } = useQuery<ShopOpenInfo>({
@@ -724,7 +684,9 @@ function ShopOpenSection({ characterId }: { characterId: number }) {
     <div className="border border-nc-magenta/40 bg-nc-magenta/5 p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="font-display tracking-widest text-nc-magenta text-sm">SHOP STATUS</div>
+          <div className="font-display tracking-widest text-nc-magenta text-sm">
+            {name ? `SHOP — ${name.toUpperCase()}` : "SHOP STATUS"}
+          </div>
           <div className="text-xs text-muted-foreground mt-1">
             {lease ? `${lease.address} · €$${lease.monthlyRent.toLocaleString()}/mo` : "Business lease"}
           </div>
@@ -747,15 +709,6 @@ function ShopOpenSection({ characterId }: { characterId: number }) {
       {open.error instanceof Error && (
         <div className="text-xs font-mono text-destructive">ERR: {open.error.message}</div>
       )}
-    </div>
-  );
-}
-
-function ToggleRow({ label, checked, onChange, testid }: { label: string; checked: boolean; onChange: (v: boolean) => void; testid: string }) {
-  return (
-    <div className="flex items-center justify-between border border-border/40 p-3">
-      <span className="text-foreground">{label}</span>
-      <UiSwitch checked={checked} onCheckedChange={onChange} data-testid={testid} />
     </div>
   );
 }

@@ -1542,9 +1542,23 @@ export const ListCreatedMissionsResponse = zod.array(ListCreatedMissionsResponse
 
 
 /**
- * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first.
+ * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first. Paged.
  */
-export const ListMissionHistoryResponseItem = zod.object({
+export const listMissionHistoryQueryLimitDefault = 20;
+export const listMissionHistoryQueryLimitMax = 100;
+
+export const listMissionHistoryQueryOffsetDefault = 0;
+export const listMissionHistoryQueryOffsetMin = 0;
+
+
+
+export const ListMissionHistoryQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listMissionHistoryQueryLimitMax).default(listMissionHistoryQueryLimitDefault).describe('Page size (1-100, default 20).'),
+  "offset": zod.coerce.number().min(listMissionHistoryQueryOffsetMin).default(listMissionHistoryQueryOffsetDefault).describe('Number of rows to skip (default 0).')
+})
+
+export const ListMissionHistoryResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
@@ -1577,8 +1591,9 @@ export const ListMissionHistoryResponseItem = zod.object({
   "userId": zod.string().nullish()
 })).describe('Assigned characters (deduped), each clickable.'),
   "createdAt": zod.coerce.date()
+})),
+  "hasMore": zod.boolean().describe('True when more rows exist beyond this page (fetch with offset += limit).')
 })
-export const ListMissionHistoryResponse = zod.array(ListMissionHistoryResponseItem)
 
 
 /**

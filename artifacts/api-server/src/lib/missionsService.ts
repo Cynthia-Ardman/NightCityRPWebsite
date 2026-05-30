@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { and, eq, desc, gt, lte, inArray, isNull, isNotNull, ne, sql } from "drizzle-orm";
+import { and, or, eq, desc, gt, lte, inArray, isNull, isNotNull, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   db,
@@ -154,7 +154,11 @@ async function loadAssignments(missionIds: number[]): Promise<Map<number, Assign
 
 type MissionWithFixer = Mission & { fixerName: string | null; fixerAvatarUrl: string | null };
 
-async function loadMissions(where: ReturnType<typeof eq> | undefined, limit?: number): Promise<MissionWithFixer[]> {
+async function loadMissions(
+  where: ReturnType<typeof eq> | undefined,
+  limit?: number,
+  offset?: number,
+): Promise<MissionWithFixer[]> {
   let q = db
     .select({
       mission: missions,
@@ -163,10 +167,13 @@ async function loadMissions(where: ReturnType<typeof eq> | undefined, limit?: nu
     })
     .from(missions)
     .leftJoin(users, eq(users.id, missions.fixerId))
-    .orderBy(desc(missions.startAt), desc(missions.createdAt))
+    // id is the final tiebreaker so limit/offset paging is fully deterministic
+    // even when startAt/createdAt collide (or startAt is null).
+    .orderBy(desc(missions.startAt), desc(missions.createdAt), desc(missions.id))
     .$dynamic();
   if (where) q = q.where(where);
   if (limit) q = q.limit(limit);
+  if (offset) q = q.offset(offset);
   const rows = await q;
   return rows.map((r) => ({ ...r.mission, fixerName: r.fixerName, fixerAvatarUrl: r.fixerAvatarUrl }));
 }
@@ -266,21 +273,36 @@ const HISTORY_STATUSES: MissionStatus[] = [
  * missions they were assigned to; managers additionally see missions they ran.
  * Non-managers never see non-posted missions.
  */
-export async function listMissionHistory(viewer: MissionViewer) {
-  const mine = await db
+export async function listMissionHistory(
+  viewer: MissionViewer,
+  opts: { limit: number; offset: number },
+) {
+  // Missions the viewer was assigned to, as a SQL subquery so it can drive the
+  // WHERE clause directly (no in-memory post-filter that would break paging).
+  const assignedSubquery = db
     .select({ missionId: missionAssignments.missionId })
     .from(missionAssignments)
     .where(eq(missionAssignments.userId, viewer.id));
-  const assignedIds = new Set(mine.map((m) => m.missionId));
-  // Push the terminal-status filter and the non-manager "posted only"
-  // visibility rule into SQL so History scans only relevant rows at scale.
-  const filters = [inArray(missions.status, HISTORY_STATUSES)];
+  // Viewer-relevance, folded into SQL so limit/offset count only rows the
+  // viewer can actually see: players see missions they attended; managers also
+  // see missions they ran.
+  const relevance = viewer.isManager
+    ? or(inArray(missions.id, assignedSubquery), eq(missions.fixerId, viewer.id))
+    : inArray(missions.id, assignedSubquery);
+  // Terminal-status filter and the non-manager "posted only" visibility rule
+  // also go into SQL.
+  const filters = [inArray(missions.status, HISTORY_STATUSES), relevance];
   if (!viewer.isManager) filters.push(eq(missions.workflowState, "posted"));
-  const rows = (await loadMissions(and(...filters))).filter(
-    (m) => assignedIds.has(m.id) || (viewer.isManager && m.fixerId === viewer.id),
-  );
-  const byMission = await loadAssignments(rows.map((r) => r.id));
-  return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id));
+  const where = and(...filters);
+  // Fetch one extra row to learn whether another page exists without a count.
+  const rows = await loadMissions(where, opts.limit + 1, opts.offset);
+  const hasMore = rows.length > opts.limit;
+  const page = hasMore ? rows.slice(0, opts.limit) : rows;
+  const byMission = await loadAssignments(page.map((r) => r.id));
+  return {
+    items: page.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id)),
+    hasMore,
+  };
 }
 
 /**
