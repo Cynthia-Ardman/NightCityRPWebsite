@@ -26,6 +26,7 @@ import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
 import SingleImageField from "@/components/catalog/SingleImageField";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
+import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
 const ALL = "__all__";
 
@@ -301,24 +302,29 @@ function RentImageDialog({
 
 function MyHousingRequests() {
   const { data, isLoading } = useListMyHousingRequests();
-  const rows = (data ?? []).filter((r) => r.status === "pending");
+  const rows = data ?? [];
   if (isLoading || rows.length === 0) return null;
   return (
     <Card className="rounded-none border-nc-yellow/40 bg-card/50" data-testid="card-my-housing-requests">
       <CardHeader>
-        <CardTitle className="font-display tracking-widest text-nc-yellow">PENDING HOUSING REQUESTS</CardTitle>
+        <CardTitle className="font-display tracking-widest text-nc-yellow">MY LEASE REQUESTS</CardTitle>
       </CardHeader>
       <CardContent>
         <ul className="space-y-1 font-mono text-sm">
           {rows.map((r) => (
-            <li key={r.id} className="flex justify-between border-b border-border/30 py-2" data-testid={`row-my-request-${r.id}`}>
-              <span>
+            <li key={r.id} className="flex items-center justify-between gap-3 border-b border-border/30 py-2" data-testid={`row-my-request-${r.id}`}>
+              <span className="min-w-0">
                 <span className="text-foreground">{r.characterName}</span>
                 <span className="text-muted-foreground"> → </span>
                 <span className="text-nc-cyan">{r.listingName}</span>
                 <span className="text-xs text-muted-foreground"> ({r.kind})</span>
+                {r.reviewerNote ? (
+                  <span className="block text-[11px] text-muted-foreground italic">"{r.reviewerNote}"</span>
+                ) : null}
               </span>
-              <span className="text-xs text-nc-yellow uppercase tracking-widest">AWAITING APPROVAL</span>
+              <span className="shrink-0">
+                <RequestStatusBadge status={r.status} />
+              </span>
             </li>
           ))}
         </ul>
