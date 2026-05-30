@@ -125,7 +125,19 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const catalogSlotSet = useMemo(() => new Set(catalogSlots), [catalogSlots]);
 
   const [draftId, setDraftId] = useState<number | null>(initialDraftId);
-  const [sheetType, setSheetType] = useState<"PC" | "NPC">(init.sheetType === "NPC" ? "NPC" : "PC");
+  // New NPC creation (e.g. from the Fixer Hub) lands here with `?type=NPC` so the
+  // sheet opens pre-set to NPC, requiring the same fields and review as a PC.
+  const [sheetType, setSheetType] = useState<"PC" | "NPC">(() => {
+    if (init.sheetType === "NPC") return "NPC";
+    if (
+      !initialDraftId &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("type")?.toUpperCase() === "NPC"
+    ) {
+      return "NPC";
+    }
+    return "PC";
+  });
   const [fullName, setFullName] = useState<string>(init.fullName ?? initialSheet?.name ?? "");
   const [nickname, setNickname] = useState<string>(init.nickname ?? "");
   const [pronouns, setPronouns] = useState<string>(init.pronouns ?? "");
