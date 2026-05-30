@@ -8,6 +8,7 @@ vi.mock("./unbelievaboat", () => ({
 
 import {
   db, botConfig, housing, characterStatus, inventoryItems, walletTransactions,
+  characters, lifestyleTiers,
 } from "@workspace/db";
 import { patchBalance } from "./unbelievaboat";
 import { runJob, isAutobillEnabled, AUTOBILL_FLAGS } from "./jobs";
@@ -178,5 +179,72 @@ describe("runJob('monthly_rent')", () => {
     expect(rent).toHaveLength(0);
     const [lease] = await db.select().from(housing).where(eq(housing.characterId, char.id));
     expect(lease.delinquentSince).not.toBeNull();
+  });
+});
+
+// Proves the LOA boolean (set by the dashboard switch, see
+// PlayerLoaControl.test.tsx) is actually honored by the billing job across
+// EVERY per-character fee branch — not just residential rent. Each case runs an
+// on-LOA character and a non-LOA character through the SAME monthly_rent run so
+// we assert both halves of the contract at once: the on-leave character is
+// exempt while the active character is still charged for that exact fee.
+describe("runJob('monthly_rent') honors the per-character loa flag across all fee branches", () => {
+  // Gives a character a lifestyle tier, a Trauma Team subscription, and Xanadu
+  // Gold so a single monthly_rent run exercises rent + lifestyle + baseline +
+  // trauma_team + xanadu_gold for them at once.
+  async function setupBilledCharacter(opts: { loa: boolean; tierId: number }) {
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id, approved: true });
+    await db
+      .update(characters)
+      .set({ lifestyleTierId: opts.tierId, traumaTeamTier: "gold", xanaduGold: true })
+      .where(eq(characters.id, char.id));
+    await db.insert(housing).values({
+      characterId: char.id, address: `Megabuilding for ${char.id}`, monthlyRent: 500, kind: "residential",
+    });
+    await db.insert(characterStatus).values({ characterId: char.id, loa: opts.loa });
+    return { owner, char };
+  }
+
+  it("exempts an on-LOA character from rent and every personal fee while still charging a non-LOA character in the same run", async () => {
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const [tier] = await db
+      .insert(lifestyleTiers)
+      .values({ name: "Executive", monthlyCost: 1500 })
+      .returning();
+
+    const onLeave = await setupBilledCharacter({ loa: true, tierId: tier.id });
+    const active = await setupBilledCharacter({ loa: false, tierId: tier.id });
+
+    await runJob("monthly_rent");
+
+    // Helper: every wallet row tied to a specific character for a given kind.
+    const rowsFor = async (characterId: number, kind: string) =>
+      db
+        .select()
+        .from(walletTransactions)
+        .where(and(eq(walletTransactions.characterId, characterId), eq(walletTransactions.kind, kind)));
+
+    // The active character is charged for each per-character fee branch.
+    expect(await rowsFor(active.char.id, "rent")).toHaveLength(1);
+    expect(await rowsFor(active.char.id, "lifestyle")).toHaveLength(1);
+    expect(await rowsFor(active.char.id, "trauma_team")).toHaveLength(1);
+    expect(await rowsFor(active.char.id, "xanadu_gold")).toHaveLength(1);
+
+    // The on-LOA character is exempt from every one of those branches.
+    expect(await rowsFor(onLeave.char.id, "rent")).toHaveLength(0);
+    expect(await rowsFor(onLeave.char.id, "lifestyle")).toHaveLength(0);
+    expect(await rowsFor(onLeave.char.id, "trauma_team")).toHaveLength(0);
+    expect(await rowsFor(onLeave.char.id, "xanadu_gold")).toHaveLength(0);
+
+    // Baseline living cost is billed per OWNER (characterId is NULL), so assert
+    // it by userId: the active owner is charged, the on-leave owner is not.
+    const baselineFor = async (userId: string) =>
+      db
+        .select()
+        .from(walletTransactions)
+        .where(and(eq(walletTransactions.userId, userId), eq(walletTransactions.kind, "baseline")));
+    expect(await baselineFor(active.owner.id)).toHaveLength(1);
+    expect(await baselineFor(onLeave.owner.id)).toHaveLength(0);
   });
 });
