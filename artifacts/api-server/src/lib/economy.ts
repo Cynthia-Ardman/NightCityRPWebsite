@@ -1,5 +1,5 @@
 import { db, users, walletTransactions, botConfig } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { isSystemLive } from "./liveMode";
 import { getBalance, patchBalance } from "./unbelievaboat";
@@ -285,6 +285,20 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
         continue;
       }
       await db.transaction(async (tx) => {
+        // Guard on the still-null baseline so a concurrent applyWalletDelta (which
+        // sets lastSyncedUbBalance) can't be clobbered by this absolute seed.
+        const seeded = await tx
+          .update(users)
+          .set({
+            walletBalance: ubTotal,
+            lastSyncedUbBalance: ubTotal,
+            lastSyncedAt: new Date(),
+            lastSyncStatus: "synced",
+            lastSyncError: null,
+          })
+          .where(and(eq(users.id, u.id), isNull(users.lastSyncedUbBalance)))
+          .returning({ balance: users.walletBalance });
+        if (seeded.length === 0) return; // a concurrent writer already synced this user
         await tx.insert(walletTransactions).values({
           userId: u.id,
           amount: ubTotal - u.walletBalance,
@@ -295,16 +309,6 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
           previousBalance: u.walletBalance,
           newBalance: ubTotal,
         });
-        await tx
-          .update(users)
-          .set({
-            walletBalance: ubTotal,
-            lastSyncedUbBalance: ubTotal,
-            lastSyncedAt: new Date(),
-            lastSyncStatus: "synced",
-            lastSyncError: null,
-          })
-          .where(eq(users.id, u.id));
       });
       continue;
     }
@@ -322,6 +326,23 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
       continue;
     }
     await db.transaction(async (tx) => {
+      // Fold the external delta in as an atomic relative increment, guarded on the
+      // baseline we read, so a concurrent applyWalletDelta (also a relative
+      // increment) or another reconcile can't be clobbered or double-applied. A
+      // missed guard means another writer advanced the baseline; the residual
+      // external delta is recomputed on the next reconcile cycle.
+      const updated = await tx
+        .update(users)
+        .set({
+          walletBalance: sql`${users.walletBalance} + ${delta}`,
+          lastSyncedUbBalance: ubTotal,
+          lastSyncedAt: new Date(),
+          lastSyncStatus: "synced",
+          lastSyncError: null,
+        })
+        .where(and(eq(users.id, u.id), eq(users.lastSyncedUbBalance, lastSynced)))
+        .returning({ balance: users.walletBalance });
+      if (updated.length === 0) return;
       await tx.insert(walletTransactions).values({
         userId: u.id,
         amount: delta,
@@ -329,19 +350,9 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
         source: "reconciliation",
         syncStatus: "reconciled",
         memo: `Reconciled external UnbelievaBoat change (${delta > 0 ? "+" : ""}${delta})`,
-        previousBalance: u.walletBalance,
-        newBalance,
+        previousBalance: updated[0].balance - delta,
+        newBalance: updated[0].balance,
       });
-      await tx
-        .update(users)
-        .set({
-          walletBalance: newBalance,
-          lastSyncedUbBalance: ubTotal,
-          lastSyncedAt: new Date(),
-          lastSyncStatus: "synced",
-          lastSyncError: null,
-        })
-        .where(eq(users.id, u.id));
     });
   }
 
@@ -395,21 +406,47 @@ export async function reconcileOneUser(userId: string): Promise<ReconcileUserRes
     return { ok: true, status: "no_change", balance: u.walletBalance, delta: 0 };
   }
 
+  // Apply with the same guarded, concurrency-safe strategy as the cron reconcile:
+  // seed uses an absolute write guarded on a still-null baseline; a normal fold
+  // uses an atomic relative increment guarded on the baseline we read. If a
+  // concurrent writer advanced the baseline first, we skip and report the live
+  // state rather than clobbering it.
+  const isSeed = u.lastSyncedUbBalance === null;
+  let appliedBalance = newBalance;
+  let raced = false;
   await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(users)
+      .set({
+        walletBalance: isSeed ? ubTotal : sql`${users.walletBalance} + ${delta}`,
+        lastSyncedUbBalance: ubTotal,
+        lastSyncedAt: new Date(),
+        lastSyncStatus: "synced",
+        lastSyncError: null,
+      })
+      .where(and(eq(users.id, userId), isSeed ? isNull(users.lastSyncedUbBalance) : eq(users.lastSyncedUbBalance, baseline)))
+      .returning({ balance: users.walletBalance });
+    if (updated.length === 0) {
+      raced = true;
+      return;
+    }
+    appliedBalance = updated[0].balance;
     await tx.insert(walletTransactions).values({
       userId,
       amount: delta,
-      kind: u.lastSyncedUbBalance === null ? "reconcile_seed" : "reconcile",
+      kind: isSeed ? "reconcile_seed" : "reconcile",
       source: "reconciliation",
       syncStatus: "reconciled",
       memo: `Admin retry: reconciled to UnbelievaBoat (${delta > 0 ? "+" : ""}${delta})`,
-      previousBalance: u.walletBalance,
-      newBalance,
+      previousBalance: appliedBalance - delta,
+      newBalance: appliedBalance,
     });
-    await tx
-      .update(users)
-      .set({ walletBalance: newBalance, lastSyncedUbBalance: ubTotal, lastSyncedAt: new Date(), lastSyncStatus: "synced", lastSyncError: null })
-      .where(eq(users.id, userId));
   });
-  return { ok: true, status: "synced", balance: newBalance, delta };
+  if (raced) {
+    // Another writer synced this user between our read and write. Report the
+    // current live balance with no applied delta instead of overwriting.
+    const [fresh] = await db.select({ balance: users.walletBalance }).from(users).where(eq(users.id, userId));
+    return { ok: true, status: "no_change", balance: fresh?.balance ?? u.walletBalance, delta: 0 };
+  }
+  return { ok: true, status: "synced", balance: appliedBalance, delta };
 }

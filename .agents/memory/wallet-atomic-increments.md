@@ -20,6 +20,14 @@ A relative increment is correct regardless of write ordering.
 `balance`. `lastSyncedUbBalance` is set to `ub.total` best-effort — it can skew
 under concurrency, but the reconciliation job corrects it.
 
+**Reconciliation writers count too:** the UB->website reconcile paths (cron +
+admin retry) had the SAME stale read-then-write-absolute bug. Fix: fold the
+external delta as an atomic relative increment (`walletBalance = walletBalance +
+delta`) guarded on the baseline you read (`WHERE last_synced_ub_balance =
+baseline`, or `IS NULL` for the first-time seed) with a `.returning()` /
+affected-rows check. If the guard misses, a concurrent writer advanced the
+baseline — skip and recompute next cycle; do NOT write the absolute value.
+
 **Concurrent withdraw guard:** the venue *debit* leg must be a guarded atomic
 statement (`SET balance = balance - amt WHERE id = ? AND balance >= amt`) with a
 returning/affected-rows check. Because the personal (UB) credit leg runs first,
