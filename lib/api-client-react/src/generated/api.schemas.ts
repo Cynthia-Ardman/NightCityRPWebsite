@@ -1918,6 +1918,16 @@ export interface MissionActorPaymentView {
   source: MissionActorPaymentViewSource;
   /** @nullable */
   paymentError?: string | null;
+  /**
+     * User id of the fixer/admin who issued this actor payment.
+     * @nullable
+     */
+  fixerId?: string | null;
+  /**
+     * Display name of the fixer/admin who issued this actor payment.
+     * @nullable
+     */
+  fixerName?: string | null;
   /** @nullable */
   paidAt?: string | null;
   createdAt: string;
@@ -2690,6 +2700,10 @@ export type GetActorReportParams = {
  * Admin override; defaults to the caller.
  */
 fixerId?: string;
+};
+
+export type SearchMissionActorsParams = {
+q?: string;
 };
 
 export type AdminListAuditParams = {

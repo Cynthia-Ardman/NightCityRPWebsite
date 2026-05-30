@@ -1656,6 +1656,8 @@ export const GetMissionResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -1791,6 +1793,8 @@ export const UpdateMissionResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -1836,105 +1840,19 @@ export const UpdateMissionResponse = zod.object({
 
 
 /**
- * @summary Manually pay assigned players for a completed mission. Fixer/admin only.
+ * @summary Search any user by name to pay as a mission actor (FIXER/ADMIN).
  */
-export const PayMissionPlayersParams = zod.object({
-  "id": zod.coerce.number()
+export const SearchMissionActorsQueryParams = zod.object({
+  "q": zod.coerce.string().optional()
 })
 
-export const PayMissionPlayersResponse = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
-  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
-  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
-  "startAt": zod.coerce.date().nullish(),
-  "durationMinutes": zod.number(),
-  "location": zod.string().nullish(),
-  "description": zod.string().nullish(),
-  "imageUrl": zod.string().nullish(),
-  "playerPay": zod.number(),
-  "slots": zod.number(),
-  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
-  "requestedSkills": zod.string().nullish(),
-  "client": zod.string().nullish(),
-  "notesForPlayers": zod.string().nullish(),
-  "maxPlayers": zod.number(),
-  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
-  "fixerId": zod.string().nullish(),
-  "fixerName": zod.string().nullish(),
-  "fixerAvatarUrl": zod.string().nullish(),
-  "discordEventId": zod.string().nullish(),
-  "discordSyncError": zod.string().nullish(),
-  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
-  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
-  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
-  "assignments": zod.array(zod.object({
-  "id": zod.number(),
-  "userId": zod.string(),
-  "userName": zod.string().nullish(),
-  "userAvatarUrl": zod.string().nullish(),
-  "characterId": zod.number().nullish(),
-  "characterName": zod.string().nullish(),
-  "characterPortraitUrl": zod.string().nullish(),
-  "attendanceCreditedAt": zod.coerce.date().nullish(),
-  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
-  "payAmount": zod.number().nullish(),
-  "paymentError": zod.string().nullish(),
-  "paidAt": zod.coerce.date().nullish()
-})),
-  "actorPayments": zod.array(zod.object({
-  "id": zod.number(),
-  "userId": zod.string(),
-  "userName": zod.string().nullish(),
-  "characterId": zod.number().nullish(),
-  "characterName": zod.string().nullish(),
-  "amount": zod.number(),
-  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
-  "source": zod.enum(['manual', 'auto']),
-  "paymentError": zod.string().nullish(),
-  "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date()
-})),
-  "applications": zod.array(zod.object({
-  "id": zod.number(),
-  "userId": zod.string(),
-  "userName": zod.string().nullish(),
-  "userAvatarUrl": zod.string().nullish(),
-  "characterId": zod.number(),
-  "characterName": zod.string().nullish(),
-  "characterPortraitUrl": zod.string().nullish(),
-  "comment": zod.string().nullish(),
-  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
-  "reviewedBy": zod.string().nullish(),
-  "reviewedAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date(),
-  "attendanceCount": zod.number(),
-  "lastAttendedAt": zod.coerce.date().nullish(),
-  "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
-})).describe('Player applications (full list for managers; empty for players).'),
-  "myApplication": zod.union([zod.object({
-  "id": zod.number(),
-  "userId": zod.string(),
-  "userName": zod.string().nullish(),
-  "userAvatarUrl": zod.string().nullish(),
-  "characterId": zod.number(),
-  "characterName": zod.string().nullish(),
-  "characterPortraitUrl": zod.string().nullish(),
-  "comment": zod.string().nullish(),
-  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
-  "reviewedBy": zod.string().nullish(),
-  "reviewedAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date(),
-  "attendanceCount": zod.number(),
-  "lastAttendedAt": zod.coerce.date().nullish(),
-  "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
-}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date().nullish()
+export const SearchMissionActorsResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
 })
+export const SearchMissionActorsResponse = zod.array(SearchMissionActorsResponseItem)
 
 
 /**
@@ -2005,6 +1923,8 @@ export const PayMissionActorsResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -2107,6 +2027,8 @@ export const SubmitMissionResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -2209,6 +2131,8 @@ export const ApproveMissionResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -2311,6 +2235,8 @@ export const PostMissionResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -2418,6 +2344,8 @@ export const ApplyToMissionResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -2521,6 +2449,8 @@ export const WithdrawApplicationResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -2628,6 +2558,8 @@ export const ReviewApplicationResponse = zod.object({
   "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
   "source": zod.enum(['manual', 'auto']),
   "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),

@@ -3,8 +3,9 @@ import { Link, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetMission,
-  usePayMissionPlayers,
   usePayMissionActors,
+  useSearchMissionActors,
+  getSearchMissionActorsQueryKey,
   useSubmitMission,
   useApproveMission,
   usePostMission,
@@ -13,6 +14,7 @@ import {
   useReviewApplication,
   useListMyCharacters,
   getGetMissionQueryKey,
+  type ArchiveUser,
   type MissionDetail as MissionDetailModel,
   type MissionAssignmentView,
   type MissionApplicationView,
@@ -37,6 +39,8 @@ import {
   CheckCircle2,
   ExternalLink,
   Clock,
+  Search,
+  X,
 } from "lucide-react";
 import {
   missionStatusClass,
@@ -52,6 +56,13 @@ import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 function errOf(e: unknown): string | null {
   const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
   return r ?? (e ? "Request failed" : null);
+}
+
+function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
 }
 
 export default function MissionDetail() {
@@ -700,17 +711,36 @@ function FixerView({ data }: { data: MissionDetailModel }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
 
-  const payPlayers = usePayMissionPlayers({ mutation: { onSuccess: invalidate } });
   const payActors = usePayMissionActors({ mutation: { onSuccess: invalidate } });
 
-  const [actorIds, setActorIds] = useState<string[]>([]);
+  const [selectedActors, setSelectedActors] = useState<ArchiveUser[]>([]);
   const [actorAmount, setActorAmount] = useState(0);
+  const [actorSearch, setActorSearch] = useState("");
 
-  const toggleActor = (userId: string) =>
-    setActorIds((prev) => (prev.includes(userId) ? prev.filter((x) => x !== userId) : [...prev, userId]));
+  const searchParams = { q: actorSearch || undefined };
+  const { data: searchResults, isFetching: searchPending } = useSearchMissionActors(searchParams, {
+    query: {
+      queryKey: getSearchMissionActorsQueryKey(searchParams),
+      enabled: actorSearch.trim().length > 0,
+    },
+  });
 
-  const playersPaid = data.status === "completed_players_paid" || data.status === "completed_paid";
-  const payPlayersErr = errOf(payPlayers.error);
+  // Users who already have a SUCCESSFUL actor payment for this mission — used to
+  // warn/disable re-paying the same actor (double-pay guard mirrors the backend).
+  const paidActorIds = new Set(
+    data.actorPayments.filter((p) => p.paymentStatus === "paid").map((p) => p.userId),
+  );
+
+  const addActor = (u: ArchiveUser) => {
+    setSelectedActors((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
+    setActorSearch("");
+  };
+  const removeActor = (id: string) =>
+    setSelectedActors((prev) => prev.filter((x) => x.id !== id));
+
+  const selectedIds = selectedActors.map((u) => u.id);
+  const someAlreadyPaid = selectedActors.some((u) => paidActorIds.has(u.id));
+
   const payActorsErr = errOf(payActors.error);
 
   return (
@@ -739,22 +769,12 @@ function FixerView({ data }: { data: MissionDetailModel }) {
             <Pencil className="w-3 h-3" /> edit
           </Link>
         </CardHeader>
-        <CardContent className="space-y-4 font-mono text-sm">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              disabled={payPlayers.isPending || playersPaid || data.assignments.length === 0}
-              onClick={() => payPlayers.mutate({ id: data.id })}
-              className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
-              data-testid="button-pay-players"
-            >
-              {payPlayers.isPending ? "PAYING..." : playersPaid ? "PLAYERS PAID" : "PAY PLAYERS"}
-            </Button>
-            <span className="text-muted-foreground text-xs">
-              Pays €${data.playerPay.toLocaleString()} to each attending player and credits attendance.
-            </span>
-          </div>
-          {payPlayersErr && <div className="text-destructive text-xs" data-testid="text-pay-players-error">{payPlayersErr}</div>}
+        <CardContent className="font-mono text-sm">
+          <p className="text-muted-foreground text-xs" data-testid="text-players-autopay-note">
+            Players are paid automatically — €${data.playerPay.toLocaleString()} to each attending player,
+            with attendance credited, by the payout cron. See the <span className="text-foreground">Players</span> tab
+            for per-player paid / unpaid / failed status.
+          </p>
         </CardContent>
       </Card>
 
@@ -766,27 +786,81 @@ function FixerView({ data }: { data: MissionDetailModel }) {
         </CardHeader>
         <CardContent className="space-y-4 font-mono text-sm">
           <p className="text-muted-foreground text-xs">
-            Select assigned players who acted as NPCs and pay them a separate actor fee.
+            Search for any user by name to pay them an actor / NPC fee. Not limited to assigned players.
           </p>
-          {data.assignments.length === 0 ? (
-            <p className="text-muted-foreground italic">No assigned players to pay as actors.</p>
-          ) : (
-            <div className="space-y-2">
-              {data.assignments.map((a) => (
-                <label key={a.id} className="flex items-center gap-2 cursor-pointer" data-testid={`actor-pick-${a.userId}`}>
-                  <input
-                    type="checkbox"
-                    checked={actorIds.includes(a.userId)}
-                    onChange={() => toggleActor(a.userId)}
-                  />
-                  <span className="text-foreground">{a.characterName ?? a.userName ?? a.userId}</span>
-                  {a.userName && a.characterName && (
-                    <span className="text-muted-foreground text-xs">({a.userName})</span>
-                  )}
-                </label>
-              ))}
+
+          <div className="space-y-2">
+            <Label className="text-xs">SEARCH USERS</Label>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={actorSearch}
+                onChange={(e) => setActorSearch(e.target.value)}
+                placeholder="name…"
+                className="rounded-none pl-8"
+                data-testid="input-actor-search"
+              />
+            </div>
+            {actorSearch.trim().length > 0 && (
+              <div className="border border-border/60 divide-y divide-border/40 max-h-56 overflow-y-auto">
+                {searchPending && <div className="px-3 py-2 text-muted-foreground text-xs">Searching…</div>}
+                {!searchPending && (searchResults?.length ?? 0) === 0 && (
+                  <div className="px-3 py-2 text-muted-foreground text-xs">No users found.</div>
+                )}
+                {searchResults?.map((u) => {
+                  const already = paidActorIds.has(u.id);
+                  const selected = selectedIds.includes(u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => addActor(u)}
+                      disabled={selected || already}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                      data-testid={`actor-result-${u.id}`}
+                    >
+                      <span className="text-foreground">{u.globalName ?? u.username}</span>
+                      <span className="flex items-center gap-2 text-xs">
+                        {already && <span className="text-yellow-500">already paid</span>}
+                        {selected && <span className="text-muted-foreground">added</span>}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {selectedActors.length > 0 && (
+            <div className="flex flex-wrap gap-2" data-testid="list-selected-actors">
+              {selectedActors.map((u) => {
+                const already = paidActorIds.has(u.id);
+                return (
+                  <span
+                    key={u.id}
+                    className={`inline-flex items-center gap-1 border px-2 py-1 text-xs ${
+                      already ? "border-yellow-500/60 text-yellow-500" : "border-border text-foreground"
+                    }`}
+                    data-testid={`chip-actor-${u.id}`}
+                  >
+                    {u.globalName ?? u.username}
+                    {already && <AlertTriangle className="w-3 h-3" />}
+                    <button type="button" onClick={() => removeActor(u.id)} data-testid={`remove-actor-${u.id}`}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
             </div>
           )}
+
+          {someAlreadyPaid && (
+            <div className="text-yellow-500 text-xs flex items-center gap-1" data-testid="text-actor-already-paid">
+              <AlertTriangle className="w-3 h-3" /> One or more selected users were already paid for this mission. Paying
+              again will be skipped by the server.
+            </div>
+          )}
+
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <Label className="text-xs">ACTOR FEE €$</Label>
@@ -801,14 +875,15 @@ function FixerView({ data }: { data: MissionDetailModel }) {
             </div>
             <Button
               type="button"
-              disabled={payActors.isPending || actorIds.length === 0 || actorAmount <= 0}
+              disabled={payActors.isPending || selectedIds.length === 0 || actorAmount <= 0}
               onClick={() =>
                 payActors.mutate(
-                  { id: data.id, data: { userIds: actorIds, amount: actorAmount } },
+                  { id: data.id, data: { userIds: selectedIds, amount: actorAmount } },
                   {
                     onSuccess: () => {
-                      setActorIds([]);
+                      setSelectedActors([]);
                       setActorAmount(0);
+                      setActorSearch("");
                     },
                   },
                 )
@@ -833,12 +908,20 @@ function FixerView({ data }: { data: MissionDetailModel }) {
           <CardContent>
             <ul className="divide-y divide-border/40 font-mono text-sm">
               {data.actorPayments.map((p) => (
-                <li key={p.id} className="flex items-center justify-between py-2" data-testid={`row-actor-payment-${p.id}`}>
-                  <span className="text-foreground">{p.characterName ?? p.userName ?? p.userId}</span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs uppercase">{p.source}</span>
-                    <PaymentBadge status={p.paymentStatus} amount={p.amount} error={p.paymentError} />
-                  </span>
+                <li key={p.id} className="flex flex-col gap-1 py-2" data-testid={`row-actor-payment-${p.id}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground">{p.characterName ?? p.userName ?? p.userId}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-xs uppercase">{p.source}</span>
+                      <PaymentBadge status={p.paymentStatus} amount={p.amount} error={p.paymentError} />
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span data-testid={`actor-payment-by-${p.id}`}>
+                      {p.fixerName ? `by ${p.fixerName}` : p.source === "auto" ? "auto" : "—"}
+                    </span>
+                    <span>{fmtDateTime(p.paidAt ?? p.createdAt)}</span>
+                  </div>
                 </li>
               ))}
             </ul>

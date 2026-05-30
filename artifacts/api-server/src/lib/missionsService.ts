@@ -291,6 +291,8 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
       paymentStatus: missionActorPayments.paymentStatus,
       source: missionActorPayments.source,
       paymentError: missionActorPayments.paymentError,
+      fixerId: missionActorPayments.fixerId,
+      fixerName: missionActorPayments.fixerName,
       paidAt: missionActorPayments.paidAt,
       createdAt: missionActorPayments.createdAt,
     })
@@ -365,6 +367,8 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
           paymentStatus: r.paymentStatus,
           source: r.source,
           paymentError: r.paymentError,
+          fixerId: r.fixerId,
+          fixerName: r.fixerName,
           paidAt: iso(r.paidAt),
           createdAt: r.createdAt.toISOString(),
         }))
@@ -1214,6 +1218,18 @@ export async function payMissionActors(
     .where(inArray(users.id, uniqueIds));
   const userById = new Map(userRows.map((u) => [u.id, u]));
 
+  // Resolve the fixer/admin who is issuing this payment, so the actor-payment
+  // history shows WHO paid each actor (not the mission's owning fixer).
+  const payerId = opts.actorId ?? mission.fixerId ?? null;
+  let payerName = opts.actorName ?? null;
+  if (!payerName && payerId) {
+    const [payer] = await db
+      .select({ username: users.username, globalName: users.globalName })
+      .from(users)
+      .where(eq(users.id, payerId));
+    payerName = payer?.globalName ?? payer?.username ?? null;
+  }
+
   // Existing SUCCESSFUL actor payments — skip those (double-pay guard).
   const existing = await db
     .select({ userId: missionActorPayments.userId })
@@ -1235,7 +1251,8 @@ export async function payMissionActors(
       missionName: mission.title,
       userId,
       userName: u?.username ?? null,
-      fixerId: mission.fixerId,
+      fixerId: payerId,
+      fixerName: payerName,
       missionDate: mission.startAt,
       amount,
       source: "manual" as const,
@@ -1285,13 +1302,12 @@ export async function payMissionActors(
     }
   }
 
+  // Actor payouts are NPC spending — they post ONLY to #npc-spending, never to
+  // #banking (which is reserved for automatic player payouts).
   if (ctx.live && postedLines.length > 0) {
     const body = [`**Actor payout** — ${mission.title} (#${mission.id})`, ...postedLines].join("\n");
     await postToChannel(ctx.npcSpendingChannelId, body).catch((err) =>
       logger.warn({ err, missionId }, "npc spending post failed"),
-    );
-    await postToChannel(ctx.bankingChannelId, body).catch((err) =>
-      logger.warn({ err, missionId }, "banking post (actors) failed"),
     );
   }
 

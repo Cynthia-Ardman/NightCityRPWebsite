@@ -620,6 +620,25 @@ describe("GET /missions/attendance-report", () => {
   });
 });
 
+describe("GET /missions/actor-search", () => {
+  it("forbids a plain user (manager role required)", async () => {
+    const user = await createUser();
+    const res = await request(app).get("/api/missions/actor-search?q=x").set("x-test-user", user.id);
+    expect(res.status).toBe(403);
+  });
+
+  // Guards against Express route shadowing: this literal path must be matched
+  // before "/missions/:id", otherwise a fixer gets a 404 (id="actor-search").
+  it("returns users matching the query for a fixer (not shadowed by /:id)", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const target = await createUser({ username: "SearchTarget" });
+    const res = await request(app).get("/api/missions/actor-search?q=SearchTarget").set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.some((u: { id: string }) => u.id === target.id)).toBe(true);
+  });
+});
+
 // ===========================================================================
 // WORKFLOW TRANSITIONS (Task #62) — draft → proposal → approved → posted.
 // Role-gated and audit-logged; enforced through the real HTTP endpoints.

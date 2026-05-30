@@ -1112,21 +1112,22 @@ paths:
         "400": { description: Bad request }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
-  /missions/{id}/pay-players:
-    parameters:
-      - { in: path, name: id, required: true, schema: { type: integer } }
-    post:
-      operationId: payMissionPlayers
+  /missions/actor-search:
+    get:
+      operationId: searchMissionActors
       tags: [missions]
-      summary: Manually pay assigned players for a completed mission. Fixer/admin only.
+      summary: "Search any user by name to pay as a mission actor (FIXER/ADMIN)."
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
       responses:
         "200":
-          description: OK
+          description: Matching users
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/MissionDetail" }
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ArchiveUser" }
         "403": { description: Insufficient role. }
-        "404": { description: Not found. }
   /missions/{id}/pay-actors:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3639,6 +3640,8 @@ components:
         paymentStatus: { type: string, enum: [paid, failed, simulated] }
         source: { type: string, enum: [manual, auto] }
         paymentError: { type: ["string", "null"] }
+        fixerId: { type: ["string", "null"], description: "User id of the fixer/admin who issued this actor payment." }
+        fixerName: { type: ["string", "null"], description: "Display name of the fixer/admin who issued this actor payment." }
         paidAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
 

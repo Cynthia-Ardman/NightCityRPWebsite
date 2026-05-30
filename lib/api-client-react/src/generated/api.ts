@@ -121,6 +121,7 @@ import type {
   RipperdocPublic,
   RipperdocUpdate,
   SearchInventoryByOwnerParams,
+  SearchMissionActorsParams,
   SheetDecisionInput,
   StockInput,
   StockItem,
@@ -5446,23 +5447,30 @@ export const useUpdateMission = <TError = ErrorType<void>,
       return useMutation(getUpdateMissionMutationOptions(options));
     }
 
-export const getPayMissionPlayersUrl = (id: number,) => {
+export const getSearchMissionActorsUrl = (params?: SearchMissionActorsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/missions/${id}/pay-players`
+  return stringifiedParams.length > 0 ? `/api/missions/actor-search?${stringifiedParams}` : `/api/missions/actor-search`
 }
 
 /**
- * @summary Manually pay assigned players for a completed mission. Fixer/admin only.
+ * @summary Search any user by name to pay as a mission actor (FIXER/ADMIN).
  */
-export const payMissionPlayers = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+export const searchMissionActors = async (params?: SearchMissionActorsParams, options?: RequestInit): Promise<ArchiveUser[]> => {
 
-  return customFetch<MissionDetail>(getPayMissionPlayersUrl(id),
+  return customFetch<ArchiveUser[]>(getSearchMissionActorsUrl(params),
   {
     ...options,
-    method: 'POST'
+    method: 'GET'
 
 
   }
@@ -5471,50 +5479,57 @@ export const payMissionPlayers = async (id: number, options?: RequestInit): Prom
 
 
 
-export const getPayMissionPlayersMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payMissionPlayers>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof payMissionPlayers>>, TError,{id: number}, TContext> => {
 
-const mutationKey = ['payMissionPlayers'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof payMissionPlayers>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
-
-          return  payMissionPlayers(id,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PayMissionPlayersMutationResult = NonNullable<Awaited<ReturnType<typeof payMissionPlayers>>>
-
-    export type PayMissionPlayersMutationError = ErrorType<void>
-
-    /**
- * @summary Manually pay assigned players for a completed mission. Fixer/admin only.
- */
-export const usePayMissionPlayers = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payMissionPlayers>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof payMissionPlayers>>,
-        TError,
-        {id: number},
-        TContext
-      > => {
-      return useMutation(getPayMissionPlayersMutationOptions(options));
+export const getSearchMissionActorsQueryKey = (params?: SearchMissionActorsParams,) => {
+    return [
+    `/api/missions/actor-search`, ...(params ? [params] : [])
+    ] as const;
     }
+
+
+export const getSearchMissionActorsQueryOptions = <TData = Awaited<ReturnType<typeof searchMissionActors>>, TError = ErrorType<void>>(params?: SearchMissionActorsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchMissionActors>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchMissionActorsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchMissionActors>>> = ({ signal }) => searchMissionActors(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchMissionActors>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchMissionActorsQueryResult = NonNullable<Awaited<ReturnType<typeof searchMissionActors>>>
+export type SearchMissionActorsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Search any user by name to pay as a mission actor (FIXER/ADMIN).
+ */
+
+export function useSearchMissionActors<TData = Awaited<ReturnType<typeof searchMissionActors>>, TError = ErrorType<void>>(
+ params?: SearchMissionActorsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchMissionActors>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchMissionActorsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getPayMissionActorsUrl = (id: number,) => {
 

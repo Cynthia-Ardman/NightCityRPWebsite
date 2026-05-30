@@ -22,6 +22,16 @@ export interface MissionActorPaymentView {
   source: MissionActorPaymentViewSource;
   /** @nullable */
   paymentError?: string | null;
+  /**
+     * User id of the fixer/admin who issued this actor payment.
+     * @nullable
+     */
+  fixerId?: string | null;
+  /**
+     * Display name of the fixer/admin who issued this actor payment.
+     * @nullable
+     */
+  fixerName?: string | null;
   /** @nullable */
   paidAt?: Date | null;
   createdAt: Date;

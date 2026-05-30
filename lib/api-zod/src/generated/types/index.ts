@@ -198,6 +198,7 @@ export * from './ripperdoc';
 export * from './ripperdocPublic';
 export * from './ripperdocUpdate';
 export * from './searchInventoryByOwnerParams';
+export * from './searchMissionActorsParams';
 export * from './sheetData';
 export * from './sheetDataSections';
 export * from './sheetDecisionInput';

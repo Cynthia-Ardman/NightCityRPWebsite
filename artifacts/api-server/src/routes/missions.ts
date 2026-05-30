@@ -1,10 +1,11 @@
 import { Router, type IRouter, type Request } from "express";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or, ilike, asc } from "drizzle-orm";
 import {
   db,
   missions,
   missionAssignments,
   characters,
+  users,
   botConfig,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
@@ -16,7 +17,6 @@ import {
   listMyMissionSummaries,
   listOwnedMissionSummaries,
   getMissionDetail,
-  payMissionPlayers,
   payMissionActors,
   syncMissionDiscordEvent,
   getActorReport,
@@ -363,6 +363,25 @@ router.get("/missions/attendance-report", requireAuth, async (req, res): Promise
   res.json(await getAttendanceReport());
 });
 
+// Actor search — fixers/admins look up ANY user by name to pay as a mission
+// actor/NPC. Not limited to assigned players. Mirrors the archive owner-picker.
+// MUST be registered before "/missions/:id" or that param route shadows it.
+router.get("/missions/actor-search", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const like = `%${q}%`;
+  const rows = await db
+    .select({ id: users.id, username: users.username, globalName: users.globalName, avatarUrl: users.avatarUrl })
+    .from(users)
+    .where(q.length > 0 ? or(ilike(users.username, like), ilike(users.globalName, like)) : undefined)
+    .orderBy(asc(users.username))
+    .limit(25);
+  res.json(rows);
+});
+
 // ---------------- DETAIL / UPDATE ----------------
 router.get("/missions/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
@@ -482,25 +501,6 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // ---------------- PAYMENTS ----------------
-router.post("/missions/:id/pay-players", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
-    return;
-  }
-  const id = parseInt(String(req.params.id), 10);
-  if (!Number.isInteger(id)) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  const result = await payMissionPlayers(id, { source: "manual", req });
-  if (result == null) {
-    res.status(404).json({ error: "Mission not found" });
-    return;
-  }
-  const detail = await getMissionDetail(id, viewerOf(req));
-  res.json(detail);
-});
-
 router.post("/missions/:id/pay-actors", requireAuth, async (req, res): Promise<void> => {
   if (!isManager(req)) {
     res.status(403).json({ error: "Fixer or admin role required" });
@@ -522,7 +522,7 @@ router.post("/missions/:id/pay-actors", requireAuth, async (req, res): Promise<v
     res.status(400).json({ error: "Amount must be a non-negative number" });
     return;
   }
-  const result = await payMissionActors(id, userIds, amount, { req });
+  const result = await payMissionActors(id, userIds, amount, { req, actorId: viewerOf(req).id });
   if (result == null) {
     res.status(404).json({ error: "Mission not found" });
     return;
