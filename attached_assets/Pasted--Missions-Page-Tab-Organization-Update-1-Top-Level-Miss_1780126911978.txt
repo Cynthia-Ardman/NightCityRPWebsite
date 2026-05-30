@@ -1,0 +1,194 @@
+
+# Missions Page Tab Organization Update
+
+## 1. Top-Level Missions Tabs
+
+The Missions page should separate missions by the user’s relationship to them.
+
+### Recommended tabs
+
+1. Open missions
+2. Accepted Missions
+2. Mission Applications
+3. My Created Missions
+4. Mission History
+5. All Missions, staff-only if needed
+
+---
+
+## 2. Open Missions
+
+### Meaning
+
+Shows missions that are publicly posted and currently open for applications.
+
+### Who can see it
+
+* Players
+* Fixers
+* Admins
+
+### Should include
+
+* Mission name
+* Tier
+* Job type
+* Date/time in viewer’s local time
+* Fixer
+* Location
+* Max players
+* Requested skills
+* Notes for players
+* Apply button
+
+### Acceptance criteria
+
+* Only posted missions with runtime status `Open` appear here.
+* Players can click Apply.
+* Applying requires selecting one of the player’s characters.
+* Players may include an optional comment with their application.
+
+---
+
+## 3. My Applications
+
+### Meaning
+
+Shows missions the logged-in user has applied to as a player.
+
+This should include applications in multiple states.
+
+### Application statuses
+
+* Pending
+* Accepted
+* Denied
+* Withdrawn, optional
+
+### Should include
+
+* Mission name
+* Mission date/time in viewer’s local time
+* Fixer
+* Character applied with
+* Application comment
+* Application status
+* Mission runtime status
+
+### Acceptance criteria
+
+* Users can see missions they applied to.
+* Users can clearly tell whether they are Pending, Accepted, or Denied.
+* Accepted missions are visually obvious.
+* Denied missions remain visible for transparency/history.
+* If the mission is upcoming and the user is accepted, it should also appear in the dashboard banner.
+* Users should not see other players’ applications.
+
+---
+
+## 4. My Created Missions
+
+### Meaning
+
+Shows missions the logged-in fixer created.
+
+This is the fixer mission-management area.
+
+### Who can see it
+
+* Fixers
+* Admins
+
+### Workflow states shown here
+
+* Draft
+* Proposal
+* Approved
+* Posted
+
+### Runtime statuses shown here when applicable
+
+* Open
+* Pending
+* Completed
+* Completed, Players Paid
+* Completed, Paid
+* Cancelled
+
+### Acceptance criteria
+
+* Fixers see missions they personally created.
+* This tab is not based on missions their character attended.
+* Fixers can manage drafts, submit proposals, post approved missions, review applications, edit missions, and manage actor payments here.
+* Regular players do not see this tab unless they have fixer/admin permissions.
+
+---
+
+## 5. Mission History
+
+### Meaning
+
+Shows old mission records connected to the logged-in user.
+
+For players, this means missions where one of their characters attended or was accepted.
+
+For fixers, this can include missions they ran and missions their characters attended.
+
+### Should include
+
+* Mission name
+* Date
+* Fixer
+* Character used
+* Final mission status
+* Payment/attendance state where appropriate
+
+### Acceptance criteria
+
+* Completed and cancelled missions are separated from active/upcoming work.
+* Most recent missions appear first.
+* Players can see their own mission record.
+* Fixers can see their own created/running history.
+
+---
+
+## 6. All Missions
+
+### Meaning
+
+Staff-wide view of all missions in the system.
+
+### Who can see it
+
+* Admins
+* Fixers, if allowed
+* Archivists, if allowed
+
+### Acceptance criteria
+
+* Shows every mission regardless of creator, applicant, or attendee.
+* Supports filtering by fixer, player, status, tier, date, workflow state, and application state if feasible.
+* Regular players do not see this tab.
+
+---
+
+## 7. Dashboard Upcoming Mission Banner
+
+If a user has an upcoming mission where their application status is `Accepted`, show a banner on their dashboard.
+
+### Banner should include
+
+* Mission name
+* Mission date/time in viewer’s local time
+* Fixer running the mission
+* Character accepted for the mission
+* Location, if available
+* Mission status
+
+### Acceptance criteria
+
+* Banner appears only for accepted upcoming missions.
+* Pending applications do not trigger the dashboard banner.
+* Denied applications do not trigger the dashboard banner.
+* Banner appears above My Characters and Weekly Attendance.
+* If multiple upcoming accepted missions exist, show the next one first or show a compact list.
