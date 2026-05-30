@@ -15,6 +15,7 @@ import { recordAudit } from "./audit";
 import { patchBalance } from "./unbelievaboat";
 import {
   postToChannel,
+  sendDirectMessage,
   createGuildScheduledEvent,
   modifyGuildScheduledEvent,
   deleteGuildScheduledEvent,
@@ -572,7 +573,7 @@ export async function reviewApplication(opts: {
   }
   // Only the mission's own fixer (or an admin) may review its applications.
   const [mission] = await db
-    .select({ fixerId: missions.fixerId })
+    .select({ fixerId: missions.fixerId, title: missions.title })
     .from(missions)
     .where(eq(missions.id, app.missionId));
   if (!mission) return { ok: false, error: "Application not found", httpStatus: 404 };
@@ -602,6 +603,12 @@ export async function reviewApplication(opts: {
       targetType: "mission",
       targetId: String(app.missionId),
       message: `Rejected application ${app.id} (character ${app.characterId})`,
+    });
+    await notifyApplicantOfReview({
+      userId: app.userId,
+      characterId: app.characterId,
+      missionTitle: mission.title,
+      action: "reject",
     });
     return { ok: true };
   }
@@ -636,7 +643,50 @@ export async function reviewApplication(opts: {
     targetId: String(app.missionId),
     message: `Accepted application ${app.id}; assigned character ${app.characterId}`,
   });
+  await notifyApplicantOfReview({
+    userId: app.userId,
+    characterId: app.characterId,
+    missionTitle: mission.title,
+    action: "accept",
+  });
   return { ok: true };
+}
+
+/**
+ * Notify an applicant via Discord DM that their mission application was accepted
+ * or rejected. Fail-safe: respects the missions Test/Live gate (Test mode only
+ * logs) and never throws — a delivery miss (DMs disabled, no bot token, Discord
+ * error) must not block the fixer's accept/reject action. Mirrors the
+ * fail-safe, live-gated pattern used by the NPC announcement cron.
+ */
+async function notifyApplicantOfReview(opts: {
+  userId: string;
+  characterId: number;
+  missionTitle: string;
+  action: "accept" | "reject";
+}): Promise<void> {
+  try {
+    const ctx = await getMissionContext();
+    const [char] = await db
+      .select({ name: characters.name })
+      .from(characters)
+      .where(eq(characters.id, opts.characterId));
+    const name = char?.name?.trim();
+    const content =
+      opts.action === "accept"
+        ? `${name ?? "Your character"} was accepted for the mission "${opts.missionTitle}". Check the mission board for details.`
+        : `Your application for ${name ?? "your character"} to the mission "${opts.missionTitle}" was declined this time. Keep an eye on the board for other jobs.`;
+    if (ctx.live) {
+      await sendDirectMessage(opts.userId, content);
+    } else {
+      logger.info(
+        { userId: opts.userId, action: opts.action, missionTitle: opts.missionTitle },
+        "[test mode] would DM applicant of review outcome",
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, userId: opts.userId, action: opts.action }, "applicant review DM failed");
+  }
 }
 
 // ===========================================================================

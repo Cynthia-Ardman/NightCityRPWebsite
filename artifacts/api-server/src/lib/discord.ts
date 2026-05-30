@@ -543,3 +543,30 @@ export async function postToChannel(channelId: string, content: string, embeds?:
   const data = (await res.json()) as { id: string };
   return data.id;
 }
+
+/**
+ * Send a direct message to a user by their Discord ID. Opens (or reuses) the
+ * bot↔user DM channel, then posts to it. Returns the message id on success or
+ * null on any failure (no token, user has DMs disabled, etc.) — callers treat a
+ * null as a non-fatal delivery miss and must not let it block their action.
+ */
+export async function sendDirectMessage(userId: string, content: string): Promise<string | null> {
+  if (!DISCORD_BOT_TOKEN) {
+    logger.warn("No bot token; cannot send Discord DM");
+    return null;
+  }
+  const dmRes = await fetch(`${API}/users/@me/channels`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ recipient_id: userId }),
+  });
+  if (!dmRes.ok) {
+    logger.warn({ status: dmRes.status, body: await dmRes.text(), userId }, "Discord DM channel open failed");
+    return null;
+  }
+  const dm = (await dmRes.json()) as { id: string };
+  return postToChannel(dm.id, content);
+}
