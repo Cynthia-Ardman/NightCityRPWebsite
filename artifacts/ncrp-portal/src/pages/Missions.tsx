@@ -7,6 +7,7 @@ import {
   useListOwnedMissions,
   useListCreatedMissions,
   useListMyApplications,
+  useListMyActing,
   useSubmitMission,
   useApproveMission,
   usePostMission,
@@ -17,6 +18,7 @@ import {
   getListCreatedMissionsQueryKey,
   type MissionSummary,
   type MissionApplicationListItem,
+  type ActingEntry,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +34,8 @@ import {
   User,
   Users,
   Clock,
+  Banknote,
+  Drama,
 } from "lucide-react";
 import {
   missionStatusClass,
@@ -47,7 +51,7 @@ import {
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
 
-type TabKey = "open" | "accepted" | "applications" | "created" | "history" | "all";
+type TabKey = "open" | "accepted" | "applications" | "acting" | "created" | "history" | "all";
 
 const HISTORY_PAGE_SIZE = 20;
 
@@ -89,6 +93,9 @@ export default function Missions() {
   // My Applications: every application the caller submitted (all states).
   const myApps = useListMyApplications();
 
+  // Acting: every time the caller acted (NPC/actor) in a mission or event.
+  const acting = useListMyActing();
+
   // My Created: missions the caller personally runs (staff only).
   const created = useListCreatedMissions({
     query: { enabled: isStaff, queryKey: getListCreatedMissionsQueryKey() },
@@ -119,6 +126,7 @@ export default function Missions() {
     { key: "open", label: "Open", count: openMissions.length, show: true },
     { key: "accepted", label: "Accepted", count: acceptedMissions.length, show: true },
     { key: "applications", label: "My Applications", count: myApps.data?.length, show: true },
+    { key: "acting", label: "Acting", count: acting.data?.length, show: true },
     { key: "created", label: "My Created", count: created.data?.length, show: isStaff },
     { key: "history", label: "History", show: true },
     { key: "all", label: "All Missions", count: owned.data?.length, show: canSeeStaffTabs },
@@ -196,6 +204,16 @@ export default function Missions() {
             emptyText="You haven't applied to any missions yet."
           >
             <MyApplicationsList rows={myApps.data ?? []} />
+          </ListSection>
+        </TabsContent>
+
+        <TabsContent value="acting" data-testid="tabpanel-acting">
+          <ListSection
+            isLoading={acting.isLoading}
+            isEmpty={(acting.data?.length ?? 0) === 0}
+            emptyText="You haven't acted in any missions or events yet."
+          >
+            <ActingList rows={acting.data ?? []} />
           </ListSection>
         </TabsContent>
 
@@ -535,6 +553,73 @@ function MyApplicationCard({ a }: { a: MissionApplicationListItem }) {
             {reviewed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActingList({ rows }: { rows: ActingEntry[] }) {
+  return (
+    <div className="space-y-4">
+      {rows.map((r) => (
+        <ActingCard key={r.id} r={r} />
+      ))}
+    </div>
+  );
+}
+
+const ACTING_SOURCE_LABEL: Record<ActingEntry["source"], string> = {
+  mission: "Mission",
+  event: "Event",
+  legacy: "Legacy",
+};
+
+function ActingCard({ r }: { r: ActingEntry }) {
+  const when = new Date(r.actedAt);
+  const failed = r.paymentStatus === "failed";
+  return (
+    <Card
+      className="rounded-none border-border bg-card/50 hover:border-nc-cyan/50 transition-colors"
+      data-testid={`row-acting-${r.id}`}
+    >
+      <CardHeader className="space-y-3">
+        <CardTitle className="font-display text-xl md:text-2xl leading-tight text-foreground break-words flex items-center gap-2">
+          <Drama className="w-5 h-5 shrink-0 text-nc-magenta" />
+          {r.name ?? "Untitled act"}
+        </CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-block font-display font-bold tracking-widest text-xs px-2 py-1 border border-nc-cyan/50 text-nc-cyan rounded-none uppercase">
+            {ACTING_SOURCE_LABEL[r.source]}
+          </span>
+          {failed && (
+            <span
+              className="inline-block font-display font-bold tracking-widest text-xs px-2 py-1 border border-destructive/60 text-destructive rounded-none uppercase"
+              data-testid={`acting-status-${r.id}`}
+            >
+              Pay Failed
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 shrink-0" />
+            {when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+          </span>
+          <span className="flex items-center gap-2">
+            <Banknote className="w-4 h-4 shrink-0" />
+            <span className={failed ? "text-destructive" : "text-nc-cyan"}>
+              {r.amount.toLocaleString()} eb
+            </span>
+          </span>
+          {r.fixerName && (
+            <span className="flex items-center gap-2">
+              <User className="w-4 h-4 shrink-0" />
+              Fixer: <span className="text-nc-magenta">{r.fixerName}</span>
+            </span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

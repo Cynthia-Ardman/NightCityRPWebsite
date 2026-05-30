@@ -1618,6 +1618,21 @@ export const ListMyApplicationsResponse = zod.array(ListMyApplicationsResponseIt
 
 
 /**
+ * @summary Every time the caller acted (NPC/actor) in a mission or free-form event, including legacy bot records, newest first.
+ */
+export const ListMyActingResponseItem = zod.object({
+  "id": zod.string().describe('Stable synthetic id (e.g. act-12 \/ legacy-7).'),
+  "name": zod.string().nullish().describe('Mission or event name acted in.'),
+  "actedAt": zod.coerce.date().describe('When the act happened.'),
+  "amount": zod.number().describe('Eddies paid for the act.'),
+  "source": zod.enum(['mission', 'event', 'legacy']).describe('mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot.'),
+  "paymentStatus": zod.string().nullish().describe('paid\/failed for modern rows; null for legacy.'),
+  "fixerName": zod.string().nullish()
+})
+export const ListMyActingResponse = zod.array(ListMyActingResponseItem)
+
+
+/**
  * @summary Fail-safe Discord scheduling-conflict check for the create/reschedule form. Fixer/admin only.
  */
 export const checkMissionConflictsQueryDurationMinutesDefault = 120;

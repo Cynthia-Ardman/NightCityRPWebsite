@@ -1054,6 +1054,19 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/MissionApplicationListItem" }
+  /missions/acting:
+    get:
+      operationId: listMyActing
+      tags: [missions]
+      summary: "Every time the caller acted (NPC/actor) in a mission or free-form event, including legacy bot records, newest first."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActingEntry" }
   /missions/conflicts:
     get:
       operationId: checkMissionConflicts
@@ -3961,6 +3974,18 @@ components:
         hasMore:
           type: boolean
           description: "True when more rows exist beyond this page (fetch with offset += limit)."
+
+    ActingEntry:
+      type: object
+      required: [id, actedAt, amount, source]
+      properties:
+        id: { type: string, description: "Stable synthetic id (e.g. act-12 / legacy-7)." }
+        name: { type: ["string", "null"], description: "Mission or event name acted in." }
+        actedAt: { type: string, format: date-time, description: "When the act happened." }
+        amount: { type: integer, description: "Eddies paid for the act." }
+        source: { type: string, enum: [mission, event, legacy], description: "mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot." }
+        paymentStatus: { type: ["string", "null"], description: "paid/failed for modern rows; null for legacy." }
+        fixerName: { type: ["string", "null"] }
 
     MissionDetail:
       type: object

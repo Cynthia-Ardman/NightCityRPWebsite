@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './actingEntry';
+export * from './actingEntrySource';
 export * from './activityEvent';
 export * from './actorHistoryRow';
 export * from './actorHistoryRowEventsItem';

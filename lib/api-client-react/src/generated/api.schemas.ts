@@ -2132,6 +2132,41 @@ export interface MissionHistoryPage {
   hasMore: boolean;
 }
 
+/**
+ * mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot.
+ */
+export type ActingEntrySource = typeof ActingEntrySource[keyof typeof ActingEntrySource];
+
+
+export const ActingEntrySource = {
+  mission: 'mission',
+  event: 'event',
+  legacy: 'legacy',
+} as const;
+
+export interface ActingEntry {
+  /** Stable synthetic id (e.g. act-12 / legacy-7). */
+  id: string;
+  /**
+     * Mission or event name acted in.
+     * @nullable
+     */
+  name?: string | null;
+  /** When the act happened. */
+  actedAt: string;
+  /** Eddies paid for the act. */
+  amount: number;
+  /** mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot. */
+  source: ActingEntrySource;
+  /**
+     * paid/failed for modern rows; null for legacy.
+     * @nullable
+     */
+  paymentStatus?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+}
+
 export type MissionDetailTier = typeof MissionDetailTier[keyof typeof MissionDetailTier];
 
 

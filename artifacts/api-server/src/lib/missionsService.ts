@@ -352,6 +352,83 @@ export async function listMyApplications(userId: string) {
   }));
 }
 
+export type ActingEntry = {
+  id: string;
+  name: string | null;
+  actedAt: string;
+  amount: number;
+  source: "mission" | "event" | "legacy";
+  paymentStatus: string | null;
+  fixerName: string | null;
+};
+
+/**
+ * Every time the caller ACTED (played an NPC / acted in someone else's mission
+ * or event), newest first. Unions two sources keyed to the same person:
+ *  - modern `mission_actor_payments` rows (keyed by portal user id) — both
+ *    mission-tied and free-form event payouts; test-mode `simulated` rows are
+ *    excluded since they never represent a real act.
+ *  - legacy `bot_actor_attendance` rows imported from the old Discord bot,
+ *    keyed by the user's Discord id.
+ */
+export async function listMyActing(viewer: MissionViewer): Promise<ActingEntry[]> {
+  const [u] = await db
+    .select({ discordId: users.discordId })
+    .from(users)
+    .where(eq(users.id, viewer.id));
+  const discordId = u?.discordId ?? null;
+
+  const modern = await db
+    .select()
+    .from(missionActorPayments)
+    .where(
+      and(
+        eq(missionActorPayments.userId, viewer.id),
+        ne(missionActorPayments.paymentStatus, "simulated"),
+      ),
+    );
+
+  const legacy = discordId
+    ? await db
+        .select()
+        .from(botActorAttendance)
+        .where(eq(botActorAttendance.userId, discordId))
+    : [];
+
+  const entries: ActingEntry[] = [];
+  for (const r of modern) {
+    // missionDate is the day the act happened; fall back through the credit /
+    // pay / row-creation stamps so an entry always has a date.
+    const actedAt =
+      iso(r.missionDate) ?? iso(r.attendanceCreditedAt) ?? iso(r.paidAt) ?? iso(r.createdAt);
+    if (!actedAt) continue;
+    entries.push({
+      id: `act-${r.id}`,
+      name: r.missionName,
+      actedAt,
+      amount: r.amount,
+      source: r.missionId != null ? "mission" : "event",
+      paymentStatus: r.paymentStatus,
+      fixerName: r.fixerName,
+    });
+  }
+  for (const r of legacy) {
+    const actedAt = iso(r.actedAt);
+    if (!actedAt) continue;
+    entries.push({
+      id: `legacy-${r.id}`,
+      name: r.missionName,
+      actedAt,
+      amount: r.payAmount,
+      source: "legacy",
+      paymentStatus: null,
+      fixerName: r.fixerUsername,
+    });
+  }
+  entries.sort((a, b) => b.actedAt.localeCompare(a.actedAt));
+  return entries;
+}
+
 /** Missions the caller is assigned to that are not cancelled/fully closed. */
 export async function listMyMissionSummaries(viewer: MissionViewer) {
   const mine = await db

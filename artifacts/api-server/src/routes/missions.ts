@@ -19,6 +19,7 @@ import {
   listCreatedMissionSummaries,
   listMissionHistory,
   listMyApplications,
+  listMyActing,
   getMissionDetail,
   payMissionActors,
   setMissionCompleted,
@@ -297,6 +298,12 @@ router.get("/missions/history", requireAuth, async (req, res): Promise<void> => 
 // Any authenticated player reads only their own rows.
 router.get("/missions/my-applications", requireAuth, async (req, res): Promise<void> => {
   res.json(await listMyApplications(req.user!.id));
+});
+
+// "Acting" — every time the caller acted (NPC/actor) in a mission or event,
+// unioning modern actor payouts with legacy bot acting records. Own rows only.
+router.get("/missions/acting", requireAuth, async (req, res): Promise<void> => {
+  res.json(await listMyActing(viewerOf(req)));
 });
 
 // Fail-safe Discord scheduling-conflict check for the create/reschedule form.

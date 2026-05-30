@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ActingEntry,
   ActivityEvent,
   ActorHistoryRow,
   ActorPayoutEvent,
@@ -5144,6 +5145,83 @@ export function useListMyApplications<TData = Awaited<ReturnType<typeof listMyAp
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListMyApplicationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListMyActingUrl = () => {
+
+
+
+
+  return `/api/missions/acting`
+}
+
+/**
+ * @summary Every time the caller acted (NPC/actor) in a mission or free-form event, including legacy bot records, newest first.
+ */
+export const listMyActing = async ( options?: RequestInit): Promise<ActingEntry[]> => {
+
+  return customFetch<ActingEntry[]>(getListMyActingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyActingQueryKey = () => {
+    return [
+    `/api/missions/acting`
+    ] as const;
+    }
+
+
+export const getListMyActingQueryOptions = <TData = Awaited<ReturnType<typeof listMyActing>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyActing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyActingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyActing>>> = ({ signal }) => listMyActing({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyActing>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyActingQueryResult = NonNullable<Awaited<ReturnType<typeof listMyActing>>>
+export type ListMyActingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every time the caller acted (NPC/actor) in a mission or free-form event, including legacy bot records, newest first.
+ */
+
+export function useListMyActing<TData = Awaited<ReturnType<typeof listMyActing>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyActing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyActingQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
