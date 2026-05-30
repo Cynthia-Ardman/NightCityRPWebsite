@@ -32,3 +32,4 @@
 - [Archivist approver ≠ manager](archivist-approver-not-manager.md) — ARCHIVIST gates approve only; canManage stays isManager; broaden visibility/owned-board for archivists but gate submit/post UI on canManage or it 403s.
 - [Live-mode dual gate](live-mode-dual-gate.md) — Test/Live = master AND per-system (default OFF); runJob gates housing/cyberware/evictions; tests wanting real effects must set BOTH flags.
 - [Mission autopay Test→Live trap](mission-autopay-test-live-trap.md) — simulated missions get autoPayProcessedAt and never pay real; runMissionAutoPay live-retry recovers them (gate on ctx.live, exclude no-Discord failures).
+- [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.

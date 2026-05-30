@@ -913,14 +913,20 @@ function ActorsView({ data }: { data: MissionDetailModel }) {
         </CardContent>
       </Card>
 
-      {data.actorPayments.length > 0 && (
-        <Card className="rounded-none border-border bg-card/50">
-          <CardHeader>
-            <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
-              Actor Payments ({data.actorPayments.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader>
+          <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+            Actor Payments ({data.actorPayments.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.actorPayments.length === 0 ? (
+            <p className="font-mono text-xs text-muted-foreground" data-testid="text-no-actor-payments">
+              No actors have been paid for this mission yet. Use the search above to pay an actor / NPC —
+              they'll appear here once paid. (Past missions imported from the old Discord bot have no actor
+              records, so their list starts empty.)
+            </p>
+          ) : (
             <ul className="divide-y divide-border/40 font-mono text-sm">
               {data.actorPayments.map((p) => (
                 <li key={p.id} className="flex flex-col gap-1 py-2" data-testid={`row-actor-payment-${p.id}`}>
@@ -940,9 +946,9 @@ function ActorsView({ data }: { data: MissionDetailModel }) {
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

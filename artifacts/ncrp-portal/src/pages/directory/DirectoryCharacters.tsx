@@ -21,7 +21,7 @@ import {
 import AddTagsDialog from "@/components/directory/AddTagsDialog";
 import CreateTagsDialog from "@/components/directory/CreateTagsDialog";
 
-type Scope = "all" | "active" | "retired" | "claimed" | "unclaimed" | "pc" | "npc";
+type Scope = "all" | "claimed" | "unclaimed" | "pc" | "npc";
 type Mode = "name" | "content";
 type Sort = "recent" | "name";
 
@@ -153,7 +153,7 @@ export default function DirectoryCharacters() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(["all", "pc", "npc", "active", "retired", "claimed", "unclaimed"] as Scope[]).map((s) => (
+            {(["all", "pc", "npc", "claimed", "unclaimed"] as Scope[]).map((s) => (
               <button
                 key={s}
                 type="button"
