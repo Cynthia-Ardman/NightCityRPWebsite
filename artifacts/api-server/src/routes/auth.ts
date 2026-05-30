@@ -171,6 +171,34 @@ router.post("/auth/logout", (req, res): void => {
   });
 });
 
+// Dev/test-only login. The real auth path is Discord OAuth, which the automated
+// browser-test harness cannot drive. This lets a test seed a user (with roles)
+// and then establish a real session as that user to exercise role-gated UI.
+// Double-gated: hard-disabled in production (deployments run NODE_ENV=production)
+// AND requires the explicit opt-in flag ENABLE_TEST_AUTH=true, so it can never
+// be reached accidentally in a non-prod shared deployment.
+const TEST_AUTH_ENABLED =
+  process.env.NODE_ENV !== "production" && process.env.ENABLE_TEST_AUTH === "true";
+
+router.post("/auth/test-login", async (req, res): Promise<void> => {
+  if (!TEST_AUTH_ENABLED) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const userId = typeof req.body?.userId === "string" ? req.body.userId : undefined;
+  if (!userId) {
+    res.status(400).json({ error: "userId required" });
+    return;
+  }
+  const [u] = await db.select().from(users).where(eq(users.id, userId));
+  if (!u) {
+    res.status(404).json({ error: "user not found" });
+    return;
+  }
+  req.session.userId = u.id;
+  res.json({ ok: true, id: u.id });
+});
+
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   const u = req.user!;
   const [link] = await db
