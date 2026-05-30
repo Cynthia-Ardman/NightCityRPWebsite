@@ -8,7 +8,7 @@ vi.mock("./unbelievaboat", () => ({
 
 import {
   db, botConfig, housing, characterStatus, inventoryItems, walletTransactions,
-  characters, lifestyleTiers,
+  characters, lifestyleTiers, shopOpens,
 } from "@workspace/db";
 import { patchBalance } from "./unbelievaboat";
 import { runJob, isAutobillEnabled, AUTOBILL_FLAGS } from "./jobs";
@@ -34,6 +34,15 @@ beforeEach(async () => {
   await setLive(LIVE_MODE_KEYS.cyberware);
   await setLive(LIVE_MODE_KEYS.evictions);
 });
+
+// Returns a YYYY-MM-DD date string for the given day-of-month in the current
+// UTC month — used to seed shop_opens rows on distinct days (the table has a
+// UNIQUE (characterId, openedOn) index).
+function monthDay(day: number): string {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day));
+  return d.toISOString().slice(0, 10);
+}
 
 async function addChrome(characterId: number, ownerId: string, cwp: number) {
   await db.insert(inventoryItems).values({
@@ -228,6 +237,79 @@ describe("runJob('monthly_rent') crash-window: debit succeeded, ledger write mis
 
     const rent = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
     expect(rent).toHaveLength(1);
+  });
+
+  it("does not double-credit shop income on a rerun after a mid-run crash", async () => {
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id, approved: true });
+    await db.insert(housing).values({
+      characterId: char.id, address: "Afterlife Bar", monthlyRent: 500, kind: "business",
+    });
+    // Two OPEN SHOP days this period => income = floor(500 * 0.4) = 200.
+    // shop_opens has a UNIQUE (characterId, openedOn) index, so the two rows
+    // must fall on distinct days within the current UTC month.
+    await db.insert(shopOpens).values([
+      { characterId: char.id, openedOn: monthDay(1) },
+      { characterId: char.id, openedOn: monthDay(2) },
+    ]);
+
+    // First run: the shop_income credit is the first patchBalance call in the
+    // business-lease loop, so it "succeeds" and then the process crashes before
+    // the run can finish.
+    let credits = 0;
+    mockPatch.mockImplementation(async () => {
+      credits++;
+      throw new Error("simulated crash after external credit succeeded");
+    });
+    const first = await runJob("monthly_rent");
+    expect(first.status).toBe("failed");
+    expect(credits).toBe(1);
+
+    // The shop_income ledger row was reserved BEFORE the credit, so it survived
+    // the crash.
+    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "shop_income"));
+    expect(afterCrash).toHaveLength(1);
+    expect(afterCrash[0].amount).toBe(200);
+
+    // Recovery run: the committed shop_income ledger row trips the period guard,
+    // so the owner is NOT credited again. (The business rent debit may still
+    // fire on recovery — it was never reserved in the crashed run — so we assert
+    // specifically that the shop income credit is not repeated.)
+    mockPatch.mockReset();
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    await runJob("monthly_rent");
+    const recoveryReasons = mockPatch.mock.calls.map((c) => c[1]?.reason ?? "");
+    expect(recoveryReasons.some((r) => r.startsWith("Shop income:"))).toBe(false);
+
+    const income = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "shop_income"));
+    expect(income).toHaveLength(1);
+  });
+
+  it("rolls back the shop_income reservation on a clean UB credit failure", async () => {
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id, approved: true });
+    await db.insert(housing).values({
+      characterId: char.id, address: "Afterlife Bar", monthlyRent: 500, kind: "business",
+    });
+    await db.insert(shopOpens).values([
+      { characterId: char.id, openedOn: monthDay(1) },
+      { characterId: char.id, openedOn: monthDay(2) },
+    ]);
+
+    // UB returns null (clean failure) for the shop_income credit only; the
+    // subsequent rent debit succeeds.
+    mockPatch.mockImplementation(async (_discordId, opts) =>
+      opts?.reason?.startsWith("Shop income:")
+        ? null
+        : { cash: 0, bank: 0, total: 0, source: "unbelievaboat" },
+    );
+
+    await runJob("monthly_rent");
+
+    // The reservation was rolled back, so no shop_income ledger row remains and
+    // a later run can retry the payout.
+    const income = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "shop_income"));
+    expect(income).toHaveLength(0);
   });
 
   it("does not double-charge a personal fee (lifestyle) on a rerun after a mid-run crash", async () => {

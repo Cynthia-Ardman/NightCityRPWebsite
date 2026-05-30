@@ -370,24 +370,42 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
               : Math.floor(rent * SHOP_TIER_PLUS_MULT[opens]);
           }
           if (income > 0) {
-            const ubCredit = await patchBalance(owner.discordId, {
-              cash: income,
-              reason: `Shop income: ${lease.address} (${opens} day${opens === 1 ? "" : "s"})`,
-            });
-            if (ubCredit) {
-              await db.insert(walletTransactions).values({
+            // Crash-window guard (credit-side mirror of the rent/personal-fee
+            // debits): RESERVE the 'shop_income' ledger row + flip the period
+            // marker BEFORE the external UB credit. If the process dies after
+            // the credit succeeds but before we can finish, the reservation is
+            // already committed, so a manual rerun in the same period sees the
+            // row (preloaded into `alreadyBilled`) and skips — no double credit.
+            // The trade-off is a recoverable under-payment if UB never actually
+            // ran; we roll the reservation back below on a clean UB failure.
+            // See .agents/memory/autobill-parity.md ("Crash-window race").
+            const incomeMemo = `Shop income: ${lease.address} (${opens} day${opens === 1 ? "" : "s"})`;
+            const [reservedIncome] = await db
+              .insert(walletTransactions)
+              .values({
                 characterId: c.id,
                 userId: c.ownerId,
                 amount: income,
                 kind: "shop_income",
-                memo: `Shop income: ${lease.address} (${opens} day${opens === 1 ? "" : "s"})`,
-              });
-              markBilled(c.id, "shop_income");
+                memo: incomeMemo,
+              })
+              .returning({ id: walletTransactions.id });
+            markBilled(c.id, "shop_income");
+
+            const ubCredit = await patchBalance(owner.discordId, {
+              cash: income,
+              reason: incomeMemo,
+            });
+            if (ubCredit) {
               affected++;
             } else {
+              // Clean UB failure (not a crash): roll the reservation back so a
+              // later run can retry the payout.
+              await db.delete(walletTransactions).where(eq(walletTransactions.id, reservedIncome.id));
+              unmarkBilled(c.id, "shop_income");
               logger.warn(
                 { characterId: c.id, leaseId: lease.id, income },
-                "monthly_rent shop_income UB credit failed; skipping ledger row",
+                "monthly_rent shop_income UB credit failed; rolled back ledger reservation",
               );
             }
           }

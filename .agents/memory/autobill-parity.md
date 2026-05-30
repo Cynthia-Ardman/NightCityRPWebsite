@@ -44,8 +44,12 @@ helper. The `cyberware_humanity` weekly meds job now ALSO uses
 reserve-before-debit (inline, not the helper): it inserts the 'meds'
 ledger row + adds ownerId to the in-memory `recentMedsUserSet` weekly
 guard BEFORE `patchBalance`, deleting both only on a clean UB null.
-NOTE: `shop_income` (credit) still credits BEFORE its guard — same
-race, not yet fixed.
+The `shop_income` (credit) path now ALSO uses reserve-before: it inserts
+the 'shop_income' ledger row + calls `markBilled(c.id, "shop_income")`
+BEFORE the UB credit, rolling both back (`db.delete` + `unmarkBilled`)
+only on a clean UB null. `shop_income` is in `TRACKED_PERSONAL_KINDS` so
+the period preload guards reruns; credits are keyed by characterId only
+(a char owns one shop lease at a time).
 
 **How to apply:** Any new monthly bill type belongs in this same job
 under the same kill switch. Add its kind to `TRACKED_PERSONAL_KINDS`
