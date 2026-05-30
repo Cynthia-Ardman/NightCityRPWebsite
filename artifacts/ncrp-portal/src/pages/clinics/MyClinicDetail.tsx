@@ -21,6 +21,7 @@ import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
 import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import StaffVenuePanel from "@/components/StaffVenuePanel";
+import SingleImageUpload from "@/components/SingleImageUpload";
 import { useAuthMe } from "@/hooks/useAuthMe";
 
 export default function MyClinicDetail() {
@@ -59,6 +60,15 @@ export default function MyClinicDetail() {
           <Input defaultValue={data.location ?? ""} placeholder="Location" onBlur={(e) => update.mutate({ id: rid, data: { location: e.target.value } })} data-testid="input-edit-location" />
           <Input className="md:col-span-2" defaultValue={data.purpose ?? ""} placeholder="Purpose (what this clinic is for)" onBlur={(e) => update.mutate({ id: rid, data: { purpose: e.target.value } })} data-testid="input-edit-purpose" />
           <Textarea className="md:col-span-2" defaultValue={data.description ?? ""} placeholder="Description" onBlur={(e) => update.mutate({ id: rid, data: { description: e.target.value } })} data-testid="input-edit-description" />
+          <div className="md:col-span-2 space-y-1">
+            <p className="font-mono text-xs text-muted-foreground uppercase">Banner</p>
+            <SingleImageUpload
+              value={data.bannerUrl ?? ""}
+              onChange={(url) => update.mutate({ id: rid, data: { bannerUrl: url || null } })}
+              testIdPrefix="clinic-banner"
+              alt="Clinic banner"
+            />
+          </div>
         </CardContent>
       </Card>
       {!!me && (me.isAdmin || me.isFixer) && (

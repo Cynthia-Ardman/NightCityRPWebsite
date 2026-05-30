@@ -237,6 +237,18 @@ describe("PATCH /stores/:id (staff + owner manage)", () => {
     expect(res.body.location).toBe("Watson");
   });
 
+  it("lets staff edit the banner image", async () => {
+    const owner = await createUser();
+    const fixer = await createUser({ roles: ["fixer"] });
+    const store = await makeStore(owner.id);
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ bannerUrl: "/api/storage/objects/banner-1" });
+    expect(res.status).toBe(200);
+    expect(res.body.bannerUrl).toBe("/api/storage/objects/banner-1");
+  });
+
   it("403s when a non-owner non-staff user edits a store", async () => {
     const owner = await createUser();
     const stranger = await createUser();
