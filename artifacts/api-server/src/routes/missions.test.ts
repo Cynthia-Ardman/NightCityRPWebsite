@@ -975,6 +975,103 @@ describe("Mission applications", () => {
     expect(appAfter.status).toBe("pending");
   });
 
+  it("my-application-outcomes returns reviewed (accepted/rejected) apps, newest first, and excludes pending/withdrawn", async () => {
+    const player = await createUser();
+    const admin = await createUser({ roles: ["admin"] });
+    const charA = await createCharacter({ ownerId: player.id });
+    const charB = await createCharacter({ ownerId: player.id });
+    const charC = await createCharacter({ ownerId: player.id });
+    const charD = await createCharacter({ ownerId: player.id });
+    const accepted = await postedMission();
+    const rejected = await postedMission();
+    const pending = await postedMission();
+    const withdrawn = await postedMission();
+
+    async function apply(mId: number, charId: number) {
+      const r = await request(app)
+        .post(`/api/missions/${mId}/applications`)
+        .set("x-test-user", player.id)
+        .send({ characterId: charId });
+      return r.body.myApplication.id as number;
+    }
+
+    const acceptedAppId = await apply(accepted.id, charA.id);
+    await request(app)
+      .post(`/api/missions/${accepted.id}/applications/${acceptedAppId}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "accept" });
+    const rejectedAppId = await apply(rejected.id, charB.id);
+    await request(app)
+      .post(`/api/missions/${rejected.id}/applications/${rejectedAppId}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "reject" });
+    await apply(pending.id, charC.id); // left pending
+    const withdrawnAppId = await apply(withdrawn.id, charD.id);
+    await request(app)
+      .delete(`/api/missions/${withdrawn.id}/applications/${withdrawnAppId}`)
+      .set("x-test-user", player.id);
+
+    const res = await request(app)
+      .get("/api/missions/my-application-outcomes")
+      .set("x-test-user", player.id);
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ missionId: number; status: string }>).map((o) => o.missionId);
+    expect(ids).toContain(accepted.id);
+    expect(ids).toContain(rejected.id);
+    expect(ids).not.toContain(pending.id);
+    expect(ids).not.toContain(withdrawn.id);
+    // Newest reviewed first (rejected was reviewed after accepted).
+    expect(res.body[0].missionId).toBe(rejected.id);
+    expect(res.body.find((o: { missionId: number }) => o.missionId === accepted.id).status).toBe("accepted");
+  });
+
+  it("my-application-outcomes only returns the caller's own outcomes", async () => {
+    const player = await createUser();
+    const other = await createUser();
+    const admin = await createUser({ roles: ["admin"] });
+    const char = await createCharacter({ ownerId: other.id });
+    const m = await postedMission();
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", other.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+    await request(app)
+      .post(`/api/missions/${m.id}/applications/${appId}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "accept" });
+
+    const res = await request(app)
+      .get("/api/missions/my-application-outcomes")
+      .set("x-test-user", player.id);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+
+  it("an accepted/rejected application stays visible to the player after the mission closes", async () => {
+    const player = await createUser();
+    const admin = await createUser({ roles: ["admin"] });
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+    await request(app)
+      .post(`/api/missions/${m.id}/applications/${appId}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "reject" });
+    // Mission moves out of the Open state.
+    await db.update(missions).set({ status: "completed" }).where(eq(missions.id, m.id));
+
+    // The mission detail still echoes the player's reviewed application (the
+    // workflow state stays "posted", so the player can still load it).
+    const detail = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", player.id);
+    expect(detail.status).toBe(200);
+    expect(detail.body.myApplication?.status).toBe("rejected");
+  });
+
   it("a player's My Missions excludes non-posted missions they are assigned to", async () => {
     const player = await createUser();
     const draft = await seedMission({ workflowState: "draft", status: "open" });

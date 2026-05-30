@@ -141,6 +141,8 @@ export * from './me';
 export * from './missionActorPaymentView';
 export * from './missionActorPaymentViewPaymentStatus';
 export * from './missionActorPaymentViewSource';
+export * from './missionApplicationOutcome';
+export * from './missionApplicationOutcomeStatus';
 export * from './missionApplicationView';
 export * from './missionApplicationViewStatus';
 export * from './missionAssignmentInput';

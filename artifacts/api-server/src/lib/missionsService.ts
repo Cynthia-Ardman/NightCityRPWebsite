@@ -473,6 +473,45 @@ async function listApplicationViews(missionId: number, onlyUserId?: string) {
   });
 }
 
+/**
+ * Reviewed (accepted/rejected) applications for one applicant, newest first.
+ * Powers the in-portal outcome banner so a player learns the result even if
+ * the Discord DM never arrived. Withdrawn/pending applications are excluded —
+ * there is no outcome to surface for those.
+ */
+export async function listApplicantOutcomes(userId: string, limit = 20) {
+  const rows = await db
+    .select({
+      id: missionApplications.id,
+      missionId: missionApplications.missionId,
+      missionTitle: missions.title,
+      characterId: missionApplications.characterId,
+      characterName: characters.name,
+      status: missionApplications.status,
+      reviewedAt: missionApplications.reviewedAt,
+    })
+    .from(missionApplications)
+    .innerJoin(missions, eq(missions.id, missionApplications.missionId))
+    .leftJoin(characters, eq(characters.id, missionApplications.characterId))
+    .where(
+      and(
+        eq(missionApplications.userId, userId),
+        inArray(missionApplications.status, ["accepted", "rejected"]),
+      ),
+    )
+    .orderBy(desc(missionApplications.reviewedAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: r.id,
+    missionId: r.missionId,
+    missionTitle: r.missionTitle,
+    characterId: r.characterId,
+    characterName: r.characterName,
+    status: r.status,
+    reviewedAt: iso(r.reviewedAt),
+  }));
+}
+
 export type ApplyResult =
   | { ok: true }
   | { ok: false; error: string; httpStatus: number };

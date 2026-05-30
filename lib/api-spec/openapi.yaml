@@ -978,6 +978,19 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/MissionSummary" }
+  /missions/my-application-outcomes:
+    get:
+      operationId: listMyApplicationOutcomes
+      tags: [missions]
+      summary: "Reviewed (accepted/rejected) outcomes of the caller's own mission applications, newest first."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MissionApplicationOutcome" }
   /missions/owned:
     get:
       operationId: listOwnedMissions
@@ -3739,6 +3752,18 @@ components:
         lastAttendedAt: { type: ["string", "null"], format: date-time }
         daysSinceLastMission: { type: ["integer", "null"] }
         recencyWarning: { type: boolean, description: "True if the character played a mission within the recency window." }
+
+    MissionApplicationOutcome:
+      type: object
+      required: [id, missionId, missionTitle, characterId, status]
+      properties:
+        id: { type: integer }
+        missionId: { type: integer }
+        missionTitle: { type: string }
+        characterId: { type: integer }
+        characterName: { type: ["string", "null"] }
+        status: { type: string, enum: [accepted, rejected] }
+        reviewedAt: { type: ["string", "null"], format: date-time }
 
     ApplyToMissionInput:
       type: object

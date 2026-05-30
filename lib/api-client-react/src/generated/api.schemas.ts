@@ -2163,6 +2163,26 @@ export interface MissionDetail {
   updatedAt?: string | null;
 }
 
+export type MissionApplicationOutcomeStatus = typeof MissionApplicationOutcomeStatus[keyof typeof MissionApplicationOutcomeStatus];
+
+
+export const MissionApplicationOutcomeStatus = {
+  accepted: 'accepted',
+  rejected: 'rejected',
+} as const;
+
+export interface MissionApplicationOutcome {
+  id: number;
+  missionId: number;
+  missionTitle: string;
+  characterId: number;
+  /** @nullable */
+  characterName?: string | null;
+  status: MissionApplicationOutcomeStatus;
+  /** @nullable */
+  reviewedAt?: string | null;
+}
+
 export interface ApplyToMissionInput {
   characterId: number;
   /** @nullable */

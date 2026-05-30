@@ -319,12 +319,15 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
 
   const existing = data.myApplication;
   const applyErr = errOf(apply.error) ?? errOf(withdraw.error);
-
   // Applications are only accepted on missions that are publicly posted AND
   // still Open for play (server enforces the same rule).
-  if (data.workflowState !== "posted" || data.status !== "open") return null;
+  const open = data.workflowState === "posted" && data.status === "open";
 
+  // Always echo an existing (non-withdrawn) application back to the player so the
+  // accepted/declined outcome stays visible even after the mission closes — this
+  // closes the loop in-portal regardless of Discord DM delivery.
   if (existing && existing.status !== "withdrawn") {
+    const reviewed = existing.status === "accepted" || existing.status === "rejected";
     return (
       <Card className="rounded-none border-border bg-card/50" data-testid="block-my-application">
         <CardHeader>
@@ -337,8 +340,15 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
             <ApplicationStatusBadge status={existing.status} />
             <span className="text-foreground">{existing.characterName ?? "(your character)"}</span>
           </div>
+          {reviewed && (
+            <p className="text-muted-foreground" data-testid="text-application-outcome">
+              {existing.status === "accepted"
+                ? "You're in — the fixer accepted this character. Check the Players list below for the line-up."
+                : "The fixer passed on this application this time. Keep an eye on the board for other jobs."}
+            </p>
+          )}
           {existing.comment && <p className="text-muted-foreground whitespace-pre-wrap">{existing.comment}</p>}
-          {existing.status === "pending" && (
+          {existing.status === "pending" && open && (
             <Button
               type="button"
               variant="outline"
@@ -356,6 +366,9 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
       </Card>
     );
   }
+
+  // No active application: only offer the apply form when the mission is open.
+  if (!open) return null;
 
   return (
     <Card className="rounded-none border-border bg-nc-cyan/5 border-nc-cyan/40" data-testid="block-apply">

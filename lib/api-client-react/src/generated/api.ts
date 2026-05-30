@@ -99,6 +99,7 @@ import type {
   LiveModeState,
   LiveModeUpdate,
   Me,
+  MissionApplicationOutcome,
   MissionConfig,
   MissionConfigUpdate,
   MissionConflictCheck,
@@ -4737,6 +4738,83 @@ export function useListMyMissions<TData = Awaited<ReturnType<typeof listMyMissio
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListMyMissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListMyApplicationOutcomesUrl = () => {
+
+
+
+
+  return `/api/missions/my-application-outcomes`
+}
+
+/**
+ * @summary Reviewed (accepted/rejected) outcomes of the caller's own mission applications, newest first.
+ */
+export const listMyApplicationOutcomes = async ( options?: RequestInit): Promise<MissionApplicationOutcome[]> => {
+
+  return customFetch<MissionApplicationOutcome[]>(getListMyApplicationOutcomesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyApplicationOutcomesQueryKey = () => {
+    return [
+    `/api/missions/my-application-outcomes`
+    ] as const;
+    }
+
+
+export const getListMyApplicationOutcomesQueryOptions = <TData = Awaited<ReturnType<typeof listMyApplicationOutcomes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyApplicationOutcomes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyApplicationOutcomesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyApplicationOutcomes>>> = ({ signal }) => listMyApplicationOutcomes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyApplicationOutcomes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyApplicationOutcomesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyApplicationOutcomes>>>
+export type ListMyApplicationOutcomesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Reviewed (accepted/rejected) outcomes of the caller's own mission applications, newest first.
+ */
+
+export function useListMyApplicationOutcomes<TData = Awaited<ReturnType<typeof listMyApplicationOutcomes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyApplicationOutcomes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyApplicationOutcomesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

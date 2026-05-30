@@ -26,6 +26,7 @@ import {
   WORKFLOW_STATES,
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
+import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
 
 export default function Missions() {
   const { data: me } = useAuthMe();
@@ -70,6 +71,8 @@ export default function Missions() {
       </div>
 
       {isStaff && <MissionTestModeBanner />}
+
+      <MissionOutcomesBanner />
 
       {canSeeOwnedBoard && (
         <section className="space-y-4" data-testid="card-owned-missions">

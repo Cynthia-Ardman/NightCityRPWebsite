@@ -29,6 +29,7 @@ import {
   applyToMission,
   withdrawApplication,
   reviewApplication,
+  listApplicantOutcomes,
   checkDiscordEventConflict,
   type MissionViewer,
 } from "../lib/missionsService";
@@ -245,6 +246,13 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
 // ---------------- SPECIFIC ROUTES (must precede /missions/:id) ----------------
 router.get("/missions/mine", requireAuth, async (req, res): Promise<void> => {
   res.json(await listMyMissionSummaries(viewerOf(req)));
+});
+
+// Reviewed (accepted/rejected) outcomes of the caller's own applications, for
+// the in-portal outcome banner. Closes the loop even if the Discord DM never
+// landed. Any authenticated player can read their own outcomes.
+router.get("/missions/my-application-outcomes", requireAuth, async (req, res): Promise<void> => {
+  res.json(await listApplicantOutcomes(req.user!.id));
 });
 
 // "My Missions" board for fixers/admins — their own missions across all

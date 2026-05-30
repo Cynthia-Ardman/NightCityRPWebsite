@@ -1447,6 +1447,21 @@ export const ListMyMissionsResponse = zod.array(ListMyMissionsResponseItem)
 
 
 /**
+ * @summary Reviewed (accepted/rejected) outcomes of the caller's own mission applications, newest first.
+ */
+export const ListMyApplicationOutcomesResponseItem = zod.object({
+  "id": zod.number(),
+  "missionId": zod.number(),
+  "missionTitle": zod.string(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "status": zod.enum(['accepted', 'rejected']),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+export const ListMyApplicationOutcomesResponse = zod.array(ListMyApplicationOutcomesResponseItem)
+
+
+/**
  * @summary My Missions board — missions the caller owns across all workflow states (admins see all). Fixer/admin only.
  */
 export const ListOwnedMissionsResponseItem = zod.object({
