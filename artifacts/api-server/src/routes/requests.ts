@@ -11,9 +11,10 @@ import {
   activityEvents,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole } from "../lib/discord";
+import { hasRole, sendDirectMessage } from "../lib/discord";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { recordAudit } from "../lib/audit";
+import { logger } from "../lib/logger";
 
 // Off-catalog "miscellaneous" requests: off-map property, custom guns, and
 // custom cyberware. Staff triage these in the unified Pending Requests page;
@@ -102,6 +103,35 @@ async function selectWhere(predicate: ReturnType<typeof and> | ReturnType<typeof
     .innerJoin(users, eq(users.id, customRequests.requestedById))
     .where(predicate)
     .orderBy(desc(customRequests.createdAt))) as RequestRow[];
+}
+
+// Best-effort Discord DM to the player who submitted a request, telling them
+// the staff decision (and the reviewer note on rejection). Resolves the
+// requester's Discord id from `users`. Never throws — a delivery miss (DMs
+// closed, no bot token, network error) must not affect the already-committed
+// approve/reject decision.
+async function notifyRequesterOfDecision(row: RequestRow, summary: string | null): Promise<void> {
+  try {
+    const [u] = await db
+      .select({ discordId: users.discordId })
+      .from(users)
+      .where(eq(users.id, row.requestedById));
+    if (!u?.discordId) return;
+    const typeLabel =
+      row.type === "property" ? "off-map property" : row.type === "gun" ? "custom gun" : "custom cyberware";
+    const who = row.characterName ?? "your character";
+    let content: string;
+    if (row.status === "approved") {
+      content = `Your ${typeLabel} request "${row.title}" for ${who} was approved.`;
+      if (summary) content += `\n${summary}`;
+    } else {
+      content = `Your ${typeLabel} request "${row.title}" for ${who} was rejected.`;
+      if (row.reviewerNote) content += `\nReason: ${row.reviewerNote}`;
+    }
+    await sendDirectMessage(u.discordId, content);
+  } catch (err) {
+    logger.warn({ err, requestId: row.id }, "request decision DM failed");
+  }
 }
 
 // Submit a custom request. Player picks one of their own characters and types
@@ -311,6 +341,7 @@ router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void
     after: { type: reqRow.type, characterId: reqRow.characterId, appliedRef: txResult.ok.appliedRef },
   });
   const [row] = await selectWhere(eq(customRequests.id, rid));
+  await notifyRequesterOfDecision(row, txResult.ok.summary);
   res.json(shape(row));
 });
 
@@ -357,6 +388,23 @@ router.post("/requests/:id/reject", requireAuth, async (req, res): Promise<void>
     message: `Rejected ${reqRow.type} request: ${reqRow.title}`,
   });
   const [row] = await selectWhere(eq(customRequests.id, rid));
+  // Mirror the approve path: surface rejections in the global activity feed.
+  // Best-effort — the decision is already committed, so a feed-write failure
+  // must not fail the endpoint.
+  const typeLabel =
+    reqRow.type === "property" ? "off-map property" : reqRow.type === "gun" ? "custom gun" : "custom cyberware";
+  try {
+    await db.insert(activityEvents).values({
+      kind: "request_rejected",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorAvatarUrl: req.user!.avatarUrl,
+      message: `${row.characterName ?? "(unknown)"}: Rejected ${typeLabel} request: ${reqRow.title}`,
+    });
+  } catch (err) {
+    logger.warn({ err, requestId: rid }, "reject activity-feed write failed");
+  }
+  await notifyRequesterOfDecision(row, null);
   res.json(shape(row));
 });
 
