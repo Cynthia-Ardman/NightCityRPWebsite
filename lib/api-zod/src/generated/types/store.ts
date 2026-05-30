@@ -17,6 +17,8 @@ export interface Store {
   ownerCharacterId?: number | null;
   kind: StoreKind;
   /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
   location?: string | null;
   /** @nullable */
   description?: string | null;

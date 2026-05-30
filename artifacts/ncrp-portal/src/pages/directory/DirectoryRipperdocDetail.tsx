@@ -1,17 +1,33 @@
-import { useParams } from "wouter";
+import { Link, useParams } from "wouter";
 import { useGetRipperdocPublic } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 
 export default function DirectoryRipperdocDetail() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading } = useGetRipperdocPublic(Number(id));
+  const { data: me } = useAuthMe();
+  const isStaff = !!me && (me.isAdmin || me.isFixer);
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">CLINIC NOT FOUND</div>;
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      <div>
-        <h1 className="text-4xl font-display" data-testid="text-ripperdoc-name">{data.name}</h1>
-        <p className="font-mono text-xs text-muted-foreground mt-1">{data.location ?? "—"}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-display" data-testid="text-ripperdoc-name">{data.name}</h1>
+          <p className="font-mono text-xs text-muted-foreground mt-1">{data.location ?? "—"}</p>
+          <p className="font-mono text-xs text-nc-magenta mt-1" data-testid="text-ripperdoc-owner">OWNER: {data.ownerName ?? "UNCLAIMED"}</p>
+          {data.purpose && <p className="font-mono text-xs text-muted-foreground mt-1" data-testid="text-ripperdoc-purpose">{data.purpose}</p>}
+        </div>
+        {isStaff && (
+          <Link href={`/clinics/${data.id}`}>
+            <Button className="rounded-none bg-nc-magenta text-background font-display shrink-0" data-testid="button-manage-ripperdoc">
+              <Settings className="w-4 h-4 mr-2" /> MANAGE
+            </Button>
+          </Link>
+        )}
       </div>
       {data.description && <Card className="rounded-none border-border bg-card/50"><CardContent className="pt-6 font-mono text-sm whitespace-pre-wrap">{data.description}</CardContent></Card>}
       <Card className="rounded-none border-border bg-card/50">

@@ -8,7 +8,15 @@
 
 export interface RipperdocUpdate {
   name?: string;
-  location?: string;
-  description?: string;
-  bannerUrl?: string;
+  /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  bannerUrl?: string | null;
+  ownerId?: string;
+  /** @nullable */
+  ownerCharacterId?: number | null;
 }

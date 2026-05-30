@@ -3789,6 +3789,76 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getUpdateStoreMutationOptions(options));
     }
 
+export const getDeleteStoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}`
+}
+
+/**
+ * @summary Delete a store (owner or staff). Cascades employees + stock.
+ */
+export const deleteStore = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteStoreUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteStoreMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStore>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteStore>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteStore>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteStore(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteStoreMutationResult = NonNullable<Awaited<ReturnType<typeof deleteStore>>>
+
+    export type DeleteStoreMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a store (owner or staff). Cascades employees + stock.
+ */
+export const useDeleteStore = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStore>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteStore>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteStoreMutationOptions(options));
+    }
+
 export const getAddStoreEmployeeUrl = (id: number,) => {
 
 
@@ -4399,6 +4469,76 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getUpdateRipperdocMutationOptions(options));
+    }
+
+export const getDeleteRipperdocUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}`
+}
+
+/**
+ * @summary Delete a ripperdoc (owner or staff). Cascades employees + stock.
+ */
+export const deleteRipperdoc = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteRipperdocUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteRipperdocMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRipperdoc>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteRipperdoc>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteRipperdoc'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRipperdoc>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteRipperdoc(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteRipperdocMutationResult = NonNullable<Awaited<ReturnType<typeof deleteRipperdoc>>>
+
+    export type DeleteRipperdocMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a ripperdoc (owner or staff). Cascades employees + stock.
+ */
+export const useDeleteRipperdoc = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRipperdoc>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteRipperdoc>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteRipperdocMutationOptions(options));
     }
 
 export const getAddRipperdocEmployeeUrl = (id: number,) => {

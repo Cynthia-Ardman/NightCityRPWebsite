@@ -25,9 +25,10 @@ export default function DirectoryRipperdocs() {
                   <CardHeader>
                     <CardTitle className="font-display text-xl">{r.name}</CardTitle>
                     <CardDescription className="font-mono text-xs">{r.location ?? "—"}</CardDescription>
+                    <CardDescription className="font-mono text-xs text-nc-magenta" data-testid={`text-ripperdoc-owner-${r.id}`}>OWNER: {r.ownerName ?? "UNCLAIMED"}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xs font-mono text-muted-foreground line-clamp-2">{r.description ?? ""}</p>
+                    <p className="text-xs font-mono text-muted-foreground line-clamp-2">{r.purpose ?? r.description ?? ""}</p>
                   </CardContent>
                 </Card>
               </Link>

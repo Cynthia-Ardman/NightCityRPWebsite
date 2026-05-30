@@ -779,6 +779,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Store" }
+    delete:
+      operationId: deleteStore
+      tags: [stores]
+      summary: Delete a store (owner or staff). Cascades employees + stock.
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /stores/{id}/employees:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -907,6 +915,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Ripperdoc" }
+    delete:
+      operationId: deleteRipperdoc
+      tags: [ripperdocs]
+      summary: Delete a ripperdoc (owner or staff). Cascades employees + stock.
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /ripperdocs/{id}/employees:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3081,6 +3097,7 @@ components:
         id: { type: integer }
         name: { type: string }
         ownerName: { type: ["string", "null"] }
+        purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         bannerUrl: { type: ["string", "null"] }
@@ -3096,6 +3113,7 @@ components:
         name: { type: string }
         ownerName: { type: ["string", "null"] }
         kind: { type: string, enum: [guns, gear, clothing, mixed, other] }
+        purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         bannerUrl: { type: ["string", "null"] }
@@ -3112,6 +3130,7 @@ components:
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
         kind: { type: string, enum: [guns, gear, clothing, mixed, other] }
+        purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         bannerUrl: { type: ["string", "null"] }
@@ -3127,9 +3146,12 @@ components:
       properties:
         name: { type: string }
         kind: { type: string, enum: [guns, gear, clothing, mixed, other] }
-        location: { type: string }
-        description: { type: string }
-        bannerUrl: { type: string }
+        purpose: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        bannerUrl: { type: ["string", "null"] }
+        ownerId: { type: string }
+        ownerCharacterId: { type: ["integer", "null"] }
 
     Ripperdoc:
       type: object
@@ -3139,6 +3161,7 @@ components:
         name: { type: string }
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
+        purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         bannerUrl: { type: ["string", "null"] }
@@ -3153,9 +3176,12 @@ components:
       type: object
       properties:
         name: { type: string }
-        location: { type: string }
-        description: { type: string }
-        bannerUrl: { type: string }
+        purpose: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        bannerUrl: { type: ["string", "null"] }
+        ownerId: { type: string }
+        ownerCharacterId: { type: ["integer", "null"] }
 
     Employee:
       type: object

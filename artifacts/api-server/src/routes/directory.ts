@@ -684,13 +684,37 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
 });
 
 router.get("/directory/ripperdocs", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(ripperdocs);
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, location: r.location, description: r.description, bannerUrl: r.bannerUrl })));
+  const rows = await db
+    .select({
+      id: ripperdocs.id,
+      name: ripperdocs.name,
+      ownerName: users.username,
+      purpose: ripperdocs.purpose,
+      location: ripperdocs.location,
+      description: ripperdocs.description,
+      bannerUrl: ripperdocs.bannerUrl,
+    })
+    .from(ripperdocs)
+    .leftJoin(users, eq(users.id, ripperdocs.ownerId))
+    .orderBy(asc(ripperdocs.name));
+  res.json(rows.map((r) => ({ ...r, ownerName: r.ownerName ?? null })));
 });
 
 router.get("/directory/ripperdocs/:id", async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const [r] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, id));
+  const [r] = await db
+    .select({
+      id: ripperdocs.id,
+      name: ripperdocs.name,
+      ownerName: users.username,
+      purpose: ripperdocs.purpose,
+      location: ripperdocs.location,
+      description: ripperdocs.description,
+      bannerUrl: ripperdocs.bannerUrl,
+    })
+    .from(ripperdocs)
+    .leftJoin(users, eq(users.id, ripperdocs.ownerId))
+    .where(eq(ripperdocs.id, id));
   if (!r) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -700,24 +724,43 @@ router.get("/directory/ripperdocs/:id", async (req, res): Promise<void> => {
     .from(ripperdocEmployees)
     .innerJoin(characters, eq(characters.id, ripperdocEmployees.characterId))
     .where(eq(ripperdocEmployees.ripperdocId, id));
-  res.json({
-    id: r.id,
-    name: r.name,
-    location: r.location,
-    description: r.description,
-    bannerUrl: r.bannerUrl,
-    employees: emps,
-  });
+  res.json({ ...r, ownerName: r.ownerName ?? null, employees: emps });
 });
 
 router.get("/directory/stores", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(stores);
-  res.json(rows.map((s) => ({ id: s.id, name: s.name, kind: s.kind, location: s.location, description: s.description, bannerUrl: s.bannerUrl })));
+  const rows = await db
+    .select({
+      id: stores.id,
+      name: stores.name,
+      ownerName: users.username,
+      kind: stores.kind,
+      purpose: stores.purpose,
+      location: stores.location,
+      description: stores.description,
+      bannerUrl: stores.bannerUrl,
+    })
+    .from(stores)
+    .leftJoin(users, eq(users.id, stores.ownerId))
+    .orderBy(asc(stores.name));
+  res.json(rows.map((s) => ({ ...s, ownerName: s.ownerName ?? null })));
 });
 
 router.get("/directory/stores/:id", async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const [s] = await db.select().from(stores).where(eq(stores.id, id));
+  const [s] = await db
+    .select({
+      id: stores.id,
+      name: stores.name,
+      ownerName: users.username,
+      kind: stores.kind,
+      purpose: stores.purpose,
+      location: stores.location,
+      description: stores.description,
+      bannerUrl: stores.bannerUrl,
+    })
+    .from(stores)
+    .leftJoin(users, eq(users.id, stores.ownerId))
+    .where(eq(stores.id, id));
   if (!s) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -727,15 +770,7 @@ router.get("/directory/stores/:id", async (req, res): Promise<void> => {
     .from(storeEmployees)
     .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
     .where(eq(storeEmployees.storeId, id));
-  res.json({
-    id: s.id,
-    name: s.name,
-    kind: s.kind,
-    location: s.location,
-    description: s.description,
-    bannerUrl: s.bannerUrl,
-    employees: emps,
-  });
+  res.json({ ...s, ownerName: s.ownerName ?? null, employees: emps });
 });
 
 // The player-facing catalog is live-only. "draft" entries are works in

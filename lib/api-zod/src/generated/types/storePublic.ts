@@ -14,6 +14,8 @@ export interface StorePublic {
   ownerName?: string | null;
   kind?: StorePublicKind;
   /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
   location?: string | null;
   /** @nullable */
   description?: string | null;

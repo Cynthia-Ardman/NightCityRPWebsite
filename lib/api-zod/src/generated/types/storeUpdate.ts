@@ -10,7 +10,15 @@ import type { StoreUpdateKind } from './storeUpdateKind';
 export interface StoreUpdate {
   name?: string;
   kind?: StoreUpdateKind;
-  location?: string;
-  description?: string;
-  bannerUrl?: string;
+  /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  bannerUrl?: string | null;
+  ownerId?: string;
+  /** @nullable */
+  ownerCharacterId?: number | null;
 }

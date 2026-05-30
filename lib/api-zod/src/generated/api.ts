@@ -551,6 +551,7 @@ export const ListRipperdocsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "ownerName": zod.string().nullish(),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -567,6 +568,7 @@ export const GetRipperdocPublicResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "ownerName": zod.string().nullish(),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -582,6 +584,7 @@ export const ListStoresResponseItem = zod.object({
   "name": zod.string(),
   "ownerName": zod.string().nullish(),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']).optional(),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -599,6 +602,7 @@ export const GetStorePublicResponse = zod.object({
   "name": zod.string(),
   "ownerName": zod.string().nullish(),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']).optional(),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -1004,6 +1008,7 @@ export const ListMyStoresResponseItem = zod.object({
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -1035,6 +1040,7 @@ export const GetStoreResponse = zod.object({
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -1062,9 +1068,12 @@ export const UpdateStoreParams = zod.object({
 export const UpdateStoreBody = zod.object({
   "name": zod.string().optional(),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']).optional(),
-  "location": zod.string().optional(),
-  "description": zod.string().optional(),
-  "bannerUrl": zod.string().optional()
+  "purpose": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "ownerId": zod.string().optional(),
+  "ownerCharacterId": zod.number().nullish()
 })
 
 export const UpdateStoreResponse = zod.object({
@@ -1073,6 +1082,7 @@ export const UpdateStoreResponse = zod.object({
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -1090,6 +1100,14 @@ export const UpdateStoreResponse = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish()
 }))
+})
+
+
+/**
+ * @summary Delete a store (owner or staff). Cascades employees + stock.
+ */
+export const DeleteStoreParams = zod.object({
+  "id": zod.coerce.number()
 })
 
 
@@ -1213,6 +1231,7 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -1243,6 +1262,7 @@ export const GetRipperdocResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -1269,9 +1289,12 @@ export const UpdateRipperdocParams = zod.object({
 
 export const UpdateRipperdocBody = zod.object({
   "name": zod.string().optional(),
-  "location": zod.string().optional(),
-  "description": zod.string().optional(),
-  "bannerUrl": zod.string().optional()
+  "purpose": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "ownerId": zod.string().optional(),
+  "ownerCharacterId": zod.number().nullish()
 })
 
 export const UpdateRipperdocResponse = zod.object({
@@ -1279,6 +1302,7 @@ export const UpdateRipperdocResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
@@ -1296,6 +1320,14 @@ export const UpdateRipperdocResponse = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish()
 }))
+})
+
+
+/**
+ * @summary Delete a ripperdoc (owner or staff). Cascades employees + stock.
+ */
+export const DeleteRipperdocParams = zod.object({
+  "id": zod.coerce.number()
 })
 
 

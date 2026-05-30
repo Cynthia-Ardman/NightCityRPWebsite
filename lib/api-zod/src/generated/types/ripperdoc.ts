@@ -15,6 +15,8 @@ export interface Ripperdoc {
   /** @nullable */
   ownerCharacterId?: number | null;
   /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
   location?: string | null;
   /** @nullable */
   description?: string | null;

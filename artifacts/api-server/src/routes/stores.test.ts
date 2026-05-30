@@ -8,7 +8,8 @@ vi.mock("../lib/unbelievaboat", () => ({
 }));
 
 import {
-  db, stores, storeStock, inventoryItems, walletTransactions, characters,
+  db, stores, storeStock, storeEmployees, ripperdocs, ripperdocStock,
+  inventoryItems, walletTransactions, characters, auditLog,
 } from "@workspace/db";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { buildTestApp } from "../test/app";
@@ -190,5 +191,217 @@ describe("POST /stores/:id/sell", () => {
     expect(res.status).toBe(200);
     const rows = await db.select().from(storeStock).where(eq(storeStock.id, stock.id));
     expect(rows).toHaveLength(0);
+  });
+});
+
+async function makeRipperdoc(ownerId: string | null, name = "Vik's Clinic") {
+  const [r] = await db.insert(ripperdocs).values({ ownerId, name }).returning();
+  return r;
+}
+
+describe("PATCH /stores/:id (staff + owner manage)", () => {
+  it("lets the owner edit their own store and persists purpose", async () => {
+    const owner = await createUser();
+    const store = await makeStore(owner.id);
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", owner.id)
+      .send({ purpose: "Best chrome in town" });
+    expect(res.status).toBe(200);
+    expect(res.body.purpose).toBe("Best chrome in town");
+  });
+
+  it("lets a FIXER edit any store and writes an audit row", async () => {
+    const owner = await createUser();
+    const fixer = await createUser({ roles: ["fixer"] });
+    const store = await makeStore(owner.id, "Old Name");
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ name: "New Name" });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("New Name");
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "store_update"));
+    expect(audits.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("lets an ADMIN edit any store", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const store = await makeStore(owner.id);
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", admin.id)
+      .send({ location: "Watson" });
+    expect(res.status).toBe(200);
+    expect(res.body.location).toBe("Watson");
+  });
+
+  it("403s when a non-owner non-staff user edits a store", async () => {
+    const owner = await createUser();
+    const stranger = await createUser();
+    const store = await makeStore(owner.id);
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", stranger.id)
+      .send({ name: "Hijack" });
+    expect(res.status).toBe(403);
+  });
+
+  it("lets staff reassign ownerId but ignores ownerId from a plain owner", async () => {
+    const owner = await createUser();
+    const newOwner = await createUser();
+    const fixer = await createUser({ roles: ["fixer"] });
+    const store = await makeStore(owner.id);
+    // staff reassign succeeds
+    const ok = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ ownerId: newOwner.id });
+    expect(ok.status).toBe(200);
+    expect(ok.body.ownerId).toBe(newOwner.id);
+    // the new owner cannot hand it off via ownerId
+    const blocked = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", newOwner.id)
+      .send({ ownerId: owner.id, name: "Renamed" });
+    expect(blocked.status).toBe(200);
+    expect(blocked.body.ownerId).toBe(newOwner.id);
+  });
+
+  it("404s for a store that does not exist", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const res = await request(app)
+      .patch(`/api/stores/999999`)
+      .set("x-test-user", fixer.id)
+      .send({ name: "Ghost" });
+    expect(res.status).toBe(404);
+  });
+
+  it("does not write an audit row on a no-op edit", async () => {
+    const owner = await createUser();
+    const store = await makeStore(owner.id, "Same Name");
+    const before = await db.select().from(auditLog).where(eq(auditLog.action, "store_update"));
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", owner.id)
+      .send({ name: "Same Name" });
+    expect(res.status).toBe(200);
+    const after = await db.select().from(auditLog).where(eq(auditLog.action, "store_update"));
+    expect(after.length).toBe(before.length);
+  });
+});
+
+describe("DELETE /stores/:id", () => {
+  it("lets a FIXER delete any store, cascades stock/employees, and audits", async () => {
+    const owner = await createUser();
+    const fixer = await createUser({ roles: ["fixer"] });
+    const store = await makeStore(owner.id);
+    await makeStock(store.id);
+    await db.insert(storeEmployees).values({ storeId: store.id, characterId: (await createCharacter({ ownerId: owner.id })).id });
+    const res = await request(app)
+      .delete(`/api/stores/${store.id}`)
+      .set("x-test-user", fixer.id);
+    expect(res.status).toBe(204);
+    expect(await db.select().from(stores).where(eq(stores.id, store.id))).toHaveLength(0);
+    expect(await db.select().from(storeStock).where(eq(storeStock.storeId, store.id))).toHaveLength(0);
+    expect(await db.select().from(storeEmployees).where(eq(storeEmployees.storeId, store.id))).toHaveLength(0);
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "store_delete"));
+    expect(audits.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("lets the owner delete their own store", async () => {
+    const owner = await createUser();
+    const store = await makeStore(owner.id);
+    const res = await request(app)
+      .delete(`/api/stores/${store.id}`)
+      .set("x-test-user", owner.id);
+    expect(res.status).toBe(204);
+  });
+
+  it("403s when a non-owner non-staff user deletes a store", async () => {
+    const owner = await createUser();
+    const stranger = await createUser();
+    const store = await makeStore(owner.id);
+    const res = await request(app)
+      .delete(`/api/stores/${store.id}`)
+      .set("x-test-user", stranger.id);
+    expect(res.status).toBe(403);
+    expect(await db.select().from(stores).where(eq(stores.id, store.id))).toHaveLength(1);
+  });
+});
+
+describe("PATCH /ripperdocs/:id (staff + owner manage)", () => {
+  it("lets a FIXER edit any ripperdoc and writes an audit row", async () => {
+    const owner = await createUser();
+    const fixer = await createUser({ roles: ["fixer"] });
+    const rip = await makeRipperdoc(owner.id);
+    const res = await request(app)
+      .patch(`/api/ripperdocs/${rip.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ purpose: "Cyberware specialist" });
+    expect(res.status).toBe(200);
+    expect(res.body.purpose).toBe("Cyberware specialist");
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "ripperdoc_update"));
+    expect(audits.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("lets the owner edit their own ripperdoc", async () => {
+    const owner = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    const res = await request(app)
+      .patch(`/api/ripperdocs/${rip.id}`)
+      .set("x-test-user", owner.id)
+      .send({ location: "Heywood" });
+    expect(res.status).toBe(200);
+    expect(res.body.location).toBe("Heywood");
+  });
+
+  it("403s when a non-owner non-staff user edits a ripperdoc", async () => {
+    const owner = await createUser();
+    const stranger = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    const res = await request(app)
+      .patch(`/api/ripperdocs/${rip.id}`)
+      .set("x-test-user", stranger.id)
+      .send({ name: "Hijack" });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("DELETE /ripperdocs/:id", () => {
+  it("lets an ADMIN delete any ripperdoc, cascades stock, and audits", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const rip = await makeRipperdoc(owner.id);
+    await db.insert(ripperdocStock).values({ ripperdocId: rip.id, name: "Kiroshi Optics", price: 500, quantity: 3 });
+    const res = await request(app)
+      .delete(`/api/ripperdocs/${rip.id}`)
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(204);
+    expect(await db.select().from(ripperdocs).where(eq(ripperdocs.id, rip.id))).toHaveLength(0);
+    expect(await db.select().from(ripperdocStock).where(eq(ripperdocStock.ripperdocId, rip.id))).toHaveLength(0);
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "ripperdoc_delete"));
+    expect(audits.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("lets the owner delete their own ripperdoc", async () => {
+    const owner = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    const res = await request(app)
+      .delete(`/api/ripperdocs/${rip.id}`)
+      .set("x-test-user", owner.id);
+    expect(res.status).toBe(204);
+    expect(await db.select().from(ripperdocs).where(eq(ripperdocs.id, rip.id))).toHaveLength(0);
+  });
+
+  it("403s when a non-owner non-staff user deletes a ripperdoc", async () => {
+    const owner = await createUser();
+    const stranger = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    const res = await request(app)
+      .delete(`/api/ripperdocs/${rip.id}`)
+      .set("x-test-user", stranger.id);
+    expect(res.status).toBe(403);
   });
 });

@@ -21,7 +21,10 @@ import SellStockDialog from "@/components/SellStockDialog";
 import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
 import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import StaffVenuePanel from "@/components/StaffVenuePanel";
 import { useAuthMe } from "@/hooks/useAuthMe";
+
+const STORE_KINDS = ["guns", "gear", "clothing", "mixed", "other"] as const;
 
 export default function MyStoreDetail() {
   const { id } = useParams<{ id: string }>();
@@ -58,10 +61,24 @@ export default function MyStoreDetail() {
         <CardHeader><CardTitle className="font-display tracking-widest">EDIT</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Input defaultValue={store.name} onBlur={(e) => update.mutate({ id: storeId, data: { name: e.target.value } })} data-testid="input-edit-name" />
+          <select
+            defaultValue={store.kind}
+            onChange={(e) => update.mutate({ id: storeId, data: { kind: e.target.value as (typeof STORE_KINDS)[number] } })}
+            className="rounded-none border border-input bg-background px-3 py-2 font-mono text-sm uppercase"
+            data-testid="select-edit-kind"
+          >
+            {STORE_KINDS.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
           <Input defaultValue={store.location ?? ""} onBlur={(e) => update.mutate({ id: storeId, data: { location: e.target.value } })} placeholder="Location" data-testid="input-edit-location" />
+          <Input defaultValue={store.purpose ?? ""} onBlur={(e) => update.mutate({ id: storeId, data: { purpose: e.target.value } })} placeholder="Purpose (what this store is for)" data-testid="input-edit-purpose" />
           <Textarea className="md:col-span-2" defaultValue={store.description ?? ""} onBlur={(e) => update.mutate({ id: storeId, data: { description: e.target.value } })} placeholder="Description" data-testid="input-edit-description" />
         </CardContent>
       </Card>
+      {!!me && (me.isAdmin || me.isFixer) && (
+        <StaffVenuePanel kind="store" venueId={storeId} onChanged={invalidate} />
+      )}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">EMPLOYEES</CardTitle></CardHeader>

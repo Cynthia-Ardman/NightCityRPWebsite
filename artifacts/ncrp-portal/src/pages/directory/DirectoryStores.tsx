@@ -24,9 +24,10 @@ export default function DirectoryStores() {
                 <CardHeader>
                   <CardTitle className="font-display text-xl">{s.name}</CardTitle>
                   <CardDescription className="font-mono text-xs">{s.location ?? "—"}</CardDescription>
+                  <CardDescription className="font-mono text-xs text-nc-cyan" data-testid={`text-store-owner-${s.id}`}>OWNER: {s.ownerName ?? "UNCLAIMED"}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex justify-between items-end">
-                  <p className="text-xs font-mono text-muted-foreground line-clamp-2">{s.description ?? ""}</p>
+                  <p className="text-xs font-mono text-muted-foreground line-clamp-2">{s.purpose ?? s.description ?? ""}</p>
                   <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow uppercase">{s.kind}</Badge>
                 </CardContent>
               </Card>

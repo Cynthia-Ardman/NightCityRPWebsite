@@ -12,6 +12,8 @@ export interface RipperdocPublic {
   /** @nullable */
   ownerName?: string | null;
   /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
   location?: string | null;
   /** @nullable */
   description?: string | null;

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import type { Request, Response } from "express";
 import { eq, and } from "drizzle-orm";
 import {
   db,
@@ -12,6 +13,7 @@ import {
   inventoryItems,
   walletTransactions,
   activityEvents,
+  auditLog,
   users,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
@@ -21,6 +23,78 @@ import { logger } from "../lib/logger";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 
 const router: IRouter = Router();
+
+// ===== Shared management helpers =====
+// Stores and ripperdocs are near-identical siblings. Both are managed by their
+// owner OR by staff (fixers/admins). "Staff" is admin OR fixer — never trust a
+// client-sent role, always derive from the session user's roles.
+function isStaff(roles: string[]): boolean {
+  return hasRole(roles, "ADMIN") || hasRole(roles, "FIXER");
+}
+
+function auditMeta(req: Request): { ip: string | null; ua: string | null } {
+  const fwd = req.headers["x-forwarded-for"];
+  const ip = (Array.isArray(fwd) ? fwd[0] : (fwd?.toString().split(",")[0] ?? req.ip)) ?? null;
+  const ua = req.headers["user-agent"]?.toString().slice(0, 500) ?? null;
+  return { ip, ua };
+}
+
+type StoreRow = typeof stores.$inferSelect;
+type RipperdocRow = typeof ripperdocs.$inferSelect;
+
+// Load a store by :id and enforce that the caller is its owner or staff.
+// Writes the 404/403 response and returns null when the caller may not manage
+// it, so handlers can early-return.
+async function loadManageableStore(req: Request, res: Response): Promise<StoreRow | null> {
+  const id = parseInt(String(req.params.id), 10);
+  const [s] = await db.select().from(stores).where(eq(stores.id, id));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  if (s.ownerId !== req.user!.id && !isStaff(req.user!.roles)) {
+    res.status(403).json({ error: "Forbidden" });
+    return null;
+  }
+  return s;
+}
+
+async function loadManageableRipperdoc(req: Request, res: Response): Promise<RipperdocRow | null> {
+  const id = parseInt(String(req.params.id), 10);
+  const [r] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, id));
+  if (!r) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  if (r.ownerId !== req.user!.id && !isStaff(req.user!.roles)) {
+    res.status(403).json({ error: "Forbidden" });
+    return null;
+  }
+  return r;
+}
+
+// Build a before/after diff for an edit. Only fields whose value actually
+// changes are recorded, so the audit log captures exactly what the editor
+// touched.
+function buildDiff(
+  current: Record<string, unknown>,
+  body: Record<string, unknown>,
+  fields: string[],
+): { patch: Record<string, unknown>; before: Record<string, unknown>; after: Record<string, unknown> } {
+  const patch: Record<string, unknown> = {};
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+  for (const field of fields) {
+    const next = body[field];
+    if (next === undefined) continue;
+    const prev = current[field];
+    if (JSON.stringify(prev ?? null) === JSON.stringify(next ?? null)) continue;
+    patch[field] = next;
+    before[field] = prev ?? null;
+    after[field] = next ?? null;
+  }
+  return { patch, before, after };
+}
 
 // ===== Stores =====
 // Returns stores the user owns OR is an employee at (via any of their characters).
@@ -51,9 +125,8 @@ router.get("/stores/:id", requireAuth, async (req, res): Promise<void> => {
     .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
     .where(eq(storeEmployees.storeId, id));
   const isOwner = s.ownerId === req.user!.id;
-  const isAdmin = hasRole(req.user!.roles, "ADMIN");
   const isEmployee = emps.some((e) => e.ownerId === req.user!.id);
-  if (!isOwner && !isAdmin && !isEmployee) {
+  if (!isOwner && !isStaff(req.user!.roles) && !isEmployee) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -62,63 +135,88 @@ router.get("/stores/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/stores/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
-  if (!s) {
-    res.status(404).json({ error: "Not found" });
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  // Only staff may reassign ownership (to another user). Owners cannot hand
+  // their venue to someone else through the edit form.
+  const fields = ["name", "kind", "purpose", "location", "description", "bannerUrl", "ownerCharacterId"];
+  if (isStaff(req.user!.roles)) fields.push("ownerId");
+  const { patch, before, after } = buildDiff(s as unknown as Record<string, unknown>, body, fields);
+  if (Object.keys(patch).length === 0) {
+    res.json(s);
     return;
   }
-  const { name, kind, location, description, bannerUrl, ownerCharacterId } = req.body ?? {};
-  const [u] = await db
-    .update(stores)
-    .set({
-      ...(name !== undefined ? { name } : {}),
-      ...(kind !== undefined ? { kind } : {}),
-      ...(location !== undefined ? { location } : {}),
-      ...(description !== undefined ? { description } : {}),
-      ...(bannerUrl !== undefined ? { bannerUrl } : {}),
-      ...(ownerCharacterId !== undefined ? { ownerCharacterId } : {}),
-    })
-    .where(eq(stores.id, id))
-    .returning();
-  res.json(u);
+  const { ip, ua } = auditMeta(req);
+  const updated = await db.transaction(async (tx) => {
+    const [u] = await tx.update(stores).set(patch).where(eq(stores.id, s.id)).returning();
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "store_update",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "store",
+      targetId: String(s.id),
+      message: `Edited store "${u.name}"`,
+      beforeJson: before as never,
+      afterJson: after as never,
+    });
+    return u;
+  });
+  res.json(updated);
+});
+
+// Delete a store. Owner or staff. The FK cascade on store_employees /
+// store_stock removes the venue's staff and inventory; the delete + audit run
+// in one transaction so the trail can't drift from the deletion.
+router.delete("/stores/:id", requireAuth, async (req, res): Promise<void> => {
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
+  const { ip, ua } = auditMeta(req);
+  await db.transaction(async (tx) => {
+    await tx.delete(stores).where(eq(stores.id, s.id));
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "store_delete",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "store",
+      targetId: String(s.id),
+      message: `Deleted store "${s.name}"`,
+      beforeJson: s as never,
+      afterJson: null,
+    });
+  });
+  res.sendStatus(204);
 });
 
 router.post("/stores/:id/employees", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
-  if (!s) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
   const { characterId, role } = req.body ?? {};
   if (!characterId) {
     res.status(400).json({ error: "characterId required" });
     return;
   }
-  const [e] = await db.insert(storeEmployees).values({ storeId: id, characterId, role: role ?? "clerk" }).returning();
+  const [e] = await db.insert(storeEmployees).values({ storeId: s.id, characterId, role: role ?? "clerk" }).returning();
   res.status(201).json(e);
 });
 
 router.delete("/stores/:id/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
   const empId = parseInt(String(req.params.employeeId), 10);
-  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
-  if (!s) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  await db.delete(storeEmployees).where(and(eq(storeEmployees.id, empId), eq(storeEmployees.storeId, id)));
+  await db.delete(storeEmployees).where(and(eq(storeEmployees.id, empId), eq(storeEmployees.storeId, s.id)));
   res.sendStatus(204);
 });
 
 router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
-  if (!s) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
   const { name, category, price, quantity, notes } = req.body ?? {};
   if (!name) {
     res.status(400).json({ error: "name required" });
@@ -126,19 +224,15 @@ router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> =>
   }
   const [it] = await db
     .insert(storeStock)
-    .values({ storeId: id, name, category: category ?? null, price: price ?? 0, quantity: quantity ?? 0, notes: notes ?? null })
+    .values({ storeId: s.id, name, category: category ?? null, price: price ?? 0, quantity: quantity ?? 0, notes: notes ?? null })
     .returning();
   res.status(201).json(it);
 });
 
 router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
   const stockId = parseInt(String(req.params.stockId), 10);
-  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
-  if (!s) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
   const { name, category, price, quantity, notes } = req.body ?? {};
   const [u] = await db
     .update(storeStock)
@@ -149,7 +243,7 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
       ...(quantity !== undefined ? { quantity } : {}),
       ...(notes !== undefined ? { notes } : {}),
     })
-    .where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, id)))
+    .where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, s.id)))
     .returning();
   if (!u) {
     res.status(404).json({ error: "Not found" });
@@ -159,14 +253,10 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
 });
 
 router.delete("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
   const stockId = parseInt(String(req.params.stockId), 10);
-  const [s] = await db.select().from(stores).where(and(eq(stores.id, id), eq(stores.ownerId, req.user!.id)));
-  if (!s) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  await db.delete(storeStock).where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, id)));
+  await db.delete(storeStock).where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, s.id)));
   res.sendStatus(204);
 });
 
@@ -418,9 +508,8 @@ router.get("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
     .innerJoin(characters, eq(characters.id, ripperdocEmployees.characterId))
     .where(eq(ripperdocEmployees.ripperdocId, id));
   const isOwner = r.ownerId === req.user!.id;
-  const isAdmin = hasRole(req.user!.roles, "ADMIN");
   const isEmployee = emps.some((e) => e.ownerId === req.user!.id);
-  if (!isOwner && !isAdmin && !isEmployee) {
+  if (!isOwner && !isStaff(req.user!.roles) && !isEmployee) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -429,75 +518,101 @@ router.get("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
-  if (!r) {
-    res.status(404).json({ error: "Not found" });
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const fields = ["name", "purpose", "location", "description", "bannerUrl", "ownerCharacterId"];
+  if (isStaff(req.user!.roles)) fields.push("ownerId");
+  const { patch, before, after } = buildDiff(r as unknown as Record<string, unknown>, body, fields);
+  if (Object.keys(patch).length === 0) {
+    res.json(r);
     return;
   }
-  const { name, location, description, bannerUrl, ownerCharacterId } = req.body ?? {};
-  const [u] = await db
-    .update(ripperdocs)
-    .set({
-      ...(name !== undefined ? { name } : {}),
-      ...(location !== undefined ? { location } : {}),
-      ...(description !== undefined ? { description } : {}),
-      ...(bannerUrl !== undefined ? { bannerUrl } : {}),
-      ...(ownerCharacterId !== undefined ? { ownerCharacterId } : {}),
-    })
-    .where(eq(ripperdocs.id, id))
-    .returning();
-  res.json(u);
+  const { ip, ua } = auditMeta(req);
+  const updated = await db.transaction(async (tx) => {
+    const [u] = await tx.update(ripperdocs).set(patch).where(eq(ripperdocs.id, r.id)).returning();
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "ripperdoc_update",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "ripperdoc",
+      targetId: String(r.id),
+      message: `Edited ripperdoc "${u.name}"`,
+      beforeJson: before as never,
+      afterJson: after as never,
+    });
+    return u;
+  });
+  res.json(updated);
+});
+
+// Delete a ripperdoc. Owner or staff; cascades employees + stock.
+router.delete("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
+  const { ip, ua } = auditMeta(req);
+  await db.transaction(async (tx) => {
+    await tx.delete(ripperdocs).where(eq(ripperdocs.id, r.id));
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "ripperdoc_delete",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "ripperdoc",
+      targetId: String(r.id),
+      message: `Deleted ripperdoc "${r.name}"`,
+      beforeJson: r as never,
+      afterJson: null,
+    });
+  });
+  res.sendStatus(204);
 });
 
 router.post("/ripperdocs/:id/employees", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
-  if (!r) {
-    res.status(404).json({ error: "Not found" });
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
+  const { characterId, role } = req.body ?? {};
+  if (!characterId) {
+    res.status(400).json({ error: "characterId required" });
     return;
   }
-  const { characterId, role } = req.body ?? {};
-  const [e] = await db.insert(ripperdocEmployees).values({ ripperdocId: id, characterId, role: role ?? "doc" }).returning();
+  const [e] = await db.insert(ripperdocEmployees).values({ ripperdocId: r.id, characterId, role: role ?? "doc" }).returning();
   res.status(201).json(e);
 });
 
 router.delete("/ripperdocs/:id/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
   const empId = parseInt(String(req.params.employeeId), 10);
-  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
-  if (!r) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  await db.delete(ripperdocEmployees).where(and(eq(ripperdocEmployees.id, empId), eq(ripperdocEmployees.ripperdocId, id)));
+  await db.delete(ripperdocEmployees).where(and(eq(ripperdocEmployees.id, empId), eq(ripperdocEmployees.ripperdocId, r.id)));
   res.sendStatus(204);
 });
 
 router.post("/ripperdocs/:id/stock", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
-  if (!r) {
-    res.status(404).json({ error: "Not found" });
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
+  const { name, category, price, quantity, notes } = req.body ?? {};
+  if (!name) {
+    res.status(400).json({ error: "name required" });
     return;
   }
-  const { name, category, price, quantity, notes } = req.body ?? {};
   const [it] = await db
     .insert(ripperdocStock)
-    .values({ ripperdocId: id, name, category: category ?? null, price: price ?? 0, quantity: quantity ?? 0, notes: notes ?? null })
+    .values({ ripperdocId: r.id, name, category: category ?? null, price: price ?? 0, quantity: quantity ?? 0, notes: notes ?? null })
     .returning();
   res.status(201).json(it);
 });
 
 router.delete("/ripperdocs/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
   const stockId = parseInt(String(req.params.stockId), 10);
-  const [r] = await db.select().from(ripperdocs).where(and(eq(ripperdocs.id, id), eq(ripperdocs.ownerId, req.user!.id)));
-  if (!r) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  await db.delete(ripperdocStock).where(and(eq(ripperdocStock.id, stockId), eq(ripperdocStock.ripperdocId, id)));
+  await db.delete(ripperdocStock).where(and(eq(ripperdocStock.id, stockId), eq(ripperdocStock.ripperdocId, r.id)));
   res.sendStatus(204);
 });
 

@@ -815,6 +815,8 @@ export interface RipperdocPublic {
   /** @nullable */
   ownerName?: string | null;
   /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
   location?: string | null;
   /** @nullable */
   description?: string | null;
@@ -840,6 +842,8 @@ export interface StorePublic {
   /** @nullable */
   ownerName?: string | null;
   kind?: StorePublicKind;
+  /** @nullable */
+  purpose?: string | null;
   /** @nullable */
   location?: string | null;
   /** @nullable */
@@ -886,6 +890,8 @@ export interface Store {
   ownerCharacterId?: number | null;
   kind: StoreKind;
   /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
   location?: string | null;
   /** @nullable */
   description?: string | null;
@@ -909,9 +915,17 @@ export const StoreUpdateKind = {
 export interface StoreUpdate {
   name?: string;
   kind?: StoreUpdateKind;
-  location?: string;
-  description?: string;
-  bannerUrl?: string;
+  /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  bannerUrl?: string | null;
+  ownerId?: string;
+  /** @nullable */
+  ownerCharacterId?: number | null;
 }
 
 export interface Ripperdoc {
@@ -920,6 +934,8 @@ export interface Ripperdoc {
   ownerId: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /** @nullable */
+  purpose?: string | null;
   /** @nullable */
   location?: string | null;
   /** @nullable */
@@ -932,9 +948,17 @@ export interface Ripperdoc {
 
 export interface RipperdocUpdate {
   name?: string;
-  location?: string;
-  description?: string;
-  bannerUrl?: string;
+  /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  bannerUrl?: string | null;
+  ownerId?: string;
+  /** @nullable */
+  ownerCharacterId?: number | null;
 }
 
 export interface EmployeeInput {
