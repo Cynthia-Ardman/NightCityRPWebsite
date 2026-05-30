@@ -5,7 +5,7 @@ description: Why simulated missions can become permanently unpayable, and the li
 
 # Mission autopay Test→Live trap
 
-`payMissionPlayers` stamps `missions.autoPayProcessedAt` on EVERY run (incl. Test mode, where assignments are marked `simulated`). `runMissionAutoPay`'s primary candidate query filters on `autoPayProcessedAt IS NULL`. Since the manual "Pay Players" button was removed (Task #71), a mission swept while the system was in Test mode would be stamped processed and then NEVER paid for real after flipping to Live — and the admin "run job" path also goes through `runMissionAutoPay`, so it couldn't recover it either.
+`payMissionPlayers` stamps `missions.autoPayProcessedAt` on EVERY run (incl. Test mode, where assignments are marked `simulated`). `runMissionAutoPay`'s primary candidate query filters on `autoPayProcessedAt IS NULL`. Since the manual "Pay Players" button was removed, a mission swept while the system was in Test mode would be stamped processed and then NEVER paid for real after flipping to Live — and the admin "run job" path also goes through `runMissionAutoPay`, so it couldn't recover it either.
 
 **Recovery rule:** `runMissionAutoPay` has a second "live-retry" pass (only when `ctx.live`) that re-selects already-processed, non-cancelled missions that still have assignments in `simulated|failed|unpaid`, and re-runs `payMissionPlayers` (which re-claims those rows atomically). Already-`paid` rows are skipped, so no double-pay.
 

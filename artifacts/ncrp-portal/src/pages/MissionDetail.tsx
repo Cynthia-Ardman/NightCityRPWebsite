@@ -172,12 +172,18 @@ export default function MissionDetail() {
             <TabsTrigger value="player" className="rounded-none font-display tracking-widest" data-testid="tab-player">
               PLAYER
             </TabsTrigger>
+            <TabsTrigger value="actors" className="rounded-none font-display tracking-widest" data-testid="tab-actors">
+              ACTORS
+            </TabsTrigger>
             <TabsTrigger value="fixer" className="rounded-none font-display tracking-widest" data-testid="tab-fixer">
               FIXER
             </TabsTrigger>
           </TabsList>
           <TabsContent value="player" className="mt-4 space-y-6">
             <PlayerView data={data} />
+          </TabsContent>
+          <TabsContent value="actors" className="mt-4 space-y-6">
+            <ActorsView data={data} />
           </TabsContent>
           <TabsContent value="fixer" className="mt-4 space-y-6">
             <FixerView data={data} />
@@ -708,6 +714,45 @@ function ApplicationReviewRow({
 }
 
 function FixerView({ data }: { data: MissionDetailModel }) {
+  return (
+    <>
+      {data.discordSyncError && (
+        <div className="border border-destructive bg-destructive/10 text-destructive font-mono text-xs p-3 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>Discord event sync error: {data.discordSyncError}</span>
+        </div>
+      )}
+
+      <WorkflowPanel data={data} />
+
+      <ApplicationsPanel data={data} />
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+            Mission Tools
+          </CardTitle>
+          <Link
+            href={`/fixer/missions?edit=${data.id}`}
+            className="text-nc-cyan font-mono text-xs hover:underline inline-flex items-center gap-1"
+            data-testid="link-edit-mission"
+          >
+            <Pencil className="w-3 h-3" /> edit
+          </Link>
+        </CardHeader>
+        <CardContent className="font-mono text-sm">
+          <p className="text-muted-foreground text-xs" data-testid="text-players-autopay-note">
+            Players are paid automatically — €${data.playerPay.toLocaleString()} to each attending player,
+            with attendance credited, by the payout cron. See the <span className="text-foreground">Players</span> tab
+            for per-player paid / unpaid / failed status.
+          </p>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function ActorsView({ data }: { data: MissionDetailModel }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
 
@@ -745,39 +790,6 @@ function FixerView({ data }: { data: MissionDetailModel }) {
 
   return (
     <>
-      {data.discordSyncError && (
-        <div className="border border-destructive bg-destructive/10 text-destructive font-mono text-xs p-3 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>Discord event sync error: {data.discordSyncError}</span>
-        </div>
-      )}
-
-      <WorkflowPanel data={data} />
-
-      <ApplicationsPanel data={data} />
-
-      <Card className="rounded-none border-border bg-card/50">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
-            Mission Tools
-          </CardTitle>
-          <Link
-            href={`/fixer/missions?edit=${data.id}`}
-            className="text-nc-cyan font-mono text-xs hover:underline inline-flex items-center gap-1"
-            data-testid="link-edit-mission"
-          >
-            <Pencil className="w-3 h-3" /> edit
-          </Link>
-        </CardHeader>
-        <CardContent className="font-mono text-sm">
-          <p className="text-muted-foreground text-xs" data-testid="text-players-autopay-note">
-            Players are paid automatically — €${data.playerPay.toLocaleString()} to each attending player,
-            with attendance credited, by the payout cron. See the <span className="text-foreground">Players</span> tab
-            for per-player paid / unpaid / failed status.
-          </p>
-        </CardContent>
-      </Card>
-
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
           <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
