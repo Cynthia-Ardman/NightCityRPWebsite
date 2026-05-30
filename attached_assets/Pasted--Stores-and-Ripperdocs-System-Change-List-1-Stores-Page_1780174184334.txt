@@ -1,0 +1,736 @@
+# Stores and Ripperdocs System Change List
+
+## 1. Stores Page Display
+
+### Store Card/List Information
+
+The Stores page should clearly show basic store information.
+
+Each store entry should display:
+
+* Store name
+* Store type
+* Store owner
+
+**Acceptance criteria**
+
+* Stores page clearly shows the name of each store.
+* Stores page clearly shows the type/category of each store.
+* Stores page clearly shows the owner of each store.
+* Store entries are readable and visually organized.
+
+---
+
+## 2. Store Admin Controls
+
+### Edit/Delete Stores
+
+Fixers and admins should be able to edit or delete any specific store from the Stores page.
+
+**Who can edit/delete stores**
+
+* Fixers
+* Admins
+
+**Editable store fields should include**
+
+* Store name
+* Store type
+* Store owner
+* Store location
+* Store description
+* Store purpose
+* Store employees
+* Store commission percentage
+* Any other existing store metadata
+
+**Acceptance criteria**
+
+* Fixers/admins see Edit and Delete controls for stores.
+* Regular players do not see Edit/Delete controls unless they are the owner and owner-editing is intentionally allowed.
+* Store edits save correctly.
+* Store deletion should require confirmation.
+* Store edits/deletions are audit logged.
+
+---
+
+## 3. Player Store Request Flow
+
+### Request New Store Button
+
+Players should have a button to request a new store.
+
+Suggested button label:
+
+`Request New Store`
+
+Clicking the button should open a request modal/window.
+
+### Request New Store Form Fields
+
+The form should ask for:
+
+* Store name
+* Character running the store
+* Purpose of the store
+* Store location
+* Store description
+
+### Field Details
+
+**Store name**
+
+* Name of the proposed store.
+
+**Character running the store**
+
+* Dropdown of the player’s characters.
+* Required.
+
+**Purpose of the store**
+
+* Free-text field.
+* Required.
+
+**Store location**
+
+* Free-text field.
+* Required.
+
+**Store description**
+
+* Free-text field.
+* Required.
+
+### Submission Behavior
+
+When submitted, the request should go to **Miscellaneous Requests** for fixers/admins to approve.
+
+**Acceptance criteria**
+
+* Players can request a new store.
+* Request form opens in a modal/window.
+* Required fields are validated.
+* Submitted request appears in Miscellaneous Requests.
+* Fixers/admins can approve or deny the request.
+* Approved requests can create a new store or allow staff to create one from the request.
+* Request action is logged.
+
+---
+
+# 4. Ripperdoc Page / Ripperdoc Store Support
+
+## 4.1 Ripperdocs Missing / Import Needed
+
+Ripperdocs are currently missing entirely.
+
+There should be a way to import existing Ripperdocs into the system.
+
+**Acceptance criteria**
+
+* Ripperdocs can be imported.
+* Imported Ripperdocs appear on the Ripperdoc page.
+* Imported Ripperdocs have owner, location, description, and relevant metadata.
+* Import errors are clearly shown.
+* Import action is audit logged.
+
+---
+
+## 4.2 Ripperdoc Page Display
+
+The Ripperdoc page should show each Ripperdoc store clearly.
+
+Each Ripperdoc entry should display:
+
+* Ripperdoc name
+* Type/category
+* Owner
+* Location
+* Description, if available
+
+**Acceptance criteria**
+
+* Ripperdoc page loads correctly.
+* Existing/imported Ripperdocs display.
+* Ripperdoc entries are readable and organized.
+
+---
+
+## 4.3 Ripperdoc Admin Controls
+
+Fixers and admins should be able to edit or delete Ripperdoc stores directly on the Ripperdoc page.
+
+**Who can edit/delete Ripperdocs**
+
+* Fixers
+* Admins
+
+**Editable fields should include**
+
+* Ripperdoc name
+* Owner
+* Location
+* Description
+* Purpose
+* Employees
+* Commission percentage
+* Any other relevant Ripperdoc metadata
+
+**Acceptance criteria**
+
+* Fixers/admins see Edit/Delete controls for Ripperdocs.
+* Regular players do not see staff edit/delete controls.
+* Ripperdoc deletion requires confirmation.
+* Ripperdoc edits/deletions are audit logged.
+
+---
+
+## 4.4 Player Ripperdoc Request Flow
+
+Players should be able to request a new Ripperdoc using a similar request flow to stores.
+
+Suggested button label:
+
+`Request New Ripperdoc`
+
+### Request New Ripperdoc Form Fields
+
+The form should ask for:
+
+* Ripperdoc name
+* Character running the Ripperdoc
+* Purpose of the Ripperdoc
+* Ripperdoc location
+* Ripperdoc description
+
+### Submission Behavior
+
+When submitted, the request should go to **Miscellaneous Requests** for fixers/admins to approve.
+
+**Acceptance criteria**
+
+* Players can request a new Ripperdoc.
+* Request form opens in a modal/window.
+* Required fields are validated.
+* Submitted request appears in Miscellaneous Requests.
+* Fixers/admins can approve or deny the request.
+* Approved requests can create a new Ripperdoc or allow staff to create one from the request.
+* Request action is logged.
+
+---
+
+# 5. Store Ownership, Employees, and Access
+
+## 5.1 Store/Ripperdoc Owner Access
+
+Each store and Ripperdoc should have an owner.
+
+The owner should have access to manage their store/Ripperdoc.
+
+**Owner permissions should include**
+
+* View store inventory
+* View transaction history
+* Buy stock for the store
+* Sell stock to players
+* Add/remove employees
+* Set employee commission percentage
+* Deposit money into store account
+* Withdraw money from store account
+
+**Acceptance criteria**
+
+* Store/Ripperdoc owner can access management tools for their store.
+* Owners cannot manage stores they do not own unless they are staff.
+* Owner actions are logged.
+
+---
+
+## 5.2 Employee Access
+
+Owners should be able to grant access to other players as employees.
+
+Employees should be able to perform store/Ripperdoc sales and stock actions depending on store type.
+
+**Employee permissions should include**
+
+* View store inventory
+* Buy stock for the store, if allowed
+* Sell stock to players
+* View relevant transaction history
+* Receive commission from sales, if configured
+
+**Acceptance criteria**
+
+* Owners can add employees.
+* Owners can remove employees.
+* Employees can access assigned store/Ripperdoc tools.
+* Employees cannot access stores/Ripperdocs they are not assigned to.
+* Employee actions are logged.
+* Staff can audit owner/employee assignments.
+
+---
+
+## 5.3 Employee Commission Percentage
+
+Owners should be able to set a commission percentage for employees.
+
+This percentage determines how much of a sale price is paid to the employee when they complete a sale.
+
+**Example**
+
+* Store buys a gun at wholesale using store funds.
+* Employee sells the gun to a player at markup.
+* Player approves purchase.
+* Full sale price goes to the store account.
+* Configured percentage of the sale price goes to the employee account.
+
+**Acceptance criteria**
+
+* Store owner can set employee commission percentage.
+* Commission percentage is used during sales.
+* Commission payment is recorded.
+* Commission payment comes from the store account or sale proceeds according to the final economy logic.
+* Commission payments are visible in transaction history.
+* Commission logic prevents negative store balances unless intentionally allowed.
+
+---
+
+# 6. Store Accounts and Money Flow
+
+## 6.1 Store-Specific Account
+
+Each store/Ripperdoc should have its own money account.
+
+**Account behavior**
+
+* Money spent at the store goes into the store account.
+* Money spent by the store comes out of the store account.
+* Owners can deposit money into the store account.
+* Owners can withdraw money from the store account.
+* Employees can spend store funds only for approved store actions.
+
+**Acceptance criteria**
+
+* Each store/Ripperdoc has its own account balance.
+* Sales deposit money into the store account.
+* Stock purchases withdraw money from the store account.
+* Owner deposits/withdrawals are recorded.
+* Store account transactions are visible in transaction history.
+* Store accounts cannot be confused with personal player wallets.
+
+---
+
+## 6.2 Owner Deposit / Withdraw
+
+Owners should be able to add money to and withdraw money from the store account.
+
+**Acceptance criteria**
+
+* Owner can deposit money from their personal account into the store account.
+* Owner can withdraw money from the store account to their personal account.
+* Deposit/withdraw actions require confirmation.
+* Transactions are logged.
+* Store balance updates correctly.
+* Personal wallet balance updates correctly.
+
+---
+
+# 7. Inventory and Transaction History
+
+## 7.1 Store Inventory
+
+Store owners and employees should be able to view the inventory/stock the store currently has.
+
+For regular stores, inventory may include:
+
+* Guns
+* Gear
+* Other store-specific stock
+
+For Ripperdocs, inventory may include:
+
+* Cyberware
+* Medical/cyberware-related stock
+
+**Acceptance criteria**
+
+* Store/Ripperdoc inventory is visible to authorized owners/employees.
+* Inventory shows item name, quantity, source/catalog item, and relevant metadata.
+* Inventory updates after purchases and sales.
+* Inventory supports stock quantity changes.
+
+---
+
+## 7.2 Transaction History
+
+Store owners and employees should be able to see transaction history.
+
+Transaction history should include:
+
+* Date/time
+* Action type
+* Item
+* Quantity
+* Buyer
+* Seller/employee
+* Store account affected
+* Amount
+* Commission paid, if any
+* Success/failure state
+
+**Acceptance criteria**
+
+* Store/Ripperdoc transaction history is visible to authorized users.
+* Transactions are searchable/filterable if feasible.
+* Failed transactions are visible.
+* Transaction history is audit-friendly.
+
+---
+
+# 8. Purchasing Stock for Stores
+
+## 8.1 Purchase Guns/Gear for Store Stock
+
+Owners and employees should be able to purchase guns/gear for store inventory.
+
+**Behavior**
+
+* User selects item from the gun/gear catalog.
+* Price is based on catalog cost/wholesale cost, depending on final economy design.
+* Money is withdrawn from the store account.
+* Item is added to store inventory.
+
+**Acceptance criteria**
+
+* Authorized store users can purchase stock.
+* Store account is charged.
+* Item quantity is added to store inventory.
+* Purchase is logged in transaction history.
+* Purchase fails safely if store account lacks funds.
+
+---
+
+## 8.2 Purchase Cyberware for Ripperdoc Stock
+
+Ripperdoc owners and employees should be able to purchase cyberware from the Cyberware catalog at the listed cyberware cost.
+
+**Behavior**
+
+* User selects cyberware from the Cyberware catalog.
+* System uses the cost listed in the Cyberware catalog.
+* Money is withdrawn from the Ripperdoc store account.
+* Cyberware is added to Ripperdoc inventory.
+
+**Acceptance criteria**
+
+* Authorized Ripperdoc users can purchase cyberware stock.
+* Cyberware price comes from the Cyberware catalog.
+* Ripperdoc account is charged.
+* Cyberware quantity is added to Ripperdoc inventory.
+* Purchase is logged in transaction history.
+* Purchase fails safely if Ripperdoc account lacks funds.
+
+---
+
+# 9. Selling Store Stock to Players
+
+## 9.1 Store Sale Flow
+
+Owners/employees should have a page/tool to sell stock to players.
+
+### Sale form should include
+
+* Select stock item
+* Select buyer/player
+* Quantity
+* Sale price
+* Confirmation/send offer button
+
+### Behavior
+
+1. Owner/employee selects a stock item.
+2. Owner/employee selects the buyer/player.
+3. Owner/employee enters quantity and sale price.
+4. System sends purchase approval notification to the buyer.
+5. Buyer approves or denies.
+6. If approved:
+
+   * Money is subtracted from buyer account.
+   * Money is added to store account.
+   * Employee commission is paid if applicable.
+   * Item is removed from store inventory.
+   * Item is added to buyer/player inventory.
+   * Transaction is logged.
+7. If denied:
+
+   * No money moves.
+   * No inventory moves.
+   * Transaction is marked denied/cancelled.
+
+**Acceptance criteria**
+
+* Owners/employees can initiate a sale.
+* Buyer must approve before money/inventory changes.
+* Sale price is entered by seller.
+* Store inventory decreases after approved sale.
+* Player inventory increases after approved sale.
+* Buyer wallet decreases after approved sale.
+* Store account increases after approved sale.
+* Employee commission is processed if applicable.
+* Sale is logged in transaction history.
+* Denied sales do not affect balances or inventory.
+
+---
+
+## 9.2 Buyer Approval Notification
+
+When a store/Ripperdoc initiates a sale, the buyer should receive a notification asking them to approve the purchase.
+
+**Notification should include**
+
+* Store/Ripperdoc name
+* Seller/employee name
+* Item
+* Quantity
+* Price
+* Character/item target, if applicable
+* Approve button
+* Deny button
+
+**Acceptance criteria**
+
+* Buyer gets a clear purchase approval notification.
+* Buyer can approve or deny.
+* No funds are moved until buyer approves.
+* Approval/denial is logged.
+* Expired/unanswered offers should fail safely or remain pending depending on final design.
+
+---
+
+# 10. Ripperdoc Sale and Install Flow
+
+Ripperdocs have additional cyberware-specific actions.
+
+Ripperdoc owners/employees should be able to:
+
+1. Sell cyberware to a player.
+2. Give cyberware to a player.
+3. Install cyberware on a character.
+4. Remove cyberware from a character.
+
+---
+
+## 10.1 Sell Cyberware Without Installing
+
+Ripperdoc can sell cyberware as inventory/stock to a player without installing it.
+
+**Behavior**
+
+* Ripperdoc selects cyberware stock.
+* Ripperdoc selects buyer/player.
+* Ripperdoc enters price.
+* Buyer approves purchase.
+* Money moves from buyer to Ripperdoc account.
+* Cyberware moves from Ripperdoc inventory to buyer/player inventory.
+* Commission applies if seller is an employee.
+
+**Acceptance criteria**
+
+* Cyberware can be sold without installation.
+* Buyer approval is required.
+* Money and inventory move only after approval.
+* Transaction is logged.
+
+---
+
+## 10.2 Give Cyberware to a Player
+
+Ripperdoc can give cyberware to a player without payment.
+
+**Behavior**
+
+* Ripperdoc selects cyberware stock.
+* Ripperdoc selects recipient/player.
+* System may optionally require recipient confirmation.
+* Cyberware moves from Ripperdoc inventory to player inventory.
+* No money moves.
+
+**Acceptance criteria**
+
+* Authorized Ripperdoc users can give cyberware.
+* Cyberware inventory decreases from Ripperdoc.
+* Cyberware inventory increases for recipient.
+* No payment is processed.
+* Transaction is logged.
+
+---
+
+## 10.3 Install Cyberware on a Character
+
+Ripperdoc can install cyberware on a specific player character.
+
+### Install form should include
+
+* Cyberware stock item
+* Target player
+* Target character
+* Sale/install price, if any
+* Confirmation/send offer button
+
+### Required validation
+
+Before installation, system must check:
+
+* The selected character belongs to the selected player.
+* The cyberware item exists in Ripperdoc inventory.
+* The character has enough available CWP capacity for the cyberware.
+* The selected cyberware slot/install is valid for that character according to current cyberware rules.
+
+### Buyer confirmation
+
+The player must approve the install before money or character changes happen.
+
+If approved:
+
+* Money is subtracted from buyer account, if there is a price.
+* Money is added to Ripperdoc account, if there is a price.
+* Employee commission is paid if applicable.
+* Cyberware is removed from Ripperdoc inventory.
+* Cyberware is added/installed on the selected character.
+* Character CWP/cyberware status updates.
+* Transaction is logged.
+
+If denied:
+
+* No money moves.
+* No inventory moves.
+* No character changes happen.
+* Transaction is marked denied/cancelled.
+
+**Acceptance criteria**
+
+* Ripperdocs can install cyberware on a selected character.
+* Character selection is required.
+* Player confirmation is required.
+* CWP capacity is checked before install.
+* Invalid installs are blocked with a clear reason.
+* Approved install updates inventory, wallet, store account, character cyberware, and CWP status.
+* Denied install makes no changes.
+
+---
+
+## 10.4 Remove Cyberware From a Character
+
+Ripperdocs need the ability to remove cyberware from a specific player character.
+
+### Remove cyberware form should include
+
+* Target player
+* Target character
+* Installed cyberware item to remove
+* Removal price, if any
+* Confirmation/send offer button
+
+### Buyer/player confirmation
+
+The player must approve removal before the cyberware is removed.
+
+If approved:
+
+* Money is subtracted from buyer account if there is a removal price.
+* Money is added to Ripperdoc account if there is a removal price.
+* Employee commission is paid if applicable.
+* Cyberware is removed from the character.
+* Character CWP/cyberware status updates.
+* Removed cyberware is either:
+
+  * returned to player inventory,
+  * discarded/destroyed,
+  * or moved to Ripperdoc inventory,
+    depending on final staff rules.
+
+If denied:
+
+* No money moves.
+* No cyberware changes happen.
+* Transaction is marked denied/cancelled.
+
+**Acceptance criteria**
+
+* Ripperdocs can select a player and character.
+* Ripperdocs can select installed cyberware to remove.
+* Player approval is required before removal.
+* Approved removal updates character cyberware and CWP status.
+* Denied removal makes no changes.
+* Removal result destination is configurable or clearly defined.
+* Transaction is logged.
+
+---
+
+# 11. Inventory Ownership Rules
+
+## 11.1 Player Inventory
+
+When a player purchases a gun/gear/cyberware item, it should be added to the player’s inventory.
+
+The player keeps it until it is sold, destroyed, removed, or otherwise modified by future system rules.
+
+**Acceptance criteria**
+
+* Purchased items appear in player inventory.
+* Player inventory persists.
+* Items can later support sell/destroy/remove workflows if built.
+
+---
+
+## 11.2 Store Inventory
+
+When a store purchases stock, the item belongs to the store inventory until sold, given, installed, destroyed, or otherwise removed.
+
+**Acceptance criteria**
+
+* Store stock persists.
+* Store inventory decreases when an item is sold/given/installed.
+* Store inventory increases when stock is purchased.
+
+---
+
+# 12. Audit Logging
+
+The following store/Ripperdoc actions should be audit logged:
+
+* Store created
+* Store edited
+* Store deleted
+* Store request submitted
+* Store request approved/denied
+* Ripperdoc imported
+* Ripperdoc created
+* Ripperdoc edited
+* Ripperdoc deleted
+* Ripperdoc request submitted
+* Ripperdoc request approved/denied
+* Owner changed
+* Employee added
+* Employee removed
+* Commission percentage changed
+* Store deposit
+* Store withdrawal
+* Stock purchased
+* Sale offer created
+* Sale approved
+* Sale denied
+* Cyberware install offer created
+* Cyberware install approved
+* Cyberware install denied
+* Cyberware removal offer created
+* Cyberware removal approved
+* Cyberware removal denied
+* Transaction failed
+
+**Acceptance criteria**
+
+* Important economy and inventory actions are logged.
+* Logs include actor, timestamp, affected store/Ripperdoc, affected player/character, item, amount, and old/new values where relevant.
+* Failed actions are logged with clear error details.
