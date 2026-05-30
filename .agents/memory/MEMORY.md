@@ -26,7 +26,8 @@
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
 - [Audit-trail durability](audit-trail-durability.md) — recordAudit() swallows failures; endpoints that MUST be traceable write audit+changelog inline in a db.transaction.
 - [Catalog PATCH response parity](catalog-patch-response-parity.md) — staff edit PATCH must return the SAME computed-field shape as the GET (e.g. rent's `occupied`), or generated clients drift from the contract.
-- [Mission data locations](mission-data-locations.md) — empty LN/missions page is by-design (check missions_id_seq before "restoring"); user-facing "missions" = legacy bot mission_event; import-legacy-missions.ts backfills them.
+- [Mission data locations](mission-data-locations.md) — empty LN/missions page is by-design (check missions_id_seq before "restoring"); user-facing "missions" = legacy bot mission_event; import-legacy-missions(+assignments).ts backfill them.
+- [Raw pg one-off scripts](pg-oneoff-scripts.md) — must force process.exit on error (else "hangs" w/ no output) and bulk-load remote Neon in few `= ANY($1)` queries, not per-row loops.
 - [Mission payout idempotency](mission-payout-idempotency.md) — pay paths must acquire a durable uniqueness guard BEFORE the external UB call: 'processing' claim for player rows, onConflictDoNothing 'paid' reservation for actor rows.
 - [Archivist approver ≠ manager](archivist-approver-not-manager.md) — ARCHIVIST gates approve only; canManage stays isManager; broaden visibility/owned-board for archivists but gate submit/post UI on canManage or it 403s.
 - [Live-mode dual gate](live-mode-dual-gate.md) — Test/Live = master AND per-system (default OFF); runJob gates housing/cyberware/evictions; tests wanting real effects must set BOTH flags.
