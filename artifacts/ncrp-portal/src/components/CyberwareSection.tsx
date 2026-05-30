@@ -267,9 +267,9 @@ function SlotGroup({ slot, items, label }: { slot: Slot; items: Item[]; label?: 
             data-testid={`cw-item-${i}`}
           >
             <div className="flex-1 min-w-0">
-              <div className="text-foreground">{it.name}</div>
+              <div className="text-foreground break-words [overflow-wrap:anywhere]">{it.name}</div>
               {it.description ? (
-                <div className="mt-0.5 text-xs text-muted-foreground">{it.description}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">{it.description}</div>
               ) : null}
             </div>
             <span

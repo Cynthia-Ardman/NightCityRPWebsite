@@ -181,7 +181,7 @@ export default function SheetDetail() {
             <p className="text-muted-foreground">—</p>
           ) : (
             <ul className="list-disc list-inside space-y-1">
-              {gear.filter((g) => g && g.trim()).map((g, i) => <li key={i}>{g}</li>)}
+              {gear.filter((g) => g && g.trim()).map((g, i) => <li key={i} className="break-words [overflow-wrap:anywhere]">{g}</li>)}
             </ul>
           )}
         </CardContent>
@@ -201,8 +201,8 @@ export default function SheetDetail() {
           {cw.length === 0 ? <p className="text-muted-foreground font-mono text-sm">None — fully organic.</p> :
             cw.map((c, i) => (
               <div key={i} className="grid grid-cols-4 gap-2 border-b border-border/30 py-1 text-sm font-mono" data-testid={`row-cyberware-${i}`}>
-                <span className="text-nc-cyan">{c.slot}</span>
-                <span className="col-span-2">
+                <span className="text-nc-cyan break-words [overflow-wrap:anywhere]">{c.slot}</span>
+                <span className="col-span-2 break-words [overflow-wrap:anywhere]">
                   {c.name}
                   {!c.isCatalog && <span className="ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">custom</span>}
                 </span>

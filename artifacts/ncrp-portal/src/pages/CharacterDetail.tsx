@@ -1063,8 +1063,8 @@ function HousingCard({ characterId }: { characterId: number }) {
                   className={`flex items-center justify-between gap-3 border p-3 ${inEviction ? "border-destructive bg-destructive/10" : l.delinquent ? "border-nc-yellow/60 bg-nc-yellow/5" : "border-border/40"}`}
                   data-testid={`row-lease-${l.id}`}
                 >
-                  <div className="flex-1">
-                    <div className="text-foreground flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-foreground flex items-center gap-2 break-words [overflow-wrap:anywhere]">
                       {l.address}
                       <Badge
                         variant="outline"
