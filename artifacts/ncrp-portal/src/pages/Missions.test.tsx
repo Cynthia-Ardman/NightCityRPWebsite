@@ -1,15 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Me, MissionSummary } from "@workspace/api-client-react";
+import type {
+  Me,
+  MissionSummary,
+  MissionApplicationListItem,
+} from "@workspace/api-client-react";
 
-// Mutable holder so each test can stage its own auth role, mission lists, and
-// assert against the shared mutation spies. Mocks read from this at call time.
+// Mutable holder so each test can stage its own auth role and per-tab mission
+// lists. Mocks read from this at call time.
 const state = vi.hoisted(() => ({
   me: null as Me | null,
-  myMissions: [] as MissionSummary[],
-  ownedMissions: [] as MissionSummary[],
   availableMissions: [] as MissionSummary[],
+  myMissions: [] as MissionSummary[],
+  myApplications: [] as MissionApplicationListItem[],
+  createdMissions: [] as MissionSummary[],
+  historyMissions: [] as MissionSummary[],
+  ownedMissions: [] as MissionSummary[],
   submit: vi.fn(),
   approve: vi.fn(),
   post: vi.fn(),
@@ -23,14 +30,19 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@workspace/api-client-react")>();
   return {
     ...actual,
-    useListMyMissions: () => ({ data: state.myMissions, isLoading: false }),
-    useListOwnedMissions: () => ({ data: state.ownedMissions, isLoading: false }),
     useListMissions: () => ({ data: state.availableMissions, isLoading: false }),
+    useListMyMissions: () => ({ data: state.myMissions, isLoading: false }),
+    useListMyApplications: () => ({ data: state.myApplications, isLoading: false }),
+    useListCreatedMissions: () => ({ data: state.createdMissions, isLoading: false }),
+    useListMissionHistory: () => ({ data: state.historyMissions, isLoading: false }),
+    useListOwnedMissions: () => ({ data: state.ownedMissions, isLoading: false }),
     useSubmitMission: () => ({ mutate: state.submit, isPending: false }),
     useApproveMission: () => ({ mutate: state.approve, isPending: false }),
     usePostMission: () => ({ mutate: state.post, isPending: false }),
-    // Banner is live (returns null) so it never adds noise to these assertions.
+    // Banners are inert in these tests: live mode hides the test banner, and
+    // there are no outcomes to surface, so neither adds noise to tab assertions.
     useGetMissionConfig: () => ({ data: { live: true } }),
+    useListMyApplicationOutcomes: () => ({ data: [] }),
   };
 });
 
@@ -53,25 +65,6 @@ function makeMe(overrides: Partial<Me> = {}): Me {
   } as Me;
 }
 
-let nextId = 100;
-function makeMission(overrides: Partial<MissionSummary> = {}): MissionSummary {
-  return {
-    id: nextId++,
-    title: "Test Job",
-    tier: 1,
-    status: "open",
-    workflowState: "draft",
-    durationMinutes: 60,
-    playerPay: 1000,
-    slots: 4,
-    maxPlayers: 4,
-    assignedCount: 0,
-    players: [],
-    createdAt: new Date("2026-01-01").toISOString(),
-    ...overrides,
-  } as MissionSummary;
-}
-
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -81,95 +74,82 @@ function renderPage() {
   );
 }
 
+// Tabs that every authenticated user can always see.
+const PLAYER_TABS = ["open", "accepted", "applications", "history"] as const;
+// Tabs gated behind staff/approver roles.
+const STAFF_TABS = ["created", "all"] as const;
+
 beforeEach(() => {
   state.me = null;
-  state.myMissions = [];
-  state.ownedMissions = [];
   state.availableMissions = [];
+  state.myMissions = [];
+  state.myApplications = [];
+  state.createdMissions = [];
+  state.historyMissions = [];
+  state.ownedMissions = [];
   state.submit.mockReset();
   state.approve.mockReset();
   state.post.mockReset();
-  nextId = 100;
 });
 
-describe("Missions list — fixer", () => {
-  it("shows Create + the owned board, with Submit on drafts and Post on approved missions", () => {
-    state.me = makeMe({ isFixer: true });
-    const draft = makeMission({ workflowState: "draft", title: "Draft Run" });
-    const approved = makeMission({ workflowState: "approved", title: "Approved Run" });
-    state.ownedMissions = [draft, approved];
-    renderPage();
-
-    expect(screen.getByTestId("button-create-mission")).toBeInTheDocument();
-    expect(screen.getByTestId("card-owned-missions")).toBeInTheDocument();
-    expect(screen.getByTestId(`button-submit-${draft.id}`)).toBeInTheDocument();
-    expect(screen.getByTestId(`button-post-${approved.id}`)).toBeInTheDocument();
-  });
-
-  it("does NOT show Approve on a proposal it does not own approval rights for", () => {
-    state.me = makeMe({ isFixer: true });
-    const proposal = makeMission({ workflowState: "proposal" });
-    state.ownedMissions = [proposal];
-    renderPage();
-
-    // A fixer who isn't an archivist cannot approve.
-    expect(screen.queryByTestId(`button-approve-${proposal.id}`)).toBeNull();
-  });
-
-  it("fires the submit mutation when Submit is clicked", () => {
-    state.me = makeMe({ isFixer: true });
-    const draft = makeMission({ workflowState: "draft" });
-    state.ownedMissions = [draft];
-    renderPage();
-
-    fireEvent.click(screen.getByTestId(`button-submit-${draft.id}`));
-    expect(state.submit).toHaveBeenCalledWith({ id: draft.id });
-  });
-});
-
-describe("Missions list — archivist", () => {
-  it("shows Approve on proposals but NOT Create, Submit, or Post", () => {
-    state.me = makeMe({ isArchivist: true });
-    const proposal = makeMission({ workflowState: "proposal", title: "Pending Approval" });
-    const draft = makeMission({ workflowState: "draft" });
-    const approved = makeMission({ workflowState: "approved" });
-    state.ownedMissions = [proposal, draft, approved];
-    renderPage();
-
-    expect(screen.getByTestId("card-owned-missions")).toBeInTheDocument();
-    expect(screen.getByTestId(`button-approve-${proposal.id}`)).toBeInTheDocument();
-
-    // Archivists are approvers, not creators/managers.
-    expect(screen.queryByTestId("button-create-mission")).toBeNull();
-    expect(screen.queryByTestId(`button-submit-${draft.id}`)).toBeNull();
-    expect(screen.queryByTestId(`button-post-${approved.id}`)).toBeNull();
-  });
-
-  it("fires the approve mutation when Approve is clicked", () => {
-    state.me = makeMe({ isArchivist: true });
-    const proposal = makeMission({ workflowState: "proposal" });
-    state.ownedMissions = [proposal];
-    renderPage();
-
-    fireEvent.click(screen.getByTestId(`button-approve-${proposal.id}`));
-    expect(state.approve).toHaveBeenCalledWith({ id: proposal.id });
-  });
-});
-
-describe("Missions list — plain player", () => {
-  it("sees the public Available list with Apply, but no owned board or workflow buttons", () => {
+describe("Missions tabs — plain player", () => {
+  it("sees only Open / Accepted / My Applications / History tabs", () => {
     state.me = makeMe();
-    const posted = makeMission({ workflowState: "posted", status: "open", title: "Public Gig" });
-    state.availableMissions = [posted];
     renderPage();
 
-    expect(screen.getByTestId("card-available-missions")).toBeInTheDocument();
-    expect(screen.getByTestId(`button-apply-${posted.id}`)).toBeInTheDocument();
+    for (const key of PLAYER_TABS) {
+      expect(screen.getByTestId(`tab-${key}`)).toBeInTheDocument();
+    }
+  });
 
-    expect(screen.queryByTestId("card-owned-missions")).toBeNull();
+  it("never sees the staff-only My Created / All Missions tabs", () => {
+    state.me = makeMe();
+    renderPage();
+
+    for (const key of STAFF_TABS) {
+      expect(screen.queryByTestId(`tab-${key}`)).toBeNull();
+    }
+    // The create entrypoint is staff-only too.
     expect(screen.queryByTestId("button-create-mission")).toBeNull();
-    expect(screen.queryByTestId(`button-submit-${posted.id}`)).toBeNull();
-    expect(screen.queryByTestId(`button-approve-${posted.id}`)).toBeNull();
-    expect(screen.queryByTestId(`button-post-${posted.id}`)).toBeNull();
+  });
+});
+
+describe("Missions tabs — fixer", () => {
+  it("sees every tab including My Created and All Missions, plus Create", () => {
+    state.me = makeMe({ isFixer: true });
+    renderPage();
+
+    for (const key of [...PLAYER_TABS, ...STAFF_TABS]) {
+      expect(screen.getByTestId(`tab-${key}`)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("button-create-mission")).toBeInTheDocument();
+  });
+});
+
+describe("Missions tabs — admin", () => {
+  it("sees every tab including My Created and All Missions, plus Create", () => {
+    state.me = makeMe({ isAdmin: true });
+    renderPage();
+
+    for (const key of [...PLAYER_TABS, ...STAFF_TABS]) {
+      expect(screen.getByTestId(`tab-${key}`)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("button-create-mission")).toBeInTheDocument();
+  });
+});
+
+describe("Missions tabs — archivist (approver, not manager)", () => {
+  it("sees All Missions but NOT My Created or the Create button", () => {
+    state.me = makeMe({ isArchivist: true });
+    renderPage();
+
+    for (const key of PLAYER_TABS) {
+      expect(screen.getByTestId(`tab-${key}`)).toBeInTheDocument();
+    }
+    // Approvers need the staff-wide board to find proposals awaiting review...
+    expect(screen.getByTestId("tab-all")).toBeInTheDocument();
+    // ...but they don't run missions, so "My Created" and Create stay hidden.
+    expect(screen.queryByTestId("tab-created")).toBeNull();
+    expect(screen.queryByTestId("button-create-mission")).toBeNull();
   });
 });

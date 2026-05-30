@@ -1410,6 +1410,19 @@ describe("Mission listing tabs", () => {
     expect(res.status).toBe(403);
   });
 
+  it("owned: a fixer sees the staff-wide board", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const res = await request(app).get("/api/missions/owned").set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("owned: a plain player is forbidden", async () => {
+    const player = await createUser();
+    const res = await request(app).get("/api/missions/owned").set("x-test-user", player.id);
+    expect(res.status).toBe(403);
+  });
+
   it("history: a player sees terminal missions they attended, not active ones", async () => {
     const player = await createUser();
     const done = await seedMission({ title: "Done", workflowState: "posted", status: "completed_paid" });
