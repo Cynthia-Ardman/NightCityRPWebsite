@@ -21,6 +21,7 @@ import type {
 
 import type {
   ActivityEvent,
+  ActorHistoryRow,
   ActorReportRow,
   AdminCharacterSummary,
   AdminListAuditLogParams,
@@ -5286,6 +5287,83 @@ export function useGetAttendanceReport<TData = Awaited<ReturnType<typeof getAtte
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAttendanceReportQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetActorHistoryUrl = () => {
+
+
+
+
+  return `/api/missions/actor-history`
+}
+
+/**
+ * @summary Legacy actor history imported from the old bot. Fixer/admin only.
+ */
+export const getActorHistory = async ( options?: RequestInit): Promise<ActorHistoryRow[]> => {
+
+  return customFetch<ActorHistoryRow[]>(getGetActorHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetActorHistoryQueryKey = () => {
+    return [
+    `/api/missions/actor-history`
+    ] as const;
+    }
+
+
+export const getGetActorHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getActorHistory>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActorHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetActorHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getActorHistory>>> = ({ signal }) => getActorHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getActorHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetActorHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getActorHistory>>>
+export type GetActorHistoryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Legacy actor history imported from the old bot. Fixer/admin only.
+ */
+
+export function useGetActorHistory<TData = Awaited<ReturnType<typeof getActorHistory>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActorHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetActorHistoryQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

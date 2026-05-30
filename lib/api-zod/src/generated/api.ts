@@ -1599,6 +1599,24 @@ export const GetAttendanceReportResponse = zod.array(GetAttendanceReportResponse
 
 
 /**
+ * @summary Legacy actor history imported from the old bot. Fixer/admin only.
+ */
+export const GetActorHistoryResponseItem = zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "actCount": zod.number(),
+  "totalPaid": zod.number(),
+  "events": zod.array(zod.object({
+  "eventName": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "amount": zod.number(),
+  "actedAt": zod.coerce.date().nullish()
+}))
+})
+export const GetActorHistoryResponse = zod.array(GetActorHistoryResponseItem)
+
+
+/**
  * @summary Mission detail. Fixer-only fields populated for fixers/admins.
  */
 export const GetMissionParams = zod.object({

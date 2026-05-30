@@ -2446,6 +2446,25 @@ export interface ActorReportRow {
   missions: ActorReportRowMissionsItem[];
 }
 
+export type ActorHistoryRowEventsItem = {
+  /** @nullable */
+  eventName?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  amount: number;
+  /** @nullable */
+  actedAt?: string | null;
+};
+
+export interface ActorHistoryRow {
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  actCount: number;
+  totalPaid: number;
+  events: ActorHistoryRowEventsItem[];
+}
+
 export type PlayerAttendanceRowMissionsItem = {
   missionId: number;
   /** @nullable */

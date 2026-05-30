@@ -1080,6 +1080,20 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/PlayerAttendanceRow" }
         "403": { description: Insufficient role. }
+  /missions/actor-history:
+    get:
+      operationId: getActorHistory
+      tags: [missions]
+      summary: Legacy actor history imported from the old bot. Fixer/admin only.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActorHistoryRow" }
+        "403": { description: Insufficient role. }
   /missions/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3953,6 +3967,25 @@ components:
               missionName: { type: ["string", "null"] }
               missionDate: { type: ["string", "null"], format: date-time }
               amount: { type: integer }
+
+    ActorHistoryRow:
+      type: object
+      required: [userId, actCount, totalPaid, events]
+      properties:
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        actCount: { type: integer }
+        totalPaid: { type: integer }
+        events:
+          type: array
+          items:
+            type: object
+            required: [amount]
+            properties:
+              eventName: { type: ["string", "null"] }
+              fixerName: { type: ["string", "null"] }
+              amount: { type: integer }
+              actedAt: { type: ["string", "null"], format: date-time }
 
     PlayerAttendanceRow:
       type: object

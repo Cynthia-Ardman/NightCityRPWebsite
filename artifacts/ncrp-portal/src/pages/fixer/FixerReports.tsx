@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { Link } from "wouter";
-import { useGetActorReport, useGetAttendanceReport } from "@workspace/api-client-react";
+import { useGetActorReport, useGetActorHistory, useGetAttendanceReport } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -20,8 +20,10 @@ function fmtDate(d: string | null | undefined): string {
 
 export default function FixerReports() {
   const { data: actors, isLoading: actorsLoading } = useGetActorReport();
+  const { data: history, isLoading: historyLoading } = useGetActorHistory();
   const { data: attendance, isLoading: attLoading } = useGetAttendanceReport();
   const [openActors, setOpenActors] = useState<Record<string, boolean>>({});
+  const [openHistory, setOpenHistory] = useState<Record<string, boolean>>({});
   const [openPlayers, setOpenPlayers] = useState<Record<string, boolean>>({});
 
   return (
@@ -90,6 +92,76 @@ export default function FixerReports() {
                             <TableCell className="text-right text-nc-yellow/80">
                               €$ {m.amount.toLocaleString()}
                             </TableCell>
+                          </TableRow>
+                        ))}
+                    </Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader>
+          <CardTitle className="font-display tracking-widest flex items-center gap-2">
+            <Users className="w-4 h-4 text-nc-magenta" /> ACTOR HISTORY
+          </CardTitle>
+          <p className="font-mono text-xs text-muted-foreground">
+            Imported from the legacy bot — who acted in past events, how many times, and total paid.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {historyLoading ? (
+            <div className="font-mono text-nc-cyan animate-pulse">Loading actor history...</div>
+          ) : !history || history.length === 0 ? (
+            <p className="font-mono text-muted-foreground italic">No legacy actor history found.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-display text-nc-cyan w-8"></TableHead>
+                  <TableHead className="font-display text-nc-cyan">Actor</TableHead>
+                  <TableHead className="font-display text-nc-cyan text-right">Times Acted</TableHead>
+                  <TableHead className="font-display text-nc-cyan text-right">Total Paid</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="font-mono text-sm">
+                {history.map((a) => {
+                  const isOpen = !!openHistory[a.userId];
+                  return (
+                    <Fragment key={a.userId}>
+                      <TableRow
+                        className="border-border cursor-pointer"
+                        data-testid={`row-actor-history-${a.userId}`}
+                        onClick={() => setOpenHistory((s) => ({ ...s, [a.userId]: !s[a.userId] }))}
+                      >
+                        <TableCell className="text-muted-foreground">
+                          {a.events.length > 0 ? (
+                            isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="text-foreground break-words [overflow-wrap:anywhere]">{a.userName ?? a.userId}</TableCell>
+                        <TableCell className="text-right">{a.actCount}</TableCell>
+                        <TableCell className="text-right text-nc-yellow">€$ {a.totalPaid.toLocaleString()}</TableCell>
+                      </TableRow>
+                      {isOpen &&
+                        a.events.map((e, i) => (
+                          <TableRow
+                            key={`${a.userId}-${i}`}
+                            className="border-border bg-muted/20"
+                            data-testid={`row-actor-history-event-${a.userId}-${i}`}
+                          >
+                            <TableCell></TableCell>
+                            <TableCell className="text-muted-foreground pl-6 break-words [overflow-wrap:anywhere]">
+                              {e.eventName ?? "—"}
+                              {e.fixerName ? (
+                                <span className="text-nc-magenta/80"> · fixer {e.fixerName}</span>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">{fmtDate(e.actedAt)}</TableCell>
+                            <TableCell className="text-right text-nc-yellow/80">€$ {e.amount.toLocaleString()}</TableCell>
                           </TableRow>
                         ))}
                     </Fragment>

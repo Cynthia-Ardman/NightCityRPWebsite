@@ -7,6 +7,8 @@
  */
 
 export * from './activityEvent';
+export * from './actorHistoryRow';
+export * from './actorHistoryRowEventsItem';
 export * from './actorReportRow';
 export * from './actorReportRowMissionsItem';
 export * from './adminCharacterSummary';

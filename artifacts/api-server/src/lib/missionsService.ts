@@ -6,6 +6,7 @@ import {
   missionAssignments,
   missionActorPayments,
   missionApplications,
+  botActorAttendance,
   characters,
   users,
   type Mission,
@@ -1454,6 +1455,38 @@ export async function getActorReport(fixerId: string | null) {
     if (r.paymentStatus === "paid") agg.totalPaid += r.amount;
     agg.missions.push({ missionId: r.missionId, missionName: r.missionName, missionDate: iso(r.missionDate), amount: r.amount });
     if (!agg.userName && r.userName) agg.userName = r.userName;
+  }
+  return [...byUser.values()].sort((a, b) => b.actCount - a.actCount);
+}
+
+// Legacy actor history imported from the old Discord bot (bot_actor_attendance).
+// These records predate the structured missions system — they reference
+// free-form events by name (e.g. "Open Chaos Lobby") that don't map to a
+// portal mission id, so they surface as an aggregate "who acted" view rather
+// than on any single mission's ACTORS tab. Fixer/admin only.
+export async function getActorHistory() {
+  const rows = await db
+    .select()
+    .from(botActorAttendance)
+    .orderBy(desc(botActorAttendance.actedAt));
+
+  const byUser = new Map<string, {
+    userId: string;
+    userName: string | null;
+    actCount: number;
+    totalPaid: number;
+    events: Array<{ eventName: string | null; fixerName: string | null; amount: number; actedAt: string | null }>;
+  }>();
+  for (const r of rows) {
+    let agg = byUser.get(r.userId);
+    if (!agg) {
+      agg = { userId: r.userId, userName: r.username, actCount: 0, totalPaid: 0, events: [] };
+      byUser.set(r.userId, agg);
+    }
+    agg.actCount++;
+    agg.totalPaid += r.payAmount;
+    agg.events.push({ eventName: r.missionName, fixerName: r.fixerUsername, amount: r.payAmount, actedAt: iso(r.actedAt) });
+    if (!agg.userName && r.username) agg.userName = r.username;
   }
   return [...byUser.values()].sort((a, b) => b.actCount - a.actCount);
 }

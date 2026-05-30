@@ -20,6 +20,7 @@ import {
   payMissionActors,
   syncMissionDiscordEvent,
   getActorReport,
+  getActorHistory,
   getAttendanceReport,
   isMissionStatus,
   isJobType,
@@ -361,6 +362,16 @@ router.get("/missions/attendance-report", requireAuth, async (req, res): Promise
     return;
   }
   res.json(await getAttendanceReport());
+});
+
+// Legacy actor history imported from the old Discord bot. Aggregate "who acted,
+// how many times, total paid" across free-form events. Fixer/admin only.
+router.get("/missions/actor-history", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  res.json(await getActorHistory());
 });
 
 // Actor search — fixers/admins look up ANY user by name to pay as a mission
