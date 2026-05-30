@@ -253,12 +253,12 @@ export async function listCreatedMissionSummaries(viewer: MissionViewer) {
 }
 
 // Terminal runtime statuses that put a mission in the history view.
-const HISTORY_STATUSES = new Set<string>([
+const HISTORY_STATUSES: MissionStatus[] = [
   "completed",
   "completed_players_paid",
   "completed_paid",
   "cancelled",
-]);
+];
 
 /**
  * Completed/cancelled missions relevant to the caller, most recent first
@@ -272,11 +272,13 @@ export async function listMissionHistory(viewer: MissionViewer) {
     .from(missionAssignments)
     .where(eq(missionAssignments.userId, viewer.id));
   const assignedIds = new Set(mine.map((m) => m.missionId));
-  const rows = (await loadMissions(undefined)).filter((m) => {
-    if (!HISTORY_STATUSES.has(m.status)) return false;
-    if (!viewer.isManager && m.workflowState !== "posted") return false;
-    return assignedIds.has(m.id) || (viewer.isManager && m.fixerId === viewer.id);
-  });
+  // Push the terminal-status filter and the non-manager "posted only"
+  // visibility rule into SQL so History scans only relevant rows at scale.
+  const filters = [inArray(missions.status, HISTORY_STATUSES)];
+  if (!viewer.isManager) filters.push(eq(missions.workflowState, "posted"));
+  const rows = (await loadMissions(and(...filters))).filter(
+    (m) => assignedIds.has(m.id) || (viewer.isManager && m.fixerId === viewer.id),
+  );
   const byMission = await loadAssignments(rows.map((r) => r.id));
   return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id));
 }
