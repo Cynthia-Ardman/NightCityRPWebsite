@@ -191,6 +191,46 @@ export async function isAutobillEnabled(key: string): Promise<boolean> {
   }
 }
 
+// Reserve-before-debit for a single personal fee (lifestyle, baseline, trauma
+// team, xanadu gold). Writes the ledger row and flips the caller's in-memory
+// "already billed this run" guard BEFORE the external UB debit. If the process
+// dies after UB succeeds but before the run finishes, the committed ledger row
+// trips the period guard on a manual rerun — so the player is never
+// double-charged. On a clean UB failure (UB returns null, i.e. NOT a crash) we
+// delete the reservation and undo the in-memory guard so a later run can retry.
+// Returns true iff the debit succeeded. See
+// .agents/memory/autobill-parity.md ("Known crash-window race").
+async function chargePersonalFeeWithReservation(opts: {
+  characterId: number | null;
+  userId: string;
+  discordId: string;
+  cost: number;
+  kind: string;
+  memo: string;
+  reason: string;
+  reserve: () => void;
+  unreserve: () => void;
+}): Promise<boolean> {
+  const [row] = await db
+    .insert(walletTransactions)
+    .values({
+      characterId: opts.characterId,
+      userId: opts.userId,
+      amount: -opts.cost,
+      kind: opts.kind,
+      memo: opts.memo,
+    })
+    .returning({ id: walletTransactions.id });
+  opts.reserve();
+  const ub = await patchBalance(opts.discordId, { cash: -opts.cost, reason: opts.reason });
+  if (!ub) {
+    await db.delete(walletTransactions).where(eq(walletTransactions.id, row.id));
+    opts.unreserve();
+    return false;
+  }
+  return true;
+}
+
 export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce";
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
@@ -293,6 +333,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       }
       const billedThisRun = (cid: number, kind: string) => alreadyBilled.has(`${cid}:${kind}`);
       const markBilled = (cid: number, kind: string) => alreadyBilled.add(`${cid}:${kind}`);
+      const unmarkBilled = (cid: number, kind: string) => alreadyBilled.delete(`${cid}:${kind}`);
 
       for (const { lease, character: c } of rows) {
         if (!c.approved) continue;
@@ -352,11 +393,48 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           }
         }
 
+        // Crash-window guard: RESERVE the idempotency markers (ledger row +
+        // paid_through bump) BEFORE the external UB debit. If the process dies
+        // after UB succeeds but before we can finish, the reservation is
+        // already committed, so a manual rerun in the same period sees
+        // paid_through > now and skips — no double charge. The trade-off is a
+        // recoverable under-charge if UB never actually ran (we roll the
+        // reservation back below on a clean UB failure). See
+        // .agents/memory/autobill-parity.md ("Known crash-window race").
+        //
+        // Bump paid_through forward by one month from its previous value (or
+        // from now if it was missing/stale), preserving anchor date when
+        // possible so leases stay on a consistent monthly cadence.
+        const base = lease.paidThrough && lease.paidThrough.getTime() > Date.now() - 86400000
+          ? new Date(lease.paidThrough)
+          : new Date();
+        base.setUTCMonth(base.getUTCMonth() + 1);
+        const [reservedRent] = await db
+          .insert(walletTransactions)
+          .values({
+            characterId: c.id,
+            amount: -rent,
+            kind: isBusiness ? "business_rent" : "rent",
+            memo: `${reasonLabel}: ${lease.address}`,
+          })
+          .returning({ id: walletTransactions.id });
+        await db
+          .update(housing)
+          .set({ paidThrough: base })
+          .where(eq(housing.id, lease.id));
+
         const ub = await patchBalance(owner.discordId, {
           cash: -rent,
           reason: `${reasonLabel}: ${lease.address}`,
         });
         if (!ub) {
+          // Clean UB failure (not a crash): roll the reservation back so the
+          // lease isn't shown as paid and the next run can retry the debit.
+          await db.delete(walletTransactions).where(eq(walletTransactions.id, reservedRent.id));
+          await db
+            .update(housing)
+            .set({ paidThrough: lease.paidThrough ?? null })
+            .where(eq(housing.id, lease.id));
           logger.warn(
             { characterId: c.id, leaseId: lease.id, kind: lease.kind },
             "monthly_rent UB debit failed; lease will show delinquent",
@@ -378,26 +456,15 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           }
           continue;
         }
-        await db.insert(walletTransactions).values({
-          characterId: c.id,
-          amount: -rent,
-          kind: isBusiness ? "business_rent" : "rent",
-          memo: `${reasonLabel}: ${lease.address}`,
-        });
-        // Bump paid_through forward by one month from its previous value (or
-        // from now if it was missing/stale), preserving anchor date when
-        // possible so leases stay on a consistent monthly cadence.
-        const base = lease.paidThrough && lease.paidThrough.getTime() > Date.now() - 86400000
-          ? new Date(lease.paidThrough)
-          : new Date();
-        base.setUTCMonth(base.getUTCMonth() + 1);
         // Clear delinquentSince on every successful debit — a paid month
         // resets the eviction clock, even if the lease had previously
         // entered the grace period.
-        await db
-          .update(housing)
-          .set({ paidThrough: base, delinquentSince: null })
-          .where(eq(housing.id, lease.id));
+        if (lease.delinquentSince) {
+          await db
+            .update(housing)
+            .set({ delinquentSince: null })
+            .where(eq(housing.id, lease.id));
+        }
         affected++;
       }
 
@@ -426,11 +493,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         if (!c.ownerId) continue;
         const owner = await getOwner(c.ownerId);
         if (!owner) continue;
-        const ub = await patchBalance(owner.discordId, {
-          cash: -cost,
+        const ok = await chargePersonalFeeWithReservation({
+          characterId: c.id,
+          userId: c.ownerId,
+          discordId: owner.discordId,
+          cost,
+          kind: "lifestyle",
+          memo: `Lifestyle: ${tier.name}`,
           reason: `Lifestyle: ${tier.name} (${c.name})`,
+          reserve: () => markBilled(c.id, "lifestyle"),
+          unreserve: () => unmarkBilled(c.id, "lifestyle"),
         });
-        if (!ub) {
+        if (!ok) {
           logger.warn(
             { characterId: c.id, tierId: tier.id },
             "monthly_rent lifestyle UB debit failed; logging unpaid event",
@@ -442,14 +516,6 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           });
           continue;
         }
-        await db.insert(walletTransactions).values({
-          characterId: c.id,
-          userId: c.ownerId,
-          amount: -cost,
-          kind: "lifestyle",
-          memo: `Lifestyle: ${tier.name}`,
-        });
-        markBilled(c.id, "lifestyle");
         affected++;
       }
 
@@ -499,19 +565,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
 
         // 4. Baseline living cost (food, utilities, etc.) — ONE per player.
         if (baselineCost > 0 && !baselineBilledOwners.has(c.ownerId)) {
-          const ub = await patchBalance(owner.discordId, {
-            cash: -baselineCost,
+          const ok = await chargePersonalFeeWithReservation({
+            characterId: null,
+            userId: c.ownerId,
+            discordId: owner.discordId,
+            cost: baselineCost,
+            kind: "baseline",
+            memo: "Baseline living cost (monthly)",
             reason: `Baseline living cost`,
+            reserve: () => baselineBilledOwners.add(c.ownerId!),
+            unreserve: () => baselineBilledOwners.delete(c.ownerId!),
           });
-          if (ub) {
-            await db.insert(walletTransactions).values({
-              characterId: null,
-              userId: c.ownerId,
-              amount: -baselineCost,
-              kind: "baseline",
-              memo: "Baseline living cost (monthly)",
-            });
-            baselineBilledOwners.add(c.ownerId);
+          if (ok) {
             affected++;
           } else {
             logger.warn({ ownerId: c.ownerId }, "monthly_rent baseline UB debit failed");
@@ -522,19 +587,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         const tier = (c.traumaTeamTier ?? "").toLowerCase();
         const traumaCost = tier ? (traumaCosts[tier] ?? 0) : 0;
         if (tier && traumaCost > 0 && !billedThisRun(c.id, "trauma_team")) {
-          const ub = await patchBalance(owner.discordId, {
-            cash: -traumaCost,
+          const ok = await chargePersonalFeeWithReservation({
+            characterId: c.id,
+            userId: c.ownerId,
+            discordId: owner.discordId,
+            cost: traumaCost,
+            kind: "trauma_team",
+            memo: `Trauma Team ${tier} subscription`,
             reason: `Trauma Team ${tier} (${c.name})`,
+            reserve: () => markBilled(c.id, "trauma_team"),
+            unreserve: () => unmarkBilled(c.id, "trauma_team"),
           });
-          if (ub) {
-            await db.insert(walletTransactions).values({
-              characterId: c.id,
-              userId: c.ownerId,
-              amount: -traumaCost,
-              kind: "trauma_team",
-              memo: `Trauma Team ${tier} subscription`,
-            });
-            markBilled(c.id, "trauma_team");
+          if (ok) {
             affected++;
           } else {
             logger.warn({ characterId: c.id, tier }, "monthly_rent trauma UB debit failed");
@@ -543,19 +607,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
 
         // 6. Xanadu Gold premium membership
         if (c.xanaduGold && xanaduCost > 0 && !billedThisRun(c.id, "xanadu_gold")) {
-          const ub = await patchBalance(owner.discordId, {
-            cash: -xanaduCost,
+          const ok = await chargePersonalFeeWithReservation({
+            characterId: c.id,
+            userId: c.ownerId,
+            discordId: owner.discordId,
+            cost: xanaduCost,
+            kind: "xanadu_gold",
+            memo: "Xanadu Gold membership",
             reason: `Xanadu Gold (${c.name})`,
+            reserve: () => markBilled(c.id, "xanadu_gold"),
+            unreserve: () => unmarkBilled(c.id, "xanadu_gold"),
           });
-          if (ub) {
-            await db.insert(walletTransactions).values({
-              characterId: c.id,
-              userId: c.ownerId,
-              amount: -xanaduCost,
-              kind: "xanadu_gold",
-              memo: "Xanadu Gold membership",
-            });
-            markBilled(c.id, "xanadu_gold");
+          if (ok) {
             affected++;
           } else {
             logger.warn({ characterId: c.id }, "monthly_rent xanadu UB debit failed");

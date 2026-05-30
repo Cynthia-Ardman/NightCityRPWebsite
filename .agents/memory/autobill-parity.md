@@ -30,12 +30,19 @@ eddies they can't replenish.
   present. Update the set in memory after each successful debit so
   later passes in the same run don't double-charge either.
 
-**Known crash-window race (not currently guarded):** UB debit
-succeeds but the process dies before the wallet row (or
-`paid_through` bump) commits. A manual retry inside the same period
-will re-debit. NightCityBot has the same exposure. Fix is a
-transactional pending/succeeded marker — open task, not part of
-parity scope.
+**Crash-window race (now guarded for monthly_rent debits):** UB debit
+succeeds but the process dies before the wallet row (or `paid_through`
+bump) commits → a manual retry inside the same period would re-debit.
+Fix = reserve-before-debit: write the idempotency guard (rent: ledger
+row + `paid_through` bump; personal fees: ledger row + in-memory
+`alreadyBilled`/`baselineBilledOwners` flip) BEFORE calling
+`patchBalance`, and roll it back ONLY on a clean UB failure (returns
+null). A crash leaves the guard committed, so a rerun skips → no
+double-charge; the trade-off is a recoverable under-charge if UB never
+ran. Personal fees go through the `chargePersonalFeeWithReservation`
+helper. NOTE: `shop_income` (credit) and the `cyberware_humanity`
+weekly meds job still debit/credit BEFORE their guard — same race,
+not yet fixed.
 
 **How to apply:** Any new monthly bill type belongs in this same job
 under the same kill switch. Add its kind to `TRACKED_PERSONAL_KINDS`

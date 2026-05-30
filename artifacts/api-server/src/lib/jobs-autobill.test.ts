@@ -182,6 +182,93 @@ describe("runJob('monthly_rent')", () => {
   });
 });
 
+// Crash-window race: the external UB debit can succeed, but if the process dies
+// before the local idempotency guard (ledger row / paidThrough bump) commits, a
+// manual rerun in the same period would historically re-debit the player. We
+// reproduce that by having the FIRST run's patchBalance perform the debit and
+// then throw — simulating the process dying right after the irreversible
+// external mutation. The reserve-before-debit fix commits the guard BEFORE the
+// debit, so a recovery rerun must NOT charge again.
+describe("runJob('monthly_rent') crash-window: debit succeeded, ledger write missing", () => {
+  it("does not double-charge rent on a rerun after a mid-run crash", async () => {
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id, approved: true });
+    await db.insert(housing).values({
+      characterId: char.id, address: "Megabuilding H10", monthlyRent: 500, kind: "residential",
+    });
+
+    // First run: UB debit "succeeds" then the process crashes before the run
+    // can finish.
+    let debits = 0;
+    mockPatch.mockImplementation(async () => {
+      debits++;
+      throw new Error("simulated crash after external debit succeeded");
+    });
+    const first = await runJob("monthly_rent");
+    expect(first.status).toBe("failed");
+    expect(debits).toBe(1);
+
+    // The guard (ledger row + paidThrough) was reserved BEFORE the debit, so it
+    // survived the crash.
+    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
+    expect(afterCrash).toHaveLength(1);
+    const [leaseAfterCrash] = await db.select().from(housing).where(eq(housing.characterId, char.id));
+    expect(leaseAfterCrash.paidThrough).not.toBeNull();
+    expect(leaseAfterCrash.paidThrough!.getTime()).toBeGreaterThan(Date.now());
+
+    // Recovery run with a healthy UB: rent must NOT be debited again. (Other
+    // fees like the per-owner baseline cost may still fire on recovery — they
+    // were never billed in the crashed run — so we assert specifically that the
+    // rent debit is not repeated, not that UB is untouched entirely.)
+    mockPatch.mockReset();
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    await runJob("monthly_rent");
+    const recoveryReasons = mockPatch.mock.calls.map((c) => c[1]?.reason);
+    expect(recoveryReasons).not.toContain("Rent: Megabuilding H10");
+
+    const rent = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
+    expect(rent).toHaveLength(1);
+  });
+
+  it("does not double-charge a personal fee (lifestyle) on a rerun after a mid-run crash", async () => {
+    const [tier] = await db
+      .insert(lifestyleTiers)
+      .values({ name: "Executive", monthlyCost: 1500 })
+      .returning();
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id, approved: true });
+    await db.update(characters).set({ lifestyleTierId: tier.id }).where(eq(characters.id, char.id));
+
+    // First run: the lifestyle debit "succeeds" then the process crashes. There
+    // is no housing lease, so lifestyle is the first (and only) debit attempted.
+    let debits = 0;
+    mockPatch.mockImplementation(async () => {
+      debits++;
+      throw new Error("simulated crash after external debit succeeded");
+    });
+    const first = await runJob("monthly_rent");
+    expect(first.status).toBe("failed");
+    expect(debits).toBe(1);
+
+    // The lifestyle ledger row was reserved BEFORE the debit and survived.
+    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "lifestyle"));
+    expect(afterCrash).toHaveLength(1);
+
+    // Recovery run: the committed lifestyle ledger row trips the period guard,
+    // so lifestyle is NOT re-debited. (The per-owner baseline cost may still
+    // fire on recovery — it was never billed in the crashed run — so we assert
+    // specifically that the lifestyle debit is not repeated.)
+    mockPatch.mockReset();
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    await runJob("monthly_rent");
+    const recoveryReasons = mockPatch.mock.calls.map((c) => c[1]?.reason ?? "");
+    expect(recoveryReasons.some((r) => r.startsWith("Lifestyle:"))).toBe(false);
+
+    const lifestyle = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "lifestyle"));
+    expect(lifestyle).toHaveLength(1);
+  });
+});
+
 // Proves the LOA boolean (set by the dashboard switch, see
 // PlayerLoaControl.test.tsx) is actually honored by the billing job across
 // EVERY per-character fee branch — not just residential rent. Each case runs an
