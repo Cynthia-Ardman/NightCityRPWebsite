@@ -13,3 +13,5 @@ A losing racer's insert returns `[]` (count it as a duplicate); excluded statuse
 **Why:** the indexed-but-not-unique column + check-then-insert is a classic TOCTOU race the architect flags as a data-integrity failure.
 
 **How to apply:** any "review queue" table populated by an admin-triggered scan (e.g. lore import drafts in `artifacts/api-server/src/lib/loreImport.ts`).
+
+**No-migration variant:** when the task forbids a DB migration (so you can't add the partial unique index), serialize the check-then-insert with a transaction-scoped Postgres advisory lock keyed on the dedup identity instead: `await tx.execute(sql\`SELECT pg_advisory_xact_lock(hashtext(${keyString}))\`)` at the top of the tx, then the existing read-check + insert. Concurrent racers block on the lock and the second one sees the first's row. Used for employee_invite dedup (kind+venueId+characterId) in `artifacts/api-server/src/routes/stores.ts`.
