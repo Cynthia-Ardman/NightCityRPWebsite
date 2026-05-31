@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import MarkdownEditor from "@/components/MarkdownEditor";
 import {
   Select,
   SelectContent,
@@ -205,14 +206,14 @@ export default function LoreEditor() {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PUBLIC BODY</CardTitle></CardHeader>
         <CardContent>
-          <Textarea value={publicBody} onChange={(e) => setPublicBody(e.target.value)} rows={10} placeholder="Visible to everyone." className="rounded-none font-mono text-sm" data-testid="input-lore-public-body" />
+          <MarkdownEditor value={publicBody} onChange={setPublicBody} rows={10} placeholder="Visible to everyone." testId="input-lore-public-body" />
         </CardContent>
       </Card>
 
       <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5">
         <CardHeader><CardTitle className="font-display tracking-widest text-nc-yellow">FIXER-ONLY BODY</CardTitle></CardHeader>
         <CardContent>
-          <Textarea value={fixerBody} onChange={(e) => setFixerBody(e.target.value)} rows={8} placeholder="Restricted to staff. Leave blank if none." className="rounded-none font-mono text-sm" data-testid="input-lore-fixer-body" />
+          <MarkdownEditor value={fixerBody} onChange={setFixerBody} rows={8} placeholder="Restricted to staff. Leave blank if none." testId="input-lore-fixer-body" />
         </CardContent>
       </Card>
 

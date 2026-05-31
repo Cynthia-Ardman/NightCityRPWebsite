@@ -1,11 +1,14 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, characterSheets, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
+import { db, characterSheets, characters, characterStatus, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { postToChannel, hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields } from "../lib/sheet-validation";
+
+type SheetRow = typeof characterSheets.$inferSelect;
+type Executor = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const router: IRouter = Router();
 
@@ -270,6 +273,80 @@ router.delete("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
+// Maps a sheet's free-form `data` payload onto the `characters` column shape.
+function characterFieldsFromSheet(sheet: SheetRow) {
+  const data = (sheet.data ?? {}) as Record<string, unknown>;
+  const kind = String(data.sheetType ?? "pc").toLowerCase() === "npc" ? "npc" : "pc";
+  const portraitUrls = Array.isArray(data.portraitUrls)
+    ? data.portraitUrls.map(String).filter((u) => u.trim().length > 0)
+    : [];
+  const statsImageUrls = Array.isArray(data.statsImageUrls)
+    ? data.statsImageUrls.map(String).filter((u) => u.trim().length > 0)
+    : [];
+  const profileUrl = typeof data.profileUrl === "string" ? data.profileUrl : null;
+  const portraitUrl = portraitUrls[0] ?? profileUrl ?? null;
+  const archetype = typeof data.archetype === "string" && data.archetype.trim() ? data.archetype : null;
+  const background = typeof data.background === "string" && data.background.trim() ? data.background : null;
+  return {
+    name: sheet.name,
+    kind,
+    archetype,
+    background,
+    portraitUrl,
+    portraitUrls,
+    statsImageUrls,
+    sheetData: data as never,
+  };
+}
+
+// Materialize (or refresh) the actual `characters` row a sheet represents.
+// Approving a sheet only ever flipped its status before, so an approved
+// character never appeared anywhere — not in "awaiting approval" (status is no
+// longer pending) nor in the owner's character list (no characters row ever
+// existed). On approval we create the character from the sheet payload (or, for
+// a resubmitted edit that already legitimately links one, refresh + re-approve
+// it) and link it back via characterSheets.characterId.
+//
+// Runs inside the caller's transaction (the sheet row is already locked) so the
+// insert + relink are atomic — concurrent approvals can't spawn duplicate
+// characters. The linked-character path is only taken when the target row still
+// exists AND is owned by the sheet owner; `characterId` originates from
+// user-supplied sheet input, so a stale or foreign id is never blindly
+// overwritten — we fall through and create a fresh, correctly-owned character
+// instead (which also repairs the old "approved but invisible" state when the
+// previously-linked row was deleted).
+async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Promise<number> {
+  const fields = characterFieldsFromSheet(sheet);
+
+  if (sheet.characterId) {
+    const [linked] = await tx
+      .select()
+      .from(characters)
+      .where(eq(characters.id, sheet.characterId))
+      .for("update");
+    if (linked && linked.ownerId === sheet.ownerId) {
+      await tx
+        .update(characters)
+        .set({ ...fields, approved: true, lifeStatus: "active" })
+        .where(eq(characters.id, sheet.characterId));
+      return sheet.characterId;
+    }
+  }
+
+  const [c] = await tx
+    .insert(characters)
+    .values({
+      ownerId: sheet.ownerId,
+      ...fields,
+      approved: true,
+      claimed: true,
+      lifeStatus: "active",
+    })
+    .returning();
+  await tx.insert(characterStatus).values({ characterId: c.id });
+  return c.id;
+}
+
 router.post("/sheets/:id/decision", requireAuth, requireRole("CS_APPROVER"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const { decision, note } = req.body ?? {};
@@ -277,19 +354,58 @@ router.post("/sheets/:id/decision", requireAuth, requireRole("CS_APPROVER"), asy
     res.status(400).json({ error: "Invalid decision" });
     return;
   }
-  const [u] = await db
-    .update(characterSheets)
-    .set({
-      status: decision,
-      decisionBy: req.user!.id,
-      decisionNote: note ?? null,
-      decidedAt: new Date(),
-    })
-    .where(eq(characterSheets.id, id))
-    .returning();
-  if (!u) {
-    res.status(404).json({ error: "Not found" });
+
+  // Lock the sheet, materialize/link the character (on approval), and record
+  // the decision in one transaction so a partial failure or concurrent approval
+  // can't leave an orphaned character or an approved-but-unlinked sheet.
+  const result = await db.transaction(async (tx) => {
+    const [sheet] = await tx
+      .select()
+      .from(characterSheets)
+      .where(eq(characterSheets.id, id))
+      .for("update");
+    if (!sheet) return { error: { status: 404, body: { error: "Not found" } } };
+    // Only pending sheets can be decided. Without this guard a sheet could be
+    // re-decided after the fact (e.g. approve→reject), leaving the materialized
+    // character active while the sheet reads "rejected" — an inconsistent state
+    // the row lock alone can't prevent. Resubmission flips status back to
+    // pending, so legitimate re-reviews still work.
+    if (sheet.status !== "pending") {
+      return { error: { status: 409, body: { error: `Sheet already ${sheet.status}` } } };
+    }
+
+    const characterId = decision === "approved"
+      ? await materializeCharacterFromSheet(tx, sheet)
+      : sheet.characterId ?? null;
+
+    const [u] = await tx
+      .update(characterSheets)
+      .set({
+        status: decision,
+        decisionBy: req.user!.id,
+        decisionNote: note ?? null,
+        decidedAt: new Date(),
+        characterId,
+      })
+      .where(eq(characterSheets.id, id))
+      .returning();
+    return { ok: { u, characterId } };
+  });
+
+  if (result.error) {
+    res.status(result.error.status).json(result.error.body);
     return;
+  }
+  const { u, characterId } = result.ok;
+
+  if (decision === "approved" && characterId) {
+    await db.insert(activityEvents).values({
+      kind: "character_approved",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorAvatarUrl: req.user!.avatarUrl,
+      message: `${req.user!.username} approved ${u.name}`,
+    });
   }
   await recordAudit({
     req,

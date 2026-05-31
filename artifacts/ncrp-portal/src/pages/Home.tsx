@@ -99,13 +99,22 @@ function Dashboard() {
 
       <PlayerLoaControl characters={characters ?? []} />
 
-      {/* Top "actions" row: the Total Eddies stat sits beside the weekly
-          Attend claim so the dashboard's two most-used controls live together
-          and fill the space left by the removed stat cards. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {statCards}
-        <AttendCard />
-      </div>
+      {/* Contextual stat cards (Total Eddies + staff-only queues). Each is
+          conditional, so they tile in their own auto-flowing grid that fills
+          1–3 cards cleanly instead of leaving a stretched empty cell. */}
+      {statCards.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {statCards}
+        </div>
+      )}
+
+      {/* Player action cards: the weekly attendance claim plus a per-character
+          "open shop today" button. All are conditional — Attend hides while
+          loading and each shop hides unless that character owns one — so they
+          share their own responsive grid that reflows and pushes cards onto new
+          rows as they appear. This keeps the actions grouped together and
+          neatly laid out no matter which (if any) are present. */}
+      <PlayerActions characters={characters ?? []} />
 
       <NextMissionBanner />
 
@@ -163,7 +172,6 @@ function Dashboard() {
 
         <div className="lg:col-span-2 space-y-6 lg:order-2">
           <PendingMissionsCard />
-          <ShopOpenCard characters={characters ?? []} />
           <UpcomingBillsCard />
           <SystemLogsCard />
         </div>
@@ -590,7 +598,7 @@ function AttendCard() {
         ? "WINDOW CLOSED"
         : "CLAIM";
   return (
-    <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5">
+    <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5 h-full">
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -690,14 +698,21 @@ export function PlayerLoaControl({ characters }: { characters: Array<{ id: numbe
   );
 }
 
-// "Open shop today" daily actions — one per shop-owning character. Treated like
-// the weekly attendance claim (a Sunday-only income action). ShopOpenSection
-// renders null for characters without an active business lease, so players who
-// run no shops see nothing here.
-function ShopOpenCard({ characters }: { characters: Array<{ id: number; name: string }> }) {
-  if (!characters || characters.length === 0) return null;
+// Player action cards grouped into one responsive grid: the weekly attendance
+// claim plus a per-character "open shop today" button (a Sunday-only income
+// action, like attendance). Every tile is conditional — AttendCard renders null
+// until its data loads, and ShopOpenSection renders null for characters that
+// own no shop — so the grid naturally reflows and only ever shows the cards
+// that apply to this viewer, dropping them onto new rows as they appear.
+function PlayerActions({ characters }: { characters: Array<{ id: number; name: string }> }) {
+  // auto-fit + minmax: a lone card (the common "attend only, no shop" case)
+  // stretches to fill the full row, while extra shop cards split into equal
+  // columns and wrap onto new rows. Conditional children that render null leave
+  // no empty grid cell, so the row always looks intentional regardless of how
+  // many cards are present.
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+      <AttendCard />
       {characters.map((c) => (
         <ShopOpenSection key={c.id} characterId={c.id} name={c.name} />
       ))}
@@ -759,7 +774,7 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
   const disabled = data.openedToday || open.isPending;
 
   return (
-    <div className="border border-nc-magenta/40 bg-nc-magenta/5 p-4 space-y-3">
+    <div className="border border-nc-magenta/40 bg-nc-magenta/5 p-4 space-y-3 h-full">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="font-display tracking-widest text-nc-magenta text-sm">
