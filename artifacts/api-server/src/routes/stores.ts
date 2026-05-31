@@ -610,10 +610,10 @@ router.delete("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promi
   res.sendStatus(204);
 });
 
-// Selling no longer moves money immediately. The owner/employee "sell" action
-// now creates a PENDING sale offer (snapshotting price + the seller's
-// commission) and notifies the buyer; nothing moves until the buyer approves.
-// See lib/saleOffers.ts for the crash-safe approval flow.
+// Instant sale: the owner/employee "sell" action charges the buyer and moves
+// the item immediately (snapshotting price + the seller's commission) — there
+// is no buyer approval step. See lib/saleOffers.ts createOffer →
+// completeSaleOffer for the crash-safe debit/refund/commission flow.
 router.post("/stores/:id/sell", requireAuth, async (req, res): Promise<void> => {
   const venueId = parseInt(String(req.params.id), 10);
   const { stockId, buyerCharacterId, qty, memo } = req.body ?? {};
@@ -652,8 +652,8 @@ router.post("/ripperdocs/:id/sell", requireAuth, async (req, res): Promise<void>
   res.status(result.status).json(result.body);
 });
 
-// Install a stock cyberware item onto a character (CWP-validated). Creates an
-// install-type buyer-approval offer; nothing moves until the buyer approves.
+// Install a stock cyberware item onto a character (CWP-validated). Charges the
+// buyer and installs the item instantly — there is no buyer approval step.
 router.post("/ripperdocs/:id/install", requireAuth, async (req, res): Promise<void> => {
   const venueId = parseInt(String(req.params.id), 10);
   const { stockId, buyerCharacterId, qty, memo, price, cwp } = req.body ?? {};
