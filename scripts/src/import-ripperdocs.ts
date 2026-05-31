@@ -186,23 +186,35 @@ async function main() {
       // owner, or the original owner left the server). Owner resolution only
       // gates INSERTing a brand-new row, since owner_id is NOT NULL.
       const existing = await db
-        .select({ id: ripperdocs.id })
+        .select({
+          id: ripperdocs.id,
+          location: ripperdocs.location,
+          purpose: ripperdocs.purpose,
+          description: ripperdocs.description,
+        })
         .from(ripperdocs)
         .where(sql`${ripperdocs.description} LIKE ${"%" + tag + "%"}`)
         .limit(1);
 
       if (existing.length) {
-        // Preserve the existing owner (never clobber an admin reassignment);
-        // refresh only the descriptive fields from the source.
+        const e = existing[0];
+        // Preserve the existing owner (never clobber an admin reassignment) AND
+        // preserve manual portal edits: only overwrite a descriptive field when
+        // the source actually provides a value (this source has none). Keep the
+        // legacy tag in the description so future reruns still match this row.
+        const baseDesc = src.description ?? e.description ?? "";
+        const nextDesc = baseDesc.includes(tag)
+          ? baseDesc
+          : [baseDesc, tag].filter(Boolean).join(" ").trim();
         await db
           .update(ripperdocs)
           .set({
             name: src.name,
-            location: src.location,
-            purpose: src.purpose,
-            description,
+            location: src.location ?? e.location,
+            purpose: src.purpose ?? e.purpose,
+            description: nextDesc,
           })
-          .where(eq(ripperdocs.id, existing[0].id));
+          .where(eq(ripperdocs.id, e.id));
         updated++;
         continue;
       }
