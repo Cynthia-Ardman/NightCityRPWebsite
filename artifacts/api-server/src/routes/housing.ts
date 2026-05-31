@@ -167,6 +167,7 @@ router.get("/housing/listings/:id/history", requireAuth, async (req, res): Promi
       .innerJoin(characters, eq(characters.id, housing.characterId))
       .leftJoin(users, eq(users.id, characters.ownerId))
       .where(eq(housing.listingId, id))
+      .orderBy(desc(housing.createdAt))
       .limit(1),
     // Rent / shop-income ledger rows whose memo references this listing.
     db
