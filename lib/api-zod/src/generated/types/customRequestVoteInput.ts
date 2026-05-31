@@ -24,4 +24,19 @@ export interface CustomRequestVoteInput {
      * @minimum 0
      */
   cwp?: number;
+  /**
+     * Required on an approve vote for venue_stock requests: per-unit cost billed to the venue on owner approval.
+     * @minimum 0
+     */
+  unitCost?: number;
+  /**
+     * Required on an approve vote for venue_stock requests: shelf price for the new stock.
+     * @minimum 0
+     */
+  retail?: number;
+  /**
+     * Required on an approve vote for venue_stock requests: number of units to stock.
+     * @minimum 1
+     */
+  qty?: number;
 }

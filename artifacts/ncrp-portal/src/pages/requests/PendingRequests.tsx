@@ -37,7 +37,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, PackagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
@@ -51,9 +51,14 @@ const TYPE_META: Record<
   cyberware: { label: "CYBERWARE", Icon: Cpu },
   store: { label: "STORE", Icon: Store },
   ripperdoc: { label: "RIPPERDOC", Icon: Syringe },
+  // Owner-requested custom venue stock — fixer-voted to set its cost, then
+  // owner-decided to pay; stays in the staff queue for the vote.
+  venue_stock: { label: "VENUE STOCK", Icon: PackagePlus },
   // Stock-cost requests are owner-decided (excluded from the staff queue);
-  // included here only to keep the type map exhaustive.
+  // included here only to keep the type map exhaustive. Employee invites are
+  // decided by the invited player (also excluded), kept for exhaustiveness.
   stock_cost: { label: "STOCK COST", Icon: Store },
+  employee_invite: { label: "EMPLOYEE INVITE", Icon: Store },
 };
 
 // Venue requests stash purpose/location in the details payload — surface them
@@ -237,6 +242,9 @@ function ApproveDialog({
   const [monthlyRent, setMonthlyRent] = useState("");
   const [kind, setKind] = useState<"residential" | "business">("residential");
   const [cwp, setCwp] = useState("");
+  const [unitCost, setUnitCost] = useState("");
+  const [retail, setRetail] = useState("");
+  const [qty, setQty] = useState("1");
 
   // Re-seed local form state whenever a different request is opened.
   const seedKey = request?.id ?? -1;
@@ -246,6 +254,9 @@ function ApproveDialog({
     setMonthlyRent("");
     setKind("residential");
     setCwp("");
+    setUnitCost("");
+    setRetail("");
+    setQty("1");
     setSeededFor(seedKey);
   }
 
@@ -279,16 +290,25 @@ function ApproveDialog({
 
   const isProperty = request.type === "property";
   const isCyberware = request.type === "cyberware";
+  const isVenueStock = request.type === "venue_stock";
   const rentNum = parseInt(monthlyRent, 10);
   const cwpNum = parseInt(cwp, 10);
+  const unitCostNum = parseInt(unitCost, 10);
+  const retailNum = parseInt(retail, 10);
+  const qtyNum = parseInt(qty, 10);
   const valid =
     (!isProperty || (Number.isFinite(rentNum) && rentNum >= 0)) &&
-    (!isCyberware || (Number.isFinite(cwpNum) && cwpNum >= 0));
+    (!isCyberware || (Number.isFinite(cwpNum) && cwpNum >= 0)) &&
+    (!isVenueStock ||
+      (Number.isFinite(unitCostNum) && unitCostNum >= 0 &&
+        Number.isFinite(retailNum) && retailNum >= 0 &&
+        Number.isFinite(qtyNum) && qtyNum >= 1));
 
   const submit = () => {
     const params = {
       ...(isProperty ? { monthlyRent: rentNum, kind } : {}),
       ...(isCyberware ? { cwp: cwpNum } : {}),
+      ...(isVenueStock ? { unitCost: unitCostNum, retail: retailNum, qty: qtyNum } : {}),
     };
     if (mode === "override") {
       override.mutate({ id: request.id, data: { reviewerNote: reviewerNote.trim() || undefined, ...params } });
@@ -355,6 +375,46 @@ function ApproveDialog({
                 data-testid="input-approve-cwp"
               />
             </div>
+          )}
+          {isVenueStock && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Unit Cost (€$, owner pays)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                  placeholder="e.g. 5000"
+                  className="rounded-none font-mono"
+                  data-testid="input-approve-unit-cost"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Retail Price (€$, customer pays)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={retail}
+                  onChange={(e) => setRetail(e.target.value)}
+                  placeholder="e.g. 8000"
+                  className="rounded-none font-mono"
+                  data-testid="input-approve-retail"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Quantity</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  placeholder="e.g. 1"
+                  className="rounded-none font-mono"
+                  data-testid="input-approve-qty"
+                />
+              </div>
+            </>
           )}
           <div className="space-y-1.5">
             <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Reviewer Note (optional)</Label>

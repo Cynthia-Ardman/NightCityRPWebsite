@@ -21,4 +21,19 @@ export interface CustomRequestApproval {
      * @minimum 0
      */
   cwp?: number;
+  /**
+     * For venue_stock requests: per-unit cost billed to the venue on owner approval.
+     * @minimum 0
+     */
+  unitCost?: number;
+  /**
+     * For venue_stock requests: shelf price for the new stock.
+     * @minimum 0
+     */
+  retail?: number;
+  /**
+     * For venue_stock requests: number of units to stock.
+     * @minimum 1
+     */
+  qty?: number;
 }

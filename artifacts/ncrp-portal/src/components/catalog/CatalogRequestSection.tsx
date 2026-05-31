@@ -5,6 +5,10 @@ import {
   useSubmitCustomRequest,
   useListMyCustomRequests,
   getListMyCustomRequestsQueryKey,
+  useListStores,
+  useListRipperdocs,
+  getListStoresQueryKey,
+  getListRipperdocsQueryKey,
   type CustomRequest,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +36,8 @@ import SingleImageUpload from "@/components/SingleImageUpload";
 
 type RequestType = "property" | "gun" | "cyberware";
 
+const CUSTOM_SOURCE = "__custom__";
+
 export default function CatalogRequestSection({
   type,
   buttonLabel,
@@ -39,6 +45,7 @@ export default function CatalogRequestSection({
   dialogDescription,
   titleLabel,
   titlePlaceholder,
+  presetCharacterId,
 }: {
   type: RequestType;
   buttonLabel: string;
@@ -46,6 +53,10 @@ export default function CatalogRequestSection({
   dialogDescription: string;
   titleLabel: string;
   titlePlaceholder: string;
+  // When set, the request is locked to this character: the character dropdown
+  // and the "Your Requests" list are hidden (used by the per-character
+  // Cyberware tab entry point).
+  presetCharacterId?: number;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,9 +67,26 @@ export default function CatalogRequestSection({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  // Source = which venue the player wants this from (gun→store, cyberware→
+  // ripperdoc), or a free-text "Custom" value. Optional; property has no source.
+  const [source, setSource] = useState<string>("");
+  const [customSource, setCustomSource] = useState<string>("");
+
+  const hasSource = type === "gun" || type === "cyberware";
+  const { data: stores } = useListStores({
+    query: { enabled: type === "gun", queryKey: getListStoresQueryKey() },
+  });
+  const { data: ripperdocs } = useListRipperdocs({
+    query: { enabled: type === "cyberware", queryKey: getListRipperdocsQueryKey() },
+  });
+  const sourceOptions = (type === "gun" ? stores : type === "cyberware" ? ripperdocs : []) ?? [];
 
   // Only the player's own, non-archived PCs can hold a request target.
   const ownChars = (characters ?? []).filter((c) => !c.archived);
+  const presetChar = presetCharacterId
+    ? (characters ?? []).find((c) => c.id === presetCharacterId)
+    : undefined;
+  const effectiveCharacterId = presetCharacterId ? String(presetCharacterId) : characterId;
 
   const submit = useSubmitCustomRequest({
     mutation: {
@@ -70,6 +98,8 @@ export default function CatalogRequestSection({
         setDescription("");
         setCharacterId("");
         setImageUrl("");
+        setSource("");
+        setCustomSource("");
       },
       onError: (err) => {
         toast({
@@ -81,7 +111,9 @@ export default function CatalogRequestSection({
     },
   });
 
-  const canSubmit = !!characterId && !!title.trim() && !submit.isPending;
+  const resolvedSource =
+    !hasSource || !source ? "" : source === CUSTOM_SOURCE ? customSource.trim() : source;
+  const canSubmit = !!effectiveCharacterId && !!title.trim() && !submit.isPending;
 
   const myRequests = (mine ?? []) as CustomRequest[];
 
@@ -97,7 +129,7 @@ export default function CatalogRequestSection({
         </Button>
       </div>
 
-      {myRequests.length > 0 && (
+      {!presetCharacterId && myRequests.length > 0 && (
         <div className="border border-border bg-card/30 p-4 space-y-2" data-testid={`my-requests-${type}`}>
           <div className="font-display text-sm tracking-widest text-nc-cyan uppercase">Your Requests</div>
           {myRequests.map((r) => (
@@ -126,27 +158,36 @@ export default function CatalogRequestSection({
             <DialogDescription className="font-mono text-xs">{dialogDescription}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Character</Label>
-              <Select value={characterId} onValueChange={setCharacterId}>
-                <SelectTrigger className="rounded-none font-mono" data-testid={`select-character-${type}`}>
-                  <SelectValue placeholder="Choose a character" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ownChars.length === 0 ? (
-                    <SelectItem value="__none__" disabled>
-                      No eligible characters
-                    </SelectItem>
-                  ) : (
-                    ownChars.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name}
+            {presetCharacterId ? (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Character</Label>
+                <div className="border border-border bg-card/40 px-3 py-2 font-mono text-sm text-foreground" data-testid={`preset-character-${type}`}>
+                  {presetChar?.name ?? "This character"}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Character</Label>
+                <Select value={characterId} onValueChange={setCharacterId}>
+                  <SelectTrigger className="rounded-none font-mono" data-testid={`select-character-${type}`}>
+                    <SelectValue placeholder="Choose a character" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ownChars.length === 0 ? (
+                      <SelectItem value="__none__" disabled>
+                        No eligible characters
                       </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+                    ) : (
+                      ownChars.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">{titleLabel}</Label>
               <Input
@@ -157,6 +198,35 @@ export default function CatalogRequestSection({
                 data-testid={`input-title-${type}`}
               />
             </div>
+            {hasSource && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">
+                  {type === "gun" ? "Store (optional)" : "Ripperdoc (optional)"}
+                </Label>
+                <Select value={source} onValueChange={setSource}>
+                  <SelectTrigger className="rounded-none font-mono" data-testid={`select-source-${type}`}>
+                    <SelectValue placeholder={type === "gun" ? "Where do you want it from?" : "Where do you want it installed?"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sourceOptions.map((v) => (
+                      <SelectItem key={v.id} value={v.name}>
+                        {v.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CUSTOM_SOURCE}>Custom…</SelectItem>
+                  </SelectContent>
+                </Select>
+                {source === CUSTOM_SOURCE && (
+                  <Input
+                    value={customSource}
+                    onChange={(e) => setCustomSource(e.target.value)}
+                    placeholder="Describe the source"
+                    className="rounded-none font-mono mt-1.5"
+                    data-testid={`input-custom-source-${type}`}
+                  />
+                )}
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
               <Textarea
@@ -187,10 +257,11 @@ export default function CatalogRequestSection({
                 submit.mutate({
                   data: {
                     type,
-                    characterId: parseInt(characterId, 10),
+                    characterId: parseInt(effectiveCharacterId, 10),
                     title: title.trim(),
                     description: description.trim() || undefined,
                     imageUrl: imageUrl || undefined,
+                    source: resolvedSource || undefined,
                   },
                 })
               }

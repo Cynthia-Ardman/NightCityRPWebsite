@@ -831,6 +831,7 @@ paths:
     post:
       operationId: addStoreEmployee
       tags: [stores]
+      summary: Invite a character to work at the store. Creates a pending employee_invite the invited player must accept before employment is finalized.
       requestBody:
         required: true
         content:
@@ -838,10 +839,12 @@ paths:
             schema: { $ref: "#/components/schemas/EmployeeInput" }
       responses:
         "201":
-          description: Added
+          description: Invitation created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Employee" }
+              schema: { $ref: "#/components/schemas/EmployeeInviteResult" }
+        "400": { description: Character missing/archived/unclaimed }
+        "409": { description: Already an employee or invite already pending }
   /stores/{id}/employees/{employeeId}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1007,6 +1010,27 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StockItem" }
+  /stores/{id}/request-stock:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: requestStoreStock
+      tags: [stores]
+      summary: Store owner requests a custom (off-catalog) item be stocked. Goes to a fixer vote that sets the cost, then back to the owner to approve and pay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueStockRequestInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: "Bad request or no eligible owner character" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /stores/{id}/stock/{stockId}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1084,6 +1108,7 @@ paths:
     post:
       operationId: addRipperdocEmployee
       tags: [ripperdocs]
+      summary: Invite a character to work at the ripperdoc. Creates a pending employee_invite the invited player must accept before employment is finalized.
       requestBody:
         required: true
         content:
@@ -1091,10 +1116,12 @@ paths:
             schema: { $ref: "#/components/schemas/EmployeeInput" }
       responses:
         "201":
-          description: Added
+          description: Invitation created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Employee" }
+              schema: { $ref: "#/components/schemas/EmployeeInviteResult" }
+        "400": { description: Character missing/archived/unclaimed }
+        "409": { description: Already an employee or invite already pending }
   /ripperdocs/{id}/employees/{employeeId}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -2007,6 +2034,27 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StockItem" }
+  /ripperdocs/{id}/request-stock:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: requestRipperdocStock
+      tags: [ripperdocs]
+      summary: Ripperdoc owner requests a custom (off-catalog) item be stocked. Goes to a fixer vote that sets the cost, then back to the owner to approve and pay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueStockRequestInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: "Bad request or no eligible owner character" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /ripperdocs/{id}/stock/{stockId}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -2999,7 +3047,7 @@ paths:
         - in: query
           name: type
           required: false
-          schema: { type: string, enum: [property, gun, cyberware, store, ripperdoc] }
+          schema: { type: string, enum: [property, gun, cyberware, store, ripperdoc, employee_invite, venue_stock] }
       responses:
         "200":
           description: Requests
@@ -3131,6 +3179,28 @@ paths:
               schema: { $ref: "#/components/schemas/CustomRequest" }
         "400": { description: "Bad request, not a stock-cost request, or venue has insufficient funds" }
         "403": { description: "Only the venue owner (or an admin) may decide" }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+  /requests/{id}/employee-decision:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: decideEmployeeInvite
+      tags: [requests]
+      summary: The invited character's player (or an admin) accepts or denies an employment invitation. Accepting finalizes employment; denying discards it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmployeeDecisionInput" }
+      responses:
+        "200":
+          description: Decided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: "Bad request or not an employee-invite request" }
+        "403": { description: "Only the invited character's player (or an admin) may decide" }
         "404": { description: Not found }
         "409": { description: Already reviewed }
 
@@ -4674,7 +4744,7 @@ components:
       required: [id, type, characterId, characterName, requestedById, title, status, createdAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc, stock_cost] }
+        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc, stock_cost, employee_invite, venue_stock] }
         characterId: { type: integer }
         characterName: { type: string }
         requestedById: { type: string }
@@ -4704,6 +4774,9 @@ components:
         monthlyRent: { type: integer, minimum: 0, description: "Required on an approve vote for property requests." }
         kind: { type: string, enum: [residential, business], description: "For property approve votes; defaults residential." }
         cwp: { type: number, minimum: 0, description: "Required on an approve vote for cyberware requests." }
+        unitCost: { type: integer, minimum: 0, description: "Required on an approve vote for venue_stock requests: per-unit cost billed to the venue on owner approval." }
+        retail: { type: integer, minimum: 0, description: "Required on an approve vote for venue_stock requests: shelf price for the new stock." }
+        qty: { type: integer, minimum: 1, description: "Required on an approve vote for venue_stock requests: number of units to stock." }
 
     CustomRequestVoteResult:
       allOf:
@@ -4738,6 +4811,7 @@ components:
         imageUrl: { type: string, description: "Optional reference image object path." }
         purpose: { type: string, description: "Required for store/ripperdoc requests; what the venue is for." }
         location: { type: string, description: "Required for store/ripperdoc requests; in-world location." }
+        source: { type: string, description: "For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source." }
 
     CustomRequestApproval:
       type: object
@@ -4746,6 +4820,9 @@ components:
         monthlyRent: { type: integer, minimum: 0, description: "Required for property requests." }
         kind: { type: string, enum: [residential, business], description: "For property requests; defaults residential." }
         cwp: { type: number, minimum: 0, description: "Required for cyberware requests; sets chrome point cost." }
+        unitCost: { type: integer, minimum: 0, description: "For venue_stock requests: per-unit cost billed to the venue on owner approval." }
+        retail: { type: integer, minimum: 0, description: "For venue_stock requests: shelf price for the new stock." }
+        qty: { type: integer, minimum: 1, description: "For venue_stock requests: number of units to stock." }
 
     CustomRequestRejection:
       type: object
@@ -4758,6 +4835,28 @@ components:
       properties:
         decision: { type: string, enum: [approve, reject] }
         reviewerNote: { type: string }
+
+    EmployeeInviteResult:
+      type: object
+      required: [pendingApproval, requestId]
+      properties:
+        pendingApproval: { type: boolean, description: "Always true — adding an employee now creates a pending invitation the invited character's player must accept." }
+        requestId: { type: integer, description: "Id of the created employee_invite custom request." }
+
+    EmployeeDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [accept, deny] }
+
+    VenueStockRequestInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, description: "Item name to stock." }
+        category: { type: string, description: "Optional stock category." }
+        description: { type: string, description: "Optional notes for the fixers reviewing the request." }
+        source: { type: string, description: "Optional free-text source/notes carried on details.source." }
 
     HousingLeaseInput:
       type: object

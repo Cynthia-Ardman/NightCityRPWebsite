@@ -15,4 +15,6 @@ export const ListMyCustomRequestsType = {
   cyberware: 'cyberware',
   store: 'store',
   ripperdoc: 'ripperdoc',
+  employee_invite: 'employee_invite',
+  venue_stock: 'venue_stock',
 } as const;

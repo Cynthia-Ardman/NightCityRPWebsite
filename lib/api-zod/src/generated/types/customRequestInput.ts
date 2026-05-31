@@ -19,4 +19,6 @@ export interface CustomRequestInput {
   purpose?: string;
   /** Required for store/ripperdoc requests; in-world location. */
   location?: string;
+  /** For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source. */
+  source?: string;
 }

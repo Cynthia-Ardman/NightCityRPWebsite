@@ -11,6 +11,8 @@ import {
   ripperdocs,
   storeStock,
   ripperdocStock,
+  storeEmployees,
+  ripperdocEmployees,
   walletTransactions,
   characterUpdates,
   activityEvents,
@@ -59,17 +61,41 @@ function typeLabelFor(type: string): string {
       return "new store";
     case "ripperdoc":
       return "new ripperdoc";
+    case "employee_invite":
+      return "employment invitation";
+    case "venue_stock":
+      return "custom stock";
+    case "stock_cost":
+      return "stock cost";
     default:
       return "request";
   }
+}
+
+// stock_cost (venue owner pays) and employee_invite (invited player accepts)
+// are decided outside the staff vote pipeline. Returns a 400 error body when a
+// staff vote/override/request-changes action targets one of them.
+function ownerDecidedError(type: string): { status: number; body: { error: string } } | null {
+  if (type === "stock_cost") return { status: 400, body: { error: "Stock-cost requests are decided by the venue owner" } };
+  if (type === "employee_invite") return { status: 400, body: { error: "Employment invitations are decided by the invited player" } };
+  return null;
+}
+
+// Clamp a commission percentage into [0, 100]. Mirrors stores.ts clampPct.
+function clampPct(raw: unknown): number {
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
 }
 
 // Audit category for a request decision — venues are shop, property is
 // housing, guns/cyberware are inventory.
 function auditCategoryFor(type: string): "housing" | "shop" | "inventory" {
   if (type === "property") return "housing";
-  if (isVenueType(type)) return "shop";
-  return "inventory";
+  if (type === "gun" || type === "cyberware") return "inventory";
+  // store / ripperdoc / stock_cost / venue_stock / employee_invite all live
+  // under the shop umbrella.
+  return "shop";
 }
 
 function isFixerOrAdmin(user: { roles: string[] }): boolean {
@@ -96,7 +122,7 @@ type CharacterRow = typeof characters.$inferSelect;
 // Other types need nothing. These are validated up-front when an approve vote
 // (or override) is cast and persisted on `details.approval`, so the deciding
 // approve can materialize from the stored values without re-prompting.
-type ApprovalParams = { monthlyRent?: unknown; kind?: unknown; cwp?: unknown };
+type ApprovalParams = { monthlyRent?: unknown; kind?: unknown; cwp?: unknown; unitCost?: unknown; retail?: unknown; qty?: unknown };
 
 // Validates that the params required to APPROVE a given request type are
 // present and well-formed. Returns a normalized object on success or an error
@@ -120,6 +146,21 @@ function normalizeApprovalParams(
       return { error: "cwp (>= 0) required to approve a cyberware request" };
     }
     return { ok: { cwp } };
+  }
+  if (type === "venue_stock") {
+    const unitCost = parseInt(String(params.unitCost), 10);
+    const retail = parseInt(String(params.retail), 10);
+    const qty = parseInt(String(params.qty), 10);
+    if (!Number.isFinite(unitCost) || unitCost < 0) {
+      return { error: "unitCost (>= 0) required to approve a stock request" };
+    }
+    if (!Number.isFinite(retail) || retail < 0) {
+      return { error: "retail (>= 0) required to approve a stock request" };
+    }
+    if (!Number.isFinite(qty) || qty < 1) {
+      return { error: "qty (>= 1) required to approve a stock request" };
+    }
+    return { ok: { unitCost, retail, qty } };
   }
   return { ok: {} };
 }
@@ -223,6 +264,54 @@ async function materializeRequest(
       })
       .returning();
     return { ok: { appliedRef: `ripperdoc:${r.id}`, summary: `New ripperdoc approved: ${reqRow.title}` } };
+  }
+  if (reqRow.type === "venue_stock") {
+    // Fixers have voted to approve and set the cost/qty/retail. We don't add
+    // the stock or debit the venue here — instead we hand off to the existing
+    // stock_cost flow: insert a pending stock_cost request the venue owner must
+    // approve from "My Requests" (which debits + stocks via /stock-decision).
+    const det = (reqRow.details ?? {}) as {
+      kind?: "store" | "ripperdoc";
+      venueId?: number;
+      venueName?: string;
+      category?: string | null;
+    };
+    const kind = det.kind === "ripperdoc" ? "ripperdoc" : "store";
+    const venueId = Number(det.venueId);
+    if (!Number.isFinite(venueId) || venueId <= 0) {
+      return { error: { status: 400, body: { error: "Stock request is missing its venue" } } };
+    }
+    const unitCost = Math.max(0, Math.round(Number(params.unitCost) || 0));
+    const retail = Math.max(0, Math.round(Number(params.retail) || 0));
+    const qty = Math.max(1, Math.round(Number(params.qty) || 1));
+    const totalCost = unitCost * qty;
+    const [stockReq] = await tx
+      .insert(customRequests)
+      .values({
+        type: "stock_cost",
+        characterId: reqRow.characterId,
+        requestedById: reqRow.requestedById,
+        title: reqRow.title,
+        description: reqRow.description ?? null,
+        details: {
+          kind,
+          venueId,
+          venueName: det.venueName,
+          name: reqRow.title,
+          category: det.category ?? null,
+          qty,
+          unitCost,
+          totalCost,
+          retail,
+        } as never,
+      })
+      .returning();
+    return {
+      ok: {
+        appliedRef: `custom_request:${stockReq.id}`,
+        summary: `Custom stock approved by fixers: ${reqRow.title} x${qty} @ €$${unitCost.toLocaleString()}/unit — awaiting your payment in My Requests.`,
+      },
+    };
   }
   return { error: { status: 400, body: { error: `Unknown request type ${reqRow.type}` } } };
 }
@@ -400,7 +489,7 @@ async function notifyRequesterOfDecision(row: RequestRow, summary: string | null
 // Submit a custom request. Player picks one of their own characters and types
 // a free-text title (location / item name) and description.
 router.post("/requests", requireAuth, async (req, res): Promise<void> => {
-  const { type, characterId, title, description, imageUrl, purpose, location } = req.body ?? {};
+  const { type, characterId, title, description, imageUrl, purpose, location, source } = req.body ?? {};
   const reqType = String(type) as RequestType;
   if (!REQUEST_TYPES.includes(reqType)) {
     res.status(400).json({ error: `type must be one of: ${REQUEST_TYPES.join(", ")}` });
@@ -442,6 +531,11 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
     }
     details = { purpose: p, location: l };
     descToStore = d;
+  } else if ((reqType === "gun" || reqType === "cyberware") && typeof source === "string" && source.trim()) {
+    // Optional "where do you want this from" source for gun/cyberware requests
+    // (a store/ripperdoc name or a free-text "Custom" value). Carried on
+    // details.source for fixers reviewing the request.
+    details = { source: source.trim() };
   }
 
   const [inserted] = await db
@@ -477,10 +571,15 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const status = String(req.query.status ?? "pending");
-  // `stock_cost` requests are owner-approved (they show in the venue owner's
-  // "My Requests"), so they never appear in the staff triage queue.
+  // `stock_cost` (owner-approved) and `employee_invite` (decided by the invited
+  // player) live only in "My Requests", never in the staff triage queue.
+  // `venue_stock` IS fixer-voted, so it stays here.
   const rows = await selectWhere(
-    and(eq(customRequests.status, status), ne(customRequests.type, "stock_cost")),
+    and(
+      eq(customRequests.status, status),
+      ne(customRequests.type, "stock_cost"),
+      ne(customRequests.type, "employee_invite"),
+    ),
   );
   res.json(await attachTallies(rows, req.user!.id));
 });
@@ -511,10 +610,8 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
   if (vote === "approve") {
     const [pre] = await db.select({ type: customRequests.type }).from(customRequests).where(eq(customRequests.id, rid));
     if (!pre) { res.status(404).json({ error: "Request not found" }); return; }
-    if (pre.type === "stock_cost") {
-      res.status(400).json({ error: "Stock-cost requests are decided by the venue owner" });
-      return;
-    }
+    const preBlocked = ownerDecidedError(pre.type);
+    if (preBlocked) { res.status(preBlocked.status).json(preBlocked.body); return; }
     const norm = normalizeApprovalParams(pre.type, body);
     if ("error" in norm) { res.status(400).json({ error: norm.error }); return; }
     approvalToStore = norm.ok;
@@ -523,9 +620,8 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
   const txResult = await db.transaction(async (tx) => {
     const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, rid)).for("update");
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
-    if (reqRow.type === "stock_cost") {
-      return { error: { status: 400, body: { error: "Stock-cost requests are decided by the venue owner" } } };
-    }
+    const blocked = ownerDecidedError(reqRow.type);
+    if (blocked) return { error: blocked };
     if (reqRow.status !== "pending") {
       return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
     }
@@ -617,9 +713,8 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
   const txResult = await db.transaction(async (tx) => {
     const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, rid)).for("update");
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
-    if (reqRow.type === "stock_cost") {
-      return { error: { status: 400, body: { error: "Stock-cost requests are decided by the venue owner" } } };
-    }
+    const blocked = ownerDecidedError(reqRow.type);
+    if (blocked) return { error: blocked };
     if (reqRow.status !== "pending" && reqRow.status !== "changes_requested") {
       return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
     }
@@ -673,6 +768,7 @@ router.post("/requests/:id/request-changes", requireAuth, async (req, res): Prom
   const [reqRow] = await db.select().from(customRequests).where(eq(customRequests.id, rid));
   if (!reqRow) { res.status(404).json({ error: "Request not found" }); return; }
   if (reqRow.type === "stock_cost") { res.status(400).json({ error: "Not applicable to stock-cost requests" }); return; }
+  if (reqRow.type === "employee_invite") { res.status(400).json({ error: "Not applicable to employment invitations" }); return; }
   if (reqRow.requestedById === req.user!.id) { res.status(403).json({ error: "You cannot review your own request" }); return; }
   // Atomic state guard: only flip to changes_requested if the row is STILL
   // pending at update time. A concurrent vote/override (which locks FOR UPDATE)
@@ -975,6 +1071,160 @@ router.post("/requests/:id/stock-decision", requireAuth, async (req, res): Promi
     targetType: "custom_request",
     targetId: rid,
     message: `${dec === "approve" ? "Approved" : "Rejected"} stocking ${det.name} x${det.qty} for ${det.venueName ?? "venue"}`,
+  });
+  const [row] = await selectWhere(eq(customRequests.id, rid));
+  res.json(shape(row));
+});
+
+// The invited character's player (or an admin) accepts or denies an
+// `employee_invite`. Gated to the requestedById (the invited player) or admin.
+// Accepting inserts the venue employee row (idempotent against a double-accept)
+// and marks the request approved; denying marks it rejected. FOR UPDATE +
+// pending guard keep concurrent accept/deny crash-safe.
+router.post("/requests/:id/employee-decision", requireAuth, async (req, res): Promise<void> => {
+  const rid = parseInt(String(req.params.id), 10);
+  const decision = String(req.body?.decision ?? "");
+  if (decision !== "accept" && decision !== "deny") {
+    res.status(400).json({ error: 'decision must be "accept" or "deny"' });
+    return;
+  }
+
+  type InviteDetails = {
+    kind: "store" | "ripperdoc";
+    venueId: number;
+    venueName?: string;
+    role?: string;
+    commissionPct?: number;
+    invitedById?: string;
+    invitedByName?: string;
+  };
+
+  const txResult = await db.transaction(async (tx) => {
+    const [reqRow] = await tx
+      .select()
+      .from(customRequests)
+      .where(eq(customRequests.id, rid))
+      .for("update");
+    if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
+    if (reqRow.type !== "employee_invite") {
+      return { error: { status: 400, body: { error: "Not an employee invitation" } } };
+    }
+    // Only the invited player (requestedById) or an admin may decide.
+    if (reqRow.requestedById !== req.user!.id && !isAdmin(req.user!)) {
+      return { error: { status: 403, body: { error: "Only the invited player can decide this invitation" } } };
+    }
+    if (reqRow.status !== "pending") {
+      return { error: { status: 409, body: { error: `Invitation already ${reqRow.status}` } } };
+    }
+    const det = (reqRow.details ?? {}) as InviteDetails;
+
+    if (decision === "deny") {
+      await tx
+        .update(customRequests)
+        .set({ status: "rejected", reviewedById: req.user!.id, reviewedAt: new Date() })
+        .where(eq(customRequests.id, rid));
+      return { ok: { reqRow, det, decision, employeeId: null as number | null } };
+    }
+
+    // Accept: confirm the venue still exists, then insert the employee row
+    // (skip if somehow already employed) and approve the invite.
+    const venueTable = det.kind === "store" ? stores : ripperdocs;
+    const [venue] = await tx
+      .select({ id: venueTable.id })
+      .from(venueTable)
+      .where(eq(venueTable.id, det.venueId));
+    if (!venue) {
+      return { error: { status: 404, body: { error: "Venue no longer exists" } } };
+    }
+    const empTable = det.kind === "store" ? storeEmployees : ripperdocEmployees;
+    const empVenueCol = det.kind === "store" ? storeEmployees.storeId : ripperdocEmployees.ripperdocId;
+    const [existing] = await tx
+      .select({ id: empTable.id })
+      .from(empTable)
+      .where(and(eq(empVenueCol, det.venueId), eq(empTable.characterId, reqRow.characterId)));
+    let employeeId: number;
+    if (existing) {
+      employeeId = existing.id;
+    } else {
+      const [emp] = await tx
+        .insert(empTable)
+        .values({
+          [det.kind === "store" ? "storeId" : "ripperdocId"]: det.venueId,
+          characterId: reqRow.characterId,
+          role: det.role || (det.kind === "store" ? "clerk" : "doc"),
+          commissionPct: clampPct(det.commissionPct),
+        } as never)
+        .returning();
+      employeeId = emp.id;
+    }
+    await tx
+      .update(customRequests)
+      .set({
+        status: "approved",
+        reviewedById: req.user!.id,
+        reviewedAt: new Date(),
+        appliedRef: `${det.kind}-employee:${employeeId}`,
+      })
+      .where(eq(customRequests.id, rid));
+    return { ok: { reqRow, det, decision, employeeId } };
+  });
+
+  if (!("ok" in txResult) || !txResult.ok) {
+    const err = (txResult as { error: { status: number; body: { error: string } } }).error;
+    res.status(err.status).json(err.body);
+    return;
+  }
+  const { reqRow, det, decision: dec } = txResult.ok;
+  const venueName = det.venueName ?? "the venue";
+  const [charRow] = await db
+    .select({ name: characters.name })
+    .from(characters)
+    .where(eq(characters.id, reqRow.characterId));
+  const charName = charRow?.name ?? "A character";
+  // Activity feed + DM the inviting owner, best-effort (decision committed).
+  try {
+    await db.insert(activityEvents).values({
+      kind: dec === "accept" ? "request_approved" : "request_rejected",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorAvatarUrl: req.user!.avatarUrl,
+      message:
+        dec === "accept"
+          ? `${charName} accepted the invitation to work at ${venueName}`
+          : `${charName} declined the invitation to work at ${venueName}`,
+    });
+  } catch (err) {
+    logger.warn({ err, requestId: rid }, "employee-decision activity-feed write failed");
+  }
+  if (det.invitedById) {
+    try {
+      const [owner] = await db
+        .select({ discordId: users.discordId })
+        .from(users)
+        .where(eq(users.id, det.invitedById));
+      if (owner?.discordId) {
+        await sendDirectMessage(
+          owner.discordId,
+          dec === "accept"
+            ? `${charName} accepted your invitation to work at ${venueName}.`
+            : `${charName} declined your invitation to work at ${venueName}.`,
+        );
+      }
+    } catch (err) {
+      logger.warn({ err, requestId: rid }, "employee-decision owner DM failed");
+    }
+  }
+  await recordAudit({
+    req,
+    category: "shop",
+    action: dec === "accept" ? "employee_invite_accept" : "employee_invite_deny",
+    targetType: "custom_request",
+    targetId: rid,
+    message:
+      dec === "accept"
+        ? `${charName} accepted employment at ${venueName}`
+        : `${charName} declined employment at ${venueName}`,
+    after: { kind: det.kind, venueId: det.venueId, employeeId: txResult.ok.employeeId },
   });
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));

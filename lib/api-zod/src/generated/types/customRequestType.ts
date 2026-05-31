@@ -16,4 +16,6 @@ export const CustomRequestType = {
   store: 'store',
   ripperdoc: 'ripperdoc',
   stock_cost: 'stock_cost',
+  employee_invite: 'employee_invite',
+  venue_stock: 'venue_stock',
 } as const;

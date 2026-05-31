@@ -14,6 +14,7 @@ import {
   useWithdrawFromRipperdoc,
   useGetRipperdocTransactions,
   useListRipperdocOffers,
+  useRequestRipperdocStock,
   getGetRipperdocQueryKey,
   getGetRipperdocTransactionsQueryKey,
   getListRipperdocOffersQueryKey,
@@ -22,7 +23,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, DollarSign } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Plus, Trash2, DollarSign, PackagePlus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import CatalogPicker from "@/components/CatalogPicker";
 import CyberwareActionDialog from "@/components/CyberwareActionDialog";
 import RemoveCyberwareDialog from "@/components/RemoveCyberwareDialog";
@@ -39,9 +50,45 @@ export default function MyClinicDetail() {
   const rid = Number(id);
   const qc = useQueryClient();
   const { data, isLoading } = useGetRipperdoc(rid);
+  const { toast } = useToast();
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetRipperdocQueryKey(rid) });
   const update = useUpdateRipperdoc({ mutation: { onSuccess: invalidate } });
-  const addEmp = useAddRipperdocEmployee({ mutation: { onSuccess: invalidate } });
+  const addEmp = useAddRipperdocEmployee({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({
+          title: "Invitation sent",
+          description: "The employee will see it in My Requests and must accept before they're hired.",
+        });
+      },
+      onError: (err) => {
+        toast({
+          title: "Could not invite",
+          description: err instanceof Error ? err.message : "Please try again.",
+          variant: "destructive",
+        });
+      },
+    },
+  });
+  const requestStock = useRequestRipperdocStock({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Stock request submitted", description: "A fixer will set its cost for you to approve." });
+        setStockReqOpen(false);
+        setStockReqName("");
+        setStockReqCategory("");
+        setStockReqDescription("");
+      },
+      onError: (err) => {
+        toast({
+          title: "Could not submit request",
+          description: err instanceof Error ? err.message : "Please try again.",
+          variant: "destructive",
+        });
+      },
+    },
+  });
   const updateEmp = useUpdateRipperdocEmployee({ mutation: { onSuccess: invalidate } });
   const removeEmp = useRemoveRipperdocEmployee({ mutation: { onSuccess: invalidate } });
   const addStock = useAddRipperdocStock({ mutation: { onSuccess: invalidate } });
@@ -74,6 +121,10 @@ export default function MyClinicDetail() {
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [stockReqOpen, setStockReqOpen] = useState(false);
+  const [stockReqName, setStockReqName] = useState("");
+  const [stockReqCategory, setStockReqCategory] = useState("");
+  const [stockReqDescription, setStockReqDescription] = useState("");
   const [offerName, setOfferName] = useState("");
   const [offerPrice, setOfferPrice] = useState(0);
   const [offerCwp, setOfferCwp] = useState(0);
@@ -183,6 +234,15 @@ export default function MyClinicDetail() {
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="font-display tracking-widest">CYBERWARE STOCK</CardTitle>
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setStockReqOpen(true)}
+              className="rounded-none font-display"
+              data-testid="button-open-stock-request"
+            >
+              <PackagePlus className="w-3 h-3 mr-1" /> REQUEST CUSTOM STOCK
+            </Button>
             <Button
               size="sm"
               onClick={() => setRemoveOpen(true)}
@@ -379,6 +439,70 @@ export default function MyClinicDetail() {
           }}
         />
       )}
+      <Dialog open={stockReqOpen} onOpenChange={setStockReqOpen}>
+        <DialogContent className="rounded-none border-border bg-card sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-nc-cyan">Request Custom Stock</DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Ask a fixer to price custom cyberware for this clinic. Once they set a cost, you approve it from My Requests and pay to stock it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Cyberware</Label>
+              <Input
+                value={stockReqName}
+                onChange={(e) => setStockReqName(e.target.value)}
+                placeholder="e.g. Custom Sandevistan MK.5"
+                className="rounded-none font-mono"
+                data-testid="input-stock-request-name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Category (optional)</Label>
+              <Input
+                value={stockReqCategory}
+                onChange={(e) => setStockReqCategory(e.target.value)}
+                placeholder="e.g. cyberware"
+                className="rounded-none font-mono"
+                data-testid="input-stock-request-category"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
+              <Textarea
+                value={stockReqDescription}
+                onChange={(e) => setStockReqDescription(e.target.value)}
+                placeholder="Tell the fixer what you want and any details."
+                className="rounded-none font-mono min-h-[100px]"
+                data-testid="input-stock-request-description"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" className="rounded-none font-display" onClick={() => setStockReqOpen(false)}>
+              CANCEL
+            </Button>
+            <Button
+              className="rounded-none font-display tracking-widest bg-nc-cyan text-background hover:bg-nc-cyan/80"
+              disabled={!stockReqName.trim() || requestStock.isPending}
+              onClick={() =>
+                requestStock.mutate({
+                  id: rid,
+                  data: {
+                    name: stockReqName.trim(),
+                    category: stockReqCategory.trim() || undefined,
+                    description: stockReqDescription.trim() || undefined,
+                  },
+                })
+              }
+              data-testid="button-submit-stock-request"
+            >
+              {requestStock.isPending ? "SUBMITTING..." : "SUBMIT"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

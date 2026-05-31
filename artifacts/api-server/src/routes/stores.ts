@@ -189,6 +189,246 @@ function buildDiff(
   return { patch, before, after };
 }
 
+// Adding an employee no longer immediately employs them — it creates a pending
+// `employee_invite` request the invited character's player must accept (from
+// their "My Requests"). Validates the character (claimed, not archived, not
+// already employed, no pending invite), inserts the request, DMs the invited
+// player, and responds {pendingApproval, requestId}. Shared by store + ripperdoc.
+async function createEmployeeInvite(args: {
+  req: Request;
+  res: Response;
+  kind: "store" | "ripperdoc";
+  venueId: number;
+  venueName: string;
+}): Promise<void> {
+  const { req, res, kind, venueId, venueName } = args;
+  const characterId = parseInt(String(req.body?.characterId), 10);
+  if (!characterId) {
+    res.status(400).json({ error: "characterId required" });
+    return;
+  }
+  const role =
+    typeof req.body?.role === "string" && req.body.role.trim()
+      ? req.body.role.trim()
+      : kind === "store"
+        ? "clerk"
+        : "doc";
+  const commissionPct = clampPct(req.body?.commissionPct);
+
+  const [c] = await db.select().from(characters).where(eq(characters.id, characterId));
+  if (!c) {
+    res.status(404).json({ error: "Character not found" });
+    return;
+  }
+  if (!c.ownerId) {
+    res.status(400).json({ error: "That character is unclaimed — its player must claim it before they can be hired" });
+    return;
+  }
+  if (c.archived) {
+    res.status(400).json({ error: "That character is archived" });
+    return;
+  }
+  // Capture the (now-narrowed) owner id; property narrowing on `c.ownerId` is
+  // lost inside the transaction closure below.
+  const ownerId = c.ownerId;
+
+  const empTable = kind === "store" ? storeEmployees : ripperdocEmployees;
+  const empVenueCol = kind === "store" ? storeEmployees.storeId : ripperdocEmployees.ripperdocId;
+
+  // The already-employed / pending-invite checks and the insert run inside one
+  // transaction guarded by a transaction-scoped advisory lock keyed on
+  // (kind, venueId, characterId). Without it, two concurrent "add employee"
+  // clicks for the same target both pass the read checks and insert duplicate
+  // pending invites (there's no DB unique constraint to fall back on).
+  const lockKey = `emp_invite:${kind}:${venueId}:${characterId}`;
+  const txOut = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
+    const [already] = await tx
+      .select({ id: empTable.id })
+      .from(empTable)
+      .where(and(eq(empVenueCol, venueId), eq(empTable.characterId, characterId)));
+    if (already) {
+      return { error: { status: 409, body: { error: "That character already works here" } } };
+    }
+    const [pending] = await tx
+      .select({ id: customRequests.id })
+      .from(customRequests)
+      .where(
+        and(
+          eq(customRequests.type, "employee_invite"),
+          eq(customRequests.status, "pending"),
+          eq(customRequests.characterId, characterId),
+          sql`${customRequests.details}->>'venueId' = ${String(venueId)}`,
+          sql`${customRequests.details}->>'kind' = ${kind}`,
+        ),
+      );
+    if (pending) {
+      return { error: { status: 409, body: { error: "An invitation for that character is already pending" } } };
+    }
+    const [row] = await tx
+      .insert(customRequests)
+      .values({
+        type: "employee_invite",
+        characterId,
+        requestedById: ownerId,
+        title: `Employment at ${venueName}`,
+        description: null,
+        details: {
+          kind,
+          venueId,
+          venueName,
+          role,
+          commissionPct,
+          invitedById: req.user!.id,
+          invitedByName: req.user!.username,
+        } as never,
+      })
+      .returning();
+    return { ok: { inserted: row } };
+  });
+  if (!("ok" in txOut) || !txOut.ok) {
+    const err = (txOut as { error: { status: number; body: { error: string } } }).error;
+    res.status(err.status).json(err.body);
+    return;
+  }
+  const inserted = txOut.ok.inserted;
+
+  // Best-effort: DM the invited player + activity feed + audit (already committed).
+  try {
+    const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, c.ownerId));
+    if (u?.discordId) {
+      await sendDirectMessage(
+        u.discordId,
+        `${req.user!.username} invited ${c.name} to work at ${venueName}. Accept or decline it under "My Requests" on the NCRP portal.`,
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, requestId: inserted.id }, "employee-invite DM failed");
+  }
+  try {
+    await db.insert(activityEvents).values({
+      kind: "request_submitted",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorAvatarUrl: req.user!.avatarUrl,
+      message: `${req.user!.username} invited ${c.name} to work at ${venueName}`,
+    });
+  } catch (err) {
+    logger.warn({ err, requestId: inserted.id }, "employee-invite activity write failed");
+  }
+  const { ip, ua } = auditMeta(req);
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: kind === "store" ? "store_employee_invite" : "ripperdoc_employee_invite",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorIp: ip,
+    actorUa: ua,
+    targetType: "custom_request",
+    targetId: String(inserted.id),
+    message: `Invited ${c.name} to work at ${venueName}`,
+    beforeJson: null,
+    afterJson: { kind, venueId, characterId, role, commissionPct } as never,
+  });
+
+  res.status(201).json({ pendingApproval: true, requestId: inserted.id });
+}
+
+// Off-catalog ("custom") stock request raised by a venue owner. Goes onto the
+// unified request pipeline as a `venue_stock` row for fixers to vote on; on
+// approval that materializes into a `stock_cost` the owner pays. The request is
+// attributed to the venue's owner character (so it shows in their My Requests).
+async function createVenueStockRequest(args: {
+  req: Request;
+  res: Response;
+  kind: "store" | "ripperdoc";
+  venue: { id: number; name: string; ownerId: string; ownerCharacterId: number | null };
+}): Promise<void> {
+  const { req, res, kind, venue } = args;
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!name) {
+    res.status(400).json({ error: "name required" });
+    return;
+  }
+  const category = typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : null;
+  const description = typeof req.body?.description === "string" && req.body.description.trim() ? req.body.description.trim() : null;
+  const source = typeof req.body?.source === "string" && req.body.source.trim() ? req.body.source.trim() : null;
+
+  // Attribute the request to the venue's owner character — prefer the stored
+  // ownerCharacterId, else any owned character (the request needs a character).
+  let characterId = venue.ownerCharacterId ?? null;
+  if (!characterId) {
+    const [owned] = await db
+      .select({ id: characters.id })
+      .from(characters)
+      .where(eq(characters.ownerId, venue.ownerId))
+      .limit(1);
+    characterId = owned?.id ?? null;
+  }
+  if (!characterId) {
+    res.status(400).json({ error: "No owner character to attribute this request to" });
+    return;
+  }
+
+  const [inserted] = await db
+    .insert(customRequests)
+    .values({
+      type: "venue_stock",
+      characterId,
+      requestedById: venue.ownerId,
+      title: name,
+      description,
+      details: {
+        kind,
+        venueId: venue.id,
+        venueName: venue.name,
+        category,
+        source,
+      } as never,
+    })
+    .returning();
+  res.status(201).json(shapeCustomRequest(inserted));
+}
+
+// Minimal CustomRequest projection for the request-stock responses. The full
+// request list (with character/owner names + tallies) is served by requests.ts;
+// here we only need to echo the freshly-created row to the caller.
+function shapeCustomRequest(row: {
+  id: number;
+  type: string;
+  characterId: number;
+  requestedById: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  details: unknown;
+  status: string;
+  reviewedById: string | null;
+  reviewedAt: Date | null;
+  reviewerNote: string | null;
+  appliedRef: string | null;
+  createdAt: Date;
+}): Record<string, unknown> {
+  return {
+    id: row.id,
+    type: row.type,
+    characterId: row.characterId,
+    characterName: "(unknown)",
+    requestedById: row.requestedById,
+    requestedByName: null,
+    title: row.title,
+    description: row.description,
+    imageUrl: row.imageUrl ?? null,
+    details: row.details ?? null,
+    status: row.status,
+    reviewedById: row.reviewedById,
+    reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
+    reviewerNote: row.reviewerNote,
+    appliedRef: row.appliedRef,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 // ===== Stores =====
 // Returns stores the user owns OR is an employee at (via any of their characters).
 router.get("/stores/mine", requireAuth, async (req, res): Promise<void> => {
@@ -290,16 +530,14 @@ router.delete("/stores/:id", requireAuth, async (req, res): Promise<void> => {
 router.post("/stores/:id/employees", requireAuth, async (req, res): Promise<void> => {
   const s = await loadManageableStore(req, res);
   if (!s) return;
-  const { characterId, role } = req.body ?? {};
-  if (!characterId) {
-    res.status(400).json({ error: "characterId required" });
-    return;
-  }
-  const [e] = await db
-    .insert(storeEmployees)
-    .values({ storeId: s.id, characterId, role: role ?? "clerk", commissionPct: clampPct(req.body?.commissionPct) })
-    .returning();
-  res.status(201).json(e);
+  await createEmployeeInvite({ req, res, kind: "store", venueId: s.id, venueName: s.name });
+});
+
+// Store owner requests a custom (off-catalog) item be stocked → fixer vote.
+router.post("/stores/:id/request-stock", requireAuth, async (req, res): Promise<void> => {
+  const s = await loadManageableStore(req, res);
+  if (!s) return;
+  await createVenueStockRequest({ req, res, kind: "store", venue: s });
 });
 
 // Edit an employee's role and/or commission percentage. Owner or staff.
@@ -915,16 +1153,14 @@ router.delete("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> =>
 router.post("/ripperdocs/:id/employees", requireAuth, async (req, res): Promise<void> => {
   const r = await loadManageableRipperdoc(req, res);
   if (!r) return;
-  const { characterId, role } = req.body ?? {};
-  if (!characterId) {
-    res.status(400).json({ error: "characterId required" });
-    return;
-  }
-  const [e] = await db
-    .insert(ripperdocEmployees)
-    .values({ ripperdocId: r.id, characterId, role: role ?? "doc", commissionPct: clampPct(req.body?.commissionPct) })
-    .returning();
-  res.status(201).json(e);
+  await createEmployeeInvite({ req, res, kind: "ripperdoc", venueId: r.id, venueName: r.name });
+});
+
+// Ripperdoc owner requests a custom (off-catalog) item be stocked → fixer vote.
+router.post("/ripperdocs/:id/request-stock", requireAuth, async (req, res): Promise<void> => {
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
+  await createVenueStockRequest({ req, res, kind: "ripperdoc", venue: r });
 });
 
 // Edit an employee's role and/or commission percentage. Owner or staff.

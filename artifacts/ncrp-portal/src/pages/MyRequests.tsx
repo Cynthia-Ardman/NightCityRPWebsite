@@ -4,6 +4,7 @@ import {
   useListMyCustomRequests,
   useListMyHousingRequests,
   useDecideStockCostRequest,
+  useDecideEmployeeInvite,
   useUpdateCustomRequest,
   useResubmitCustomRequest,
   getListMyCustomRequestsQueryKey,
@@ -31,7 +32,16 @@ import { ClipboardList, RotateCcw, Pencil } from "lucide-react";
 // share a single chronological history table.
 type HistoryRow = {
   key: string;
-  category: "Property" | "Gun" | "Cyberware" | "Store" | "Ripperdoc" | "Stock" | "Lease";
+  category:
+    | "Property"
+    | "Gun"
+    | "Cyberware"
+    | "Store"
+    | "Ripperdoc"
+    | "Stock"
+    | "Venue Stock"
+    | "Employment"
+    | "Lease";
   title: string;
   characterName: string;
   status: string;
@@ -51,6 +61,8 @@ const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
   store: "Store",
   ripperdoc: "Ripperdoc",
   stock_cost: "Stock",
+  venue_stock: "Venue Stock",
+  employee_invite: "Employment",
 };
 
 const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
@@ -61,6 +73,8 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "Store",
   "Ripperdoc",
   "Stock",
+  "Venue Stock",
+  "Employment",
   "Lease",
 ];
 
@@ -78,6 +92,10 @@ function categoryColor(category: HistoryRow["category"]): string {
       return "text-nc-magenta";
     case "Stock":
       return "text-nc-yellow";
+    case "Venue Stock":
+      return "text-nc-yellow";
+    case "Employment":
+      return "text-nc-green";
     case "Lease":
       return "text-nc-green";
   }
@@ -97,6 +115,20 @@ export default function MyRequests() {
   const decide = useDecideStockCostRequest({
     mutation: {
       onSuccess: () => invalidateMine(),
+    },
+  });
+  const decideInvite = useDecideEmployeeInvite({
+    mutation: {
+      onSuccess: (_res, variables) => {
+        invalidateMine();
+        toast({
+          title:
+            variables.data.decision === "accept"
+              ? "Invitation accepted — you're hired"
+              : "Invitation declined",
+        });
+      },
+      onError: (err) => toast({ title: "Could not respond", description: errMsg(err, "Please try again."), variant: "destructive" }),
     },
   });
   const update = useUpdateCustomRequest();
@@ -295,6 +327,35 @@ export default function MyRequests() {
                               data-testid={`button-stock-reject-${r.customId}`}
                             >
                               REJECT
+                            </Button>
+                          </div>
+                        ) : null}
+                        {r.customType === "employee_invite" && r.status === "pending" && r.customId != null ? (
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={decideInvite.isPending}
+                              className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
+                              onClick={() =>
+                                decideInvite.mutate({ id: r.customId!, data: { decision: "accept" } })
+                              }
+                              data-testid={`button-invite-accept-${r.customId}`}
+                            >
+                              ACCEPT
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={decideInvite.isPending}
+                              className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
+                              onClick={() =>
+                                decideInvite.mutate({ id: r.customId!, data: { decision: "deny" } })
+                              }
+                              data-testid={`button-invite-deny-${r.customId}`}
+                            >
+                              DENY
                             </Button>
                           </div>
                         ) : null}

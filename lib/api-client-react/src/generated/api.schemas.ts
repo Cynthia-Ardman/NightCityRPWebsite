@@ -1942,6 +1942,8 @@ export const CustomRequestType = {
   store: 'store',
   ripperdoc: 'ripperdoc',
   stock_cost: 'stock_cost',
+  employee_invite: 'employee_invite',
+  venue_stock: 'venue_stock',
 } as const;
 
 export type CustomRequestStatus = typeof CustomRequestStatus[keyof typeof CustomRequestStatus];
@@ -2053,6 +2055,21 @@ export interface CustomRequestVoteInput {
      * @minimum 0
      */
   cwp?: number;
+  /**
+     * Required on an approve vote for venue_stock requests: per-unit cost billed to the venue on owner approval.
+     * @minimum 0
+     */
+  unitCost?: number;
+  /**
+     * Required on an approve vote for venue_stock requests: shelf price for the new stock.
+     * @minimum 0
+     */
+  retail?: number;
+  /**
+     * Required on an approve vote for venue_stock requests: number of units to stock.
+     * @minimum 1
+     */
+  qty?: number;
 }
 
 /**
@@ -2112,6 +2129,8 @@ export interface CustomRequestInput {
   purpose?: string;
   /** Required for store/ripperdoc requests; in-world location. */
   location?: string;
+  /** For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source. */
+  source?: string;
 }
 
 /**
@@ -2139,6 +2158,21 @@ export interface CustomRequestApproval {
      * @minimum 0
      */
   cwp?: number;
+  /**
+     * For venue_stock requests: per-unit cost billed to the venue on owner approval.
+     * @minimum 0
+     */
+  unitCost?: number;
+  /**
+     * For venue_stock requests: shelf price for the new stock.
+     * @minimum 0
+     */
+  retail?: number;
+  /**
+     * For venue_stock requests: number of units to stock.
+     * @minimum 1
+     */
+  qty?: number;
 }
 
 export interface CustomRequestRejection {
@@ -2156,6 +2190,39 @@ export const StockCostDecisionDecision = {
 export interface StockCostDecision {
   decision: StockCostDecisionDecision;
   reviewerNote?: string;
+}
+
+export interface EmployeeInviteResult {
+  /** Always true — adding an employee now creates a pending invitation the invited character's player must accept. */
+  pendingApproval: boolean;
+  /** Id of the created employee_invite custom request. */
+  requestId: number;
+}
+
+export type EmployeeDecisionInputDecision = typeof EmployeeDecisionInputDecision[keyof typeof EmployeeDecisionInputDecision];
+
+
+export const EmployeeDecisionInputDecision = {
+  accept: 'accept',
+  deny: 'deny',
+} as const;
+
+export interface EmployeeDecisionInput {
+  decision: EmployeeDecisionInputDecision;
+}
+
+export interface VenueStockRequestInput {
+  /**
+     * Item name to stock.
+     * @minLength 1
+     */
+  name: string;
+  /** Optional stock category. */
+  category?: string;
+  /** Optional notes for the fixers reviewing the request. */
+  description?: string;
+  /** Optional free-text source/notes carried on details.source. */
+  source?: string;
 }
 
 export type HousingLeaseInputKind = typeof HousingLeaseInputKind[keyof typeof HousingLeaseInputKind];
@@ -4090,6 +4157,8 @@ export const ListMyCustomRequestsType = {
   cyberware: 'cyberware',
   store: 'store',
   ripperdoc: 'ripperdoc',
+  employee_invite: 'employee_invite',
+  venue_stock: 'venue_stock',
 } as const;
 
 export type ListLoreParams = {

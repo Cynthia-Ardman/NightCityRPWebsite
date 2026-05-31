@@ -1231,6 +1231,9 @@ export const DeleteStoreParams = zod.object({
 })
 
 
+/**
+ * @summary Invite a character to work at the store. Creates a pending employee_invite the invited player must accept before employment is finalized.
+ */
 export const AddStoreEmployeeParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -1462,6 +1465,24 @@ export const AddStoreStockBody = zod.object({
 })
 
 
+/**
+ * @summary Store owner requests a custom (off-catalog) item be stocked. Goes to a fixer vote that sets the cost, then back to the owner to approve and pay.
+ */
+export const RequestStoreStockParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const RequestStoreStockBody = zod.object({
+  "name": zod.string().min(1).describe('Item name to stock.'),
+  "category": zod.string().optional().describe('Optional stock category.'),
+  "description": zod.string().optional().describe('Optional notes for the fixers reviewing the request.'),
+  "source": zod.string().optional().describe('Optional free-text source\/notes carried on details.source.')
+})
+
+
 export const UpdateStoreStockParams = zod.object({
   "id": zod.coerce.number(),
   "stockId": zod.coerce.number()
@@ -1624,6 +1645,9 @@ export const DeleteRipperdocParams = zod.object({
 })
 
 
+/**
+ * @summary Invite a character to work at the ripperdoc. Creates a pending employee_invite the invited player must accept before employment is finalized.
+ */
 export const AddRipperdocEmployeeParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -4077,6 +4101,24 @@ export const AddRipperdocStockBody = zod.object({
 })
 
 
+/**
+ * @summary Ripperdoc owner requests a custom (off-catalog) item be stocked. Goes to a fixer vote that sets the cost, then back to the owner to approve and pay.
+ */
+export const RequestRipperdocStockParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const RequestRipperdocStockBody = zod.object({
+  "name": zod.string().min(1).describe('Item name to stock.'),
+  "category": zod.string().optional().describe('Optional stock category.'),
+  "description": zod.string().optional().describe('Optional notes for the fixers reviewing the request.'),
+  "source": zod.string().optional().describe('Optional free-text source\/notes carried on details.source.')
+})
+
+
 export const RemoveRipperdocStockParams = zod.object({
   "id": zod.coerce.number(),
   "stockId": zod.coerce.number()
@@ -6091,7 +6133,7 @@ export const ListCustomRequestsQueryParams = zod.object({
 
 export const ListCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6125,7 +6167,8 @@ export const SubmitCustomRequestBody = zod.object({
   "description": zod.string().optional().describe('Required for store\/ripperdoc requests.'),
   "imageUrl": zod.string().optional().describe('Optional reference image object path.'),
   "purpose": zod.string().optional().describe('Required for store\/ripperdoc requests; what the venue is for.'),
-  "location": zod.string().optional().describe('Required for store\/ripperdoc requests; in-world location.')
+  "location": zod.string().optional().describe('Required for store\/ripperdoc requests; in-world location.'),
+  "source": zod.string().optional().describe('For gun\/cyberware requests: which store\/ripperdoc the player wants it from, or a free-text \'Custom\' source. Stored on details.source.')
 })
 
 
@@ -6133,12 +6176,12 @@ export const SubmitCustomRequestBody = zod.object({
  * @summary The signed-in user's own custom requests.
  */
 export const ListMyCustomRequestsQueryParams = zod.object({
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']).optional()
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'employee_invite', 'venue_stock']).optional()
 })
 
 export const ListMyCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6175,6 +6218,11 @@ export const voteCustomRequestBodyMonthlyRentMin = 0;
 
 export const voteCustomRequestBodyCwpMin = 0;
 
+export const voteCustomRequestBodyUnitCostMin = 0;
+
+export const voteCustomRequestBodyRetailMin = 0;
+
+
 
 
 export const VoteCustomRequestBody = zod.object({
@@ -6182,12 +6230,15 @@ export const VoteCustomRequestBody = zod.object({
   "note": zod.string().max(voteCustomRequestBodyNoteMax).optional(),
   "monthlyRent": zod.number().min(voteCustomRequestBodyMonthlyRentMin).optional().describe('Required on an approve vote for property requests.'),
   "kind": zod.enum(['residential', 'business']).optional().describe('For property approve votes; defaults residential.'),
-  "cwp": zod.number().min(voteCustomRequestBodyCwpMin).optional().describe('Required on an approve vote for cyberware requests.')
+  "cwp": zod.number().min(voteCustomRequestBodyCwpMin).optional().describe('Required on an approve vote for cyberware requests.'),
+  "unitCost": zod.number().min(voteCustomRequestBodyUnitCostMin).optional().describe('Required on an approve vote for venue_stock requests: per-unit cost billed to the venue on owner approval.'),
+  "retail": zod.number().min(voteCustomRequestBodyRetailMin).optional().describe('Required on an approve vote for venue_stock requests: shelf price for the new stock.'),
+  "qty": zod.number().min(1).optional().describe('Required on an approve vote for venue_stock requests: number of units to stock.')
 })
 
 export const VoteCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6223,18 +6274,26 @@ export const overrideCustomRequestBodyMonthlyRentMin = 0;
 
 export const overrideCustomRequestBodyCwpMin = 0;
 
+export const overrideCustomRequestBodyUnitCostMin = 0;
+
+export const overrideCustomRequestBodyRetailMin = 0;
+
+
 
 
 export const OverrideCustomRequestBody = zod.object({
   "reviewerNote": zod.string().optional(),
   "monthlyRent": zod.number().min(overrideCustomRequestBodyMonthlyRentMin).optional().describe('Required for property requests.'),
   "kind": zod.enum(['residential', 'business']).optional().describe('For property requests; defaults residential.'),
-  "cwp": zod.number().min(overrideCustomRequestBodyCwpMin).optional().describe('Required for cyberware requests; sets chrome point cost.')
+  "cwp": zod.number().min(overrideCustomRequestBodyCwpMin).optional().describe('Required for cyberware requests; sets chrome point cost.'),
+  "unitCost": zod.number().min(overrideCustomRequestBodyUnitCostMin).optional().describe('For venue_stock requests: per-unit cost billed to the venue on owner approval.'),
+  "retail": zod.number().min(overrideCustomRequestBodyRetailMin).optional().describe('For venue_stock requests: shelf price for the new stock.'),
+  "qty": zod.number().min(1).optional().describe('For venue_stock requests: number of units to stock.')
 })
 
 export const OverrideCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6274,7 +6333,7 @@ export const RequestChangesCustomRequestBody = zod.object({
 
 export const RequestChangesCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6306,7 +6365,7 @@ export const ResubmitCustomRequestParams = zod.object({
 
 export const ResubmitCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6346,7 +6405,7 @@ export const UpdateCustomRequestBody = zod.object({
 
 export const UpdateCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6383,7 +6442,43 @@ export const DecideStockCostRequestBody = zod.object({
 
 export const DecideStockCostRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary The invited character's player (or an admin) accepts or denies an employment invitation. Accepting finalizes employment; denying discards it.
+ */
+export const DecideEmployeeInviteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideEmployeeInviteBody = zod.object({
+  "decision": zod.enum(['accept', 'deny'])
+})
+
+export const DecideEmployeeInviteResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),

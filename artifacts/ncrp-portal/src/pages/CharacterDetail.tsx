@@ -26,6 +26,7 @@ import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign,
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
+import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import Markdown from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -318,11 +319,16 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
 function CyberwareTab({ characterId }: { characterId: number }) {
   const { data: char, isLoading: charLoading } = useGetCharacter(characterId);
   const { data: items, isLoading: itemsLoading } = useGetCharacterInventory(characterId);
+  const me = useAuthMe();
 
   if (charLoading || itemsLoading) {
     return <div className="text-nc-cyan font-mono animate-pulse">Scanning chrome subnet...</div>;
   }
   if (!char) return null;
+
+  // The owner of this character (or an admin) can request custom cyberware
+  // for it — this reuses the unified request pipeline, preselecting this PC.
+  const canRequestCyberware = !!me.data?.isAdmin || (!!char.ownerId && char.ownerId === me.data?.id);
 
   // Pull cyberware items out of the per-character inventory. We match on
   // category case-insensitively so legacy "Cyberware" / "cyberware" both
@@ -403,6 +409,27 @@ function CyberwareTab({ characterId }: { characterId: number }) {
       </Card>
 
       <CheckupStreakCard characterId={characterId} />
+
+      {canRequestCyberware && (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-nc-magenta" /> REQUEST CUSTOM CYBERWARE
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CatalogRequestSection
+              type="cyberware"
+              presetCharacterId={characterId}
+              buttonLabel="REQUEST CUSTOM CYBERWARE"
+              dialogTitle="Request Custom Cyberware"
+              dialogDescription={`Ask staff to spec out new chrome for ${char.name}.`}
+              titleLabel="Cyberware"
+              titlePlaceholder="e.g. Militech Berserk MK.4"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {cyberwareSheet ? (
         <Card className="rounded-none border-border bg-card/50">

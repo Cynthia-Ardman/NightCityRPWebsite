@@ -82,7 +82,9 @@ import type {
   EconomyOutOfSyncList,
   EconomyRetryResult,
   Employee,
+  EmployeeDecisionInput,
   EmployeeInput,
+  EmployeeInviteResult,
   EmployeePatch,
   FixerNpc,
   FixerNpcInput,
@@ -188,6 +190,7 @@ import type {
   UserWallet,
   VenueAccountInput,
   VenueAccountResult,
+  VenueStockRequestInput,
   VrchatScanResult,
   Wallet,
   WalletAdjustmentInput,
@@ -4045,10 +4048,13 @@ export const getAddStoreEmployeeUrl = (id: number,) => {
   return `/api/stores/${id}/employees`
 }
 
+/**
+ * @summary Invite a character to work at the store. Creates a pending employee_invite the invited player must accept before employment is finalized.
+ */
 export const addStoreEmployee = async (id: number,
-    employeeInput: EmployeeInput, options?: RequestInit): Promise<Employee> => {
+    employeeInput: EmployeeInput, options?: RequestInit): Promise<EmployeeInviteResult> => {
 
-  return customFetch<Employee>(getAddStoreEmployeeUrl(id),
+  return customFetch<EmployeeInviteResult>(getAddStoreEmployeeUrl(id),
   {
     ...options,
     method: 'POST',
@@ -4061,7 +4067,7 @@ export const addStoreEmployee = async (id: number,
 
 
 
-export const getAddStoreEmployeeMutationOptions = <TError = ErrorType<unknown>,
+export const getAddStoreEmployeeMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addStoreEmployee>>, TError,{id: number;data: BodyType<EmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof addStoreEmployee>>, TError,{id: number;data: BodyType<EmployeeInput>}, TContext> => {
 
@@ -4090,9 +4096,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AddStoreEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof addStoreEmployee>>>
     export type AddStoreEmployeeMutationBody = BodyType<EmployeeInput>
-    export type AddStoreEmployeeMutationError = ErrorType<unknown>
+    export type AddStoreEmployeeMutationError = ErrorType<void>
 
-    export const useAddStoreEmployee = <TError = ErrorType<unknown>,
+    /**
+ * @summary Invite a character to work at the store. Creates a pending employee_invite the invited player must accept before employment is finalized.
+ */
+export const useAddStoreEmployee = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addStoreEmployee>>, TError,{id: number;data: BodyType<EmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof addStoreEmployee>>,
@@ -4751,6 +4760,78 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getAddStoreStockMutationOptions(options));
     }
 
+export const getRequestStoreStockUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/request-stock`
+}
+
+/**
+ * @summary Store owner requests a custom (off-catalog) item be stocked. Goes to a fixer vote that sets the cost, then back to the owner to approve and pay.
+ */
+export const requestStoreStock = async (id: number,
+    venueStockRequestInput: VenueStockRequestInput, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getRequestStoreStockUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueStockRequestInput,)
+  }
+);}
+
+
+
+
+export const getRequestStoreStockMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStoreStock>>, TError,{id: number;data: BodyType<VenueStockRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestStoreStock>>, TError,{id: number;data: BodyType<VenueStockRequestInput>}, TContext> => {
+
+const mutationKey = ['requestStoreStock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestStoreStock>>, {id: number;data: BodyType<VenueStockRequestInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  requestStoreStock(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestStoreStockMutationResult = NonNullable<Awaited<ReturnType<typeof requestStoreStock>>>
+    export type RequestStoreStockMutationBody = BodyType<VenueStockRequestInput>
+    export type RequestStoreStockMutationError = ErrorType<void>
+
+    /**
+ * @summary Store owner requests a custom (off-catalog) item be stocked. Goes to a fixer vote that sets the cost, then back to the owner to approve and pay.
+ */
+export const useRequestStoreStock = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStoreStock>>, TError,{id: number;data: BodyType<VenueStockRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestStoreStock>>,
+        TError,
+        {id: number;data: BodyType<VenueStockRequestInput>},
+        TContext
+      > => {
+      return useMutation(getRequestStoreStockMutationOptions(options));
+    }
+
 export const getUpdateStoreStockUrl = (id: number,
     stockId: number,) => {
 
@@ -5171,10 +5252,13 @@ export const getAddRipperdocEmployeeUrl = (id: number,) => {
   return `/api/ripperdocs/${id}/employees`
 }
 
+/**
+ * @summary Invite a character to work at the ripperdoc. Creates a pending employee_invite the invited player must accept before employment is finalized.
+ */
 export const addRipperdocEmployee = async (id: number,
-    employeeInput: EmployeeInput, options?: RequestInit): Promise<Employee> => {
+    employeeInput: EmployeeInput, options?: RequestInit): Promise<EmployeeInviteResult> => {
 
-  return customFetch<Employee>(getAddRipperdocEmployeeUrl(id),
+  return customFetch<EmployeeInviteResult>(getAddRipperdocEmployeeUrl(id),
   {
     ...options,
     method: 'POST',
@@ -5187,7 +5271,7 @@ export const addRipperdocEmployee = async (id: number,
 
 
 
-export const getAddRipperdocEmployeeMutationOptions = <TError = ErrorType<unknown>,
+export const getAddRipperdocEmployeeMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addRipperdocEmployee>>, TError,{id: number;data: BodyType<EmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof addRipperdocEmployee>>, TError,{id: number;data: BodyType<EmployeeInput>}, TContext> => {
 
@@ -5216,9 +5300,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AddRipperdocEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof addRipperdocEmployee>>>
     export type AddRipperdocEmployeeMutationBody = BodyType<EmployeeInput>
-    export type AddRipperdocEmployeeMutationError = ErrorType<unknown>
+    export type AddRipperdocEmployeeMutationError = ErrorType<void>
 
-    export const useAddRipperdocEmployee = <TError = ErrorType<unknown>,
+    /**
+ * @summary Invite a character to work at the ripperdoc. Creates a pending employee_invite the invited player must accept before employment is finalized.
+ */
+export const useAddRipperdocEmployee = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addRipperdocEmployee>>, TError,{id: number;data: BodyType<EmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof addRipperdocEmployee>>,
@@ -9393,6 +9480,78 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getAddRipperdocStockMutationOptions(options));
+    }
+
+export const getRequestRipperdocStockUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/request-stock`
+}
+
+/**
+ * @summary Ripperdoc owner requests a custom (off-catalog) item be stocked. Goes to a fixer vote that sets the cost, then back to the owner to approve and pay.
+ */
+export const requestRipperdocStock = async (id: number,
+    venueStockRequestInput: VenueStockRequestInput, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getRequestRipperdocStockUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueStockRequestInput,)
+  }
+);}
+
+
+
+
+export const getRequestRipperdocStockMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestRipperdocStock>>, TError,{id: number;data: BodyType<VenueStockRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestRipperdocStock>>, TError,{id: number;data: BodyType<VenueStockRequestInput>}, TContext> => {
+
+const mutationKey = ['requestRipperdocStock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestRipperdocStock>>, {id: number;data: BodyType<VenueStockRequestInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  requestRipperdocStock(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestRipperdocStockMutationResult = NonNullable<Awaited<ReturnType<typeof requestRipperdocStock>>>
+    export type RequestRipperdocStockMutationBody = BodyType<VenueStockRequestInput>
+    export type RequestRipperdocStockMutationError = ErrorType<void>
+
+    /**
+ * @summary Ripperdoc owner requests a custom (off-catalog) item be stocked. Goes to a fixer vote that sets the cost, then back to the owner to approve and pay.
+ */
+export const useRequestRipperdocStock = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestRipperdocStock>>, TError,{id: number;data: BodyType<VenueStockRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestRipperdocStock>>,
+        TError,
+        {id: number;data: BodyType<VenueStockRequestInput>},
+        TContext
+      > => {
+      return useMutation(getRequestRipperdocStockMutationOptions(options));
     }
 
 export const getRemoveRipperdocStockUrl = (id: number,
@@ -14577,6 +14736,78 @@ export const useDecideStockCostRequest = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDecideStockCostRequestMutationOptions(options));
+    }
+
+export const getDecideEmployeeInviteUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/employee-decision`
+}
+
+/**
+ * @summary The invited character's player (or an admin) accepts or denies an employment invitation. Accepting finalizes employment; denying discards it.
+ */
+export const decideEmployeeInvite = async (id: number,
+    employeeDecisionInput: EmployeeDecisionInput, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getDecideEmployeeInviteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      employeeDecisionInput,)
+  }
+);}
+
+
+
+
+export const getDecideEmployeeInviteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideEmployeeInvite>>, TError,{id: number;data: BodyType<EmployeeDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideEmployeeInvite>>, TError,{id: number;data: BodyType<EmployeeDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideEmployeeInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideEmployeeInvite>>, {id: number;data: BodyType<EmployeeDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  decideEmployeeInvite(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideEmployeeInviteMutationResult = NonNullable<Awaited<ReturnType<typeof decideEmployeeInvite>>>
+    export type DecideEmployeeInviteMutationBody = BodyType<EmployeeDecisionInput>
+    export type DecideEmployeeInviteMutationError = ErrorType<void>
+
+    /**
+ * @summary The invited character's player (or an admin) accepts or denies an employment invitation. Accepting finalizes employment; denying discards it.
+ */
+export const useDecideEmployeeInvite = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideEmployeeInvite>>, TError,{id: number;data: BodyType<EmployeeDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideEmployeeInvite>>,
+        TError,
+        {id: number;data: BodyType<EmployeeDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideEmployeeInviteMutationOptions(options));
     }
 
 export const getListLoreUrl = (params?: ListLoreParams,) => {
