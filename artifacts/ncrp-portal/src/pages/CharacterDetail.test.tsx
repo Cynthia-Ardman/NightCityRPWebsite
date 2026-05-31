@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 // Mutable shared mock state, set per-test before rendering.
 const h = vi.hoisted(() => ({
   state: {
     isAdmin: false as boolean,
+    pendingEdit: undefined as unknown,
   },
 }));
 
@@ -44,7 +45,7 @@ vi.mock("@workspace/api-client-react", () => {
     // Reads
     useGetCharacter: () => idleQuery(CHAR),
     useGetMe: () => idleQuery({ id: 1, isAdmin: h.state.isAdmin }),
-    useGetCharacterPendingEdit: () => idleQuery(undefined),
+    useGetCharacterPendingEdit: () => idleQuery(h.state.pendingEdit),
     useListCharacterUpdates: () => idleQuery([]),
     useGetWalletTransactions: () => idleQuery([]),
     useGetMyWallet: () => idleQuery({ balance: 0 }),
@@ -124,27 +125,50 @@ import CharacterDetail from "./CharacterDetail";
 describe("CharacterDetail: admin-only delete affordance", () => {
   beforeEach(() => {
     h.state.isAdmin = false;
+    h.state.pendingEdit = undefined;
   });
 
-  it("does NOT render the DELETE button or DeleteCharacterDialog for a non-admin", () => {
+  it("does NOT expose the delete control in the edit dialog for a non-admin", () => {
     h.state.isAdmin = false;
     render(<CharacterDetail />);
 
     // The character header still renders (smoke check).
     expect(screen.getByTestId("text-char-name")).toHaveTextContent(CHAR.name);
-    // No delete button, no delete dialog mounted in the tree.
-    expect(screen.queryByTestId("button-delete-character")).toBeNull();
-    expect(screen.queryByTestId("dialog-delete-character")).toBeNull();
+    // Open the edit dialog — a non-admin owner may edit, but the danger zone
+    // (delete) must not appear.
+    fireEvent.click(screen.getByTestId("button-edit-character"));
+    expect(screen.queryByTestId("section-danger-zone")).toBeNull();
+    expect(screen.queryByTestId("button-confirm-delete")).toBeNull();
   });
 
-  it("renders the DELETE button (and mounts the dialog component) for an admin", () => {
+  it("exposes the delete control inside the edit dialog for an admin", () => {
     h.state.isAdmin = true;
     render(<CharacterDetail />);
 
     expect(screen.getByTestId("text-char-name")).toHaveTextContent(CHAR.name);
-    expect(screen.getByTestId("button-delete-character")).toBeInTheDocument();
-    // The dialog is conditionally rendered only for admins. It's closed by
-    // default so the DialogContent (testid="dialog-delete-character") stays
-    // unmounted — that's fine; the key invariant tested here is the button.
+    fireEvent.click(screen.getByTestId("button-edit-character"));
+    expect(screen.getByTestId("section-danger-zone")).toBeInTheDocument();
+    expect(screen.getByTestId("button-confirm-delete")).toBeInTheDocument();
+  });
+
+  it("keeps admin delete reachable even when a pending edit locks the edit flow", () => {
+    h.state.isAdmin = true;
+    h.state.pendingEdit = { id: 99 };
+    render(<CharacterDetail />);
+
+    // A pending edit normally disables EDIT, but admins must still reach the
+    // danger zone to delete the character.
+    const editBtn = screen.getByTestId("button-edit-character") as HTMLButtonElement;
+    expect(editBtn).toBeEnabled();
+    fireEvent.click(editBtn);
+    expect(screen.getByTestId("button-confirm-delete")).toBeInTheDocument();
+  });
+
+  it("non-admins remain locked out of editing while a pending edit exists", () => {
+    h.state.isAdmin = false;
+    h.state.pendingEdit = { id: 99 };
+    render(<CharacterDetail />);
+
+    expect(screen.getByTestId("button-edit-character")).toBeDisabled();
   });
 });

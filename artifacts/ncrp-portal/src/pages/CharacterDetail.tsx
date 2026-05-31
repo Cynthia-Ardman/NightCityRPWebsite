@@ -24,7 +24,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
-import DeleteCharacterDialog from "@/components/DeleteCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import Markdown from "@/components/Markdown";
@@ -46,7 +45,6 @@ export default function CharacterDetail() {
   const me = useAuthMe();
   const isAdmin = !!me.data?.isAdmin;
   const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   // 204 means no pending edit; the generated hook returns undefined data in
   // that case so we just check truthiness to decide whether to render the
   // "review pending" banner that links to the queued edit.
@@ -101,23 +99,16 @@ export default function CharacterDetail() {
           <Button
             type="button"
             onClick={() => setEditOpen(true)}
-            disabled={!!pendingEdit}
+            // A pending edit locks the normal edit flow, but admins must still be
+            // able to open the dialog to reach the admin-only delete (danger
+            // zone). A stray admin save during a pending edit is handled
+            // gracefully by the 409 path, which routes them to the pending edit.
+            disabled={!!pendingEdit && !isAdmin}
             className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest disabled:opacity-50"
             data-testid="button-edit-character"
           >
             <Pencil className="w-4 h-4 mr-2" /> EDIT
           </Button>
-          {isAdmin && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteOpen(true)}
-              className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
-              data-testid="button-delete-character"
-            >
-              <Trash2 className="w-4 h-4 mr-2" /> DELETE
-            </Button>
-          )}
         </div>
       </div>
 
@@ -133,10 +124,7 @@ export default function CharacterDetail() {
         </Link>
       ) : null}
 
-      <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} />
-      {isAdmin && (
-        <DeleteCharacterDialog character={char} open={deleteOpen} onOpenChange={setDeleteOpen} />
-      )}
+      <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} isAdmin={isAdmin} />
 
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="bg-card border border-border rounded-none p-0 h-auto flex overflow-x-auto w-full max-w-full no-scrollbar">
@@ -159,7 +147,7 @@ export default function CharacterDetail() {
 
         <div className="mt-8">
           <TabsContent value="profile" className="space-y-6 outline-none focus:ring-0">
-            <SheetSections sections={(char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections} background={char.background} />
+            <ProfileDossier sheetData={char.sheetData} background={char.background} />
             <ImageGallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
             <ImageGallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
             <UpdatesLog characterId={char.id} />
@@ -969,6 +957,129 @@ function HousingCard({ characterId }: { characterId: number }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function DossierTextCard({ title, body, testId }: { title: string; body: string; testId?: string }) {
+  if (!body || !body.trim()) return null;
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid={testId}>
+      <CardHeader>
+        <CardTitle className="font-display text-nc-cyan tracking-widest text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{body}</Markdown>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Renders the character profile from the stored sheet data. Legacy imported
+// characters keep everything in a free-form `sections` map (rendered by
+// SheetSections). Characters created through the new-character form instead
+// store discrete top-level fields (physical description, psych profile, etc.)
+// — those used to be silently dropped on the profile page, so surface them all.
+function ProfileDossier({ sheetData, background }: { sheetData: unknown; background?: string | null }) {
+  const data = (sheetData ?? {}) as Record<string, unknown>;
+  const sections = data.sections as Record<string, string> | undefined;
+  if (sections && Object.keys(sections).length > 0) {
+    return <SheetSections sections={sections} background={background} />;
+  }
+
+  const str = (k: string) => (typeof data[k] === "string" ? (data[k] as string) : "");
+  const nickname = str("nickname");
+  const pronouns = str("pronouns");
+  const gender = str("gender");
+  const age = data.age != null && data.age !== "" ? String(data.age) : "";
+  const occupation = str("occupation");
+  const physicalDescription = str("physicalDescription");
+  const appearance = str("appearance");
+  const psychProfile = str("psychProfile");
+  const notes = str("notes");
+  const skills =
+    typeof data.skills === "string"
+      ? data.skills
+      : data.skills && typeof data.skills === "object"
+        ? Object.entries(data.skills as Record<string, unknown>)
+            .map(([k, v]) => (v != null && v !== "" ? `${k} ${v}` : k))
+            .join("\n")
+        : "";
+  const gear = Array.isArray(data.gear)
+    ? (data.gear as unknown[]).map(String).filter((g) => g.trim().length > 0)
+    : [];
+  const bgRaw = background && background.trim().length > 0 ? background : str("background");
+  const cleanBg = bgRaw.replace(/\[legacy:[^\]]+\]/g, "").trim();
+
+  const vitals = ([
+    ["NICKNAME", nickname],
+    ["PRONOUNS", pronouns],
+    ["GENDER", gender],
+    ["AGE", age],
+  ] as Array<[string, string]>).filter(([, v]) => v && v.trim().length > 0);
+
+  const anything =
+    vitals.length > 0 ||
+    !!occupation.trim() ||
+    !!physicalDescription.trim() ||
+    !!appearance.trim() ||
+    !!psychProfile.trim() ||
+    !!notes.trim() ||
+    !!skills.trim() ||
+    gear.length > 0 ||
+    !!cleanBg;
+
+  if (!anything) {
+    return (
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader>
+          <CardTitle className="font-display text-nc-cyan">DOSSIER</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-muted-foreground font-mono italic">No background data recorded.</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {vitals.length > 0 && (
+        <Card className="rounded-none border-border bg-card/50" data-testid="dossier-vitals">
+          <CardHeader>
+            <CardTitle className="font-display text-nc-cyan tracking-widest text-base">VITALS</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm font-mono">
+            {vitals.map(([k, v]) => (
+              <div key={k} className="break-words [overflow-wrap:anywhere]">
+                <span className="text-muted-foreground uppercase tracking-widest text-xs">{k}: </span>
+                <span className="text-foreground">{v}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+      <DossierTextCard title="OCCUPATION / ROLE" body={occupation} testId="dossier-occupation" />
+      <DossierTextCard title="PHYSICAL DESCRIPTION" body={physicalDescription} testId="dossier-physical" />
+      <DossierTextCard title="STYLE" body={appearance} testId="dossier-style" />
+      <DossierTextCard title="PSYCHOLOGICAL PROFILE" body={psychProfile} testId="dossier-psych" />
+      <DossierTextCard title="BACKGROUND" body={cleanBg} testId="dossier-background" />
+      <DossierTextCard title="SKILLS" body={skills} testId="dossier-skills" />
+      {gear.length > 0 && (
+        <Card className="rounded-none border-border bg-card/50" data-testid="dossier-gear">
+          <CardHeader>
+            <CardTitle className="font-display text-nc-cyan tracking-widest text-base">GEAR</CardTitle>
+          </CardHeader>
+          <CardContent className="font-mono text-sm">
+            <ul className="list-disc list-inside space-y-1">
+              {gear.map((g, i) => (
+                <li key={i} className="break-words [overflow-wrap:anywhere]">{g}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+      <DossierTextCard title="NOTES" body={notes} testId="dossier-notes" />
+    </div>
   );
 }
 

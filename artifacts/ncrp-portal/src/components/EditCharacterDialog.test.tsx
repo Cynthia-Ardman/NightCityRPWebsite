@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 // Shared mock state — vi.hoisted lets the vi.mock factories below read these.
 const h = vi.hoisted(() => ({
   updateMutate: vi.fn(),
+  deleteMutate: vi.fn(),
   invalidateQueries: vi.fn(),
   navigate: vi.fn(),
   toast: vi.fn(),
@@ -14,6 +15,14 @@ const h = vi.hoisted(() => ({
       | {
           mutation?: {
             onSuccess?: (resp: unknown) => void;
+            onError?: (err: unknown) => void;
+          };
+        },
+    capturedDeleteOptions: undefined as
+      | undefined
+      | {
+          mutation?: {
+            onSuccess?: () => void;
             onError?: (err: unknown) => void;
           };
         },
@@ -30,11 +39,18 @@ vi.mock("@workspace/api-client-react", () => ({
     h.state.capturedOptions = opts;
     return { mutate: h.updateMutate, isPending: h.state.isPending };
   },
+  useDeleteCharacter: (opts: {
+    mutation?: { onSuccess?: () => void; onError?: (err: unknown) => void };
+  }) => {
+    h.state.capturedDeleteOptions = opts;
+    return { mutate: h.deleteMutate, isPending: false };
+  },
   getGetCharacterPendingEditQueryKey: (id: number) => [
     "character-pending-edit",
     id,
   ],
   getListPendingEditsQueryKey: () => ["pending-edits"],
+  getListMyCharactersQueryKey: () => ["characters", "mine"],
 }));
 
 vi.mock("wouter", () => ({
@@ -98,11 +114,13 @@ function renderDialog(
 describe("EditCharacterDialog", () => {
   beforeEach(() => {
     h.updateMutate.mockReset();
+    h.deleteMutate.mockReset();
     h.invalidateQueries.mockReset();
     h.navigate.mockReset();
     h.toast.mockReset();
     h.state.isPending = false;
     h.state.capturedOptions = undefined;
+    h.state.capturedDeleteOptions = undefined;
   });
 
   it("prefills every editable field from the passed character", () => {
@@ -294,6 +312,47 @@ describe("EditCharacterDialog", () => {
         variant: "destructive",
       }),
     );
+  });
+
+  it("hides the admin delete affordance unless isAdmin is passed", () => {
+    renderDialog();
+    expect(screen.queryByTestId("section-danger-zone")).toBeNull();
+    expect(screen.queryByTestId("button-confirm-delete")).toBeNull();
+  });
+
+  it("admin delete: stays disabled until 'DELETE' is typed, then fires the delete mutation", () => {
+    renderDialog({ isAdmin: true });
+
+    const input = screen.getByTestId("input-delete-confirm") as HTMLInputElement;
+    const btn = screen.getByTestId("button-confirm-delete") as HTMLButtonElement;
+    expect(btn).toBeDisabled();
+
+    // The character name is NOT the confirmation word — only the literal DELETE.
+    fireEvent.change(input, { target: { value: "Mesirah Mes" } });
+    expect(btn).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "DELETE" } });
+    expect(btn).toBeEnabled();
+
+    fireEvent.click(btn);
+    expect(h.deleteMutate).toHaveBeenCalledTimes(1);
+    expect(h.deleteMutate).toHaveBeenCalledWith({ id: 9 });
+  });
+
+  it("admin delete success: toasts, invalidates the roster, closes, and navigates", () => {
+    const { onOpenChange } = renderDialog({ isAdmin: true });
+    expect(h.state.capturedDeleteOptions?.mutation?.onSuccess).toBeTypeOf("function");
+
+    h.state.capturedDeleteOptions!.mutation!.onSuccess!();
+
+    expect(h.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Character deleted" }),
+    );
+    expect(h.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["characters", "mine"],
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(h.navigate).toHaveBeenCalledWith("/characters");
   });
 
   it("reopening with a different character resets the form fields", () => {

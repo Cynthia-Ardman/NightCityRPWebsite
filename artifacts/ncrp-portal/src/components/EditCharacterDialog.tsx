@@ -3,8 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
   useUpdateCharacter,
+  useDeleteCharacter,
   getGetCharacterPendingEditQueryKey,
   getListPendingEditsQueryKey,
+  getListMyCharactersQueryKey,
   type Character,
 } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import ImageEditor from "@/components/ImageEditor";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type SectionRow = { key: string; value: string };
@@ -38,10 +40,12 @@ export default function EditCharacterDialog({
   character,
   open,
   onOpenChange,
+  isAdmin = false,
 }: {
   character: Character;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  isAdmin?: boolean;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -61,6 +65,9 @@ export default function EditCharacterDialog({
   const [traumaTeamTier, setTraumaTeamTier] = useState<string>(character.traumaTeamTier ?? "");
   const [xanaduGold, setXanaduGold] = useState<boolean>(character.xanaduGold ?? false);
   const [updateNote, setUpdateNote] = useState<string>("");
+  // Admin-only destructive delete lives at the bottom of this dialog. The
+  // delete button stays disabled until the admin types the literal word DELETE.
+  const [deleteConfirm, setDeleteConfirm] = useState<string>("");
 
   // Reset form state every time we re-open with a different character or after
   // server-side changes (avoids leaking stale form state across opens).
@@ -78,6 +85,7 @@ export default function EditCharacterDialog({
     setTraumaTeamTier(character.traumaTeamTier ?? "");
     setXanaduGold(character.xanaduGold ?? false);
     setUpdateNote("");
+    setDeleteConfirm("");
   }, [open, character]);
 
   // Saving no longer applies the change directly — the API now queues the
@@ -112,6 +120,32 @@ export default function EditCharacterDialog({
       },
     },
   });
+
+  // Permanent deletion (admin only). Mirrors the success/error handling of the
+  // former standalone delete dialog: toast, invalidate the character list, close
+  // and bounce back to the roster.
+  const del = useDeleteCharacter({
+    mutation: {
+      onSuccess: () => {
+        toast({
+          title: "Character deleted",
+          description: `${character.name} has been permanently removed.`,
+        });
+        qc.invalidateQueries({ queryKey: getListMyCharactersQueryKey() });
+        onOpenChange(false);
+        navigate("/characters");
+      },
+      onError: (err) => {
+        const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
+        toast({
+          title: "Delete failed",
+          description: data?.error ?? "Could not delete this character.",
+          variant: "destructive",
+        });
+      },
+    },
+  });
+  const canDelete = deleteConfirm === "DELETE" && !del.isPending;
 
   function save(e: React.FormEvent) {
     e.preventDefault();
@@ -337,6 +371,45 @@ export default function EditCharacterDialog({
               If filled in, this note is appended to the character's update log (visible at the bottom of the profile).
             </p>
           </div>
+
+          {/* Danger zone — admin-only permanent deletion */}
+          {isAdmin && (
+            <div
+              className="border-t border-destructive/50 pt-4 space-y-3"
+              data-testid="section-danger-zone"
+            >
+              <div className="flex items-center gap-2 text-destructive font-display tracking-widest">
+                <AlertTriangle className="w-4 h-4" /> DANGER ZONE
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Permanently delete{" "}
+                <span className="text-foreground font-bold">{character.name}</span> and everything
+                tied to them — inventory, wallet, housing, status, and update history. This{" "}
+                <span className="text-destructive font-bold">cannot be undone</span>.
+              </p>
+              <div>
+                <Label className="text-xs">
+                  Type <span className="text-destructive">DELETE</span> to confirm
+                </Label>
+                <Input
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  autoComplete="off"
+                  placeholder="DELETE"
+                  data-testid="input-delete-confirm"
+                />
+              </div>
+              <Button
+                type="button"
+                disabled={!canDelete}
+                onClick={() => del.mutate({ id: character.id })}
+                className="rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display disabled:opacity-50"
+                data-testid="button-confirm-delete"
+              >
+                {del.isPending ? "DELETING..." : "DELETE CHARACTER"}
+              </Button>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-2 border-t border-border pt-4">
