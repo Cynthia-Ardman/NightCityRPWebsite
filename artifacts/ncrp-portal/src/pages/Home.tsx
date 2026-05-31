@@ -1,9 +1,9 @@
-import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListCustomRequests, getListCustomRequestsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
-import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin } from "lucide-react";
+import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList } from "lucide-react";
 import { missionStatusClass, missionStatusLabel, missionTierClass, missionTierLabel } from "@/lib/missionStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,9 +52,40 @@ function Dashboard() {
   const { data: characters, isLoading: charsLoading } = useListMyCharacters();
   // We'll skip recent activity if the hook isn't fully implemented or we just use characters
 
+  // Contextual stat cards: only surface what's relevant to *this* viewer.
+  // Total Eddies shows for everyone; the pending-review cards are staff-only
+  // (summary.pendingSheets is a GLOBAL queue count linking to the staff
+  // review page, and pending custom requests are staff-actioned too), so the
+  // request is only fired for staff and each card is hidden when its queue is
+  // empty.
+  const isStaff = Boolean(user?.isAdmin || user?.isFixer || user?.isCsApprover);
+  const { data: pendingReqs } = useListCustomRequests(
+    { status: "pending" },
+    { query: { enabled: isStaff, queryKey: getListCustomRequestsQueryKey({ status: "pending" }) } },
+  );
+  const pendingRequestCount = pendingReqs?.length ?? 0;
+
   if (summaryLoading || charsLoading) {
     return <div className="h-full flex items-center justify-center text-nc-cyan animate-pulse font-display text-2xl">SYNCING_DASHBOARD...</div>;
   }
+
+  const statCards = summary
+    ? [
+        <StatCard key="eddies" icon={Wallet} label="Total Eddies" value={`€$${summary.totalEddies.toLocaleString()}`} color="yellow" href="/characters" />,
+        ...(isStaff && summary.pendingSheets > 0
+          ? [<StatCard key="sheets" icon={FileText} label="Pending Sheets" value={summary.pendingSheets} color="red" href="/sheets/pending" />]
+          : []),
+        ...(isStaff && pendingRequestCount > 0
+          ? [<StatCard key="requests" icon={ClipboardList} label="Pending Requests" value={pendingRequestCount} color="magenta" href="/requests" />]
+          : []),
+      ]
+    : [];
+  const statColClass =
+    statCards.length >= 3
+      ? "sm:grid-cols-3 sm:max-w-3xl"
+      : statCards.length === 2
+        ? "sm:grid-cols-2 sm:max-w-xl"
+        : "sm:grid-cols-1 sm:max-w-[240px]";
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
@@ -75,12 +106,9 @@ function Dashboard() {
 
       <PlayerLoaControl characters={characters ?? []} />
 
-      {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard icon={Users} label="Total Characters" value={summary.characterCount} color="cyan" href="/characters" />
-          <StatCard icon={Wallet} label="Total Eddies" value={`€$${summary.totalEddies.toLocaleString()}`} color="yellow" href="/characters" />
-          <StatCard icon={Store} label="Open Shops" value={summary.openShops} color="magenta" href="/stores" />
-          <StatCard icon={Activity} label="Pending Sheets" value={summary.pendingSheets} color="red" href="/sheets/pending" />
+      {statCards.length > 0 && (
+        <div className={`grid grid-cols-1 gap-4 ${statColClass}`}>
+          {statCards}
         </div>
       )}
 
