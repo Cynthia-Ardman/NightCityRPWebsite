@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, Redirect } from "wouter";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -27,13 +27,11 @@ import CatalogPicker from "@/components/CatalogPicker";
 import SellStockDialog from "@/components/SellStockDialog";
 import PurchaseStockDialog from "@/components/PurchaseStockDialog";
 import VenueOffersPanel from "@/components/VenueOffersPanel";
-import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
-import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import StaffVenuePanel from "@/components/StaffVenuePanel";
 import SingleImageUpload from "@/components/SingleImageUpload";
 import VenueWalletPanel from "@/components/VenueWalletPanel";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 const STORE_KINDS = ["guns", "gear", "clothing", "mixed", "other"] as const;
 
@@ -67,10 +65,16 @@ export default function MyStoreDetail() {
   const [stockPrice, setStockPrice] = useState(0);
   const [stockQty, setStockQty] = useState(1);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
-  const [restockOpen, setRestockOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
-  const { data: me } = useAuthMe();
-  const canRestock = !!me && (me.isFixer || me.isAdmin);
+  const { data: me, viewAs } = useEffectiveMe();
+  const canSetCost = !!me && (me.isFixer || me.isAdmin);
+
+  // When an admin previews the app as a lower-privilege role, the management
+  // view must hide just like it would for that role. Send them to the public
+  // storefront instead of leaking the manage UI.
+  if (viewAs && !(me?.isAdmin || me?.isFixer)) {
+    return <Redirect to={`/directory/stores/${storeId}`} />;
+  }
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!store) return <div className="font-display text-destructive">NOT FOUND</div>;
@@ -185,16 +189,6 @@ export default function MyStoreDetail() {
             >
               <Plus className="w-3 h-3 mr-1" /> BUY STOCK (STORE-FUNDED)
             </Button>
-            {canRestock && (
-              <Button
-                size="sm"
-                onClick={() => setRestockOpen(true)}
-                className="rounded-none bg-nc-magenta text-background font-display"
-                data-testid="button-open-restock"
-              >
-                <Plus className="w-3 h-3 mr-1" /> RESTOCK FROM WHOLESALER
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -254,7 +248,6 @@ export default function MyStoreDetail() {
           </div>
         </CardContent>
       </Card>
-      <WholesalerOrdersPanel kind="store" venueId={storeId} />
       <VenueOffersPanel offers={offers ?? []} />
       {!!me && (me.isAdmin || me.isFixer) && (
         <StaffVenuePanel kind="store" venueId={storeId} onChanged={invalidate} />
@@ -272,22 +265,12 @@ export default function MyStoreDetail() {
           }}
         />
       )}
-      {restockOpen && (
-        <WholesalerRestockDialog
-          kind="store"
-          venueId={storeId}
-          onClose={() => setRestockOpen(false)}
-          onDone={() => {
-            invalidate();
-            setRestockOpen(false);
-          }}
-        />
-      )}
       {purchaseOpen && (
         <PurchaseStockDialog
           kind="store"
           venueId={storeId}
           balance={store.balance ?? 0}
+          canSetCost={canSetCost}
           onClose={() => setPurchaseOpen(false)}
           onDone={() => {
             invalidate();

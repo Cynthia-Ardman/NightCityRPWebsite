@@ -527,6 +527,29 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CatalogCyberware" }
+  /catalog/cyberware/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateCyberware
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Any subset of editable fields may be supplied;
+        omitted fields are left unchanged. Every applied edit is audit-logged
+        with before/after values.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogCyberwareUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogCyberwareUpdateResult" }
+        "400": { description: Invalid payload or no changes }
+        "404": { description: Cyberware not found }
   /catalog/rent:
     get:
       operationId: listRentListings
@@ -872,7 +895,7 @@ paths:
     post:
       operationId: purchaseStoreStock
       tags: [stores]
-      summary: Owner/employee buys catalog stock into the store, paid from the store account
+      summary: Owner/employee/fixer buys catalog stock into the store, paid from the store account (fixer custom cost routes owner approval)
       requestBody:
         required: true
         content:
@@ -1935,7 +1958,7 @@ paths:
     post:
       operationId: purchaseRipperdocStock
       tags: [ripperdocs]
-      summary: Owner/employee buys catalog cyberware into the clinic, paid from the clinic account
+      summary: Owner/employee/fixer buys catalog cyberware into the clinic, paid from the clinic account (fixer custom cost routes owner approval)
       requestBody:
         required: true
         content:
@@ -2735,25 +2758,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UpcomingBills" }
-  # ---------------- WHOLESALER ----------------
-  /wholesaler/items:
-    get:
-      operationId: listWholesalerItems
-      tags: [wholesaler]
-      summary: Wholesaler catalog (fixer-visible)
-      parameters:
-        - in: query
-          name: all
-          schema: { type: boolean }
-          description: Include archived items (admin UI).
-      responses:
-        "200":
-          description: Items
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/WholesalerItem" }
   /admin/lifestyle-tiers:
     get:
       operationId: adminListLifestyleTiers
@@ -2803,89 +2807,6 @@ paths:
       tags: [lifestyle]
       responses:
         "204": { description: Archived }
-  /admin/wholesaler/items:
-    post:
-      operationId: adminCreateWholesalerItem
-      tags: [wholesaler]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/WholesalerItemInput" }
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WholesalerItem" }
-  /admin/wholesaler/items/{id}:
-    patch:
-      operationId: adminUpdateWholesalerItem
-      tags: [wholesaler]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: integer }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/WholesalerItemPatch" }
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WholesalerItem" }
-    delete:
-      operationId: adminArchiveWholesalerItem
-      tags: [wholesaler]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: integer }
-      responses:
-        "204": { description: Archived }
-  /wholesaler/restock:
-    post:
-      operationId: wholesalerRestock
-      tags: [wholesaler]
-      summary: Fixer buys units from the wholesaler and pushes them into a venue's stock.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/WholesalerRestockInput" }
-      responses:
-        "200":
-          description: Result
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WholesalerRestockResult" }
-  /wholesaler/orders:
-    get:
-      operationId: listWholesalerOrders
-      tags: [wholesaler]
-      parameters:
-        - in: query
-          name: kind
-          required: true
-          schema: { type: string, enum: [store, ripperdoc] }
-        - in: query
-          name: venueId
-          required: true
-          schema: { type: integer }
-      responses:
-        "200":
-          description: Orders
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/WholesalerOrder" }
-
   /dashboard/activity:
     get:
       operationId: getRecentActivity
@@ -3017,6 +2938,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CustomRequest" }
         "403": { description: Fixer or admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+  /requests/{id}/stock-decision:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: decideStockCostRequest
+      tags: [requests]
+      summary: Venue owner approves or rejects a fixer/admin-proposed stock-cost request. Approving debits the venue balance and adds the stock.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockCostDecision" }
+      responses:
+        "200":
+          description: Decided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: "Bad request, not a stock-cost request, or venue has insufficient funds" }
+        "403": { description: "Only the venue owner (or an admin) may decide" }
         "404": { description: Not found }
         "409": { description: Already reviewed }
 
@@ -4116,15 +4059,18 @@ components:
         catalogId: { type: integer, description: "Catalog gun (store) or cyberware (ripperdoc) id." }
         qty: { type: integer, minimum: 1, description: "Defaults to 1." }
         retailPrice: { type: integer, minimum: 0, description: "Shelf price for the new stock. Defaults to the catalog price." }
+        unitCost: { type: integer, minimum: 0, description: "Fixer/admin only: override the per-unit cost. 0 stocks for free; a custom (>0) cost routes a cost-approval to the venue owner instead of charging immediately. Ignored for owner/employee callers." }
 
     StockPurchaseResult:
       type: object
-      required: [stock, balance, totalCost, unitCost]
+      required: [totalCost, unitCost]
       properties:
-        stock: { $ref: "#/components/schemas/StockItem" }
-        balance: { type: integer, description: "Venue account balance after the purchase." }
+        stock: { $ref: "#/components/schemas/StockItem", description: "The added/merged stock row. Absent when the purchase routed a cost-approval to the owner." }
+        balance: { type: integer, description: "Venue account balance after the purchase. Absent when pending owner approval." }
         totalCost: { type: integer }
-        unitCost: { type: integer, description: "Wholesale cost per unit." }
+        unitCost: { type: integer, description: "Cost per unit charged to the venue." }
+        pendingApproval: { type: boolean, description: "True when a fixer/admin custom cost created a cost-approval routed to the venue owner; no stock added and no balance charged until they approve." }
+        requestId: { type: integer, description: "Id of the created stock-cost custom request (when pendingApproval)." }
 
     SaleOffer:
       type: object
@@ -4413,6 +4359,35 @@ components:
         cwp: { type: ["string", "null"] }
         wholesalePrice: { type: ["integer", "null"] }
 
+    CatalogCyberwareUpdate:
+      type: object
+      description: |
+        Fixer/admin patch. Any subset of these fields may be supplied; omitted
+        fields are left unchanged.
+      properties:
+        name: { type: string }
+        slot: { type: string }
+        humanityLoss: { type: integer }
+        cwp: { type: ["string", "null"] }
+        price: { type: integer }
+        wholesalePrice: { type: ["integer", "null"] }
+        installCost: { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+    CatalogCyberwareUpdateResult:
+      type: object
+      description: |
+        The updated cyberware plus the list of fields that actually changed in
+        this edit (used for audit/UX context).
+      required: [id, name, price, slot, humanityLoss, changed]
+      allOf:
+        - $ref: "#/components/schemas/CatalogCyberware"
+        - type: object
+          required: [changed]
+          properties:
+            changed:
+              type: array
+              items: { type: string }
+
     CatalogRent:
       type: object
       required: [id, name, monthlyRent, occupied]
@@ -4528,7 +4503,7 @@ components:
       required: [id, type, characterId, characterName, requestedById, title, status, createdAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc] }
+        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc, stock_cost] }
         characterId: { type: integer }
         characterName: { type: string }
         requestedById: { type: string }
@@ -4567,6 +4542,13 @@ components:
     CustomRequestRejection:
       type: object
       properties:
+        reviewerNote: { type: string }
+
+    StockCostDecision:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
         reviewerNote: { type: string }
 
     HousingLeaseInput:
@@ -4793,7 +4775,7 @@ components:
 
     PendingEditSummary:
       type: object
-      required: [id, characterId, characterName, submittedBy, status, submittedAt]
+      required: [id, characterId, characterName, submittedBy, status, submittedAt, approveCount, rejectCount, threshold, voters]
       properties:
         id: { type: integer }
         characterId: { type: integer }
@@ -4809,6 +4791,18 @@ components:
         decisionSummary: { type: ["string", "null"] }
         submittedAt: { type: string, format: date-time }
         decidedAt: { type: ["string", "null"], format: date-time }
+        approveCount: { type: integer }
+        rejectCount: { type: integer }
+        threshold: { type: integer }
+        voters:
+          type: array
+          items:
+            type: object
+            required: [name, vote]
+            properties:
+              name: { type: string }
+              avatarUrl: { type: ["string", "null"] }
+              vote: { type: string, enum: [approve, reject] }
 
     PendingEditVoteRecord:
       type: object
@@ -5597,81 +5591,6 @@ components:
       type: object
       properties:
         lifestyleTierId: { type: ["integer", "null"] }
-
-    WholesalerItem:
-      type: object
-      required: [id, name, tier, wholesalePrice, archived, createdAt, updatedAt]
-      properties:
-        id: { type: integer }
-        name: { type: string }
-        category: { type: ["string", "null"] }
-        tier: { type: string, enum: [store, ripperdoc] }
-        wholesalePrice: { type: integer }
-        suggestedRetailPrice: { type: ["integer", "null"] }
-        cap: { type: ["integer", "null"], description: "Total units the wholesaler will ever supply. Null = unlimited." }
-        notes: { type: ["string", "null"] }
-        archived: { type: boolean }
-        unitsOrdered: { type: integer }
-        unitsRemaining: { type: ["integer", "null"] }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-
-    WholesalerItemInput:
-      type: object
-      required: [name, wholesalePrice]
-      properties:
-        name: { type: string, minLength: 1 }
-        category: { type: string }
-        tier: { type: string, enum: [store, ripperdoc] }
-        wholesalePrice: { type: integer, minimum: 0 }
-        suggestedRetailPrice: { type: integer, minimum: 0 }
-        cap: { type: integer, minimum: 0 }
-        notes: { type: string }
-
-    WholesalerItemPatch:
-      type: object
-      properties:
-        name: { type: string, minLength: 1 }
-        category: { type: ["string", "null"] }
-        tier: { type: string, enum: [store, ripperdoc] }
-        wholesalePrice: { type: integer, minimum: 0 }
-        suggestedRetailPrice: { type: ["integer", "null"] }
-        cap: { type: ["integer", "null"] }
-        notes: { type: ["string", "null"] }
-        archived: { type: boolean }
-
-    WholesalerRestockInput:
-      type: object
-      required: [wholesalerItemId, quantity, targetKind, targetStoreId]
-      properties:
-        wholesalerItemId: { type: integer }
-        quantity: { type: integer, minimum: 1 }
-        targetKind: { type: string, enum: [store, ripperdoc] }
-        targetStoreId: { type: integer }
-
-    WholesalerRestockResult:
-      type: object
-      required: [totalCost]
-      properties:
-        totalCost: { type: integer }
-        venueOwnerId: { type: string }
-        stock:
-          type: object
-          additionalProperties: true
-
-    WholesalerOrder:
-      type: object
-      required: [id, wholesalerItemId, quantity, unitWholesalePrice, totalCost, createdAt]
-      properties:
-        id: { type: integer }
-        wholesalerItemId: { type: integer }
-        itemName: { type: ["string", "null"] }
-        fixerId: { type: ["string", "null"] }
-        fixerName: { type: ["string", "null"] }
-        quantity: { type: integer }
-        unitWholesalePrice: { type: integer }
-        totalCost: { type: integer }
-        createdAt: { type: string, format: date-time }
 
     ActivityEvent:
       type: object

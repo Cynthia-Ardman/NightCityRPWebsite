@@ -15,4 +15,5 @@ export const CustomRequestType = {
   cyberware: 'cyberware',
   store: 'store',
   ripperdoc: 'ripperdoc',
+  stock_cost: 'stock_cost',
 } as const;

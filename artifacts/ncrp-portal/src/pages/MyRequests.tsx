@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMyCustomRequests,
   useListMyHousingRequests,
+  useDecideStockCostRequest,
+  getListMyCustomRequestsQueryKey,
   type CustomRequest,
   type HousingRequest,
 } from "@workspace/api-client-react";
@@ -16,13 +19,17 @@ import { ClipboardList } from "lucide-react";
 // share a single chronological history table.
 type HistoryRow = {
   key: string;
-  category: "Property" | "Gun" | "Cyberware" | "Store" | "Ripperdoc" | "Lease";
+  category: "Property" | "Gun" | "Cyberware" | "Store" | "Ripperdoc" | "Stock" | "Lease";
   title: string;
   characterName: string;
   status: string;
   createdAt: string;
   reviewedAt?: string | null;
   reviewerNote?: string | null;
+  description?: string | null;
+  // Set for custom requests the owner can act on directly (stock-cost).
+  customId?: number;
+  customType?: CustomRequest["type"];
 };
 
 const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
@@ -31,6 +38,7 @@ const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
   cyberware: "Cyberware",
   store: "Store",
   ripperdoc: "Ripperdoc",
+  stock_cost: "Stock",
 };
 
 const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
@@ -40,6 +48,7 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "Cyberware",
   "Store",
   "Ripperdoc",
+  "Stock",
   "Lease",
 ];
 
@@ -55,6 +64,8 @@ function categoryColor(category: HistoryRow["category"]): string {
       return "text-nc-cyan";
     case "Ripperdoc":
       return "text-nc-magenta";
+    case "Stock":
+      return "text-nc-yellow";
     case "Lease":
       return "text-nc-green";
   }
@@ -65,6 +76,12 @@ export default function MyRequests() {
   const { data: custom, isLoading: loadingCustom } = useListMyCustomRequests();
   const { data: housing, isLoading: loadingHousing } = useListMyHousingRequests();
   const [category, setCategory] = useState<HistoryRow["category"] | "All">("All");
+  const qc = useQueryClient();
+  const decide = useDecideStockCostRequest({
+    mutation: {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() }),
+    },
+  });
 
   const rows = useMemo<HistoryRow[]>(() => {
     const out: HistoryRow[] = [];
@@ -78,6 +95,9 @@ export default function MyRequests() {
         createdAt: r.createdAt,
         reviewedAt: r.reviewedAt,
         reviewerNote: r.reviewerNote,
+        description: r.description,
+        customId: r.id,
+        customType: r.type,
       });
     }
     for (const r of (housing ?? []) as HousingRequest[]) {
@@ -109,7 +129,7 @@ export default function MyRequests() {
           <ClipboardList className="w-8 h-8 text-nc-magenta" /> MY REQUESTS
         </h1>
         <p className="text-muted-foreground font-mono mt-2">
-          Every property, gun, cyberware, and lease request you've submitted — with the outcome and staff notes.
+          Every property, gun, cyberware, stock-cost, and lease request you've submitted — with the outcome and staff notes.
         </p>
       </div>
 
@@ -171,6 +191,9 @@ export default function MyRequests() {
                       </td>
                       <td className="p-3">
                         <div className="text-foreground">{r.title}</div>
+                        {r.customType === "stock_cost" && r.description ? (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">{r.description}</div>
+                        ) : null}
                         {r.reviewerNote ? (
                           <div className="text-[11px] text-muted-foreground italic mt-0.5">
                             "{r.reviewerNote}"
@@ -186,6 +209,35 @@ export default function MyRequests() {
                       </td>
                       <td className="p-3">
                         <RequestStatusBadge status={r.status} />
+                        {r.customType === "stock_cost" && r.status === "pending" && r.customId != null ? (
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={decide.isPending}
+                              className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
+                              onClick={() =>
+                                decide.mutate({ id: r.customId!, data: { decision: "approve" } })
+                              }
+                              data-testid={`button-stock-approve-${r.customId}`}
+                            >
+                              APPROVE
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={decide.isPending}
+                              className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
+                              onClick={() =>
+                                decide.mutate({ id: r.customId!, data: { decision: "reject" } })
+                              }
+                              data-testid={`button-stock-reject-${r.customId}`}
+                            >
+                              REJECT
+                            </Button>
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   ))}

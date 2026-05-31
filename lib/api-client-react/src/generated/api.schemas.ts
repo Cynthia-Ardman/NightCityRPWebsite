@@ -1276,15 +1276,25 @@ export interface StockPurchaseInput {
      * @minimum 0
      */
   retailPrice?: number;
+  /**
+     * Fixer/admin only: override the per-unit cost. 0 stocks for free; a custom (>0) cost routes a cost-approval to the venue owner instead of charging immediately. Ignored for owner/employee callers.
+     * @minimum 0
+     */
+  unitCost?: number;
 }
 
 export interface StockPurchaseResult {
-  stock: StockItem;
-  /** Venue account balance after the purchase. */
-  balance: number;
+  /** The added/merged stock row. Absent when the purchase routed a cost-approval to the owner. */
+  stock?: StockItem;
+  /** Venue account balance after the purchase. Absent when pending owner approval. */
+  balance?: number;
   totalCost: number;
-  /** Wholesale cost per unit. */
+  /** Cost per unit charged to the venue. */
   unitCost: number;
+  /** True when a fixer/admin custom cost created a cost-approval routed to the venue owner; no stock added and no balance charged until they approve. */
+  pendingApproval?: boolean;
+  /** Id of the created stock-cost custom request (when pendingApproval). */
+  requestId?: number;
 }
 
 export type SaleOfferKind = typeof SaleOfferKind[keyof typeof SaleOfferKind];
@@ -1739,6 +1749,35 @@ export interface CatalogCyberware {
 }
 
 /**
+ * Fixer/admin patch. Any subset of these fields may be supplied; omitted
+fields are left unchanged.
+
+ */
+export interface CatalogCyberwareUpdate {
+  name?: string;
+  slot?: string;
+  humanityLoss?: number;
+  /** @nullable */
+  cwp?: string | null;
+  price?: number;
+  /** @nullable */
+  wholesalePrice?: number | null;
+  /** @nullable */
+  installCost?: number | null;
+  /** @nullable */
+  description?: string | null;
+}
+
+/**
+ * The updated cyberware plus the list of fields that actually changed in
+this edit (used for audit/UX context).
+
+ */
+export type CatalogCyberwareUpdateResult = CatalogCyberware & {
+  changed: string[];
+};
+
+/**
  * residential (player self-lease) or business (request-only). Defaults to residential.
  */
 export type CatalogRentKind = typeof CatalogRentKind[keyof typeof CatalogRentKind];
@@ -1902,6 +1941,7 @@ export const CustomRequestType = {
   cyberware: 'cyberware',
   store: 'store',
   ripperdoc: 'ripperdoc',
+  stock_cost: 'stock_cost',
 } as const;
 
 export type CustomRequestStatus = typeof CustomRequestStatus[keyof typeof CustomRequestStatus];
@@ -2000,6 +2040,19 @@ export interface CustomRequestApproval {
 }
 
 export interface CustomRequestRejection {
+  reviewerNote?: string;
+}
+
+export type StockCostDecisionDecision = typeof StockCostDecisionDecision[keyof typeof StockCostDecisionDecision];
+
+
+export const StockCostDecisionDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface StockCostDecision {
+  decision: StockCostDecisionDecision;
   reviewerNote?: string;
 }
 
@@ -2311,6 +2364,21 @@ export const PendingEditSummaryStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type PendingEditSummaryVotersItemVote = typeof PendingEditSummaryVotersItemVote[keyof typeof PendingEditSummaryVotersItemVote];
+
+
+export const PendingEditSummaryVotersItemVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export type PendingEditSummaryVotersItem = {
+  name: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+  vote: PendingEditSummaryVotersItemVote;
+};
+
 export interface PendingEditSummary {
   id: number;
   characterId: number;
@@ -2329,6 +2397,10 @@ export interface PendingEditSummary {
   submittedAt: string;
   /** @nullable */
   decidedAt?: string | null;
+  approveCount: number;
+  rejectCount: number;
+  threshold: number;
+  voters: PendingEditSummaryVotersItem[];
 }
 
 export type PendingEditVoteRecordVote = typeof PendingEditVoteRecordVote[keyof typeof PendingEditVoteRecordVote];
@@ -3497,124 +3569,6 @@ export interface CharacterLifestyleInput {
   lifestyleTierId?: number | null;
 }
 
-export type WholesalerItemTier = typeof WholesalerItemTier[keyof typeof WholesalerItemTier];
-
-
-export const WholesalerItemTier = {
-  store: 'store',
-  ripperdoc: 'ripperdoc',
-} as const;
-
-export interface WholesalerItem {
-  id: number;
-  name: string;
-  /** @nullable */
-  category?: string | null;
-  tier: WholesalerItemTier;
-  wholesalePrice: number;
-  /** @nullable */
-  suggestedRetailPrice?: number | null;
-  /**
-     * Total units the wholesaler will ever supply. Null = unlimited.
-     * @nullable
-     */
-  cap?: number | null;
-  /** @nullable */
-  notes?: string | null;
-  archived: boolean;
-  unitsOrdered?: number;
-  /** @nullable */
-  unitsRemaining?: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type WholesalerItemInputTier = typeof WholesalerItemInputTier[keyof typeof WholesalerItemInputTier];
-
-
-export const WholesalerItemInputTier = {
-  store: 'store',
-  ripperdoc: 'ripperdoc',
-} as const;
-
-export interface WholesalerItemInput {
-  /** @minLength 1 */
-  name: string;
-  category?: string;
-  tier?: WholesalerItemInputTier;
-  /** @minimum 0 */
-  wholesalePrice: number;
-  /** @minimum 0 */
-  suggestedRetailPrice?: number;
-  /** @minimum 0 */
-  cap?: number;
-  notes?: string;
-}
-
-export type WholesalerItemPatchTier = typeof WholesalerItemPatchTier[keyof typeof WholesalerItemPatchTier];
-
-
-export const WholesalerItemPatchTier = {
-  store: 'store',
-  ripperdoc: 'ripperdoc',
-} as const;
-
-export interface WholesalerItemPatch {
-  /** @minLength 1 */
-  name?: string;
-  /** @nullable */
-  category?: string | null;
-  tier?: WholesalerItemPatchTier;
-  /** @minimum 0 */
-  wholesalePrice?: number;
-  /** @nullable */
-  suggestedRetailPrice?: number | null;
-  /** @nullable */
-  cap?: number | null;
-  /** @nullable */
-  notes?: string | null;
-  archived?: boolean;
-}
-
-export type WholesalerRestockInputTargetKind = typeof WholesalerRestockInputTargetKind[keyof typeof WholesalerRestockInputTargetKind];
-
-
-export const WholesalerRestockInputTargetKind = {
-  store: 'store',
-  ripperdoc: 'ripperdoc',
-} as const;
-
-export interface WholesalerRestockInput {
-  wholesalerItemId: number;
-  /** @minimum 1 */
-  quantity: number;
-  targetKind: WholesalerRestockInputTargetKind;
-  targetStoreId: number;
-}
-
-export type WholesalerRestockResultStock = { [key: string]: unknown };
-
-export interface WholesalerRestockResult {
-  totalCost: number;
-  venueOwnerId?: string;
-  stock?: WholesalerRestockResultStock;
-}
-
-export interface WholesalerOrder {
-  id: number;
-  wholesalerItemId: number;
-  /** @nullable */
-  itemName?: string | null;
-  /** @nullable */
-  fixerId?: string | null;
-  /** @nullable */
-  fixerName?: string | null;
-  quantity: number;
-  unitWholesalePrice: number;
-  totalCost: number;
-  createdAt: string;
-}
-
 export interface ActivityEvent {
   id: number;
   kind: string;
@@ -3861,26 +3815,6 @@ export const ListArchiveCharactersSort = {
 export type ListArchiveUsersParams = {
 q?: string;
 };
-
-export type ListWholesalerItemsParams = {
-/**
- * Include archived items (admin UI).
- */
-all?: boolean;
-};
-
-export type ListWholesalerOrdersParams = {
-kind: ListWholesalerOrdersKind;
-venueId: number;
-};
-
-export type ListWholesalerOrdersKind = typeof ListWholesalerOrdersKind[keyof typeof ListWholesalerOrdersKind];
-
-
-export const ListWholesalerOrdersKind = {
-  store: 'store',
-  ripperdoc: 'ripperdoc',
-} as const;
 
 export type ListCustomRequestsParams = {
 status?: ListCustomRequestsStatus;

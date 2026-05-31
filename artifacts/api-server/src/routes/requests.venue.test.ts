@@ -10,7 +10,7 @@ vi.mock("../lib/discord", async (importActual) => {
   };
 });
 
-import { db, customRequests, stores, ripperdocs, housing, inventoryItems, auditLog } from "@workspace/db";
+import { db, customRequests, stores, ripperdocs, housing, inventoryItems, auditLog, catalogGuns, storeStock } from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
@@ -290,5 +290,84 @@ describe("POST /requests/:id/reject (venue)", () => {
     expect(audits[0].category).toBe("shop");
 
     expect(mockDm).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /requests/:id/stock-decision (owner authorization)", () => {
+  async function makeStockCostRequest(ownerId: string, fixerId: string, balance = 10000) {
+    await createCharacter({ ownerId });
+    const [store] = await db
+      .insert(stores)
+      .values({ ownerId, name: "Liberty Arms", balance })
+      .returning();
+    const [gun] = await db
+      .insert(catalogGuns)
+      .values({ name: "Overture", price: 100, wholesalePrice: 40 })
+      .returning();
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/purchase`)
+      .set("x-test-user", fixerId)
+      .send({ catalogId: gun.id, qty: 2, unitCost: 500 });
+    expect(res.status).toBe(201);
+    expect(res.body.pendingApproval).toBe(true);
+    return { store, requestId: res.body.requestId as number };
+  }
+
+  it("blocks the OLD owner from approving after the venue is reassigned", async () => {
+    const oldOwner = await createUser();
+    const newOwner = await createUser();
+    const fixer = await createFixer();
+    const { store, requestId } = await makeStockCostRequest(oldOwner.id, fixer.id);
+
+    // Staff reassigns the venue to a different owner.
+    await db.update(stores).set({ ownerId: newOwner.id }).where(eq(stores.id, store.id));
+
+    const res = await request(app)
+      .post(`/api/requests/${requestId}/stock-decision`)
+      .set("x-test-user", oldOwner.id)
+      .send({ decision: "approve" });
+    expect(res.status).toBe(403);
+
+    // Nothing was spent and no stock was added.
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(10000);
+    expect(await db.select().from(storeStock).where(eq(storeStock.storeId, store.id))).toHaveLength(0);
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, requestId));
+    expect(row.status).toBe("pending");
+  });
+
+  it("lets the NEW owner approve after reassignment, debiting their balance", async () => {
+    const oldOwner = await createUser();
+    const newOwner = await createUser();
+    const fixer = await createFixer();
+    const { store, requestId } = await makeStockCostRequest(oldOwner.id, fixer.id);
+
+    await db.update(stores).set({ ownerId: newOwner.id }).where(eq(stores.id, store.id));
+
+    const res = await request(app)
+      .post(`/api/requests/${requestId}/stock-decision`)
+      .set("x-test-user", newOwner.id)
+      .send({ decision: "approve" });
+    expect(res.status).toBe(200);
+
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(9000); // 10000 - (500 * 2)
+    expect(await db.select().from(storeStock).where(eq(storeStock.storeId, store.id))).toHaveLength(1);
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, requestId));
+    expect(row.status).toBe("approved");
+  });
+
+  it("404s if the venue was deleted before the decision", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const { store, requestId } = await makeStockCostRequest(owner.id, fixer.id);
+
+    await db.delete(stores).where(eq(stores.id, store.id));
+
+    const res = await request(app)
+      .post(`/api/requests/${requestId}/stock-decision`)
+      .set("x-test-user", owner.id)
+      .send({ decision: "approve" });
+    expect(res.status).toBe(404);
   });
 });

@@ -168,18 +168,18 @@ describe("POST /stores/:id/purchase (store-funded catalog restock)", () => {
       .set("x-test-user", owner.id)
       .send({ catalogId: gun.id, qty: 3 });
     expect(res.status).toBe(201);
-    expect(res.body.unitCost).toBe(40);
-    expect(res.body.totalCost).toBe(120);
-    expect(res.body.balance).toBe(880);
+    expect(res.body.unitCost).toBe(100); // catalog price (no wholesaler discount)
+    expect(res.body.totalCost).toBe(300);
+    expect(res.body.balance).toBe(700);
     const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
-    expect(s.balance).toBe(880);
+    expect(s.balance).toBe(700);
     const stockRows = await db.select().from(storeStock).where(eq(storeStock.storeId, store.id));
     expect(stockRows).toHaveLength(1);
     expect(stockRows[0].quantity).toBe(3);
     expect(stockRows[0].price).toBe(100); // retail defaults to catalog price
     const ledger = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "stock_purchase"));
     expect(ledger).toHaveLength(1);
-    expect(ledger[0].amount).toBe(-120);
+    expect(ledger[0].amount).toBe(-300);
   });
 
   it("400s and moves nothing when the venue cannot afford the restock", async () => {
@@ -208,7 +208,7 @@ describe("POST /stores/:id/purchase (store-funded catalog restock)", () => {
     expect(res.status).toBe(403);
   });
 
-  it("ripperdoc purchase uses catalogCyberware wholesale and debits the clinic", async () => {
+  it("ripperdoc purchase uses the catalog price and debits the clinic", async () => {
     const owner = await createUser();
     const [rip] = await db.insert(ripperdocs).values({ ownerId: owner.id, name: "Vik's Clinic", balance: 2000 }).returning();
     const [cw] = await db.insert(catalogCyberware).values({ name: "Gorilla Arms", slot: "arms", price: 1000, wholesalePrice: 600 }).returning();
@@ -217,9 +217,9 @@ describe("POST /stores/:id/purchase (store-funded catalog restock)", () => {
       .set("x-test-user", owner.id)
       .send({ catalogId: cw.id, qty: 2 });
     expect(res.status).toBe(201);
-    expect(res.body.unitCost).toBe(600);
-    expect(res.body.totalCost).toBe(1200);
-    expect(res.body.balance).toBe(800);
+    expect(res.body.unitCost).toBe(1000); // catalog price (no wholesaler discount)
+    expect(res.body.totalCost).toBe(2000);
+    expect(res.body.balance).toBe(0);
     const stockRows = await db.select().from(ripperdocStock).where(eq(ripperdocStock.ripperdocId, rip.id));
     expect(stockRows).toHaveLength(1);
     expect(stockRows[0].quantity).toBe(2);

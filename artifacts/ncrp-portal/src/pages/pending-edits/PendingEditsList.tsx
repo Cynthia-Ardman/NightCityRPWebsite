@@ -94,6 +94,42 @@ export default function PendingEditsList({ embedded = false }: { embedded?: bool
                           "{e.updateNote}"
                         </div>
                       )}
+                      {e.status === "pending" && (
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5" data-testid={`pending-edit-tally-${e.id}`}>
+                          <span className="font-mono text-xs text-nc-green">
+                            {e.approveCount}/{e.threshold} approve
+                          </span>
+                          {e.rejectCount > 0 && (
+                            <span className="font-mono text-xs text-destructive">
+                              {e.rejectCount} reject
+                            </span>
+                          )}
+                          {e.voters.length === 0 ? (
+                            <span className="font-mono text-xs text-muted-foreground italic">no votes yet</span>
+                          ) : (
+                            <span className="flex flex-wrap items-center gap-1">
+                              {e.voters.map((v, i) => (
+                                <Badge
+                                  key={`${e.id}-${v.name}-${i}`}
+                                  variant="outline"
+                                  className={`rounded-none font-mono text-[10px] ${
+                                    v.vote === "approve"
+                                      ? "border-nc-green/60 text-nc-green"
+                                      : "border-destructive/60 text-destructive"
+                                  }`}
+                                >
+                                  {v.vote === "approve" ? (
+                                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                                  ) : (
+                                    <XCircle className="w-3 h-3 mr-1" />
+                                  )}
+                                  {v.name}
+                                </Badge>
+                              ))}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="shrink-0">{statusBadge(e.status)}</div>
                   </div>

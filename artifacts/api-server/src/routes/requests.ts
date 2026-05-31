@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ne, sql } from "drizzle-orm";
 import {
   db,
   customRequests,
@@ -9,6 +9,9 @@ import {
   housing,
   stores,
   ripperdocs,
+  storeStock,
+  ripperdocStock,
+  walletTransactions,
   characterUpdates,
   activityEvents,
 } from "@workspace/db";
@@ -252,7 +255,11 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const status = String(req.query.status ?? "pending");
-  const rows = await selectWhere(eq(customRequests.status, status));
+  // `stock_cost` requests are owner-approved (they show in the venue owner's
+  // "My Requests"), so they never appear in the staff triage queue.
+  const rows = await selectWhere(
+    and(eq(customRequests.status, status), ne(customRequests.type, "stock_cost")),
+  );
   res.json(rows.map(shape));
 });
 
@@ -280,6 +287,14 @@ router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
     if (reqRow.status !== "pending") {
       return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
+    }
+    if (reqRow.type === "stock_cost") {
+      return {
+        error: {
+          status: 400,
+          body: { error: "Stock-cost requests are approved by the venue owner from My Requests" },
+        },
+      };
     }
     const [c] = await tx.select().from(characters).where(eq(characters.id, reqRow.characterId));
     if (!c || c.archived) {
@@ -500,6 +515,198 @@ router.post("/requests/:id/reject", requireAuth, async (req, res): Promise<void>
     logger.warn({ err, requestId: rid }, "reject activity-feed write failed");
   }
   await notifyRequesterOfDecision(row, null);
+  res.json(shape(row));
+});
+
+// Venue-owner decision on a fixer/admin-proposed `stock_cost` request. Unlike
+// the staff approve/reject above, this is gated to the VENUE OWNER (the
+// requestedById) — or an admin acting on their behalf. Approving debits the
+// venue balance and adds the stock atomically (FOR UPDATE lock + status guard
+// keep it idempotent and crash-safe); rejecting moves nothing.
+router.post("/requests/:id/stock-decision", requireAuth, async (req, res): Promise<void> => {
+  const rid = parseInt(String(req.params.id), 10);
+  const decision = String(req.body?.decision ?? "");
+  if (decision !== "approve" && decision !== "reject") {
+    res.status(400).json({ error: 'decision must be "approve" or "reject"' });
+    return;
+  }
+  const note =
+    typeof req.body?.reviewerNote === "string" && req.body.reviewerNote.trim()
+      ? req.body.reviewerNote.trim()
+      : null;
+
+  type StockDetails = {
+    kind: "store" | "ripperdoc";
+    venueId: number;
+    venueName?: string;
+    catalogId?: number;
+    name: string;
+    category: string | null;
+    qty: number;
+    unitCost: number;
+    totalCost: number;
+    retail: number;
+    requestedByFixerId?: string;
+    requestedByFixerName?: string;
+  };
+
+  const txResult = await db.transaction(async (tx) => {
+    const [reqRow] = await tx
+      .select()
+      .from(customRequests)
+      .where(eq(customRequests.id, rid))
+      .for("update");
+    if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
+    if (reqRow.type !== "stock_cost") {
+      return { error: { status: 400, body: { error: "Not a stock-cost request" } } };
+    }
+    const det = (reqRow.details ?? {}) as StockDetails;
+    // Authorize against the venue's CURRENT owner, not the stored requestedById:
+    // if the venue was reassigned after the request was created, the old owner
+    // must no longer be able to approve spending the new owner's balance.
+    const ownerVenueTable = det.kind === "store" ? stores : ripperdocs;
+    const [ownerVenue] = await tx
+      .select({ ownerId: ownerVenueTable.ownerId })
+      .from(ownerVenueTable)
+      .where(eq(ownerVenueTable.id, det.venueId));
+    if (!ownerVenue) {
+      return { error: { status: 404, body: { error: "Venue no longer exists" } } };
+    }
+    // Only the venue's current owner or an admin may decide.
+    if (ownerVenue.ownerId !== req.user!.id && !isAdmin(req.user!)) {
+      return { error: { status: 403, body: { error: "Only the venue owner can decide this request" } } };
+    }
+    if (reqRow.status !== "pending") {
+      return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
+    }
+
+    if (decision === "reject") {
+      await tx
+        .update(customRequests)
+        .set({ status: "rejected", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note })
+        .where(eq(customRequests.id, rid));
+      return { ok: { reqRow, det, decision, newBalance: null as number | null } };
+    }
+
+    // Approve: guarded venue debit + stock merge/insert + ledger, all atomic.
+    const venueTable = det.kind === "store" ? stores : ripperdocs;
+    const stockTable = det.kind === "store" ? storeStock : ripperdocStock;
+    const stockVenueCol = det.kind === "store" ? storeStock.storeId : ripperdocStock.ripperdocId;
+    const totalCost = Math.max(0, Math.round(Number(det.totalCost) || 0));
+    const qty = Math.max(1, Math.round(Number(det.qty) || 1));
+    const retail = Math.max(0, Math.round(Number(det.retail) || 0));
+
+    const [debited] = await tx
+      .update(venueTable)
+      .set({ balance: sql`${venueTable.balance} - ${totalCost}` })
+      .where(and(eq(venueTable.id, det.venueId), gte(venueTable.balance, totalCost)))
+      .returning();
+    if (!debited) {
+      return { error: { status: 400, body: { error: "Venue account has insufficient funds" } } };
+    }
+    const newBalance = debited.balance;
+    const previousBalance = newBalance + totalCost;
+
+    const [existing] = await tx
+      .select()
+      .from(stockTable)
+      .where(and(eq(stockVenueCol, det.venueId), eq(stockTable.name, det.name)));
+    let stockId: number;
+    if (existing) {
+      const [u] = await tx
+        .update(stockTable)
+        .set({ quantity: existing.quantity + qty, price: retail, category: existing.category ?? det.category })
+        .where(eq(stockTable.id, existing.id))
+        .returning();
+      stockId = u.id;
+    } else {
+      const [ins] = await tx
+        .insert(stockTable)
+        .values({
+          [det.kind === "store" ? "storeId" : "ripperdocId"]: det.venueId,
+          name: det.name,
+          category: det.category,
+          price: retail,
+          quantity: qty,
+        } as never)
+        .returning();
+      stockId = ins.id;
+    }
+
+    await tx.insert(walletTransactions).values({
+      storeId: det.kind === "store" ? det.venueId : null,
+      ripperdocId: det.kind === "ripperdoc" ? det.venueId : null,
+      amount: -totalCost,
+      kind: "stock_purchase",
+      source: det.kind,
+      counterpartyName: "Catalog (fixer-stocked)",
+      memo: `Bought ${det.name} x${qty} @ €$${det.unitCost} (approved fixer stocking)`,
+      previousBalance,
+      newBalance,
+    });
+
+    await tx
+      .update(customRequests)
+      .set({
+        status: "approved",
+        reviewedById: req.user!.id,
+        reviewedAt: new Date(),
+        reviewerNote: note,
+        appliedRef: `${det.kind}-stock:${stockId}`,
+      })
+      .where(eq(customRequests.id, rid));
+
+    return { ok: { reqRow, det, decision, newBalance } };
+  });
+
+  if (!("ok" in txResult) || !txResult.ok) {
+    const err = (txResult as { error: { status: number; body: { error: string } } }).error;
+    res.status(err.status).json(err.body);
+    return;
+  }
+  const { det, decision: dec } = txResult.ok;
+  // Activity feed + fixer DM, best-effort (decision already committed).
+  try {
+    await db.insert(activityEvents).values({
+      kind: "shop",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorAvatarUrl: req.user!.avatarUrl,
+      message:
+        dec === "approve"
+          ? `${det.venueName ?? "Venue"} approved stocking ${det.name} x${det.qty} (€$${det.totalCost})`
+          : `${det.venueName ?? "Venue"} rejected stocking ${det.name} x${det.qty}`,
+    });
+  } catch (err) {
+    logger.warn({ err, requestId: rid }, "stock-decision activity-feed write failed");
+  }
+  if (det.requestedByFixerId) {
+    try {
+      const [fixer] = await db
+        .select({ discordId: users.discordId })
+        .from(users)
+        .where(eq(users.id, det.requestedByFixerId));
+      if (fixer?.discordId) {
+        await sendDirectMessage(
+          fixer.discordId,
+          dec === "approve"
+            ? `Your proposal to stock "${det.venueName ?? "the venue"}" with ${det.name} x${det.qty} was approved.`
+            : `Your proposal to stock "${det.venueName ?? "the venue"}" with ${det.name} x${det.qty} was rejected.${note ? `\nReason: ${note}` : ""}`,
+        );
+      }
+    } catch (err) {
+      logger.warn({ err, requestId: rid }, "stock-decision fixer DM failed");
+    }
+  }
+  await recordAudit({
+    req,
+    category: "shop",
+    action: dec === "approve" ? "stock_cost_approve" : "stock_cost_reject",
+    targetType: "custom_request",
+    targetId: rid,
+    message: `${dec === "approve" ? "Approved" : "Rejected"} stocking ${det.name} x${det.qty} for ${det.venueName ?? "venue"}`,
+  });
+  const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));
 });
 

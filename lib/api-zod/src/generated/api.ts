@@ -723,6 +723,42 @@ export const ListCyberwareResponseItem = zod.object({
 export const ListCyberwareResponse = zod.array(ListCyberwareResponseItem)
 
 
+/**
+ * Fixer/admin endpoint. Any subset of editable fields may be supplied;
+omitted fields are left unchanged. Every applied edit is audit-logged
+with before/after values.
+
+ */
+export const UpdateCyberwareParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCyberwareBody = zod.object({
+  "name": zod.string().optional(),
+  "slot": zod.string().optional(),
+  "humanityLoss": zod.number().optional(),
+  "cwp": zod.string().nullish(),
+  "price": zod.number().optional(),
+  "wholesalePrice": zod.number().nullish(),
+  "installCost": zod.number().nullish(),
+  "description": zod.string().nullish()
+}).describe('Fixer\/admin patch. Any subset of these fields may be supplied; omitted\nfields are left unchanged.\n')
+
+export const UpdateCyberwareResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slot": zod.string(),
+  "humanityLoss": zod.number(),
+  "price": zod.number(),
+  "installCost": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "cwp": zod.string().nullish(),
+  "wholesalePrice": zod.number().nullish()
+}).and(zod.object({
+  "changed": zod.array(zod.string())
+})).describe('The updated cyberware plus the list of fields that actually changed in\nthis edit (used for audit\/UX context).\n')
+
+
 export const ListRentListingsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1270,7 +1306,7 @@ export const SellStoreItemBody = zod.object({
 
 
 /**
- * @summary Owner/employee buys catalog stock into the store, paid from the store account
+ * @summary Owner/employee/fixer buys catalog stock into the store, paid from the store account (fixer custom cost routes owner approval)
  */
 export const PurchaseStoreStockParams = zod.object({
   "id": zod.coerce.number()
@@ -1279,12 +1315,15 @@ export const PurchaseStoreStockParams = zod.object({
 
 export const purchaseStoreStockBodyRetailPriceMin = 0;
 
+export const purchaseStoreStockBodyUnitCostMin = 0;
+
 
 
 export const PurchaseStoreStockBody = zod.object({
   "catalogId": zod.number().describe('Catalog gun (store) or cyberware (ripperdoc) id.'),
   "qty": zod.number().min(1).optional().describe('Defaults to 1.'),
-  "retailPrice": zod.number().min(purchaseStoreStockBodyRetailPriceMin).optional().describe('Shelf price for the new stock. Defaults to the catalog price.')
+  "retailPrice": zod.number().min(purchaseStoreStockBodyRetailPriceMin).optional().describe('Shelf price for the new stock. Defaults to the catalog price.'),
+  "unitCost": zod.number().min(purchaseStoreStockBodyUnitCostMin).optional().describe('Fixer\/admin only: override the per-unit cost. 0 stocks for free; a custom (>0) cost routes a cost-approval to the venue owner instead of charging immediately. Ignored for owner\/employee callers.')
 })
 
 
@@ -3957,7 +3996,7 @@ export const GetCharacterCyberwareResponse = zod.object({
 
 
 /**
- * @summary Owner/employee buys catalog cyberware into the clinic, paid from the clinic account
+ * @summary Owner/employee/fixer buys catalog cyberware into the clinic, paid from the clinic account (fixer custom cost routes owner approval)
  */
 export const PurchaseRipperdocStockParams = zod.object({
   "id": zod.coerce.number()
@@ -3966,12 +4005,15 @@ export const PurchaseRipperdocStockParams = zod.object({
 
 export const purchaseRipperdocStockBodyRetailPriceMin = 0;
 
+export const purchaseRipperdocStockBodyUnitCostMin = 0;
+
 
 
 export const PurchaseRipperdocStockBody = zod.object({
   "catalogId": zod.number().describe('Catalog gun (store) or cyberware (ripperdoc) id.'),
   "qty": zod.number().min(1).optional().describe('Defaults to 1.'),
-  "retailPrice": zod.number().min(purchaseRipperdocStockBodyRetailPriceMin).optional().describe('Shelf price for the new stock. Defaults to the catalog price.')
+  "retailPrice": zod.number().min(purchaseRipperdocStockBodyRetailPriceMin).optional().describe('Shelf price for the new stock. Defaults to the catalog price.'),
+  "unitCost": zod.number().min(purchaseRipperdocStockBodyUnitCostMin).optional().describe('Fixer\/admin only: override the per-unit cost. 0 stocks for free; a custom (>0) cost routes a cost-approval to the venue owner instead of charging immediately. Ignored for owner\/employee callers.')
 })
 
 
@@ -4767,7 +4809,15 @@ export const ListPendingEditsResponseItem = zod.object({
   "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
   "decisionSummary": zod.string().nullish(),
   "submittedAt": zod.coerce.date(),
-  "decidedAt": zod.coerce.date().nullish()
+  "decidedAt": zod.coerce.date().nullish(),
+  "approveCount": zod.number(),
+  "rejectCount": zod.number(),
+  "threshold": zod.number(),
+  "voters": zod.array(zod.object({
+  "name": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+}))
 })
 export const ListPendingEditsResponse = zod.array(ListPendingEditsResponseItem)
 
@@ -5674,31 +5724,6 @@ export const GetUpcomingBillsResponse = zod.object({
 
 
 /**
- * @summary Wholesaler catalog (fixer-visible)
- */
-export const ListWholesalerItemsQueryParams = zod.object({
-  "all": zod.coerce.boolean().optional().describe('Include archived items (admin UI).')
-})
-
-export const ListWholesalerItemsResponseItem = zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "category": zod.string().nullish(),
-  "tier": zod.enum(['store', 'ripperdoc']),
-  "wholesalePrice": zod.number(),
-  "suggestedRetailPrice": zod.number().nullish(),
-  "cap": zod.number().nullish().describe('Total units the wholesaler will ever supply. Null = unlimited.'),
-  "notes": zod.string().nullish(),
-  "archived": zod.boolean(),
-  "unitsOrdered": zod.number().optional(),
-  "unitsRemaining": zod.number().nullish(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-export const ListWholesalerItemsResponse = zod.array(ListWholesalerItemsResponseItem)
-
-
-/**
  * @summary List all lifestyle tiers (including archived)
  */
 export const AdminListLifestyleTiersResponseItem = zod.object({
@@ -5755,107 +5780,6 @@ export const AdminUpdateLifestyleTierResponse = zod.object({
 export const AdminArchiveLifestyleTierParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
-
-export const adminCreateWholesalerItemBodyWholesalePriceMin = 0;
-
-export const adminCreateWholesalerItemBodySuggestedRetailPriceMin = 0;
-
-export const adminCreateWholesalerItemBodyCapMin = 0;
-
-
-
-export const AdminCreateWholesalerItemBody = zod.object({
-  "name": zod.string().min(1),
-  "category": zod.string().optional(),
-  "tier": zod.enum(['store', 'ripperdoc']).optional(),
-  "wholesalePrice": zod.number().min(adminCreateWholesalerItemBodyWholesalePriceMin),
-  "suggestedRetailPrice": zod.number().min(adminCreateWholesalerItemBodySuggestedRetailPriceMin).optional(),
-  "cap": zod.number().min(adminCreateWholesalerItemBodyCapMin).optional(),
-  "notes": zod.string().optional()
-})
-
-
-export const AdminUpdateWholesalerItemParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-
-export const adminUpdateWholesalerItemBodyWholesalePriceMin = 0;
-
-
-
-export const AdminUpdateWholesalerItemBody = zod.object({
-  "name": zod.string().min(1).optional(),
-  "category": zod.string().nullish(),
-  "tier": zod.enum(['store', 'ripperdoc']).optional(),
-  "wholesalePrice": zod.number().min(adminUpdateWholesalerItemBodyWholesalePriceMin).optional(),
-  "suggestedRetailPrice": zod.number().nullish(),
-  "cap": zod.number().nullish(),
-  "notes": zod.string().nullish(),
-  "archived": zod.boolean().optional()
-})
-
-export const AdminUpdateWholesalerItemResponse = zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "category": zod.string().nullish(),
-  "tier": zod.enum(['store', 'ripperdoc']),
-  "wholesalePrice": zod.number(),
-  "suggestedRetailPrice": zod.number().nullish(),
-  "cap": zod.number().nullish().describe('Total units the wholesaler will ever supply. Null = unlimited.'),
-  "notes": zod.string().nullish(),
-  "archived": zod.boolean(),
-  "unitsOrdered": zod.number().optional(),
-  "unitsRemaining": zod.number().nullish(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
-
-export const AdminArchiveWholesalerItemParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-
-/**
- * @summary Fixer buys units from the wholesaler and pushes them into a venue's stock.
- */
-
-
-
-export const WholesalerRestockBody = zod.object({
-  "wholesalerItemId": zod.number(),
-  "quantity": zod.number().min(1),
-  "targetKind": zod.enum(['store', 'ripperdoc']),
-  "targetStoreId": zod.number()
-})
-
-export const WholesalerRestockResponse = zod.object({
-  "totalCost": zod.number(),
-  "venueOwnerId": zod.string().optional(),
-  "stock": zod.record(zod.string(), zod.unknown()).optional()
-})
-
-
-export const ListWholesalerOrdersQueryParams = zod.object({
-  "kind": zod.enum(['store', 'ripperdoc']),
-  "venueId": zod.coerce.number()
-})
-
-export const ListWholesalerOrdersResponseItem = zod.object({
-  "id": zod.number(),
-  "wholesalerItemId": zod.number(),
-  "itemName": zod.string().nullish(),
-  "fixerId": zod.string().nullish(),
-  "fixerName": zod.string().nullish(),
-  "quantity": zod.number(),
-  "unitWholesalePrice": zod.number(),
-  "totalCost": zod.number(),
-  "createdAt": zod.coerce.date()
-})
-export const ListWholesalerOrdersResponse = zod.array(ListWholesalerOrdersResponseItem)
 
 
 export const GetRecentActivityResponseItem = zod.object({
@@ -5915,7 +5839,7 @@ export const ListCustomRequestsQueryParams = zod.object({
 
 export const ListCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -5957,7 +5881,7 @@ export const ListMyCustomRequestsQueryParams = zod.object({
 
 export const ListMyCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -5998,7 +5922,7 @@ export const ApproveCustomRequestBody = zod.object({
 
 export const ApproveCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6029,7 +5953,39 @@ export const RejectCustomRequestBody = zod.object({
 
 export const RejectCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish(),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Venue owner approves or rejects a fixer/admin-proposed stock-cost request. Approving debits the venue balance and adds the stock.
+ */
+export const DecideStockCostRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideStockCostRequestBody = zod.object({
+  "decision": zod.enum(['approve', 'reject']),
+  "reviewerNote": zod.string().optional()
+})
+
+export const DecideStockCostRequestResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),

@@ -50,6 +50,9 @@ const TYPE_META: Record<
   cyberware: { label: "CYBERWARE", Icon: Cpu },
   store: { label: "STORE", Icon: Store },
   ripperdoc: { label: "RIPPERDOC", Icon: Syringe },
+  // Stock-cost requests are owner-decided (excluded from the staff queue);
+  // included here only to keep the type map exhaustive.
+  stock_cost: { label: "STOCK COST", Icon: Store },
 };
 
 // Venue requests stash purpose/location in the details payload — surface them

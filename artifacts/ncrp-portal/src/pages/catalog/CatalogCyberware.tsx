@@ -5,20 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
+import { useAuthMe } from "@/hooks/useAuthMe";
+import CyberwareDetailDialog, { type Cyber } from "@/components/catalog/CyberwareDetailDialog";
 
 const ALL = "__all__";
-
-type Cyber = {
-  id: number;
-  name: string;
-  slot: string;
-  humanityLoss: number;
-  price: number;
-  installCost?: number | null;
-  description?: string | null;
-  cwp?: string | null;
-  wholesalePrice?: number | null;
-};
 
 const FILTER_COLUMNS: Array<{ key: keyof Cyber; label: string }> = [
   { key: "slot", label: "Slot" },
@@ -64,8 +54,11 @@ function slotColor(slot: string): string {
 
 export default function CatalogCyberware() {
   const { data, isLoading } = useListCyberware();
+  const { data: me } = useAuthMe();
+  const isStaff = !!(me?.isAdmin || me?.isFixer);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<Cyber | null>(null);
 
   const rows = (data ?? []) as Cyber[];
 
@@ -100,7 +93,10 @@ export default function CatalogCyberware() {
     <div className="max-w-[1600px] mx-auto space-y-6 pb-12 px-2">
       <div>
         <h1 className="text-4xl font-display" data-testid="text-catalog-cyberware-title">CYBERWARE CATALOG</h1>
-        <p className="font-mono text-muted-foreground mt-2">Approved augmentations.</p>
+        <p className="font-mono text-muted-foreground mt-2">
+          Approved augmentations.
+          {isStaff ? " Click a piece to view or edit its full record." : ""}
+        </p>
       </div>
       <CatalogRequestSection
         type="cyberware"
@@ -154,7 +150,12 @@ export default function CatalogCyberware() {
             </thead>
             <tbody>
               {filtered.map((c) => (
-                <tr key={c.id} className="border-b border-border/30 hover:bg-card/80" data-testid={`row-cyberware-${c.id}`}>
+                <tr
+                  key={c.id}
+                  className={`border-b border-border/30 hover:bg-card/80 ${isStaff ? "cursor-pointer" : ""}`}
+                  onClick={isStaff ? () => setSelected(c) : undefined}
+                  data-testid={`row-cyberware-${c.id}`}
+                >
                   <td className="p-3 font-bold">{c.name}</td>
                   <td className={`p-3 font-semibold ${slotColor(c.slot)}`}>{c.slot}</td>
                   <td className="p-3">{trimZero(c.cwp)}</td>
@@ -166,6 +167,17 @@ export default function CatalogCyberware() {
             </tbody>
           </table>
         </Card>
+      )}
+
+      {isStaff && (
+        <CyberwareDetailDialog
+          cyber={selected}
+          isStaff={isStaff}
+          open={selected !== null}
+          onOpenChange={(v) => {
+            if (!v) setSelected(null);
+          }}
+        />
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, Redirect } from "wouter";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,12 +28,11 @@ import CyberwareActionDialog from "@/components/CyberwareActionDialog";
 import RemoveCyberwareDialog from "@/components/RemoveCyberwareDialog";
 import PurchaseStockDialog from "@/components/PurchaseStockDialog";
 import VenueOffersPanel from "@/components/VenueOffersPanel";
-import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import StaffVenuePanel from "@/components/StaffVenuePanel";
 import SingleImageUpload from "@/components/SingleImageUpload";
 import VenueWalletPanel from "@/components/VenueWalletPanel";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 export default function MyClinicDetail() {
   const { id } = useParams<{ id: string }>();
@@ -79,8 +78,15 @@ export default function MyClinicDetail() {
   const [offerPrice, setOfferPrice] = useState(0);
   const [offerCwp, setOfferCwp] = useState(0);
   const [offerQty, setOfferQty] = useState(1);
-  const { data: me } = useAuthMe();
+  const { data: me, viewAs } = useEffectiveMe();
   const canManageCatalog = !!me && (me.isFixer || me.isAdmin);
+
+  // When an admin previews the app as a lower-privilege role, the management
+  // view must hide just like it would for that role. Send them to the public
+  // clinic page instead of leaking the manage UI.
+  if (viewAs && !(me?.isAdmin || me?.isFixer)) {
+    return <Redirect to={`/directory/ripperdocs/${rid}`} />;
+  }
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">NOT FOUND</div>;
@@ -333,7 +339,6 @@ export default function MyClinicDetail() {
           </CardContent>
         </Card>
       )}
-      <WholesalerOrdersPanel kind="ripperdoc" venueId={rid} />
       <VenueOffersPanel offers={offers ?? []} />
       {!!me && (me.isAdmin || me.isFixer) && (
         <StaffVenuePanel kind="ripperdoc" venueId={rid} onChanged={invalidate} />
@@ -366,6 +371,7 @@ export default function MyClinicDetail() {
           kind="ripperdoc"
           venueId={rid}
           balance={data.balance ?? 0}
+          canSetCost={canManageCatalog}
           onClose={() => setPurchaseOpen(false)}
           onDone={() => {
             invalidate();

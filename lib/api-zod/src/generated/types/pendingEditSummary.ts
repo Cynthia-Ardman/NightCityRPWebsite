@@ -7,6 +7,7 @@
  */
 import type { PendingEditSummaryProposedDiff } from './pendingEditSummaryProposedDiff';
 import type { PendingEditSummaryStatus } from './pendingEditSummaryStatus';
+import type { PendingEditSummaryVotersItem } from './pendingEditSummaryVotersItem';
 
 export interface PendingEditSummary {
   id: number;
@@ -26,4 +27,8 @@ export interface PendingEditSummary {
   submittedAt: Date;
   /** @nullable */
   decidedAt?: Date | null;
+  approveCount: number;
+  rejectCount: number;
+  threshold: number;
+  voters: PendingEditSummaryVotersItem[];
 }

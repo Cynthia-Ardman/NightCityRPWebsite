@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, UserCog } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 
 // Staff-only (admin/fixer) management block shared by the store and ripperdoc
 // management pages: reassign ownership to another user and delete the venue.
@@ -22,16 +23,19 @@ export default function StaffVenuePanel({
   kind,
   venueId,
   currentOwnerName,
+  currentOwnerCharacterName,
   onChanged,
 }: {
   kind: "store" | "ripperdoc";
   venueId: number;
   currentOwnerName?: string | null;
+  currentOwnerCharacterName?: string | null;
   onChanged: () => void;
 }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [ownerSearch, setOwnerSearch] = useState("");
+  const [ownerChar, setOwnerChar] = useState<CharacterPickerValue>(null);
   const [confirming, setConfirming] = useState(false);
 
   const params = { q: ownerSearch || undefined };
@@ -57,6 +61,23 @@ export default function StaffVenuePanel({
       toast({ title: "Reassign failed", description: "Could not change owner.", variant: "destructive" });
     if (kind === "store") updateStore.mutate({ id: venueId, data: { ownerId } }, { onSuccess, onError });
     else updateRipperdoc.mutate({ id: venueId, data: { ownerId } }, { onSuccess, onError });
+  };
+
+  // The owner CHARACTER (distinct from the owner user) is what drives Open
+  // Shop and venue payouts. Legacy-imported venues often have an owner user
+  // but no linked character, so staff need to set it here.
+  const assignOwnerCharacter = () => {
+    if (!ownerChar?.id) return;
+    const onSuccess = () => {
+      toast({ title: "Owner character set", description: `Linked to ${ownerChar.name}.` });
+      setOwnerChar(null);
+      onChanged();
+    };
+    const onError = () =>
+      toast({ title: "Update failed", description: "Could not set the owner character.", variant: "destructive" });
+    const data = { ownerCharacterId: ownerChar.id };
+    if (kind === "store") updateStore.mutate({ id: venueId, data }, { onSuccess, onError });
+    else updateRipperdoc.mutate({ id: venueId, data }, { onSuccess, onError });
   };
 
   const doDelete = () => {
@@ -105,6 +126,31 @@ export default function StaffVenuePanel({
               ))}
             </div>
           )}
+        </div>
+        <div className="space-y-2 pt-2 border-t border-border/30">
+          {currentOwnerCharacterName !== undefined && (
+            <p className="font-mono text-xs text-muted-foreground">
+              Owner character:{" "}
+              <span className="text-foreground">{currentOwnerCharacterName ?? "—"}</span>
+            </p>
+          )}
+          <p className="font-mono text-[11px] text-muted-foreground">
+            The owner character drives Open Shop and venue payouts. Set it for legacy venues with no linked character.
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[200px]">
+              <CharacterPicker value={ownerChar} onChange={setOwnerChar} testId="input-owner-character" />
+            </div>
+            <Button
+              type="button"
+              onClick={assignOwnerCharacter}
+              disabled={!ownerChar?.id || updateStore.isPending || updateRipperdoc.isPending}
+              className="rounded-none bg-nc-cyan text-background font-display"
+              data-testid="button-set-owner-character"
+            >
+              SET OWNER CHARACTER
+            </Button>
+          </div>
         </div>
         <div className="pt-2 border-t border-border/30">
           {!confirming ? (

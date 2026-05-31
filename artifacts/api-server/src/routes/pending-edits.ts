@@ -200,13 +200,48 @@ async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelec
   if (rows.length === 0) return [];
   const charIds = Array.from(new Set(rows.map((r) => r.characterId)));
   const userIds = Array.from(new Set(rows.map((r) => r.submittedBy)));
+  const editIds = rows.map((r) => r.id);
   const chars = await db.select().from(characters).where(inArray(characters.id, charIds));
   const subs = await db.select().from(users).where(inArray(users.id, userIds));
   const charById = new Map(chars.map((c) => [c.id, c]));
   const subById = new Map(subs.map((u) => [u.id, u]));
+
+  // Full eligible reviewer pool, computed once. Per-edit threshold excludes
+  // that edit's own submitter (you can't vote on your own edit), matching
+  // the detail endpoint's math so list and detail never disagree.
+  const reviewerRows = await db.select({ id: users.id, roles: users.roles }).from(users);
+  const reviewerIds = reviewerRows
+    .filter((r) => isReviewer({ roles: r.roles ?? [] } as User))
+    .map((r) => r.id);
+
+  // All votes across the listed edits, joined to voter names, in one query.
+  const allVotes = await db
+    .select({
+      editId: pendingEditApprovals.editId,
+      voterId: pendingEditApprovals.voterId,
+      voterName: users.username,
+      voterAvatarUrl: users.avatarUrl,
+      vote: pendingEditApprovals.vote,
+      votedAt: pendingEditApprovals.votedAt,
+    })
+    .from(pendingEditApprovals)
+    .leftJoin(users, eq(users.id, pendingEditApprovals.voterId))
+    .where(inArray(pendingEditApprovals.editId, editIds))
+    .orderBy(desc(pendingEditApprovals.votedAt));
+  const votesByEdit = new Map<number, typeof allVotes>();
+  for (const v of allVotes) {
+    const list = votesByEdit.get(v.editId);
+    if (list) list.push(v);
+    else votesByEdit.set(v.editId, [v]);
+  }
+
   return rows.map((r) => {
     const c = charById.get(r.characterId);
     const s = subById.get(r.submittedBy);
+    const votes = votesByEdit.get(r.id) ?? [];
+    const approveCount = votes.filter((v) => v.vote === "approve").length;
+    const rejectCount = votes.filter((v) => v.vote === "reject").length;
+    const eligibleCount = reviewerIds.filter((id) => id !== r.submittedBy).length;
     return {
       id: r.id,
       characterId: r.characterId,
@@ -220,6 +255,14 @@ async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelec
       decisionSummary: r.decisionSummary,
       submittedAt: r.submittedAt,
       decidedAt: r.decidedAt,
+      approveCount,
+      rejectCount,
+      threshold: majorityOf(eligibleCount),
+      voters: votes.map((v) => ({
+        name: v.voterName ?? "(unknown)",
+        avatarUrl: v.voterAvatarUrl ?? null,
+        vote: v.vote,
+      })),
     };
   });
 }

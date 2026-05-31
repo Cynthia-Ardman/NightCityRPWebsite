@@ -48,9 +48,6 @@ export default function AdminDashboard() {
 
       {(
         <div className="flex flex-wrap gap-2">
-          <Link href="/admin/wholesaler" className="px-4 py-2 border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background font-display text-xs tracking-widest" data-testid="link-admin-wholesaler">
-            WHOLESALER CATALOG →
-          </Link>
           <Link href="/admin/lifestyle" className="px-4 py-2 border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background font-display text-xs tracking-widest" data-testid="link-admin-lifestyle">
             LIFESTYLE TIERS →
           </Link>

@@ -16,7 +16,7 @@ export default function MyStores() {
         dialogTitle="REQUEST NEW STORE"
         dialogDescription="Tell staff about the storefront you want to open. They'll review and create it on approval."
         nameLabel="Store Name"
-        namePlaceholder="e.g. Watson Wholesale"
+        namePlaceholder="e.g. Watson Arms"
       />
       {isLoading ? <div className="text-nc-cyan font-display animate-pulse">LOADING...</div> :
         !data?.length ? (

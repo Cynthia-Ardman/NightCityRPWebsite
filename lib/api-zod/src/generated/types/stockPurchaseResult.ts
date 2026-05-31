@@ -8,10 +8,15 @@
 import type { StockItem } from './stockItem';
 
 export interface StockPurchaseResult {
-  stock: StockItem;
-  /** Venue account balance after the purchase. */
-  balance: number;
+  /** The added/merged stock row. Absent when the purchase routed a cost-approval to the owner. */
+  stock?: StockItem;
+  /** Venue account balance after the purchase. Absent when pending owner approval. */
+  balance?: number;
   totalCost: number;
-  /** Wholesale cost per unit. */
+  /** Cost per unit charged to the venue. */
   unitCost: number;
+  /** True when a fixer/admin custom cost created a cost-approval routed to the venue owner; no stock added and no balance charged until they approve. */
+  pendingApproval?: boolean;
+  /** Id of the created stock-cost custom request (when pendingApproval). */
+  requestId?: number;
 }

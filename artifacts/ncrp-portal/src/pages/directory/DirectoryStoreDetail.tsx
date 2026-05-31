@@ -15,6 +15,16 @@ export default function DirectoryStoreDetail() {
   if (!data) return <div className="font-display text-destructive">STORE NOT FOUND</div>;
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
+      {data.bannerUrl && (
+        <div className="w-full overflow-hidden border border-nc-cyan/40 bg-black/30">
+          <img
+            src={data.bannerUrl}
+            alt={`${data.name} banner`}
+            className="w-full max-h-72 object-cover"
+            data-testid="img-store-banner"
+          />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-4xl font-display" data-testid="text-store-name">{data.name}</h1>

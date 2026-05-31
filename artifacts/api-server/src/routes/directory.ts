@@ -987,6 +987,96 @@ router.patch(
 router.get("/catalog/cyberware", async (_req, res): Promise<void> => {
   res.json(await db.select().from(catalogCyberware));
 });
+
+const CyberwareEditSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    slot: z.string().trim().min(1).optional(),
+    humanityLoss: z.number().int().min(0).optional(),
+    cwp: nullableText,
+    price: z.number().int().min(0).optional(),
+    wholesalePrice: nullableInt,
+    installCost: nullableInt,
+    description: nullableText,
+  })
+  .strict();
+
+// Full-field cyberware edit, mirroring the gun editor: any subset of fields
+// may be supplied, omitted fields are untouched, bail 400 on a no-op, and
+// apply + audit inside one transaction so an edit never lands without a trail.
+router.patch(
+  "/catalog/cyberware/:id",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = CyberwareEditSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+      return;
+    }
+    const edit = parsed.data;
+
+    const [cur] = await db.select().from(catalogCyberware).where(eq(catalogCyberware.id, id));
+    if (!cur) {
+      res.status(404).json({ error: "Cyberware not found" });
+      return;
+    }
+
+    const patch: Record<string, unknown> = {};
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+    const mark = (field: string, prev: unknown, next: unknown): void => {
+      if (JSON.stringify(prev ?? null) === JSON.stringify(next ?? null)) return;
+      patch[field] = next ?? null;
+      before[field] = prev ?? null;
+      after[field] = next ?? null;
+    };
+
+    if (edit.name !== undefined) mark("name", cur.name, edit.name);
+    if (edit.slot !== undefined) mark("slot", cur.slot, edit.slot);
+    if (edit.humanityLoss !== undefined) mark("humanityLoss", cur.humanityLoss, edit.humanityLoss);
+    if (edit.cwp !== undefined) mark("cwp", cur.cwp, edit.cwp);
+    if (edit.price !== undefined) mark("price", cur.price, edit.price);
+    if (edit.wholesalePrice !== undefined)
+      mark("wholesalePrice", cur.wholesalePrice, edit.wholesalePrice);
+    if (edit.installCost !== undefined) mark("installCost", cur.installCost, edit.installCost);
+    if (edit.description !== undefined) mark("description", cur.description, edit.description);
+
+    if (Object.keys(after).length === 0) {
+      res.status(400).json({ error: "No changes" });
+      return;
+    }
+
+    const { ip, ua } = auditMeta(req);
+    const updated = await db.transaction(async (tx) => {
+      const [u] = await tx
+        .update(catalogCyberware)
+        .set(patch)
+        .where(eq(catalogCyberware.id, id))
+        .returning();
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "cyberware_edit",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_cyberware",
+        targetId: String(id),
+        message: `Edited cyberware "${u.name}": ${Object.keys(after).join(", ")}`,
+        beforeJson: before as never,
+        afterJson: after as never,
+      });
+      return u;
+    });
+
+    res.json({ ...updated, changed: Object.keys(after) });
+  },
+);
 router.get("/catalog/rent", async (req, res): Promise<void> => {
   // Mark listings that already have an active lease so the UI can
   // disable the LEASE button instead of letting players submit a

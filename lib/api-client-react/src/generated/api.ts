@@ -44,6 +44,8 @@ import type {
   BotConfigUpdate,
   CancelPendingEdit200,
   CatalogCyberware,
+  CatalogCyberwareUpdate,
+  CatalogCyberwareUpdateResult,
   CatalogGun,
   CatalogGunInput,
   CatalogGunUpdate,
@@ -115,8 +117,6 @@ import type {
   ListMissionsParams,
   ListMyCustomRequestsParams,
   ListPublicCharactersParams,
-  ListWholesalerItemsParams,
-  ListWholesalerOrdersParams,
   ListingHistory,
   LiveModeState,
   LiveModeUpdate,
@@ -159,6 +159,7 @@ import type {
   SearchMissionActorsParams,
   SheetDecisionInput,
   StandaloneActorPayInput,
+  StockCostDecision,
   StockInput,
   StockItem,
   StockOfferInput,
@@ -182,13 +183,7 @@ import type {
   VrchatScanResult,
   Wallet,
   WalletAdjustmentInput,
-  WalletTransaction,
-  WholesalerItem,
-  WholesalerItemInput,
-  WholesalerItemPatch,
-  WholesalerOrder,
-  WholesalerRestockInput,
-  WholesalerRestockResult
+  WalletTransaction
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -2650,6 +2645,78 @@ export function useListCyberware<TData = Awaited<ReturnType<typeof listCyberware
 
 
 
+export const getUpdateCyberwareUrl = (id: number,) => {
+
+
+
+
+  return `/api/catalog/cyberware/${id}`
+}
+
+/**
+ * Fixer/admin endpoint. Any subset of editable fields may be supplied;
+omitted fields are left unchanged. Every applied edit is audit-logged
+with before/after values.
+
+ */
+export const updateCyberware = async (id: number,
+    catalogCyberwareUpdate: CatalogCyberwareUpdate, options?: RequestInit): Promise<CatalogCyberwareUpdateResult> => {
+
+  return customFetch<CatalogCyberwareUpdateResult>(getUpdateCyberwareUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogCyberwareUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateCyberwareMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCyberware>>, TError,{id: number;data: BodyType<CatalogCyberwareUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCyberware>>, TError,{id: number;data: BodyType<CatalogCyberwareUpdate>}, TContext> => {
+
+const mutationKey = ['updateCyberware'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCyberware>>, {id: number;data: BodyType<CatalogCyberwareUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCyberware(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCyberwareMutationResult = NonNullable<Awaited<ReturnType<typeof updateCyberware>>>
+    export type UpdateCyberwareMutationBody = BodyType<CatalogCyberwareUpdate>
+    export type UpdateCyberwareMutationError = ErrorType<void>
+
+    export const useUpdateCyberware = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCyberware>>, TError,{id: number;data: BodyType<CatalogCyberwareUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCyberware>>,
+        TError,
+        {id: number;data: BodyType<CatalogCyberwareUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateCyberwareMutationOptions(options));
+    }
+
 export const getListRentListingsUrl = () => {
 
 
@@ -4249,7 +4316,7 @@ export const getPurchaseStoreStockUrl = (id: number,) => {
 }
 
 /**
- * @summary Owner/employee buys catalog stock into the store, paid from the store account
+ * @summary Owner/employee/fixer buys catalog stock into the store, paid from the store account (fixer custom cost routes owner approval)
  */
 export const purchaseStoreStock = async (id: number,
     stockPurchaseInput: StockPurchaseInput, options?: RequestInit): Promise<StockPurchaseResult> => {
@@ -4299,7 +4366,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type PurchaseStoreStockMutationError = ErrorType<void>
 
     /**
- * @summary Owner/employee buys catalog stock into the store, paid from the store account
+ * @summary Owner/employee/fixer buys catalog stock into the store, paid from the store account (fixer custom cost routes owner approval)
  */
 export const usePurchaseStoreStock = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseStoreStock>>, TError,{id: number;data: BodyType<StockPurchaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -9114,7 +9181,7 @@ export const getPurchaseRipperdocStockUrl = (id: number,) => {
 }
 
 /**
- * @summary Owner/employee buys catalog cyberware into the clinic, paid from the clinic account
+ * @summary Owner/employee/fixer buys catalog cyberware into the clinic, paid from the clinic account (fixer custom cost routes owner approval)
  */
 export const purchaseRipperdocStock = async (id: number,
     stockPurchaseInput: StockPurchaseInput, options?: RequestInit): Promise<StockPurchaseResult> => {
@@ -9164,7 +9231,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type PurchaseRipperdocStockMutationError = ErrorType<void>
 
     /**
- * @summary Owner/employee buys catalog cyberware into the clinic, paid from the clinic account
+ * @summary Owner/employee/fixer buys catalog cyberware into the clinic, paid from the clinic account (fixer custom cost routes owner approval)
  */
 export const usePurchaseRipperdocStock = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseRipperdocStock>>, TError,{id: number;data: BodyType<StockPurchaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -12984,90 +13051,6 @@ export function useGetUpcomingBills<TData = Awaited<ReturnType<typeof getUpcomin
 
 
 
-export const getListWholesalerItemsUrl = (params?: ListWholesalerItemsParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/wholesaler/items?${stringifiedParams}` : `/api/wholesaler/items`
-}
-
-/**
- * @summary Wholesaler catalog (fixer-visible)
- */
-export const listWholesalerItems = async (params?: ListWholesalerItemsParams, options?: RequestInit): Promise<WholesalerItem[]> => {
-
-  return customFetch<WholesalerItem[]>(getListWholesalerItemsUrl(params),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getListWholesalerItemsQueryKey = (params?: ListWholesalerItemsParams,) => {
-    return [
-    `/api/wholesaler/items`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-
-export const getListWholesalerItemsQueryOptions = <TData = Awaited<ReturnType<typeof listWholesalerItems>>, TError = ErrorType<unknown>>(params?: ListWholesalerItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWholesalerItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getListWholesalerItemsQueryKey(params);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWholesalerItems>>> = ({ signal }) => listWholesalerItems(params, { signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWholesalerItems>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type ListWholesalerItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listWholesalerItems>>>
-export type ListWholesalerItemsQueryError = ErrorType<unknown>
-
-
-/**
- * @summary Wholesaler catalog (fixer-visible)
- */
-
-export function useListWholesalerItems<TData = Awaited<ReturnType<typeof listWholesalerItems>>, TError = ErrorType<unknown>>(
- params?: ListWholesalerItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWholesalerItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getListWholesalerItemsQueryOptions(params,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-
-
-
-
-
 export const getAdminListLifestyleTiersUrl = () => {
 
 
@@ -13339,350 +13322,6 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getAdminArchiveLifestyleTierMutationOptions(options));
     }
-
-export const getAdminCreateWholesalerItemUrl = () => {
-
-
-
-
-  return `/api/admin/wholesaler/items`
-}
-
-export const adminCreateWholesalerItem = async (wholesalerItemInput: WholesalerItemInput, options?: RequestInit): Promise<WholesalerItem> => {
-
-  return customFetch<WholesalerItem>(getAdminCreateWholesalerItemUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      wholesalerItemInput,)
-  }
-);}
-
-
-
-
-export const getAdminCreateWholesalerItemMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateWholesalerItem>>, TError,{data: BodyType<WholesalerItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof adminCreateWholesalerItem>>, TError,{data: BodyType<WholesalerItemInput>}, TContext> => {
-
-const mutationKey = ['adminCreateWholesalerItem'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateWholesalerItem>>, {data: BodyType<WholesalerItemInput>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  adminCreateWholesalerItem(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AdminCreateWholesalerItemMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateWholesalerItem>>>
-    export type AdminCreateWholesalerItemMutationBody = BodyType<WholesalerItemInput>
-    export type AdminCreateWholesalerItemMutationError = ErrorType<unknown>
-
-    export const useAdminCreateWholesalerItem = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateWholesalerItem>>, TError,{data: BodyType<WholesalerItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof adminCreateWholesalerItem>>,
-        TError,
-        {data: BodyType<WholesalerItemInput>},
-        TContext
-      > => {
-      return useMutation(getAdminCreateWholesalerItemMutationOptions(options));
-    }
-
-export const getAdminUpdateWholesalerItemUrl = (id: number,) => {
-
-
-
-
-  return `/api/admin/wholesaler/items/${id}`
-}
-
-export const adminUpdateWholesalerItem = async (id: number,
-    wholesalerItemPatch: WholesalerItemPatch, options?: RequestInit): Promise<WholesalerItem> => {
-
-  return customFetch<WholesalerItem>(getAdminUpdateWholesalerItemUrl(id),
-  {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      wholesalerItemPatch,)
-  }
-);}
-
-
-
-
-export const getAdminUpdateWholesalerItemMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateWholesalerItem>>, TError,{id: number;data: BodyType<WholesalerItemPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateWholesalerItem>>, TError,{id: number;data: BodyType<WholesalerItemPatch>}, TContext> => {
-
-const mutationKey = ['adminUpdateWholesalerItem'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateWholesalerItem>>, {id: number;data: BodyType<WholesalerItemPatch>}> = (props) => {
-          const {id,data} = props ?? {};
-
-          return  adminUpdateWholesalerItem(id,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AdminUpdateWholesalerItemMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateWholesalerItem>>>
-    export type AdminUpdateWholesalerItemMutationBody = BodyType<WholesalerItemPatch>
-    export type AdminUpdateWholesalerItemMutationError = ErrorType<unknown>
-
-    export const useAdminUpdateWholesalerItem = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateWholesalerItem>>, TError,{id: number;data: BodyType<WholesalerItemPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof adminUpdateWholesalerItem>>,
-        TError,
-        {id: number;data: BodyType<WholesalerItemPatch>},
-        TContext
-      > => {
-      return useMutation(getAdminUpdateWholesalerItemMutationOptions(options));
-    }
-
-export const getAdminArchiveWholesalerItemUrl = (id: number,) => {
-
-
-
-
-  return `/api/admin/wholesaler/items/${id}`
-}
-
-export const adminArchiveWholesalerItem = async (id: number, options?: RequestInit): Promise<void> => {
-
-  return customFetch<void>(getAdminArchiveWholesalerItemUrl(id),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
-
-
-
-export const getAdminArchiveWholesalerItemMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminArchiveWholesalerItem>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof adminArchiveWholesalerItem>>, TError,{id: number}, TContext> => {
-
-const mutationKey = ['adminArchiveWholesalerItem'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminArchiveWholesalerItem>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
-
-          return  adminArchiveWholesalerItem(id,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AdminArchiveWholesalerItemMutationResult = NonNullable<Awaited<ReturnType<typeof adminArchiveWholesalerItem>>>
-
-    export type AdminArchiveWholesalerItemMutationError = ErrorType<unknown>
-
-    export const useAdminArchiveWholesalerItem = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminArchiveWholesalerItem>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof adminArchiveWholesalerItem>>,
-        TError,
-        {id: number},
-        TContext
-      > => {
-      return useMutation(getAdminArchiveWholesalerItemMutationOptions(options));
-    }
-
-export const getWholesalerRestockUrl = () => {
-
-
-
-
-  return `/api/wholesaler/restock`
-}
-
-/**
- * @summary Fixer buys units from the wholesaler and pushes them into a venue's stock.
- */
-export const wholesalerRestock = async (wholesalerRestockInput: WholesalerRestockInput, options?: RequestInit): Promise<WholesalerRestockResult> => {
-
-  return customFetch<WholesalerRestockResult>(getWholesalerRestockUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      wholesalerRestockInput,)
-  }
-);}
-
-
-
-
-export const getWholesalerRestockMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof wholesalerRestock>>, TError,{data: BodyType<WholesalerRestockInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof wholesalerRestock>>, TError,{data: BodyType<WholesalerRestockInput>}, TContext> => {
-
-const mutationKey = ['wholesalerRestock'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof wholesalerRestock>>, {data: BodyType<WholesalerRestockInput>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  wholesalerRestock(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type WholesalerRestockMutationResult = NonNullable<Awaited<ReturnType<typeof wholesalerRestock>>>
-    export type WholesalerRestockMutationBody = BodyType<WholesalerRestockInput>
-    export type WholesalerRestockMutationError = ErrorType<unknown>
-
-    /**
- * @summary Fixer buys units from the wholesaler and pushes them into a venue's stock.
- */
-export const useWholesalerRestock = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof wholesalerRestock>>, TError,{data: BodyType<WholesalerRestockInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof wholesalerRestock>>,
-        TError,
-        {data: BodyType<WholesalerRestockInput>},
-        TContext
-      > => {
-      return useMutation(getWholesalerRestockMutationOptions(options));
-    }
-
-export const getListWholesalerOrdersUrl = (params: ListWholesalerOrdersParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/wholesaler/orders?${stringifiedParams}` : `/api/wholesaler/orders`
-}
-
-export const listWholesalerOrders = async (params: ListWholesalerOrdersParams, options?: RequestInit): Promise<WholesalerOrder[]> => {
-
-  return customFetch<WholesalerOrder[]>(getListWholesalerOrdersUrl(params),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getListWholesalerOrdersQueryKey = (params?: ListWholesalerOrdersParams,) => {
-    return [
-    `/api/wholesaler/orders`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-
-export const getListWholesalerOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listWholesalerOrders>>, TError = ErrorType<unknown>>(params: ListWholesalerOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWholesalerOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getListWholesalerOrdersQueryKey(params);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWholesalerOrders>>> = ({ signal }) => listWholesalerOrders(params, { signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWholesalerOrders>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type ListWholesalerOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listWholesalerOrders>>>
-export type ListWholesalerOrdersQueryError = ErrorType<unknown>
-
-
-
-export function useListWholesalerOrders<TData = Awaited<ReturnType<typeof listWholesalerOrders>>, TError = ErrorType<unknown>>(
- params: ListWholesalerOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWholesalerOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getListWholesalerOrdersQueryOptions(params,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-
-
-
-
 
 export const getGetRecentActivityUrl = () => {
 
@@ -14290,6 +13929,78 @@ export const useRejectCustomRequest = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRejectCustomRequestMutationOptions(options));
+    }
+
+export const getDecideStockCostRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/stock-decision`
+}
+
+/**
+ * @summary Venue owner approves or rejects a fixer/admin-proposed stock-cost request. Approving debits the venue balance and adds the stock.
+ */
+export const decideStockCostRequest = async (id: number,
+    stockCostDecision: StockCostDecision, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getDecideStockCostRequestUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      stockCostDecision,)
+  }
+);}
+
+
+
+
+export const getDecideStockCostRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideStockCostRequest>>, TError,{id: number;data: BodyType<StockCostDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideStockCostRequest>>, TError,{id: number;data: BodyType<StockCostDecision>}, TContext> => {
+
+const mutationKey = ['decideStockCostRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideStockCostRequest>>, {id: number;data: BodyType<StockCostDecision>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  decideStockCostRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideStockCostRequestMutationResult = NonNullable<Awaited<ReturnType<typeof decideStockCostRequest>>>
+    export type DecideStockCostRequestMutationBody = BodyType<StockCostDecision>
+    export type DecideStockCostRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Venue owner approves or rejects a fixer/admin-proposed stock-cost request. Approving debits the venue balance and adds the stock.
+ */
+export const useDecideStockCostRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideStockCostRequest>>, TError,{id: number;data: BodyType<StockCostDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideStockCostRequest>>,
+        TError,
+        {id: number;data: BodyType<StockCostDecision>},
+        TContext
+      > => {
+      return useMutation(getDecideStockCostRequestMutationOptions(options));
     }
 
 export const getListLoreUrl = (params?: ListLoreParams,) => {

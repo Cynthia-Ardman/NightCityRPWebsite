@@ -9,7 +9,8 @@ export const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? process.env.TO
 
 export const ROLE_NAMES = {
   ADMIN: ["admin", "administrator", "staff"],
-  FIXER: ["fixer"],
+  // "coordinator" is treated as equivalent to a fixer everywhere FIXER is checked.
+  FIXER: ["fixer", "coordinator"],
   ARCHIVIST: ["archivist"],
   CS_APPROVER: ["cs approver", "character approver", "cs-approver"],
   RIPPERDOC: ["ripperdoc"],

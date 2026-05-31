@@ -19,4 +19,9 @@ export interface StockPurchaseInput {
      * @minimum 0
      */
   retailPrice?: number;
+  /**
+     * Fixer/admin only: override the per-unit cost. 0 stocks for free; a custom (>0) cost routes a cost-approval to the venue owner instead of charging immediately. Ignored for owner/employee callers.
+     * @minimum 0
+     */
+  unitCost?: number;
 }

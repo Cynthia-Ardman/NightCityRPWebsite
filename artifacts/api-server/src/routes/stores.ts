@@ -17,9 +17,10 @@ import {
   catalogGuns,
   catalogCyberware,
   inventoryItems,
+  customRequests,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole } from "../lib/discord";
+import { hasRole, sendDirectMessage } from "../lib/discord";
 import { logger } from "../lib/logger";
 import { applyWalletDelta } from "../lib/economy";
 import { createOffer, createRemoveOffer, createStockAddOffer } from "../lib/saleOffers";
@@ -122,7 +123,8 @@ async function isVenueOperator(
   venueId: number,
   actor: { id: string; roles: string[] },
 ): Promise<boolean> {
-  if (venue.ownerId === actor.id || hasRole(actor.roles, "ADMIN")) return true;
+  if (venue.ownerId === actor.id || hasRole(actor.roles, "ADMIN") || hasRole(actor.roles, "FIXER"))
+    return true;
   const empTable = kind === "store" ? storeEmployees : ripperdocEmployees;
   const empVenueCol = kind === "store" ? storeEmployees.storeId : ripperdocEmployees.ripperdocId;
   const employed = await db
@@ -517,11 +519,99 @@ router.get("/ripperdocs/:id/characters/:characterId/cyberware", requireAuth, asy
   });
 });
 
-// ===== Store-funded catalog stock purchase =====
-// Owner/employee buys a catalog item (catalogGuns for stores, catalogCyberware
-// for ripperdocs) into the venue's stock at WHOLESALE cost (wholesalePrice ??
-// price), debited from the venue's website-only balance. The venue account
-// never has a UB leg, so a single guarded atomic decrement
+// Fixer/admin stocked a venue at a CUSTOM cost (> 0). Rather than debiting the
+// owner's venue balance without consent, route a cost-approval to the owner: a
+// `stock_cost` custom_request that shows up in the owner's "My Requests". On
+// approval the stock is added and the balance is debited atomically; on reject
+// nothing moves. The full stock payload is snapshotted in `details` so the
+// terms can't drift before the owner decides.
+async function createStockCostRequest(opts: {
+  kind: "store" | "ripperdoc";
+  venue: { id: number; name: string; ownerId: string; ownerCharacterId: number | null };
+  catalogId: number;
+  name: string;
+  category: string | null;
+  qty: number;
+  unitCost: number;
+  totalCost: number;
+  retail: number;
+  actor: { id: string; username: string; avatarUrl: string | null };
+}): Promise<{ status: number; body: Record<string, unknown> }> {
+  const { kind, venue, catalogId, name, category, qty, unitCost, totalCost, retail, actor } = opts;
+  // custom_requests.characterId is NOT NULL — attach the request to the owner's
+  // character (their assigned venue character, else any character they own).
+  let characterId: number | null = venue.ownerCharacterId ?? null;
+  if (!characterId) {
+    const [c] = await db
+      .select({ id: characters.id })
+      .from(characters)
+      .where(eq(characters.ownerId, venue.ownerId))
+      .limit(1);
+    characterId = c?.id ?? null;
+  }
+  if (!characterId) {
+    return { status: 400, body: { error: "Venue owner has no character to attach a cost approval to" } };
+  }
+  const venueLabel = kind === "store" ? "store" : "ripperdoc";
+  const title = `Stock ${name} ×${qty} for €$${totalCost.toLocaleString()}`;
+  const description = `${actor.username} wants to stock ${venue.name} (${venueLabel}) with ${name} ×${qty} at €$${unitCost.toLocaleString()} each (total €$${totalCost.toLocaleString()}). Approving pays it from the venue balance and adds the stock.`;
+  const [inserted] = await db
+    .insert(customRequests)
+    .values({
+      type: "stock_cost",
+      characterId,
+      requestedById: venue.ownerId,
+      title,
+      description,
+      details: {
+        kind,
+        venueId: venue.id,
+        venueName: venue.name,
+        catalogId,
+        name,
+        category,
+        qty,
+        unitCost,
+        totalCost,
+        retail,
+        requestedByFixerId: actor.id,
+        requestedByFixerName: actor.username,
+      } as never,
+    })
+    .returning();
+  await db.insert(activityEvents).values({
+    kind: "shop",
+    actorId: actor.id,
+    actorName: actor.username,
+    actorAvatarUrl: actor.avatarUrl,
+    message: `${actor.username} proposed stocking ${venue.name} with ${name} ×${qty} (€$${totalCost.toLocaleString()}) — awaiting owner approval`,
+  });
+  try {
+    const [owner] = await db
+      .select({ discordId: users.discordId })
+      .from(users)
+      .where(eq(users.id, venue.ownerId));
+    if (owner?.discordId) {
+      await sendDirectMessage(
+        owner.discordId,
+        `${actor.username} proposed stocking your ${venueLabel} "${venue.name}" with ${name} ×${qty} at €$${unitCost.toLocaleString()} each (total €$${totalCost.toLocaleString()}). Review it under "My Requests" to approve or reject.`,
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, requestId: inserted.id }, "stock-cost request owner DM failed");
+  }
+  return {
+    status: 201,
+    body: { pendingApproval: true, requestId: inserted.id, totalCost, unitCost },
+  };
+}
+
+// ===== Venue catalog stock purchase =====
+// Owner/employee/fixer buys a catalog item (catalogGuns for stores,
+// catalogCyberware for ripperdocs) into the venue's stock at the CATALOG price,
+// debited from the venue's website-only balance. (There is no separate
+// wholesaler layer — venues buy directly from the main catalog.) The venue
+// account never has a UB leg, so a single guarded atomic decrement
 // (WHERE balance >= cost) is fully crash-safe — no reserve/refund dance needed.
 // Stock is merged into an existing same-name row (price refreshed to the chosen
 // retail) or inserted. The retail price defaults to the catalog price.
@@ -531,10 +621,16 @@ async function purchaseFromCatalog(opts: {
   catalogId: number;
   qty: number;
   retailPrice?: number;
+  // Fixer/admin only: override the per-unit cost charged to the venue.
+  //   0  -> stock the item for free (no debit, no approval).
+  //   >0 -> a custom cost; instead of debiting now, a cost-approval request is
+  //         routed to the venue owner and the stock is added on approval.
+  // Ignored for owner/employee callers (they always pay the catalog price).
+  unitCostOverride?: number;
   actor: { id: string; roles: string[]; username: string; avatarUrl: string | null };
   res: Response;
 }): Promise<void> {
-  const { kind, venueId, catalogId, qty, retailPrice, actor, res } = opts;
+  const { kind, venueId, catalogId, qty, retailPrice, unitCostOverride, actor, res } = opts;
   const venueTable = kind === "store" ? stores : ripperdocs;
   const stockTable = kind === "store" ? storeStock : ripperdocStock;
   const stockVenueCol = kind === "store" ? storeStock.storeId : ripperdocStock.ripperdocId;
@@ -548,10 +644,9 @@ async function purchaseFromCatalog(opts: {
     res.status(403).json({ error: "Not authorized to buy stock for this venue" });
     return;
   }
-  // Resolve the catalog item and its wholesale cost.
+  // Resolve the catalog item and its catalog price.
   let name: string;
   let category: string | null;
-  let unitCost: number;
   let catalogPrice: number;
   if (kind === "store") {
     const [g] = await db.select().from(catalogGuns).where(eq(catalogGuns.id, catalogId));
@@ -562,7 +657,6 @@ async function purchaseFromCatalog(opts: {
     name = g.name;
     category = g.category ?? g.weaponType ?? null;
     catalogPrice = g.price;
-    unitCost = g.wholesalePrice ?? g.price;
   } else {
     const [c] = await db.select().from(catalogCyberware).where(eq(catalogCyberware.id, catalogId));
     if (!c) {
@@ -572,12 +666,39 @@ async function purchaseFromCatalog(opts: {
     name = c.name;
     category = "cyberware";
     catalogPrice = c.price;
-    unitCost = c.wholesalePrice ?? c.price;
   }
+
+  // Owner/employee always pay the catalog price. Fixer/admin may override the
+  // per-unit cost (free or custom). A custom (>0) staff cost is NOT charged
+  // here — it routes a cost-approval to the owner (handled below).
+  const actorIsStaff = hasRole(actor.roles, "ADMIN") || hasRole(actor.roles, "FIXER");
+  const hasOverride =
+    actorIsStaff && unitCostOverride !== undefined && Number.isFinite(Number(unitCostOverride));
+  const unitCost = hasOverride ? Math.max(0, Math.round(Number(unitCostOverride))) : catalogPrice;
   const totalCost = unitCost * qty;
   const retail = retailPrice !== undefined && Number.isFinite(Number(retailPrice))
     ? Math.max(0, Math.round(Number(retailPrice)))
     : catalogPrice;
+
+  // Fixer/admin set a CUSTOM cost (> 0): don't debit now. Route a cost-approval
+  // to the venue owner; the stock is added atomically when they approve it
+  // from "My Requests" (see requests.ts POST /requests/:id/stock-decision).
+  if (hasOverride && unitCost > 0) {
+    const approval = await createStockCostRequest({
+      kind,
+      venue,
+      catalogId,
+      name,
+      category,
+      qty,
+      unitCost,
+      totalCost,
+      retail,
+      actor,
+    });
+    res.status(approval.status).json(approval.body);
+    return;
+  }
 
   // Atomic: guarded venue debit + stock merge/insert + ledger all-or-nothing so a
   // crash after the debit can never leave money gone without stock or a trace.
@@ -624,8 +745,8 @@ async function purchaseFromCatalog(opts: {
       amount: -totalCost,
       kind: "stock_purchase",
       source: kind,
-      counterpartyName: "Wholesale catalog",
-      memo: `Bought ${name} x${qty} @ €$${unitCost} wholesale`,
+      counterpartyName: "Catalog",
+      memo: `Bought ${name} x${qty} @ €$${unitCost} from catalog`,
       previousBalance,
       newBalance,
     });
@@ -673,6 +794,7 @@ router.post("/stores/:id/purchase", requireAuth, async (req, res): Promise<void>
     catalogId,
     qty: Math.max(1, Number(req.body?.qty) || 1),
     retailPrice: req.body?.retailPrice,
+    unitCostOverride: req.body?.unitCost,
     actor: req.user!,
     res,
   });
@@ -690,6 +812,7 @@ router.post("/ripperdocs/:id/purchase", requireAuth, async (req, res): Promise<v
     catalogId,
     qty: Math.max(1, Number(req.body?.qty) || 1),
     retailPrice: req.body?.retailPrice,
+    unitCostOverride: req.body?.unitCost,
     actor: req.user!,
     res,
   });
