@@ -14821,6 +14821,83 @@ export const useSubmitLoreEdit = <TError = ErrorType<void>,
       return useMutation(getSubmitLoreEditMutationOptions(options));
     }
 
+export const getListMyLoreEditsUrl = () => {
+
+
+
+
+  return `/api/directory/lore/edits/mine`
+}
+
+/**
+ * @summary The signed-in fixer's own lore submissions across all statuses (fixer/admin).
+ */
+export const listMyLoreEdits = async ( options?: RequestInit): Promise<LorePendingEdit[]> => {
+
+  return customFetch<LorePendingEdit[]>(getListMyLoreEditsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyLoreEditsQueryKey = () => {
+    return [
+    `/api/directory/lore/edits/mine`
+    ] as const;
+    }
+
+
+export const getListMyLoreEditsQueryOptions = <TData = Awaited<ReturnType<typeof listMyLoreEdits>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyLoreEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyLoreEditsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyLoreEdits>>> = ({ signal }) => listMyLoreEdits({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyLoreEdits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyLoreEditsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyLoreEdits>>>
+export type ListMyLoreEditsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The signed-in fixer's own lore submissions across all statuses (fixer/admin).
+ */
+
+export function useListMyLoreEdits<TData = Awaited<ReturnType<typeof listMyLoreEdits>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyLoreEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyLoreEditsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getApproveLoreEditUrl = (id: number,) => {
 
 

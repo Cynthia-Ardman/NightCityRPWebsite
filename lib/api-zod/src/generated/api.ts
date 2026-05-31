@@ -6222,6 +6222,29 @@ export const SubmitLoreEditBody = zod.object({
 
 
 /**
+ * @summary The signed-in fixer's own lore submissions across all statuses (fixer/admin).
+ */
+export const ListMyLoreEditsResponseItem = zod.object({
+  "id": zod.number(),
+  "loreEntryId": zod.number().nullish(),
+  "entryName": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedEntryId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyLoreEditsResponse = zod.array(ListMyLoreEditsResponseItem)
+
+
+/**
  * @summary Approve a proposed lore edit and apply it (admin only).
  */
 export const ApproveLoreEditParams = zod.object({

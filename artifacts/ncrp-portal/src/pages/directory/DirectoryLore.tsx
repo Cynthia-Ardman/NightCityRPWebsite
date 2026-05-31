@@ -48,6 +48,11 @@ export default function DirectoryLore() {
         </div>
         {isStaff && (
           <div className="flex gap-2">
+            <Link href="/directory/lore/mine">
+              <Button variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-display" data-testid="button-lore-mine">
+                <BookOpen className="w-4 h-4 mr-2" /> MY SUBMISSIONS
+              </Button>
+            </Link>
             {isAdmin && (
               <Link href="/directory/lore/import">
                 <Button variant="outline" className="rounded-none border-nc-yellow text-nc-yellow font-display" data-testid="button-lore-import">

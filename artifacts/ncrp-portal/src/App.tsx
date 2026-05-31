@@ -34,6 +34,7 @@ import DirectoryCharacters from "@/pages/directory/DirectoryCharacters";
 import DirectoryCharacterDetail from "@/pages/directory/DirectoryCharacterDetail";
 import DirectoryLore from "@/pages/directory/DirectoryLore";
 import DirectoryLoreDetail from "@/pages/directory/DirectoryLoreDetail";
+import MyLoreSubmissions from "@/pages/directory/MyLoreSubmissions";
 import LoreEditor from "@/pages/directory/LoreEditor";
 import LoreImportReview from "@/pages/directory/LoreImportReview";
 import CatalogGuns from "@/pages/catalog/CatalogGuns";
@@ -140,6 +141,9 @@ function AppRoutes() {
             <StaffArchiveGuard><DirectoryCharacters /></StaffArchiveGuard>
           </Route>
           <Route path="/directory/lore" component={DirectoryLore} />
+          <Route path="/directory/lore/mine">
+            <StaffArchiveGuard><MyLoreSubmissions /></StaffArchiveGuard>
+          </Route>
           <Route path="/directory/lore/new">
             <StaffArchiveGuard><LoreEditor /></StaffArchiveGuard>
           </Route>

@@ -10,7 +10,7 @@ import {
   type LoreEntry,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole } from "../lib/discord";
+import { hasRole, sendDirectMessage } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { runLoreImport, type LoreSourceRef } from "../lib/loreImport";
@@ -122,6 +122,36 @@ function shapeSummary(row: LoreEntry): Record<string, unknown> {
   };
 }
 
+// Best-effort Discord DM to the fixer who proposed a lore change, telling them
+// the admin's decision (and the decision summary, if any). Resolves the
+// submitter's Discord id from `users`. Never throws — a delivery miss (DMs
+// closed, no bot token, network error) must not affect the already-committed
+// approve/reject decision.
+async function notifyFixerOfLoreDecision(
+  edit: typeof lorePendingEdits.$inferSelect,
+  status: "approved" | "rejected",
+  summary: string | null,
+  entryName: string | null,
+): Promise<void> {
+  try {
+    const [u] = await db
+      .select({ discordId: users.discordId })
+      .from(users)
+      .where(eq(users.id, edit.submittedBy));
+    if (!u?.discordId) return;
+    const what = edit.kind === "create" ? "new lore entry" : "lore edit";
+    const name = entryName ?? "an entry";
+    let content =
+      status === "approved"
+        ? `Your ${what} "${name}" was approved and is now live.`
+        : `Your ${what} "${name}" was rejected.`;
+    if (summary) content += `\n${status === "approved" ? "Note" : "Reason"}: ${summary}`;
+    await sendDirectMessage(u.discordId, content);
+  } catch (err) {
+    logger.warn({ err, editId: edit.id }, "lore decision DM failed");
+  }
+}
+
 // ---- Public read -----------------------------------------------------------
 
 // List entries. Any signed-in user; optional category + free-text filter.
@@ -194,6 +224,46 @@ router.get("/directory/lore/edits", requireAuth, async (req, res): Promise<void>
     .leftJoin(loreEntries, eq(loreEntries.id, lorePendingEdits.loreEntryId))
     .leftJoin(users, eq(users.id, lorePendingEdits.submittedBy))
     .where(eq(lorePendingEdits.status, status))
+    .orderBy(desc(lorePendingEdits.createdAt));
+  res.json(
+    rows.map((r) => ({
+      ...r,
+      decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
+});
+
+// The signed-in fixer's own lore submissions across all statuses, so they can
+// track what's pending, approved, or rejected (with the admin's decision
+// summary). Declared before /edits/:id-style routes to avoid capture.
+router.get("/directory/lore/edits/mine", requireAuth, async (req, res): Promise<void> => {
+  if (!isFixerOrAdmin(req.user!)) {
+    res.status(403).json({ error: "Requires fixer or admin role" });
+    return;
+  }
+  const rows = await db
+    .select({
+      id: lorePendingEdits.id,
+      loreEntryId: lorePendingEdits.loreEntryId,
+      entryName: loreEntries.name,
+      kind: lorePendingEdits.kind,
+      submittedBy: lorePendingEdits.submittedBy,
+      submittedByName: users.username,
+      proposedDiff: lorePendingEdits.proposedDiff,
+      beforeSnapshot: lorePendingEdits.beforeSnapshot,
+      updateNote: lorePendingEdits.updateNote,
+      status: lorePendingEdits.status,
+      decidedById: lorePendingEdits.decidedById,
+      decisionSummary: lorePendingEdits.decisionSummary,
+      decidedAt: lorePendingEdits.decidedAt,
+      appliedEntryId: lorePendingEdits.appliedEntryId,
+      createdAt: lorePendingEdits.createdAt,
+    })
+    .from(lorePendingEdits)
+    .leftJoin(loreEntries, eq(loreEntries.id, lorePendingEdits.loreEntryId))
+    .leftJoin(users, eq(users.id, lorePendingEdits.submittedBy))
+    .where(eq(lorePendingEdits.submittedBy, req.user!.id))
     .orderBy(desc(lorePendingEdits.createdAt));
   res.json(
     rows.map((r) => ({
@@ -376,6 +446,7 @@ router.post("/directory/lore/edits/:id/approve", requireAuth, async (req, res): 
     message: `Approved lore ${result.ok.edit.kind}: ${result.ok.entry.name}`,
     after: { entryId: result.ok.entry.id },
   });
+  await notifyFixerOfLoreDecision(result.ok.edit, "approved", summary, result.ok.entry.name);
   res.json({
     ...result.ok.edit,
     status: "approved",
@@ -432,6 +503,18 @@ router.post("/directory/lore/edits/:id/reject", requireAuth, async (req, res): P
     targetId: id,
     message: `Rejected lore ${result.ok.edit.kind} proposal`,
   });
+  {
+    const rejectedDiff = (result.ok.edit.proposedDiff ?? {}) as z.infer<typeof entryUpdateSchema>;
+    let rejectedName: string | null = rejectedDiff.name ?? null;
+    if (!rejectedName && result.ok.edit.loreEntryId) {
+      const [e] = await db
+        .select({ name: loreEntries.name })
+        .from(loreEntries)
+        .where(eq(loreEntries.id, result.ok.edit.loreEntryId));
+      rejectedName = e?.name ?? null;
+    }
+    await notifyFixerOfLoreDecision(result.ok.edit, "rejected", summary, rejectedName);
+  }
   res.json({
     ...result.ok.edit,
     status: "rejected",

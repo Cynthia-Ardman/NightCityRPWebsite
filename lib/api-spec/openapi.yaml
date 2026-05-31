@@ -3136,6 +3136,20 @@ paths:
               schema: { $ref: "#/components/schemas/LorePendingEdit" }
         "400": { description: Invalid payload }
         "403": { description: Fixer or admin only }
+  /directory/lore/edits/mine:
+    get:
+      operationId: listMyLoreEdits
+      tags: [lore]
+      summary: The signed-in fixer's own lore submissions across all statuses (fixer/admin).
+      responses:
+        "200":
+          description: The caller's proposed edits
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LorePendingEdit" }
+        "403": { description: Fixer or admin only }
   /directory/lore/edits/{id}/approve:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
