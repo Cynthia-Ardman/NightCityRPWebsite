@@ -32,6 +32,10 @@ import DirectoryRipperdocs from "@/pages/directory/DirectoryRipperdocs";
 import DirectoryRipperdocDetail from "@/pages/directory/DirectoryRipperdocDetail";
 import DirectoryCharacters from "@/pages/directory/DirectoryCharacters";
 import DirectoryCharacterDetail from "@/pages/directory/DirectoryCharacterDetail";
+import DirectoryLore from "@/pages/directory/DirectoryLore";
+import DirectoryLoreDetail from "@/pages/directory/DirectoryLoreDetail";
+import LoreEditor from "@/pages/directory/LoreEditor";
+import LoreImportReview from "@/pages/directory/LoreImportReview";
 import CatalogGuns from "@/pages/catalog/CatalogGuns";
 import CatalogCyberware from "@/pages/catalog/CatalogCyberware";
 import CatalogRent from "@/pages/catalog/CatalogRent";
@@ -68,6 +72,16 @@ function StaffArchiveGuard({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useAuthMe();
   if (isLoading) return null;
   if (!user || !(user.isFixer || user.isAdmin)) return <Redirect to="/" />;
+  return <>{children}</>;
+}
+
+// The lore import pipeline is admin-only on the backend (drafts review +
+// publish). Fixers can propose entries but cannot run/clear the import queue,
+// so guard the route to admins and bounce everyone else home.
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useAuthMe();
+  if (isLoading) return null;
+  if (!user || !user.isAdmin) return <Redirect to="/" />;
   return <>{children}</>;
 }
 
@@ -125,6 +139,17 @@ function AppRoutes() {
           <Route path="/directory/characters">
             <StaffArchiveGuard><DirectoryCharacters /></StaffArchiveGuard>
           </Route>
+          <Route path="/directory/lore" component={DirectoryLore} />
+          <Route path="/directory/lore/new">
+            <StaffArchiveGuard><LoreEditor /></StaffArchiveGuard>
+          </Route>
+          <Route path="/directory/lore/import">
+            <AdminGuard><LoreImportReview /></AdminGuard>
+          </Route>
+          <Route path="/directory/lore/:id/edit">
+            <StaffArchiveGuard><LoreEditor /></StaffArchiveGuard>
+          </Route>
+          <Route path="/directory/lore/:id" component={DirectoryLoreDetail} />
           <Route path="/directory/characters/:id">
             <StaffArchiveGuard><DirectoryCharacterDetail /></StaffArchiveGuard>
           </Route>

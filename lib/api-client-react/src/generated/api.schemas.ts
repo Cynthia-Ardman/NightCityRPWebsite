@@ -5,6 +5,258 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+export interface LoreSource {
+  label: string;
+  url: string;
+}
+
+export type LoreEntrySummaryCategory = typeof LoreEntrySummaryCategory[keyof typeof LoreEntrySummaryCategory];
+
+
+export const LoreEntrySummaryCategory = {
+  corporation: 'corporation',
+  gang: 'gang',
+  faction: 'faction',
+  misc: 'misc',
+} as const;
+
+export interface LoreEntrySummary {
+  id: number;
+  category: LoreEntrySummaryCategory;
+  name: string;
+  slug: string;
+  aliases: string[];
+  /** @nullable */
+  summary?: string | null;
+  /** @nullable */
+  responsibleFixer?: string | null;
+  hasFixerContent: boolean;
+  updatedAt: string;
+}
+
+export type LoreEntryCategory = typeof LoreEntryCategory[keyof typeof LoreEntryCategory];
+
+
+export const LoreEntryCategory = {
+  corporation: 'corporation',
+  gang: 'gang',
+  faction: 'faction',
+  misc: 'misc',
+} as const;
+
+export interface LoreEntry {
+  id: number;
+  category: LoreEntryCategory;
+  name: string;
+  slug: string;
+  aliases: string[];
+  /** @nullable */
+  summary?: string | null;
+  /** @nullable */
+  responsibleFixer?: string | null;
+  publicBody: string;
+  /** @nullable */
+  fixerBody?: string | null;
+  sources?: LoreSource[];
+  canViewFixer: boolean;
+  hasFixerContent?: boolean;
+  /** @nullable */
+  createdById?: string | null;
+  /** @nullable */
+  updatedById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type LoreEntryInputCategory = typeof LoreEntryInputCategory[keyof typeof LoreEntryInputCategory];
+
+
+export const LoreEntryInputCategory = {
+  corporation: 'corporation',
+  gang: 'gang',
+  faction: 'faction',
+  misc: 'misc',
+} as const;
+
+export interface LoreEntryInput {
+  category: LoreEntryInputCategory;
+  name: string;
+  /** @nullable */
+  summary?: string | null;
+  /** @nullable */
+  responsibleFixer?: string | null;
+  aliases?: string[];
+  publicBody?: string;
+  /** @nullable */
+  fixerBody?: string | null;
+  sources?: LoreSource[];
+}
+
+export type LoreEntryUpdateCategory = typeof LoreEntryUpdateCategory[keyof typeof LoreEntryUpdateCategory];
+
+
+export const LoreEntryUpdateCategory = {
+  corporation: 'corporation',
+  gang: 'gang',
+  faction: 'faction',
+  misc: 'misc',
+} as const;
+
+export interface LoreEntryUpdate {
+  category?: LoreEntryUpdateCategory;
+  name?: string;
+  /** @nullable */
+  summary?: string | null;
+  /** @nullable */
+  responsibleFixer?: string | null;
+  aliases?: string[];
+  publicBody?: string;
+  /** @nullable */
+  fixerBody?: string | null;
+  sources?: LoreSource[];
+}
+
+export type LoreEditProposalInputKind = typeof LoreEditProposalInputKind[keyof typeof LoreEditProposalInputKind];
+
+
+export const LoreEditProposalInputKind = {
+  create: 'create',
+  edit: 'edit',
+} as const;
+
+export interface LoreEditProposalInput {
+  /** @nullable */
+  loreEntryId?: number | null;
+  kind: LoreEditProposalInputKind;
+  diff: LoreEntryUpdate;
+  /** @nullable */
+  updateNote?: string | null;
+}
+
+export type LorePendingEditKind = typeof LorePendingEditKind[keyof typeof LorePendingEditKind];
+
+
+export const LorePendingEditKind = {
+  create: 'create',
+  edit: 'edit',
+} as const;
+
+export type LorePendingEditStatus = typeof LorePendingEditStatus[keyof typeof LorePendingEditStatus];
+
+
+export const LorePendingEditStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface LorePendingEdit {
+  id: number;
+  /** @nullable */
+  loreEntryId?: number | null;
+  /** @nullable */
+  entryName?: string | null;
+  kind: LorePendingEditKind;
+  submittedBy: string;
+  /** @nullable */
+  submittedByName?: string | null;
+  proposedDiff: unknown;
+  beforeSnapshot?: unknown;
+  /** @nullable */
+  updateNote?: string | null;
+  status: LorePendingEditStatus;
+  /** @nullable */
+  decidedById?: string | null;
+  /** @nullable */
+  decisionSummary?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  /** @nullable */
+  appliedEntryId?: number | null;
+  createdAt: string;
+}
+
+export interface LoreEditDecision {
+  /** @nullable */
+  decisionSummary?: string | null;
+}
+
+export type LoreImportDraftProposedCategory = typeof LoreImportDraftProposedCategory[keyof typeof LoreImportDraftProposedCategory];
+
+
+export const LoreImportDraftProposedCategory = {
+  corporation: 'corporation',
+  gang: 'gang',
+  faction: 'faction',
+  misc: 'misc',
+} as const;
+
+export type LoreImportDraftStatus = typeof LoreImportDraftStatus[keyof typeof LoreImportDraftStatus];
+
+
+export const LoreImportDraftStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  discarded: 'discarded',
+} as const;
+
+export interface LoreImportDraft {
+  id: number;
+  groupKey: string;
+  proposedName: string;
+  proposedCategory: LoreImportDraftProposedCategory;
+  /** @nullable */
+  proposedFixer?: string | null;
+  aliases: string[];
+  /** @nullable */
+  summary?: string | null;
+  publicBody: string;
+  /** @nullable */
+  fixerBody?: string | null;
+  sources: LoreSource[];
+  /** @nullable */
+  suggestedMergeEntryId?: number | null;
+  /** @nullable */
+  suggestedMergeName?: string | null;
+  status: LoreImportDraftStatus;
+  /** @nullable */
+  appliedEntryId?: number | null;
+  createdAt: string;
+}
+
+export type LoreImportDraftUpdateProposedCategory = typeof LoreImportDraftUpdateProposedCategory[keyof typeof LoreImportDraftUpdateProposedCategory];
+
+
+export const LoreImportDraftUpdateProposedCategory = {
+  corporation: 'corporation',
+  gang: 'gang',
+  faction: 'faction',
+  misc: 'misc',
+} as const;
+
+export interface LoreImportDraftUpdate {
+  proposedName?: string;
+  proposedCategory?: LoreImportDraftUpdateProposedCategory;
+  /** @nullable */
+  proposedFixer?: string | null;
+  aliases?: string[];
+  /** @nullable */
+  summary?: string | null;
+  publicBody?: string;
+  /** @nullable */
+  fixerBody?: string | null;
+  sources?: LoreSource[];
+  /** @nullable */
+  suggestedMergeEntryId?: number | null;
+}
+
+export interface LoreImportRunResult {
+  scanned: number;
+  created: number;
+  duplicates: number;
+  errors: string[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -3656,5 +3908,46 @@ export const ListMyCustomRequestsType = {
   cyberware: 'cyberware',
   store: 'store',
   ripperdoc: 'ripperdoc',
+} as const;
+
+export type ListLoreParams = {
+category?: ListLoreCategory;
+q?: string;
+};
+
+export type ListLoreCategory = typeof ListLoreCategory[keyof typeof ListLoreCategory];
+
+
+export const ListLoreCategory = {
+  corporation: 'corporation',
+  gang: 'gang',
+  faction: 'faction',
+  misc: 'misc',
+} as const;
+
+export type ListLoreEditsParams = {
+status?: ListLoreEditsStatus;
+};
+
+export type ListLoreEditsStatus = typeof ListLoreEditsStatus[keyof typeof ListLoreEditsStatus];
+
+
+export const ListLoreEditsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type ListLoreImportDraftsParams = {
+status?: ListLoreImportDraftsStatus;
+};
+
+export type ListLoreImportDraftsStatus = typeof ListLoreImportDraftsStatus[keyof typeof ListLoreImportDraftsStatus];
+
+
+export const ListLoreImportDraftsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  discarded: 'discarded',
 } as const;
 

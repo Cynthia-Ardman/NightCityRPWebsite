@@ -6047,3 +6047,383 @@ export const RejectCustomRequestResponse = zod.object({
 })
 
 
+/**
+ * @summary Public list of lore entries (no fixer-only bodies).
+ */
+export const ListLoreQueryParams = zod.object({
+  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
+  "q": zod.coerce.string().optional()
+})
+
+export const ListLoreResponseItem = zod.object({
+  "id": zod.number(),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "aliases": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "responsibleFixer": zod.string().nullish(),
+  "hasFixerContent": zod.boolean(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLoreResponse = zod.array(ListLoreResponseItem)
+
+
+/**
+ * @summary Create a lore entry (admin only — publishes directly).
+ */
+export const CreateLoreBody = zod.object({
+  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "name": zod.string(),
+  "summary": zod.string().nullish(),
+  "responsibleFixer": zod.string().nullish(),
+  "aliases": zod.array(zod.string()).optional(),
+  "publicBody": zod.string().optional(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional()
+})
+
+
+/**
+ * @summary Lore entry detail. Fixer-only body + sources only returned to staff.
+ */
+export const GetLoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetLoreResponse = zod.object({
+  "id": zod.number(),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "aliases": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "responsibleFixer": zod.string().nullish(),
+  "publicBody": zod.string(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "canViewFixer": zod.boolean(),
+  "hasFixerContent": zod.boolean().optional(),
+  "createdById": zod.string().nullish(),
+  "updatedById": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Edit a lore entry (admin only — publishes directly).
+ */
+export const UpdateLoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateLoreBody = zod.object({
+  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
+  "name": zod.string().optional(),
+  "summary": zod.string().nullish(),
+  "responsibleFixer": zod.string().nullish(),
+  "aliases": zod.array(zod.string()).optional(),
+  "publicBody": zod.string().optional(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional()
+})
+
+export const UpdateLoreResponse = zod.object({
+  "id": zod.number(),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "aliases": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "responsibleFixer": zod.string().nullish(),
+  "publicBody": zod.string(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "canViewFixer": zod.boolean(),
+  "hasFixerContent": zod.boolean().optional(),
+  "createdById": zod.string().nullish(),
+  "updatedById": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a lore entry (admin only).
+ */
+export const DeleteLoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List fixer-proposed lore edits awaiting decision (fixer/admin).
+ */
+export const listLoreEditsQueryStatusDefault = `pending`;
+
+export const ListLoreEditsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'rejected']).default(listLoreEditsQueryStatusDefault)
+})
+
+export const ListLoreEditsResponseItem = zod.object({
+  "id": zod.number(),
+  "loreEntryId": zod.number().nullish(),
+  "entryName": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedEntryId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListLoreEditsResponse = zod.array(ListLoreEditsResponseItem)
+
+
+/**
+ * @summary Propose a lore create/edit for admin approval (fixer/admin).
+ */
+export const SubmitLoreEditBody = zod.object({
+  "loreEntryId": zod.number().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "diff": zod.object({
+  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
+  "name": zod.string().optional(),
+  "summary": zod.string().nullish(),
+  "responsibleFixer": zod.string().nullish(),
+  "aliases": zod.array(zod.string()).optional(),
+  "publicBody": zod.string().optional(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional()
+}),
+  "updateNote": zod.string().nullish()
+})
+
+
+/**
+ * @summary Approve a proposed lore edit and apply it (admin only).
+ */
+export const ApproveLoreEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveLoreEditBody = zod.object({
+  "decisionSummary": zod.string().nullish()
+})
+
+export const ApproveLoreEditResponse = zod.object({
+  "id": zod.number(),
+  "loreEntryId": zod.number().nullish(),
+  "entryName": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedEntryId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject a proposed lore edit (admin only).
+ */
+export const RejectLoreEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectLoreEditBody = zod.object({
+  "decisionSummary": zod.string().nullish()
+})
+
+export const RejectLoreEditResponse = zod.object({
+  "id": zod.number(),
+  "loreEntryId": zod.number().nullish(),
+  "entryName": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedEntryId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Scan the Discord lore forum + linked Google Docs into draft queue (admin only).
+ */
+export const RunLoreImportResponse = zod.object({
+  "scanned": zod.number(),
+  "created": zod.number(),
+  "duplicates": zod.number(),
+  "errors": zod.array(zod.string())
+})
+
+
+/**
+ * @summary List lore import drafts awaiting review (admin only).
+ */
+export const listLoreImportDraftsQueryStatusDefault = `pending`;
+
+export const ListLoreImportDraftsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'discarded']).default(listLoreImportDraftsQueryStatusDefault)
+})
+
+export const ListLoreImportDraftsResponseItem = zod.object({
+  "id": zod.number(),
+  "groupKey": zod.string(),
+  "proposedName": zod.string(),
+  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "proposedFixer": zod.string().nullish(),
+  "aliases": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "publicBody": zod.string(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "suggestedMergeEntryId": zod.number().nullish(),
+  "suggestedMergeName": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'discarded']),
+  "appliedEntryId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListLoreImportDraftsResponse = zod.array(ListLoreImportDraftsResponseItem)
+
+
+/**
+ * @summary Edit a lore import draft before approving (admin only).
+ */
+export const UpdateLoreImportDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateLoreImportDraftBody = zod.object({
+  "proposedName": zod.string().optional(),
+  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
+  "proposedFixer": zod.string().nullish(),
+  "aliases": zod.array(zod.string()).optional(),
+  "summary": zod.string().nullish(),
+  "publicBody": zod.string().optional(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "suggestedMergeEntryId": zod.number().nullish()
+})
+
+export const UpdateLoreImportDraftResponse = zod.object({
+  "id": zod.number(),
+  "groupKey": zod.string(),
+  "proposedName": zod.string(),
+  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "proposedFixer": zod.string().nullish(),
+  "aliases": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "publicBody": zod.string(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "suggestedMergeEntryId": zod.number().nullish(),
+  "suggestedMergeName": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'discarded']),
+  "appliedEntryId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Promote a draft into a published lore entry (create or merge) (admin only).
+ */
+export const ApproveLoreImportDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveLoreImportDraftResponse = zod.object({
+  "id": zod.number(),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "aliases": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "responsibleFixer": zod.string().nullish(),
+  "publicBody": zod.string(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "canViewFixer": zod.boolean(),
+  "hasFixerContent": zod.boolean().optional(),
+  "createdById": zod.string().nullish(),
+  "updatedById": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Discard a lore import draft (admin only).
+ */
+export const DiscardLoreImportDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DiscardLoreImportDraftResponse = zod.object({
+  "id": zod.number(),
+  "groupKey": zod.string(),
+  "proposedName": zod.string(),
+  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "proposedFixer": zod.string().nullish(),
+  "aliases": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "publicBody": zod.string(),
+  "fixerBody": zod.string().nullish(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "suggestedMergeEntryId": zod.number().nullish(),
+  "suggestedMergeName": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'discarded']),
+  "appliedEntryId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+

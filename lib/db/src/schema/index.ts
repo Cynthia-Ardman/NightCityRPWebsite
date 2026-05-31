@@ -1190,3 +1190,120 @@ export const botPlayerInventory = pgTable("bot_player_inventory", {
   ownerIdx: index("bot_player_inventory_owner_idx").on(t.ownerId),
   charIdx: index("bot_player_inventory_char_idx").on(t.characterName),
 }));
+
+// ---------------------------------------------------------------------------
+// LORE DIRECTORY
+// ---------------------------------------------------------------------------
+// World-lore entries surfaced under the Directory (Corporations / Gangs /
+// Factions / Miscellaneous). Each entry carries a PUBLIC body anyone can read
+// plus an optional FIXER-ONLY body and source references visible only to
+// staff. A "Story Lead" fixer (free-text name) is shown near the top as the
+// person responsible for the entry. Staff (fixer/admin) author entries; fixer
+// edits go through admin approval (see lorePendingEdits) while admins publish
+// directly. Imported lore lands in loreImportDrafts first (a staff review
+// queue) and is only promoted into this table on approval.
+export const loreEntries = pgTable("lore_entries", {
+  id: serial("id").primaryKey(),
+  // Category bucket: "corporation" | "gang" | "faction" | "misc".
+  category: text("category").notNull().default("misc"),
+  name: text("name").notNull(),
+  // URL-stable identifier; unique, derived from name on create.
+  slug: text("slug").notNull(),
+  // Alternate names / abbreviations used for search + import dedup.
+  aliases: text("aliases").array().notNull().default([]),
+  // Free-text name of the responsible "Story Lead" fixer (not a user FK —
+  // these are often NPC-handler handles that may not map to a portal account).
+  responsibleFixer: text("responsible_fixer"),
+  // One-line public blurb shown in the list + at the top of the detail page.
+  summary: text("summary"),
+  // Public markdown body — visible to everyone.
+  publicBody: text("public_body").notNull().default(""),
+  // Fixer-only markdown body — only ADMIN/FIXER may read.
+  fixerBody: text("fixer_body"),
+  // Staff-only source references: [{ label, url }]. Discord forum posts and
+  // linked Google Docs the entry was sourced from.
+  sources: jsonb("sources").notNull().default(sql`'[]'::jsonb`),
+  createdById: text("created_by_id").references(() => users.id),
+  updatedById: text("updated_by_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  slugIdx: uniqueIndex("lore_entries_slug_idx").on(t.slug),
+  categoryIdx: index("lore_entries_category_idx").on(t.category),
+  nameIdx: index("lore_entries_name_idx").on(t.name),
+}));
+export type LoreEntry = typeof loreEntries.$inferSelect;
+
+// Fixer-proposed lore changes awaiting an admin decision. Surfaced in the
+// unified Pending Requests page (Lore tab). Unlike character edits this is a
+// single-admin approve/deny (no voting). A null loreEntryId means the fixer is
+// proposing a brand-new entry (the full payload lives in proposedDiff); a set
+// loreEntryId is an edit to an existing entry. proposedDiff is a partial set of
+// entry fields; beforeSnapshot captures those same fields at submit time so the
+// reviewer diff doesn't drift if the entry changes before a decision.
+export const lorePendingEdits = pgTable("lore_pending_edits", {
+  id: serial("id").primaryKey(),
+  loreEntryId: integer("lore_entry_id").references(() => loreEntries.id, { onDelete: "cascade" }),
+  // "edit" | "create".
+  kind: text("kind").notNull().default("edit"),
+  submittedBy: text("submitted_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  proposedDiff: jsonb("proposed_diff").notNull(),
+  beforeSnapshot: jsonb("before_snapshot").notNull().default(sql`'{}'::jsonb`),
+  updateNote: text("update_note"),
+  status: text("status").notNull().default("pending"),
+  decidedById: text("decided_by_id").references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decisionSummary: text("decision_summary"),
+  // Set when an approved "create" materializes a new entry, so an approval is
+  // never applied twice.
+  appliedEntryId: integer("applied_entry_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index("lore_pending_edits_status_idx").on(t.status),
+  entryIdx: index("lore_pending_edits_entry_idx").on(t.loreEntryId),
+}));
+export type LorePendingEdit = typeof lorePendingEdits.$inferSelect;
+
+// Staging area for imported lore awaiting staff review. The importer scans the
+// Discord lore forum + linked public Google Docs, groups/dedups candidates and
+// writes one draft per proposed entry. Staff confirm category/fixer, set the
+// public-vs-fixer split, optionally merge into an existing entry, then approve
+// (which creates/updates a loreEntries row) or discard.
+export const loreImportDrafts = pgTable("lore_import_drafts", {
+  id: serial("id").primaryKey(),
+  // Normalized grouping key (lowercased primary name) used to dedup candidates
+  // that came from multiple sources (forum post + doc) into one draft.
+  groupKey: text("group_key").notNull(),
+  proposedName: text("proposed_name").notNull(),
+  proposedCategory: text("proposed_category").notNull().default("misc"),
+  proposedFixer: text("proposed_fixer"),
+  aliases: text("aliases").array().notNull().default([]),
+  summary: text("summary"),
+  publicBody: text("public_body").notNull().default(""),
+  fixerBody: text("fixer_body"),
+  // Raw source references: [{ type: "discord"|"gdoc", url, title }].
+  sources: jsonb("sources").notNull().default(sql`'[]'::jsonb`),
+  // If the importer (or staff) matched this draft to an existing entry, merge
+  // into it on approval instead of creating a new one.
+  suggestedMergeEntryId: integer("suggested_merge_entry_id").references(() => loreEntries.id, { onDelete: "set null" }),
+  // "pending" | "approved" | "discarded".
+  status: text("status").notNull().default("pending"),
+  // Idempotency: dedup re-runs against the same source so the same forum thread
+  // isn't imported twice while still pending.
+  sourceKey: text("source_key"),
+  decidedById: text("decided_by_id").references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  appliedEntryId: integer("applied_entry_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index("lore_import_drafts_status_idx").on(t.status),
+  groupKeyIdx: index("lore_import_drafts_group_key_idx").on(t.groupKey),
+  sourceKeyIdx: index("lore_import_drafts_source_key_idx").on(t.sourceKey),
+  // DB-level idempotency: at most one *pending* draft per group, so concurrent
+  // import runs can't both insert the same group. Resolved drafts (approved/
+  // discarded) are excluded so a group can be re-imported after a decision.
+  pendingGroupUnique: uniqueIndex("lore_import_drafts_pending_group_uq")
+    .on(t.groupKey)
+    .where(sql`status = 'pending'`),
+}));
+export type LoreImportDraft = typeof loreImportDrafts.$inferSelect;

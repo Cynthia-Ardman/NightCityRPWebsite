@@ -18,6 +18,7 @@ import lifestyleRouter from "./lifestyle";
 import attendanceRouter from "./attendance";
 import requestsRouter from "./requests";
 import offersRouter from "./offers";
+import loreRouter from "./lore";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(lifestyleRouter);
 router.use(attendanceRouter);
 router.use(requestsRouter);
 router.use(offersRouter);
+router.use(loreRouter);
 
 export default router;

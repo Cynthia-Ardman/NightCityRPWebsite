@@ -3020,8 +3020,421 @@ paths:
         "404": { description: Not found }
         "409": { description: Already reviewed }
 
+  # ---------------- LORE DIRECTORY ----------------
+  /directory/lore:
+    get:
+      operationId: listLore
+      tags: [lore]
+      summary: Public list of lore entries (no fixer-only bodies).
+      parameters:
+        - in: query
+          name: category
+          required: false
+          schema: { type: string, enum: [corporation, gang, faction, misc] }
+        - in: query
+          name: q
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Lore entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LoreEntrySummary" }
+    post:
+      operationId: createLore
+      tags: [lore]
+      summary: Create a lore entry (admin only — publishes directly).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreEntryInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoreEntry" }
+        "400": { description: Invalid payload }
+        "403": { description: Admin only }
+  /directory/lore/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getLore
+      tags: [lore]
+      summary: Lore entry detail. Fixer-only body + sources only returned to staff.
+      responses:
+        "200":
+          description: Lore entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoreEntry" }
+        "404": { description: Not found }
+    patch:
+      operationId: updateLore
+      tags: [lore]
+      summary: Edit a lore entry (admin only — publishes directly).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreEntryUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoreEntry" }
+        "400": { description: Invalid payload }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+    delete:
+      operationId: deleteLore
+      tags: [lore]
+      summary: Delete a lore entry (admin only).
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+  /directory/lore/edits:
+    get:
+      operationId: listLoreEdits
+      tags: [lore]
+      summary: List fixer-proposed lore edits awaiting decision (fixer/admin).
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [pending, approved, rejected], default: pending }
+      responses:
+        "200":
+          description: Proposed edits
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LorePendingEdit" }
+        "403": { description: Fixer or admin only }
+    post:
+      operationId: submitLoreEdit
+      tags: [lore]
+      summary: Propose a lore create/edit for admin approval (fixer/admin).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreEditProposalInput" }
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LorePendingEdit" }
+        "400": { description: Invalid payload }
+        "403": { description: Fixer or admin only }
+  /directory/lore/edits/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approveLoreEdit
+      tags: [lore]
+      summary: Approve a proposed lore edit and apply it (admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreEditDecision" }
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LorePendingEdit" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+  /directory/lore/edits/{id}/reject:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: rejectLoreEdit
+      tags: [lore]
+      summary: Reject a proposed lore edit (admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreEditDecision" }
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LorePendingEdit" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+  /directory/lore/import/run:
+    post:
+      operationId: runLoreImport
+      tags: [lore]
+      summary: Scan the Discord lore forum + linked Google Docs into draft queue (admin only).
+      responses:
+        "200":
+          description: Import summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoreImportRunResult" }
+        "403": { description: Admin only }
+  /directory/lore/import/drafts:
+    get:
+      operationId: listLoreImportDrafts
+      tags: [lore]
+      summary: List lore import drafts awaiting review (admin only).
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [pending, approved, discarded], default: pending }
+      responses:
+        "200":
+          description: Drafts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LoreImportDraft" }
+        "403": { description: Admin only }
+  /directory/lore/import/drafts/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateLoreImportDraft
+      tags: [lore]
+      summary: Edit a lore import draft before approving (admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreImportDraftUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoreImportDraft" }
+        "400": { description: Invalid payload }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+  /directory/lore/import/drafts/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approveLoreImportDraft
+      tags: [lore]
+      summary: Promote a draft into a published lore entry (create or merge) (admin only).
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoreEntry" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already decided }
+  /directory/lore/import/drafts/{id}/discard:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: discardLoreImportDraft
+      tags: [lore]
+      summary: Discard a lore import draft (admin only).
+      responses:
+        "200":
+          description: Discarded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoreImportDraft" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already decided }
+
 components:
   schemas:
+    LoreSource:
+      type: object
+      required: [label, url]
+      properties:
+        label: { type: string }
+        url: { type: string }
+
+    LoreEntrySummary:
+      type: object
+      required: [id, category, name, slug, aliases, hasFixerContent, updatedAt]
+      properties:
+        id: { type: integer }
+        category: { type: string, enum: [corporation, gang, faction, misc] }
+        name: { type: string }
+        slug: { type: string }
+        aliases:
+          type: array
+          items: { type: string }
+        summary: { type: ["string", "null"] }
+        responsibleFixer: { type: ["string", "null"] }
+        hasFixerContent: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    LoreEntry:
+      type: object
+      required: [id, category, name, slug, aliases, publicBody, canViewFixer, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        category: { type: string, enum: [corporation, gang, faction, misc] }
+        name: { type: string }
+        slug: { type: string }
+        aliases:
+          type: array
+          items: { type: string }
+        summary: { type: ["string", "null"] }
+        responsibleFixer: { type: ["string", "null"] }
+        publicBody: { type: string }
+        # Only present (non-null) when the caller is ADMIN/FIXER.
+        fixerBody: { type: ["string", "null"] }
+        # Only populated for ADMIN/FIXER; empty array otherwise.
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/LoreSource" }
+        # True when the caller may see fixer-only content (drives the UI tab).
+        canViewFixer: { type: boolean }
+        hasFixerContent: { type: boolean }
+        createdById: { type: ["string", "null"] }
+        updatedById: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    LoreEntryInput:
+      type: object
+      required: [category, name]
+      properties:
+        category: { type: string, enum: [corporation, gang, faction, misc] }
+        name: { type: string }
+        summary: { type: ["string", "null"] }
+        responsibleFixer: { type: ["string", "null"] }
+        aliases:
+          type: array
+          items: { type: string }
+        publicBody: { type: string }
+        fixerBody: { type: ["string", "null"] }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/LoreSource" }
+
+    LoreEntryUpdate:
+      type: object
+      properties:
+        category: { type: string, enum: [corporation, gang, faction, misc] }
+        name: { type: string }
+        summary: { type: ["string", "null"] }
+        responsibleFixer: { type: ["string", "null"] }
+        aliases:
+          type: array
+          items: { type: string }
+        publicBody: { type: string }
+        fixerBody: { type: ["string", "null"] }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/LoreSource" }
+
+    LoreEditProposalInput:
+      type: object
+      required: [kind, diff]
+      properties:
+        # null for a brand-new entry proposal; set to edit an existing entry.
+        loreEntryId: { type: ["integer", "null"] }
+        kind: { type: string, enum: [create, edit] }
+        diff: { $ref: "#/components/schemas/LoreEntryUpdate" }
+        updateNote: { type: ["string", "null"] }
+
+    LorePendingEdit:
+      type: object
+      required: [id, kind, submittedBy, proposedDiff, status, createdAt]
+      properties:
+        id: { type: integer }
+        loreEntryId: { type: ["integer", "null"] }
+        entryName: { type: ["string", "null"] }
+        kind: { type: string, enum: [create, edit] }
+        submittedBy: { type: string }
+        submittedByName: { type: ["string", "null"] }
+        proposedDiff: {}
+        beforeSnapshot: {}
+        updateNote: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, approved, rejected] }
+        decidedById: { type: ["string", "null"] }
+        decisionSummary: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"], format: date-time }
+        appliedEntryId: { type: ["integer", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    LoreEditDecision:
+      type: object
+      properties:
+        decisionSummary: { type: ["string", "null"] }
+
+    LoreImportDraft:
+      type: object
+      required: [id, groupKey, proposedName, proposedCategory, aliases, publicBody, sources, status, createdAt]
+      properties:
+        id: { type: integer }
+        groupKey: { type: string }
+        proposedName: { type: string }
+        proposedCategory: { type: string, enum: [corporation, gang, faction, misc] }
+        proposedFixer: { type: ["string", "null"] }
+        aliases:
+          type: array
+          items: { type: string }
+        summary: { type: ["string", "null"] }
+        publicBody: { type: string }
+        fixerBody: { type: ["string", "null"] }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/LoreSource" }
+        suggestedMergeEntryId: { type: ["integer", "null"] }
+        suggestedMergeName: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, approved, discarded] }
+        appliedEntryId: { type: ["integer", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    LoreImportDraftUpdate:
+      type: object
+      properties:
+        proposedName: { type: string }
+        proposedCategory: { type: string, enum: [corporation, gang, faction, misc] }
+        proposedFixer: { type: ["string", "null"] }
+        aliases:
+          type: array
+          items: { type: string }
+        summary: { type: ["string", "null"] }
+        publicBody: { type: string }
+        fixerBody: { type: ["string", "null"] }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/LoreSource" }
+        suggestedMergeEntryId: { type: ["integer", "null"] }
+
+    LoreImportRunResult:
+      type: object
+      required: [scanned, created, duplicates, errors]
+      properties:
+        scanned: { type: integer }
+        created: { type: integer }
+        duplicates: { type: integer }
+        errors:
+          type: array
+          items: { type: string }
     HealthStatus:
       type: object
       required: [status]

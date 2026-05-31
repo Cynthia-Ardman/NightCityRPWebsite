@@ -6,8 +6,14 @@ import {
   useApproveCustomRequest,
   useRejectCustomRequest,
   useListPendingSheets,
+  useListLoreEdits,
+  useApproveLoreEdit,
+  useRejectLoreEdit,
   getListCustomRequestsQueryKey,
+  getListLoreEditsQueryKey,
   type CustomRequest,
+  type LorePendingEdit,
+  type LoreEntryUpdate,
 } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,7 +36,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
@@ -422,10 +428,173 @@ function NewCharactersTab() {
   );
 }
 
+const LORE_FIELD_LABELS: Record<string, string> = {
+  category: "Category",
+  name: "Name",
+  summary: "Summary",
+  responsibleFixer: "Story Lead",
+  aliases: "Aliases",
+  publicBody: "Public Body",
+  fixerBody: "Fixer-Only Body",
+  sources: "Sources",
+};
+
+function fmtLoreValue(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "—";
+    return v
+      .map((item) =>
+        item && typeof item === "object" && "label" in item
+          ? (item as { label: string }).label
+          : String(item),
+      )
+      .join(", ");
+  }
+  return String(v);
+}
+
+function LoreEditCard({ edit }: { edit: LorePendingEdit }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [rejecting, setRejecting] = useState(false);
+  const [note, setNote] = useState("");
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListLoreEditsQueryKey() });
+
+  const approve = useApproveLoreEdit({
+    mutation: {
+      onSuccess: () => { invalidate(); toast({ title: "Lore change approved & published" }); },
+      onError: (err) => toast({ title: "Could not approve", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+    },
+  });
+  const reject = useRejectLoreEdit({
+    mutation: {
+      onSuccess: () => { invalidate(); setRejecting(false); setNote(""); toast({ title: "Lore change rejected" }); },
+      onError: (err) => toast({ title: "Could not reject", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+    },
+  });
+
+  const diff = (edit.proposedDiff ?? {}) as LoreEntryUpdate;
+  const before = (edit.beforeSnapshot ?? {}) as Record<string, unknown>;
+  const changedKeys = Object.keys(diff).filter((k) => k in LORE_FIELD_LABELS);
+  const busy = approve.isPending || reject.isPending;
+
+  return (
+    <Card className="rounded-none border-border bg-card/50 flex flex-col" data-testid={`card-lore-edit-${edit.id}`}>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
+            <BookOpen className="w-3 h-3 mr-1" /> LORE {edit.kind.toUpperCase()}
+          </Badge>
+          <span className="text-xs font-mono text-muted-foreground">{new Date(edit.createdAt).toLocaleDateString()}</span>
+        </div>
+        <CardTitle className="text-lg font-display truncate mt-2">
+          {(diff.name as string) || edit.entryName || "New lore entry"}
+        </CardTitle>
+        <CardDescription className="font-mono text-xs">by {edit.submittedByName || edit.submittedBy}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col flex-1 gap-4">
+        {edit.updateNote && (
+          <p className="font-mono text-xs text-muted-foreground border-l-2 border-nc-cyan pl-3" data-testid={`text-lore-edit-note-${edit.id}`}>
+            “{edit.updateNote}”
+          </p>
+        )}
+        <div className="space-y-2">
+          {changedKeys.length === 0 ? (
+            <p className="font-mono text-xs text-muted-foreground italic">No field changes.</p>
+          ) : (
+            changedKeys.map((k) => (
+              <div key={k} className="font-mono text-xs">
+                <div className="text-nc-cyan uppercase tracking-widest mb-0.5">{LORE_FIELD_LABELS[k]}</div>
+                {edit.kind === "edit" && (
+                  <div className="text-muted-foreground line-through whitespace-pre-wrap break-words">{fmtLoreValue(before[k])}</div>
+                )}
+                <div className="text-foreground whitespace-pre-wrap break-words">{fmtLoreValue((diff as Record<string, unknown>)[k])}</div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {rejecting ? (
+          <div className="mt-auto space-y-2 pt-3 border-t border-border/40">
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Reason (optional)"
+              className="rounded-none font-mono"
+              data-testid={`input-lore-reject-note-${edit.id}`}
+            />
+            <div className="flex gap-2">
+              <Button variant="ghost" className="rounded-none flex-1 font-display text-xs" onClick={() => setRejecting(false)}>CANCEL</Button>
+              <Button
+                variant="outline"
+                className="rounded-none flex-1 border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                disabled={busy}
+                onClick={() => reject.mutate({ id: edit.id, data: { decisionSummary: note.trim() || undefined } })}
+                data-testid={`button-confirm-reject-lore-${edit.id}`}
+              >
+                {reject.isPending ? "..." : "CONFIRM REJECT"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-auto flex gap-2 pt-3 border-t border-border/40">
+            <Button
+              className="rounded-none flex-1 bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+              disabled={busy}
+              onClick={() => approve.mutate({ id: edit.id })}
+              data-testid={`button-approve-lore-${edit.id}`}
+            >
+              {approve.isPending ? "PUBLISHING..." : "APPROVE & PUBLISH"}
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-none flex-1 border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+              disabled={busy}
+              onClick={() => setRejecting(true)}
+              data-testid={`button-reject-lore-${edit.id}`}
+            >
+              REJECT
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoreEditsTab() {
+  const { data, isLoading } = useListLoreEdits({ status: "pending" });
+  const edits = (data ?? []) as LorePendingEdit[];
+
+  if (isLoading) {
+    return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
+  }
+  if (edits.length === 0) {
+    return (
+      <div className="py-20 text-center border border-dashed border-border bg-card/30">
+        <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+        <h3 className="text-xl font-display text-foreground mb-2">QUEUE EMPTY</h3>
+        <p className="text-muted-foreground font-mono text-sm">No lore changes await approval.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {edits.map((e) => (
+        <LoreEditCard key={e.id} edit={e} />
+      ))}
+    </div>
+  );
+}
+
 export default function PendingRequests() {
   const { data: me } = useAuthMe();
   const canMisc = !!(me?.isAdmin || me?.isFixer);
   const canNewChars = !!(me?.isAdmin || me?.isCsApprover);
+  const canLore = !!me?.isAdmin;
 
   // Default to the first tab the staffer can act on.
   const defaultTab = canMisc ? "misc" : "edits";
@@ -457,6 +626,11 @@ export default function PendingRequests() {
               NEW CHARACTERS
             </TabsTrigger>
           )}
+          {canLore && (
+            <TabsTrigger value="lore" className="rounded-none font-display tracking-widest" data-testid="tab-lore">
+              LORE
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {canMisc && (
@@ -470,6 +644,11 @@ export default function PendingRequests() {
         {canNewChars && (
           <TabsContent value="sheets" className="mt-6">
             <NewCharactersTab />
+          </TabsContent>
+        )}
+        {canLore && (
+          <TabsContent value="lore" className="mt-6">
+            <LoreEditsTab />
           </TabsContent>
         )}
       </Tabs>

@@ -108,6 +108,9 @@ import type {
   ListArchiveUsersParams,
   ListCustomRequestsParams,
   ListHousingRequestsParams,
+  ListLoreEditsParams,
+  ListLoreImportDraftsParams,
+  ListLoreParams,
   ListMissionHistoryParams,
   ListMissionsParams,
   ListMyCustomRequestsParams,
@@ -117,6 +120,16 @@ import type {
   ListingHistory,
   LiveModeState,
   LiveModeUpdate,
+  LoreEditDecision,
+  LoreEditProposalInput,
+  LoreEntry,
+  LoreEntryInput,
+  LoreEntrySummary,
+  LoreEntryUpdate,
+  LoreImportDraft,
+  LoreImportDraftUpdate,
+  LoreImportRunResult,
+  LorePendingEdit,
   Me,
   MissionApplicationListItem,
   MissionApplicationOutcome,
@@ -14277,5 +14290,1044 @@ export const useRejectCustomRequest = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRejectCustomRequestMutationOptions(options));
+    }
+
+export const getListLoreUrl = (params?: ListLoreParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/directory/lore?${stringifiedParams}` : `/api/directory/lore`
+}
+
+/**
+ * @summary Public list of lore entries (no fixer-only bodies).
+ */
+export const listLore = async (params?: ListLoreParams, options?: RequestInit): Promise<LoreEntrySummary[]> => {
+
+  return customFetch<LoreEntrySummary[]>(getListLoreUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLoreQueryKey = (params?: ListLoreParams,) => {
+    return [
+    `/api/directory/lore`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLoreQueryOptions = <TData = Awaited<ReturnType<typeof listLore>>, TError = ErrorType<unknown>>(params?: ListLoreParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLore>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLoreQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLore>>> = ({ signal }) => listLore(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLore>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLoreQueryResult = NonNullable<Awaited<ReturnType<typeof listLore>>>
+export type ListLoreQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Public list of lore entries (no fixer-only bodies).
+ */
+
+export function useListLore<TData = Awaited<ReturnType<typeof listLore>>, TError = ErrorType<unknown>>(
+ params?: ListLoreParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLore>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLoreQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateLoreUrl = () => {
+
+
+
+
+  return `/api/directory/lore`
+}
+
+/**
+ * @summary Create a lore entry (admin only — publishes directly).
+ */
+export const createLore = async (loreEntryInput: LoreEntryInput, options?: RequestInit): Promise<LoreEntry> => {
+
+  return customFetch<LoreEntry>(getCreateLoreUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreEntryInput,)
+  }
+);}
+
+
+
+
+export const getCreateLoreMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLore>>, TError,{data: BodyType<LoreEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLore>>, TError,{data: BodyType<LoreEntryInput>}, TContext> => {
+
+const mutationKey = ['createLore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLore>>, {data: BodyType<LoreEntryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createLore(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLoreMutationResult = NonNullable<Awaited<ReturnType<typeof createLore>>>
+    export type CreateLoreMutationBody = BodyType<LoreEntryInput>
+    export type CreateLoreMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a lore entry (admin only — publishes directly).
+ */
+export const useCreateLore = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLore>>, TError,{data: BodyType<LoreEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLore>>,
+        TError,
+        {data: BodyType<LoreEntryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLoreMutationOptions(options));
+    }
+
+export const getGetLoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/${id}`
+}
+
+/**
+ * @summary Lore entry detail. Fixer-only body + sources only returned to staff.
+ */
+export const getLore = async (id: number, options?: RequestInit): Promise<LoreEntry> => {
+
+  return customFetch<LoreEntry>(getGetLoreUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLoreQueryKey = (id: number,) => {
+    return [
+    `/api/directory/lore/${id}`
+    ] as const;
+    }
+
+
+export const getGetLoreQueryOptions = <TData = Awaited<ReturnType<typeof getLore>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLore>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLoreQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLore>>> = ({ signal }) => getLore(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLore>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLoreQueryResult = NonNullable<Awaited<ReturnType<typeof getLore>>>
+export type GetLoreQueryError = ErrorType<void>
+
+
+/**
+ * @summary Lore entry detail. Fixer-only body + sources only returned to staff.
+ */
+
+export function useGetLore<TData = Awaited<ReturnType<typeof getLore>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLore>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLoreQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateLoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/${id}`
+}
+
+/**
+ * @summary Edit a lore entry (admin only — publishes directly).
+ */
+export const updateLore = async (id: number,
+    loreEntryUpdate: LoreEntryUpdate, options?: RequestInit): Promise<LoreEntry> => {
+
+  return customFetch<LoreEntry>(getUpdateLoreUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreEntryUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateLoreMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLore>>, TError,{id: number;data: BodyType<LoreEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLore>>, TError,{id: number;data: BodyType<LoreEntryUpdate>}, TContext> => {
+
+const mutationKey = ['updateLore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLore>>, {id: number;data: BodyType<LoreEntryUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateLore(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLoreMutationResult = NonNullable<Awaited<ReturnType<typeof updateLore>>>
+    export type UpdateLoreMutationBody = BodyType<LoreEntryUpdate>
+    export type UpdateLoreMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a lore entry (admin only — publishes directly).
+ */
+export const useUpdateLore = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLore>>, TError,{id: number;data: BodyType<LoreEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLore>>,
+        TError,
+        {id: number;data: BodyType<LoreEntryUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateLoreMutationOptions(options));
+    }
+
+export const getDeleteLoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/${id}`
+}
+
+/**
+ * @summary Delete a lore entry (admin only).
+ */
+export const deleteLore = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteLoreUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteLoreMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLore>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteLore>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteLore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteLore>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteLore(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteLoreMutationResult = NonNullable<Awaited<ReturnType<typeof deleteLore>>>
+
+    export type DeleteLoreMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a lore entry (admin only).
+ */
+export const useDeleteLore = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLore>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteLore>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteLoreMutationOptions(options));
+    }
+
+export const getListLoreEditsUrl = (params?: ListLoreEditsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/directory/lore/edits?${stringifiedParams}` : `/api/directory/lore/edits`
+}
+
+/**
+ * @summary List fixer-proposed lore edits awaiting decision (fixer/admin).
+ */
+export const listLoreEdits = async (params?: ListLoreEditsParams, options?: RequestInit): Promise<LorePendingEdit[]> => {
+
+  return customFetch<LorePendingEdit[]>(getListLoreEditsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLoreEditsQueryKey = (params?: ListLoreEditsParams,) => {
+    return [
+    `/api/directory/lore/edits`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLoreEditsQueryOptions = <TData = Awaited<ReturnType<typeof listLoreEdits>>, TError = ErrorType<void>>(params?: ListLoreEditsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLoreEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLoreEditsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLoreEdits>>> = ({ signal }) => listLoreEdits(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLoreEdits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLoreEditsQueryResult = NonNullable<Awaited<ReturnType<typeof listLoreEdits>>>
+export type ListLoreEditsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List fixer-proposed lore edits awaiting decision (fixer/admin).
+ */
+
+export function useListLoreEdits<TData = Awaited<ReturnType<typeof listLoreEdits>>, TError = ErrorType<void>>(
+ params?: ListLoreEditsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLoreEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLoreEditsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitLoreEditUrl = () => {
+
+
+
+
+  return `/api/directory/lore/edits`
+}
+
+/**
+ * @summary Propose a lore create/edit for admin approval (fixer/admin).
+ */
+export const submitLoreEdit = async (loreEditProposalInput: LoreEditProposalInput, options?: RequestInit): Promise<LorePendingEdit> => {
+
+  return customFetch<LorePendingEdit>(getSubmitLoreEditUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreEditProposalInput,)
+  }
+);}
+
+
+
+
+export const getSubmitLoreEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitLoreEdit>>, TError,{data: BodyType<LoreEditProposalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitLoreEdit>>, TError,{data: BodyType<LoreEditProposalInput>}, TContext> => {
+
+const mutationKey = ['submitLoreEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitLoreEdit>>, {data: BodyType<LoreEditProposalInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitLoreEdit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitLoreEditMutationResult = NonNullable<Awaited<ReturnType<typeof submitLoreEdit>>>
+    export type SubmitLoreEditMutationBody = BodyType<LoreEditProposalInput>
+    export type SubmitLoreEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Propose a lore create/edit for admin approval (fixer/admin).
+ */
+export const useSubmitLoreEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitLoreEdit>>, TError,{data: BodyType<LoreEditProposalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitLoreEdit>>,
+        TError,
+        {data: BodyType<LoreEditProposalInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitLoreEditMutationOptions(options));
+    }
+
+export const getApproveLoreEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/edits/${id}/approve`
+}
+
+/**
+ * @summary Approve a proposed lore edit and apply it (admin only).
+ */
+export const approveLoreEdit = async (id: number,
+    loreEditDecision?: LoreEditDecision, options?: RequestInit): Promise<LorePendingEdit> => {
+
+  return customFetch<LorePendingEdit>(getApproveLoreEditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreEditDecision,)
+  }
+);}
+
+
+
+
+export const getApproveLoreEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext> => {
+
+const mutationKey = ['approveLoreEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLoreEdit>>, {id: number;data?: BodyType<LoreEditDecision>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveLoreEdit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveLoreEditMutationResult = NonNullable<Awaited<ReturnType<typeof approveLoreEdit>>>
+    export type ApproveLoreEditMutationBody = BodyType<LoreEditDecision> | undefined
+    export type ApproveLoreEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a proposed lore edit and apply it (admin only).
+ */
+export const useApproveLoreEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveLoreEdit>>,
+        TError,
+        {id: number;data?: BodyType<LoreEditDecision>},
+        TContext
+      > => {
+      return useMutation(getApproveLoreEditMutationOptions(options));
+    }
+
+export const getRejectLoreEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/edits/${id}/reject`
+}
+
+/**
+ * @summary Reject a proposed lore edit (admin only).
+ */
+export const rejectLoreEdit = async (id: number,
+    loreEditDecision?: LoreEditDecision, options?: RequestInit): Promise<LorePendingEdit> => {
+
+  return customFetch<LorePendingEdit>(getRejectLoreEditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreEditDecision,)
+  }
+);}
+
+
+
+
+export const getRejectLoreEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext> => {
+
+const mutationKey = ['rejectLoreEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectLoreEdit>>, {id: number;data?: BodyType<LoreEditDecision>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectLoreEdit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectLoreEditMutationResult = NonNullable<Awaited<ReturnType<typeof rejectLoreEdit>>>
+    export type RejectLoreEditMutationBody = BodyType<LoreEditDecision> | undefined
+    export type RejectLoreEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Reject a proposed lore edit (admin only).
+ */
+export const useRejectLoreEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectLoreEdit>>,
+        TError,
+        {id: number;data?: BodyType<LoreEditDecision>},
+        TContext
+      > => {
+      return useMutation(getRejectLoreEditMutationOptions(options));
+    }
+
+export const getRunLoreImportUrl = () => {
+
+
+
+
+  return `/api/directory/lore/import/run`
+}
+
+/**
+ * @summary Scan the Discord lore forum + linked Google Docs into draft queue (admin only).
+ */
+export const runLoreImport = async ( options?: RequestInit): Promise<LoreImportRunResult> => {
+
+  return customFetch<LoreImportRunResult>(getRunLoreImportUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRunLoreImportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runLoreImport>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runLoreImport>>, TError,void, TContext> => {
+
+const mutationKey = ['runLoreImport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runLoreImport>>, void> = () => {
+
+
+          return  runLoreImport(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunLoreImportMutationResult = NonNullable<Awaited<ReturnType<typeof runLoreImport>>>
+
+    export type RunLoreImportMutationError = ErrorType<void>
+
+    /**
+ * @summary Scan the Discord lore forum + linked Google Docs into draft queue (admin only).
+ */
+export const useRunLoreImport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runLoreImport>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runLoreImport>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunLoreImportMutationOptions(options));
+    }
+
+export const getListLoreImportDraftsUrl = (params?: ListLoreImportDraftsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/directory/lore/import/drafts?${stringifiedParams}` : `/api/directory/lore/import/drafts`
+}
+
+/**
+ * @summary List lore import drafts awaiting review (admin only).
+ */
+export const listLoreImportDrafts = async (params?: ListLoreImportDraftsParams, options?: RequestInit): Promise<LoreImportDraft[]> => {
+
+  return customFetch<LoreImportDraft[]>(getListLoreImportDraftsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLoreImportDraftsQueryKey = (params?: ListLoreImportDraftsParams,) => {
+    return [
+    `/api/directory/lore/import/drafts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLoreImportDraftsQueryOptions = <TData = Awaited<ReturnType<typeof listLoreImportDrafts>>, TError = ErrorType<void>>(params?: ListLoreImportDraftsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLoreImportDrafts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLoreImportDraftsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLoreImportDrafts>>> = ({ signal }) => listLoreImportDrafts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLoreImportDrafts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLoreImportDraftsQueryResult = NonNullable<Awaited<ReturnType<typeof listLoreImportDrafts>>>
+export type ListLoreImportDraftsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List lore import drafts awaiting review (admin only).
+ */
+
+export function useListLoreImportDrafts<TData = Awaited<ReturnType<typeof listLoreImportDrafts>>, TError = ErrorType<void>>(
+ params?: ListLoreImportDraftsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLoreImportDrafts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLoreImportDraftsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateLoreImportDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/import/drafts/${id}`
+}
+
+/**
+ * @summary Edit a lore import draft before approving (admin only).
+ */
+export const updateLoreImportDraft = async (id: number,
+    loreImportDraftUpdate: LoreImportDraftUpdate, options?: RequestInit): Promise<LoreImportDraft> => {
+
+  return customFetch<LoreImportDraft>(getUpdateLoreImportDraftUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreImportDraftUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateLoreImportDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLoreImportDraft>>, TError,{id: number;data: BodyType<LoreImportDraftUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLoreImportDraft>>, TError,{id: number;data: BodyType<LoreImportDraftUpdate>}, TContext> => {
+
+const mutationKey = ['updateLoreImportDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLoreImportDraft>>, {id: number;data: BodyType<LoreImportDraftUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateLoreImportDraft(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLoreImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof updateLoreImportDraft>>>
+    export type UpdateLoreImportDraftMutationBody = BodyType<LoreImportDraftUpdate>
+    export type UpdateLoreImportDraftMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a lore import draft before approving (admin only).
+ */
+export const useUpdateLoreImportDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLoreImportDraft>>, TError,{id: number;data: BodyType<LoreImportDraftUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLoreImportDraft>>,
+        TError,
+        {id: number;data: BodyType<LoreImportDraftUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateLoreImportDraftMutationOptions(options));
+    }
+
+export const getApproveLoreImportDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/import/drafts/${id}/approve`
+}
+
+/**
+ * @summary Promote a draft into a published lore entry (create or merge) (admin only).
+ */
+export const approveLoreImportDraft = async (id: number, options?: RequestInit): Promise<LoreEntry> => {
+
+  return customFetch<LoreEntry>(getApproveLoreImportDraftUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getApproveLoreImportDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveLoreImportDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLoreImportDraft>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveLoreImportDraft(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveLoreImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof approveLoreImportDraft>>>
+
+    export type ApproveLoreImportDraftMutationError = ErrorType<void>
+
+    /**
+ * @summary Promote a draft into a published lore entry (create or merge) (admin only).
+ */
+export const useApproveLoreImportDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveLoreImportDraft>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveLoreImportDraftMutationOptions(options));
+    }
+
+export const getDiscardLoreImportDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/import/drafts/${id}/discard`
+}
+
+/**
+ * @summary Discard a lore import draft (admin only).
+ */
+export const discardLoreImportDraft = async (id: number, options?: RequestInit): Promise<LoreImportDraft> => {
+
+  return customFetch<LoreImportDraft>(getDiscardLoreImportDraftUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getDiscardLoreImportDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardLoreImportDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof discardLoreImportDraft>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['discardLoreImportDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof discardLoreImportDraft>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  discardLoreImportDraft(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DiscardLoreImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof discardLoreImportDraft>>>
+
+    export type DiscardLoreImportDraftMutationError = ErrorType<void>
+
+    /**
+ * @summary Discard a lore import draft (admin only).
+ */
+export const useDiscardLoreImportDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardLoreImportDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof discardLoreImportDraft>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDiscardLoreImportDraftMutationOptions(options));
     }
 
