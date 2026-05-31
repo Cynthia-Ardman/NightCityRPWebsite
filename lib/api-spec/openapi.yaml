@@ -1832,6 +1832,88 @@ paths:
         "400": { description: Bad request }
         "404": { description: Not found }
         "409": { description: Out of stock or buyer unclaimed }
+  /ripperdocs/{id}/install:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: installRipperdocCyberware
+      tags: [ripperdocs]
+      summary: Offer to install stock cyberware onto a character (CWP-validated; buyer must approve)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CyberwareInstallInput" }
+      responses:
+        "201":
+          description: Install offer created and buyer notified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+        "400": { description: Bad request }
+        "403": { description: Not authorized }
+        "404": { description: Not found }
+        "409": { description: "Out of stock, buyer unclaimed, or CWP capacity exceeded" }
+  /ripperdocs/{id}/give:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: giveRipperdocItem
+      tags: [ripperdocs]
+      summary: Offer to give a stock item to a character for free (buyer must approve)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StoreSaleInput" }
+      responses:
+        "201":
+          description: Give offer created and buyer notified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+        "400": { description: Bad request }
+        "403": { description: Not authorized }
+        "404": { description: Not found }
+        "409": { description: Out of stock or buyer unclaimed }
+  /ripperdocs/{id}/remove:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: removeRipperdocCyberware
+      tags: [ripperdocs]
+      summary: Offer to uninstall cyberware from a character (optional fee; buyer must approve)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CyberwareRemoveInput" }
+      responses:
+        "201":
+          description: Remove offer created and buyer notified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+        "400": { description: Item is not installed cyberware }
+        "403": { description: Not authorized }
+        "404": { description: Cyberware or character not found }
+        "409": { description: Character unclaimed }
+  /ripperdocs/{id}/characters/{characterId}/cyberware:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: characterId, required: true, schema: { type: integer } }
+    get:
+      operationId: getCharacterCyberware
+      tags: [ripperdocs]
+      summary: CWP capacity + installed cyberware for a character (clinic operators only)
+      responses:
+        "200":
+          description: Capacity and installed list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterCyberwareStatus" }
+        "403": { description: Not authorized }
+        "404": { description: Clinic or character not found }
   /ripperdocs/{id}/purchase:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3570,6 +3652,9 @@ components:
       properties:
         id: { type: integer }
         kind: { type: string, enum: [store, ripperdoc] }
+        offerType: { type: string, enum: [sale, install, remove, give], description: "What the offer does. Defaults to sale." }
+        cwp: { type: ["integer", "null"], description: "Per-unit cyberware points (install) or the points removed (remove)." }
+        removedItemId: { type: ["integer", "null"], description: "The installed inventory item a remove offer uninstalls." }
         storeId: { type: ["integer", "null"] }
         ripperdocId: { type: ["integer", "null"] }
         stockId: { type: ["integer", "null"] }
@@ -3644,6 +3729,48 @@ components:
         stock: { $ref: "#/components/schemas/StockItem" }
         inventoryItem: { $ref: "#/components/schemas/InventoryItem" }
         totalPaid: { type: integer }
+
+    CyberwareInstallInput:
+      type: object
+      required: [stockId, buyerCharacterId]
+      properties:
+        stockId: { type: integer }
+        buyerCharacterId: { type: integer }
+        qty: { type: integer, minimum: 1, description: "Defaults to 1." }
+        price: { type: integer, minimum: 0, description: "Install fee. Defaults to the stock item's price." }
+        cwp: { type: integer, minimum: 0, description: "Operator CWP override; only used when the catalog has no authoritative value." }
+        memo: { type: string }
+
+    CyberwareRemoveInput:
+      type: object
+      required: [removedItemId, buyerCharacterId]
+      properties:
+        removedItemId: { type: integer, description: "The installed inventory item to uninstall." }
+        buyerCharacterId: { type: integer }
+        fee: { type: integer, minimum: 0, description: "Optional removal fee. Defaults to 0 (free)." }
+        memo: { type: string }
+
+    CharacterCyberwareStatus:
+      type: object
+      required: [characterId, characterName, kind, used, installed]
+      properties:
+        characterId: { type: integer }
+        characterName: { type: string }
+        kind: { type: ["string", "null"], description: "pc or npc." }
+        used: { type: integer, description: "Total CWP currently installed." }
+        max: { type: ["integer", "null"], description: "CWP cap (null = unlimited, NPC)." }
+        available: { type: ["integer", "null"], description: "Remaining CWP (null = unlimited)." }
+        installed:
+          type: array
+          items:
+            type: object
+            required: [id, name, cwp]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              quantity: { type: ["integer", "null"] }
+              notes: { type: ["string", "null"] }
+              cwp: { type: integer }
 
     VenueAccountInput:
       type: object

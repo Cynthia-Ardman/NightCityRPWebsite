@@ -6,11 +6,24 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SaleOfferKind } from './saleOfferKind';
+import type { SaleOfferOfferType } from './saleOfferOfferType';
 import type { SaleOfferStatus } from './saleOfferStatus';
 
 export interface SaleOffer {
   id: number;
   kind: SaleOfferKind;
+  /** What the offer does. Defaults to sale. */
+  offerType?: SaleOfferOfferType;
+  /**
+     * Per-unit cyberware points (install) or the points removed (remove).
+     * @nullable
+     */
+  cwp?: number | null;
+  /**
+     * The installed inventory item a remove offer uninstalls.
+     * @nullable
+     */
+  removedItemId?: number | null;
   /** @nullable */
   storeId?: number | null;
   /** @nullable */

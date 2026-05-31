@@ -1043,6 +1043,19 @@ export const SaleOfferKind = {
   ripperdoc: 'ripperdoc',
 } as const;
 
+/**
+ * What the offer does. Defaults to sale.
+ */
+export type SaleOfferOfferType = typeof SaleOfferOfferType[keyof typeof SaleOfferOfferType];
+
+
+export const SaleOfferOfferType = {
+  sale: 'sale',
+  install: 'install',
+  remove: 'remove',
+  give: 'give',
+} as const;
+
 export type SaleOfferStatus = typeof SaleOfferStatus[keyof typeof SaleOfferStatus];
 
 
@@ -1056,6 +1069,18 @@ export const SaleOfferStatus = {
 export interface SaleOffer {
   id: number;
   kind: SaleOfferKind;
+  /** What the offer does. Defaults to sale. */
+  offerType?: SaleOfferOfferType;
+  /**
+     * Per-unit cyberware points (install) or the points removed (remove).
+     * @nullable
+     */
+  cwp?: number | null;
+  /**
+     * The installed inventory item a remove offer uninstalls.
+     * @nullable
+     */
+  removedItemId?: number | null;
   /** @nullable */
   storeId?: number | null;
   /** @nullable */
@@ -1134,6 +1159,72 @@ export interface StoreSaleResult {
   stock: StockItem;
   inventoryItem: InventoryItem;
   totalPaid?: number;
+}
+
+export interface CyberwareInstallInput {
+  stockId: number;
+  buyerCharacterId: number;
+  /**
+     * Defaults to 1.
+     * @minimum 1
+     */
+  qty?: number;
+  /**
+     * Install fee. Defaults to the stock item's price.
+     * @minimum 0
+     */
+  price?: number;
+  /**
+     * Operator CWP override; only used when the catalog has no authoritative value.
+     * @minimum 0
+     */
+  cwp?: number;
+  memo?: string;
+}
+
+export interface CyberwareRemoveInput {
+  /** The installed inventory item to uninstall. */
+  removedItemId: number;
+  buyerCharacterId: number;
+  /**
+     * Optional removal fee. Defaults to 0 (free).
+     * @minimum 0
+     */
+  fee?: number;
+  memo?: string;
+}
+
+export type CharacterCyberwareStatusInstalledItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  quantity?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  cwp: number;
+};
+
+export interface CharacterCyberwareStatus {
+  characterId: number;
+  characterName: string;
+  /**
+     * pc or npc.
+     * @nullable
+     */
+  kind: string | null;
+  /** Total CWP currently installed. */
+  used: number;
+  /**
+     * CWP cap (null = unlimited, NPC).
+     * @nullable
+     */
+  max?: number | null;
+  /**
+     * Remaining CWP (null = unlimited).
+     * @nullable
+     */
+  available?: number | null;
+  installed: CharacterCyberwareStatusInstalledItem[];
 }
 
 export interface VenueAccountInput {

@@ -8,6 +8,43 @@
 
 export const MAX_CREATION_CWP = 6;
 
+// Total cyberware-points a character may carry once they exist in-world.
+// PCs are capped; NPCs (kind === "npc") are unlimited (story chrome, gangs,
+// ripperdoc rigs, etc. are not balance-constrained).
+export const MAX_PC_CWP = 15;
+
+export type CwpCapacity = {
+  ok: boolean;
+  // null = unlimited (NPC).
+  max: number | null;
+  used: number;
+  add: number;
+  // null = unlimited (NPC).
+  available: number | null;
+  reason?: string;
+};
+
+// Pure capacity check for installing `add` CWP onto a character that already
+// carries `used`. NPCs are never blocked; PCs may not exceed MAX_PC_CWP total.
+export function checkCwpCapacity(opts: { kind: string | null | undefined; used: number; add: number }): CwpCapacity {
+  const used = Math.max(0, opts.used || 0);
+  const add = Math.max(0, opts.add || 0);
+  if (opts.kind === "npc") {
+    return { ok: true, max: null, used, add, available: null };
+  }
+  const max = MAX_PC_CWP;
+  const available = max - used;
+  const ok = used + add <= max;
+  return {
+    ok,
+    max,
+    used,
+    add,
+    available,
+    reason: ok ? undefined : `Installing ${add} CWP would exceed the ${max} CWP limit (already at ${used}; ${Math.max(0, available)} free)`,
+  };
+}
+
 export type CyberwareEntry = { name?: string; points?: number };
 
 // Collects every cyberware entry regardless of which (current or legacy) field

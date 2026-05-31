@@ -11,6 +11,7 @@ import {
   characters,
   users,
   inventoryItems,
+  catalogCyberware,
   walletTransactions,
   activityEvents,
   auditLog,
@@ -19,7 +20,12 @@ import {
 import { applyWalletDelta, getEconomyMode } from "./economy";
 import { hasRole, sendDirectMessage } from "./discord";
 import { recordInventoryEvent } from "./inventoryEvents";
+import { cwpForItem, parseCwp, sumCwpByCharacter } from "./cyberware";
+import { buildCyberwareCostMap, checkCwpCapacity } from "./cyberware-cap";
 import { logger } from "./logger";
+
+// Offer kinds beyond a plain sale. `sale` is the historic default.
+export type OfferType = "sale" | "install" | "remove" | "give";
 
 // ---------------------------------------------------------------------------
 // Buyer-approval sale offers. The store/ripperdoc operator creates an offer;
@@ -124,6 +130,28 @@ async function notifyBuyerOfOffer(offer: SaleOffer, venueName: string): Promise<
   }
 }
 
+// Per-unit CWP a stock item costs to install. The catalog is authoritative when
+// it carries a positive value for the item (so an operator can't under-report a
+// known piece); otherwise an explicit operator-supplied value wins, then any
+// "CWP n" tag already on the stock notes, then 0 (custom/unknown chrome).
+async function resolveInstallCwp(
+  name: string,
+  stockNotes: string | null,
+  operatorCwp: number | null | undefined,
+): Promise<number> {
+  const catRows = await db.select({ name: catalogCyberware.name, cwp: catalogCyberware.cwp }).from(catalogCyberware);
+  const catalogCost = buildCyberwareCostMap(catRows).get(name.trim().toLowerCase());
+  if (catalogCost !== undefined && catalogCost > 0) return catalogCost;
+  // No authoritative catalog value. A "CWP n" tag on the stock is a floor the
+  // operator cannot undercut (so a crafted low override can't dodge the cap);
+  // an operator value above it (or for custom chrome with no tag) still applies.
+  const noteCwp = parseCwp(stockNotes) ?? 0;
+  const opCwp = operatorCwp != null && Number.isFinite(operatorCwp) ? Math.max(0, operatorCwp) : 0;
+  return Math.max(noteCwp, opCwp);
+}
+
+// Creates a stock-backed offer: a plain sale (default), a free give (price 0),
+// or a cyberware install (stamps per-unit CWP + validates the PC capacity cap).
 export async function createOffer(opts: {
   kind: OfferKind;
   venueId: number;
@@ -131,9 +159,17 @@ export async function createOffer(opts: {
   buyerCharacterId: number;
   qty: number;
   memo?: string | null;
+  offerType?: OfferType;
+  priceOverride?: number | null;
+  cwp?: number | null;
   actor: Actor;
 }): Promise<OfferResult> {
-  const { kind, venueId, stockId, buyerCharacterId, qty, memo, actor } = opts;
+  const { kind, venueId, stockId, buyerCharacterId, qty, memo, priceOverride, actor } = opts;
+  const offerType: OfferType = opts.offerType ?? "sale";
+  if (offerType === "remove") return { status: 400, body: { error: "Use createRemoveOffer for removals" } };
+  if ((offerType === "install" || offerType === "give") && kind !== "ripperdoc") {
+    return { status: 400, body: { error: "Install/give are only available at ripperdoc clinics" } };
+  }
   const venueTable = venueTableFor(kind);
   const stockTable = stockTableFor(kind);
 
@@ -154,17 +190,32 @@ export async function createOffer(opts: {
   if (buyer.archived) return { status: 400, body: { error: "Buyer character is archived" } };
   if (!buyer.ownerId) return { status: 409, body: { error: "Buyer character is unclaimed" } };
 
+  // Install: resolve per-unit CWP and validate the buyer's capacity up front
+  // (re-validated again at approval, since other chrome may land in between).
+  let cwp: number | null = null;
+  if (offerType === "install") {
+    cwp = await resolveInstallCwp(item.name, (item as { notes?: string | null }).notes ?? null, opts.cwp);
+    const used = (await sumCwpByCharacter([buyer.id])).get(buyer.id) ?? 0;
+    const cap = checkCwpCapacity({ kind: buyer.kind, used, add: cwp * qty });
+    if (!cap.ok) return { status: 409, body: { error: cap.reason } };
+  }
+
   const seller = await resolveSeller(kind, venue, venueId, actor);
-  const unitPrice = item.price;
+  const unitPrice = offerType === "give" ? 0 : priceOverride != null ? Math.max(0, priceOverride) : item.price;
   const totalPrice = unitPrice * qty;
   const expiresAt = new Date(Date.now() + OFFER_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+  const verb = offerType === "install" ? "install" : offerType === "give" ? "give" : "sell";
+  const priceLabel = totalPrice > 0 ? `for €$${totalPrice}` : "for free";
 
   const [offer] = await db
     .insert(saleOffers)
     .values({
       kind,
+      offerType,
       [venueColName(kind)]: venueId,
       stockId,
+      cwp,
       itemName: item.name,
       itemCategory: item.category ?? (kind === "ripperdoc" ? "cyberware" : null),
       unitPrice,
@@ -187,7 +238,7 @@ export async function createOffer(opts: {
     actorId: actor.id,
     actorName: actor.username,
     actorAvatarUrl: actor.avatarUrl,
-    message: `${venue.name} offered ${item.name} x${qty} to ${buyer.name} for €$${totalPrice}`,
+    message: `${venue.name} offered to ${verb} ${item.name} x${qty} to ${buyer.name} ${priceLabel}`,
   });
   await db.insert(auditLog).values({
     category: "shop",
@@ -196,8 +247,96 @@ export async function createOffer(opts: {
     actorName: actor.username,
     targetType: "sale_offer",
     targetId: String(offer.id),
-    message: `Offered ${item.name} x${qty} to ${buyer.name} for €$${totalPrice}`,
-    afterJson: { totalPrice, quantity: qty, commissionPct: seller.commissionPct, buyerCharacterId: buyer.id } as never,
+    message: `Offered to ${verb} ${item.name} x${qty} to ${buyer.name} ${priceLabel}`,
+    afterJson: { offerType, totalPrice, quantity: qty, cwp, commissionPct: seller.commissionPct, buyerCharacterId: buyer.id } as never,
+  });
+  await notifyBuyerOfOffer(offer, venue.name);
+
+  return { status: 201, body: offer };
+}
+
+// Creates an inventory-backed offer: un-install an existing chrome item from the
+// buyer character (default destination — the item stays in the player's
+// inventory, just no longer counted toward CWP). An optional removal fee flows
+// through the same buyer-approval + commission path as a sale.
+export async function createRemoveOffer(opts: {
+  venueId: number;
+  removedItemId: number;
+  buyerCharacterId: number;
+  fee?: number | null;
+  memo?: string | null;
+  actor: Actor;
+}): Promise<OfferResult> {
+  const kind: OfferKind = "ripperdoc";
+  const { venueId, removedItemId, buyerCharacterId, memo, actor } = opts;
+
+  const [venue] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, venueId));
+  if (!venue) return { status: 404, body: { error: "Venue not found" } };
+  if (!(await isOperator(kind, venue, venueId, actor))) {
+    return { status: 403, body: { error: "Not authorized to operate this clinic" } };
+  }
+
+  const [buyer] = await db.select().from(characters).where(eq(characters.id, buyerCharacterId));
+  if (!buyer) return { status: 404, body: { error: "Character not found" } };
+  if (buyer.archived) return { status: 400, body: { error: "Character is archived" } };
+  if (!buyer.ownerId) return { status: 409, body: { error: "Character is unclaimed" } };
+
+  const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, removedItemId));
+  if (!item || item.characterId !== buyer.id) {
+    return { status: 404, body: { error: "Cyberware not found on this character" } };
+  }
+  if (item.category !== "cyberware") {
+    return { status: 400, body: { error: "That item is not installed cyberware" } };
+  }
+
+  const fee = Math.max(0, opts.fee ?? 0);
+  const cwp = cwpForItem(item);
+  const seller = await resolveSeller(kind, venue, venueId, actor);
+  const expiresAt = new Date(Date.now() + OFFER_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const priceLabel = fee > 0 ? `for €$${fee}` : "for free";
+
+  const [offer] = await db
+    .insert(saleOffers)
+    .values({
+      kind,
+      offerType: "remove",
+      [venueColName(kind)]: venueId,
+      stockId: null,
+      removedItemId,
+      cwp,
+      itemName: item.name,
+      itemCategory: "cyberware",
+      unitPrice: fee,
+      quantity: 1,
+      totalPrice: fee,
+      buyerCharacterId: buyer.id,
+      buyerUserId: buyer.ownerId,
+      sellerCharacterId: seller.sellerCharacterId,
+      sellerEmployeeId: seller.sellerEmployeeId,
+      commissionPct: seller.commissionPct,
+      createdById: actor.id,
+      memo: memo ?? null,
+      status: "pending",
+      expiresAt,
+    } as never)
+    .returning();
+
+  await db.insert(activityEvents).values({
+    kind: "shop",
+    actorId: actor.id,
+    actorName: actor.username,
+    actorAvatarUrl: actor.avatarUrl,
+    message: `${venue.name} offered to remove ${item.name} from ${buyer.name} ${priceLabel}`,
+  });
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_create",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `Offered to remove ${item.name} from ${buyer.name} ${priceLabel}`,
+    afterJson: { offerType: "remove", fee, cwp, removedItemId, buyerCharacterId: buyer.id } as never,
   });
   await notifyBuyerOfOffer(offer, venue.name);
 
@@ -283,6 +422,9 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
   }
 
   const kind = offer.kind as OfferKind;
+  const offerType: OfferType = (offer.offerType as OfferType) ?? "sale";
+  const isRemove = offerType === "remove";
+  const hasMoney = offer.totalPrice > 0;
   const venueTable = venueTableFor(kind);
   const stockTable = stockTableFor(kind);
   const venueId = (kind === "store" ? offer.storeId : offer.ripperdocId)!;
@@ -294,35 +436,53 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
   const [buyerUser] = await db.select().from(users).where(eq(users.id, offer.buyerUserId));
   if (!buyerUser) return { status: 409, body: { error: "Buyer account missing" } };
 
-  // 1) Reserve-before-call buyer debit (idempotent on retry).
-  const debit = await applyWalletDelta({
-    userId: buyerUser.id,
-    discordId: buyerUser.discordId,
-    amount: -offer.totalPrice,
-    source: kind,
-    kind: "shop",
-    reason: `Purchase: ${offer.itemName} x${offer.quantity} @ ${venue.name}`,
-    memo: offer.memo ?? `Bought ${offer.itemName} x${offer.quantity}`,
-    characterId: buyer.id,
-    counterpartyName: venue.name,
-    relatedEntityType: "sale_offer",
-    relatedEntityId: offer.id,
-    storeId: kind === "store" ? venueId : null,
-    ripperdocId: kind === "ripperdoc" ? venueId : null,
-    idempotencyKey: `offer:${offer.id}:buyer`,
-  });
-  if (!debit.ok) {
-    if (debit.status === "insufficient_funds") return { status: 400, body: { error: "Buyer has insufficient funds" } };
-    return { status: 502, body: { error: debit.error ?? "Wallet provider unavailable" } };
+  // Install: re-validate the PC capacity cap at approval time. Other chrome may
+  // have landed since the offer was created, so the up-front check isn't enough.
+  if (offerType === "install") {
+    const used = (await sumCwpByCharacter([buyer.id])).get(buyer.id) ?? 0;
+    const cap = checkCwpCapacity({ kind: buyer.kind, used, add: (offer.cwp ?? 0) * offer.quantity });
+    if (!cap.ok) return { status: 409, body: { error: cap.reason } };
   }
 
-  // 2) Atomic completion: flip status, decrement stock, credit venue, add
-  // inventory, write venue ledger — all or nothing.
+  // 1) Reserve-before-call buyer debit (idempotent on retry). Skipped entirely
+  // for free offers (give, or a zero-fee removal) — no money moves.
+  if (hasMoney) {
+    const debitReason =
+      offerType === "install" ? `Cyberware install: ${offer.itemName} @ ${venue.name}`
+      : offerType === "remove" ? `Cyberware removal: ${offer.itemName} @ ${venue.name}`
+      : `Purchase: ${offer.itemName} x${offer.quantity} @ ${venue.name}`;
+    const debit = await applyWalletDelta({
+      userId: buyerUser.id,
+      discordId: buyerUser.discordId,
+      amount: -offer.totalPrice,
+      source: kind,
+      kind: "shop",
+      reason: debitReason,
+      memo: offer.memo ?? debitReason,
+      characterId: buyer.id,
+      counterpartyName: venue.name,
+      relatedEntityType: "sale_offer",
+      relatedEntityId: offer.id,
+      storeId: kind === "store" ? venueId : null,
+      ripperdocId: kind === "ripperdoc" ? venueId : null,
+      idempotencyKey: `offer:${offer.id}:buyer`,
+    });
+    if (!debit.ok) {
+      if (debit.status === "insufficient_funds") return { status: 400, body: { error: "Buyer has insufficient funds" } };
+      return { status: 502, body: { error: debit.error ?? "Wallet provider unavailable" } };
+    }
+  }
+
+  // 2) Atomic completion: flip status, move the item (stock->inventory for
+  // sale/install/give, or un-install for remove), credit the venue + write the
+  // ledger when there's a fee — all or nothing.
   let insertedItem: typeof inventoryItems.$inferSelect | null = null;
-  let stockGuardFailed = false;
+  let removedItem: typeof inventoryItems.$inferSelect | null = null;
+  let completionFailReason: string | null = null;
   let alreadyApproved = false;
   let completionError: unknown = null;
   let venueBalanceAfter = venue.balance;
+  const today = new Date().toISOString().slice(0, 10);
   await db.transaction(async (tx) => {
     const [flipped] = await tx
       .update(saleOffers)
@@ -333,124 +493,186 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
       alreadyApproved = true; // another writer already completed this offer
       return;
     }
-    const [decremented] = await tx
-      .update(stockTable)
-      .set({ quantity: sql`${stockTable.quantity} - ${offer.quantity}` })
-      .where(and(eq(stockTable.id, offer.stockId!), gte(stockTable.quantity, offer.quantity)))
-      .returning();
-    if (!decremented) {
-      stockGuardFailed = true;
-      throw new Error("stock-guard-miss"); // rolls back the flip + everything
+
+    if (offerType === "install") {
+      // Race-safe capacity enforcement. The pre-tx check (above) can pass for two
+      // concurrent approvals against the same near-cap PC. Take a row lock on the
+      // buyer so those approvals serialize, then recompute used CWP *inside* the
+      // tx — the second waiter now sees the first's committed install.
+      await tx.execute(sql`SELECT id FROM ${characters} WHERE ${eq(characters.id, buyer.id)} FOR UPDATE`);
+      const installedRows = await tx
+        .select({ name: inventoryItems.name, notes: inventoryItems.notes, quantity: inventoryItems.quantity })
+        .from(inventoryItems)
+        .where(and(eq(inventoryItems.characterId, buyer.id), eq(inventoryItems.category, "cyberware")));
+      const usedNow = installedRows.reduce((sum, r) => sum + cwpForItem(r), 0);
+      const capNow = checkCwpCapacity({ kind: buyer.kind, used: usedNow, add: (offer.cwp ?? 0) * offer.quantity });
+      if (!capNow.ok) {
+        completionFailReason = capNow.reason ?? "Cyberware capacity exceeded";
+        throw new Error("capacity-guard-miss"); // rolls back the flip + debit
+      }
     }
-    if (decremented.quantity <= 0) {
-      await tx.delete(stockTable).where(eq(stockTable.id, decremented.id));
+
+    if (isRemove) {
+      // Un-install: flip the item out of the "cyberware" category so it stops
+      // counting toward CWP, but keep it in the player's inventory (the default
+      // destination). Guard on the still-installed state for idempotency.
+      const [updated] = await tx
+        .update(inventoryItems)
+        .set({
+          category: "cyberware (removed)",
+          notes: sql`coalesce(${inventoryItems.notes}, '') || ${` · Removed at ${venue.name} on ${today}`}`,
+        })
+        .where(and(
+          eq(inventoryItems.id, offer.removedItemId!),
+          eq(inventoryItems.characterId, buyer.id),
+          eq(inventoryItems.category, "cyberware"),
+        ))
+        .returning();
+      if (!updated) {
+        completionFailReason = "Cyberware to remove was not found (already removed?)";
+        throw new Error("remove-target-miss");
+      }
+      removedItem = updated;
+    } else {
+      // Sale / install / give: pull from stock and drop into the buyer's inventory.
+      const [decremented] = await tx
+        .update(stockTable)
+        .set({ quantity: sql`${stockTable.quantity} - ${offer.quantity}` })
+        .where(and(eq(stockTable.id, offer.stockId!), gte(stockTable.quantity, offer.quantity)))
+        .returning();
+      if (!decremented) {
+        completionFailReason = "Item is out of stock";
+        throw new Error("stock-guard-miss"); // rolls back the flip + everything
+      }
+      if (decremented.quantity <= 0) {
+        await tx.delete(stockTable).where(eq(stockTable.id, decremented.id));
+      }
+      // Install stamps the CWP tag + a category of "cyberware" so the meds cron
+      // and band derivation pick it up. A plain ripperdoc sale/give lands the
+      // product in inventory uninstalled (no CWP tag => 0 CWP until installed).
+      const installNotes = offerType === "install"
+        ? `CWP ${offer.cwp ?? 0} · Installed at ${venue.name} on ${today}`
+        : null;
+      const category = offerType === "install"
+        ? "cyberware"
+        : offer.itemCategory ?? (kind === "ripperdoc" ? "cyberware" : null);
+      const [item] = await tx
+        .insert(inventoryItems)
+        .values({
+          characterId: buyer.id,
+          ownerId: buyer.ownerId,
+          name: offer.itemName,
+          category,
+          quantity: offer.quantity,
+          notes: installNotes,
+          pricePaid: offer.totalPrice,
+          acquiredAt: new Date(),
+        })
+        .returning();
+      insertedItem = item;
     }
-    const [creditedVenue] = await tx
-      .update(venueTable)
-      .set({ balance: sql`${venueTable.balance} + ${offer.totalPrice}` })
-      .where(eq(venueTable.id, venueId))
-      .returning();
-    venueBalanceAfter = creditedVenue.balance;
-    const [item] = await tx
-      .insert(inventoryItems)
-      .values({
-        characterId: buyer.id,
-        ownerId: buyer.ownerId,
-        name: offer.itemName,
-        category: offer.itemCategory ?? (kind === "ripperdoc" ? "cyberware" : null),
-        quantity: offer.quantity,
-        pricePaid: offer.totalPrice,
-        acquiredAt: new Date(),
-      })
-      .returning();
-    insertedItem = item;
-    await tx.insert(walletTransactions).values({
-      [venueColName(kind)]: venueId,
-      characterId: venue.ownerCharacterId ?? null,
-      counterpartyCharacterId: buyer.id,
-      counterpartyName: buyer.name,
-      amount: offer.totalPrice,
-      kind: "shop",
-      source: kind,
-      memo: `Sold ${offer.itemName} x${offer.quantity}`,
-      relatedEntityType: "sale_offer",
-      relatedEntityId: offer.id,
-      previousBalance: venueBalanceAfter - offer.totalPrice,
-      newBalance: venueBalanceAfter,
-    } as never);
+
+    if (hasMoney) {
+      const [creditedVenue] = await tx
+        .update(venueTable)
+        .set({ balance: sql`${venueTable.balance} + ${offer.totalPrice}` })
+        .where(eq(venueTable.id, venueId))
+        .returning();
+      venueBalanceAfter = creditedVenue.balance;
+      const ledgerMemo =
+        offerType === "install" ? `Installed ${offer.itemName}`
+        : offerType === "remove" ? `Removed ${offer.itemName}`
+        : `Sold ${offer.itemName} x${offer.quantity}`;
+      await tx.insert(walletTransactions).values({
+        [venueColName(kind)]: venueId,
+        characterId: venue.ownerCharacterId ?? null,
+        counterpartyCharacterId: buyer.id,
+        counterpartyName: buyer.name,
+        amount: offer.totalPrice,
+        kind: "shop",
+        source: kind,
+        memo: ledgerMemo,
+        relatedEntityType: "sale_offer",
+        relatedEntityId: offer.id,
+        previousBalance: venueBalanceAfter - offer.totalPrice,
+        newBalance: venueBalanceAfter,
+      } as never);
+    }
   }).catch((err) => {
-    // Capture any failure (stock-guard miss OR unexpected error). The tx is
-    // all-or-nothing, so on any throw nothing committed and the buyer debit
-    // (which ran before the tx) must be compensated below.
+    // Capture any failure (guard miss OR unexpected error). The tx is
+    // all-or-nothing, so on any throw nothing committed and a buyer debit
+    // (if one ran before the tx) must be compensated below.
     completionError = err;
   });
 
   if (completionError) {
-    // The completion tx rolled back entirely; the buyer was already debited, so
-    // refund and leave the offer pending. stockGuardFailed only tunes the message.
-    const refund = await applyWalletDelta({
-      userId: buyerUser.id,
-      discordId: buyerUser.discordId,
-      amount: offer.totalPrice,
-      source: kind,
-      kind: "shop_refund",
-      reason: stockGuardFailed
-        ? `Refund: ${offer.itemName} out of stock @ ${venue.name}`
-        : `Refund: sale could not be completed @ ${venue.name}`,
-      characterId: buyer.id,
-      counterpartyName: venue.name,
-      relatedEntityType: "sale_offer",
-      relatedEntityId: offer.id,
-      idempotencyKey: `offer:${offer.id}:buyer-refund`,
-      allowNegative: true,
-    });
-    const reason = stockGuardFailed ? "Item is out of stock" : "Sale could not be completed";
-    if (!refund.ok) {
-      logger.error(
-        { offerId: offer.id, venueId, status: refund.status, err: String(completionError) },
-        "OFFER_REFUND_FAILED: completion failed and buyer refund failed; buyer remains debited, manual reconciliation required",
-      );
-      return { status: 409, body: { error: `${reason}; refund failed — please contact staff.` } };
+    // The completion tx rolled back entirely. Refund only if money actually moved.
+    const reason = completionFailReason ?? "Offer could not be completed";
+    if (hasMoney) {
+      const refund = await applyWalletDelta({
+        userId: buyerUser.id,
+        discordId: buyerUser.discordId,
+        amount: offer.totalPrice,
+        source: kind,
+        kind: "shop_refund",
+        reason: `Refund: ${reason} @ ${venue.name}`,
+        characterId: buyer.id,
+        counterpartyName: venue.name,
+        relatedEntityType: "sale_offer",
+        relatedEntityId: offer.id,
+        idempotencyKey: `offer:${offer.id}:buyer-refund`,
+        allowNegative: true,
+      });
+      if (!refund.ok) {
+        logger.error(
+          { offerId: offer.id, venueId, status: refund.status, err: String(completionError) },
+          "OFFER_REFUND_FAILED: completion failed and buyer refund failed; buyer remains debited, manual reconciliation required",
+        );
+        return { status: 409, body: { error: `${reason}; refund failed — please contact staff.` } };
+      }
+      return { status: 409, body: { error: `${reason}; buyer was refunded.` } };
     }
-    return { status: 409, body: { error: `${reason}; buyer was refunded.` } };
+    return { status: 409, body: { error: reason } };
   }
 
   if (alreadyApproved) {
-    // Our debit landed, but the guarded flip found the offer no longer pending.
+    // Our flip found the offer no longer pending.
     const [fresh] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));
     if (fresh?.status === "approved") {
-      // A concurrent approve completed the sale. Our debit shares the same
+      // A concurrent approve completed it. Any buyer debit shares the same
       // idempotency key, so there was no double-charge — treat as duplicate.
       return { status: 200, body: { offer: fresh, duplicate: true } };
     }
-    // The offer was denied/expired between our debit and the flip. Refund.
-    const refund = await applyWalletDelta({
-      userId: buyerUser.id,
-      discordId: buyerUser.discordId,
-      amount: offer.totalPrice,
-      source: kind,
-      kind: "shop_refund",
-      reason: `Refund: offer ${fresh?.status ?? "resolved"} @ ${venue.name}`,
-      characterId: buyer.id,
-      counterpartyName: venue.name,
-      relatedEntityType: "sale_offer",
-      relatedEntityId: offer.id,
-      idempotencyKey: `offer:${offer.id}:buyer-refund`,
-      allowNegative: true,
-    });
-    if (!refund.ok) {
-      logger.error(
-        { offerId: offer.id, venueId, status: refund.status, offerStatus: fresh?.status },
-        "OFFER_REFUND_FAILED: buyer debited but offer not approved and refund failed; manual reconciliation required",
-      );
-      return { status: 409, body: { error: `Offer was ${fresh?.status ?? "resolved"}; refund failed — please contact staff.` } };
+    // The offer was denied/expired between our debit and the flip. Refund if paid.
+    if (hasMoney) {
+      const refund = await applyWalletDelta({
+        userId: buyerUser.id,
+        discordId: buyerUser.discordId,
+        amount: offer.totalPrice,
+        source: kind,
+        kind: "shop_refund",
+        reason: `Refund: offer ${fresh?.status ?? "resolved"} @ ${venue.name}`,
+        characterId: buyer.id,
+        counterpartyName: venue.name,
+        relatedEntityType: "sale_offer",
+        relatedEntityId: offer.id,
+        idempotencyKey: `offer:${offer.id}:buyer-refund`,
+        allowNegative: true,
+      });
+      if (!refund.ok) {
+        logger.error(
+          { offerId: offer.id, venueId, status: refund.status, offerStatus: fresh?.status },
+          "OFFER_REFUND_FAILED: buyer debited but offer not approved and refund failed; manual reconciliation required",
+        );
+        return { status: 409, body: { error: `Offer was ${fresh?.status ?? "resolved"}; refund failed — please contact staff.` } };
+      }
+      return { status: 409, body: { error: `Offer was already ${fresh?.status ?? "resolved"}; buyer was refunded.` } };
     }
-    return { status: 409, body: { error: `Offer was already ${fresh?.status ?? "resolved"}; buyer was refunded.` } };
+    return { status: 409, body: { error: `Offer was already ${fresh?.status ?? "resolved"}` } };
   }
 
-  // 3) Commission to the selling employee — idempotent and retry-safe. Reserves
-  // the venue side first (so money is never created), then credits the employee;
-  // a credit failure holds the reservation for a later approve to retry.
+  // 3) Commission to the selling employee — idempotent and retry-safe. No-ops
+  // when there's no fee (give / zero-fee removal => commissionAmount 0).
   const settlement = await settleCommission(offer, { balance: venueBalanceAfter, name: venue.name }, kind, venueId);
   const commissionPaid = settlement.commissionPaid;
   venueBalanceAfter = settlement.venueBalanceAfter;
@@ -467,10 +689,32 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
       itemName: offer.itemName,
       quantity: offer.quantity,
       price: offer.totalPrice,
-      reason: `Offer approved at ${venue.name}`,
-      metadata: { venueKind: kind, venueId, venueName: venue.name, offerId: offer.id },
+      reason: offerType === "install" ? `Installed at ${venue.name}` : `Offer approved at ${venue.name}`,
+      metadata: { venueKind: kind, venueId, venueName: venue.name, offerId: offer.id, offerType },
     });
   }
+  if (removedItem) {
+    await recordInventoryEvent({
+      instanceUuid: (removedItem as typeof inventoryItems.$inferSelect).instanceUuid,
+      kind: "adjusted",
+      actorId: actor.id,
+      actorName: actor.username,
+      fromCharacterId: buyer.id,
+      fromCharacterName: buyer.name,
+      itemName: offer.itemName,
+      quantity: 1,
+      price: offer.totalPrice,
+      reason: `Cyberware removed at ${venue.name}`,
+      metadata: { venueKind: kind, venueId, venueName: venue.name, offerId: offer.id, offerType, cwp: offer.cwp },
+    });
+  }
+
+  const verbPast =
+    offerType === "install" ? "had installed"
+    : offerType === "remove" ? "had removed"
+    : offerType === "give" ? "received"
+    : "bought";
+  const priceTail = hasMoney ? `for €$${offer.totalPrice}` : "for free";
   await db.insert(auditLog).values({
     category: "shop",
     action: "sale_offer_approve",
@@ -478,15 +722,17 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
     actorName: actor.username,
     targetType: "sale_offer",
     targetId: String(offer.id),
-    message: `Approved offer: ${offer.itemName} x${offer.quantity} for €$${offer.totalPrice}`,
-    afterJson: { totalPrice: offer.totalPrice, commissionPaid, venueBalanceAfter } as never,
+    message: `Approved ${offerType} offer: ${offer.itemName} x${offer.quantity} ${priceTail}`,
+    afterJson: { offerType, totalPrice: offer.totalPrice, cwp: offer.cwp, commissionPaid, venueBalanceAfter } as never,
   });
   await db.insert(activityEvents).values({
     kind: "transfer",
     actorId: actor.id,
     actorName: actor.username,
     actorAvatarUrl: actor.avatarUrl,
-    message: `${buyer.name} bought ${offer.itemName} x${offer.quantity} from ${venue.name} for €$${offer.totalPrice}`,
+    message: isRemove
+      ? `${buyer.name} ${verbPast} ${offer.itemName} at ${venue.name} ${priceTail}`
+      : `${buyer.name} ${verbPast} ${offer.itemName} x${offer.quantity} ${offerType === "give" ? "from" : offerType === "install" ? "at" : "from"} ${venue.name} ${priceTail}`,
   });
 
   const [finalOffer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));

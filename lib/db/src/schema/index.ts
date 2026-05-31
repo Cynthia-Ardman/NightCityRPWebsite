@@ -585,11 +585,28 @@ export const saleOffers = pgTable("sale_offers", {
   id: serial("id").primaryKey(),
   // "store" | "ripperdoc" — exactly one of storeId/ripperdocId is set.
   kind: text("kind").notNull(),
+  // What the offer does on approval:
+  //   sale    — drop the stock item into the buyer's inventory (default; the
+  //             only thing stores ever do).
+  //   install — ripperdoc only: install the stock item as chrome ON the buyer
+  //             character (stamps "CWP n ·" notes so meds/band stay accurate).
+  //   remove  — ripperdoc only: un-install an existing chrome item from the
+  //             buyer character (references removedItemId, no stock leg).
+  //   give    — transfer the stock item to the buyer for free (totalPrice 0).
+  offerType: text("offer_type").notNull().default("sale"),
   storeId: integer("store_id").references(() => stores.id, { onDelete: "cascade" }),
   ripperdocId: integer("ripperdoc_id").references(() => ripperdocs.id, { onDelete: "cascade" }),
   // The stock row being sold. Kept for decrement; nullable in case the stock
   // row is deleted before approval (then approve fails on the guarded read).
+  // Null for `remove` offers (nothing leaves stock).
   stockId: integer("stock_id"),
+  // Cyberware points this offer adds (install) or removes (remove). Used for
+  // PC capacity validation and for stamping the installed item's notes so the
+  // meds cron keeps deriving the right band. Null for non-cyberware offers.
+  cwp: integer("cwp"),
+  // For `remove` offers: the inventory_items row being un-installed from the
+  // buyer character. Null for every other offer type.
+  removedItemId: integer("removed_item_id"),
   // Snapshot of the item at offer time.
   itemName: text("item_name").notNull(),
   itemCategory: text("item_category"),

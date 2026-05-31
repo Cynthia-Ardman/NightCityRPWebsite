@@ -3,6 +3,21 @@ import { type SaleOffer } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+function typeBadge(offer: SaleOffer) {
+  const t = offer.offerType ?? "sale";
+  if (t === "sale") return null;
+  const cls =
+    t === "install" ? "bg-nc-magenta text-background"
+    : t === "remove" ? "bg-destructive text-destructive-foreground"
+    : "bg-nc-cyan text-background";
+  return (
+    <Badge className={`rounded-none font-mono ${cls}`}>
+      {t.toUpperCase()}
+      {offer.cwp != null ? ` · ${offer.cwp} CWP` : ""}
+    </Badge>
+  );
+}
+
 function statusBadge(status: SaleOffer["status"]) {
   switch (status) {
     case "pending":
@@ -58,9 +73,12 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                     data-testid={`row-venue-offer-${o.id}`}
                   >
                     <td className="p-3">
-                      <div className="text-foreground">
-                        {o.itemName}
-                        {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
+                      <div className="text-foreground flex items-center gap-2 flex-wrap">
+                        <span>
+                          {o.itemName}
+                          {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
+                        </span>
+                        {typeBadge(o)}
                       </div>
                     </td>
                     <td className="p-3 text-muted-foreground whitespace-nowrap">{o.buyerName ?? "—"}</td>

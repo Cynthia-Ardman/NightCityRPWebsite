@@ -16,12 +16,15 @@ import {
   users,
   catalogGuns,
   catalogCyberware,
+  inventoryItems,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 import { logger } from "../lib/logger";
 import { applyWalletDelta } from "../lib/economy";
-import { createOffer } from "../lib/saleOffers";
+import { createOffer, createRemoveOffer } from "../lib/saleOffers";
+import { cwpForItem } from "../lib/cyberware";
+import { checkCwpCapacity } from "../lib/cyberware-cap";
 
 const router: IRouter = Router();
 
@@ -407,6 +410,107 @@ router.post("/ripperdocs/:id/sell", requireAuth, async (req, res): Promise<void>
     actor: req.user!,
   });
   res.status(result.status).json(result.body);
+});
+
+// Install a stock cyberware item onto a character (CWP-validated). Creates an
+// install-type buyer-approval offer; nothing moves until the buyer approves.
+router.post("/ripperdocs/:id/install", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const { stockId, buyerCharacterId, qty, memo, price, cwp } = req.body ?? {};
+  if (!stockId || !buyerCharacterId) {
+    res.status(400).json({ error: "stockId and buyerCharacterId required" });
+    return;
+  }
+  const result = await createOffer({
+    kind: "ripperdoc",
+    venueId,
+    stockId: parseInt(String(stockId), 10),
+    buyerCharacterId: parseInt(String(buyerCharacterId), 10),
+    qty: Math.max(1, Number(qty) || 1),
+    memo,
+    offerType: "install",
+    priceOverride: price != null ? Math.max(0, Number(price) || 0) : null,
+    cwp: cwp != null ? Math.max(0, Number(cwp) || 0) : null,
+    actor: req.user!,
+  });
+  res.status(result.status).json(result.body);
+});
+
+// Give a stock item to a character for free (price forced to 0).
+router.post("/ripperdocs/:id/give", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const { stockId, buyerCharacterId, qty, memo } = req.body ?? {};
+  if (!stockId || !buyerCharacterId) {
+    res.status(400).json({ error: "stockId and buyerCharacterId required" });
+    return;
+  }
+  const result = await createOffer({
+    kind: "ripperdoc",
+    venueId,
+    stockId: parseInt(String(stockId), 10),
+    buyerCharacterId: parseInt(String(buyerCharacterId), 10),
+    qty: Math.max(1, Number(qty) || 1),
+    memo,
+    offerType: "give",
+    actor: req.user!,
+  });
+  res.status(result.status).json(result.body);
+});
+
+// Remove installed cyberware from a character (optional removal fee). The item
+// stays in the player's inventory by default, just no longer counted as CWP.
+router.post("/ripperdocs/:id/remove", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const { removedItemId, buyerCharacterId, fee, memo } = req.body ?? {};
+  if (!removedItemId || !buyerCharacterId) {
+    res.status(400).json({ error: "removedItemId and buyerCharacterId required" });
+    return;
+  }
+  const result = await createRemoveOffer({
+    venueId,
+    removedItemId: parseInt(String(removedItemId), 10),
+    buyerCharacterId: parseInt(String(buyerCharacterId), 10),
+    fee: fee != null ? Math.max(0, Number(fee) || 0) : null,
+    memo,
+    actor: req.user!,
+  });
+  res.status(result.status).json(result.body);
+});
+
+// Capacity + installed-cyberware snapshot for a character (so the clinic UI can
+// show how much CWP a buyer has free before offering an install/remove).
+router.get("/ripperdocs/:id/characters/:characterId/cyberware", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const characterId = parseInt(String(req.params.characterId), 10);
+  const [venue] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, venueId));
+  if (!venue) {
+    res.status(404).json({ error: "Clinic not found" });
+    return;
+  }
+  if (!(await isVenueOperator("ripperdoc", venue, venueId, req.user!))) {
+    res.status(403).json({ error: "Not authorized to operate this clinic" });
+    return;
+  }
+  const [character] = await db.select().from(characters).where(eq(characters.id, characterId));
+  if (!character) {
+    res.status(404).json({ error: "Character not found" });
+    return;
+  }
+  const installed = await db
+    .select()
+    .from(inventoryItems)
+    .where(and(eq(inventoryItems.characterId, characterId), eq(inventoryItems.category, "cyberware")));
+  const used = installed.reduce((sum, it) => sum + cwpForItem(it), 0);
+  const cap = checkCwpCapacity({ kind: character.kind, used, add: 0 });
+  res.json({
+    characterId,
+    characterName: character.name,
+    kind: character.kind,
+    used,
+    max: cap.max,
+    available: cap.available,
+    installed: installed.map((it) => ({ id: it.id, name: it.name, quantity: it.quantity, notes: it.notes, cwp: cwpForItem(it) })),
+  });
 });
 
 // ===== Store-funded catalog stock purchase =====

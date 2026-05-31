@@ -14,6 +14,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Check, X } from "lucide-react";
 
+function typeBadge(offer: SaleOffer) {
+  const t = offer.offerType ?? "sale";
+  if (t === "sale") return null;
+  const cls =
+    t === "install" ? "bg-nc-magenta text-background"
+    : t === "remove" ? "bg-destructive text-destructive-foreground"
+    : "bg-nc-cyan text-background";
+  return (
+    <Badge className={`rounded-none font-mono ${cls}`}>
+      {t.toUpperCase()}
+      {offer.cwp != null ? ` · ${offer.cwp} CWP` : ""}
+    </Badge>
+  );
+}
+
 function statusBadge(status: SaleOffer["status"]) {
   switch (status) {
     case "pending":
@@ -104,9 +119,12 @@ export default function MyOffers() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-display text-lg text-foreground truncate">
-                      {o.itemName}
-                      {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
+                    <div className="font-display text-lg text-foreground truncate flex items-center gap-2">
+                      <span className="truncate">
+                        {o.itemName}
+                        {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
+                      </span>
+                      {typeBadge(o)}
                     </div>
                     <div className="font-mono text-xs text-muted-foreground">
                       {o.itemCategory ? `${o.itemCategory} · ` : ""}
@@ -180,9 +198,12 @@ export default function MyOffers() {
                       data-testid={`row-history-offer-${o.id}`}
                     >
                       <td className="p-3">
-                        <div className="text-foreground">
-                          {o.itemName}
-                          {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
+                        <div className="text-foreground flex items-center gap-2 flex-wrap">
+                          <span>
+                            {o.itemName}
+                            {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
+                          </span>
+                          {typeBadge(o)}
                         </div>
                       </td>
                       <td className="p-3 text-muted-foreground whitespace-nowrap">

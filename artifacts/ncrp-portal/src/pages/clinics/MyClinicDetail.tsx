@@ -23,7 +23,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, DollarSign } from "lucide-react";
 import CatalogPicker from "@/components/CatalogPicker";
-import SellStockDialog from "@/components/SellStockDialog";
+import CyberwareActionDialog from "@/components/CyberwareActionDialog";
+import RemoveCyberwareDialog from "@/components/RemoveCyberwareDialog";
 import PurchaseStockDialog from "@/components/PurchaseStockDialog";
 import VenueOffersPanel from "@/components/VenueOffersPanel";
 import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
@@ -62,6 +63,7 @@ export default function MyClinicDetail() {
   const [stockCategory, setStockCategory] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const [restockOpen, setRestockOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const { data: me } = useAuthMe();
@@ -167,6 +169,15 @@ export default function MyClinicDetail() {
           <div className="flex items-center gap-2">
             <Button
               size="sm"
+              onClick={() => setRemoveOpen(true)}
+              variant="outline"
+              className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display"
+              data-testid="button-open-remove"
+            >
+              <Trash2 className="w-3 h-3 mr-1" /> REMOVE CYBERWARE
+            </Button>
+            <Button
+              size="sm"
               onClick={() => setPurchaseOpen(true)}
               className="rounded-none bg-nc-cyan text-background font-display"
               data-testid="button-open-purchase"
@@ -197,7 +208,7 @@ export default function MyClinicDetail() {
                   className="rounded-none bg-nc-magenta text-background font-display text-xs"
                   data-testid={`button-install-${s.id}`}
                 >
-                  <DollarSign className="w-3 h-3 mr-1" /> INSTALL
+                  <DollarSign className="w-3 h-3 mr-1" /> OFFER
                 </Button>
                 <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: rid, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
               </div>
@@ -239,8 +250,7 @@ export default function MyClinicDetail() {
       <WholesalerOrdersPanel kind="ripperdoc" venueId={rid} />
       <VenueOffersPanel offers={offers ?? []} />
       {sellTarget && (
-        <SellStockDialog
-          kind="ripperdoc"
+        <CyberwareActionDialog
           venueId={rid}
           stock={sellTarget}
           onClose={() => setSellTarget(null)}
@@ -248,6 +258,17 @@ export default function MyClinicDetail() {
             invalidate();
             qc.invalidateQueries({ queryKey: getListRipperdocOffersQueryKey(rid) });
             setSellTarget(null);
+          }}
+        />
+      )}
+      {removeOpen && (
+        <RemoveCyberwareDialog
+          venueId={rid}
+          onClose={() => setRemoveOpen(false)}
+          onDone={() => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: getListRipperdocOffersQueryKey(rid) });
+            setRemoveOpen(false);
           }}
         />
       )}

@@ -51,6 +51,7 @@ import type {
   CatalogRent,
   CatalogRentUpdate,
   Character,
+  CharacterCyberwareStatus,
   CharacterEditSubmission,
   CharacterInput,
   CharacterLifestyleInput,
@@ -66,6 +67,8 @@ import type {
   CustomRequestApproval,
   CustomRequestInput,
   CustomRequestRejection,
+  CyberwareInstallInput,
+  CyberwareRemoveInput,
   DashboardSummary,
   DeactivateCharacter200,
   DeleteTagOption200,
@@ -8711,6 +8714,304 @@ export const useSellRipperdocItem = <TError = ErrorType<void>,
       > => {
       return useMutation(getSellRipperdocItemMutationOptions(options));
     }
+
+export const getInstallRipperdocCyberwareUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/install`
+}
+
+/**
+ * @summary Offer to install stock cyberware onto a character (CWP-validated; buyer must approve)
+ */
+export const installRipperdocCyberware = async (id: number,
+    cyberwareInstallInput: CyberwareInstallInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getInstallRipperdocCyberwareUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      cyberwareInstallInput,)
+  }
+);}
+
+
+
+
+export const getInstallRipperdocCyberwareMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof installRipperdocCyberware>>, TError,{id: number;data: BodyType<CyberwareInstallInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof installRipperdocCyberware>>, TError,{id: number;data: BodyType<CyberwareInstallInput>}, TContext> => {
+
+const mutationKey = ['installRipperdocCyberware'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof installRipperdocCyberware>>, {id: number;data: BodyType<CyberwareInstallInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  installRipperdocCyberware(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InstallRipperdocCyberwareMutationResult = NonNullable<Awaited<ReturnType<typeof installRipperdocCyberware>>>
+    export type InstallRipperdocCyberwareMutationBody = BodyType<CyberwareInstallInput>
+    export type InstallRipperdocCyberwareMutationError = ErrorType<void>
+
+    /**
+ * @summary Offer to install stock cyberware onto a character (CWP-validated; buyer must approve)
+ */
+export const useInstallRipperdocCyberware = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof installRipperdocCyberware>>, TError,{id: number;data: BodyType<CyberwareInstallInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof installRipperdocCyberware>>,
+        TError,
+        {id: number;data: BodyType<CyberwareInstallInput>},
+        TContext
+      > => {
+      return useMutation(getInstallRipperdocCyberwareMutationOptions(options));
+    }
+
+export const getGiveRipperdocItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/give`
+}
+
+/**
+ * @summary Offer to give a stock item to a character for free (buyer must approve)
+ */
+export const giveRipperdocItem = async (id: number,
+    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getGiveRipperdocItemUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      storeSaleInput,)
+  }
+);}
+
+
+
+
+export const getGiveRipperdocItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveRipperdocItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof giveRipperdocItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext> => {
+
+const mutationKey = ['giveRipperdocItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof giveRipperdocItem>>, {id: number;data: BodyType<StoreSaleInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  giveRipperdocItem(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GiveRipperdocItemMutationResult = NonNullable<Awaited<ReturnType<typeof giveRipperdocItem>>>
+    export type GiveRipperdocItemMutationBody = BodyType<StoreSaleInput>
+    export type GiveRipperdocItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Offer to give a stock item to a character for free (buyer must approve)
+ */
+export const useGiveRipperdocItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveRipperdocItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof giveRipperdocItem>>,
+        TError,
+        {id: number;data: BodyType<StoreSaleInput>},
+        TContext
+      > => {
+      return useMutation(getGiveRipperdocItemMutationOptions(options));
+    }
+
+export const getRemoveRipperdocCyberwareUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/remove`
+}
+
+/**
+ * @summary Offer to uninstall cyberware from a character (optional fee; buyer must approve)
+ */
+export const removeRipperdocCyberware = async (id: number,
+    cyberwareRemoveInput: CyberwareRemoveInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getRemoveRipperdocCyberwareUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      cyberwareRemoveInput,)
+  }
+);}
+
+
+
+
+export const getRemoveRipperdocCyberwareMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeRipperdocCyberware>>, TError,{id: number;data: BodyType<CyberwareRemoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeRipperdocCyberware>>, TError,{id: number;data: BodyType<CyberwareRemoveInput>}, TContext> => {
+
+const mutationKey = ['removeRipperdocCyberware'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeRipperdocCyberware>>, {id: number;data: BodyType<CyberwareRemoveInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  removeRipperdocCyberware(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveRipperdocCyberwareMutationResult = NonNullable<Awaited<ReturnType<typeof removeRipperdocCyberware>>>
+    export type RemoveRipperdocCyberwareMutationBody = BodyType<CyberwareRemoveInput>
+    export type RemoveRipperdocCyberwareMutationError = ErrorType<void>
+
+    /**
+ * @summary Offer to uninstall cyberware from a character (optional fee; buyer must approve)
+ */
+export const useRemoveRipperdocCyberware = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeRipperdocCyberware>>, TError,{id: number;data: BodyType<CyberwareRemoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeRipperdocCyberware>>,
+        TError,
+        {id: number;data: BodyType<CyberwareRemoveInput>},
+        TContext
+      > => {
+      return useMutation(getRemoveRipperdocCyberwareMutationOptions(options));
+    }
+
+export const getGetCharacterCyberwareUrl = (id: number,
+    characterId: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/characters/${characterId}/cyberware`
+}
+
+/**
+ * @summary CWP capacity + installed cyberware for a character (clinic operators only)
+ */
+export const getCharacterCyberware = async (id: number,
+    characterId: number, options?: RequestInit): Promise<CharacterCyberwareStatus> => {
+
+  return customFetch<CharacterCyberwareStatus>(getGetCharacterCyberwareUrl(id,characterId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCharacterCyberwareQueryKey = (id: number,
+    characterId: number,) => {
+    return [
+    `/api/ripperdocs/${id}/characters/${characterId}/cyberware`
+    ] as const;
+    }
+
+
+export const getGetCharacterCyberwareQueryOptions = <TData = Awaited<ReturnType<typeof getCharacterCyberware>>, TError = ErrorType<void>>(id: number,
+    characterId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCharacterCyberware>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCharacterCyberwareQueryKey(id,characterId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCharacterCyberware>>> = ({ signal }) => getCharacterCyberware(id,characterId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id && characterId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCharacterCyberware>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCharacterCyberwareQueryResult = NonNullable<Awaited<ReturnType<typeof getCharacterCyberware>>>
+export type GetCharacterCyberwareQueryError = ErrorType<void>
+
+
+/**
+ * @summary CWP capacity + installed cyberware for a character (clinic operators only)
+ */
+
+export function useGetCharacterCyberware<TData = Awaited<ReturnType<typeof getCharacterCyberware>>, TError = ErrorType<void>>(
+ id: number,
+    characterId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCharacterCyberware>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCharacterCyberwareQueryOptions(id,characterId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getPurchaseRipperdocStockUrl = (id: number,) => {
 
