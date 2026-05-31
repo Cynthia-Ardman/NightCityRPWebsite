@@ -114,6 +114,7 @@ import type {
   ListPublicCharactersParams,
   ListWholesalerItemsParams,
   ListWholesalerOrdersParams,
+  ListingHistory,
   LiveModeState,
   LiveModeUpdate,
   Me,
@@ -3586,6 +3587,83 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getVacateHousingMutationOptions(options));
     }
+
+export const getGetListingHistoryUrl = (id: number,) => {
+
+
+
+
+  return `/api/housing/listings/${id}/history`
+}
+
+/**
+ * @summary Staff-only payment + occupancy/ownership history for a catalog listing.
+ */
+export const getListingHistory = async (id: number, options?: RequestInit): Promise<ListingHistory> => {
+
+  return customFetch<ListingHistory>(getGetListingHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetListingHistoryQueryKey = (id: number,) => {
+    return [
+    `/api/housing/listings/${id}/history`
+    ] as const;
+    }
+
+
+export const getGetListingHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getListingHistory>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getListingHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetListingHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getListingHistory>>> = ({ signal }) => getListingHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getListingHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetListingHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getListingHistory>>>
+export type GetListingHistoryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Staff-only payment + occupancy/ownership history for a catalog listing.
+ */
+
+export function useGetListingHistory<TData = Awaited<ReturnType<typeof getListingHistory>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getListingHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetListingHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListMyStoresUrl = () => {
 

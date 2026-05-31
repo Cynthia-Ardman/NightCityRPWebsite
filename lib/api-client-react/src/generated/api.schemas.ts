@@ -1782,6 +1782,75 @@ export interface HousingLeaseUpdate {
   monthlyRent?: number;
 }
 
+/**
+ * @nullable
+ */
+export type ListingHistoryListingKind = typeof ListingHistoryListingKind[keyof typeof ListingHistoryListingKind] | null;
+
+
+export const ListingHistoryListingKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
+export type ListingHistoryListing = {
+  id: number;
+  name: string;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+  monthlyRent: number;
+  /** @nullable */
+  kind?: ListingHistoryListingKind;
+};
+
+export type ListingHistoryCurrentTenant = {
+  housingId: number;
+  characterId: number;
+  characterName: string;
+  /** @nullable */
+  ownerId?: string | null;
+  /** @nullable */
+  ownerName?: string | null;
+  monthlyRent: number;
+  kind: 'residential' | 'business';
+  /** @nullable */
+  paidThrough?: string | null;
+  /** @nullable */
+  delinquentSince?: string | null;
+  since: string;
+} | null;
+
+export type ListingHistoryPaymentsItem = {
+  id: number;
+  amount: number;
+  kind: string;
+  /** @nullable */
+  memo?: string | null;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  date: string;
+};
+
+export type ListingHistoryTimelineItem = {
+  id: number;
+  kind: string;
+  message: string;
+  /** @nullable */
+  actorName?: string | null;
+  date: string;
+};
+
+export interface ListingHistory {
+  listing: ListingHistoryListing;
+  currentTenant: ListingHistoryCurrentTenant;
+  payments: ListingHistoryPaymentsItem[];
+  timeline: ListingHistoryTimelineItem[];
+}
+
 export interface FixerNpc {
   id: number;
   name: string;

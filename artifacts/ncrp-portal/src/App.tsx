@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthMe } from "@/hooks/useAuthMe";
 
+import { ViewAsProvider } from "@/contexts/ViewAsContext";
 import AppLayout from "@/components/layout/AppLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import NotFound from "@/pages/not-found";
@@ -164,10 +165,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AppRoutes />
-        </WouterRouter>
-        <Toaster />
+        <ViewAsProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <AppRoutes />
+          </WouterRouter>
+          <Toaster />
+        </ViewAsProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -1,15 +1,14 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useListCustomRequests, getListCustomRequestsQueryKey, useListPendingSheets, getListPendingSheetsQueryKey } from "@workspace/api-client-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase, Search, Receipt, ClipboardList, ShoppingBag } from "lucide-react";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Search, Receipt, ClipboardList, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ViewAsControl, ViewAsBanner } from "@/components/layout/ViewAsControl";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
-  const { data: user } = useAuthMe();
-  
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-background">
       {/* Mobile Header */}
@@ -35,6 +34,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar />
+        <ViewAsBanner />
         <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
           {children}
         </main>
@@ -44,7 +44,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 }
 
 function SidebarContent() {
-  const { data: user } = useAuthMe();
+  const { data: user } = useEffectiveMe();
   const [location] = useLocation();
   const { data: offers } = useListMyOffers({ query: { enabled: !!user, queryKey: getListMyOffersQueryKey() } });
   const pendingOffers = (offers ?? []).filter((o) => o.status === "pending").length;
@@ -169,7 +169,7 @@ function SidebarContent() {
 }
 
 function TopBar() {
-  const { data: user } = useAuthMe();
+  const { data: user } = useEffectiveMe();
   // Eddies live on the Discord account via Unbelievaboat, not per-character —
   // so the pill is keyed off the user, not the active PC.
   const { data: wallet } = useGetMyWallet({ query: { enabled: !!user, queryKey: getGetMyWalletQueryKey() } });
@@ -177,7 +177,7 @@ function TopBar() {
   return (
     <div className="h-16 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between px-4 md:px-8">
       <div className="flex items-center gap-4">
-        {/* Breadcrumbs or page title could go here */}
+        <ViewAsControl />
       </div>
 
       <div className="flex items-center gap-6">

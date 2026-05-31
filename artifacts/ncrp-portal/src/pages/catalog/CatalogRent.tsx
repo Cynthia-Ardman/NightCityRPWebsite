@@ -9,7 +9,11 @@ import {
   useListMyHousingRequests,
   useListLifestyleTiers,
   useUpdateRentListing,
+  useGetListingHistory,
+  useAdminListCharacters,
+  getAdminListCharactersQueryKey,
   getListRentListingsQueryKey,
+  getGetListingHistoryQueryKey,
   getListMyCustomRequestsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,8 +23,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Home, ImageIcon, ImagePlus, Upload, Briefcase, UserMinus } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { X, Home, ImageIcon, ImagePlus, Upload, Briefcase, UserMinus, History, UserPlus, Receipt, Clock } from "lucide-react";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 import { uploadImage } from "@/lib/uploadImage";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
@@ -95,13 +100,19 @@ function businessBuilding(description?: string | null): string | null {
 
 export default function CatalogRent() {
   const { data, isLoading } = useListRentListings();
-  const { data: me } = useAuthMe();
+  const { data: me, realIsAdmin, viewAs } = useEffectiveMe();
   const isStaff = !!(me?.isAdmin || me?.isFixer);
+  // Assign/remove a listing to a character is a real-admin action. It stays
+  // hidden while previewing a lower role (override active) so the preview is
+  // faithful — the backend gates it anyway.
+  const canAdminAssign = realIsAdmin && !viewAs;
   const qc = useQueryClient();
   const { toast } = useToast();
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [leaseTarget, setLeaseTarget] = useState<Listing | null>(null);
+  // The listing whose history/admin modal is open (staff click on a row).
+  const [historyTarget, setHistoryTarget] = useState<Listing | null>(null);
 
   // Staff-only: remove the current occupant from a listing (ends their lease).
   const vacate = useVacateHousing({
@@ -355,8 +366,13 @@ export default function CatalogRent() {
                   {businesses.map((r) => {
                     const building = businessBuilding(r.description);
                     return (
-                      <tr key={r.id} className="border-b border-border/30 hover:bg-card/80 align-top" data-testid={`row-rent-${r.id}`}>
-                        <td className="p-3">
+                      <tr
+                        key={r.id}
+                        className={`border-b border-border/30 hover:bg-card/80 align-top ${isStaff ? "cursor-pointer" : ""}`}
+                        data-testid={`row-rent-${r.id}`}
+                        onClick={isStaff ? () => setHistoryTarget(r) : undefined}
+                      >
+                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
                           <ListingImage
                             src={r.imageUrl}
                             alt={r.name}
@@ -372,6 +388,7 @@ export default function CatalogRent() {
                             href="/directory/stores"
                             className="hover:text-nc-cyan hover:underline transition-colors cursor-pointer"
                             data-testid={`link-business-${r.id}`}
+                            onClick={(e) => e.stopPropagation()}
                           >
                             {r.name}
                           </Link>
@@ -380,7 +397,7 @@ export default function CatalogRent() {
                         <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
                         <td className="p-3 uppercase">{tierLabel(r.tier) ?? "—"}</td>
                         <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
-                        <td className="p-3 text-right">{renderAction(r)}</td>
+                        <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>{renderAction(r)}</td>
                       </tr>
                     );
                   })}
@@ -447,13 +464,14 @@ export default function CatalogRent() {
                               return (
                                 <tr
                                   key={r.id}
-                                  className="border-b border-border/30 hover:bg-card/80"
+                                  className={`border-b border-border/30 hover:bg-card/80 ${isStaff ? "cursor-pointer" : ""}`}
                                   data-testid={`row-rent-${r.id}`}
+                                  onClick={isStaff ? () => setHistoryTarget(r) : undefined}
                                 >
                                   <td className="p-3 font-bold">{unit ?? "—"}</td>
                                   <td className="p-3 uppercase">{tierLabel(r.tier) ?? "—"}</td>
                                   <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
-                                  <td className="p-3 text-right">{renderAction(r)}</td>
+                                  <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>{renderAction(r)}</td>
                                 </tr>
                               );
                             })}
@@ -484,7 +502,236 @@ export default function CatalogRent() {
           onDone={() => setLeaseTarget(null)}
         />
       ) : null}
+      {historyTarget && (
+        <PropertyHistoryDialog
+          listing={historyTarget}
+          canAdminAssign={canAdminAssign}
+          onClose={() => setHistoryTarget(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Staff-only modal opened by clicking a listing row. Shows the rent ledger and
+// a best-effort occupancy/ownership timeline for the property. Real admins
+// (when not previewing a role) also get an assign/remove panel.
+function PropertyHistoryDialog({
+  listing,
+  canAdminAssign,
+  onClose,
+}: {
+  listing: Listing;
+  canAdminAssign: boolean;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: history, isLoading } = useGetListingHistory(listing.id);
+  const [assignId, setAssignId] = useState<string>("");
+
+  // Character picker source (admin-only endpoint). Only fetched when the
+  // assign panel is actually available.
+  const { data: characters } = useAdminListCharacters({
+    query: { enabled: canAdminAssign, queryKey: getAdminListCharactersQueryKey() },
+  });
+
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: getGetListingHistoryQueryKey(listing.id) });
+    void qc.invalidateQueries({ queryKey: getListRentListingsQueryKey() });
+  };
+
+  const lease = useLeaseHousing({
+    mutation: {
+      onSuccess: () => {
+        refresh();
+        setAssignId("");
+        toast({ title: "Listing assigned" });
+      },
+      onError: () => toast({ title: "Could not assign listing", variant: "destructive" }),
+    },
+  });
+
+  const vacate = useVacateHousing({
+    mutation: {
+      onSuccess: () => {
+        refresh();
+        toast({ title: "Occupant removed" });
+      },
+      onError: () => toast({ title: "Could not remove occupant", variant: "destructive" }),
+    },
+  });
+
+  const tenant = history?.currentTenant ?? null;
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="rounded-none border-border bg-card max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display tracking-widest text-nc-cyan flex items-center gap-2">
+            <History className="w-5 h-5" /> {listing.name}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs">
+            {[listing.district, tierLabel(listing.tier), `${listing.monthlyRent.toLocaleString()} €$/mo`]
+              .filter(Boolean)
+              .join(" • ")}
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="text-nc-cyan font-display animate-pulse py-8 text-center">LOADING...</div>
+        ) : (
+          <div className="space-y-6">
+            {/* Current tenant */}
+            <section>
+              <h3 className="font-display tracking-widest text-nc-yellow text-sm mb-2">CURRENT OCCUPANT</h3>
+              {tenant ? (
+                <div className="font-mono text-sm border border-border p-3 space-y-1" data-testid="history-current-tenant">
+                  <div className="text-foreground font-bold">{tenant.characterName}</div>
+                  {tenant.ownerName && <div className="text-muted-foreground text-xs">Owner: {tenant.ownerName}</div>}
+                  <div className="text-muted-foreground text-xs">Since {fmt(tenant.since)}</div>
+                  {tenant.paidThrough && (
+                    <div className="text-muted-foreground text-xs">Paid through {fmt(tenant.paidThrough)}</div>
+                  )}
+                  {tenant.delinquentSince && (
+                    <div className="text-destructive text-xs">Delinquent since {fmt(tenant.delinquentSince)}</div>
+                  )}
+                </div>
+              ) : (
+                <div className="font-mono text-sm text-muted-foreground">Vacant.</div>
+              )}
+            </section>
+
+            {/* Admin assign / remove */}
+            {canAdminAssign && (
+              <section className="border border-nc-cyan/30 p-3 space-y-3" data-testid="history-admin-panel">
+                <h3 className="font-display tracking-widest text-nc-cyan text-sm flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" /> ADMIN ASSIGN
+                </h3>
+                {tenant ? (
+                  <div className="flex items-center justify-between gap-3 font-mono text-sm">
+                    <span className="text-muted-foreground">
+                      Assigned to <span className="text-foreground">{tenant.characterName}</span>.
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={vacate.isPending}
+                      className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display text-xs"
+                      onClick={() => {
+                        if (window.confirm(`Remove ${tenant.characterName} from ${listing.name}? This ends their lease.`)) {
+                          vacate.mutate({ id: tenant.housingId });
+                        }
+                      }}
+                      data-testid="history-button-remove"
+                    >
+                      <UserMinus className="w-3 h-3 mr-1" /> REMOVE
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Character</Label>
+                      <Select value={assignId} onValueChange={setAssignId}>
+                        <SelectTrigger className="rounded-none font-mono text-xs" data-testid="history-select-character">
+                          <SelectValue placeholder="Select character..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(characters ?? [])
+                            .filter((c) => !c.archived)
+                            .map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.name}
+                                {c.ownerName ? ` — ${c.ownerName}` : ""}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!assignId || lease.isPending}
+                      className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
+                      onClick={() =>
+                        lease.mutate({
+                          data: {
+                            catalogRentId: listing.id,
+                            characterId: parseInt(assignId, 10),
+                            kind: isBusinessListing(listing) ? "business" : "residential",
+                          },
+                        })
+                      }
+                      data-testid="history-button-assign"
+                    >
+                      <UserPlus className="w-3 h-3 mr-1" /> ASSIGN
+                    </Button>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Payment history */}
+            <section>
+              <h3 className="font-display tracking-widest text-nc-yellow text-sm mb-2 flex items-center gap-2">
+                <Receipt className="w-4 h-4" /> PAYMENT HISTORY
+              </h3>
+              {history && history.payments.length > 0 ? (
+                <div className="border border-border divide-y divide-border/40" data-testid="history-payments">
+                  {history.payments.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between gap-3 p-2 font-mono text-xs">
+                      <div className="min-w-0">
+                        <div className="text-foreground truncate">{p.memo ?? p.kind}</div>
+                        <div className="text-muted-foreground">
+                          {fmt(p.date)}
+                          {p.characterName ? ` • ${p.characterName}` : ""}
+                        </div>
+                      </div>
+                      <div className={p.amount < 0 ? "text-destructive" : "text-nc-yellow"}>
+                        {p.amount.toLocaleString()} €$
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="font-mono text-sm text-muted-foreground">No payments on record for this listing.</div>
+              )}
+            </section>
+
+            {/* Occupancy / ownership timeline */}
+            <section>
+              <h3 className="font-display tracking-widest text-nc-yellow text-sm mb-2 flex items-center gap-2">
+                <Clock className="w-4 h-4" /> OCCUPANCY &amp; OWNERSHIP
+              </h3>
+              {history && history.timeline.length > 0 ? (
+                <div className="border-l border-border/60 pl-3 space-y-3" data-testid="history-timeline">
+                  {history.timeline.map((e) => (
+                    <div key={e.id} className="font-mono text-xs">
+                      <div className="text-muted-foreground">{fmt(e.date)}</div>
+                      <div className="text-foreground">{e.message}</div>
+                      {e.actorName && <div className="text-muted-foreground/70">by {e.actorName}</div>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="font-mono text-sm text-muted-foreground">
+                  No recorded occupancy or ownership events.
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -1016,6 +1016,53 @@ export const VacateHousingParams = zod.object({
 
 
 /**
+ * @summary Staff-only payment + occupancy/ownership history for a catalog listing.
+ */
+export const GetListingHistoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetListingHistoryResponse = zod.object({
+  "listing": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "kind": zod.union([zod.literal('residential'),zod.literal('business'),zod.literal(null)]).nullish()
+}),
+  "currentTenant": zod.union([zod.object({
+  "housingId": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "ownerId": zod.string().nullish(),
+  "ownerName": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "kind": zod.enum(['residential', 'business']),
+  "paidThrough": zod.coerce.date().nullish(),
+  "delinquentSince": zod.coerce.date().nullish(),
+  "since": zod.coerce.date()
+}),zod.null()]),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "kind": zod.string(),
+  "memo": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "date": zod.coerce.date()
+})),
+  "timeline": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.string(),
+  "message": zod.string(),
+  "actorName": zod.string().nullish(),
+  "date": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary Stores I own or am employed at
  */
 export const listMyStoresResponseEmployeesItemCommissionPctMin = 0;

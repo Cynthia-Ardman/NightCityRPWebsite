@@ -738,6 +738,21 @@ paths:
       responses:
         "204": { description: Vacated }
         "404": { description: Not found }
+  /housing/listings/{id}/history:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getListingHistory
+      tags: [housing]
+      summary: "Staff-only payment + occupancy/ownership history for a catalog listing."
+      responses:
+        "200":
+          description: Listing history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListingHistory" }
+        "403": { description: Staff only }
+        "404": { description: Not found }
 
   # ---------------- STORE MANAGEMENT (owner/employee) ----------------
   /stores/mine:
@@ -4146,6 +4161,61 @@ components:
           enum: [residential, business]
         notes: { type: ["string", "null"] }
         monthlyRent: { type: integer, minimum: 0 }
+
+    ListingHistory:
+      type: object
+      required: [listing, currentTenant, payments, timeline]
+      properties:
+        listing:
+          type: object
+          required: [id, name, monthlyRent]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            district: { type: ["string", "null"] }
+            tier: { type: ["string", "null"] }
+            monthlyRent: { type: integer }
+            kind: { type: ["string", "null"], enum: [residential, business, null] }
+        currentTenant:
+          oneOf:
+            - type: object
+              required: [housingId, characterId, characterName, monthlyRent, kind, since]
+              properties:
+                housingId: { type: integer }
+                characterId: { type: integer }
+                characterName: { type: string }
+                ownerId: { type: ["string", "null"] }
+                ownerName: { type: ["string", "null"] }
+                monthlyRent: { type: integer }
+                kind: { type: string, enum: [residential, business] }
+                paidThrough: { type: ["string", "null"], format: date-time }
+                delinquentSince: { type: ["string", "null"], format: date-time }
+                since: { type: string, format: date-time }
+            - type: "null"
+        payments:
+          type: array
+          items:
+            type: object
+            required: [id, amount, kind, date]
+            properties:
+              id: { type: integer }
+              amount: { type: integer }
+              kind: { type: string }
+              memo: { type: ["string", "null"] }
+              characterId: { type: ["integer", "null"] }
+              characterName: { type: ["string", "null"] }
+              date: { type: string, format: date-time }
+        timeline:
+          type: array
+          items:
+            type: object
+            required: [id, kind, message, date]
+            properties:
+              id: { type: integer }
+              kind: { type: string }
+              message: { type: string }
+              actorName: { type: ["string", "null"] }
+              date: { type: string, format: date-time }
 
     FixerNpc:
       type: object

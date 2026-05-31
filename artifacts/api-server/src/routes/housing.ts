@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { and, eq, sql } from "drizzle-orm";
-import { db, housing, characters, catalogRent, activityEvents, characterUpdates, housingRequests, users } from "@workspace/db";
+import { and, eq, sql, ilike, inArray, desc } from "drizzle-orm";
+import { db, housing, characters, catalogRent, activityEvents, characterUpdates, housingRequests, users, walletTransactions } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 
@@ -114,6 +114,148 @@ router.get("/characters/:id/housing", requireAuth, async (req, res): Promise<voi
   }
   const rows = await selectLeasesWhere(eq(housing.characterId, cid));
   res.json(rows.map(shape));
+});
+
+// Staff-only audit view for a single catalog listing. Returns the listing
+// summary, the CURRENT tenant (the housing row only tracks one), the rent
+// ledger entries tied to it, and a best-effort occupancy/ownership timeline.
+//
+// Best-effort notes:
+// - Payments: matched by the listing name appearing in the wallet_transactions
+//   memo. The monthly_rent / shop-income jobs write "<label>: <address>" and
+//   "Shop income: <address>", where <address> starts with the listing name.
+//   Legacy bot balance_history rent rows are NOT included — they carry no
+//   property reference and can't be attributed to a listing.
+// - Timeline: reconstructed from activity_events whose message names this
+//   listing (lease/vacate/request/approve/reject/delinquent). Past occupancy
+//   isn't stored, so this feed is the only source of who lived here before.
+router.get("/housing/listings/:id/history", requireAuth, async (req, res): Promise<void> => {
+  if (!isFixerOrAdmin(req.user!)) {
+    res.status(403).json({ error: "Staff only" });
+    return;
+  }
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid listing id" });
+    return;
+  }
+  const [listing] = await db.select().from(catalogRent).where(eq(catalogRent.id, id));
+  if (!listing) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+  // Escape LIKE wildcards so a name containing % or _ doesn't overmatch the
+  // best-effort memo/message search.
+  const namePattern = `%${listing.name.replace(/([%_\\])/g, "\\$1")}%`;
+
+  const [tenantRow, paymentRows, eventRows] = await Promise.all([
+    // Current occupant of this listing (single-unit, so at most one).
+    db
+      .select({
+        housingId: housing.id,
+        characterId: housing.characterId,
+        characterName: characters.name,
+        ownerId: characters.ownerId,
+        ownerName: users.username,
+        monthlyRent: housing.monthlyRent,
+        kind: housing.kind,
+        paidThrough: housing.paidThrough,
+        delinquentSince: housing.delinquentSince,
+        since: housing.createdAt,
+      })
+      .from(housing)
+      .innerJoin(characters, eq(characters.id, housing.characterId))
+      .leftJoin(users, eq(users.id, characters.ownerId))
+      .where(eq(housing.listingId, id))
+      .limit(1),
+    // Rent / shop-income ledger rows whose memo references this listing.
+    db
+      .select({
+        id: walletTransactions.id,
+        amount: walletTransactions.amount,
+        kind: walletTransactions.kind,
+        memo: walletTransactions.memo,
+        characterId: walletTransactions.characterId,
+        characterName: characters.name,
+        createdAt: walletTransactions.createdAt,
+      })
+      .from(walletTransactions)
+      .leftJoin(characters, eq(characters.id, walletTransactions.characterId))
+      .where(
+        and(
+          inArray(walletTransactions.kind, ["rent", "business_rent", "shop_income"]),
+          ilike(walletTransactions.memo, namePattern),
+        ),
+      )
+      .orderBy(desc(walletTransactions.createdAt))
+      .limit(200),
+    // Occupancy / ownership timeline from the activity feed (best-effort).
+    db
+      .select({
+        id: activityEvents.id,
+        kind: activityEvents.kind,
+        message: activityEvents.message,
+        actorName: activityEvents.actorName,
+        createdAt: activityEvents.createdAt,
+      })
+      .from(activityEvents)
+      .where(
+        and(
+          inArray(activityEvents.kind, [
+            "transfer",
+            "housing_request",
+            "housing_approved",
+            "housing_rejected",
+            "housing_delinquent",
+          ]),
+          ilike(activityEvents.message, namePattern),
+        ),
+      )
+      .orderBy(desc(activityEvents.createdAt))
+      .limit(200),
+  ]);
+
+  const tenant = tenantRow[0];
+  res.json({
+    listing: {
+      id: listing.id,
+      name: listing.name,
+      district: listing.district,
+      tier: listing.tier,
+      monthlyRent: listing.monthlyRent,
+      kind: listing.kind,
+    },
+    currentTenant: tenant
+      ? {
+          housingId: tenant.housingId,
+          characterId: tenant.characterId,
+          characterName: tenant.characterName,
+          ownerId: tenant.ownerId,
+          ownerName: tenant.ownerName ?? null,
+          monthlyRent: tenant.monthlyRent,
+          kind: tenant.kind,
+          paidThrough: tenant.paidThrough ? tenant.paidThrough.toISOString() : null,
+          delinquentSince: tenant.delinquentSince ? tenant.delinquentSince.toISOString() : null,
+          since: tenant.since.toISOString(),
+        }
+      : null,
+    payments: paymentRows.map((p) => ({
+      id: p.id,
+      amount: p.amount,
+      kind: p.kind,
+      memo: p.memo ?? null,
+      characterId: p.characterId ?? null,
+      characterName: p.characterName ?? null,
+      date: p.createdAt.toISOString(),
+    })),
+    timeline: eventRows.map((e) => ({
+      id: e.id,
+      kind: e.kind,
+      message: e.message,
+      actorName: e.actorName ?? null,
+      date: e.createdAt.toISOString(),
+    })),
+  });
 });
 
 router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
