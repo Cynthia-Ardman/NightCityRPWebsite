@@ -103,6 +103,15 @@ describe("SheetDetail approval decisions", () => {
     expect(screen.queryByTestId("input-decision-note")).toBeNull();
   });
 
+  it("hides the decision panel from an approver who submitted the sheet", () => {
+    h.state.me = { id: 999, isCsApprover: true, isAdmin: false, isFixer: false };
+    render(<SheetDetail />);
+
+    expect(screen.queryByTestId("button-approve")).toBeNull();
+    expect(screen.queryByTestId("input-decision-note")).toBeNull();
+    expect(screen.getByTestId("text-self-review-blocked")).toBeInTheDocument();
+  });
+
   it("hides the decision panel once the sheet is no longer pending", () => {
     h.state.status = "approved";
     render(<SheetDetail />);

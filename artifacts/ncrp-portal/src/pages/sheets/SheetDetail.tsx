@@ -88,6 +88,26 @@ export default function SheetDetail() {
   const appearance = String(data.appearance ?? "");
   const psychProfile = String(data.psychProfile ?? "");
 
+  // Images submitted with the sheet so the reviewer can actually see the
+  // character. Portraits combine the gallery (portraitUrls) with the single
+  // profile image; stat screenshots are shown separately. De-duped so the same
+  // URL isn't rendered twice.
+  const portraitImages = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(data.portraitUrls) ? (data.portraitUrls as unknown[]).map(String) : []),
+        ...(typeof data.profileUrl === "string" ? [data.profileUrl] : []),
+      ].filter((u) => u && u.trim()),
+    ),
+  );
+  const statsImages = Array.from(
+    new Set(
+      (Array.isArray(data.statsImageUrls) ? (data.statsImageUrls as unknown[]).map(String) : []).filter(
+        (u) => u && u.trim(),
+      ),
+    ),
+  );
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
       <div className="flex items-start justify-between gap-4">
@@ -119,6 +139,50 @@ export default function SheetDetail() {
           ))}
         </CardContent>
       </Card>
+
+      {(portraitImages.length > 0 || statsImages.length > 0) && (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardHeader><CardTitle className="font-display tracking-widest">SUBMITTED IMAGES</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            {portraitImages.length > 0 && (
+              <div>
+                <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Portraits</p>
+                <div className="flex flex-wrap gap-3">
+                  {portraitImages.map((url, i) => (
+                    <a key={url} href={url} target="_blank" rel="noopener noreferrer" data-testid={`link-sheet-portrait-${i}`}>
+                      <img
+                        src={url}
+                        alt={`Portrait ${i + 1}`}
+                        loading="lazy"
+                        className="h-40 w-40 object-cover border border-border hover:border-nc-cyan transition-colors"
+                        data-testid={`img-sheet-portrait-${i}`}
+                      />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            {statsImages.length > 0 && (
+              <div>
+                <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Stat Screenshots</p>
+                <div className="flex flex-wrap gap-3">
+                  {statsImages.map((url, i) => (
+                    <a key={url} href={url} target="_blank" rel="noopener noreferrer" data-testid={`link-sheet-stats-${i}`}>
+                      <img
+                        src={url}
+                        alt={`Stats ${i + 1}`}
+                        loading="lazy"
+                        className="max-h-80 w-auto object-contain border border-border hover:border-nc-cyan transition-colors"
+                        data-testid={`img-sheet-stats-${i}`}
+                      />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">OCCUPATION / ROLE</CardTitle></CardHeader>
@@ -219,7 +283,15 @@ export default function SheetDetail() {
         </CardContent>
       </Card>
 
-      {me?.isCsApprover && sheet.status === "pending" && (
+      {me?.isCsApprover && sheet.status === "pending" && isOwner && (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardContent className="font-mono text-sm text-muted-foreground py-4" data-testid="text-self-review-blocked">
+            You submitted this sheet, so another reviewer must approve it.
+          </CardContent>
+        </Card>
+      )}
+
+      {me?.isCsApprover && sheet.status === "pending" && !isOwner && (
         <Card className="rounded-none border-nc-yellow bg-card/50">
           <CardHeader><CardTitle className="font-display tracking-widest text-nc-yellow">APPROVAL DECISION</CardTitle></CardHeader>
           <CardContent className="space-y-3">

@@ -373,6 +373,12 @@ router.post("/sheets/:id/decision", requireAuth, requireRole("CS_APPROVER"), asy
     if (sheet.status !== "pending") {
       return { error: { status: 409, body: { error: `Sheet already ${sheet.status}` } } };
     }
+    // Conflict of interest: a reviewer can't decide on a sheet they submitted
+    // themselves (even if they hold the approver role). Someone else must review
+    // it. This is enforced server-side; the UI also hides the panel for owners.
+    if (sheet.ownerId === req.user!.id) {
+      return { error: { status: 403, body: { error: "You cannot review a character sheet you submitted." } } };
+    }
 
     const characterId = decision === "approved"
       ? await materializeCharacterFromSheet(tx, sheet)
