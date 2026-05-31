@@ -23,7 +23,7 @@ import { hasRole } from "../lib/discord";
 import { logger } from "../lib/logger";
 import { applyWalletDelta } from "../lib/economy";
 import { createOffer, createRemoveOffer } from "../lib/saleOffers";
-import { cwpForItem } from "../lib/cyberware";
+import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
 
 const router: IRouter = Router();
@@ -496,10 +496,14 @@ router.get("/ripperdocs/:id/characters/:characterId/cyberware", requireAuth, asy
     res.status(404).json({ error: "Character not found" });
     return;
   }
-  const installed = await db
+  const cyberRows = await db
     .select()
     .from(inventoryItems)
     .where(and(eq(inventoryItems.characterId, characterId), eq(inventoryItems.category, "cyberware")));
+  // "Installed" = chrome category AND a CWP install tag. Items sold/given without
+  // installing land in inventory uninstalled (no CWP note) and must NOT surface
+  // as installed or be removable; untagged chrome contributes 0 CWP regardless.
+  const installed = cyberRows.filter((it) => parseCwp(it.notes) != null);
   const used = installed.reduce((sum, it) => sum + cwpForItem(it), 0);
   const cap = checkCwpCapacity({ kind: character.kind, used, add: 0 });
   res.json({

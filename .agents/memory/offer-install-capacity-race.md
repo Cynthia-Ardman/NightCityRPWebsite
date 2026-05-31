@@ -23,3 +23,10 @@ the row lock + re-derive inside the tx, not just at the top.
 Also: `resolveInstallCwp` must NOT let an operator-supplied `cwp` go *below* a
 "CWP n" tag already on the stock notes (use `max(noteCwp, opCwp)` when catalog is
 non-authoritative), or a crafted low override dodges the cap.
+
+**Installed = chrome + CWP note:** "installed cyberware" is `category='cyberware'`
+AND a parseable "CWP n" install tag. Ripperdoc sell/give land the item in
+inventory uninstalled (category cyberware, NO note), so they must NOT appear in
+the capacity installed-list nor be removable. Both the GET cyberware status
+endpoint and createRemoveOffer enforce this. Untagged chrome contributes 0 CWP
+either way, so cap math is unaffected; the note is purely the installed marker.

@@ -224,6 +224,34 @@ describe("POST /ripperdocs/:id/give", () => {
     const [c] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, clinic.id));
     expect(c.balance).toBe(0);
   });
+
+  it("a sold/given item lands uninstalled — not in the installed list, not removable", async () => {
+    await setEconomyMode("enabled");
+    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ price: 500 });
+    await fund(buyerUser.id, 1000);
+    const give = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/give`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id });
+    expect(give.status).toBe(201);
+    const approve = await request(app).post(`/api/offers/${give.body.id}/approve`).set("x-test-user", buyerUser.id);
+    expect(approve.status).toBe(200);
+
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id));
+    // Not surfaced as installed (no CWP install tag).
+    const status = await request(app)
+      .get(`/api/ripperdocs/${clinic.id}/characters/${buyer.id}/cyberware`)
+      .set("x-test-user", owner.id);
+    expect(status.status).toBe(200);
+    expect(status.body.used).toBe(0);
+    expect(status.body.installed).toHaveLength(0);
+    // Cannot be targeted by a removal offer.
+    const remove = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/remove`)
+      .set("x-test-user", owner.id)
+      .send({ removedItemId: item.id, buyerCharacterId: buyer.id });
+    expect(remove.status).toBe(400);
+  });
 });
 
 describe("POST /ripperdocs/:id/remove", () => {

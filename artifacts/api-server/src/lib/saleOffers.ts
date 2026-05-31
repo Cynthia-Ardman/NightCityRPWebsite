@@ -285,7 +285,10 @@ export async function createRemoveOffer(opts: {
   if (!item || item.characterId !== buyer.id) {
     return { status: 404, body: { error: "Cyberware not found on this character" } };
   }
-  if (item.category !== "cyberware") {
+  // Only truly-installed chrome (category cyberware + a CWP install tag) is
+  // removable. Items sold/given without installing carry no CWP note and must
+  // not be removable as if they were installed.
+  if (item.category !== "cyberware" || parseCwp(item.notes) == null) {
     return { status: 400, body: { error: "That item is not installed cyberware" } };
   }
 
