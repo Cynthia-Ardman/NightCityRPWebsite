@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { Link } from "wouter";
 import {
   useListRentListings,
   useListMyCharacters,
@@ -212,39 +213,44 @@ export default function CatalogRent() {
     if (r.occupied) {
       if (isStaff) {
         return (
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-col items-end gap-1.5">
             {r.occupantCharacterName ? (
-              <span className="font-mono text-xs text-nc-magenta" data-testid={`text-occupant-${r.id}`}>
+              <span
+                className="font-mono text-xs text-nc-magenta text-right break-words max-w-[16rem]"
+                data-testid={`text-occupant-${r.id}`}
+              >
                 {r.occupantCharacterName}
               </span>
             ) : null}
-            <span
-              className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest"
-              data-testid={`badge-occupied-${r.id}`}
-            >
-              OCCUPIED
-            </span>
-            {r.housingId ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={vacate.isPending}
-                className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display text-xs"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Remove ${r.occupantCharacterName ?? "the occupant"} from ${r.name}? This ends their lease.`,
-                    )
-                  ) {
-                    vacate.mutate({ id: r.housingId! });
-                  }
-                }}
-                data-testid={`button-remove-occupant-${r.id}`}
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest whitespace-nowrap"
+                data-testid={`badge-occupied-${r.id}`}
               >
-                <UserMinus className="w-3 h-3 mr-1" /> REMOVE
-              </Button>
-            ) : null}
+                OCCUPIED
+              </span>
+              {r.housingId ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={vacate.isPending}
+                  className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display text-xs"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Remove ${r.occupantCharacterName ?? "the occupant"} from ${r.name}? This ends their lease.`,
+                      )
+                    ) {
+                      vacate.mutate({ id: r.housingId! });
+                    }
+                  }}
+                  data-testid={`button-remove-occupant-${r.id}`}
+                >
+                  <UserMinus className="w-3 h-3 mr-1" /> REMOVE
+                </Button>
+              ) : null}
+            </div>
           </div>
         );
       }
@@ -361,7 +367,15 @@ export default function CatalogRent() {
                             testId={`rent-${r.id}`}
                           />
                         </td>
-                        <td className="p-3 font-bold">{r.name}</td>
+                        <td className="p-3 font-bold">
+                          <Link
+                            href="/directory/stores"
+                            className="hover:text-nc-cyan hover:underline transition-colors cursor-pointer"
+                            data-testid={`link-business-${r.id}`}
+                          >
+                            {r.name}
+                          </Link>
+                        </td>
                         <td className="p-3 text-foreground/80">{building ?? "—"}</td>
                         <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
                         <td className="p-3 uppercase">{tierLabel(r.tier) ?? "—"}</td>
