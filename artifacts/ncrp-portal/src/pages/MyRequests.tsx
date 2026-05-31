@@ -52,6 +52,10 @@ type HistoryRow = {
   // Set for custom requests the owner can act on directly (stock-cost).
   customId?: number;
   customType?: CustomRequest["type"];
+  // Employment-invite terms surfaced so the invitee can verify before accepting.
+  inviteRole?: string | null;
+  inviteCommissionPct?: number | null;
+  inviteVenueName?: string | null;
 };
 
 const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
@@ -154,6 +158,11 @@ export default function MyRequests() {
   const rows = useMemo<HistoryRow[]>(() => {
     const out: HistoryRow[] = [];
     for (const r of (custom ?? []) as CustomRequest[]) {
+      const det = (r.details ?? {}) as {
+        role?: string | null;
+        commissionPct?: number | null;
+        venueName?: string | null;
+      };
       out.push({
         key: `custom-${r.id}`,
         category: CUSTOM_LABEL[r.type] ?? "Property",
@@ -166,6 +175,9 @@ export default function MyRequests() {
         description: r.description,
         customId: r.id,
         customType: r.type,
+        inviteRole: r.type === "employee_invite" ? det.role ?? null : null,
+        inviteCommissionPct: r.type === "employee_invite" ? det.commissionPct ?? null : null,
+        inviteVenueName: r.type === "employee_invite" ? det.venueName ?? null : null,
       });
     }
     for (const r of (housing ?? []) as HousingRequest[]) {
@@ -261,6 +273,12 @@ export default function MyRequests() {
                         <div className="text-foreground">{r.title}</div>
                         {r.customType === "stock_cost" && r.description ? (
                           <div className="text-[11px] text-muted-foreground mt-0.5">{r.description}</div>
+                        ) : null}
+                        {r.customType === "employee_invite" ? (
+                          <div className="text-[11px] text-muted-foreground mt-0.5" data-testid={`invite-terms-${r.customId}`}>
+                            {r.inviteVenueName ?? "Venue"} · {r.inviteRole ?? "employee"}
+                            {r.inviteCommissionPct != null ? ` · ${r.inviteCommissionPct}% commission` : ""}
+                          </div>
                         ) : null}
                         {r.reviewerNote ? (
                           <div className="text-[11px] text-muted-foreground italic mt-0.5">

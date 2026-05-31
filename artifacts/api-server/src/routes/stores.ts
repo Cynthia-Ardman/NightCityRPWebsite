@@ -299,7 +299,7 @@ async function createEmployeeInvite(args: {
     if (u?.discordId) {
       await sendDirectMessage(
         u.discordId,
-        `${req.user!.username} invited ${c.name} to work at ${venueName}. Accept or decline it under "My Requests" on the NCRP portal.`,
+        `${req.user!.username} invited ${c.name} to work at ${venueName} as ${role} (${commissionPct}% commission). Accept or decline it under "My Requests" on the NCRP portal.`,
       );
     }
   } catch (err) {
