@@ -121,21 +121,6 @@ function offerLink(): string {
   return portalBase ? `https://${portalBase}/offers/mine` : `/offers/mine`;
 }
 
-// Best-effort buyer notification (Discord DM). The in-portal surface is
-// GET /offers/mine; this just nudges the buyer. Never throws.
-async function notifyBuyerOfOffer(offer: SaleOffer, venueName: string): Promise<void> {
-  try {
-    const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, offer.buyerUserId));
-    if (!u?.discordId) return;
-    const content =
-      `**${venueName}** sent you a purchase offer: **${offer.itemName}** x${offer.quantity} for €$${offer.totalPrice}.\n` +
-      `Approve or deny it here: ${offerLink()}`;
-    await sendDirectMessage(u.discordId, content);
-  } catch (err) {
-    logger.warn({ err, offerId: offer.id }, "offer buyer DM failed");
-  }
-}
-
 // Per-unit CWP a stock item costs to install. The catalog is authoritative when
 // it carries a positive value for the item (so an operator can't under-report a
 // known piece); otherwise an explicit operator-supplied value wins, then any
@@ -239,13 +224,6 @@ export async function createOffer(opts: {
     } as never)
     .returning();
 
-  await db.insert(activityEvents).values({
-    kind: "shop",
-    actorId: actor.id,
-    actorName: actor.username,
-    actorAvatarUrl: actor.avatarUrl,
-    message: `${venue.name} offered to ${verb} ${item.name} x${qty} to ${buyer.name} ${priceLabel}`,
-  });
   await db.insert(auditLog).values({
     category: "shop",
     action: "sale_offer_create",
@@ -253,12 +231,22 @@ export async function createOffer(opts: {
     actorName: actor.username,
     targetType: "sale_offer",
     targetId: String(offer.id),
-    message: `Offered to ${verb} ${item.name} x${qty} to ${buyer.name} ${priceLabel}`,
+    message: `Initiated ${verb}: ${item.name} x${qty} to ${buyer.name} ${priceLabel}`,
     afterJson: { offerType, totalPrice, quantity: qty, cwp, commissionPct: seller.commissionPct, buyerCharacterId: buyer.id } as never,
   });
-  await notifyBuyerOfOffer(offer, venue.name);
 
-  return { status: 201, body: offer };
+  // Instant venue sale: charge the buyer + move the item right now — no buyer
+  // approval step. completeSaleOffer writes its own transfer activity + approve
+  // audit and leaves status=approved on success. On any non-success (economy
+  // disabled/test, can't afford, wallet error) it must not linger as pending,
+  // so delete the row when it's still pending after completion — UNLESS the buyer
+  // was debited and could not be refunded (needsReconcile), in which case we keep
+  // the row as the recovery handle for manual reconciliation.
+  const result = await completeSaleOffer(offer, actor);
+  if (!(result.body as { needsReconcile?: boolean })?.needsReconcile) {
+    await db.delete(saleOffers).where(and(eq(saleOffers.id, offer.id), eq(saleOffers.status, "pending")));
+  }
+  return result;
 }
 
 // Creates an inventory-backed offer: un-install an existing chrome item from the
@@ -330,13 +318,6 @@ export async function createRemoveOffer(opts: {
     } as never)
     .returning();
 
-  await db.insert(activityEvents).values({
-    kind: "shop",
-    actorId: actor.id,
-    actorName: actor.username,
-    actorAvatarUrl: actor.avatarUrl,
-    message: `${venue.name} offered to remove ${item.name} from ${buyer.name} ${priceLabel}`,
-  });
   await db.insert(auditLog).values({
     category: "shop",
     action: "sale_offer_create",
@@ -344,12 +325,18 @@ export async function createRemoveOffer(opts: {
     actorName: actor.username,
     targetType: "sale_offer",
     targetId: String(offer.id),
-    message: `Offered to remove ${item.name} from ${buyer.name} ${priceLabel}`,
+    message: `Initiated removal: ${item.name} from ${buyer.name} ${priceLabel}`,
     afterJson: { offerType: "remove", fee, cwp, removedItemId, buyerCharacterId: buyer.id } as never,
   });
-  await notifyBuyerOfOffer(offer, venue.name);
 
-  return { status: 201, body: offer };
+  // Instant removal: uninstall the chrome + charge any fee right now — no buyer
+  // approval step. Same dangling-pending cleanup as createOffer, but keep the row
+  // when the buyer was debited and could not be refunded (needsReconcile).
+  const result = await completeSaleOffer(offer, actor);
+  if (!(result.body as { needsReconcile?: boolean })?.needsReconcile) {
+    await db.delete(saleOffers).where(and(eq(saleOffers.id, offer.id), eq(saleOffers.status, "pending")));
+  }
+  return result;
 }
 
 // Admin proposes adding a cyberware piece to ANOTHER venue's stock for a price
@@ -668,6 +655,16 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
     return { status: 409, body: { error: "Offer has expired" } };
   }
 
+  return await completeSaleOffer(offer, actor);
+}
+
+// Runs the actual money/stock/inventory movement for a non-stock_add offer.
+// Shared by approveOffer (legacy buyer-approval path) and the instant
+// venue-sale path in createOffer/createRemoveOffer. Self-contained from the
+// economy-mode gate onward: the caller is responsible for loading the offer,
+// authorizing the actor, and the pending/expiry/already-approved checks.
+async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferResult> {
+  const offerId = offer.id;
   const mode = await getEconomyMode();
   if (mode === "disabled") {
     return { status: 409, body: { error: "Economy is disabled; offers cannot be approved right now." } };
@@ -888,7 +885,7 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
           { offerId: offer.id, venueId, status: refund.status, err: String(completionError) },
           "OFFER_REFUND_FAILED: completion failed and buyer refund failed; buyer remains debited, manual reconciliation required",
         );
-        return { status: 409, body: { error: `${reason}; refund failed — please contact staff.` } };
+        return { status: 409, body: { error: `${reason}; refund failed — please contact staff.`, needsReconcile: true } };
       }
       return { status: 409, body: { error: `${reason}; buyer was refunded.` } };
     }
@@ -924,7 +921,7 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
           { offerId: offer.id, venueId, status: refund.status, offerStatus: fresh?.status },
           "OFFER_REFUND_FAILED: buyer debited but offer not approved and refund failed; manual reconciliation required",
         );
-        return { status: 409, body: { error: `Offer was ${fresh?.status ?? "resolved"}; refund failed — please contact staff.` } };
+        return { status: 409, body: { error: `Offer was ${fresh?.status ?? "resolved"}; refund failed — please contact staff.`, needsReconcile: true } };
       }
       return { status: 409, body: { error: `Offer was already ${fresh?.status ?? "resolved"}; buyer was refunded.` } };
     }

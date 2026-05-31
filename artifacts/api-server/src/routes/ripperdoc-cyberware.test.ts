@@ -89,54 +89,18 @@ async function installChrome(characterId: number, ownerId: string, name: string,
 }
 
 describe("POST /ripperdocs/:id/install", () => {
-  it("creates a pending install offer with the resolved CWP", async () => {
-    const { owner, clinic, stock, buyer, cwp } = await seedClinic({ price: 250, cwp: 4 });
-    const res = await request(app)
-      .post(`/api/ripperdocs/${clinic.id}/install`)
-      .set("x-test-user", owner.id)
-      .send({ stockId: stock.id, buyerCharacterId: buyer.id });
-    expect(res.status).toBe(201);
-    expect(res.body.offerType).toBe("install");
-    expect(res.body.cwp).toBe(cwp);
-    expect(res.body.totalPrice).toBe(250);
-    expect(res.body.status).toBe("pending");
-  });
-
-  it("409s when the install would exceed a PC's 15 CWP cap", async () => {
-    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ cwp: 5 });
-    // Buyer already carries 12 CWP; +5 would be 17 > 15.
-    await installChrome(buyer.id, buyerUser.id, "Gorilla Arms", 12);
-    const res = await request(app)
-      .post(`/api/ripperdocs/${clinic.id}/install`)
-      .set("x-test-user", owner.id)
-      .send({ stockId: stock.id, buyerCharacterId: buyer.id });
-    expect(res.status).toBe(409);
-    expect(await db.select().from(saleOffers)).toHaveLength(0);
-  });
-
-  it("allows an NPC to exceed the PC cap (unlimited chrome)", async () => {
-    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ cwp: 9, buyerKind: "npc" });
-    await installChrome(buyer.id, buyerUser.id, "Sandevistan", 12);
-    const res = await request(app)
-      .post(`/api/ripperdocs/${clinic.id}/install`)
-      .set("x-test-user", owner.id)
-      .send({ stockId: stock.id, buyerCharacterId: buyer.id });
-    expect(res.status).toBe(201);
-  });
-
-  it("approving an install adds installed cyberware, debits the buyer, credits the clinic", async () => {
+  it("installs stock cyberware instantly: adds chrome, debits the buyer, credits the clinic", async () => {
     await setEconomyMode("enabled");
     const { owner, clinic, stock, buyer, buyerUser, cwp } = await seedClinic({ price: 300, cwp: 6, stockQty: 3 });
     await fund(buyerUser.id, 1000);
-    const create = await request(app)
+    const res = await request(app)
       .post(`/api/ripperdocs/${clinic.id}/install`)
       .set("x-test-user", owner.id)
       .send({ stockId: stock.id, buyerCharacterId: buyer.id });
-    expect(create.status).toBe(201);
-    const offerId = create.body.id;
-
-    const res = await request(app).post(`/api/offers/${offerId}/approve`).set("x-test-user", buyerUser.id);
     expect(res.status).toBe(200);
+    expect(res.body.offer.offerType).toBe("install");
+    expect(res.body.offer.cwp).toBe(cwp);
+    expect(res.body.offer.totalPrice).toBe(300);
     expect(res.body.offer.status).toBe("approved");
 
     const inv = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id));
@@ -152,42 +116,61 @@ describe("POST /ripperdocs/:id/install", () => {
     expect(bu.walletBalance).toBe(700);
   });
 
-  it("re-validates the cap at approval (other chrome landed after the offer)", async () => {
-    await setEconomyMode("enabled");
-    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ price: 100, cwp: 5 });
-    await fund(buyerUser.id, 1000);
-    const create = await request(app)
+  it("409s when the install would exceed a PC's 15 CWP cap", async () => {
+    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ cwp: 5 });
+    // Buyer already carries 12 CWP; +5 would be 17 > 15.
+    await installChrome(buyer.id, buyerUser.id, "Gorilla Arms", 12);
+    const res = await request(app)
       .post(`/api/ripperdocs/${clinic.id}/install`)
       .set("x-test-user", owner.id)
       .send({ stockId: stock.id, buyerCharacterId: buyer.id });
-    expect(create.status).toBe(201);
-    // After the offer, buyer maxes out at 15 from other installs; +5 now overflows.
-    await installChrome(buyer.id, buyerUser.id, "Subdermal Armor", 15);
-    const res = await request(app).post(`/api/offers/${create.body.id}/approve`).set("x-test-user", buyerUser.id);
     expect(res.status).toBe(409);
-    expect(mockPatch).not.toHaveBeenCalled();
+    expect(await db.select().from(saleOffers)).toHaveLength(0);
   });
 
-  it("serializes concurrent install approvals so the PC cap can't be raced past", async () => {
+  it("allows an NPC to exceed the PC cap (unlimited chrome)", async () => {
     await setEconomyMode("enabled");
-    // 6 CWP already installed; two 5-CWP offers each pass the up-front check
-    // (6+5=11), but only one can commit before the other overflows (11+5=16>15).
+    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ cwp: 9, buyerKind: "npc" });
+    await fund(buyerUser.id, 1000);
+    await installChrome(buyer.id, buyerUser.id, "Sandevistan", 12);
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/install`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id });
+    expect(res.status).toBe(200);
+    expect(res.body.offer.status).toBe("approved");
+  });
+
+  it("409s without moving money when the economy is disabled", async () => {
+    await setEconomyMode("disabled");
+    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ price: 300 });
+    await fund(buyerUser.id, 1000);
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/install`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id });
+    expect(res.status).toBe(409);
+    // No dangling pending offer is left behind, and nothing moved.
+    expect(await db.select().from(saleOffers)).toHaveLength(0);
+    expect(await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id))).toHaveLength(0);
+    const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
+    expect(bu.walletBalance).toBe(1000);
+  });
+
+  it("serializes concurrent installs so the PC cap can't be raced past", async () => {
+    await setEconomyMode("enabled");
+    // 6 CWP already installed; two concurrent 5-CWP installs each pass the
+    // up-front check (6+5=11), but only one can commit before the other
+    // overflows (11+5=16>15).
     const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ price: 50, cwp: 5, stockQty: 2 });
     await installChrome(buyer.id, buyerUser.id, "Reflex Tuner", 6);
     await fund(buyerUser.id, 1000);
-    const mk = async () => {
-      const c = await request(app)
+    const mk = () =>
+      request(app)
         .post(`/api/ripperdocs/${clinic.id}/install`)
         .set("x-test-user", owner.id)
         .send({ stockId: stock.id, buyerCharacterId: buyer.id });
-      expect(c.status).toBe(201);
-      return c.body.id as number;
-    };
-    const [o1, o2] = [await mk(), await mk()];
-    const [r1, r2] = await Promise.all([
-      request(app).post(`/api/offers/${o1}/approve`).set("x-test-user", buyerUser.id),
-      request(app).post(`/api/offers/${o2}/approve`).set("x-test-user", buyerUser.id),
-    ]);
+    const [r1, r2] = await Promise.all([mk(), mk()]);
     const statuses = [r1.status, r2.status].sort();
     expect(statuses).toEqual([200, 409]);
 
@@ -202,20 +185,18 @@ describe("POST /ripperdocs/:id/install", () => {
 });
 
 describe("POST /ripperdocs/:id/give", () => {
-  it("creates a free (price 0) offer and moves no money when approved", async () => {
+  it("gives a stock item for free instantly and moves no money", async () => {
     await setEconomyMode("enabled");
     const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ price: 500 });
     await fund(buyerUser.id, 1000);
-    const create = await request(app)
+    const res = await request(app)
       .post(`/api/ripperdocs/${clinic.id}/give`)
       .set("x-test-user", owner.id)
       .send({ stockId: stock.id, buyerCharacterId: buyer.id });
-    expect(create.status).toBe(201);
-    expect(create.body.offerType).toBe("give");
-    expect(create.body.totalPrice).toBe(0);
-
-    const res = await request(app).post(`/api/offers/${create.body.id}/approve`).set("x-test-user", buyerUser.id);
     expect(res.status).toBe(200);
+    expect(res.body.offer.offerType).toBe("give");
+    expect(res.body.offer.totalPrice).toBe(0);
+    expect(res.body.offer.status).toBe("approved");
     expect(mockPatch).not.toHaveBeenCalled();
     const inv = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id));
     expect(inv).toHaveLength(1);
@@ -233,9 +214,7 @@ describe("POST /ripperdocs/:id/give", () => {
       .post(`/api/ripperdocs/${clinic.id}/give`)
       .set("x-test-user", owner.id)
       .send({ stockId: stock.id, buyerCharacterId: buyer.id });
-    expect(give.status).toBe(201);
-    const approve = await request(app).post(`/api/offers/${give.body.id}/approve`).set("x-test-user", buyerUser.id);
-    expect(approve.status).toBe(200);
+    expect(give.status).toBe(200);
 
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id));
     // Not surfaced as installed (no CWP install tag).
@@ -268,22 +247,20 @@ describe("POST /ripperdocs/:id/remove", () => {
     expect(res.status).toBe(400);
   });
 
-  it("approving a remove un-installs the chrome and charges the optional fee", async () => {
+  it("removes the chrome instantly and charges the optional fee", async () => {
     await setEconomyMode("enabled");
     const { owner, clinic, buyer, buyerUser } = await seedClinic();
     await fund(buyerUser.id, 1000);
     const chrome = await installChrome(buyer.id, buyerUser.id, "Mantis Blades", 8);
-    const create = await request(app)
+    const res = await request(app)
       .post(`/api/ripperdocs/${clinic.id}/remove`)
       .set("x-test-user", owner.id)
       .send({ removedItemId: chrome.id, buyerCharacterId: buyer.id, fee: 150 });
-    expect(create.status).toBe(201);
-    expect(create.body.offerType).toBe("remove");
-    expect(create.body.removedItemId).toBe(chrome.id);
-    expect(create.body.cwp).toBe(8);
-
-    const res = await request(app).post(`/api/offers/${create.body.id}/approve`).set("x-test-user", buyerUser.id);
     expect(res.status).toBe(200);
+    expect(res.body.offer.offerType).toBe("remove");
+    expect(res.body.offer.removedItemId).toBe(chrome.id);
+    expect(res.body.offer.cwp).toBe(8);
+    expect(res.body.offer.status).toBe("approved");
 
     const [it] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, chrome.id));
     expect(it.category).toBe("cyberware (removed)");
@@ -299,29 +276,28 @@ describe("POST /ripperdocs/:id/remove", () => {
     const { owner, clinic, buyer, buyerUser } = await seedClinic();
     await fund(buyerUser.id, 1000);
     const chrome = await installChrome(buyer.id, buyerUser.id, "Cyberdeck", 3);
-    const create = await request(app)
+    const res = await request(app)
       .post(`/api/ripperdocs/${clinic.id}/remove`)
       .set("x-test-user", owner.id)
       .send({ removedItemId: chrome.id, buyerCharacterId: buyer.id });
-    expect(create.status).toBe(201);
-    const res = await request(app).post(`/api/offers/${create.body.id}/approve`).set("x-test-user", buyerUser.id);
     expect(res.status).toBe(200);
     expect(mockPatch).not.toHaveBeenCalled();
     const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
     expect(bu.walletBalance).toBe(1000);
   });
 
-  it("denying a remove leaves the chrome installed", async () => {
+  it("leaves the chrome installed and moves nothing when the economy is disabled", async () => {
+    await setEconomyMode("disabled");
     const { owner, clinic, buyer, buyerUser } = await seedClinic();
     const chrome = await installChrome(buyer.id, buyerUser.id, "Optics", 2);
-    const create = await request(app)
+    const res = await request(app)
       .post(`/api/ripperdocs/${clinic.id}/remove`)
       .set("x-test-user", owner.id)
       .send({ removedItemId: chrome.id, buyerCharacterId: buyer.id, fee: 100 });
-    const res = await request(app).post(`/api/offers/${create.body.id}/deny`).set("x-test-user", buyerUser.id);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(409);
     const [it] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, chrome.id));
     expect(it.category).toBe("cyberware");
+    expect(await db.select().from(saleOffers)).toHaveLength(0);
     expect(await db.select().from(walletTransactions)).toHaveLength(0);
   });
 });

@@ -64,8 +64,8 @@ export default function MyOffers() {
       (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
     );
     return {
-      pending: sorted.filter((o) => o.status === "pending"),
-      history: sorted.filter((o) => o.status !== "pending"),
+      pending: sorted.filter((o) => o.status === "pending" && o.offerType === "stock_add"),
+      history: sorted.filter((o) => !(o.status === "pending" && o.offerType === "stock_add")),
     };
   }, [offers]);
 
@@ -85,7 +85,7 @@ export default function MyOffers() {
           <ShoppingBag className="w-8 h-8 text-nc-cyan" /> PENDING APPROVALS
         </h1>
         <p className="text-muted-foreground font-mono mt-2">
-          Purchase offers sent to your characters. Approving charges your eddies; denying does nothing.
+          Stock additions awaiting your approval as a venue owner. Approving charges the venue account; denying does nothing. Venue sales now complete instantly and appear in your offer history.
         </p>
       </div>
 

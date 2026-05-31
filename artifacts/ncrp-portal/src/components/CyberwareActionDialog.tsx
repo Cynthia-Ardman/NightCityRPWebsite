@@ -62,7 +62,7 @@ export default function CyberwareActionDialog({ venueId, stock, onClose, onDone 
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-cyberware-action">
       <Card className="rounded-none border-nc-magenta bg-card w-full max-w-md">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display tracking-widest text-nc-magenta">SEND OFFER: {stock.name}</CardTitle>
+          <CardTitle className="font-display tracking-widest text-nc-magenta">{stock.name}</CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-cyberware-action">
             <X className="w-4 h-4" />
           </Button>
@@ -106,10 +106,10 @@ export default function CyberwareActionDialog({ venueId, stock, onClose, onDone 
             </p>
             <p className="text-muted-foreground text-xs">
               {action === "install"
-                ? "Installs the chrome onto the character and counts toward their CWP. The buyer must approve before anything is charged."
+                ? "Installs the chrome onto the character and counts toward their CWP. Charges the buyer and installs it immediately."
                 : action === "give"
-                  ? "Hands the item over for free. The buyer must approve before it lands in their inventory."
-                  : "Sells the item uninstalled. The buyer must approve before anything is charged."}
+                  ? "Hands the item over for free. It lands in their inventory immediately."
+                  : "Sells the item uninstalled. Charges the buyer and transfers it immediately."}
             </p>
 
             <div>
@@ -164,7 +164,7 @@ export default function CyberwareActionDialog({ venueId, stock, onClose, onDone 
               className="w-full rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display"
               data-testid="button-confirm-cyberware-action"
             >
-              {m.isPending ? "SENDING..." : `SEND ${ACTIONS.find((a) => a.key === action)!.label} OFFER`}
+              {m.isPending ? "PROCESSING..." : ACTIONS.find((a) => a.key === action)!.label}
             </Button>
           </form>
         </CardContent>

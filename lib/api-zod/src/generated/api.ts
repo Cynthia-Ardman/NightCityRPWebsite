@@ -1291,7 +1291,7 @@ export const RemoveStoreEmployeeParams = zod.object({
 
 
 /**
- * @summary Owner/employee sends a buyer a purchase offer (no money moves until approved)
+ * @summary Owner/employee sells stock to a buyer instantly (charges the buyer + transfers the item now)
  */
 export const SellStoreItemParams = zod.object({
   "id": zod.coerce.number()
@@ -1305,6 +1305,56 @@ export const SellStoreItemBody = zod.object({
   "buyerCharacterId": zod.number(),
   "qty": zod.number().min(1).optional().describe('Defaults to 1.'),
   "memo": zod.string().optional()
+})
+
+export const SellStoreItemResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
+  "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+}).optional(),
+  "inventoryItem": zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}).optional(),
+  "commissionPaid": zod.number().optional(),
+  "venueBalance": zod.number().optional(),
+  "duplicate": zod.boolean().optional().describe('True when the offer was already approved (idempotent retry).'),
+  "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
+  "wouldDebitBuyer": zod.number().optional(),
+  "wouldCreditStore": zod.number().optional(),
+  "wouldPayCommission": zod.number().optional()
 })
 
 
@@ -3916,7 +3966,7 @@ export const GetRipperdocTransactionsResponse = zod.array(GetRipperdocTransactio
 
 
 /**
- * @summary Owner/employee sends a buyer a cyberware purchase offer (no money moves until approved)
+ * @summary Owner/employee sells cyberware stock to a buyer instantly (charges the buyer + transfers the item now)
  */
 export const SellRipperdocItemParams = zod.object({
   "id": zod.coerce.number()
@@ -3932,9 +3982,59 @@ export const SellRipperdocItemBody = zod.object({
   "memo": zod.string().optional()
 })
 
+export const SellRipperdocItemResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
+  "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+}).optional(),
+  "inventoryItem": zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}).optional(),
+  "commissionPaid": zod.number().optional(),
+  "venueBalance": zod.number().optional(),
+  "duplicate": zod.boolean().optional().describe('True when the offer was already approved (idempotent retry).'),
+  "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
+  "wouldDebitBuyer": zod.number().optional(),
+  "wouldCreditStore": zod.number().optional(),
+  "wouldPayCommission": zod.number().optional()
+})
+
 
 /**
- * @summary Offer to install stock cyberware onto a character (CWP-validated; buyer must approve)
+ * @summary Install stock cyberware onto a character instantly (CWP-validated; charges the buyer + installs now)
  */
 export const InstallRipperdocCyberwareParams = zod.object({
   "id": zod.coerce.number()
@@ -3956,9 +4056,59 @@ export const InstallRipperdocCyberwareBody = zod.object({
   "memo": zod.string().optional()
 })
 
+export const InstallRipperdocCyberwareResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
+  "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+}).optional(),
+  "inventoryItem": zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}).optional(),
+  "commissionPaid": zod.number().optional(),
+  "venueBalance": zod.number().optional(),
+  "duplicate": zod.boolean().optional().describe('True when the offer was already approved (idempotent retry).'),
+  "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
+  "wouldDebitBuyer": zod.number().optional(),
+  "wouldCreditStore": zod.number().optional(),
+  "wouldPayCommission": zod.number().optional()
+})
+
 
 /**
- * @summary Offer to give a stock item to a character for free (buyer must approve)
+ * @summary Give a stock item to a character for free instantly (transfers the item now; no charge)
  */
 export const GiveRipperdocItemParams = zod.object({
   "id": zod.coerce.number()
@@ -3974,9 +4124,59 @@ export const GiveRipperdocItemBody = zod.object({
   "memo": zod.string().optional()
 })
 
+export const GiveRipperdocItemResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
+  "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+}).optional(),
+  "inventoryItem": zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}).optional(),
+  "commissionPaid": zod.number().optional(),
+  "venueBalance": zod.number().optional(),
+  "duplicate": zod.boolean().optional().describe('True when the offer was already approved (idempotent retry).'),
+  "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
+  "wouldDebitBuyer": zod.number().optional(),
+  "wouldCreditStore": zod.number().optional(),
+  "wouldPayCommission": zod.number().optional()
+})
+
 
 /**
- * @summary Offer to uninstall cyberware from a character (optional fee; buyer must approve)
+ * @summary Uninstall cyberware from a character instantly (optional fee charged now)
  */
 export const RemoveRipperdocCyberwareParams = zod.object({
   "id": zod.coerce.number()
@@ -3991,6 +4191,56 @@ export const RemoveRipperdocCyberwareBody = zod.object({
   "buyerCharacterId": zod.number(),
   "fee": zod.number().min(removeRipperdocCyberwareBodyFeeMin).optional().describe('Optional removal fee. Defaults to 0 (free).'),
   "memo": zod.string().optional()
+})
+
+export const RemoveRipperdocCyberwareResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
+  "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish()
+}).optional(),
+  "inventoryItem": zod.object({
+  "id": zod.number(),
+  "instanceUuid": zod.string().uuid().describe('Stable per-instance id. Survives whole-stack transfers; a partial split creates a new uuid for the moved portion.'),
+  "characterId": zod.number().nullable(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "equipped": zod.boolean().optional()
+}).optional(),
+  "commissionPaid": zod.number().optional(),
+  "venueBalance": zod.number().optional(),
+  "duplicate": zod.boolean().optional().describe('True when the offer was already approved (idempotent retry).'),
+  "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
+  "wouldDebitBuyer": zod.number().optional(),
+  "wouldCreditStore": zod.number().optional(),
+  "wouldPayCommission": zod.number().optional()
 })
 
 

@@ -10,7 +10,7 @@ vi.mock("../lib/unbelievaboat", () => ({
 import {
   db, stores, storeStock, storeEmployees, ripperdocs, ripperdocStock,
   inventoryItems, walletTransactions, characters, auditLog, saleOffers,
-  catalogGuns, catalogCyberware,
+  catalogGuns, catalogCyberware, users, botConfig,
 } from "@workspace/db";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { buildTestApp } from "../test/app";
@@ -23,7 +23,23 @@ const mockPatch = vi.mocked(patchBalance);
 beforeEach(() => {
   mockGetBalance.mockReset();
   mockPatch.mockReset();
+  mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
 });
+
+async function setFlag(key: string, value: boolean) {
+  await db
+    .insert(botConfig)
+    .values({ key, value })
+    .onConflictDoUpdate({ target: botConfig.key, set: { value } });
+}
+async function setEconomyMode(mode: "disabled" | "test" | "enabled") {
+  await setFlag("economy_enabled", mode !== "disabled");
+  await setFlag("master_live_mode", mode === "enabled");
+  await setFlag("economy_live_mode", mode === "enabled");
+}
+async function fund(userId: string, amount: number) {
+  await db.update(users).set({ walletBalance: amount }).where(eq(users.id, userId));
+}
 
 async function makeStore(ownerId: string, name = "Chrome Bazaar") {
   const [s] = await db.insert(stores).values({ ownerId, name }).returning();
@@ -37,7 +53,7 @@ async function makeStock(storeId: number, opts: { price?: number; quantity?: num
   return it;
 }
 
-describe("POST /stores/:id/sell (creates a buyer-approval offer)", () => {
+describe("POST /stores/:id/sell (charges the buyer instantly)", () => {
   it("400s when stockId or buyerCharacterId is missing", async () => {
     const owner = await createUser();
     const store = await makeStore(owner.id);
@@ -86,39 +102,66 @@ describe("POST /stores/:id/sell (creates a buyer-approval offer)", () => {
     expect(res.status).toBe(409);
   });
 
-  it("creates a pending offer and moves NO money/stock/inventory", async () => {
+  it("completes the sale instantly: debits the buyer, moves stock and inventory", async () => {
+    await setEconomyMode("enabled");
     const owner = await createUser();
     const buyerUser = await createUser();
     const store = await makeStore(owner.id);
     const stock = await makeStock(store.id, { price: 100, quantity: 5 });
     const buyer = await createCharacter({ ownerId: buyerUser.id });
+    await fund(buyerUser.id, 1000);
     const res = await request(app)
       .post(`/api/stores/${store.id}/sell`)
       .set("x-test-user", owner.id)
       .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 2 });
-    expect(res.status).toBe(201);
-    expect(res.body.status).toBe("pending");
-    expect(res.body.kind).toBe("store");
-    expect(res.body.quantity).toBe(2);
-    expect(res.body.unitPrice).toBe(100);
-    expect(res.body.totalPrice).toBe(200);
-    expect(res.body.buyerCharacterId).toBe(buyer.id);
-    expect(res.body.buyerUserId).toBe(buyerUser.id);
+    expect(res.status).toBe(200);
+    expect(res.body.offer.status).toBe("approved");
+    expect(res.body.offer.kind).toBe("store");
+    expect(res.body.offer.quantity).toBe(2);
+    expect(res.body.offer.unitPrice).toBe(100);
+    expect(res.body.offer.totalPrice).toBe(200);
+    expect(res.body.offer.buyerCharacterId).toBe(buyer.id);
+    expect(res.body.offer.buyerUserId).toBe(buyerUser.id);
 
     // Owner sale => no commission attribution.
-    expect(res.body.commissionPct).toBe(0);
-    expect(res.body.sellerEmployeeId).toBeNull();
+    expect(res.body.offer.commissionPct).toBe(0);
+    expect(res.body.offer.sellerEmployeeId).toBeNull();
 
-    // Nothing has moved yet.
+    // Stock pulled, item delivered, buyer charged, store credited — all now.
+    const [stillStock] = await db.select().from(storeStock).where(eq(storeStock.id, stock.id));
+    expect(stillStock.quantity).toBe(3);
+    const inv = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id));
+    expect(inv).toHaveLength(1);
+    const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
+    expect(bu.walletBalance).toBe(800);
+    const [st] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(st.balance).toBe(200);
+  });
+
+  it("409s without moving anything when the economy is disabled", async () => {
+    await setEconomyMode("disabled");
+    const owner = await createUser();
+    const buyerUser = await createUser();
+    const store = await makeStore(owner.id);
+    const stock = await makeStock(store.id, { price: 100, quantity: 5 });
+    const buyer = await createCharacter({ ownerId: buyerUser.id });
+    await fund(buyerUser.id, 1000);
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/sell`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 2 });
+    expect(res.status).toBe(409);
+    // No dangling pending offer, nothing moved.
+    expect(await db.select().from(saleOffers)).toHaveLength(0);
     const [stillStock] = await db.select().from(storeStock).where(eq(storeStock.id, stock.id));
     expect(stillStock.quantity).toBe(5);
-    const inv = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id));
-    expect(inv).toHaveLength(0);
-    expect(await db.select().from(walletTransactions)).toHaveLength(0);
-    expect(mockPatch).not.toHaveBeenCalled();
+    expect(await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id))).toHaveLength(0);
+    const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
+    expect(bu.walletBalance).toBe(1000);
   });
 
   it("snapshots the selling employee's commission percentage on the offer", async () => {
+    await setEconomyMode("enabled");
     const owner = await createUser();
     const clerkUser = await createUser();
     const buyerUser = await createUser();
@@ -127,34 +170,38 @@ describe("POST /stores/:id/sell (creates a buyer-approval offer)", () => {
     const clerkChar = await createCharacter({ ownerId: clerkUser.id });
     await db.insert(storeEmployees).values({ storeId: store.id, characterId: clerkChar.id, role: "clerk", commissionPct: 15 });
     const buyer = await createCharacter({ ownerId: buyerUser.id });
+    await fund(buyerUser.id, 1000);
     const res = await request(app)
       .post(`/api/stores/${store.id}/sell`)
       .set("x-test-user", clerkUser.id)
       .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 1 });
-    expect(res.status).toBe(201);
-    expect(res.body.commissionPct).toBe(15);
-    expect(res.body.sellerCharacterId).toBe(clerkChar.id);
+    expect(res.status).toBe(200);
+    expect(res.body.offer.commissionPct).toBe(15);
+    expect(res.body.offer.sellerCharacterId).toBe(clerkChar.id);
   });
 });
 
-describe("POST /ripperdocs/:id/sell (creates a buyer-approval offer)", () => {
-  it("creates a pending cyberware offer and moves nothing", async () => {
+describe("POST /ripperdocs/:id/sell (charges the buyer instantly)", () => {
+  it("completes the cyberware sale instantly: debits the buyer and pulls stock", async () => {
+    await setEconomyMode("enabled");
     const owner = await createUser();
     const buyerUser = await createUser();
     const rip = await makeRipperdoc(owner.id);
     const [stock] = await db.insert(ripperdocStock).values({ ripperdocId: rip.id, name: "Kiroshi Optics", price: 500, quantity: 3 }).returning();
     const buyer = await createCharacter({ ownerId: buyerUser.id });
+    await fund(buyerUser.id, 1000);
     const res = await request(app)
       .post(`/api/ripperdocs/${rip.id}/sell`)
       .set("x-test-user", owner.id)
       .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 1 });
-    expect(res.status).toBe(201);
-    expect(res.body.kind).toBe("ripperdoc");
-    expect(res.body.status).toBe("pending");
-    expect(res.body.totalPrice).toBe(500);
+    expect(res.status).toBe(200);
+    expect(res.body.offer.kind).toBe("ripperdoc");
+    expect(res.body.offer.status).toBe("approved");
+    expect(res.body.offer.totalPrice).toBe(500);
     const [stillStock] = await db.select().from(ripperdocStock).where(eq(ripperdocStock.id, stock.id));
-    expect(stillStock.quantity).toBe(3);
-    expect(await db.select().from(walletTransactions)).toHaveLength(0);
+    expect(stillStock.quantity).toBe(2);
+    const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
+    expect(bu.walletBalance).toBe(500);
   });
 });
 

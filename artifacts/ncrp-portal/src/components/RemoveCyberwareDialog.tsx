@@ -59,7 +59,7 @@ export default function RemoveCyberwareDialog({ venueId, onClose, onDone }: Prop
             }}
           >
             <p className="text-muted-foreground text-xs">
-              Uninstalls a piece of chrome so it no longer counts toward the character's CWP. The buyer must approve before anything happens.
+              Uninstalls a piece of chrome so it no longer counts toward the character's CWP. Any fee is charged immediately.
             </p>
 
             <div>
@@ -135,7 +135,7 @@ export default function RemoveCyberwareDialog({ venueId, onClose, onDone }: Prop
               className="w-full rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display"
               data-testid="button-confirm-remove-cyberware"
             >
-              {remove.isPending ? "SENDING..." : "SEND REMOVAL OFFER"}
+              {remove.isPending ? "PROCESSING..." : "REMOVE CYBERWARE"}
             </Button>
           </form>
         </CardContent>

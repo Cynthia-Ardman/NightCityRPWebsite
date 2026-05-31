@@ -4261,12 +4261,12 @@ export const getSellStoreItemUrl = (id: number,) => {
 }
 
 /**
- * @summary Owner/employee sends a buyer a purchase offer (no money moves until approved)
+ * @summary Owner/employee sells stock to a buyer instantly (charges the buyer + transfers the item now)
  */
 export const sellStoreItem = async (id: number,
-    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<SaleOffer> => {
+    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<ApproveOfferResult> => {
 
-  return customFetch<SaleOffer>(getSellStoreItemUrl(id),
+  return customFetch<ApproveOfferResult>(getSellStoreItemUrl(id),
   {
     ...options,
     method: 'POST',
@@ -4311,7 +4311,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SellStoreItemMutationError = ErrorType<void>
 
     /**
- * @summary Owner/employee sends a buyer a purchase offer (no money moves until approved)
+ * @summary Owner/employee sells stock to a buyer instantly (charges the buyer + transfers the item now)
  */
 export const useSellStoreItem = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sellStoreItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -8906,12 +8906,12 @@ export const getSellRipperdocItemUrl = (id: number,) => {
 }
 
 /**
- * @summary Owner/employee sends a buyer a cyberware purchase offer (no money moves until approved)
+ * @summary Owner/employee sells cyberware stock to a buyer instantly (charges the buyer + transfers the item now)
  */
 export const sellRipperdocItem = async (id: number,
-    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<SaleOffer> => {
+    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<ApproveOfferResult> => {
 
-  return customFetch<SaleOffer>(getSellRipperdocItemUrl(id),
+  return customFetch<ApproveOfferResult>(getSellRipperdocItemUrl(id),
   {
     ...options,
     method: 'POST',
@@ -8956,7 +8956,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SellRipperdocItemMutationError = ErrorType<void>
 
     /**
- * @summary Owner/employee sends a buyer a cyberware purchase offer (no money moves until approved)
+ * @summary Owner/employee sells cyberware stock to a buyer instantly (charges the buyer + transfers the item now)
  */
 export const useSellRipperdocItem = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sellRipperdocItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -8978,12 +8978,12 @@ export const getInstallRipperdocCyberwareUrl = (id: number,) => {
 }
 
 /**
- * @summary Offer to install stock cyberware onto a character (CWP-validated; buyer must approve)
+ * @summary Install stock cyberware onto a character instantly (CWP-validated; charges the buyer + installs now)
  */
 export const installRipperdocCyberware = async (id: number,
-    cyberwareInstallInput: CyberwareInstallInput, options?: RequestInit): Promise<SaleOffer> => {
+    cyberwareInstallInput: CyberwareInstallInput, options?: RequestInit): Promise<ApproveOfferResult> => {
 
-  return customFetch<SaleOffer>(getInstallRipperdocCyberwareUrl(id),
+  return customFetch<ApproveOfferResult>(getInstallRipperdocCyberwareUrl(id),
   {
     ...options,
     method: 'POST',
@@ -9028,7 +9028,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type InstallRipperdocCyberwareMutationError = ErrorType<void>
 
     /**
- * @summary Offer to install stock cyberware onto a character (CWP-validated; buyer must approve)
+ * @summary Install stock cyberware onto a character instantly (CWP-validated; charges the buyer + installs now)
  */
 export const useInstallRipperdocCyberware = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof installRipperdocCyberware>>, TError,{id: number;data: BodyType<CyberwareInstallInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -9050,12 +9050,12 @@ export const getGiveRipperdocItemUrl = (id: number,) => {
 }
 
 /**
- * @summary Offer to give a stock item to a character for free (buyer must approve)
+ * @summary Give a stock item to a character for free instantly (transfers the item now; no charge)
  */
 export const giveRipperdocItem = async (id: number,
-    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<SaleOffer> => {
+    storeSaleInput: StoreSaleInput, options?: RequestInit): Promise<ApproveOfferResult> => {
 
-  return customFetch<SaleOffer>(getGiveRipperdocItemUrl(id),
+  return customFetch<ApproveOfferResult>(getGiveRipperdocItemUrl(id),
   {
     ...options,
     method: 'POST',
@@ -9100,7 +9100,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type GiveRipperdocItemMutationError = ErrorType<void>
 
     /**
- * @summary Offer to give a stock item to a character for free (buyer must approve)
+ * @summary Give a stock item to a character for free instantly (transfers the item now; no charge)
  */
 export const useGiveRipperdocItem = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveRipperdocItem>>, TError,{id: number;data: BodyType<StoreSaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -9122,12 +9122,12 @@ export const getRemoveRipperdocCyberwareUrl = (id: number,) => {
 }
 
 /**
- * @summary Offer to uninstall cyberware from a character (optional fee; buyer must approve)
+ * @summary Uninstall cyberware from a character instantly (optional fee charged now)
  */
 export const removeRipperdocCyberware = async (id: number,
-    cyberwareRemoveInput: CyberwareRemoveInput, options?: RequestInit): Promise<SaleOffer> => {
+    cyberwareRemoveInput: CyberwareRemoveInput, options?: RequestInit): Promise<ApproveOfferResult> => {
 
-  return customFetch<SaleOffer>(getRemoveRipperdocCyberwareUrl(id),
+  return customFetch<ApproveOfferResult>(getRemoveRipperdocCyberwareUrl(id),
   {
     ...options,
     method: 'POST',
@@ -9172,7 +9172,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RemoveRipperdocCyberwareMutationError = ErrorType<void>
 
     /**
- * @summary Offer to uninstall cyberware from a character (optional fee; buyer must approve)
+ * @summary Uninstall cyberware from a character instantly (optional fee charged now)
  */
 export const useRemoveRipperdocCyberware = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeRipperdocCyberware>>, TError,{id: number;data: BodyType<CyberwareRemoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

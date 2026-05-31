@@ -877,21 +877,22 @@ paths:
     post:
       operationId: sellStoreItem
       tags: [stores]
-      summary: Owner/employee sends a buyer a purchase offer (no money moves until approved)
+      summary: Owner/employee sells stock to a buyer instantly (charges the buyer + transfers the item now)
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/StoreSaleInput" }
       responses:
-        "201":
-          description: Offer created and buyer notified
+        "200":
+          description: Sale completed (or dry-run preview in Test mode)
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/SaleOffer" }
-        "400": { description: Bad request }
+              schema: { $ref: "#/components/schemas/ApproveOfferResult" }
+        "400": { description: Bad request or buyer has insufficient funds }
         "404": { description: Not found }
-        "409": { description: Out of stock or buyer unclaimed }
+        "409": { description: "Out of stock, buyer unclaimed, or economy disabled" }
+        "502": { description: Wallet provider unavailable }
   /stores/{id}/purchase:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -1882,87 +1883,91 @@ paths:
     post:
       operationId: sellRipperdocItem
       tags: [ripperdocs]
-      summary: Owner/employee sends a buyer a cyberware purchase offer (no money moves until approved)
+      summary: Owner/employee sells cyberware stock to a buyer instantly (charges the buyer + transfers the item now)
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/StoreSaleInput" }
       responses:
-        "201":
-          description: Offer created and buyer notified
+        "200":
+          description: Sale completed (or dry-run preview in Test mode)
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/SaleOffer" }
-        "400": { description: Bad request }
+              schema: { $ref: "#/components/schemas/ApproveOfferResult" }
+        "400": { description: Bad request or buyer has insufficient funds }
         "404": { description: Not found }
-        "409": { description: Out of stock or buyer unclaimed }
+        "409": { description: "Out of stock, buyer unclaimed, or economy disabled" }
+        "502": { description: Wallet provider unavailable }
   /ripperdocs/{id}/install:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
       operationId: installRipperdocCyberware
       tags: [ripperdocs]
-      summary: Offer to install stock cyberware onto a character (CWP-validated; buyer must approve)
+      summary: Install stock cyberware onto a character instantly (CWP-validated; charges the buyer + installs now)
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/CyberwareInstallInput" }
       responses:
-        "201":
-          description: Install offer created and buyer notified
+        "200":
+          description: Install completed (or dry-run preview in Test mode)
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/SaleOffer" }
-        "400": { description: Bad request }
+              schema: { $ref: "#/components/schemas/ApproveOfferResult" }
+        "400": { description: Bad request or buyer has insufficient funds }
         "403": { description: Not authorized }
         "404": { description: Not found }
-        "409": { description: "Out of stock, buyer unclaimed, or CWP capacity exceeded" }
+        "409": { description: "Out of stock, buyer unclaimed, CWP capacity exceeded, or economy disabled" }
+        "502": { description: Wallet provider unavailable }
   /ripperdocs/{id}/give:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
       operationId: giveRipperdocItem
       tags: [ripperdocs]
-      summary: Offer to give a stock item to a character for free (buyer must approve)
+      summary: Give a stock item to a character for free instantly (transfers the item now; no charge)
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/StoreSaleInput" }
       responses:
-        "201":
-          description: Give offer created and buyer notified
+        "200":
+          description: Give completed (or dry-run preview in Test mode)
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/SaleOffer" }
+              schema: { $ref: "#/components/schemas/ApproveOfferResult" }
         "400": { description: Bad request }
         "403": { description: Not authorized }
         "404": { description: Not found }
-        "409": { description: Out of stock or buyer unclaimed }
+        "409": { description: "Out of stock, buyer unclaimed, or economy disabled" }
+        "502": { description: Wallet provider unavailable }
   /ripperdocs/{id}/remove:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
       operationId: removeRipperdocCyberware
       tags: [ripperdocs]
-      summary: Offer to uninstall cyberware from a character (optional fee; buyer must approve)
+      summary: Uninstall cyberware from a character instantly (optional fee charged now)
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/CyberwareRemoveInput" }
       responses:
-        "201":
-          description: Remove offer created and buyer notified
+        "200":
+          description: Removal completed (or dry-run preview in Test mode)
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/SaleOffer" }
-        "400": { description: Item is not installed cyberware }
+              schema: { $ref: "#/components/schemas/ApproveOfferResult" }
+        "400": { description: Item is not installed cyberware or buyer has insufficient funds }
         "403": { description: Not authorized }
         "404": { description: Cyberware or character not found }
-        "409": { description: Character unclaimed }
+        "409": { description: Character unclaimed or economy disabled }
+        "502": { description: Wallet provider unavailable }
   /ripperdocs/{id}/characters/{characterId}/cyberware:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
