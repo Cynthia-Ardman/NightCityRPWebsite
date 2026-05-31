@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, MessageSquareWarning } from "lucide-react";
 
 // Shared status badge for player request rows (custom requests + leases),
 // used by the per-catalog request section and the consolidated My Requests
@@ -16,6 +16,12 @@ export function RequestStatusBadge({ status }: { status: string }) {
       return (
         <Badge variant="outline" className="border-destructive text-destructive rounded-none font-mono text-[10px]">
           <XCircle className="w-3 h-3 mr-1" /> REJECTED
+        </Badge>
+      );
+    case "changes_requested":
+      return (
+        <Badge variant="outline" className="border-nc-magenta text-nc-magenta rounded-none font-mono text-[10px]">
+          <MessageSquareWarning className="w-3 h-3 mr-1" /> CHANGES REQ
         </Badge>
       );
     default:

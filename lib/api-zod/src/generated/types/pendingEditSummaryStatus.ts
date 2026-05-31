@@ -14,4 +14,5 @@ export const PendingEditSummaryStatus = {
   approved: 'approved',
   rejected: 'rejected',
   cancelled: 'cancelled',
+  changes_requested: 'changes_requested',
 } as const;

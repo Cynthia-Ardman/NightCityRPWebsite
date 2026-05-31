@@ -16,15 +16,15 @@ async function createPendingSheet(ownerId: string, name = "Test Subject") {
   return s;
 }
 
-describe("POST /api/sheets/:id/decision self-review guard", () => {
+describe("POST /api/sheets/:id/vote self-review guard", () => {
   it("403s when the approver is the sheet owner, leaving the sheet pending", async () => {
     const owner = await createUser({ roles: ["cs approver"] });
     const sheet = await createPendingSheet(owner.id);
 
     const res = await request(app)
-      .post(`/api/sheets/${sheet.id}/decision`)
+      .post(`/api/sheets/${sheet.id}/vote`)
       .set("x-test-user", owner.id)
-      .send({ decision: "approved" });
+      .send({ vote: "approve" });
 
     expect(res.status).toBe(403);
 
@@ -42,9 +42,9 @@ describe("POST /api/sheets/:id/decision self-review guard", () => {
     const sheet = await createPendingSheet(owner.id, "Approve Me");
 
     const res = await request(app)
-      .post(`/api/sheets/${sheet.id}/decision`)
+      .post(`/api/sheets/${sheet.id}/vote`)
       .set("x-test-user", approver.id)
-      .send({ decision: "approved" });
+      .send({ vote: "approve" });
 
     expect(res.status).toBe(200);
 

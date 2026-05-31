@@ -13,7 +13,7 @@ export default function PendingSheets() {
         <h1 className="text-4xl font-display font-bold text-foreground flex items-center gap-3" data-testid="text-pending-title">
           <Clock className="w-8 h-8 text-nc-yellow" /> PENDING SHEETS
         </h1>
-        <p className="text-muted-foreground font-mono mt-2">Approve or reject character submissions.</p>
+        <p className="text-muted-foreground font-mono mt-2">Cast your vote on character submissions — majority approves.</p>
       </div>
 
       {isLoading ? (
@@ -38,6 +38,11 @@ export default function PendingSheets() {
                 <CardContent className="mt-auto flex justify-between items-center border-t border-border/50 pt-4">
                   <div className="text-xs font-mono text-muted-foreground">
                     {new Date(sheet.createdAt).toLocaleDateString()}
+                    {typeof sheet.threshold === "number" && (
+                      <span className="ml-2">
+                        · <span className="text-nc-green">{sheet.approveCount ?? 0}</span>/{sheet.threshold} approve
+                      </span>
+                    )}
                   </div>
                   <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none animate-pulse">REVIEW REQ</Badge>
                 </CardContent>

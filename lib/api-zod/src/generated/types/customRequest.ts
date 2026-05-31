@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CustomRequestMyVote } from './customRequestMyVote';
 import type { CustomRequestStatus } from './customRequestStatus';
 import type { CustomRequestType } from './customRequestType';
 
@@ -32,12 +33,30 @@ export interface CustomRequest {
   reviewedById?: string | null;
   /** @nullable */
   reviewedAt?: Date | null;
-  /** @nullable */
+  /**
+     * On changes_requested this carries the reviewer's comment to the player.
+     * @nullable
+     */
   reviewerNote?: string | null;
   /**
      * What was materialized on approval (housing:<id> / inventory:<uuid>).
      * @nullable
      */
   appliedRef?: string | null;
+  /**
+     * Admin user id if approved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
+  /** Review tally — present on list responses. */
+  approveCount?: number;
+  rejectCount?: number;
+  /** Majority needed among eligible reviewers (excludes the requester). */
+  threshold?: number;
+  /**
+     * The viewer's own vote, if any.
+     * @nullable
+     */
+  myVote?: CustomRequestMyVote;
   createdAt: Date;
 }

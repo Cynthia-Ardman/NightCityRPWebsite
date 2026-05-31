@@ -7,6 +7,8 @@
  */
 import type { CharacterSheetData } from './characterSheetData';
 import type { CharacterSheetStatus } from './characterSheetStatus';
+import type { ReviewerSelfVote } from './reviewerSelfVote';
+import type { ReviewVoteRecord } from './reviewVoteRecord';
 
 export interface CharacterSheet {
   id: number;
@@ -20,10 +22,30 @@ export interface CharacterSheet {
   discordMessageId?: string | null;
   /** @nullable */
   decisionBy?: string | null;
-  /** @nullable */
+  /**
+     * On changes_requested this carries the reviewer's comment.
+     * @nullable
+     */
   decisionNote?: string | null;
   /** @nullable */
   decidedAt?: Date | null;
+  /**
+     * Admin user id if approved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
+  /** @nullable */
+  ownerAvatarUrl?: string | null;
   createdAt: Date;
   data: CharacterSheetData;
+  votes?: ReviewVoteRecord[];
+  eligibleVoterCount?: number;
+  threshold?: number;
+  approveCount?: number;
+  rejectCount?: number;
+  myVote?: ReviewerSelfVote;
+  canVote?: boolean;
+  canRequestChanges?: boolean;
+  canOverride?: boolean;
+  canResubmit?: boolean;
 }

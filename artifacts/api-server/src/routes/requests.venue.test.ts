@@ -84,7 +84,7 @@ describe("POST /requests (venue submit validation)", () => {
   });
 });
 
-describe("POST /requests/:id/approve (venue materialization)", () => {
+describe("POST /requests/:id/vote (venue materialization)", () => {
   it("creates a store owned by requester+character, audit-logs, and DMs", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
@@ -96,9 +96,9 @@ describe("POST /requests/:id/approve (venue materialization)", () => {
     const reqId = submit.body.id as number;
 
     const res = await request(app)
-      .post(`/api/requests/${reqId}/approve`)
+      .post(`/api/requests/${reqId}/vote`)
       .set("x-test-user", fixer.id)
-      .send({});
+      .send({ vote: "approve" });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("approved");
     expect(res.body.appliedRef).toMatch(/^store:\d+$/);
@@ -113,7 +113,7 @@ describe("POST /requests/:id/approve (venue materialization)", () => {
     expect(s.location).toBe(VENUE_BODY.location);
     expect(s.description).toBe(VENUE_BODY.description);
 
-    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_approve"));
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_vote_approve"));
     expect(audits).toHaveLength(1);
     expect(audits[0].category).toBe("shop");
 
@@ -130,9 +130,9 @@ describe("POST /requests/:id/approve (venue materialization)", () => {
       .send({ type: "store", characterId: char.id, ...VENUE_BODY });
     const reqId = submit.body.id as number;
 
-    const first = await request(app).post(`/api/requests/${reqId}/approve`).set("x-test-user", fixer.id).send({});
+    const first = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
     expect(first.status).toBe(200);
-    const second = await request(app).post(`/api/requests/${reqId}/approve`).set("x-test-user", fixer.id).send({});
+    const second = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
     expect(second.status).toBe(409);
 
     const createdStores = await db.select().from(stores);
@@ -149,7 +149,7 @@ describe("POST /requests/:id/approve (venue materialization)", () => {
       .send({ type: "ripperdoc", characterId: char.id, ...VENUE_BODY, title: "Vik's Clinic" });
     const reqId = submit.body.id as number;
 
-    const res = await request(app).post(`/api/requests/${reqId}/approve`).set("x-test-user", fixer.id).send({});
+    const res = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^ripperdoc:\d+$/);
 
@@ -173,9 +173,9 @@ describe("POST /requests/:id/approve (venue materialization)", () => {
     expect(submit.status).toBe(201);
 
     const res = await request(app)
-      .post(`/api/requests/${submit.body.id}/approve`)
+      .post(`/api/requests/${submit.body.id}/vote`)
       .set("x-test-user", fixer.id)
-      .send({});
+      .send({ vote: "approve" });
     expect(res.status).toBe(200);
 
     const createdStores = await db.select().from(stores);
@@ -193,9 +193,9 @@ describe("POST /requests/:id/approve (venue materialization)", () => {
       .set("x-test-user", owner.id)
       .send({ type: "store", characterId: char.id, ...VENUE_BODY });
     const res = await request(app)
-      .post(`/api/requests/${submit.body.id}/approve`)
+      .post(`/api/requests/${submit.body.id}/vote`)
       .set("x-test-user", owner.id)
-      .send({});
+      .send({ vote: "approve" });
     expect(res.status).toBe(403);
   });
 });
@@ -204,7 +204,7 @@ describe("POST /requests/:id/approve (venue materialization)", () => {
 // locked with a raw `SELECT *` cast to the camelCase type, leaving characterId
 // undefined and 400-ing EVERY approve type. These exercise the legacy types so
 // the typed `.for("update")` read can't silently regress.
-describe("POST /requests/:id/approve (legacy types regression)", () => {
+describe("POST /requests/:id/vote (legacy types regression)", () => {
   async function submit(ownerId: string, type: string, extra: Record<string, unknown> = {}) {
     const char = await createCharacter({ ownerId });
     const res = await request(app)
@@ -219,9 +219,9 @@ describe("POST /requests/:id/approve (legacy types regression)", () => {
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "property");
     const res = await request(app)
-      .post(`/api/requests/${reqId}/approve`)
+      .post(`/api/requests/${reqId}/vote`)
       .set("x-test-user", fixer.id)
-      .send({ monthlyRent: 1500 });
+      .send({ vote: "approve", monthlyRent: 1500 });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^housing:\d+$/);
     const leases = await db.select().from(housing);
@@ -234,7 +234,7 @@ describe("POST /requests/:id/approve (legacy types regression)", () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "gun");
-    const res = await request(app).post(`/api/requests/${reqId}/approve`).set("x-test-user", fixer.id).send({});
+    const res = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^inventory:/);
     const items = await db.select().from(inventoryItems);
@@ -248,7 +248,7 @@ describe("POST /requests/:id/approve (legacy types regression)", () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "cyberware");
-    const res = await request(app).post(`/api/requests/${reqId}/approve`).set("x-test-user", fixer.id).send({ cwp: 4 });
+    const res = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve", cwp: 4 });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^inventory:/);
     const items = await db.select().from(inventoryItems);
@@ -259,7 +259,7 @@ describe("POST /requests/:id/approve (legacy types regression)", () => {
   });
 });
 
-describe("POST /requests/:id/reject (venue)", () => {
+describe("POST /requests/:id/vote reject (venue)", () => {
   it("records the reviewer note, creates no venue, and DMs", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
@@ -271,9 +271,9 @@ describe("POST /requests/:id/reject (venue)", () => {
     const reqId = submit.body.id as number;
 
     const res = await request(app)
-      .post(`/api/requests/${reqId}/reject`)
+      .post(`/api/requests/${reqId}/vote`)
       .set("x-test-user", fixer.id)
-      .send({ reviewerNote: "Too close to an existing store." });
+      .send({ vote: "reject", note: "Too close to an existing store." });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("rejected");
     expect(res.body.reviewerNote).toBe("Too close to an existing store.");
@@ -285,7 +285,7 @@ describe("POST /requests/:id/reject (venue)", () => {
     expect(row[0].status).toBe("rejected");
     expect(row[0].appliedRef).toBeNull();
 
-    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_reject"));
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_vote_reject"));
     expect(audits).toHaveLength(1);
     expect(audits[0].category).toBe("shop");
 

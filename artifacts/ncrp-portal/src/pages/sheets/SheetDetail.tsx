@@ -2,7 +2,10 @@ import { useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSheet,
-  useDecideSheet,
+  useVoteSheet,
+  useOverrideSheet,
+  useRequestChangesSheet,
+  useSubmitDraftSheet,
   useListCyberware,
   getGetSheetQueryKey,
   getListPendingSheetsQueryKey,
@@ -12,8 +15,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Check, X, ShieldCheck, MessageSquareWarning, RotateCcw } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import { useMemo, useState } from "react";
+
+function sheetStatusBadge(status: string) {
+  const map: Record<string, string> = {
+    pending: "border-nc-yellow text-nc-yellow",
+    approved: "border-nc-green text-nc-green",
+    rejected: "border-destructive text-destructive",
+    changes_requested: "border-nc-magenta text-nc-magenta",
+    draft: "border-muted-foreground text-muted-foreground",
+  };
+  return (
+    <Badge variant="outline" className={`rounded-none uppercase ${map[status] ?? "border-nc-cyan text-nc-cyan"}`} data-testid="badge-status">
+      {status.replace("_", " ")}
+    </Badge>
+  );
+}
 
 export default function SheetDetail() {
   const { id } = useParams<{ id: string }>();
@@ -23,7 +43,9 @@ export default function SheetDetail() {
   const { data: sheet, isLoading } = useGetSheet(sheetId);
   const { data: me } = useAuthMe();
   const { data: catalog } = useListCyberware();
+  const { toast } = useToast();
   const [note, setNote] = useState("");
+  const [changeComment, setChangeComment] = useState("");
 
   // Mirror the server's catalog-authoritative CWP resolution
   // (loadCyberwareCostMap / entryPoints in api-server sheets.ts): cost is keyed
@@ -40,12 +62,35 @@ export default function SheetDetail() {
     });
     return map;
   }, [catalog]);
-  const decide = useDecideSheet({
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getGetSheetQueryKey(sheetId) });
+    qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
+  };
+  const errMsg = (err: unknown, fallback: string) =>
+    (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
+
+  const vote = useVoteSheet({
     mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getGetSheetQueryKey(sheetId) });
-        qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
-      },
+      onSuccess: () => { setNote(""); invalidate(); },
+      onError: (err) => toast({ title: "Vote failed", description: errMsg(err, "Vote failed"), variant: "destructive" }),
+    },
+  });
+  const override = useOverrideSheet({
+    mutation: {
+      onSuccess: () => { toast({ title: "Sheet approved via override" }); invalidate(); },
+      onError: (err) => toast({ title: "Override failed", description: errMsg(err, "Override failed"), variant: "destructive" }),
+    },
+  });
+  const requestChanges = useRequestChangesSheet({
+    mutation: {
+      onSuccess: () => { toast({ title: "Changes requested — the player has been notified" }); setChangeComment(""); invalidate(); },
+      onError: (err) => toast({ title: "Could not request changes", description: errMsg(err, "Request failed"), variant: "destructive" }),
+    },
+  });
+  const resubmit = useSubmitDraftSheet({
+    mutation: {
+      onSuccess: () => { toast({ title: "Resubmitted for review" }); invalidate(); },
+      onError: (err) => toast({ title: "Resubmit failed", description: errMsg(err, "Resubmit failed"), variant: "destructive" }),
     },
   });
 
@@ -56,7 +101,7 @@ export default function SheetDetail() {
   // any part of it before it's approved.
   const isOwner = (me as any)?.id != null && (sheet as any).ownerId === (me as any).id;
   const isStaff = !!(me?.isCsApprover || me?.isAdmin || me?.isFixer);
-  const canEdit = sheet.status === "pending" && (isOwner || isStaff);
+  const canEdit = ((sheet.status === "pending" && (isOwner || isStaff)) || (sheet.status === "changes_requested" && isOwner));
 
   const data = sheet.data as unknown as Record<string, unknown>;
   const legacyCw = [
@@ -115,9 +160,7 @@ export default function SheetDetail() {
           <h1 className="text-4xl font-display text-foreground" data-testid="text-sheet-name">{sheet.name}</h1>
           <p className="font-mono text-xs text-muted-foreground mt-1">
             Submitted {new Date(sheet.createdAt).toLocaleString()} · Status:{" "}
-            <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan uppercase" data-testid="badge-status">
-              {sheet.status}
-            </Badge>
+            {sheetStatusBadge(sheet.status)}
           </p>
         </div>
         {canEdit && (
@@ -283,7 +326,20 @@ export default function SheetDetail() {
         </CardContent>
       </Card>
 
-      {me?.isCsApprover && sheet.status === "pending" && isOwner && (
+      {/* Vote tally — visible to reviewers and the owner while in review */}
+      {(sheet.status === "pending" || sheet.status === "changes_requested") && (isStaff || isOwner) && (
+        <Card className="rounded-none border-border bg-card/30">
+          <CardHeader className="pb-2"><CardTitle className="font-display text-sm tracking-widest text-nc-cyan">VOTE TALLY</CardTitle></CardHeader>
+          <CardContent className="font-mono text-sm">
+            <span className="text-nc-green">{sheet.approveCount}</span> approve ·{" "}
+            <span className="text-destructive">{sheet.rejectCount}</span> reject ·{" "}
+            threshold <span className="text-nc-cyan">{sheet.threshold}</span> of {sheet.eligibleVoterCount} eligible reviewers
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Self-review notice */}
+      {isStaff && sheet.status === "pending" && isOwner && (
         <Card className="rounded-none border-border bg-card/50">
           <CardContent className="font-mono text-sm text-muted-foreground py-4" data-testid="text-self-review-blocked">
             You submitted this sheet, so another reviewer must approve it.
@@ -291,18 +347,51 @@ export default function SheetDetail() {
         </Card>
       )}
 
-      {me?.isCsApprover && sheet.status === "pending" && !isOwner && (
+      {/* Reviewer vote panel */}
+      {sheet.canVote && (
         <Card className="rounded-none border-nc-yellow bg-card/50">
-          <CardHeader><CardTitle className="font-display tracking-widest text-nc-yellow">APPROVAL DECISION</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="font-display tracking-widest text-nc-yellow">YOUR VOTE</CardTitle></CardHeader>
           <CardContent className="space-y-3">
+            {sheet.myVote && (
+              <div className="font-mono text-xs text-muted-foreground">
+                Current vote: <span className={sheet.myVote.vote === "approve" ? "text-nc-green" : "text-destructive"}>{sheet.myVote.vote.toUpperCase()}</span>
+                {sheet.myVote.note ? <span className="italic"> — "{sheet.myVote.note}"</span> : null}
+              </div>
+            )}
             <Textarea placeholder="Optional note for the player..." value={note} onChange={(e) => setNote(e.target.value)} data-testid="input-decision-note" />
             <div className="flex gap-2">
-              <Button onClick={() => decide.mutate({ id: sheetId, data: { decision: "approved", note } })} disabled={decide.isPending} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-approve">APPROVE</Button>
-              <Button onClick={() => decide.mutate({ id: sheetId, data: { decision: "changes_requested", note } })} disabled={decide.isPending} variant="outline" className="rounded-none border-nc-yellow text-nc-yellow font-display" data-testid="button-request-changes">REQUEST CHANGES</Button>
-              <Button onClick={() => decide.mutate({ id: sheetId, data: { decision: "rejected", note } })} disabled={decide.isPending} variant="destructive" className="rounded-none font-display" data-testid="button-reject">REJECT</Button>
+              <Button onClick={() => vote.mutate({ id: sheetId, data: { vote: "approve", note: note || undefined } })} disabled={vote.isPending} className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display" data-testid="button-approve"><Check className="w-4 h-4 mr-1" /> APPROVE</Button>
+              <Button onClick={() => vote.mutate({ id: sheetId, data: { vote: "reject", note: note || undefined } })} disabled={vote.isPending} variant="destructive" className="rounded-none font-display" data-testid="button-reject"><X className="w-4 h-4 mr-1" /> REJECT</Button>
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Reviewer request-changes */}
+      {sheet.canRequestChanges && (
+        <Card className="rounded-none border-nc-magenta bg-card/50">
+          <CardHeader><CardTitle className="font-display tracking-widest text-nc-magenta">REQUEST CHANGES</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <Textarea placeholder="Tell the player what needs to change..." value={changeComment} onChange={(e) => setChangeComment(e.target.value)} maxLength={2000} data-testid="input-change-comment" />
+            <Button onClick={() => requestChanges.mutate({ id: sheetId, data: { comment: changeComment } })} disabled={requestChanges.isPending || changeComment.trim().length === 0} variant="outline" className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display" data-testid="button-request-changes"><MessageSquareWarning className="w-4 h-4 mr-1" /> SEND BACK TO PLAYER</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin override */}
+      {sheet.canOverride && (
+        <div className="border-t border-border pt-4">
+          <Button onClick={() => override.mutate({ id: sheetId })} disabled={override.isPending} className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display" data-testid="button-override"><ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW</Button>
+          <p className="font-mono text-xs text-muted-foreground mt-1">Bypasses the majority vote and approves immediately. Records you as the override approver.</p>
+        </div>
+      )}
+
+      {/* Owner resubmit after changes requested */}
+      {sheet.canResubmit && (
+        <div className="border-t border-border pt-4">
+          <Button onClick={() => resubmit.mutate({ id: sheetId })} disabled={resubmit.isPending} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-resubmit"><RotateCcw className="w-4 h-4 mr-1" /> RESUBMIT FOR REVIEW</Button>
+          <p className="font-mono text-xs text-muted-foreground mt-1">Edit your sheet first if needed, then resubmit. This clears prior votes and returns it to the queue.</p>
+        </div>
       )}
 
       {sheet.decisionNote && (

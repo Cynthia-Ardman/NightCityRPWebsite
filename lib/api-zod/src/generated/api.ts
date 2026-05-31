@@ -4298,8 +4298,10 @@ export const ListMySheetsResponseItem = zod.object({
   "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
   "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "decisionNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment.'),
   "decidedAt": zod.coerce.date().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -4341,7 +4343,29 @@ export const ListMySheetsResponseItem = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
+  "votes": zod.array(zod.object({
+  "id": zod.number(),
+  "voterId": zod.string(),
+  "voterName": zod.string().nullish(),
+  "voterAvatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date()
+})).optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional(),
+  "canVote": zod.boolean().optional(),
+  "canRequestChanges": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canResubmit": zod.boolean().optional()
 })
 export const ListMySheetsResponse = zod.array(ListMySheetsResponseItem)
 
@@ -4401,65 +4425,24 @@ export const SubmitSheetBody = zod.object({
 
 
 /**
- * @summary Pending sheets (CS approvers only)
+ * @summary Pending sheets (reviewers only) with per-sheet vote tallies
  */
-export const listPendingSheetsResponseDataCyberwarePointsSpentMax = 6;
-
-
-
 export const ListPendingSheetsResponseItem = zod.object({
   "id": zod.number(),
-  "ownerId": zod.string(),
-  "ownerName": zod.string().optional(),
-  "characterId": zod.number().nullish(),
   "name": zod.string(),
   "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
-  "discordMessageId": zod.string().nullish(),
-  "decisionBy": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
-  "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
-  "data": zod.object({
-  "sheetType": zod.enum(['PC', 'NPC']),
-  "fullName": zod.string(),
-  "nickname": zod.string().nullish(),
-  "pronouns": zod.string().nullable(),
-  "occupation": zod.string().nullable(),
-  "archetype": zod.string().optional(),
-  "age": zod.number(),
-  "gender": zod.string().optional(),
-  "physicalDescription": zod.string().nullable(),
-  "appearance": zod.string().optional(),
-  "psychProfile": zod.string().nullable(),
-  "background": zod.string(),
-  "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
-  "cyberware": zod.array(zod.object({
-  "slot": zod.string(),
-  "name": zod.string(),
-  "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
-  "notes": zod.string().nullish()
-})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
-  "cyberwareBySlot": zod.array(zod.object({
-  "slot": zod.string(),
-  "name": zod.string(),
-  "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
-  "notes": zod.string().nullish()
-})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
-  "cyberwareMisc": zod.array(zod.object({
-  "slot": zod.string(),
-  "name": zod.string(),
-  "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
-  "notes": zod.string().nullish()
-})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
-  "cyberwarePointsSpent": zod.number().max(listPendingSheetsResponseDataCyberwarePointsSpentMax).optional(),
-  "gear": zod.array(zod.string()),
-  "startingEddies": zod.number().optional(),
-  "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
+  "ownerId": zod.string(),
+  "ownerName": zod.string().nullish(),
+  "ownerAvatarUrl": zod.string().nullish(),
+  "approveCount": zod.number(),
+  "rejectCount": zod.number(),
+  "threshold": zod.number(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional()
 })
 export const ListPendingSheetsResponse = zod.array(ListPendingSheetsResponseItem)
 
@@ -4481,8 +4464,10 @@ export const GetSheetResponse = zod.object({
   "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
   "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "decisionNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment.'),
   "decidedAt": zod.coerce.date().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -4524,7 +4509,29 @@ export const GetSheetResponse = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
+  "votes": zod.array(zod.object({
+  "id": zod.number(),
+  "voterId": zod.string(),
+  "voterName": zod.string().nullish(),
+  "voterAvatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date()
+})).optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional(),
+  "canVote": zod.boolean().optional(),
+  "canRequestChanges": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canResubmit": zod.boolean().optional()
 })
 
 
@@ -4600,8 +4607,10 @@ export const UpdateSheetResponse = zod.object({
   "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
   "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "decisionNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment.'),
   "decidedAt": zod.coerce.date().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -4643,7 +4652,29 @@ export const UpdateSheetResponse = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
+  "votes": zod.array(zod.object({
+  "id": zod.number(),
+  "voterId": zod.string(),
+  "voterName": zod.string().nullish(),
+  "voterAvatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date()
+})).optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional(),
+  "canVote": zod.boolean().optional(),
+  "canRequestChanges": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canResubmit": zod.boolean().optional()
 })
 
 
@@ -4675,8 +4706,10 @@ export const SubmitDraftSheetResponse = zod.object({
   "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
   "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "decisionNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment.'),
   "decidedAt": zod.coerce.date().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -4718,27 +4751,69 @@ export const SubmitDraftSheetResponse = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
+  "votes": zod.array(zod.object({
+  "id": zod.number(),
+  "voterId": zod.string(),
+  "voterName": zod.string().nullish(),
+  "voterAvatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date()
+})).optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional(),
+  "canVote": zod.boolean().optional(),
+  "canRequestChanges": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canResubmit": zod.boolean().optional()
 })
 
 
 /**
- * @summary Approve or reject a pending sheet (CS approvers only)
+ * @summary Cast or change your approve/reject vote on a pending sheet. When the tally reaches majority the sheet is decided (approve materializes the character).
  */
-export const DecideSheetParams = zod.object({
+export const VoteSheetParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const DecideSheetBody = zod.object({
-  "decision": zod.enum(['approved', 'rejected', 'changes_requested']),
-  "note": zod.string().optional()
+export const voteSheetBodyNoteMax = 2000;
+
+
+
+export const VoteSheetBody = zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().max(voteSheetBodyNoteMax).optional()
 })
 
-export const decideSheetResponseDataCyberwarePointsSpentMax = 6;
+export const VoteSheetResponse = zod.object({
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish(),
+  "approveCount": zod.number(),
+  "rejectCount": zod.number(),
+  "threshold": zod.number()
+})
+
+
+/**
+ * @summary Admin-only immediate approval that bypasses the vote and materializes the character. Records overriddenBy.
+ */
+export const OverrideSheetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const overrideSheetResponseDataCyberwarePointsSpentMax = 6;
 
 
 
-export const DecideSheetResponse = zod.object({
+export const OverrideSheetResponse = zod.object({
   "id": zod.number(),
   "ownerId": zod.string(),
   "ownerName": zod.string().optional(),
@@ -4747,8 +4822,10 @@ export const DecideSheetResponse = zod.object({
   "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
   "discordMessageId": zod.string().nullish(),
   "decisionBy": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "decisionNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment.'),
   "decidedAt": zod.coerce.date().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -4786,11 +4863,132 @@ export const DecideSheetResponse = zod.object({
   "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
-  "cyberwarePointsSpent": zod.number().max(decideSheetResponseDataCyberwarePointsSpentMax).optional(),
+  "cyberwarePointsSpent": zod.number().max(overrideSheetResponseDataCyberwarePointsSpentMax).optional(),
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
+  "votes": zod.array(zod.object({
+  "id": zod.number(),
+  "voterId": zod.string(),
+  "voterName": zod.string().nullish(),
+  "voterAvatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date()
+})).optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional(),
+  "canVote": zod.boolean().optional(),
+  "canRequestChanges": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canResubmit": zod.boolean().optional()
+})
+
+
+/**
+ * @summary A reviewer parks the sheet in changes_requested with a comment and DMs the owner. The owner resubmits via /sheets/{id}/submit.
+ */
+export const RequestChangesSheetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const requestChangesSheetBodyCommentMax = 2000;
+
+
+
+export const RequestChangesSheetBody = zod.object({
+  "comment": zod.string().min(1).max(requestChangesSheetBodyCommentMax)
+})
+
+export const requestChangesSheetResponseDataCyberwarePointsSpentMax = 6;
+
+
+
+export const RequestChangesSheetResponse = zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string(),
+  "ownerName": zod.string().optional(),
+  "characterId": zod.number().nullish(),
+  "name": zod.string(),
+  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
+  "discordMessageId": zod.string().nullish(),
+  "decisionBy": zod.string().nullish(),
+  "decisionNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment.'),
+  "decidedAt": zod.coerce.date().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "ownerAvatarUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "data": zod.object({
+  "sheetType": zod.enum(['PC', 'NPC']),
+  "fullName": zod.string(),
+  "nickname": zod.string().nullish(),
+  "pronouns": zod.string().nullable(),
+  "occupation": zod.string().nullable(),
+  "archetype": zod.string().optional(),
+  "age": zod.number(),
+  "gender": zod.string().optional(),
+  "physicalDescription": zod.string().nullable(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().nullable(),
+  "background": zod.string(),
+  "attributes": zod.record(zod.string(), zod.number()).optional(),
+  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
+  "cyberware": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
+  "cyberwareBySlot": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
+  "cyberwareMisc": zod.array(zod.object({
+  "slot": zod.string(),
+  "name": zod.string(),
+  "points": zod.number(),
+  "humanityLoss": zod.number().optional(),
+  "notes": zod.string().nullish()
+})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
+  "cyberwarePointsSpent": zod.number().max(requestChangesSheetResponseDataCyberwarePointsSpentMax).optional(),
+  "gear": zod.array(zod.string()),
+  "startingEddies": zod.number().optional(),
+  "notes": zod.string().nullish()
+}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
+  "votes": zod.array(zod.object({
+  "id": zod.number(),
+  "voterId": zod.string(),
+  "voterName": zod.string().nullish(),
+  "voterAvatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date()
+})).optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional(),
+  "canVote": zod.boolean().optional(),
+  "canRequestChanges": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canResubmit": zod.boolean().optional()
 })
 
 
@@ -4806,8 +5004,10 @@ export const ListPendingEditsResponseItem = zod.object({
   "submitterAvatarUrl": zod.string().nullish(),
   "proposedDiff": zod.record(zod.string(), zod.unknown()).optional(),
   "updateNote": zod.string().nullish(),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'changes_requested']),
   "decisionSummary": zod.string().nullish(),
+  "reviewComment": zod.string().nullish().describe('Reviewer\'s comment when changes were requested.'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "submittedAt": zod.coerce.date(),
   "decidedAt": zod.coerce.date().nullish(),
   "approveCount": zod.number(),
@@ -4840,8 +5040,10 @@ export const GetPendingEditResponse = zod.object({
   "proposedDiff": zod.record(zod.string(), zod.unknown()),
   "before": zod.record(zod.string(), zod.unknown()),
   "updateNote": zod.string().nullish(),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'changes_requested']),
   "decisionSummary": zod.string().nullish(),
+  "reviewComment": zod.string().nullish().describe('Reviewer\'s comment when changes were requested.'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "submittedAt": zod.coerce.date(),
   "decidedAt": zod.coerce.date().nullish(),
   "votes": zod.array(zod.object({
@@ -4862,7 +5064,10 @@ export const GetPendingEditResponse = zod.object({
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
-  "canVote": zod.boolean()
+  "canVote": zod.boolean(),
+  "canRequestChanges": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canResubmit": zod.boolean().optional()
 })
 
 
@@ -4889,6 +5094,53 @@ export const VotePendingEditResponse = zod.object({
   "rejectCount": zod.number(),
   "threshold": zod.number(),
   "eligibleVoterCount": zod.number()
+})
+
+
+/**
+ * @summary Admin-only immediate approval that bypasses the vote and applies the edit. Records overriddenBy.
+ */
+export const OverridePendingEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const OverridePendingEditResponse = zod.object({
+  "ok": zod.boolean(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary A reviewer parks the edit in changes_requested with a comment and DMs the submitter.
+ */
+export const RequestChangesPendingEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const requestChangesPendingEditBodyCommentMax = 2000;
+
+
+
+export const RequestChangesPendingEditBody = zod.object({
+  "comment": zod.string().min(1).max(requestChangesPendingEditBodyCommentMax)
+})
+
+export const RequestChangesPendingEditResponse = zod.object({
+  "ok": zod.boolean(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary The submitter sends a changes_requested edit back to the review queue. Clears prior votes. Allowed with no edits.
+ */
+export const ResubmitPendingEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ResubmitPendingEditResponse = zod.object({
+  "ok": zod.boolean(),
+  "status": zod.string()
 })
 
 
@@ -5834,7 +6086,7 @@ export const GetMyWalletTransactionsResponse = zod.array(GetMyWalletTransactions
 export const listCustomRequestsQueryStatusDefault = `pending`;
 
 export const ListCustomRequestsQueryParams = zod.object({
-  "status": zod.enum(['pending', 'approved', 'rejected']).default(listCustomRequestsQueryStatusDefault)
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']).default(listCustomRequestsQueryStatusDefault)
 })
 
 export const ListCustomRequestsResponseItem = zod.object({
@@ -5848,11 +6100,16 @@ export const ListCustomRequestsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
-  "reviewerNote": zod.string().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
   "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "createdAt": zod.coerce.date()
 })
 export const ListCustomRequestsResponse = zod.array(ListCustomRequestsResponseItem)
@@ -5890,37 +6147,45 @@ export const ListMyCustomRequestsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
-  "reviewerNote": zod.string().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
   "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "createdAt": zod.coerce.date()
 })
 export const ListMyCustomRequestsResponse = zod.array(ListMyCustomRequestsResponseItem)
 
 
 /**
- * @summary Approve and auto-apply a custom request (fixer/admin only).
+ * @summary Cast or change your approve/reject vote on a custom request. An approve vote carries the mechanical params for the type (property/cyberware). When the tally reaches majority the request is decided and auto-applied.
  */
-export const ApproveCustomRequestParams = zod.object({
+export const VoteCustomRequestParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const approveCustomRequestBodyMonthlyRentMin = 0;
+export const voteCustomRequestBodyNoteMax = 2000;
 
-export const approveCustomRequestBodyCwpMin = 0;
+export const voteCustomRequestBodyMonthlyRentMin = 0;
+
+export const voteCustomRequestBodyCwpMin = 0;
 
 
 
-export const ApproveCustomRequestBody = zod.object({
-  "reviewerNote": zod.string().optional(),
-  "monthlyRent": zod.number().min(approveCustomRequestBodyMonthlyRentMin).optional().describe('Required for property requests.'),
-  "kind": zod.enum(['residential', 'business']).optional().describe('For property requests; defaults residential.'),
-  "cwp": zod.number().min(approveCustomRequestBodyCwpMin).optional().describe('Required for cyberware requests; sets chrome point cost.')
+export const VoteCustomRequestBody = zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().max(voteCustomRequestBodyNoteMax).optional(),
+  "monthlyRent": zod.number().min(voteCustomRequestBodyMonthlyRentMin).optional().describe('Required on an approve vote for property requests.'),
+  "kind": zod.enum(['residential', 'business']).optional().describe('For property approve votes; defaults residential.'),
+  "cwp": zod.number().min(voteCustomRequestBodyCwpMin).optional().describe('Required on an approve vote for cyberware requests.')
 })
 
-export const ApproveCustomRequestResponse = zod.object({
+export const VoteCustomRequestResponse = zod.object({
   "id": zod.number(),
   "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
   "characterId": zod.number(),
@@ -5931,27 +6196,83 @@ export const ApproveCustomRequestResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
-  "reviewerNote": zod.string().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
   "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish()
+}))
+
+
+/**
+ * @summary Admin-only immediate approval that bypasses the vote and auto-applies. Records overriddenBy.
+ */
+export const OverrideCustomRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const overrideCustomRequestBodyMonthlyRentMin = 0;
+
+export const overrideCustomRequestBodyCwpMin = 0;
+
+
+
+export const OverrideCustomRequestBody = zod.object({
+  "reviewerNote": zod.string().optional(),
+  "monthlyRent": zod.number().min(overrideCustomRequestBodyMonthlyRentMin).optional().describe('Required for property requests.'),
+  "kind": zod.enum(['residential', 'business']).optional().describe('For property requests; defaults residential.'),
+  "cwp": zod.number().min(overrideCustomRequestBodyCwpMin).optional().describe('Required for cyberware requests; sets chrome point cost.')
+})
+
+export const OverrideCustomRequestResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "createdAt": zod.coerce.date()
 })
 
 
 /**
- * @summary Reject a custom request (fixer/admin only).
+ * @summary A reviewer parks the request in changes_requested with a comment and DMs the player.
  */
-export const RejectCustomRequestParams = zod.object({
+export const RequestChangesCustomRequestParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const RejectCustomRequestBody = zod.object({
-  "reviewerNote": zod.string().optional()
+export const requestChangesCustomRequestBodyCommentMax = 2000;
+
+
+
+export const RequestChangesCustomRequestBody = zod.object({
+  "comment": zod.string().min(1).max(requestChangesCustomRequestBodyCommentMax)
 })
 
-export const RejectCustomRequestResponse = zod.object({
+export const RequestChangesCustomRequestResponse = zod.object({
   "id": zod.number(),
   "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
   "characterId": zod.number(),
@@ -5962,11 +6283,88 @@ export const RejectCustomRequestResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
-  "reviewerNote": zod.string().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
   "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary The requester sends a changes_requested request back to the review queue. Clears prior votes. Allowed with no edits.
+ */
+export const ResubmitCustomRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ResubmitCustomRequestResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary The requester (or admin) edits a request while it is pending or changes_requested.
+ */
+export const UpdateCustomRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCustomRequestBody = zod.object({
+  "title": zod.string().optional(),
+  "description": zod.string().optional(),
+  "imageUrl": zod.string().optional(),
+  "purpose": zod.string().optional().describe('Venue requests only.'),
+  "location": zod.string().optional().describe('Venue requests only.')
+})
+
+export const UpdateCustomRequestResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -5994,11 +6392,16 @@ export const DecideStockCostRequestResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
-  "reviewerNote": zod.string().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
   "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "createdAt": zod.coerce.date()
 })
 

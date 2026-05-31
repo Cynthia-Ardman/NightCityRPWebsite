@@ -3,8 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   useListCustomRequests,
-  useApproveCustomRequest,
-  useRejectCustomRequest,
+  useVoteCustomRequest,
+  useOverrideCustomRequest,
+  useRequestChangesCustomRequest,
   useListPendingSheets,
   useListLoreEdits,
   useApproveLoreEdit,
@@ -66,9 +67,15 @@ function venueDetails(r: CustomRequest): { purpose?: string; location?: string }
 
 function MiscRequestsTab() {
   const { data, isLoading } = useListCustomRequests({ status: "pending" });
+  const { data: me } = useAuthMe();
   const requests = (data ?? []) as CustomRequest[];
   const [approveTarget, setApproveTarget] = useState<CustomRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CustomRequest | null>(null);
+  const [changesTarget, setChangesTarget] = useState<CustomRequest | null>(null);
+  const [overrideTarget, setOverrideTarget] = useState<CustomRequest | null>(null);
+
+  const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
+  const isAdmin = !!me?.isAdmin;
 
   if (isLoading) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
@@ -151,35 +158,79 @@ function MiscRequestsTab() {
               ) : (
                 <p className="font-mono text-sm text-muted-foreground italic">No description provided.</p>
               )}
-              <div className="mt-auto flex gap-2 pt-3 border-t border-border/40">
-                <Button
-                  className="rounded-none flex-1 bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                  onClick={() => setApproveTarget(r)}
-                  data-testid={`button-approve-misc-${r.id}`}
-                >
-                  APPROVE
-                </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-none flex-1 border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                  onClick={() => setRejectTarget(r)}
-                  data-testid={`button-reject-misc-${r.id}`}
-                >
-                  REJECT
-                </Button>
+              <div className="mt-auto pt-3 border-t border-border/40 space-y-3">
+                <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
+                  <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
+                  <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
+                  {r.myVote ? (
+                    <span className="ml-2">
+                      · you voted{" "}
+                      <span className={r.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
+                        {r.myVote.toUpperCase()}
+                      </span>
+                    </span>
+                  ) : null}
+                </div>
+                {isReviewer && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                      onClick={() => setApproveTarget(r)}
+                      data-testid={`button-approve-misc-${r.id}`}
+                    >
+                      {r.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                      onClick={() => setRejectTarget(r)}
+                      data-testid={`button-reject-misc-${r.id}`}
+                    >
+                      {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display text-xs tracking-widest"
+                      onClick={() => setChangesTarget(r)}
+                      data-testid={`button-request-changes-misc-${r.id}`}
+                    >
+                      REQUEST CHANGES
+                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                        onClick={() => setOverrideTarget(r)}
+                        data-testid={`button-override-misc-${r.id}`}
+                      >
+                        OVERRIDE
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         );
       })}
 
-      <ApproveDialog request={approveTarget} onClose={() => setApproveTarget(null)} />
+      <ApproveDialog request={approveTarget} mode="vote" onClose={() => setApproveTarget(null)} />
+      <ApproveDialog request={overrideTarget} mode="override" onClose={() => setOverrideTarget(null)} />
       <RejectDialog request={rejectTarget} onClose={() => setRejectTarget(null)} />
+      <RequestChangesDialog request={changesTarget} onClose={() => setChangesTarget(null)} />
     </div>
   );
 }
 
-function ApproveDialog({ request, onClose }: { request: CustomRequest | null; onClose: () => void }) {
+function ApproveDialog({
+  request,
+  mode,
+  onClose,
+}: {
+  request: CustomRequest | null;
+  mode: "vote" | "override";
+  onClose: () => void;
+}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [reviewerNote, setReviewerNote] = useState("");
@@ -198,22 +249,31 @@ function ApproveDialog({ request, onClose }: { request: CustomRequest | null; on
     setSeededFor(seedKey);
   }
 
-  const approve = useApproveCustomRequest({
+  const onDone = (title: string) => {
+    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey({ status: "pending" }) });
+    toast({ title });
+    onClose();
+  };
+  const onFail = (err: unknown) => {
+    const msg =
+      (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+      (err instanceof Error ? err.message : "Please try again.");
+    toast({ title: "Could not approve", description: msg, variant: "destructive" });
+  };
+
+  const voteApprove = useVoteCustomRequest({
     mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey({ status: "pending" }) });
-        toast({ title: "Request approved", description: "It has been applied to the character." });
-        onClose();
-      },
-      onError: (err) => {
-        toast({
-          title: "Could not approve",
-          description: err instanceof Error ? err.message : "Please try again.",
-          variant: "destructive",
-        });
-      },
+      onSuccess: (res) => onDone((res as { decided?: string })?.decided === "approved" ? "Request approved — majority reached" : "Approve vote recorded"),
+      onError: onFail,
     },
   });
+  const override = useOverrideCustomRequest({
+    mutation: {
+      onSuccess: () => onDone("Request approved via override"),
+      onError: onFail,
+    },
+  });
+  const busy = voteApprove.isPending || override.isPending;
 
   if (!request) return null;
 
@@ -225,15 +285,32 @@ function ApproveDialog({ request, onClose }: { request: CustomRequest | null; on
     (!isProperty || (Number.isFinite(rentNum) && rentNum >= 0)) &&
     (!isCyberware || (Number.isFinite(cwpNum) && cwpNum >= 0));
 
+  const submit = () => {
+    const params = {
+      ...(isProperty ? { monthlyRent: rentNum, kind } : {}),
+      ...(isCyberware ? { cwp: cwpNum } : {}),
+    };
+    if (mode === "override") {
+      override.mutate({ id: request.id, data: { reviewerNote: reviewerNote.trim() || undefined, ...params } });
+    } else {
+      voteApprove.mutate({ id: request.id, data: { vote: "approve", note: reviewerNote.trim() || undefined, ...params } });
+    }
+  };
+
+  const heading = mode === "override" ? "OVERRIDE" : "VOTE APPROVE";
+  const cta = mode === "override" ? "OVERRIDE & APPLY" : "CAST APPROVE VOTE";
+
   return (
     <Dialog open={!!request} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="rounded-none border-nc-green/40 bg-card sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display tracking-widest text-nc-green">
-            APPROVE — {request.title.toUpperCase()}
+            {heading} — {request.title.toUpperCase()}
           </DialogTitle>
           <DialogDescription className="font-mono text-xs">
-            Approving auto-applies this to {request.characterName}.
+            {mode === "override"
+              ? `Bypasses the vote and applies this to ${request.characterName} immediately.`
+              : `These mechanical params are used if your vote reaches majority and approves for ${request.characterName}.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -296,20 +373,11 @@ function ApproveDialog({ request, onClose }: { request: CustomRequest | null; on
           </Button>
           <Button
             className="rounded-none font-display tracking-widest bg-nc-green text-background hover:bg-nc-green/80"
-            disabled={!valid || approve.isPending}
-            onClick={() =>
-              approve.mutate({
-                id: request.id,
-                data: {
-                  reviewerNote: reviewerNote.trim() || undefined,
-                  ...(isProperty ? { monthlyRent: rentNum, kind } : {}),
-                  ...(isCyberware ? { cwp: cwpNum } : {}),
-                },
-              })
-            }
+            disabled={!valid || busy}
+            onClick={submit}
             data-testid="button-confirm-approve"
           >
-            {approve.isPending ? "APPLYING..." : "APPROVE & APPLY"}
+            {busy ? "WORKING..." : cta}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -329,19 +397,20 @@ function RejectDialog({ request, onClose }: { request: CustomRequest | null; onC
     setSeededFor(seedKey);
   }
 
-  const reject = useRejectCustomRequest({
+  const voteReject = useVoteCustomRequest({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (res) => {
         qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey({ status: "pending" }) });
-        toast({ title: "Request rejected" });
+        toast({
+          title: (res as { decided?: string })?.decided === "rejected" ? "Request rejected — majority reached" : "Reject vote recorded",
+        });
         onClose();
       },
       onError: (err) => {
-        toast({
-          title: "Could not reject",
-          description: err instanceof Error ? err.message : "Please try again.",
-          variant: "destructive",
-        });
+        const msg =
+          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+          (err instanceof Error ? err.message : "Please try again.");
+        toast({ title: "Could not vote", description: msg, variant: "destructive" });
       },
     },
   });
@@ -353,10 +422,10 @@ function RejectDialog({ request, onClose }: { request: CustomRequest | null; onC
       <DialogContent className="rounded-none border-destructive/40 bg-card sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display tracking-widest text-destructive">
-            REJECT — {request.title.toUpperCase()}
+            VOTE REJECT — {request.title.toUpperCase()}
           </DialogTitle>
           <DialogDescription className="font-mono text-xs">
-            Let the player know why this request can't be granted.
+            A reject majority declines this request. To send it back for edits instead, use Request Changes.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5 py-2">
@@ -376,11 +445,82 @@ function RejectDialog({ request, onClose }: { request: CustomRequest | null; onC
           <Button
             variant="outline"
             className="rounded-none font-display tracking-widest border-destructive text-destructive hover:bg-destructive/10"
-            disabled={reject.isPending}
-            onClick={() => reject.mutate({ id: request.id, data: { reviewerNote: reviewerNote.trim() || undefined } })}
+            disabled={voteReject.isPending}
+            onClick={() => voteReject.mutate({ id: request.id, data: { vote: "reject", note: reviewerNote.trim() || undefined } })}
             data-testid="button-confirm-reject"
           >
-            {reject.isPending ? "REJECTING..." : "REJECT"}
+            {voteReject.isPending ? "VOTING..." : "CAST REJECT VOTE"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RequestChangesDialog({ request, onClose }: { request: CustomRequest | null; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [comment, setComment] = useState("");
+
+  const seedKey = request?.id ?? -1;
+  const [seededFor, setSeededFor] = useState(-1);
+  if (request && seededFor !== seedKey) {
+    setComment("");
+    setSeededFor(seedKey);
+  }
+
+  const requestChanges = useRequestChangesCustomRequest({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey({ status: "pending" }) });
+        toast({ title: "Changes requested", description: "The player has been notified." });
+        onClose();
+      },
+      onError: (err) => {
+        const msg =
+          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+          (err instanceof Error ? err.message : "Please try again.");
+        toast({ title: "Could not request changes", description: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  if (!request) return null;
+  const trimmed = comment.trim();
+
+  return (
+    <Dialog open={!!request} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="rounded-none border-nc-magenta/40 bg-card sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display tracking-widest text-nc-magenta">
+            REQUEST CHANGES — {request.title.toUpperCase()}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs">
+            Sends {request.characterName}'s player a note and parks the request until they edit & resubmit.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5 py-2">
+          <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Comment (required)</Label>
+          <Input
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="What needs to change?"
+            className="rounded-none font-mono"
+            data-testid="input-request-changes-comment"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" className="rounded-none font-display" onClick={onClose}>
+            CANCEL
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-none font-display tracking-widest border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10"
+            disabled={!trimmed || requestChanges.isPending}
+            onClick={() => requestChanges.mutate({ id: request.id, data: { comment: trimmed } })}
+            data-testid="button-confirm-request-changes"
+          >
+            {requestChanges.isPending ? "SENDING..." : "REQUEST CHANGES"}
           </Button>
         </DialogFooter>
       </DialogContent>

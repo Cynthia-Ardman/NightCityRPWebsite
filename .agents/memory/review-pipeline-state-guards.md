@@ -1,0 +1,15 @@
+---
+name: Review-pipeline state guards
+description: Why request-changes/resubmit/submit must use status-guarded conditional UPDATEs, not read-then-write.
+---
+
+In the three review queues (character EDITS = pending_character_edits/pending_edit_approvals; new SHEETS + custom REQUESTS = review_votes), the **vote** and **override** paths lock the subject row `FOR UPDATE` inside a txn. The **request-changes**, **resubmit**, and sheet **submit** paths are read-then-write and do NOT take that lock.
+
+**Rule:** the state mutation in request-changes/resubmit/submit must be an atomic conditional UPDATE guarded by the current status, returning the row, and 409 if no row matched:
+- request-changes: `UPDATE ... SET status='changes_requested' WHERE id=? AND status='pending' RETURNING` → 409 if none.
+- resubmit: inside a txn, `UPDATE ... SET status='pending' WHERE id=? AND status='changes_requested' RETURNING`; only then clear votes/approvals; 409 if none.
+- sheet submit/resubmit: `... WHERE id=? AND status IN ('draft','changes_requested')`.
+
+**Why:** a plain read-then-write lets a concurrent deciding vote/override slip in between the read and the write. Unconditional write would clobber an already-decided (approved/rejected) row back to changes_requested/pending, and a resubmit flipping approved→pending could let a later vote materialize the character/inventory a SECOND time.
+
+**How to apply:** any new transition handler on these subjects that isn't already holding `FOR UPDATE` must guard its UPDATE by the expected source status and surface 409 on a no-op. See request-review-race.md for the approve/reject-specific variant (lock + re-check).

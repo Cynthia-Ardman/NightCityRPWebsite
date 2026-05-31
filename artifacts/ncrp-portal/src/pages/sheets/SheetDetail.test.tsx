@@ -32,12 +32,17 @@ vi.mock("@workspace/api-client-react", () => ({
     },
     isLoading: false,
   }),
-  useDecideSheet: () => ({ mutate: vi.fn(), isPending: false }),
+  useVoteSheet: () => ({ mutate: vi.fn(), isPending: false }),
+  useOverrideSheet: () => ({ mutate: vi.fn(), isPending: false }),
+  useRequestChangesSheet: () => ({ mutate: vi.fn(), isPending: false }),
+  useSubmitDraftSheet: () => ({ mutate: vi.fn(), isPending: false }),
   useListCyberware: () => ({ data: [] }),
-  useGetMe: () => ({ data: { id: 1, isCsApprover: false, isAdmin: false, isFixer: false } }),
-  getGetMeQueryKey: () => ["me"],
   getGetSheetQueryKey: (id: number) => ["sheets", id],
   getListPendingSheetsQueryKey: () => ["sheets", "pending"],
+}));
+
+vi.mock("@/hooks/useAuthMe", () => ({
+  useAuthMe: () => ({ data: { id: 1, isCsApprover: false, isAdmin: false, isFixer: false } }),
 }));
 
 vi.mock("wouter", () => ({

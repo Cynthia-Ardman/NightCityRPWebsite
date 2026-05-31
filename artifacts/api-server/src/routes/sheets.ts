@@ -1,11 +1,21 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
-import { requireAuth, requireRole } from "../middlewares/auth";
-import { postToChannel, hasRole } from "../lib/discord";
+import { requireAuth } from "../middlewares/auth";
+import { postToChannel, hasRole, sendDirectMessage } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields } from "../lib/sheet-validation";
+import {
+  isReviewer,
+  listEligibleReviewerIds,
+  majorityOf,
+  tallyReviewVotes,
+  castReviewVote,
+  clearReviewVotes,
+  listReviewVotes,
+  loadVotesBySubject,
+} from "../lib/review";
 
 type SheetRow = typeof characterSheets.$inferSelect;
 type Executor = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -23,7 +33,13 @@ router.get("/sheets", requireAuth, async (req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.get("/sheets/pending", requireAuth, requireRole("CS_APPROVER"), async (_req, res): Promise<void> => {
+router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
+  // Any reviewer (FIXER / CS_APPROVER / ADMIN) sees the queue, not just CS
+  // approvers — sheets now decide by majority vote like edits and requests.
+  if (!isReviewer(req.user!)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   const rows = await db
     .select({
       id: characterSheets.id,
@@ -38,7 +54,25 @@ router.get("/sheets/pending", requireAuth, requireRole("CS_APPROVER"), async (_r
     .leftJoin(users, eq(users.id, characterSheets.ownerId))
     .where(eq(characterSheets.status, "pending"))
     .orderBy(desc(characterSheets.createdAt));
-  res.json(rows);
+  // Attach the vote tally for each sheet in one query (no N+1). The threshold
+  // for each sheet excludes that sheet's owner from the eligible pool.
+  const votesBySheet = await loadVotesBySubject({ subjectType: "sheet", subjectIds: rows.map((r) => r.id) });
+  const allReviewerIds = await listEligibleReviewerIds(null);
+  const out = rows.map((r) => {
+    const votes = votesBySheet.get(r.id) ?? [];
+    const eligibleCount = allReviewerIds.filter((id) => id !== r.ownerId).length;
+    const approveCount = votes.filter((v) => v.vote === "approve").length;
+    const rejectCount = votes.filter((v) => v.vote === "reject").length;
+    const myVote = votes.find((v) => v.voterId === req.user!.id) ?? null;
+    return {
+      ...r,
+      approveCount,
+      rejectCount,
+      threshold: majorityOf(eligibleCount),
+      myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
+    };
+  });
+  res.json(out);
 });
 
 router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
@@ -59,7 +93,28 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  res.json(s);
+  const viewerIsReviewer = isReviewer(req.user!);
+  const votes = await listReviewVotes({ subjectType: "sheet", subjectId: id });
+  const eligibleIds = await listEligibleReviewerIds(s.ownerId);
+  const approveCount = votes.filter((v) => v.vote === "approve").length;
+  const rejectCount = votes.filter((v) => v.vote === "reject").length;
+  const myVote = votes.find((v) => v.voterId === req.user!.id) ?? null;
+  res.json({
+    ...s,
+    votes,
+    eligibleVoterCount: eligibleIds.length,
+    threshold: majorityOf(eligibleIds.length),
+    approveCount,
+    rejectCount,
+    myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
+    // A reviewer who is not the owner can vote / request changes on a pending sheet.
+    canVote: viewerIsReviewer && !isOwner && s.status === "pending",
+    canRequestChanges: viewerIsReviewer && !isOwner && s.status === "pending",
+    // Admins can override a pending sheet straight to approved.
+    canOverride: hasRole(req.user!.roles, "ADMIN") && !isOwner && s.status === "pending",
+    // The owner can resubmit a changes_requested (or draft) sheet.
+    canResubmit: isOwner && (s.status === "changes_requested" || s.status === "draft"),
+  });
 });
 
 // Loads the catalog cyberware CWP cost map from the database. The catalog is the
@@ -244,11 +299,22 @@ router.post("/sheets/:id/submit", requireAuth, async (req, res): Promise<void> =
     res.status(400).json({ error: err });
     return;
   }
-  const [updated] = await db
-    .update(characterSheets)
-    .set({ status: "pending", decisionBy: null, decisionNote: null, decidedAt: null })
-    .where(eq(characterSheets.id, id))
-    .returning();
+  const [updated] = await db.transaction(async (tx) => {
+    // Atomic: only (re)submit if the sheet is STILL in a submittable state. A
+    // concurrent override could have approved+materialized a changes_requested
+    // sheet; flipping it back to pending here would let a later vote
+    // materialize the character a second time.
+    const rows = await tx
+      .update(characterSheets)
+      .set({ status: "pending", decisionBy: null, decisionNote: null, decidedAt: null, overriddenBy: null })
+      .where(and(eq(characterSheets.id, id), inArray(characterSheets.status, ["draft", "changes_requested"])))
+      .returning();
+    if (rows.length === 0) return rows;
+    // Clear any prior-round votes so resubmission starts the tally fresh.
+    await clearReviewVotes({ subjectType: "sheet", subjectId: id, conn: tx });
+    return rows;
+  });
+  if (!updated) { res.status(409).json({ error: "Sheet is not in a submittable state" }); return; }
   await announceSubmission(updated.id, updated.name, updated.data, req.user!);
   res.json(updated);
 });
@@ -423,82 +489,176 @@ async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Pro
   return c.id;
 }
 
-router.post("/sheets/:id/decision", requireAuth, requireRole("CS_APPROVER"), async (req, res): Promise<void> => {
+// POST /sheets/:id/vote — a reviewer (not the owner) casts an approve/reject
+// vote. When the running tally reaches the majority threshold the sheet is
+// decided in the same locked transaction: an approve materializes the
+// character, a reject closes the sheet. Mirrors the edit-vote pipeline.
+router.post("/sheets/:id/vote", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const { decision, note } = req.body ?? {};
-  if (!["approved", "rejected", "changes_requested"].includes(decision)) {
-    res.status(400).json({ error: "Invalid decision" });
+  const u = req.user!;
+  if (!isReviewer(u)) {
+    res.status(403).json({ error: "Only fixers / approvers / admins can vote" });
     return;
   }
-
-  // Lock the sheet, materialize/link the character (on approval), and record
-  // the decision in one transaction so a partial failure or concurrent approval
-  // can't leave an orphaned character or an approved-but-unlinked sheet.
+  const { vote, note } = req.body ?? {};
+  if (vote !== "approve" && vote !== "reject") {
+    res.status(400).json({ error: "vote must be 'approve' or 'reject'" });
+    return;
+  }
   const result = await db.transaction(async (tx) => {
-    const [sheet] = await tx
-      .select()
-      .from(characterSheets)
-      .where(eq(characterSheets.id, id))
-      .for("update");
+    const [sheet] = await tx.select().from(characterSheets).where(eq(characterSheets.id, id)).for("update");
     if (!sheet) return { error: { status: 404, body: { error: "Not found" } } };
-    // Only pending sheets can be decided. Without this guard a sheet could be
-    // re-decided after the fact (e.g. approve→reject), leaving the materialized
-    // character active while the sheet reads "rejected" — an inconsistent state
-    // the row lock alone can't prevent. Resubmission flips status back to
-    // pending, so legitimate re-reviews still work.
     if (sheet.status !== "pending") {
       return { error: { status: 409, body: { error: `Sheet already ${sheet.status}` } } };
     }
-    // Conflict of interest: a reviewer can't decide on a sheet they submitted
-    // themselves (even if they hold the approver role). Someone else must review
-    // it. This is enforced server-side; the UI also hides the panel for owners.
-    if (sheet.ownerId === req.user!.id) {
+    if (sheet.ownerId === u.id) {
       return { error: { status: 403, body: { error: "You cannot review a character sheet you submitted." } } };
     }
+    await castReviewVote({ subjectType: "sheet", subjectId: id, voterId: u.id, vote, note: note ?? null, conn: tx });
+    const tally = await tallyReviewVotes({ subjectType: "sheet", subjectId: id, submitterId: sheet.ownerId, conn: tx });
+    if (!tally.decided) {
+      return { ok: { decided: null as "approved" | "rejected" | null, sheet, tally, characterId: null as number | null } };
+    }
 
-    const characterId = decision === "approved"
-      ? await materializeCharacterFromSheet(tx, sheet)
-      : sheet.characterId ?? null;
-
-    const [u] = await tx
+    const characterId = tally.decided === "approved" ? await materializeCharacterFromSheet(tx, sheet) : sheet.characterId ?? null;
+    const summary = `${tally.approveCount} approve / ${tally.rejectCount} reject (threshold ${tally.threshold})`;
+    const [updated] = await tx
       .update(characterSheets)
-      .set({
-        status: decision,
-        decisionBy: req.user!.id,
-        decisionNote: note ?? null,
-        decidedAt: new Date(),
-        characterId,
-      })
+      .set({ status: tally.decided, decisionBy: u.id, decisionNote: summary, decidedAt: new Date(), characterId })
       .where(eq(characterSheets.id, id))
       .returning();
-    return { ok: { u, characterId } };
+    return { ok: { decided: tally.decided, sheet: updated, tally, characterId } };
   });
-
   if (result.error) {
     res.status(result.error.status).json(result.error.body);
     return;
   }
-  const { u, characterId } = result.ok;
-
-  if (decision === "approved" && characterId) {
+  const { decided, sheet, tally } = result.ok;
+  if (decided === "approved" && result.ok.characterId) {
     await db.insert(activityEvents).values({
       kind: "character_approved",
-      actorId: req.user!.id,
-      actorName: req.user!.username,
-      actorAvatarUrl: req.user!.avatarUrl,
-      message: `${req.user!.username} approved ${u.name}`,
+      actorId: u.id,
+      actorName: u.username,
+      actorAvatarUrl: u.avatarUrl,
+      message: `${u.username} approved ${sheet.name}`,
     });
   }
   await recordAudit({
     req,
     category: "sheet",
-    action: `decision_${decision}`,
+    action: decided ? `vote_decided_${decided}` : "vote",
     targetType: "sheet",
     targetId: id,
-    message: `${req.user!.username} ${decision} sheet "${u.name}"`,
-    after: { decision, note: note ?? null },
+    message: `${u.username} voted ${vote} on sheet "${sheet.name}"${decided ? ` → ${decided}` : ""}`,
+    after: { vote, decided, approveCount: tally.approveCount, rejectCount: tally.rejectCount },
   });
-  res.json(u);
+  res.json({ status: sheet.status, decided, approveCount: tally.approveCount, rejectCount: tally.rejectCount, threshold: tally.threshold });
+});
+
+// POST /sheets/:id/override — admin-only immediate approval, bypassing the
+// vote. Records who overrode (overriddenBy).
+router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const u = req.user!;
+  if (!hasRole(u.roles, "ADMIN")) {
+    res.status(403).json({ error: "Only admins can override" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    const [sheet] = await tx.select().from(characterSheets).where(eq(characterSheets.id, id)).for("update");
+    if (!sheet) return { error: { status: 404, body: { error: "Not found" } } };
+    if (sheet.status !== "pending" && sheet.status !== "changes_requested") {
+      return { error: { status: 409, body: { error: `Sheet already ${sheet.status}` } } };
+    }
+    if (sheet.ownerId === u.id) {
+      return { error: { status: 403, body: { error: "You cannot override your own sheet" } } };
+    }
+    const characterId = await materializeCharacterFromSheet(tx, sheet);
+    const [updated] = await tx
+      .update(characterSheets)
+      .set({
+        status: "approved",
+        decisionBy: u.id,
+        overriddenBy: u.id,
+        decisionNote: `Approved via admin override by ${u.username}`,
+        decidedAt: new Date(),
+        characterId,
+      })
+      .where(eq(characterSheets.id, id))
+      .returning();
+    return { ok: { updated, characterId } };
+  });
+  if (result.error) {
+    res.status(result.error.status).json(result.error.body);
+    return;
+  }
+  await db.insert(activityEvents).values({
+    kind: "character_approved",
+    actorId: u.id,
+    actorName: u.username,
+    actorAvatarUrl: u.avatarUrl,
+    message: `${u.username} approved ${result.ok.updated.name} via admin override`,
+  });
+  await recordAudit({
+    req,
+    category: "sheet",
+    action: "override_approved",
+    targetType: "sheet",
+    targetId: id,
+    message: `${u.username} approved sheet "${result.ok.updated.name}" via admin override`,
+    after: { overriddenBy: u.id },
+  });
+  res.json(result.ok.updated);
+});
+
+// POST /sheets/:id/request-changes — a reviewer (not the owner) parks the
+// sheet in changes_requested with a comment and DMs the owner. The owner then
+// resubmits via /sheets/:id/submit to send it back to the queue.
+router.post("/sheets/:id/request-changes", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const u = req.user!;
+  if (!isReviewer(u)) {
+    res.status(403).json({ error: "Only fixers / approvers / admins can request changes" });
+    return;
+  }
+  const comment = typeof req.body?.comment === "string" ? req.body.comment.trim() : "";
+  if (!comment) {
+    res.status(400).json({ error: "A comment is required" });
+    return;
+  }
+  const [sheet] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));
+  if (!sheet) { res.status(404).json({ error: "Not found" }); return; }
+  if (sheet.ownerId === u.id) { res.status(403).json({ error: "You cannot review your own sheet" }); return; }
+  // Atomic state guard: only flip to changes_requested if the sheet is STILL
+  // pending. A concurrent vote/override (FOR UPDATE) may have already decided
+  // it; an unconditional update would clobber that decision.
+  const [updated] = await db
+    .update(characterSheets)
+    .set({ status: "changes_requested", decisionBy: u.id, decisionNote: comment, decidedAt: new Date() })
+    .where(and(eq(characterSheets.id, id), eq(characterSheets.status, "pending")))
+    .returning();
+  if (!updated) { res.status(409).json({ error: "Sheet is no longer pending" }); return; }
+  await db.insert(activityEvents).values({
+    kind: "sheet_changes_requested",
+    actorId: u.id,
+    actorName: u.username,
+    actorAvatarUrl: u.avatarUrl,
+    message: `Changes requested on sheet for ${updated.name}`,
+  });
+  sendDirectMessage(
+    sheet.ownerId,
+    `Changes were requested on your character sheet **${updated.name}**:\n> ${comment}\n\nEdit and resubmit when ready.`,
+  ).catch((e) => console.error("[sheets] request-changes DM failed", e));
+  await recordAudit({
+    req,
+    category: "sheet",
+    action: "request_changes",
+    targetType: "sheet",
+    targetId: id,
+    message: `${u.username} requested changes on sheet "${updated.name}"`,
+    after: { comment },
+  });
+  res.json(updated);
 });
 
 export default router;

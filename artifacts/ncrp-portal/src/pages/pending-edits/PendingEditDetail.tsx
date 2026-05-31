@@ -5,6 +5,9 @@ import {
   useGetPendingEdit,
   useVotePendingEdit,
   useCancelPendingEdit,
+  useOverridePendingEdit,
+  useRequestChangesPendingEdit,
+  useResubmitPendingEdit,
   getGetPendingEditQueryKey,
   getListPendingEditsQueryKey,
   getGetCharacterPendingEditQueryKey,
@@ -15,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, X, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft } from "lucide-react";
+import { Check, X, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ShieldCheck, MessageSquareWarning } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
@@ -23,6 +26,7 @@ function statusBadge(status: string) {
   if (status === "pending") return <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-xs animate-pulse"><Clock className="w-3 h-3 mr-1" /> PENDING</Badge>;
   if (status === "approved") return <Badge variant="outline" className="border-nc-green text-nc-green rounded-none font-mono text-xs"><CheckCircle2 className="w-3 h-3 mr-1" /> APPROVED</Badge>;
   if (status === "rejected") return <Badge variant="outline" className="border-destructive text-destructive rounded-none font-mono text-xs"><XCircle className="w-3 h-3 mr-1" /> REJECTED</Badge>;
+  if (status === "changes_requested") return <Badge variant="outline" className="border-nc-magenta text-nc-magenta rounded-none font-mono text-xs"><MessageSquareWarning className="w-3 h-3 mr-1" /> CHANGES REQ</Badge>;
   if (status === "cancelled") return <Badge variant="outline" className="border-muted-foreground text-muted-foreground rounded-none font-mono text-xs">CANCELLED</Badge>;
   return <Badge variant="outline" className="rounded-none font-mono text-xs">{status}</Badge>;
 }
@@ -85,6 +89,7 @@ export default function PendingEditDetail() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [voteNote, setVoteNote] = useState("");
+  const [changeComment, setChangeComment] = useState("");
 
   const { data: edit, isLoading } = useGetPendingEdit(editId);
 
@@ -124,6 +129,30 @@ export default function PendingEditDetail() {
         const msg = (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? "Cancel failed";
         toast({ title: "Cancel failed", description: msg, variant: "destructive" });
       },
+    },
+  });
+
+  const errMsg = (err: unknown, fallback: string) =>
+    (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
+
+  const override = useOverridePendingEdit({
+    mutation: {
+      onSuccess: () => { toast({ title: "Edit approved via override" }); invalidate(); },
+      onError: (err) => toast({ title: "Override failed", description: errMsg(err, "Override failed"), variant: "destructive" }),
+    },
+  });
+
+  const requestChanges = useRequestChangesPendingEdit({
+    mutation: {
+      onSuccess: () => { toast({ title: "Changes requested — the submitter has been notified" }); setChangeComment(""); invalidate(); },
+      onError: (err) => toast({ title: "Could not request changes", description: errMsg(err, "Request failed"), variant: "destructive" }),
+    },
+  });
+
+  const resubmit = useResubmitPendingEdit({
+    mutation: {
+      onSuccess: () => { toast({ title: "Resubmitted to the review queue" }); invalidate(); },
+      onError: (err) => toast({ title: "Resubmit failed", description: errMsg(err, "Resubmit failed"), variant: "destructive" }),
     },
   });
 
@@ -235,6 +264,80 @@ export default function PendingEditDetail() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Reviewer comment when changes are requested */}
+      {edit.status === "changes_requested" && edit.reviewComment && (
+        <Card className="rounded-none border-nc-magenta bg-card/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-sm tracking-widest text-nc-magenta">CHANGES REQUESTED</CardTitle>
+          </CardHeader>
+          <CardContent className="font-mono text-sm text-foreground/80 italic">
+            "{edit.reviewComment}"
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Request changes (reviewer) */}
+      {edit.canRequestChanges && (
+        <Card className="rounded-none border-nc-magenta bg-card/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-sm tracking-widest text-nc-magenta">REQUEST CHANGES</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Textarea
+              value={changeComment}
+              onChange={(e) => setChangeComment(e.target.value)}
+              placeholder="Tell the player what needs to change..."
+              rows={2}
+              maxLength={2000}
+              data-testid="input-change-comment"
+            />
+            <Button
+              onClick={() => requestChanges.mutate({ id: editId, data: { comment: changeComment } })}
+              disabled={requestChanges.isPending || changeComment.trim().length === 0}
+              variant="outline"
+              className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display"
+              data-testid="button-request-changes"
+            >
+              <MessageSquareWarning className="w-4 h-4 mr-1" /> SEND BACK TO PLAYER
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin override */}
+      {edit.canOverride && (
+        <div className="border-t border-border pt-4">
+          <Button
+            onClick={() => override.mutate({ id: editId })}
+            disabled={override.isPending}
+            className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display"
+            data-testid="button-override"
+          >
+            <ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW
+          </Button>
+          <p className="font-mono text-xs text-muted-foreground mt-1">
+            Bypasses the majority vote and applies the edit immediately. Records you as the override approver.
+          </p>
+        </div>
+      )}
+
+      {/* Resubmit (submitter, after changes requested) */}
+      {edit.canResubmit && (
+        <div className="border-t border-border pt-4">
+          <Button
+            onClick={() => resubmit.mutate({ id: editId })}
+            disabled={resubmit.isPending}
+            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+            data-testid="button-resubmit"
+          >
+            <RotateCcw className="w-4 h-4 mr-1" /> RESUBMIT FOR REVIEW
+          </Button>
+          <p className="font-mono text-xs text-muted-foreground mt-1">
+            Edit your character first if needed, then resubmit. This clears prior votes and returns the edit to the queue.
+          </p>
+        </div>
       )}
 
       {/* Cancel (submitter only, while still pending) */}

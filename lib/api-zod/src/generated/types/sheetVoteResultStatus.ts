@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SheetDecisionInputDecision = typeof SheetDecisionInputDecision[keyof typeof SheetDecisionInputDecision];
+export type SheetVoteResultStatus = typeof SheetVoteResultStatus[keyof typeof SheetVoteResultStatus];
 
 
-export const SheetDecisionInputDecision = {
+export const SheetVoteResultStatus = {
+  pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
   changes_requested: 'changes_requested',

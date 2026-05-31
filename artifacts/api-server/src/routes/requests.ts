@@ -20,6 +20,15 @@ import { hasRole, sendDirectMessage } from "../lib/discord";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
+import {
+  isReviewer,
+  listEligibleReviewerIds,
+  majorityOf,
+  tallyReviewVotes,
+  castReviewVote,
+  clearReviewVotes,
+  loadVotesBySubject,
+} from "../lib/review";
 
 // Off-catalog "miscellaneous" requests: off-map property, custom guns, and
 // custom cyberware. Staff triage these in the unified Pending Requests page;
@@ -76,6 +85,190 @@ function isAdmin(user: { roles: string[] }): boolean {
 // Mirrors housing.ts endOfCurrentMonth.
 function endOfCurrentMonth(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type RequestSelectRow = typeof customRequests.$inferSelect;
+type CharacterRow = typeof characters.$inferSelect;
+
+// Mechanical parameters a reviewer supplies when approving a request.
+// `property` needs monthly rent (+ optional kind); `cyberware` needs CWP.
+// Other types need nothing. These are validated up-front when an approve vote
+// (or override) is cast and persisted on `details.approval`, so the deciding
+// approve can materialize from the stored values without re-prompting.
+type ApprovalParams = { monthlyRent?: unknown; kind?: unknown; cwp?: unknown };
+
+// Validates that the params required to APPROVE a given request type are
+// present and well-formed. Returns a normalized object on success or an error
+// string. Called before recording an approve vote so the tally can never be
+// tipped to "approved" without the values needed to materialize.
+function normalizeApprovalParams(
+  type: string,
+  params: ApprovalParams,
+): { ok: Record<string, number | string> } | { error: string } {
+  if (type === "property") {
+    const monthlyRent = parseInt(String(params.monthlyRent), 10);
+    if (!Number.isFinite(monthlyRent) || monthlyRent < 0) {
+      return { error: "monthlyRent (>= 0) required to approve a property request" };
+    }
+    const kind = params.kind === "business" ? "business" : "residential";
+    return { ok: { monthlyRent, kind } };
+  }
+  if (type === "cyberware") {
+    const cwp = Number(params.cwp);
+    if (!Number.isFinite(cwp) || cwp < 0) {
+      return { error: "cwp (>= 0) required to approve a cyberware request" };
+    }
+    return { ok: { cwp } };
+  }
+  return { ok: {} };
+}
+
+// Auto-applies an approved request by type (housing lease / inventory item /
+// venue) and returns the appliedRef + human summary. Runs inside the caller's
+// locked transaction so the materialize + status flip are atomic. Shared by
+// the vote-decided-approve path and the admin override path. `params` carries
+// the mechanical values (rent/kind/cwp) — for the vote path these come from
+// `details.approval`, for override straight from the request body.
+async function materializeRequest(
+  tx: Tx,
+  reqRow: RequestSelectRow,
+  c: CharacterRow,
+  params: ApprovalParams,
+): Promise<{ ok: { appliedRef: string; summary: string } } | { error: { status: number; body: { error: string } } }> {
+  if (reqRow.type === "property") {
+    const monthlyRent = parseInt(String(params.monthlyRent), 10);
+    if (!Number.isFinite(monthlyRent) || monthlyRent < 0) {
+      return { error: { status: 400, body: { error: "monthlyRent (>= 0) required to approve a property request" } } };
+    }
+    const kind = params.kind === "business" ? "business" : "residential";
+    if (!c.approved) {
+      return { error: { status: 400, body: { error: "Character is not approved; cannot bill rent" } } };
+    }
+    const [lease] = await tx
+      .insert(housing)
+      .values({
+        characterId: reqRow.characterId,
+        listingId: null,
+        address: reqRow.title,
+        monthlyRent,
+        paidThrough: endOfCurrentMonth(),
+        notes: reqRow.description ?? null,
+        kind,
+      })
+      .returning();
+    return { ok: { appliedRef: `housing:${lease.id}`, summary: `Off-map property approved: ${reqRow.title} (€$${monthlyRent.toLocaleString()}/mo, ${kind})` } };
+  }
+  if (reqRow.type === "gun") {
+    const [item] = await tx
+      .insert(inventoryItems)
+      .values({
+        characterId: reqRow.characterId,
+        ownerId: c.ownerId,
+        name: reqRow.title,
+        category: "gun",
+        quantity: 1,
+        notes: reqRow.description ?? null,
+      })
+      .returning();
+    return { ok: { appliedRef: `inventory:${item.instanceUuid}`, summary: `Custom gun approved: ${reqRow.title}` } };
+  }
+  if (reqRow.type === "cyberware") {
+    const cwp = Number(params.cwp);
+    if (!Number.isFinite(cwp) || cwp < 0) {
+      return { error: { status: 400, body: { error: "cwp (>= 0) required to approve a cyberware request" } } };
+    }
+    const notes = `CWP ${cwp}${reqRow.description ? ` · ${reqRow.description}` : ""}`;
+    const [item] = await tx
+      .insert(inventoryItems)
+      .values({
+        characterId: reqRow.characterId,
+        ownerId: c.ownerId,
+        name: reqRow.title,
+        category: "cyberware",
+        quantity: 1,
+        notes,
+      })
+      .returning();
+    return { ok: { appliedRef: `inventory:${item.instanceUuid}`, summary: `Custom cyberware approved: ${reqRow.title} (CWP ${cwp})` } };
+  }
+  if (reqRow.type === "store" || reqRow.type === "ripperdoc") {
+    if (!c.ownerId) {
+      return { error: { status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } } };
+    }
+    const det = (reqRow.details ?? {}) as { purpose?: string; location?: string };
+    if (reqRow.type === "store") {
+      const [s] = await tx
+        .insert(stores)
+        .values({
+          ownerId: c.ownerId,
+          ownerCharacterId: reqRow.characterId,
+          name: reqRow.title,
+          purpose: det.purpose ?? null,
+          location: det.location ?? null,
+          description: reqRow.description ?? null,
+        })
+        .returning();
+      return { ok: { appliedRef: `store:${s.id}`, summary: `New store approved: ${reqRow.title}` } };
+    }
+    const [r] = await tx
+      .insert(ripperdocs)
+      .values({
+        ownerId: c.ownerId,
+        ownerCharacterId: reqRow.characterId,
+        name: reqRow.title,
+        purpose: det.purpose ?? null,
+        location: det.location ?? null,
+        description: reqRow.description ?? null,
+      })
+      .returning();
+    return { ok: { appliedRef: `ripperdoc:${r.id}`, summary: `New ripperdoc approved: ${reqRow.title}` } };
+  }
+  return { error: { status: 400, body: { error: `Unknown request type ${reqRow.type}` } } };
+}
+
+// Side-effects run AFTER an approve commits (character update note, activity
+// feed, inventory ledger, audit, player DM). Shared by vote-decided-approve
+// and override so both leave an identical trail. Best-effort beyond the audit.
+async function afterApprove(
+  req: Parameters<typeof recordAudit>[0]["req"] & { user: NonNullable<unknown> },
+  reqRow: RequestSelectRow,
+  c: CharacterRow,
+  appliedRef: string,
+  summary: string,
+  via: "vote" | "override",
+): Promise<void> {
+  const u = (req as { user: { id: string; username: string; avatarUrl: string | null } }).user;
+  await db.insert(characterUpdates).values({ characterId: reqRow.characterId, authorId: u.id, note: summary });
+  await db.insert(activityEvents).values({
+    kind: "request_approved",
+    actorId: u.id,
+    actorName: u.username,
+    actorAvatarUrl: u.avatarUrl,
+    message: `${c.name}: ${summary}${via === "override" ? " (admin override)" : ""}`,
+  });
+  if (reqRow.type === "gun" || reqRow.type === "cyberware") {
+    await recordInventoryEvent({
+      instanceUuid: appliedRef.replace("inventory:", ""),
+      kind: "created",
+      actorId: u.id,
+      actorName: u.username,
+      toCharacterId: c.id,
+      toCharacterName: c.name,
+      itemName: reqRow.title,
+      quantity: 1,
+      reason: `Approved ${reqRow.type} request`,
+    });
+  }
+  await recordAudit({
+    req,
+    category: auditCategoryFor(reqRow.type),
+    action: via === "override" ? "request_override_approve" : "request_vote_approve",
+    targetType: "custom_request",
+    targetId: reqRow.id,
+    message: summary,
+    after: { type: reqRow.type, characterId: reqRow.characterId, appliedRef, via },
+  });
 }
 
 const router: IRouter = Router();
@@ -145,6 +338,35 @@ async function selectWhere(predicate: ReturnType<typeof and> | ReturnType<typeof
     .innerJoin(users, eq(users.id, customRequests.requestedById))
     .where(predicate)
     .orderBy(desc(customRequests.createdAt))) as RequestRow[];
+}
+
+// Attach the review tally (approve/reject counts, majority threshold, and the
+// viewer's own vote) to a list of request rows in a fixed number of queries —
+// one bulk vote load + one reviewer-pool load — instead of N+1. The eligible
+// pool excludes each request's own submitter. `stock_cost` rows are
+// owner-decided and simply tally to 0/0 here, which the UI ignores.
+async function attachTallies(rows: RequestRow[], viewerId: string): Promise<Record<string, unknown>[]> {
+  if (rows.length === 0) return [];
+  const votesById = await loadVotesBySubject({ subjectType: "request", subjectIds: rows.map((r) => r.id) });
+  const reviewerRows = await db.select({ id: users.id, roles: users.roles }).from(users);
+  const reviewerIds = reviewerRows
+    .filter((r) => isReviewer({ roles: r.roles ?? [] } as never))
+    .map((r) => r.id);
+  return rows.map((r) => {
+    const eligible = reviewerIds.filter((id) => id !== r.requestedById);
+    const eligibleSet = new Set(eligible);
+    const votes = (votesById.get(r.id) ?? []).filter((v) => eligibleSet.has(v.voterId));
+    const approveCount = votes.filter((v) => v.vote === "approve").length;
+    const rejectCount = votes.filter((v) => v.vote === "reject").length;
+    const mine = (votesById.get(r.id) ?? []).find((v) => v.voterId === viewerId);
+    return {
+      ...shape(r),
+      approveCount,
+      rejectCount,
+      threshold: majorityOf(eligible.length),
+      myVote: mine?.vote ?? null,
+    };
+  });
 }
 
 // Best-effort Discord DM to the player who submitted a request, telling them
@@ -245,7 +467,7 @@ router.get("/requests/mine", requireAuth, async (req, res): Promise<void> => {
     ? and(eq(customRequests.requestedById, req.user!.id), eq(customRequests.type, typeFilter))
     : eq(customRequests.requestedById, req.user!.id);
   const rows = await selectWhere(predicate);
-  res.json(rows.map(shape));
+  res.json(await attachTallies(rows, req.user!.id));
 });
 
 // Staff: list requests across all players. Defaults to pending. Fixer/admin.
@@ -260,155 +482,88 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
   const rows = await selectWhere(
     and(eq(customRequests.status, status), ne(customRequests.type, "stock_cost")),
   );
-  res.json(rows.map(shape));
+  res.json(await attachTallies(rows, req.user!.id));
 });
 
-// Staff approve with mechanical details; auto-applies by type inside a txn.
-// Idempotent: a FOR UPDATE lock plus the status guard prevent double-apply,
-// and appliedRef records what was materialized.
-router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void> => {
-  if (!isFixerOrAdmin(req.user!)) {
-    res.status(403).json({ error: "Requires fixer or admin role" });
+
+// POST /requests/:id/vote — a reviewer (not the requester) casts an
+// approve/reject vote. An approve vote must carry the mechanical params for the
+// request type (property: monthlyRent[+kind]; cyberware: cwp); they're stashed
+// on details.approval so the deciding approve can materialize from them. When
+// the tally reaches majority the request is decided in the same locked txn.
+router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> => {
+  if (!isReviewer(req.user!)) {
+    res.status(403).json({ error: "Only fixers / approvers / admins can vote" });
     return;
   }
   const rid = parseInt(String(req.params.id), 10);
   const body = req.body ?? {};
-  const reviewerNote = typeof body.reviewerNote === "string" && body.reviewerNote.trim() ? body.reviewerNote.trim() : null;
+  const vote = body.vote === "approve" ? "approve" : body.vote === "reject" ? "reject" : null;
+  if (!vote) {
+    res.status(400).json({ error: "vote must be 'approve' or 'reject'" });
+    return;
+  }
+  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+
+  // Validate approve params BEFORE entering the txn so a malformed approve is
+  // rejected without locking the row.
+  let approvalToStore: Record<string, number | string> | null = null;
+  if (vote === "approve") {
+    const [pre] = await db.select({ type: customRequests.type }).from(customRequests).where(eq(customRequests.id, rid));
+    if (!pre) { res.status(404).json({ error: "Request not found" }); return; }
+    if (pre.type === "stock_cost") {
+      res.status(400).json({ error: "Stock-cost requests are decided by the venue owner" });
+      return;
+    }
+    const norm = normalizeApprovalParams(pre.type, body);
+    if ("error" in norm) { res.status(400).json({ error: norm.error }); return; }
+    approvalToStore = norm.ok;
+  }
 
   const txResult = await db.transaction(async (tx) => {
-    // Lock the row with a typed select so camelCase fields (characterId,
-    // requestedById) are populated — a raw `SELECT *` returns snake_case keys
-    // and silently yields `undefined` for those, breaking materialization.
-    const [reqRow] = await tx
-      .select()
-      .from(customRequests)
-      .where(eq(customRequests.id, rid))
-      .for("update");
+    const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, rid)).for("update");
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
+    if (reqRow.type === "stock_cost") {
+      return { error: { status: 400, body: { error: "Stock-cost requests are decided by the venue owner" } } };
+    }
     if (reqRow.status !== "pending") {
       return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
     }
-    if (reqRow.type === "stock_cost") {
-      return {
-        error: {
-          status: 400,
-          body: { error: "Stock-cost requests are approved by the venue owner from My Requests" },
-        },
-      };
+    if (reqRow.requestedById === req.user!.id) {
+      return { error: { status: 403, body: { error: "You cannot vote on a request you submitted" } } };
     }
+
+    // Persist this reviewer's approval params onto details.approval so the
+    // deciding approve can materialize from them.
+    if (vote === "approve" && approvalToStore) {
+      const merged = { ...((reqRow.details ?? {}) as Record<string, unknown>), approval: approvalToStore };
+      await tx.update(customRequests).set({ details: merged as never }).where(eq(customRequests.id, rid));
+    }
+
+    await castReviewVote({ subjectType: "request", subjectId: rid, voterId: req.user!.id, vote, note, conn: tx });
+    const tally = await tallyReviewVotes({ subjectType: "request", subjectId: rid, submitterId: reqRow.requestedById, conn: tx });
+    if (!tally.decided) return { ok: { decided: null as "approved" | "rejected" | null, reqRow, tally } };
+
+    if (tally.decided === "rejected") {
+      await tx
+        .update(customRequests)
+        .set({ status: "rejected", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note })
+        .where(eq(customRequests.id, rid));
+      return { ok: { decided: "rejected" as const, reqRow, tally } };
+    }
+
+    // Decided approve — materialize from the stored approval params.
     const [c] = await tx.select().from(characters).where(eq(characters.id, reqRow.characterId));
-    if (!c || c.archived) {
-      return { error: { status: 400, body: { error: "Character is missing or archived" } } };
-    }
-    if (!c.ownerId) {
-      return { error: { status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } } };
-    }
-
-    let appliedRef: string;
-    let summary: string;
-
-    if (reqRow.type === "property") {
-      const monthlyRent = parseInt(String(body.monthlyRent), 10);
-      if (!Number.isFinite(monthlyRent) || monthlyRent < 0) {
-        return { error: { status: 400, body: { error: "monthlyRent (>= 0) required to approve a property request" } } };
-      }
-      const kind = body.kind === "business" ? "business" : "residential";
-      if (!c.approved) {
-        return { error: { status: 400, body: { error: "Character is not approved; cannot bill rent" } } };
-      }
-      const [lease] = await tx
-        .insert(housing)
-        .values({
-          characterId: reqRow.characterId,
-          listingId: null,
-          address: reqRow.title,
-          monthlyRent,
-          paidThrough: endOfCurrentMonth(),
-          notes: reqRow.description ?? null,
-          kind,
-        })
-        .returning();
-      appliedRef = `housing:${lease.id}`;
-      summary = `Off-map property approved: ${reqRow.title} (€$${monthlyRent.toLocaleString()}/mo, ${kind})`;
-    } else if (reqRow.type === "gun") {
-      const [item] = await tx
-        .insert(inventoryItems)
-        .values({
-          characterId: reqRow.characterId,
-          ownerId: c.ownerId,
-          name: reqRow.title,
-          category: "gun",
-          quantity: 1,
-          notes: reqRow.description ?? null,
-        })
-        .returning();
-      appliedRef = `inventory:${item.instanceUuid}`;
-      summary = `Custom gun approved: ${reqRow.title}`;
-    } else if (reqRow.type === "cyberware") {
-      const cwp = Number(body.cwp);
-      if (!Number.isFinite(cwp) || cwp < 0) {
-        return { error: { status: 400, body: { error: "cwp (>= 0) required to approve a cyberware request" } } };
-      }
-      // Cyberware billing derives CWP from a "CWP <n>" token in notes — stamp
-      // it so the chrome band counts this piece.
-      const notes = `CWP ${cwp}${reqRow.description ? ` · ${reqRow.description}` : ""}`;
-      const [item] = await tx
-        .insert(inventoryItems)
-        .values({
-          characterId: reqRow.characterId,
-          ownerId: c.ownerId,
-          name: reqRow.title,
-          category: "cyberware",
-          quantity: 1,
-          notes,
-        })
-        .returning();
-      appliedRef = `inventory:${item.instanceUuid}`;
-      summary = `Custom cyberware approved: ${reqRow.title} (CWP ${cwp})`;
-    } else if (reqRow.type === "store" || reqRow.type === "ripperdoc") {
-      const det = (reqRow.details ?? {}) as { purpose?: string; location?: string };
-      if (reqRow.type === "store") {
-        const [s] = await tx
-          .insert(stores)
-          .values({
-            ownerId: c.ownerId,
-            ownerCharacterId: reqRow.characterId,
-            name: reqRow.title,
-            purpose: det.purpose ?? null,
-            location: det.location ?? null,
-            description: reqRow.description ?? null,
-          })
-          .returning();
-        appliedRef = `store:${s.id}`;
-        summary = `New store approved: ${reqRow.title}`;
-      } else {
-        const [r] = await tx
-          .insert(ripperdocs)
-          .values({
-            ownerId: c.ownerId,
-            ownerCharacterId: reqRow.characterId,
-            name: reqRow.title,
-            purpose: det.purpose ?? null,
-            location: det.location ?? null,
-            description: reqRow.description ?? null,
-          })
-          .returning();
-        appliedRef = `ripperdoc:${r.id}`;
-        summary = `New ripperdoc approved: ${reqRow.title}`;
-      }
-    } else {
-      return { error: { status: 400, body: { error: `Unknown request type ${reqRow.type}` } } };
-    }
-
-    await tx.update(customRequests).set({
-      status: "approved",
-      reviewedById: req.user!.id,
-      reviewedAt: new Date(),
-      reviewerNote,
-      appliedRef,
-    }).where(eq(customRequests.id, rid));
-
-    return { ok: { reqRow, c, summary, appliedRef } };
+    if (!c || c.archived) return { error: { status: 400, body: { error: "Character is missing or archived" } } };
+    if (!c.ownerId) return { error: { status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } } };
+    const storedApproval = ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? approvalToStore ?? {};
+    const mat = await materializeRequest(tx, reqRow, c, storedApproval);
+    if ("error" in mat) return { error: mat.error };
+    await tx
+      .update(customRequests)
+      .set({ status: "approved", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note, appliedRef: mat.ok.appliedRef })
+      .where(eq(customRequests.id, rid));
+    return { ok: { decided: "approved" as const, reqRow, c, tally, appliedRef: mat.ok.appliedRef, summary: mat.ok.summary } };
   });
 
   if (!("ok" in txResult) || !txResult.ok) {
@@ -416,105 +571,220 @@ router.post("/requests/:id/approve", requireAuth, async (req, res): Promise<void
     res.status(err.status).json(err.body);
     return;
   }
-  const { reqRow, c, summary } = txResult.ok;
-  await db.insert(characterUpdates).values({
-    characterId: reqRow.characterId,
-    authorId: req.user!.id,
-    note: summary,
-  });
-  await db.insert(activityEvents).values({
-    kind: "request_approved",
-    actorId: req.user!.id,
-    actorName: req.user!.username,
-    actorAvatarUrl: req.user!.avatarUrl,
-    message: `${c.name}: ${summary}`,
-  });
-  if (reqRow.type === "gun" || reqRow.type === "cyberware") {
-    await recordInventoryEvent({
-      instanceUuid: txResult.ok.appliedRef.replace("inventory:", ""),
-      kind: "created",
-      actorId: req.user!.id,
-      actorName: req.user!.username,
-      toCharacterId: c.id,
-      toCharacterName: c.name,
-      itemName: reqRow.title,
-      quantity: 1,
-      reason: `Approved ${reqRow.type} request`,
+  const out = txResult.ok;
+  if (out.decided === "approved" && "c" in out && out.c) {
+    await afterApprove(req as never, out.reqRow, out.c, out.appliedRef!, out.summary!, "vote");
+    const [row] = await selectWhere(eq(customRequests.id, rid));
+    await notifyRequesterOfDecision(row, out.summary ?? null);
+  } else if (out.decided === "rejected") {
+    const [row] = await selectWhere(eq(customRequests.id, rid));
+    try {
+      await db.insert(activityEvents).values({
+        kind: "request_rejected",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorAvatarUrl: req.user!.avatarUrl,
+        message: `${row.characterName ?? "(unknown)"}: Rejected ${typeLabelFor(out.reqRow.type)} request: ${out.reqRow.title}`,
+      });
+    } catch (err) {
+      logger.warn({ err, requestId: rid }, "reject activity-feed write failed");
+    }
+    await recordAudit({
+      req,
+      category: auditCategoryFor(out.reqRow.type),
+      action: "request_vote_reject",
+      targetType: "custom_request",
+      targetId: rid,
+      message: `Rejected ${out.reqRow.type} request: ${out.reqRow.title}`,
     });
+    await notifyRequesterOfDecision(row, null);
   }
-  await recordAudit({
-    req,
-    category: auditCategoryFor(reqRow.type),
-    action: "request_approve",
-    targetType: "custom_request",
-    targetId: rid,
-    message: summary,
-    after: { type: reqRow.type, characterId: reqRow.characterId, appliedRef: txResult.ok.appliedRef },
+  const [row] = await selectWhere(eq(customRequests.id, rid));
+  res.json({ ...shape(row), decided: out.decided, approveCount: out.tally.approveCount, rejectCount: out.tally.rejectCount, threshold: out.tally.threshold });
+});
+
+// POST /requests/:id/override — admin-only immediate approval, bypassing the
+// vote. Carries the mechanical params directly. Records overriddenBy.
+router.post("/requests/:id/override", requireAuth, async (req, res): Promise<void> => {
+  if (!isAdmin(req.user!)) {
+    res.status(403).json({ error: "Only admins can override" });
+    return;
+  }
+  const rid = parseInt(String(req.params.id), 10);
+  const body = req.body ?? {};
+  const note = typeof body.reviewerNote === "string" && body.reviewerNote.trim() ? body.reviewerNote.trim() : null;
+
+  const txResult = await db.transaction(async (tx) => {
+    const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, rid)).for("update");
+    if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
+    if (reqRow.type === "stock_cost") {
+      return { error: { status: 400, body: { error: "Stock-cost requests are decided by the venue owner" } } };
+    }
+    if (reqRow.status !== "pending" && reqRow.status !== "changes_requested") {
+      return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
+    }
+    if (reqRow.requestedById === req.user!.id) {
+      return { error: { status: 403, body: { error: "You cannot override your own request" } } };
+    }
+    const [c] = await tx.select().from(characters).where(eq(characters.id, reqRow.characterId));
+    if (!c || c.archived) return { error: { status: 400, body: { error: "Character is missing or archived" } } };
+    if (!c.ownerId) return { error: { status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } } };
+    const mat = await materializeRequest(tx, reqRow, c, body);
+    if ("error" in mat) return { error: mat.error };
+    await tx
+      .update(customRequests)
+      .set({
+        status: "approved",
+        reviewedById: req.user!.id,
+        reviewedAt: new Date(),
+        reviewerNote: note,
+        appliedRef: mat.ok.appliedRef,
+        overriddenBy: req.user!.id,
+      })
+      .where(eq(customRequests.id, rid));
+    return { ok: { reqRow, c, appliedRef: mat.ok.appliedRef, summary: mat.ok.summary } };
   });
+
+  if (!("ok" in txResult) || !txResult.ok) {
+    const err = (txResult as { error: { status: number; body: { error: string } } }).error;
+    res.status(err.status).json(err.body);
+    return;
+  }
+  await afterApprove(req as never, txResult.ok.reqRow, txResult.ok.c, txResult.ok.appliedRef, txResult.ok.summary, "override");
   const [row] = await selectWhere(eq(customRequests.id, rid));
   await notifyRequesterOfDecision(row, txResult.ok.summary);
   res.json(shape(row));
 });
 
-// Staff reject — records the decision only, applies nothing.
-router.post("/requests/:id/reject", requireAuth, async (req, res): Promise<void> => {
-  if (!isFixerOrAdmin(req.user!)) {
-    res.status(403).json({ error: "Requires fixer or admin role" });
+// POST /requests/:id/request-changes — a reviewer (not the requester) parks
+// the request in changes_requested with a note and DMs the player. The player
+// edits + resubmits to send it back to the queue.
+router.post("/requests/:id/request-changes", requireAuth, async (req, res): Promise<void> => {
+  if (!isReviewer(req.user!)) {
+    res.status(403).json({ error: "Only fixers / approvers / admins can request changes" });
     return;
   }
   const rid = parseInt(String(req.params.id), 10);
-  const note = typeof req.body?.reviewerNote === "string" && req.body.reviewerNote.trim() ? req.body.reviewerNote.trim() : null;
-
-  // Lock the row and guard on pending status so a concurrent approve can't be
-  // clobbered: if approve commits first, the FOR UPDATE read sees "approved"
-  // and we 409 instead of overwriting an already-applied request.
-  const txResult = await db.transaction(async (tx) => {
-    const locked = await tx.execute(sql`SELECT * FROM custom_requests WHERE id = ${rid} FOR UPDATE`);
-    const reqRow = (locked.rows ?? locked)[0] as typeof customRequests.$inferSelect | undefined;
-    if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
-    if (reqRow.status !== "pending") {
-      return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
-    }
-    await tx.update(customRequests).set({
-      status: "rejected",
-      reviewedById: req.user!.id,
-      reviewedAt: new Date(),
-      reviewerNote: note,
-    }).where(eq(customRequests.id, rid));
-    return { ok: { reqRow } };
-  });
-
-  if (!("ok" in txResult) || !txResult.ok) {
-    const err = (txResult as { error: { status: number; body: { error: string } } }).error;
-    res.status(err.status).json(err.body);
+  const comment = typeof req.body?.comment === "string" ? req.body.comment.trim() : "";
+  if (!comment) {
+    res.status(400).json({ error: "A comment is required" });
     return;
   }
-  const { reqRow } = txResult.ok;
+  const [reqRow] = await db.select().from(customRequests).where(eq(customRequests.id, rid));
+  if (!reqRow) { res.status(404).json({ error: "Request not found" }); return; }
+  if (reqRow.type === "stock_cost") { res.status(400).json({ error: "Not applicable to stock-cost requests" }); return; }
+  if (reqRow.requestedById === req.user!.id) { res.status(403).json({ error: "You cannot review your own request" }); return; }
+  // Atomic state guard: only flip to changes_requested if the row is STILL
+  // pending at update time. A concurrent vote/override (which locks FOR UPDATE)
+  // could otherwise have already decided it, and an unconditional update would
+  // clobber that decision back to changes_requested.
+  const [changed] = await db
+    .update(customRequests)
+    .set({ status: "changes_requested", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: comment })
+    .where(and(eq(customRequests.id, rid), eq(customRequests.status, "pending")))
+    .returning();
+  if (!changed) { res.status(409).json({ error: "Request is no longer pending" }); return; }
+  const [row] = await selectWhere(eq(customRequests.id, rid));
+  await db.insert(activityEvents).values({
+    kind: "request_changes_requested",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${row.characterName ?? "(unknown)"}: Changes requested on ${typeLabelFor(reqRow.type)} request "${reqRow.title}"`,
+  });
+  try {
+    const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, reqRow.requestedById));
+    if (u?.discordId) {
+      await sendDirectMessage(
+        u.discordId,
+        `Changes were requested on your ${typeLabelFor(reqRow.type)} request "${reqRow.title}":\n> ${comment}\n\nEdit and resubmit when ready.`,
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, requestId: rid }, "request-changes DM failed");
+  }
   await recordAudit({
     req,
     category: auditCategoryFor(reqRow.type),
-    action: "request_reject",
+    action: "request_changes",
     targetType: "custom_request",
     targetId: rid,
-    message: `Rejected ${reqRow.type} request: ${reqRow.title}`,
+    message: `Requested changes on ${reqRow.type} request: ${reqRow.title}`,
+    after: { comment },
   });
-  const [row] = await selectWhere(eq(customRequests.id, rid));
-  // Mirror the approve path: surface rejections in the global activity feed.
-  // Best-effort — the decision is already committed, so a feed-write failure
-  // must not fail the endpoint.
-  const typeLabel = typeLabelFor(reqRow.type);
-  try {
-    await db.insert(activityEvents).values({
-      kind: "request_rejected",
-      actorId: req.user!.id,
-      actorName: req.user!.username,
-      actorAvatarUrl: req.user!.avatarUrl,
-      message: `${row.characterName ?? "(unknown)"}: Rejected ${typeLabel} request: ${reqRow.title}`,
-    });
-  } catch (err) {
-    logger.warn({ err, requestId: rid }, "reject activity-feed write failed");
+  res.json(shape(row));
+});
+
+// PATCH /requests/:id — the requester (or admin) edits the request while it is
+// still in their hands (pending or changes_requested). Mechanical/owner fields
+// only; status is untouched here (resubmit flips it back to the queue).
+router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
+  const rid = parseInt(String(req.params.id), 10);
+  const [reqRow] = await db.select().from(customRequests).where(eq(customRequests.id, rid));
+  if (!reqRow) { res.status(404).json({ error: "Request not found" }); return; }
+  if (reqRow.requestedById !== req.user!.id && !isAdmin(req.user!)) {
+    res.status(403).json({ error: "Only the requester can edit this request" });
+    return;
   }
-  await notifyRequesterOfDecision(row, null);
+  if (reqRow.status !== "pending" && reqRow.status !== "changes_requested") {
+    res.status(409).json({ error: `Request is ${reqRow.status} and can no longer be edited` });
+    return;
+  }
+  const body = req.body ?? {};
+  const patch: Record<string, unknown> = {};
+  if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim();
+  if (typeof body.description === "string") patch.description = body.description.trim() || null;
+  if (typeof body.imageUrl === "string") patch.imageUrl = body.imageUrl.trim() || null;
+  // Venue purpose/location live in details — merge, never clobber approval.
+  if (isVenueType(reqRow.type) && (typeof body.purpose === "string" || typeof body.location === "string")) {
+    const det = (reqRow.details ?? {}) as Record<string, unknown>;
+    patch.details = {
+      ...det,
+      ...(typeof body.purpose === "string" ? { purpose: body.purpose.trim() } : {}),
+      ...(typeof body.location === "string" ? { location: body.location.trim() } : {}),
+    } as never;
+  }
+  if (Object.keys(patch).length === 0) {
+    const [row] = await selectWhere(eq(customRequests.id, rid));
+    res.json(shape(row));
+    return;
+  }
+  await db.update(customRequests).set(patch).where(eq(customRequests.id, rid));
+  const [row] = await selectWhere(eq(customRequests.id, rid));
+  res.json(shape(row));
+});
+
+// POST /requests/:id/resubmit — the requester sends a changes_requested
+// request back to the review queue. Votes are cleared so the next round starts
+// fresh; resubmitting with no further edits is allowed.
+router.post("/requests/:id/resubmit", requireAuth, async (req, res): Promise<void> => {
+  const rid = parseInt(String(req.params.id), 10);
+  const [reqRow] = await db.select().from(customRequests).where(eq(customRequests.id, rid));
+  if (!reqRow) { res.status(404).json({ error: "Request not found" }); return; }
+  if (reqRow.requestedById !== req.user!.id && !isAdmin(req.user!)) {
+    res.status(403).json({ error: "Only the requester can resubmit" });
+    return;
+  }
+  if (reqRow.status !== "changes_requested") {
+    res.status(409).json({ error: `Request is ${reqRow.status}, not awaiting changes` });
+    return;
+  }
+  // Atomic: only flip back to pending (and clear votes) if the row is STILL
+  // changes_requested. A concurrent admin override could otherwise have already
+  // approved + materialized it; flipping it back to pending here would let a
+  // later vote materialize it a SECOND time.
+  const ok = await db.transaction(async (tx) => {
+    const [changed] = await tx
+      .update(customRequests)
+      .set({ status: "pending", reviewedById: null, reviewedAt: null, reviewerNote: null })
+      .where(and(eq(customRequests.id, rid), eq(customRequests.status, "changes_requested")))
+      .returning();
+    if (!changed) return false;
+    await clearReviewVotes({ subjectType: "request", subjectId: rid, conn: tx });
+    return true;
+  });
+  if (!ok) { res.status(409).json({ error: "Request is no longer awaiting changes" }); return; }
+  const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));
 });
 

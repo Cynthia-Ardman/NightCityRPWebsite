@@ -252,23 +252,23 @@ describe("sheets lifecycle: submit + decision gating", () => {
     expect(res.status).toBe(409);
   });
 
-  it("403 when a non-approver posts a decision", async () => {
+  it("403 when a non-approver posts a vote", async () => {
     const owner = await createUser();
     const sheet = await seedPendingSheet(owner.id, { sheetType: "PC" });
     const res = await request(app)
-      .post(`/api/sheets/${sheet.id}/decision`)
+      .post(`/api/sheets/${sheet.id}/vote`)
       .set("x-test-user", owner.id)
-      .send({ decision: "approved" });
+      .send({ vote: "approve" });
     expect(res.status).toBe(403);
   });
 
-  it("400 on an invalid decision value", async () => {
+  it("400 on an invalid vote value", async () => {
     const approver = await createUser({ roles: ["cs approver"] });
     const sheet = await seedPendingSheet(approver.id, { sheetType: "PC" });
     const res = await request(app)
-      .post(`/api/sheets/${sheet.id}/decision`)
+      .post(`/api/sheets/${sheet.id}/vote`)
       .set("x-test-user", approver.id)
-      .send({ decision: "maybe" });
+      .send({ vote: "maybe" });
     expect(res.status).toBe(400);
   });
 
@@ -277,9 +277,9 @@ describe("sheets lifecycle: submit + decision gating", () => {
     const approver = await createUser({ roles: ["cs approver"] });
     const sheet = await seedPendingSheet(owner.id, { sheetType: "PC" });
     const res = await request(app)
-      .post(`/api/sheets/${sheet.id}/decision`)
+      .post(`/api/sheets/${sheet.id}/vote`)
       .set("x-test-user", approver.id)
-      .send({ decision: "approved", note: "lgtm" });
+      .send({ vote: "approve", note: "lgtm" });
     expect(res.status).toBe(200);
     const [after] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
     expect(after.status).toBe("approved");

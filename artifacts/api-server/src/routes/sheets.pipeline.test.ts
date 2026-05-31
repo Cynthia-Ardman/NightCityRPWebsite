@@ -1,0 +1,219 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import request from "supertest";
+import { and, eq } from "drizzle-orm";
+
+vi.mock("../lib/discord", async (importActual) => {
+  const actual = await importActual<typeof import("../lib/discord")>();
+  return {
+    ...actual,
+    sendDirectMessage: vi.fn(async () => "dm-id"),
+    postToChannel: vi.fn(async () => null),
+  };
+});
+
+import { db, characterSheets, characters, reviewVotes, auditLog } from "@workspace/db";
+import { sendDirectMessage } from "../lib/discord";
+import { buildTestApp } from "../test/app";
+import { createUser, createAdmin } from "../test/testDb";
+
+const app = buildTestApp();
+const mockDm = vi.mocked(sendDirectMessage);
+
+beforeEach(() => {
+  mockDm.mockReset();
+  mockDm.mockResolvedValue("dm-id");
+});
+
+function createFixer() {
+  return createUser({ roles: ["fixer"] });
+}
+
+// A bare pending sheet is enough to exercise the vote / override /
+// request-changes pipeline (those paths don't re-validate sheet fields).
+async function createPendingSheet(ownerId: string, name = "Test Subject") {
+  const [s] = await db
+    .insert(characterSheets)
+    .values({ ownerId, name, status: "pending", data: { sheetType: "PC" } })
+    .returning();
+  return s;
+}
+
+// A fully-valid PC sheet payload — required so the /submit (resubmit) path
+// passes validateSheetForSubmission.
+function validSheetData(name: string) {
+  return {
+    sheetType: "PC",
+    fullName: name,
+    pronouns: "they/them",
+    occupation: "Courier",
+    psychProfile: "Calm under pressure.",
+    physicalDescription: "Tall, augmented.",
+    background: "Came up in Watson.",
+    age: 27,
+    skills: "Driving, Stealth",
+    gear: ["Jacket"],
+    portraitUrls: ["https://example.com/p.png"],
+    statsImageUrls: ["https://example.com/s.png"],
+  };
+}
+
+describe("sheet voting — majority threshold", () => {
+  it("holds at pending after one of two required approvals, then materializes on the second", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // third reviewer makes the majority threshold 2
+    const sheet = await createPendingSheet(owner.id, "Majority Subject");
+
+    const first = await request(app)
+      .post(`/api/sheets/${sheet.id}/vote`)
+      .set("x-test-user", f1.id)
+      .send({ vote: "approve" });
+    expect(first.status).toBe(200);
+    expect(first.body.decided).toBeNull();
+    expect(first.body.status).toBe("pending");
+    expect(first.body.approveCount).toBe(1);
+    expect(first.body.threshold).toBe(2);
+
+    const [midway] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(midway.status).toBe("pending");
+    expect(midway.characterId).toBeNull();
+
+    const second = await request(app)
+      .post(`/api/sheets/${sheet.id}/vote`)
+      .set("x-test-user", f2.id)
+      .send({ vote: "approve" });
+    expect(second.status).toBe(200);
+    expect(second.body.decided).toBe("approved");
+
+    const [after] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(after.status).toBe("approved");
+    expect(after.characterId).not.toBeNull();
+    expect(await db.select().from(characters).where(eq(characters.id, after.characterId!))).toHaveLength(1);
+  });
+
+  it("403s a reviewer voting on a sheet they submitted", async () => {
+    const fixerOwner = await createFixer();
+    const sheet = await createPendingSheet(fixerOwner.id, "Self Vote");
+    const res = await request(app)
+      .post(`/api/sheets/${sheet.id}/vote`)
+      .set("x-test-user", fixerOwner.id)
+      .send({ vote: "approve" });
+    expect(res.status).toBe(403);
+
+    const [after] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(after.status).toBe("pending");
+  });
+});
+
+describe("sheet override", () => {
+  it("lets an admin approve immediately and records overriddenBy", async () => {
+    const owner = await createUser();
+    await createFixer();
+    await createFixer(); // votes would otherwise be needed; override bypasses them
+    const admin = await createAdmin();
+    const sheet = await createPendingSheet(owner.id, "Override Me");
+
+    const res = await request(app)
+      .post(`/api/sheets/${sheet.id}/override`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("approved");
+
+    const [row] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(row.overriddenBy).toBe(admin.id);
+    expect(row.characterId).not.toBeNull();
+  });
+
+  it("403s a non-admin reviewer attempting an override", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const sheet = await createPendingSheet(owner.id, "No Override");
+    const res = await request(app)
+      .post(`/api/sheets/${sheet.id}/override`)
+      .set("x-test-user", fixer.id)
+      .send({});
+    expect(res.status).toBe(403);
+
+    const [after] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(after.status).toBe("pending");
+  });
+});
+
+describe("sheet request-changes + resubmit", () => {
+  it("parks the sheet in changes_requested, DMs the owner, and audits", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const sheet = await createPendingSheet(owner.id, "Needs Work");
+
+    const rc = await request(app)
+      .post(`/api/sheets/${sheet.id}/request-changes`)
+      .set("x-test-user", fixer.id)
+      .send({ comment: "Add a portrait." });
+    expect(rc.status).toBe(200);
+    expect(rc.body.status).toBe("changes_requested");
+    expect(rc.body.decisionNote).toBe("Add a portrait.");
+    expect(mockDm).toHaveBeenCalledTimes(1);
+
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_changes"));
+    expect(audits).toHaveLength(1);
+  });
+
+  it("400s request-changes without a comment", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const sheet = await createPendingSheet(owner.id, "No Comment");
+    const res = await request(app)
+      .post(`/api/sheets/${sheet.id}/request-changes`)
+      .set("x-test-user", fixer.id)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("clears prior votes on resubmit so the next round starts fresh", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // threshold 2 so one approve does not decide
+    const [sheet] = await db
+      .insert(characterSheets)
+      .values({ ownerId: owner.id, name: "Fresh Round", status: "pending", data: validSheetData("Fresh Round") })
+      .returning();
+
+    // One approve vote lands while still pending.
+    const vote = await request(app)
+      .post(`/api/sheets/${sheet.id}/vote`)
+      .set("x-test-user", f1.id)
+      .send({ vote: "approve" });
+    expect(vote.body.decided).toBeNull();
+    expect(
+      await db
+        .select()
+        .from(reviewVotes)
+        .where(and(eq(reviewVotes.subjectType, "sheet"), eq(reviewVotes.subjectId, sheet.id))),
+    ).toHaveLength(1);
+
+    // A second reviewer sends it back for changes, then the owner resubmits.
+    const rc = await request(app)
+      .post(`/api/sheets/${sheet.id}/request-changes`)
+      .set("x-test-user", f2.id)
+      .send({ comment: "Reconsider." });
+    expect(rc.status).toBe(200);
+
+    const resub = await request(app)
+      .post(`/api/sheets/${sheet.id}/submit`)
+      .set("x-test-user", owner.id)
+      .send({});
+    expect(resub.status).toBe(200);
+    expect(resub.body.status).toBe("pending");
+
+    // Votes wiped — the fresh round starts from zero.
+    expect(
+      await db
+        .select()
+        .from(reviewVotes)
+        .where(and(eq(reviewVotes.subjectType, "sheet"), eq(reviewVotes.subjectId, sheet.id))),
+    ).toHaveLength(0);
+  });
+});

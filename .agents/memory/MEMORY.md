@@ -50,3 +50,4 @@
 - [api-client codegen → rebuild dist](api-client-codegen-dist.md) — consumers read the client's built dist/*.d.ts via TS project refs; after codegen, rebuild dist or new hooks show as "no exported member".
 - [Sheet approval seeds inventory](sheet-approval-inventory-seed.md) — approving a PC sheet must materialize data.cyberware/data.gear into inventory_items (fresh-insert branch only); cyberware notes need "CWP <n>" + trailing "slot: <x>".
 - [Session window shared lib](session-window-shared.md) — Sun 2-9pm Pacific gate (attendance + open-shop) lives in lib/sessionWindow.ts; server is authoritative, frontend just disables.
+- [Review-pipeline state guards](review-pipeline-state-guards.md) — request-changes/resubmit/submit must use status-guarded conditional UPDATE (409 on no-op); vote/override lock FOR UPDATE, these dont.

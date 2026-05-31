@@ -2,10 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
-  decideMutate: vi.fn(),
+  voteMutate: vi.fn(),
+  overrideMutate: vi.fn(),
+  requestChangesMutate: vi.fn(),
+  resubmitMutate: vi.fn(),
   setLocation: vi.fn(),
   state: {
     status: "pending" as string,
+    ownerId: 999 as number,
+    canVote: true,
+    canOverride: false,
+    canRequestChanges: true,
+    canResubmit: false,
+    myVote: null as null | { vote: string; note: string | null },
     me: { id: 1, isCsApprover: true, isAdmin: false, isFixer: false } as Record<string, unknown>,
   },
 }));
@@ -32,19 +41,33 @@ vi.mock("@workspace/api-client-react", () => ({
       id: 7,
       name: "Vincent Vega",
       status: h.state.status,
-      ownerId: 999,
+      ownerId: h.state.ownerId,
       createdAt: new Date("2026-01-01T00:00:00Z").toISOString(),
       decisionNote: null,
       data: SHEET_DATA,
+      approveCount: 0,
+      rejectCount: 0,
+      threshold: 1,
+      eligibleVoterCount: 1,
+      canVote: h.state.canVote,
+      canOverride: h.state.canOverride,
+      canRequestChanges: h.state.canRequestChanges,
+      canResubmit: h.state.canResubmit,
+      myVote: h.state.myVote,
     },
     isLoading: false,
   }),
-  useDecideSheet: () => ({ mutate: h.decideMutate, isPending: false }),
+  useVoteSheet: () => ({ mutate: h.voteMutate, isPending: false }),
+  useOverrideSheet: () => ({ mutate: h.overrideMutate, isPending: false }),
+  useRequestChangesSheet: () => ({ mutate: h.requestChangesMutate, isPending: false }),
+  useSubmitDraftSheet: () => ({ mutate: h.resubmitMutate, isPending: false }),
   useListCyberware: () => ({ data: [] }),
-  useGetMe: () => ({ data: h.state.me }),
-  getGetMeQueryKey: () => ["me"],
   getGetSheetQueryKey: (id: number) => ["sheets", id],
   getListPendingSheetsQueryKey: () => ["sheets", "pending"],
+}));
+
+vi.mock("@/hooks/useAuthMe", () => ({
+  useAuthMe: () => ({ data: h.state.me }),
 }));
 
 vi.mock("wouter", () => ({
@@ -59,15 +82,24 @@ vi.mock("@tanstack/react-query", async (orig) => {
 
 import SheetDetail from "./SheetDetail";
 
-describe("SheetDetail approval decisions", () => {
+describe("SheetDetail review pipeline", () => {
   beforeEach(() => {
-    h.decideMutate.mockReset();
+    h.voteMutate.mockReset();
+    h.overrideMutate.mockReset();
+    h.requestChangesMutate.mockReset();
+    h.resubmitMutate.mockReset();
     h.setLocation.mockReset();
     h.state.status = "pending";
+    h.state.ownerId = 999;
+    h.state.canVote = true;
+    h.state.canOverride = false;
+    h.state.canRequestChanges = true;
+    h.state.canResubmit = false;
+    h.state.myVote = null;
     h.state.me = { id: 1, isCsApprover: true, isAdmin: false, isFixer: false };
   });
 
-  it("lets an approver approve, request changes, and reject with a note", () => {
+  it("lets a reviewer cast approve and reject votes carrying the note", () => {
     render(<SheetDetail />);
 
     fireEvent.change(screen.getByTestId("input-decision-note"), {
@@ -75,36 +107,59 @@ describe("SheetDetail approval decisions", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-approve"));
-    expect(h.decideMutate).toHaveBeenLastCalledWith({
+    expect(h.voteMutate).toHaveBeenLastCalledWith({
       id: 7,
-      data: { decision: "approved", note: "Looks good" },
-    });
-
-    fireEvent.click(screen.getByTestId("button-request-changes"));
-    expect(h.decideMutate).toHaveBeenLastCalledWith({
-      id: 7,
-      data: { decision: "changes_requested", note: "Looks good" },
+      data: { vote: "approve", note: "Looks good" },
     });
 
     fireEvent.click(screen.getByTestId("button-reject"));
-    expect(h.decideMutate).toHaveBeenLastCalledWith({
+    expect(h.voteMutate).toHaveBeenLastCalledWith({
       id: 7,
-      data: { decision: "rejected", note: "Looks good" },
+      data: { vote: "reject", note: "Looks good" },
     });
 
-    expect(h.decideMutate).toHaveBeenCalledTimes(3);
+    expect(h.voteMutate).toHaveBeenCalledTimes(2);
   });
 
-  it("hides the decision panel from non-approvers", () => {
+  it("lets a reviewer request changes with a comment", () => {
+    render(<SheetDetail />);
+
+    fireEvent.change(screen.getByTestId("input-change-comment"), {
+      target: { value: "Add more backstory" },
+    });
+    fireEvent.click(screen.getByTestId("button-request-changes"));
+    expect(h.requestChangesMutate).toHaveBeenLastCalledWith({
+      id: 7,
+      data: { comment: "Add more backstory" },
+    });
+  });
+
+  it("lets an admin override-approve", () => {
+    h.state.canOverride = true;
+    h.state.me = { id: 1, isCsApprover: false, isAdmin: true, isFixer: false };
+    render(<SheetDetail />);
+
+    fireEvent.click(screen.getByTestId("button-override"));
+    expect(h.overrideMutate).toHaveBeenLastCalledWith({ id: 7 });
+  });
+
+  it("lets the owner resubmit after changes were requested", () => {
+    h.state.status = "changes_requested";
+    h.state.ownerId = 1;
+    h.state.canVote = false;
+    h.state.canRequestChanges = false;
+    h.state.canResubmit = true;
     h.state.me = { id: 1, isCsApprover: false, isAdmin: false, isFixer: false };
     render(<SheetDetail />);
 
-    expect(screen.queryByTestId("button-approve")).toBeNull();
-    expect(screen.queryByTestId("input-decision-note")).toBeNull();
+    fireEvent.click(screen.getByTestId("button-resubmit"));
+    expect(h.resubmitMutate).toHaveBeenLastCalledWith({ id: 7 });
   });
 
-  it("hides the decision panel from an approver who submitted the sheet", () => {
-    h.state.me = { id: 999, isCsApprover: true, isAdmin: false, isFixer: false };
+  it("shows the self-review notice and no vote panel to the submitting reviewer", () => {
+    h.state.ownerId = 1;
+    h.state.canVote = false;
+    h.state.canRequestChanges = false;
     render(<SheetDetail />);
 
     expect(screen.queryByTestId("button-approve")).toBeNull();
@@ -112,8 +167,21 @@ describe("SheetDetail approval decisions", () => {
     expect(screen.getByTestId("text-self-review-blocked")).toBeInTheDocument();
   });
 
-  it("hides the decision panel once the sheet is no longer pending", () => {
+  it("hides the vote panel from non-reviewers", () => {
+    h.state.canVote = false;
+    h.state.canRequestChanges = false;
+    h.state.me = { id: 1, isCsApprover: false, isAdmin: false, isFixer: false };
+    render(<SheetDetail />);
+
+    expect(screen.queryByTestId("button-approve")).toBeNull();
+    expect(screen.queryByTestId("button-override")).toBeNull();
+    expect(screen.queryByTestId("input-decision-note")).toBeNull();
+  });
+
+  it("hides the vote panel once the sheet is no longer pending", () => {
     h.state.status = "approved";
+    h.state.canVote = false;
+    h.state.canRequestChanges = false;
     render(<SheetDetail />);
 
     expect(screen.queryByTestId("button-approve")).toBeNull();

@@ -367,10 +367,15 @@ export const characterSheets = pgTable("character_sheets", {
   ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   characterId: integer("character_id"),
   name: text("name").notNull(),
+  // draft | pending | approved | rejected | changes_requested. Reviewers cast
+  // majority votes (review_votes) to approve/reject; "request changes" parks it
+  // in changes_requested until the owner resubmits.
   status: text("status").notNull().default("pending"),
   data: jsonb("data").notNull(),
   decisionBy: text("decision_by"),
   decisionNote: text("decision_note"),
+  // Admin who used "approve override" to bypass the majority vote (nullable).
+  overriddenBy: text("overridden_by").references(() => users.id),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   discordMessageId: text("discord_message_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -564,10 +569,15 @@ export const customRequests = pgTable("custom_requests", {
   imageUrl: text("image_url"),
   // Optional type-specific payload captured at submit time.
   details: jsonb("details"),
+  // pending | approved | rejected | changes_requested. Reviewers cast majority
+  // votes (review_votes) to approve/reject; "request changes" parks it in
+  // changes_requested until the requester edits and resubmits.
   status: text("status").notNull().default("pending"),
   reviewedById: text("reviewed_by_id").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   reviewerNote: text("reviewer_note"),
+  // Admin who used "approve override" to bypass the majority vote (nullable).
+  overriddenBy: text("overridden_by").references(() => users.id),
   // Idempotency marker for what was materialized on approval.
   appliedRef: text("applied_ref"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -936,8 +946,16 @@ export const pendingCharacterEdits = pgTable("pending_character_edits", {
   // Player-supplied commit-message-style summary of the change. Surfaced
   // in the reviewer UI and written into character_updates on approval.
   updateNote: text("update_note"),
+  // pending | approved | rejected | cancelled | changes_requested. A reviewer
+  // can "request changes" which parks the edit in changes_requested (waiting on
+  // the submitter); the submitter resubmits to send it back to pending.
   status: text("status").notNull().default("pending"),
   decisionSummary: text("decision_summary"),
+  // Free-text comment a reviewer leaves when requesting changes. Surfaced to
+  // the submitter; cleared on resubmit.
+  reviewComment: text("review_comment"),
+  // Admin who used "approve override" to bypass the majority vote (nullable).
+  overriddenBy: text("overridden_by").references(() => users.id),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   discordMessageId: text("discord_message_id"),
@@ -968,6 +986,30 @@ export const pendingEditApprovals = pgTable("pending_edit_approvals", {
   oneVotePerVoterIdx: uniqueIndex("pending_edit_vote_unique_idx").on(t.editId, t.voterId),
 }));
 export type PendingEditApproval = typeof pendingEditApprovals.$inferSelect;
+
+// Generic majority-vote ledger reused by the review pipeline for entities that
+// don't have their own approvals table — new character SHEETS (subjectType
+// 'sheet') and custom/misc REQUESTS (subjectType 'request'). Character edits
+// keep their dedicated pending_edit_approvals table. Same semantics: one
+// canonical approve/reject vote per reviewer per subject (unique index), tallied
+// against a majority threshold of eligible reviewers.
+export const reviewVotes = pgTable("review_votes", {
+  id: serial("id").primaryKey(),
+  // 'sheet' | 'request' — the entity family this vote belongs to.
+  subjectType: text("subject_type").notNull(),
+  subjectId: integer("subject_id").notNull(),
+  voterId: text("voter_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  // 'approve' | 'reject'. Stored as text; the route layer validates.
+  vote: text("vote").notNull(),
+  note: text("note"),
+  votedAt: timestamp("voted_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  oneVotePerVoterIdx: uniqueIndex("review_vote_unique_idx").on(t.subjectType, t.subjectId, t.voterId),
+  subjectIdx: index("review_vote_subject_idx").on(t.subjectType, t.subjectId),
+}));
+export type ReviewVote = typeof reviewVotes.$inferSelect;
 
 // Per-character shop opens — one row per "the owner opened their venue
 // today" event. The monthly_rent cron counts rows in the current month to

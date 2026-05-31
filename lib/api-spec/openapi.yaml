@@ -2169,7 +2169,7 @@ paths:
     get:
       operationId: listPendingSheets
       tags: [sheets]
-      summary: Pending sheets (CS approvers only)
+      summary: Pending sheets (reviewers only) with per-sheet vote tallies
       responses:
         "200":
           description: Pending
@@ -2177,7 +2177,7 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/CharacterSheet" }
+                items: { $ref: "#/components/schemas/PendingSheetSummary" }
   /sheets/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -2224,24 +2224,66 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CharacterSheet" }
-  /sheets/{id}/decision:
+  /sheets/{id}/vote:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
-      operationId: decideSheet
+      operationId: voteSheet
       tags: [sheets]
-      summary: Approve or reject a pending sheet (CS approvers only)
+      summary: Cast or change your approve/reject vote on a pending sheet. When the tally reaches majority the sheet is decided (approve materializes the character).
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/SheetDecisionInput" }
+            schema: { $ref: "#/components/schemas/SheetVoteInput" }
       responses:
         "200":
-          description: Updated
+          description: Vote recorded (and possibly decided)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SheetVoteResult" }
+        "400": { description: Bad request }
+        "403": { description: Reviewers only / cannot vote on own sheet }
+        "404": { description: Not found }
+        "409": { description: Already decided }
+  /sheets/{id}/override:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: overrideSheet
+      tags: [sheets]
+      summary: Admin-only immediate approval that bypasses the vote and materializes the character. Records overriddenBy.
+      responses:
+        "200":
+          description: Approved via override
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CharacterSheet" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already decided }
+  /sheets/{id}/request-changes:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: requestChangesSheet
+      tags: [sheets]
+      summary: A reviewer parks the sheet in changes_requested with a comment and DMs the owner. The owner resubmits via /sheets/{id}/submit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RequestChangesInput" }
+      responses:
+        "200":
+          description: Changes requested
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterSheet" }
+        "400": { description: A comment is required }
+        "403": { description: Reviewers only / cannot review own sheet }
+        "404": { description: Not found }
+        "409": { description: Already decided }
 
   # ---------------- PENDING CHARACTER EDITS ----------------
   /pending-edits:
@@ -2289,6 +2331,75 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PendingEditVoteResult" }
+  /pending-edits/{id}/override:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: overridePendingEdit
+      tags: [pending-edits]
+      summary: Admin-only immediate approval that bypasses the vote and applies the edit. Records overriddenBy.
+      responses:
+        "200":
+          description: Approved via override
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, status]
+                properties:
+                  ok: { type: boolean }
+                  status: { type: string }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already decided }
+  /pending-edits/{id}/request-changes:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: requestChangesPendingEdit
+      tags: [pending-edits]
+      summary: A reviewer parks the edit in changes_requested with a comment and DMs the submitter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RequestChangesInput" }
+      responses:
+        "200":
+          description: Changes requested
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, status]
+                properties:
+                  ok: { type: boolean }
+                  status: { type: string }
+        "400": { description: A comment is required }
+        "403": { description: Reviewers only / cannot review own edit }
+        "404": { description: Not found }
+        "409": { description: Already decided }
+  /pending-edits/{id}/resubmit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: resubmitPendingEdit
+      tags: [pending-edits]
+      summary: The submitter sends a changes_requested edit back to the review queue. Clears prior votes. Allowed with no edits.
+      responses:
+        "200":
+          description: Resubmitted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, status]
+                properties:
+                  ok: { type: boolean }
+                  status: { type: string }
+        "403": { description: Only the submitter can resubmit }
+        "404": { description: Not found }
+        "409": { description: Not awaiting changes }
   /pending-edits/{id}/cancel:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -2852,7 +2963,7 @@ paths:
         - in: query
           name: status
           required: false
-          schema: { type: string, enum: [pending, approved, rejected], default: pending }
+          schema: { type: string, enum: [pending, approved, rejected, changes_requested], default: pending }
       responses:
         "200":
           description: Custom requests
@@ -2897,13 +3008,35 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CustomRequest" }
-  /requests/{id}/approve:
+  /requests/{id}/vote:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
-      operationId: approveCustomRequest
+      operationId: voteCustomRequest
       tags: [requests]
-      summary: Approve and auto-apply a custom request (fixer/admin only).
+      summary: Cast or change your approve/reject vote on a custom request. An approve vote carries the mechanical params for the type (property/cyberware). When the tally reaches majority the request is decided and auto-applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomRequestVoteInput" }
+      responses:
+        "200":
+          description: Vote recorded (and possibly decided)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequestVoteResult" }
+        "400": { description: Bad request }
+        "403": { description: Reviewers only / cannot vote on own request }
+        "404": { description: Not found }
+        "409": { description: Already decided }
+  /requests/{id}/override:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: overrideCustomRequest
+      tags: [requests]
+      summary: Admin-only immediate approval that bypasses the vote and auto-applies. Records overriddenBy.
       requestBody:
         required: false
         content:
@@ -2911,35 +3044,73 @@ paths:
             schema: { $ref: "#/components/schemas/CustomRequestApproval" }
       responses:
         "200":
-          description: Approved
+          description: Approved via override
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CustomRequest" }
         "400": { description: Bad request }
-        "403": { description: Fixer or admin only }
+        "403": { description: Admin only }
         "404": { description: Not found }
-        "409": { description: Already reviewed }
-  /requests/{id}/reject:
+        "409": { description: Already decided }
+  /requests/{id}/request-changes:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
-      operationId: rejectCustomRequest
+      operationId: requestChangesCustomRequest
       tags: [requests]
-      summary: Reject a custom request (fixer/admin only).
+      summary: A reviewer parks the request in changes_requested with a comment and DMs the player.
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/CustomRequestRejection" }
+            schema: { $ref: "#/components/schemas/RequestChangesInput" }
       responses:
         "200":
-          description: Rejected
+          description: Changes requested
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CustomRequest" }
-        "403": { description: Fixer or admin only }
+        "400": { description: A comment is required }
+        "403": { description: Reviewers only / cannot review own request }
         "404": { description: Not found }
-        "409": { description: Already reviewed }
+        "409": { description: Already decided }
+  /requests/{id}/resubmit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: resubmitCustomRequest
+      tags: [requests]
+      summary: The requester sends a changes_requested request back to the review queue. Clears prior votes. Allowed with no edits.
+      responses:
+        "200":
+          description: Resubmitted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "403": { description: Only the requester can resubmit }
+        "404": { description: Not found }
+        "409": { description: Not awaiting changes }
+  /requests/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateCustomRequest
+      tags: [requests]
+      summary: The requester (or admin) edits a request while it is pending or changes_requested.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomRequestPatchInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "403": { description: Only the requester can edit }
+        "404": { description: Not found }
+        "409": { description: No longer editable }
   /requests/{id}/stock-decision:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -4512,12 +4683,49 @@ components:
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], description: "Optional reference image the player attached." }
         details: { description: "Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }.", nullable: true }
-        status: { type: string, enum: [pending, approved, rejected] }
+        status: { type: string, enum: [pending, approved, rejected, changes_requested] }
         reviewedById: { type: ["string", "null"] }
         reviewedAt: { type: ["string", "null"], format: date-time }
-        reviewerNote: { type: ["string", "null"] }
+        reviewerNote: { type: ["string", "null"], description: "On changes_requested this carries the reviewer's comment to the player." }
         appliedRef: { type: ["string", "null"], description: "What was materialized on approval (housing:<id> / inventory:<uuid>)." }
+        overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
+        approveCount: { type: integer, description: "Review tally — present on list responses." }
+        rejectCount: { type: integer }
+        threshold: { type: integer, description: "Majority needed among eligible reviewers (excludes the requester)." }
+        myVote: { type: ["string", "null"], enum: [approve, reject, null], description: "The viewer's own vote, if any." }
         createdAt: { type: string, format: date-time }
+
+    CustomRequestVoteInput:
+      type: object
+      required: [vote]
+      properties:
+        vote: { type: string, enum: [approve, reject] }
+        note: { type: string, maxLength: 2000 }
+        monthlyRent: { type: integer, minimum: 0, description: "Required on an approve vote for property requests." }
+        kind: { type: string, enum: [residential, business], description: "For property approve votes; defaults residential." }
+        cwp: { type: number, minimum: 0, description: "Required on an approve vote for cyberware requests." }
+
+    CustomRequestVoteResult:
+      allOf:
+        - $ref: "#/components/schemas/CustomRequest"
+        - type: object
+          properties:
+            decided: { type: ["string", "null"], enum: [approved, rejected, null] }
+
+    CustomRequestPatchInput:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        imageUrl: { type: string }
+        purpose: { type: string, description: "Venue requests only." }
+        location: { type: string, description: "Venue requests only." }
+
+    RequestChangesInput:
+      type: object
+      required: [comment]
+      properties:
+        comment: { type: string, minLength: 1, maxLength: 2000 }
 
     CustomRequestInput:
       type: object
@@ -4674,10 +4882,80 @@ components:
         status: { type: string, enum: [draft, pending, approved, rejected, changes_requested] }
         discordMessageId: { type: ["string", "null"] }
         decisionBy: { type: ["string", "null"] }
-        decisionNote: { type: ["string", "null"] }
+        decisionNote: { type: ["string", "null"], description: "On changes_requested this carries the reviewer's comment." }
         decidedAt: { type: ["string", "null"], format: date-time }
+        overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
+        ownerAvatarUrl: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         data: { $ref: "#/components/schemas/CharacterSheetData" }
+        # Review fields — present on GET /sheets/{id} only.
+        votes:
+          type: array
+          items: { $ref: "#/components/schemas/ReviewVoteRecord" }
+        eligibleVoterCount: { type: integer }
+        threshold: { type: integer }
+        approveCount: { type: integer }
+        rejectCount: { type: integer }
+        myVote: { $ref: "#/components/schemas/ReviewerSelfVote" }
+        canVote: { type: boolean }
+        canRequestChanges: { type: boolean }
+        canOverride: { type: boolean }
+        canResubmit: { type: boolean }
+
+    ReviewVoteRecord:
+      type: object
+      required: [id, voterId, vote, votedAt]
+      properties:
+        id: { type: integer }
+        voterId: { type: string }
+        voterName: { type: ["string", "null"] }
+        voterAvatarUrl: { type: ["string", "null"] }
+        vote: { type: string, enum: [approve, reject] }
+        note: { type: ["string", "null"] }
+        votedAt: { type: string, format: date-time }
+
+    ReviewerSelfVote:
+      oneOf:
+        - type: "null"
+        - type: object
+          required: [vote]
+          properties:
+            vote: { type: string, enum: [approve, reject] }
+            note: { type: ["string", "null"] }
+            votedAt: { type: string, format: date-time }
+
+    PendingSheetSummary:
+      type: object
+      required: [id, name, status, createdAt, ownerId, approveCount, rejectCount, threshold]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        status: { type: string, enum: [draft, pending, approved, rejected, changes_requested] }
+        createdAt: { type: string, format: date-time }
+        ownerId: { type: string }
+        ownerName: { type: ["string", "null"] }
+        ownerAvatarUrl: { type: ["string", "null"] }
+        approveCount: { type: integer }
+        rejectCount: { type: integer }
+        threshold: { type: integer }
+        myVote: { $ref: "#/components/schemas/ReviewerSelfVote" }
+
+    SheetVoteInput:
+      type: object
+      required: [vote]
+      properties:
+        vote: { type: string, enum: [approve, reject] }
+        note: { type: string, maxLength: 2000 }
+
+    SheetVoteResult:
+      type: object
+      required: [status, approveCount, rejectCount, threshold]
+      properties:
+        status: { type: string, enum: [pending, approved, rejected, changes_requested] }
+        decided: { type: ["string", "null"], enum: [approved, rejected, null] }
+        approveCount: { type: integer }
+        rejectCount: { type: integer }
+        threshold: { type: integer }
 
     CharacterSheetData:
       type: object
@@ -4787,8 +5065,10 @@ components:
           type: object
           additionalProperties: true
         updateNote: { type: ["string", "null"] }
-        status: { type: string, enum: [pending, approved, rejected, cancelled] }
+        status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested] }
         decisionSummary: { type: ["string", "null"] }
+        reviewComment: { type: ["string", "null"], description: "Reviewer's comment when changes were requested." }
+        overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
         submittedAt: { type: string, format: date-time }
         decidedAt: { type: ["string", "null"], format: date-time }
         approveCount: { type: integer }
@@ -4834,8 +5114,10 @@ components:
           type: object
           additionalProperties: true
         updateNote: { type: ["string", "null"] }
-        status: { type: string, enum: [pending, approved, rejected, cancelled] }
+        status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested] }
         decisionSummary: { type: ["string", "null"] }
+        reviewComment: { type: ["string", "null"], description: "Reviewer's comment when changes were requested." }
+        overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
         submittedAt: { type: string, format: date-time }
         decidedAt: { type: ["string", "null"], format: date-time }
         votes:
@@ -4854,6 +5136,9 @@ components:
                 note: { type: ["string", "null"] }
                 votedAt: { type: string, format: date-time }
         canVote: { type: boolean }
+        canRequestChanges: { type: boolean }
+        canOverride: { type: boolean }
+        canResubmit: { type: boolean }
 
     PendingEditVoteInput:
       type: object
@@ -4872,13 +5157,6 @@ components:
         rejectCount: { type: integer }
         threshold: { type: integer }
         eligibleVoterCount: { type: integer }
-
-    SheetDecisionInput:
-      type: object
-      required: [decision]
-      properties:
-        decision: { type: string, enum: [approved, rejected, changes_requested] }
-        note: { type: string }
 
     DiceRollInput:
       type: object

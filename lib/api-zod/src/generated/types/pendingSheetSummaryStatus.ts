@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListCustomRequestsStatus = typeof ListCustomRequestsStatus[keyof typeof ListCustomRequestsStatus];
+export type PendingSheetSummaryStatus = typeof PendingSheetSummaryStatus[keyof typeof PendingSheetSummaryStatus];
 
 
-export const ListCustomRequestsStatus = {
+export const PendingSheetSummaryStatus = {
+  draft: 'draft',
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',

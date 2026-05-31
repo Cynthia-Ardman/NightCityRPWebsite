@@ -68,7 +68,9 @@ import type {
   CustomRequest,
   CustomRequestApproval,
   CustomRequestInput,
-  CustomRequestRejection,
+  CustomRequestPatchInput,
+  CustomRequestVoteInput,
+  CustomRequestVoteResult,
   CyberwareInstallInput,
   CyberwareRemoveInput,
   DashboardSummary,
@@ -141,15 +143,20 @@ import type {
   MissionHistoryPage,
   MissionSummary,
   MissionUpdateInput,
+  OverridePendingEdit200,
   PayActorsInput,
   PendingEditDetail,
   PendingEditSummary,
   PendingEditVoteInput,
   PendingEditVoteResult,
+  PendingSheetSummary,
   PlayerAttendanceRow,
   PublicCharacter,
   PublicCharacterSummary,
   ReactivateCharacter200,
+  RequestChangesInput,
+  RequestChangesPendingEdit200,
+  ResubmitPendingEdit200,
   ReviewApplicationInput,
   Ripperdoc,
   RipperdocPublic,
@@ -157,7 +164,8 @@ import type {
   SaleOffer,
   SearchInventoryByOwnerParams,
   SearchMissionActorsParams,
-  SheetDecisionInput,
+  SheetVoteInput,
+  SheetVoteResult,
   StandaloneActorPayInput,
   StockCostDecision,
   StockInput,
@@ -10188,11 +10196,11 @@ export const getListPendingSheetsUrl = () => {
 }
 
 /**
- * @summary Pending sheets (CS approvers only)
+ * @summary Pending sheets (reviewers only) with per-sheet vote tallies
  */
-export const listPendingSheets = async ( options?: RequestInit): Promise<CharacterSheet[]> => {
+export const listPendingSheets = async ( options?: RequestInit): Promise<PendingSheetSummary[]> => {
 
-  return customFetch<CharacterSheet[]>(getListPendingSheetsUrl(),
+  return customFetch<PendingSheetSummary[]>(getListPendingSheetsUrl(),
   {
     ...options,
     method: 'GET'
@@ -10235,7 +10243,7 @@ export type ListPendingSheetsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Pending sheets (CS approvers only)
+ * @summary Pending sheets (reviewers only) with per-sheet vote tallies
  */
 
 export function useListPendingSheets<TData = Awaited<ReturnType<typeof listPendingSheets>>, TError = ErrorType<unknown>>(
@@ -10539,38 +10547,38 @@ export const useSubmitDraftSheet = <TError = ErrorType<unknown>,
       return useMutation(getSubmitDraftSheetMutationOptions(options));
     }
 
-export const getDecideSheetUrl = (id: number,) => {
+export const getVoteSheetUrl = (id: number,) => {
 
 
 
 
-  return `/api/sheets/${id}/decision`
+  return `/api/sheets/${id}/vote`
 }
 
 /**
- * @summary Approve or reject a pending sheet (CS approvers only)
+ * @summary Cast or change your approve/reject vote on a pending sheet. When the tally reaches majority the sheet is decided (approve materializes the character).
  */
-export const decideSheet = async (id: number,
-    sheetDecisionInput: SheetDecisionInput, options?: RequestInit): Promise<CharacterSheet> => {
+export const voteSheet = async (id: number,
+    sheetVoteInput: SheetVoteInput, options?: RequestInit): Promise<SheetVoteResult> => {
 
-  return customFetch<CharacterSheet>(getDecideSheetUrl(id),
+  return customFetch<SheetVoteResult>(getVoteSheetUrl(id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      sheetDecisionInput,)
+      sheetVoteInput,)
   }
 );}
 
 
 
 
-export const getDecideSheetMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideSheet>>, TError,{id: number;data: BodyType<SheetDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof decideSheet>>, TError,{id: number;data: BodyType<SheetDecisionInput>}, TContext> => {
+export const getVoteSheetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voteSheet>>, TError,{id: number;data: BodyType<SheetVoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof voteSheet>>, TError,{id: number;data: BodyType<SheetVoteInput>}, TContext> => {
 
-const mutationKey = ['decideSheet'];
+const mutationKey = ['voteSheet'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -10580,10 +10588,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideSheet>>, {id: number;data: BodyType<SheetDecisionInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof voteSheet>>, {id: number;data: BodyType<SheetVoteInput>}> = (props) => {
           const {id,data} = props ?? {};
 
-          return  decideSheet(id,data,requestOptions)
+          return  voteSheet(id,data,requestOptions)
         }
 
 
@@ -10593,22 +10601,164 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DecideSheetMutationResult = NonNullable<Awaited<ReturnType<typeof decideSheet>>>
-    export type DecideSheetMutationBody = BodyType<SheetDecisionInput>
-    export type DecideSheetMutationError = ErrorType<unknown>
+    export type VoteSheetMutationResult = NonNullable<Awaited<ReturnType<typeof voteSheet>>>
+    export type VoteSheetMutationBody = BodyType<SheetVoteInput>
+    export type VoteSheetMutationError = ErrorType<void>
 
     /**
- * @summary Approve or reject a pending sheet (CS approvers only)
+ * @summary Cast or change your approve/reject vote on a pending sheet. When the tally reaches majority the sheet is decided (approve materializes the character).
  */
-export const useDecideSheet = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideSheet>>, TError,{id: number;data: BodyType<SheetDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useVoteSheet = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voteSheet>>, TError,{id: number;data: BodyType<SheetVoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof decideSheet>>,
+        Awaited<ReturnType<typeof voteSheet>>,
         TError,
-        {id: number;data: BodyType<SheetDecisionInput>},
+        {id: number;data: BodyType<SheetVoteInput>},
         TContext
       > => {
-      return useMutation(getDecideSheetMutationOptions(options));
+      return useMutation(getVoteSheetMutationOptions(options));
+    }
+
+export const getOverrideSheetUrl = (id: number,) => {
+
+
+
+
+  return `/api/sheets/${id}/override`
+}
+
+/**
+ * @summary Admin-only immediate approval that bypasses the vote and materializes the character. Records overriddenBy.
+ */
+export const overrideSheet = async (id: number, options?: RequestInit): Promise<CharacterSheet> => {
+
+  return customFetch<CharacterSheet>(getOverrideSheetUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getOverrideSheetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['overrideSheet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overrideSheet>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  overrideSheet(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OverrideSheetMutationResult = NonNullable<Awaited<ReturnType<typeof overrideSheet>>>
+
+    export type OverrideSheetMutationError = ErrorType<void>
+
+    /**
+ * @summary Admin-only immediate approval that bypasses the vote and materializes the character. Records overriddenBy.
+ */
+export const useOverrideSheet = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof overrideSheet>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getOverrideSheetMutationOptions(options));
+    }
+
+export const getRequestChangesSheetUrl = (id: number,) => {
+
+
+
+
+  return `/api/sheets/${id}/request-changes`
+}
+
+/**
+ * @summary A reviewer parks the sheet in changes_requested with a comment and DMs the owner. The owner resubmits via /sheets/{id}/submit.
+ */
+export const requestChangesSheet = async (id: number,
+    requestChangesInput: RequestChangesInput, options?: RequestInit): Promise<CharacterSheet> => {
+
+  return customFetch<CharacterSheet>(getRequestChangesSheetUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      requestChangesInput,)
+  }
+);}
+
+
+
+
+export const getRequestChangesSheetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext> => {
+
+const mutationKey = ['requestChangesSheet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesSheet>>, {id: number;data: BodyType<RequestChangesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  requestChangesSheet(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestChangesSheetMutationResult = NonNullable<Awaited<ReturnType<typeof requestChangesSheet>>>
+    export type RequestChangesSheetMutationBody = BodyType<RequestChangesInput>
+    export type RequestChangesSheetMutationError = ErrorType<void>
+
+    /**
+ * @summary A reviewer parks the sheet in changes_requested with a comment and DMs the owner. The owner resubmits via /sheets/{id}/submit.
+ */
+export const useRequestChangesSheet = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestChangesSheet>>,
+        TError,
+        {id: number;data: BodyType<RequestChangesInput>},
+        TContext
+      > => {
+      return useMutation(getRequestChangesSheetMutationOptions(options));
     }
 
 export const getListPendingEditsUrl = () => {
@@ -10835,6 +10985,218 @@ export const useVotePendingEdit = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getVotePendingEditMutationOptions(options));
+    }
+
+export const getOverridePendingEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/pending-edits/${id}/override`
+}
+
+/**
+ * @summary Admin-only immediate approval that bypasses the vote and applies the edit. Records overriddenBy.
+ */
+export const overridePendingEdit = async (id: number, options?: RequestInit): Promise<OverridePendingEdit200> => {
+
+  return customFetch<OverridePendingEdit200>(getOverridePendingEditUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getOverridePendingEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['overridePendingEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overridePendingEdit>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  overridePendingEdit(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OverridePendingEditMutationResult = NonNullable<Awaited<ReturnType<typeof overridePendingEdit>>>
+
+    export type OverridePendingEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Admin-only immediate approval that bypasses the vote and applies the edit. Records overriddenBy.
+ */
+export const useOverridePendingEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof overridePendingEdit>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getOverridePendingEditMutationOptions(options));
+    }
+
+export const getRequestChangesPendingEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/pending-edits/${id}/request-changes`
+}
+
+/**
+ * @summary A reviewer parks the edit in changes_requested with a comment and DMs the submitter.
+ */
+export const requestChangesPendingEdit = async (id: number,
+    requestChangesInput: RequestChangesInput, options?: RequestInit): Promise<RequestChangesPendingEdit200> => {
+
+  return customFetch<RequestChangesPendingEdit200>(getRequestChangesPendingEditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      requestChangesInput,)
+  }
+);}
+
+
+
+
+export const getRequestChangesPendingEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext> => {
+
+const mutationKey = ['requestChangesPendingEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesPendingEdit>>, {id: number;data: BodyType<RequestChangesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  requestChangesPendingEdit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestChangesPendingEditMutationResult = NonNullable<Awaited<ReturnType<typeof requestChangesPendingEdit>>>
+    export type RequestChangesPendingEditMutationBody = BodyType<RequestChangesInput>
+    export type RequestChangesPendingEditMutationError = ErrorType<void>
+
+    /**
+ * @summary A reviewer parks the edit in changes_requested with a comment and DMs the submitter.
+ */
+export const useRequestChangesPendingEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestChangesPendingEdit>>,
+        TError,
+        {id: number;data: BodyType<RequestChangesInput>},
+        TContext
+      > => {
+      return useMutation(getRequestChangesPendingEditMutationOptions(options));
+    }
+
+export const getResubmitPendingEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/pending-edits/${id}/resubmit`
+}
+
+/**
+ * @summary The submitter sends a changes_requested edit back to the review queue. Clears prior votes. Allowed with no edits.
+ */
+export const resubmitPendingEdit = async (id: number, options?: RequestInit): Promise<ResubmitPendingEdit200> => {
+
+  return customFetch<ResubmitPendingEdit200>(getResubmitPendingEditUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getResubmitPendingEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resubmitPendingEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resubmitPendingEdit>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['resubmitPendingEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resubmitPendingEdit>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  resubmitPendingEdit(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResubmitPendingEditMutationResult = NonNullable<Awaited<ReturnType<typeof resubmitPendingEdit>>>
+
+    export type ResubmitPendingEditMutationError = ErrorType<void>
+
+    /**
+ * @summary The submitter sends a changes_requested edit back to the review queue. Clears prior votes. Allowed with no edits.
+ */
+export const useResubmitPendingEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resubmitPendingEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resubmitPendingEdit>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getResubmitPendingEditMutationOptions(options));
     }
 
 export const getCancelPendingEditUrl = (id: number,) => {
@@ -13787,21 +14149,93 @@ export function useListMyCustomRequests<TData = Awaited<ReturnType<typeof listMy
 
 
 
-export const getApproveCustomRequestUrl = (id: number,) => {
+export const getVoteCustomRequestUrl = (id: number,) => {
 
 
 
 
-  return `/api/requests/${id}/approve`
+  return `/api/requests/${id}/vote`
 }
 
 /**
- * @summary Approve and auto-apply a custom request (fixer/admin only).
+ * @summary Cast or change your approve/reject vote on a custom request. An approve vote carries the mechanical params for the type (property/cyberware). When the tally reaches majority the request is decided and auto-applied.
  */
-export const approveCustomRequest = async (id: number,
+export const voteCustomRequest = async (id: number,
+    customRequestVoteInput: CustomRequestVoteInput, options?: RequestInit): Promise<CustomRequestVoteResult> => {
+
+  return customFetch<CustomRequestVoteResult>(getVoteCustomRequestUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      customRequestVoteInput,)
+  }
+);}
+
+
+
+
+export const getVoteCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voteCustomRequest>>, TError,{id: number;data: BodyType<CustomRequestVoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof voteCustomRequest>>, TError,{id: number;data: BodyType<CustomRequestVoteInput>}, TContext> => {
+
+const mutationKey = ['voteCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof voteCustomRequest>>, {id: number;data: BodyType<CustomRequestVoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  voteCustomRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VoteCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof voteCustomRequest>>>
+    export type VoteCustomRequestMutationBody = BodyType<CustomRequestVoteInput>
+    export type VoteCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Cast or change your approve/reject vote on a custom request. An approve vote carries the mechanical params for the type (property/cyberware). When the tally reaches majority the request is decided and auto-applied.
+ */
+export const useVoteCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voteCustomRequest>>, TError,{id: number;data: BodyType<CustomRequestVoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof voteCustomRequest>>,
+        TError,
+        {id: number;data: BodyType<CustomRequestVoteInput>},
+        TContext
+      > => {
+      return useMutation(getVoteCustomRequestMutationOptions(options));
+    }
+
+export const getOverrideCustomRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/override`
+}
+
+/**
+ * @summary Admin-only immediate approval that bypasses the vote and auto-applies. Records overriddenBy.
+ */
+export const overrideCustomRequest = async (id: number,
     customRequestApproval?: CustomRequestApproval, options?: RequestInit): Promise<CustomRequest> => {
 
-  return customFetch<CustomRequest>(getApproveCustomRequestUrl(id),
+  return customFetch<CustomRequest>(getOverrideCustomRequestUrl(id),
   {
     ...options,
     method: 'POST',
@@ -13814,11 +14248,11 @@ export const approveCustomRequest = async (id: number,
 
 
 
-export const getApproveCustomRequestMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof approveCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext> => {
+export const getOverrideCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overrideCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext> => {
 
-const mutationKey = ['approveCustomRequest'];
+const mutationKey = ['overrideCustomRequest'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -13828,10 +14262,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveCustomRequest>>, {id: number;data?: BodyType<CustomRequestApproval>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overrideCustomRequest>>, {id: number;data?: BodyType<CustomRequestApproval>}> = (props) => {
           const {id,data} = props ?? {};
 
-          return  approveCustomRequest(id,data,requestOptions)
+          return  overrideCustomRequest(id,data,requestOptions)
         }
 
 
@@ -13841,56 +14275,56 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type ApproveCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof approveCustomRequest>>>
-    export type ApproveCustomRequestMutationBody = BodyType<CustomRequestApproval> | undefined
-    export type ApproveCustomRequestMutationError = ErrorType<void>
+    export type OverrideCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof overrideCustomRequest>>>
+    export type OverrideCustomRequestMutationBody = BodyType<CustomRequestApproval> | undefined
+    export type OverrideCustomRequestMutationError = ErrorType<void>
 
     /**
- * @summary Approve and auto-apply a custom request (fixer/admin only).
+ * @summary Admin-only immediate approval that bypasses the vote and auto-applies. Records overriddenBy.
  */
-export const useApproveCustomRequest = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useOverrideCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof approveCustomRequest>>,
+        Awaited<ReturnType<typeof overrideCustomRequest>>,
         TError,
         {id: number;data?: BodyType<CustomRequestApproval>},
         TContext
       > => {
-      return useMutation(getApproveCustomRequestMutationOptions(options));
+      return useMutation(getOverrideCustomRequestMutationOptions(options));
     }
 
-export const getRejectCustomRequestUrl = (id: number,) => {
+export const getRequestChangesCustomRequestUrl = (id: number,) => {
 
 
 
 
-  return `/api/requests/${id}/reject`
+  return `/api/requests/${id}/request-changes`
 }
 
 /**
- * @summary Reject a custom request (fixer/admin only).
+ * @summary A reviewer parks the request in changes_requested with a comment and DMs the player.
  */
-export const rejectCustomRequest = async (id: number,
-    customRequestRejection?: CustomRequestRejection, options?: RequestInit): Promise<CustomRequest> => {
+export const requestChangesCustomRequest = async (id: number,
+    requestChangesInput: RequestChangesInput, options?: RequestInit): Promise<CustomRequest> => {
 
-  return customFetch<CustomRequest>(getRejectCustomRequestUrl(id),
+  return customFetch<CustomRequest>(getRequestChangesCustomRequestUrl(id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      customRequestRejection,)
+      requestChangesInput,)
   }
 );}
 
 
 
 
-export const getRejectCustomRequestMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestRejection>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof rejectCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestRejection>}, TContext> => {
+export const getRequestChangesCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext> => {
 
-const mutationKey = ['rejectCustomRequest'];
+const mutationKey = ['requestChangesCustomRequest'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -13900,10 +14334,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectCustomRequest>>, {id: number;data?: BodyType<CustomRequestRejection>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesCustomRequest>>, {id: number;data: BodyType<RequestChangesInput>}> = (props) => {
           const {id,data} = props ?? {};
 
-          return  rejectCustomRequest(id,data,requestOptions)
+          return  requestChangesCustomRequest(id,data,requestOptions)
         }
 
 
@@ -13913,22 +14347,164 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type RejectCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof rejectCustomRequest>>>
-    export type RejectCustomRequestMutationBody = BodyType<CustomRequestRejection> | undefined
-    export type RejectCustomRequestMutationError = ErrorType<void>
+    export type RequestChangesCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof requestChangesCustomRequest>>>
+    export type RequestChangesCustomRequestMutationBody = BodyType<RequestChangesInput>
+    export type RequestChangesCustomRequestMutationError = ErrorType<void>
 
     /**
- * @summary Reject a custom request (fixer/admin only).
+ * @summary A reviewer parks the request in changes_requested with a comment and DMs the player.
  */
-export const useRejectCustomRequest = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectCustomRequest>>, TError,{id: number;data?: BodyType<CustomRequestRejection>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useRequestChangesCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof rejectCustomRequest>>,
+        Awaited<ReturnType<typeof requestChangesCustomRequest>>,
         TError,
-        {id: number;data?: BodyType<CustomRequestRejection>},
+        {id: number;data: BodyType<RequestChangesInput>},
         TContext
       > => {
-      return useMutation(getRejectCustomRequestMutationOptions(options));
+      return useMutation(getRequestChangesCustomRequestMutationOptions(options));
+    }
+
+export const getResubmitCustomRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/resubmit`
+}
+
+/**
+ * @summary The requester sends a changes_requested request back to the review queue. Clears prior votes. Allowed with no edits.
+ */
+export const resubmitCustomRequest = async (id: number, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getResubmitCustomRequestUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getResubmitCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resubmitCustomRequest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resubmitCustomRequest>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['resubmitCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resubmitCustomRequest>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  resubmitCustomRequest(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResubmitCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof resubmitCustomRequest>>>
+
+    export type ResubmitCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary The requester sends a changes_requested request back to the review queue. Clears prior votes. Allowed with no edits.
+ */
+export const useResubmitCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resubmitCustomRequest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resubmitCustomRequest>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getResubmitCustomRequestMutationOptions(options));
+    }
+
+export const getUpdateCustomRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}`
+}
+
+/**
+ * @summary The requester (or admin) edits a request while it is pending or changes_requested.
+ */
+export const updateCustomRequest = async (id: number,
+    customRequestPatchInput: CustomRequestPatchInput, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getUpdateCustomRequestUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      customRequestPatchInput,)
+  }
+);}
+
+
+
+
+export const getUpdateCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomRequest>>, TError,{id: number;data: BodyType<CustomRequestPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCustomRequest>>, TError,{id: number;data: BodyType<CustomRequestPatchInput>}, TContext> => {
+
+const mutationKey = ['updateCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCustomRequest>>, {id: number;data: BodyType<CustomRequestPatchInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCustomRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof updateCustomRequest>>>
+    export type UpdateCustomRequestMutationBody = BodyType<CustomRequestPatchInput>
+    export type UpdateCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary The requester (or admin) edits a request while it is pending or changes_requested.
+ */
+export const useUpdateCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomRequest>>, TError,{id: number;data: BodyType<CustomRequestPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCustomRequest>>,
+        TError,
+        {id: number;data: BodyType<CustomRequestPatchInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCustomRequestMutationOptions(options));
     }
 
 export const getDecideStockCostRequestUrl = (id: number,) => {

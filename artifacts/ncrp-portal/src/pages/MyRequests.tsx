@@ -4,6 +4,8 @@ import {
   useListMyCustomRequests,
   useListMyHousingRequests,
   useDecideStockCostRequest,
+  useUpdateCustomRequest,
+  useResubmitCustomRequest,
   getListMyCustomRequestsQueryKey,
   type CustomRequest,
   type HousingRequest,
@@ -11,8 +13,18 @@ import {
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, RotateCcw, Pencil } from "lucide-react";
 
 // One unified shape for everything a player has submitted, so custom
 // requests (property / gun / cyberware) and standard catalog leases can
@@ -77,11 +89,35 @@ export default function MyRequests() {
   const { data: housing, isLoading: loadingHousing } = useListMyHousingRequests();
   const [category, setCategory] = useState<HistoryRow["category"] | "All">("All");
   const qc = useQueryClient();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState<{ id: number; title: string; description: string } | null>(null);
+  const invalidateMine = () => qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() });
+  const errMsg = (err: unknown, fallback: string) =>
+    (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
   const decide = useDecideStockCostRequest({
     mutation: {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() }),
+      onSuccess: () => invalidateMine(),
     },
   });
+  const update = useUpdateCustomRequest();
+  const resubmit = useResubmitCustomRequest({
+    mutation: {
+      onSuccess: () => { toast({ title: "Resubmitted for review" }); invalidateMine(); },
+      onError: (err) => toast({ title: "Resubmit failed", description: errMsg(err, "Resubmit failed"), variant: "destructive" }),
+    },
+  });
+
+  // Edit (if changed) then resubmit. Resubmit is allowed even with no edits.
+  const saveAndResubmit = async () => {
+    if (!editing) return;
+    try {
+      await update.mutateAsync({ id: editing.id, data: { title: editing.title, description: editing.description } });
+      await resubmit.mutateAsync({ id: editing.id });
+      setEditing(null);
+    } catch (err) {
+      toast({ title: "Could not resubmit", description: errMsg(err, "Save failed"), variant: "destructive" });
+    }
+  };
 
   const rows = useMemo<HistoryRow[]>(() => {
     const out: HistoryRow[] = [];
@@ -209,6 +245,30 @@ export default function MyRequests() {
                       </td>
                       <td className="p-3">
                         <RequestStatusBadge status={r.status} />
+                        {r.status === "changes_requested" && r.customId != null && r.customType !== "stock_cost" ? (
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
+                              onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "" })}
+                              data-testid={`button-edit-resubmit-${r.customId}`}
+                            >
+                              <Pencil className="w-3 h-3 mr-1" /> EDIT & RESUBMIT
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={resubmit.isPending}
+                              className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
+                              onClick={() => resubmit.mutate({ id: r.customId! })}
+                              data-testid={`button-resubmit-${r.customId}`}
+                            >
+                              <RotateCcw className="w-3 h-3 mr-1" /> RESUBMIT
+                            </Button>
+                          </div>
+                        ) : null}
                         {r.customType === "stock_cost" && r.status === "pending" && r.customId != null ? (
                           <div className="flex gap-2 mt-2">
                             <Button
@@ -247,6 +307,57 @@ export default function MyRequests() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={editing != null} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        <DialogContent className="rounded-none border-nc-cyan bg-card">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-nc-cyan">EDIT & RESUBMIT</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Title</label>
+                <Input
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                  className="rounded-none mt-1"
+                  data-testid="input-edit-title"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Description</label>
+                <Textarea
+                  value={editing.description}
+                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                  rows={4}
+                  className="rounded-none mt-1"
+                  data-testid="input-edit-description"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none font-display"
+              onClick={() => setEditing(null)}
+              data-testid="button-edit-cancel"
+            >
+              CANCEL
+            </Button>
+            <Button
+              type="button"
+              disabled={update.isPending || resubmit.isPending || !editing?.title.trim()}
+              className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+              onClick={saveAndResubmit}
+              data-testid="button-edit-save-resubmit"
+            >
+              SAVE & RESUBMIT
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

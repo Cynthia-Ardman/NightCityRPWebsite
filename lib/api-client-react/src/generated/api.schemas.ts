@@ -1951,6 +1951,19 @@ export const CustomRequestStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
+} as const;
+
+/**
+ * The viewer's own vote, if any.
+ * @nullable
+ */
+export type CustomRequestMyVote = typeof CustomRequestMyVote[keyof typeof CustomRequestMyVote] | null;
+
+
+export const CustomRequestMyVote = {
+  approve: 'approve',
+  reject: 'reject',
 } as const;
 
 export interface CustomRequest {
@@ -1977,14 +1990,103 @@ export interface CustomRequest {
   reviewedById?: string | null;
   /** @nullable */
   reviewedAt?: string | null;
-  /** @nullable */
+  /**
+     * On changes_requested this carries the reviewer's comment to the player.
+     * @nullable
+     */
   reviewerNote?: string | null;
   /**
      * What was materialized on approval (housing:<id> / inventory:<uuid>).
      * @nullable
      */
   appliedRef?: string | null;
+  /**
+     * Admin user id if approved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
+  /** Review tally — present on list responses. */
+  approveCount?: number;
+  rejectCount?: number;
+  /** Majority needed among eligible reviewers (excludes the requester). */
+  threshold?: number;
+  /**
+     * The viewer's own vote, if any.
+     * @nullable
+     */
+  myVote?: CustomRequestMyVote;
   createdAt: string;
+}
+
+export type CustomRequestVoteInputVote = typeof CustomRequestVoteInputVote[keyof typeof CustomRequestVoteInputVote];
+
+
+export const CustomRequestVoteInputVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+/**
+ * For property approve votes; defaults residential.
+ */
+export type CustomRequestVoteInputKind = typeof CustomRequestVoteInputKind[keyof typeof CustomRequestVoteInputKind];
+
+
+export const CustomRequestVoteInputKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
+export interface CustomRequestVoteInput {
+  vote: CustomRequestVoteInputVote;
+  /** @maxLength 2000 */
+  note?: string;
+  /**
+     * Required on an approve vote for property requests.
+     * @minimum 0
+     */
+  monthlyRent?: number;
+  /** For property approve votes; defaults residential. */
+  kind?: CustomRequestVoteInputKind;
+  /**
+     * Required on an approve vote for cyberware requests.
+     * @minimum 0
+     */
+  cwp?: number;
+}
+
+/**
+ * @nullable
+ */
+export type CustomRequestVoteResultDecided = typeof CustomRequestVoteResultDecided[keyof typeof CustomRequestVoteResultDecided] | null;
+
+
+export const CustomRequestVoteResultDecided = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type CustomRequestVoteResult = CustomRequest & {
+  /** @nullable */
+  decided?: CustomRequestVoteResultDecided;
+};
+
+export interface CustomRequestPatchInput {
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  /** Venue requests only. */
+  purpose?: string;
+  /** Venue requests only. */
+  location?: string;
+}
+
+export interface RequestChangesInput {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  comment: string;
 }
 
 export type CustomRequestInputType = typeof CustomRequestInputType[keyof typeof CustomRequestInputType];
@@ -2282,6 +2384,34 @@ export interface CharacterSheetData {
   notes?: string | null;
 }
 
+export type ReviewVoteRecordVote = typeof ReviewVoteRecordVote[keyof typeof ReviewVoteRecordVote];
+
+
+export const ReviewVoteRecordVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface ReviewVoteRecord {
+  id: number;
+  voterId: string;
+  /** @nullable */
+  voterName?: string | null;
+  /** @nullable */
+  voterAvatarUrl?: string | null;
+  vote: ReviewVoteRecordVote;
+  /** @nullable */
+  note?: string | null;
+  votedAt: string;
+}
+
+export type ReviewerSelfVote = null | {
+  vote: 'approve' | 'reject';
+  /** @nullable */
+  note?: string | null;
+  votedAt?: string;
+};
+
 export interface CharacterSheet {
   id: number;
   ownerId: string;
@@ -2294,12 +2424,103 @@ export interface CharacterSheet {
   discordMessageId?: string | null;
   /** @nullable */
   decisionBy?: string | null;
-  /** @nullable */
+  /**
+     * On changes_requested this carries the reviewer's comment.
+     * @nullable
+     */
   decisionNote?: string | null;
   /** @nullable */
   decidedAt?: string | null;
+  /**
+     * Admin user id if approved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
+  /** @nullable */
+  ownerAvatarUrl?: string | null;
   createdAt: string;
   data: CharacterSheetData;
+  votes?: ReviewVoteRecord[];
+  eligibleVoterCount?: number;
+  threshold?: number;
+  approveCount?: number;
+  rejectCount?: number;
+  myVote?: ReviewerSelfVote;
+  canVote?: boolean;
+  canRequestChanges?: boolean;
+  canOverride?: boolean;
+  canResubmit?: boolean;
+}
+
+export type PendingSheetSummaryStatus = typeof PendingSheetSummaryStatus[keyof typeof PendingSheetSummaryStatus];
+
+
+export const PendingSheetSummaryStatus = {
+  draft: 'draft',
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  changes_requested: 'changes_requested',
+} as const;
+
+export interface PendingSheetSummary {
+  id: number;
+  name: string;
+  status: PendingSheetSummaryStatus;
+  createdAt: string;
+  ownerId: string;
+  /** @nullable */
+  ownerName?: string | null;
+  /** @nullable */
+  ownerAvatarUrl?: string | null;
+  approveCount: number;
+  rejectCount: number;
+  threshold: number;
+  myVote?: ReviewerSelfVote;
+}
+
+export type SheetVoteInputVote = typeof SheetVoteInputVote[keyof typeof SheetVoteInputVote];
+
+
+export const SheetVoteInputVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface SheetVoteInput {
+  vote: SheetVoteInputVote;
+  /** @maxLength 2000 */
+  note?: string;
+}
+
+export type SheetVoteResultStatus = typeof SheetVoteResultStatus[keyof typeof SheetVoteResultStatus];
+
+
+export const SheetVoteResultStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  changes_requested: 'changes_requested',
+} as const;
+
+/**
+ * @nullable
+ */
+export type SheetVoteResultDecided = typeof SheetVoteResultDecided[keyof typeof SheetVoteResultDecided] | null;
+
+
+export const SheetVoteResultDecided = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface SheetVoteResult {
+  status: SheetVoteResultStatus;
+  /** @nullable */
+  decided?: SheetVoteResultDecided;
+  approveCount: number;
+  rejectCount: number;
+  threshold: number;
 }
 
 /**
@@ -2362,6 +2583,7 @@ export const PendingEditSummaryStatus = {
   approved: 'approved',
   rejected: 'rejected',
   cancelled: 'cancelled',
+  changes_requested: 'changes_requested',
 } as const;
 
 export type PendingEditSummaryVotersItemVote = typeof PendingEditSummaryVotersItemVote[keyof typeof PendingEditSummaryVotersItemVote];
@@ -2394,6 +2616,16 @@ export interface PendingEditSummary {
   status: PendingEditSummaryStatus;
   /** @nullable */
   decisionSummary?: string | null;
+  /**
+     * Reviewer's comment when changes were requested.
+     * @nullable
+     */
+  reviewComment?: string | null;
+  /**
+     * Admin user id if approved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
   submittedAt: string;
   /** @nullable */
   decidedAt?: string | null;
@@ -2436,6 +2668,7 @@ export const PendingEditDetailStatus = {
   approved: 'approved',
   rejected: 'rejected',
   cancelled: 'cancelled',
+  changes_requested: 'changes_requested',
 } as const;
 
 export type PendingEditDetailMyVote = null | {
@@ -2463,6 +2696,16 @@ export interface PendingEditDetail {
   status: PendingEditDetailStatus;
   /** @nullable */
   decisionSummary?: string | null;
+  /**
+     * Reviewer's comment when changes were requested.
+     * @nullable
+     */
+  reviewComment?: string | null;
+  /**
+     * Admin user id if approved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
   submittedAt: string;
   /** @nullable */
   decidedAt?: string | null;
@@ -2473,6 +2716,9 @@ export interface PendingEditDetail {
   rejectCount: number;
   myVote?: PendingEditDetailMyVote;
   canVote: boolean;
+  canRequestChanges?: boolean;
+  canOverride?: boolean;
+  canResubmit?: boolean;
 }
 
 export type PendingEditVoteInputVote = typeof PendingEditVoteInputVote[keyof typeof PendingEditVoteInputVote];
@@ -2505,20 +2751,6 @@ export interface PendingEditVoteResult {
   rejectCount: number;
   threshold: number;
   eligibleVoterCount: number;
-}
-
-export type SheetDecisionInputDecision = typeof SheetDecisionInputDecision[keyof typeof SheetDecisionInputDecision];
-
-
-export const SheetDecisionInputDecision = {
-  approved: 'approved',
-  rejected: 'rejected',
-  changes_requested: 'changes_requested',
-} as const;
-
-export interface SheetDecisionInput {
-  decision: SheetDecisionInputDecision;
-  note?: string;
 }
 
 export interface DiceRollInput {
@@ -3706,6 +3938,21 @@ q?: string;
 owner?: string;
 };
 
+export type OverridePendingEdit200 = {
+  ok: boolean;
+  status: string;
+};
+
+export type RequestChangesPendingEdit200 = {
+  ok: boolean;
+  status: string;
+};
+
+export type ResubmitPendingEdit200 = {
+  ok: boolean;
+  status: string;
+};
+
 export type CancelPendingEdit200 = {
   ok?: boolean;
   status?: string;
@@ -3827,6 +4074,7 @@ export const ListCustomRequestsStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
 } as const;
 
 export type ListMyCustomRequestsParams = {

@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { useListPendingEdits } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ShieldAlert, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { ShieldAlert, CheckCircle2, XCircle, Clock, MessageSquareWarning } from "lucide-react";
 
 function statusBadge(status: string) {
   switch (status) {
@@ -22,6 +22,12 @@ function statusBadge(status: string) {
       return (
         <Badge variant="outline" className="border-destructive text-destructive rounded-none font-mono text-xs">
           <XCircle className="w-3 h-3 mr-1" /> REJECTED
+        </Badge>
+      );
+    case "changes_requested":
+      return (
+        <Badge variant="outline" className="border-nc-magenta text-nc-magenta rounded-none font-mono text-xs">
+          <MessageSquareWarning className="w-3 h-3 mr-1" /> CHANGES REQ
         </Badge>
       );
     case "cancelled":

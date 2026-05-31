@@ -13,42 +13,12 @@ import {
   type Character,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, postToChannel } from "../lib/discord";
+import { hasRole, postToChannel, sendDirectMessage } from "../lib/discord";
+import { isReviewer, listEligibleReviewerIds, majorityOf } from "../lib/review";
 
 const router: IRouter = Router();
 
 const CS_CHANNEL_ID = process.env.CS_APPROVAL_CHANNEL_ID ?? "";
-
-// A reviewer is anyone with FIXER, CS_APPROVER, or ADMIN. Admins are
-// included so the operator team can always unstick a vote. The submitter
-// themself is excluded from the eligible-voter pool at vote-tally time
-// (you can't approve your own edit).
-function isReviewer(u: User): boolean {
-  return hasRole(u.roles, "FIXER") || hasRole(u.roles, "CS_APPROVER") || hasRole(u.roles, "ADMIN");
-}
-
-// All distinct users currently holding a reviewer role. We compute this
-// live on every vote so role grants/revokes take immediate effect on the
-// majority threshold. Small set in practice (handful of staff).
-async function listEligibleReviewerIds(excludeUserId: string): Promise<string[]> {
-  const rows = await db.select({ id: users.id, roles: users.roles }).from(users);
-  return rows
-    .filter((r) => {
-      const fakeUser = { roles: r.roles ?? [] } as User;
-      return isReviewer(fakeUser);
-    })
-    .map((r) => r.id)
-    .filter((id) => id !== excludeUserId);
-}
-
-// Majority = floor(n / 2) + 1. With n=0 (no other reviewers) we return 1
-// so any single qualified vote applies — but in practice the route also
-// refuses to accept a vote from someone who isn't a reviewer, so the
-// edit can stay pending forever if there are literally no staff besides
-// the submitter (acceptable: hire more staff).
-function majorityOf(n: number): number {
-  return Math.floor(n / 2) + 1;
-}
 
 // Shape matches the partial PATCH payload accepted on characters.ts.
 // Kept in sync manually — if you add an editable field to character,
@@ -253,6 +223,8 @@ async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelec
       updateNote: r.updateNote,
       status: r.status,
       decisionSummary: r.decisionSummary,
+      reviewComment: r.reviewComment,
+      overriddenBy: r.overriddenBy,
       submittedAt: r.submittedAt,
       decidedAt: r.decidedAt,
       approveCount,
@@ -280,6 +252,7 @@ router.get("/pending-edits", requireAuth, async (req, res): Promise<void> => {
       isStaff
         ? or(
             eq(pendingCharacterEdits.status, "pending"),
+            eq(pendingCharacterEdits.status, "changes_requested"),
             sql`${pendingCharacterEdits.decidedAt} > NOW() - INTERVAL '7 days'`,
           )
         : eq(pendingCharacterEdits.submittedBy, u.id),
@@ -347,6 +320,8 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     updateNote: row.updateNote,
     status: row.status,
     decisionSummary: row.decisionSummary,
+    reviewComment: row.reviewComment,
+    overriddenBy: row.overriddenBy,
     submittedAt: row.submittedAt,
     decidedAt: row.decidedAt,
     votes,
@@ -356,6 +331,12 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     rejectCount,
     myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
     canVote: isStaff && !isSubmitter && row.status === "pending",
+    // Reviewers (not the submitter) can request changes on a pending edit.
+    canRequestChanges: isStaff && !isSubmitter && row.status === "pending",
+    // Admins can override a pending edit to immediate approval.
+    canOverride: hasRole(u.roles, "ADMIN") && !isSubmitter && row.status === "pending",
+    // The submitter can resubmit once changes were requested.
+    canResubmit: isSubmitter && row.status === "changes_requested",
   });
 });
 
@@ -484,6 +465,155 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
     threshold: result.threshold,
     eligibleVoterCount: result.eligibleVoterCount,
   });
+});
+
+// POST /pending-edits/:id/override — admin-only immediate approval that
+// bypasses the majority vote. Records who overrode (overriddenBy). Works on a
+// pending OR changes_requested edit. Mirrors the vote-approved apply path.
+router.post("/pending-edits/:id/override", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const u = req.user!;
+  if (!hasRole(u.roles, "ADMIN")) {
+    res.status(403).json({ error: "Only admins can override" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    const lockedRows = await tx.execute(
+      sql`SELECT id, status, character_id, submitted_by, proposed_diff, update_note
+          FROM pending_character_edits WHERE id = ${id} FOR UPDATE`,
+    );
+    const locked = (lockedRows as unknown as { rows: Array<{ status: string; character_id: number; submitted_by: string; proposed_diff: unknown; update_note: string | null }> }).rows?.[0]
+      ?? (lockedRows as unknown as Array<{ status: string; character_id: number; submitted_by: string; proposed_diff: unknown; update_note: string | null }>)[0];
+    if (!locked) return { kind: "not_found" as const };
+    if (locked.status !== "pending" && locked.status !== "changes_requested") {
+      return { kind: "already_decided" as const, status: locked.status };
+    }
+    if (locked.submitted_by === u.id) return { kind: "own" as const };
+    const diff = (locked.proposed_diff ?? {}) as EditableDiff;
+    await applyDiff(locked.character_id, diff);
+    if (locked.update_note) {
+      await tx.insert(characterUpdates).values({
+        characterId: locked.character_id,
+        authorId: locked.submitted_by,
+        note: locked.update_note,
+      });
+    }
+    await tx
+      .update(pendingCharacterEdits)
+      .set({
+        status: "approved",
+        decidedAt: new Date(),
+        overriddenBy: u.id,
+        decisionSummary: `Approved via admin override by ${u.username}`,
+      })
+      .where(eq(pendingCharacterEdits.id, id));
+    await tx.insert(activityEvents).values({
+      kind: "character_edit_approved",
+      actorId: u.id,
+      actorName: u.username,
+      actorAvatarUrl: u.avatarUrl,
+      message: `Edit on character #${locked.character_id} approved via admin override`,
+    });
+    return { kind: "ok" as const };
+  });
+  if (result.kind === "not_found") { res.status(404).json({ error: "Not found" }); return; }
+  if (result.kind === "own") { res.status(403).json({ error: "You cannot override your own edit" }); return; }
+  if (result.kind === "already_decided") { res.status(409).json({ error: `Edit already ${result.status}` }); return; }
+  res.json({ ok: true, status: "approved" });
+});
+
+const CommentSchema = z.object({ comment: z.string().trim().min(1).max(2000) });
+
+// POST /pending-edits/:id/request-changes — a reviewer (not the submitter)
+// parks the edit in changes_requested with a comment and DMs the submitter.
+// The submitter then resubmits to send it back to the queue.
+router.post("/pending-edits/:id/request-changes", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const u = req.user!;
+  if (!isReviewer(u)) {
+    res.status(403).json({ error: "Only fixers / approvers / admins can request changes" });
+    return;
+  }
+  const parsed = CommentSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "A comment is required", details: parsed.error.issues });
+    return;
+  }
+  const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (row.submittedBy === u.id) { res.status(403).json({ error: "You cannot review your own edit" }); return; }
+  // Atomic state guard: only flip to changes_requested if the edit is STILL
+  // pending. A concurrent vote/override (FOR UPDATE) may have already decided
+  // it; an unconditional update would clobber that decision.
+  const [changed] = await db
+    .update(pendingCharacterEdits)
+    .set({ status: "changes_requested", reviewComment: parsed.data.comment, decidedAt: null })
+    .where(and(eq(pendingCharacterEdits.id, id), eq(pendingCharacterEdits.status, "pending")))
+    .returning();
+  if (!changed) { res.status(409).json({ error: "Edit is no longer pending" }); return; }
+  const [c] = await db.select().from(characters).where(eq(characters.id, row.characterId));
+  await db.insert(activityEvents).values({
+    kind: "character_edit_changes_requested",
+    actorId: u.id,
+    actorName: u.username,
+    actorAvatarUrl: u.avatarUrl,
+    message: `Changes requested on edit for ${c?.name ?? `character #${row.characterId}`}`,
+  });
+  // Best-effort DM — the state change is already committed.
+  sendDirectMessage(
+    row.submittedBy,
+    `Changes were requested on your edit for **${c?.name ?? "your character"}**:\n> ${parsed.data.comment}\n\nEdit and resubmit when ready.`,
+  ).catch((e) => console.error("[pending-edits] request-changes DM failed", e));
+  res.json({ ok: true, status: "changes_requested" });
+});
+
+// POST /pending-edits/:id/resubmit — the submitter sends a changes_requested
+// edit back to the review queue. Votes are cleared so the next round starts
+// fresh; resubmitting with no further changes is allowed.
+router.post("/pending-edits/:id/resubmit", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const u = req.user!;
+  const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (row.submittedBy !== u.id && !hasRole(u.roles, "ADMIN")) {
+    res.status(403).json({ error: "Only the submitter can resubmit" });
+    return;
+  }
+  if (row.status !== "changes_requested") {
+    res.status(409).json({ error: `Edit is ${row.status}, not awaiting changes` });
+    return;
+  }
+  // Another pending edit may have been opened on this character meanwhile; the
+  // unique index only covers status='pending', so guard explicitly.
+  const [conflict] = await db
+    .select({ id: pendingCharacterEdits.id })
+    .from(pendingCharacterEdits)
+    .where(and(eq(pendingCharacterEdits.characterId, row.characterId), eq(pendingCharacterEdits.status, "pending")));
+  if (conflict) {
+    res.status(409).json({ error: "Another edit for this character is already pending" });
+    return;
+  }
+  // Atomic: only flip back to pending (and clear votes) if the edit is STILL
+  // changes_requested. A concurrent admin override could have already approved
+  // it; flipping it back would let a later vote apply the edit a second time.
+  const resubmitted = await db.transaction(async (tx) => {
+    const [changed] = await tx
+      .update(pendingCharacterEdits)
+      .set({ status: "pending", reviewComment: null, decisionSummary: null, decidedAt: null, submittedAt: new Date() })
+      .where(and(eq(pendingCharacterEdits.id, id), eq(pendingCharacterEdits.status, "changes_requested")))
+      .returning();
+    if (!changed) return false;
+    await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, id));
+    return true;
+  });
+  if (!resubmitted) { res.status(409).json({ error: "Edit is no longer awaiting changes" }); return; }
+  const [c] = await db.select().from(characters).where(eq(characters.id, row.characterId));
+  if (c) {
+    announceEdit(id, c, u, (row.proposedDiff ?? {}) as EditableDiff, row.updateNote).catch((e) =>
+      console.error("[pending-edits] resubmit announce failed", e),
+    );
+  }
+  res.json({ ok: true, status: "pending" });
 });
 
 // POST /pending-edits/:id/cancel — submitter (or admin) withdraws the

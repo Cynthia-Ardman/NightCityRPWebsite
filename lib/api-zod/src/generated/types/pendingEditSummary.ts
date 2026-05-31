@@ -24,6 +24,16 @@ export interface PendingEditSummary {
   status: PendingEditSummaryStatus;
   /** @nullable */
   decisionSummary?: string | null;
+  /**
+     * Reviewer's comment when changes were requested.
+     * @nullable
+     */
+  reviewComment?: string | null;
+  /**
+     * Admin user id if approved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
   submittedAt: Date;
   /** @nullable */
   decidedAt?: Date | null;

@@ -29,6 +29,16 @@ export interface PendingEditDetail {
   status: PendingEditDetailStatus;
   /** @nullable */
   decisionSummary?: string | null;
+  /**
+     * Reviewer's comment when changes were requested.
+     * @nullable
+     */
+  reviewComment?: string | null;
+  /**
+     * Admin user id if approved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
   submittedAt: Date;
   /** @nullable */
   decidedAt?: Date | null;
@@ -39,4 +49,7 @@ export interface PendingEditDetail {
   rejectCount: number;
   myVote?: PendingEditDetailMyVote;
   canVote: boolean;
+  canRequestChanges?: boolean;
+  canOverride?: boolean;
+  canResubmit?: boolean;
 }
