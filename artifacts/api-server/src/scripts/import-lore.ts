@@ -11,6 +11,8 @@
 // Defaults to DRAFTS-ONLY (no publish) unless LORE_PUBLISH=1. Targeting prod
 // requires LIVE_PROD_DATABASE_URL to be set and is refused otherwise.
 
+export {};
+
 const target = (process.env.LORE_IMPORT_TARGET ?? "").toLowerCase();
 if (target === "prod") {
   if (!process.env.LIVE_PROD_DATABASE_URL) {

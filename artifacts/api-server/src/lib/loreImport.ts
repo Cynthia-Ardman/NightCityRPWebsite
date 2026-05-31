@@ -1,6 +1,6 @@
 import { db, loreEntries, loreImportDrafts } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { DISCORD_BOT_TOKEN, DISCORD_GUILD_ID } from "./discord";
+import { DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, fetchDiscordUser } from "./discord";
 import { logger } from "./logger";
 
 // ---------------------------------------------------------------------------
@@ -270,6 +270,32 @@ function firstParagraph(body: string): string | null {
   return oneLine.length > 280 ? `${oneLine.slice(0, 277)}...` : oneLine;
 }
 
+// Discord user mention: <@123> or <@!123>.
+const MENTION_RE = /<@!?(\d+)>/g;
+
+// Replace raw Discord user mentions with readable display names, caching each
+// lookup so a user fetched once is reused across the whole import run. `prefix`
+// controls whether the resolved name keeps an "@" (natural in body prose) or
+// not (cleaner for the responsible-fixer field). Unresolvable ids are left as-is.
+async function resolveMentions(
+  text: string,
+  cache: Map<string, string | null>,
+  prefix: "@" | "" = "@",
+): Promise<string> {
+  if (!text || !text.includes("<@")) return text;
+  const ids = new Set<string>();
+  for (const m of text.matchAll(MENTION_RE)) ids.add(m[1]);
+  for (const id of ids) {
+    if (cache.has(id)) continue;
+    const u = await fetchDiscordUser(id);
+    cache.set(id, u ? u.globalName || u.username : null);
+  }
+  return text.replace(MENTION_RE, (full, id: string) => {
+    const name = cache.get(id);
+    return name ? `${prefix}${name}` : full;
+  });
+}
+
 // Parse the Story Leads thread into name -> lead fixer mapping. Accepts lines
 // like "Arasaka — Medusa", "Arasaka: Medusa", "Arasaka - Medusa".
 async function fetchStoryLeads(): Promise<Map<string, string>> {
@@ -299,6 +325,7 @@ async function scanChannel(
   sourceLabel: string,
   leads: Map<string, string>,
   errors: string[],
+  mentionCache: Map<string, string | null>,
 ): Promise<Candidate[]> {
   const tagMap = await fetchForumTags(channelId);
   const [active, archived] = await Promise.all([
@@ -335,6 +362,9 @@ async function scanChannel(
         if (docText) combinedBody += `\n\n${docText}`;
       }
 
+      // Convert raw Discord user mentions to readable names before splitting so
+      // both public + fixer bodies (and the derived summary) read cleanly.
+      combinedBody = await resolveMentions(combinedBody, mentionCache);
       const { publicBody, fixerBody } = splitBody(combinedBody);
       const displayName = cleanDisplayName(thread.name);
       const category =
@@ -342,7 +372,8 @@ async function scanChannel(
         categoryFromPrefix(thread.name) ??
         inferCategory(displayName, combinedBody, tagNames);
       const groupKey = normalizeName(displayName);
-      const fixer = leads.get(groupKey) ?? leads.get(normalizeName(thread.name)) ?? null;
+      const rawFixer = leads.get(groupKey) ?? leads.get(normalizeName(thread.name)) ?? null;
+      const fixer = rawFixer ? await resolveMentions(rawFixer, mentionCache, "") : null;
 
       candidates.push({
         groupKey,
@@ -400,9 +431,10 @@ export async function runLoreImport(): Promise<LoreImportRunResult> {
   }
 
   const leads = await fetchStoryLeads();
+  const mentionCache = new Map<string, string | null>();
   const allCandidates: Candidate[] = [];
   for (const src of LORE_SOURCES) {
-    const found = await scanChannel(src.channelId, src.defaultCategory, src.label, leads, errors);
+    const found = await scanChannel(src.channelId, src.defaultCategory, src.label, leads, errors, mentionCache);
     allCandidates.push(...found);
   }
   const grouped = groupCandidates(allCandidates);
