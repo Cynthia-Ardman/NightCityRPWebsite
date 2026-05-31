@@ -37,6 +37,7 @@
 - [Batch grouping by timestamp](batch-grouping-timestamp.md) — per-row INSERTs get distinct createdAt/now(); group a logical batch on a single JS timestamp written to every row, never the column default.
 - [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.
 - [Housing occupancy linkage](housing-occupancy-linkage.md) — catalog marks OCCUPIED via housing.listing_id; legacy leases store name in housing.address with NULL listing_id; backfill by name match.
+- [Rent importer stale listings](rent-importer-stale-listings.md) — import-rent-leases reconciles leases but never deletes catalog_rent rows; naming changes leave orphan listings; prune by count diff.
 - [Stock-add offer + lease race](stock-add-offer-and-lease.md) — venue-debiting offers need owner-only approve guard (canDecide's admin allowance is a bypass); single-unit lease must lock listing FOR UPDATE across check+insert.
 - [Offer install capacity race](offer-install-capacity-race.md) — install-offer CWP cap must lock buyer row + re-derive used CWP INSIDE the completion tx; operator cwp can't undercut stock "CWP n" note.
 - [Cyberware CWP cap & dedup](cyberware-cwp-cap.md) — non-NPCs hard-capped at 15 CWP; over-cap = double-import dup rows; dedupe by name+per-unit-CWP keeping newest id (scripts/src/dedupe-cyberware.ts).

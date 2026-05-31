@@ -194,6 +194,7 @@ async function upsertListing(p: ParsedRow): Promise<number> {
         tier: p.tier,
         monthlyRent: p.monthlyRent,
         description: p.description,
+        kind: p.kind,
       })
       .where(eq(catalogRent.id, id));
     return id;
@@ -206,6 +207,7 @@ async function upsertListing(p: ParsedRow): Promise<number> {
       tier: p.tier,
       monthlyRent: p.monthlyRent,
       description: p.description,
+      kind: p.kind,
     })
     .returning({ id: catalogRent.id });
   return inserted[0].id;
