@@ -184,11 +184,18 @@ async function main() {
   ): Promise<number> {
     const base = slugify(d.proposedName);
     let slug = base;
+    let unique = false;
     for (let n = 2; n < 1000; n++) {
       const [hit] = await tx.select({ id: table.id }).from(table).where(eq(table.slug, slug)).limit(1);
-      if (!hit) break;
+      if (!hit) {
+        unique = true;
+        break;
+      }
       slug = `${base}-${n}`;
     }
+    // Guaranteed-unique fallback so a pathological run of collisions can never
+    // insert against an already-taken slug.
+    if (!unique) slug = `${base}-${Date.now().toString(36)}`;
     const [row] = await tx
       .insert(table)
       .values({
