@@ -214,6 +214,41 @@ function inferCategory(name: string, body: string, tagNames: string[]): LoreCate
   return "misc";
 }
 
+// Thread titles are often prefixed with a category label ("Corporations - X",
+// "Gangs - X", "Organization- X", "Proposal: X") and/or suffixed with a status
+// qualifier ("(Final)", "- IN DEVELOPMENT"). Stripping these gives a stable
+// grouping/display name so the same entity from different threads dedups into
+// one entry, and the prefix itself is a strong category signal.
+const CATEGORY_PREFIX_RE =
+  /^\s*(corporations?|corps?|gangs?|factions?|organizations?|organisations?|orgs?|crew|ncrp faction|proposal)\s*[-–—:.]+\s*/i;
+
+const STATUS_SUFFIX_RE =
+  /\s*[-–—(\[]+\s*(final(ized|ised)?|finished|complete[d]?|in[- ]?development|in[- ]?progress|wip|draft|tba|ongoing|background info(rmation)?)\s*[)\]]*\s*$/i;
+
+// Derive a category purely from a leading category label, if present.
+function categoryFromPrefix(name: string): LoreCategory | null {
+  const m = /^\s*(corporations?|corps?|gangs?|factions?|organizations?|organisations?|orgs?|crew)\b/i.exec(name);
+  if (!m) return null;
+  const w = m[1].toLowerCase();
+  if (w.startsWith("corp")) return "corporation";
+  if (w.startsWith("gang")) return "gang";
+  return "faction"; // faction / organization / org / crew
+}
+
+// Remove a leading category/proposal label and trailing status qualifiers to
+// produce the canonical display name used for grouping.
+function cleanDisplayName(name: string): string {
+  let n = name.trim();
+  n = n.replace(CATEGORY_PREFIX_RE, "");
+  n = n.replace(/^\s*proposal\s*[-–—:.]+\s*/i, "");
+  for (let i = 0; i < 3; i++) {
+    const next = n.replace(STATUS_SUFFIX_RE, "").trim();
+    if (next === n) break;
+    n = next;
+  }
+  return n.trim() || name.trim();
+}
+
 // Split a body into public vs fixer-only halves at the first "fixer/staff
 // only" style heading. Everything before the marker is public; the marker line
 // and everything after it is fixer-only.
@@ -281,6 +316,9 @@ async function scanChannel(
 
   const candidates: Candidate[] = [];
   for (const thread of byId.values()) {
+    // The Story Leads index thread is parsed separately for lead mappings; it
+    // is not itself a lore entry.
+    if (thread.id === STORY_LEADS_THREAD_ID) continue;
     try {
       const discordBody = await fetchThreadBody(thread.id);
       const tagNames = thread.appliedTagIds.map((id) => tagMap.get(id)).filter((n): n is string => !!n);
@@ -298,13 +336,17 @@ async function scanChannel(
       }
 
       const { publicBody, fixerBody } = splitBody(combinedBody);
-      const category = defaultCategory ?? inferCategory(thread.name, combinedBody, tagNames);
-      const groupKey = normalizeName(thread.name);
-      const fixer = leads.get(groupKey) ?? null;
+      const displayName = cleanDisplayName(thread.name);
+      const category =
+        defaultCategory ??
+        categoryFromPrefix(thread.name) ??
+        inferCategory(displayName, combinedBody, tagNames);
+      const groupKey = normalizeName(displayName);
+      const fixer = leads.get(groupKey) ?? leads.get(normalizeName(thread.name)) ?? null;
 
       candidates.push({
         groupKey,
-        name: thread.name.trim(),
+        name: displayName,
         aliases: [],
         category,
         fixer,
