@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, characterSheets, characters, characterStatus, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
+import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { postToChannel, hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
@@ -315,6 +315,81 @@ function characterFieldsFromSheet(sheet: SheetRow) {
 // overwritten — we fall through and create a fresh, correctly-owned character
 // instead (which also repairs the old "approved but invisible" state when the
 // previously-linked row was deleted).
+// Seed the new character's inventory from the sheet payload. The sheet stores
+// the player's chosen chrome (`data.cyberware`) and equipment (`data.gear`),
+// but before this they only lived in the sheet blob — approving never created
+// the matching `inventory_items`, so an approved character showed up with an
+// empty inventory and no derived cyberware band. Cyberware notes embed a
+// "CWP <n>" token (parsed by lib/cyberware.ts) and a trailing "slot: <x>" so
+// the band derivation and the per-slot grouping in CharacterDetail both work.
+// Only ever called on the fresh-insert path so re-approval of a resubmitted
+// edit can't duplicate items or clobber inventory the player has since changed.
+async function seedInventoryFromSheet(
+  tx: Executor,
+  characterId: number,
+  ownerId: string | null,
+  rawData: unknown,
+): Promise<void> {
+  const data = (rawData ?? {}) as Record<string, unknown>;
+  const rows: Array<{ name: string; category: string; notes: string | null; equipped: boolean }> = [];
+
+  if (Array.isArray(data.cyberware)) {
+    for (const raw of data.cyberware) {
+      const cw = (raw ?? {}) as Record<string, unknown>;
+      const name = String(cw.name ?? "").trim() || String(cw.slot ?? "").trim();
+      if (!name) continue;
+      const points = Number(cw.points) || 0;
+      const humanityLoss = Number(cw.humanityLoss) || 0;
+      const slot = String(cw.slot ?? "").trim();
+      const userNotes = String(cw.notes ?? "").trim();
+      const parts = [`CWP ${points}`];
+      if (humanityLoss > 0) parts.push(`HL ${humanityLoss}`);
+      if (userNotes) parts.push(userNotes);
+      // Keep "slot: <x>" LAST — CharacterDetail's slot regex captures up to the
+      // next comma/semicolon/newline, and our separator is " · ", so anything
+      // after slot would be swallowed into the slot value.
+      if (slot) parts.push(`slot: ${slot}`);
+      rows.push({ name, category: "cyberware", notes: parts.join(" · "), equipped: true });
+    }
+  }
+
+  if (Array.isArray(data.gear)) {
+    for (const raw of data.gear) {
+      const name = String(raw ?? "").trim();
+      if (!name) continue;
+      rows.push({ name, category: "gear", notes: null, equipped: false });
+    }
+  }
+
+  if (rows.length === 0) return;
+
+  const inserted = await tx
+    .insert(inventoryItems)
+    .values(
+      rows.map((r) => ({
+        characterId,
+        ownerId,
+        name: r.name,
+        category: r.category,
+        quantity: 1,
+        notes: r.notes,
+        equipped: r.equipped,
+      })),
+    )
+    .returning({ instanceUuid: inventoryItems.instanceUuid, name: inventoryItems.name });
+
+  await tx.insert(inventoryEvents).values(
+    inserted.map((it) => ({
+      instanceUuid: it.instanceUuid,
+      kind: "created" as const,
+      toCharacterId: characterId,
+      itemName: it.name,
+      quantity: 1,
+      reason: "Seeded from approved character sheet",
+    })),
+  );
+}
+
 async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Promise<number> {
   const fields = characterFieldsFromSheet(sheet);
 
@@ -344,6 +419,7 @@ async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Pro
     })
     .returning();
   await tx.insert(characterStatus).values({ characterId: c.id });
+  await seedInventoryFromSheet(tx, c.id, sheet.ownerId, sheet.data);
   return c.id;
 }
 

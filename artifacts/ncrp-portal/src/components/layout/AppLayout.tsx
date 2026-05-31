@@ -96,7 +96,9 @@ function SidebarContent() {
           </Avatar>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold truncate text-foreground">{user.globalName || user.username}</div>
-            <div className="text-xs text-nc-cyan font-mono truncate">{user.activeCharacterId ? 'Connected' : 'No Active PC'}</div>
+            {user.activeCharacterId ? (
+              <div className="text-xs text-nc-cyan font-mono truncate">Connected</div>
+            ) : null}
           </div>
         </div>
       )}

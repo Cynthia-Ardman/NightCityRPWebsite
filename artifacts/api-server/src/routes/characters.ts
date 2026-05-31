@@ -23,6 +23,7 @@ import { requireAuth, requireRole } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
+import { isSessionWindowOpen, nextSessionWindowStart, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
 import { hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -999,6 +1000,7 @@ router.get("/characters/:id/shop", requireAuth, async (req, res): Promise<void> 
   // Label the shop: lease address for lease-holders (with rent), else the
   // venue name for storefront / clinic owners.
   const shopLabel = leases[0]?.address ?? venues[0]?.name ?? null;
+  const windowOpen = isSessionWindowOpen();
   res.json({
     characterId: id,
     businessLeases: leases.map((l) => ({
@@ -1010,6 +1012,11 @@ router.get("/characters/:id/shop", requireAuth, async (req, res): Promise<void> 
     venues,
     shopLabel,
     canOpen: leases.length > 0 || venues.length > 0,
+    // Shop can only be opened during the live session window (Sundays
+    // 2-9pm Pacific), mirroring the weekly attendance claim.
+    windowOpen,
+    windowHint: SESSION_WINDOW_HINT,
+    nextWindowOpensAt: windowOpen ? null : nextSessionWindowStart().toISOString(),
     openedToday,
     opensThisMonth: opens.length,
     opensCountedForIncome: Math.min(opens.length, 4),
@@ -1026,6 +1033,16 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
   const c = await loadOwnedChar(req.user!.id, id);
   if (!c) {
     res.status(404).json({ error: "Not found" });
+    return;
+  }
+  // Shop can only be opened during the live session window (Sundays
+  // 2-9pm Pacific), mirroring the weekly attendance claim. The frontend
+  // disables the button outside the window, but the server is authoritative.
+  if (!isSessionWindowOpen()) {
+    res.status(403).json({
+      error: `Shop can only be opened during Sunday sessions (${SESSION_WINDOW_HINT}).`,
+      nextWindowOpensAt: nextSessionWindowStart().toISOString(),
+    });
     return;
   }
   const leases = await db

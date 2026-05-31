@@ -704,6 +704,9 @@ interface ShopOpenInfo {
   businessLeases: Array<{ id: number; address: string; monthlyRent: number }>;
   venues?: Array<{ kind: "store" | "ripperdoc"; id: number; name: string }>;
   shopLabel?: string | null;
+  windowOpen?: boolean;
+  windowHint?: string;
+  nextWindowOpensAt?: string | null;
   history: Array<{ openedOn: string; openedAt: string }>;
 }
 
@@ -746,7 +749,10 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
     ? `${lease.address} · €$${lease.monthlyRent.toLocaleString()}/mo`
     : (data.shopLabel ?? "Storefront / clinic");
   const capped = data.opensThisMonth > data.opensCountedForIncome;
-  const disabled = data.openedToday || open.isPending;
+  // Shop can only be opened during the live session window (Sundays 2-9pm
+  // Pacific). Treat an absent flag as open for backward-compat.
+  const windowOpen = data.windowOpen !== false;
+  const disabled = data.openedToday || open.isPending || !windowOpen;
 
   return (
     <div className="border border-nc-magenta/40 bg-nc-magenta/5 p-4 space-y-3 h-full">
@@ -766,9 +772,21 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
           className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest disabled:opacity-50"
           data-testid={`button-open-shop-today-${characterId}`}
         >
-          {data.openedToday ? "OPENED TODAY ✓" : open.isPending ? "OPENING..." : "OPEN SHOP TODAY"}
+          {data.openedToday
+            ? "OPENED TODAY ✓"
+            : open.isPending
+              ? "OPENING..."
+              : !windowOpen
+                ? "SESSION CLOSED"
+                : "OPEN SHOP TODAY"}
         </Button>
       </div>
+      {!windowOpen && !data.openedToday && (
+        <div className="text-xs font-mono text-nc-yellow">
+          SHOP_WINDOW: {data.windowHint ?? "Sundays 2:00pm–9:00pm Pacific"}
+          {data.nextWindowOpensAt && ` · OPENS ${formatDueDate(data.nextWindowOpensAt)}`}
+        </div>
+      )}
       <div className="text-xs font-mono text-muted-foreground">
         OPENS_THIS_MONTH: <span className="text-nc-cyan">{data.opensCountedForIncome}/4</span>
         {capped && <span className="text-nc-yellow"> (+{data.opensThisMonth - data.opensCountedForIncome} past cap)</span>}
