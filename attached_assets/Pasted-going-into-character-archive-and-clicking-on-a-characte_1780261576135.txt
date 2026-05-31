@@ -1,0 +1,27 @@
+going into character archive and clicking on a character, I don't, as an admin, have a way to delete a character. I should be able to click on edit and at the bottom has a delete character button that requires the person deleting the character to type the word DELETE and the click the delete button.
+
+ When someone creates a character it doesn't pass over Psychological profile or Physical Description to the newly created character, double check and make sure that all the fields from the new character form appear in the created characters.
+
+ When someone who owns a store adds a character as an employee, the employee should get a message in pending approval to approve and deny the employement and the notification should say what store and what commisison and what position
+
+Also for gun store owners, and cyberware owners, they should also be able to request custom guns and cyberware from inside their store and have it go to fixers for approval and once its approved, the store owner gets a message in my requests with how much it'll cost, the store owner approves and it goes into their store inventory and the money is subtracted.
+
+Someone created a custom gun, added it to the stock and tried to sell it to vinny, but when they clicked "approve and buy" nothing happened but they could deny it successfully
+
+when someone has something in their stash where the item has a super long name, it overwrites the box and extends to the right infinitely, it should wrap and there should be a character limit of 500.
+
+Clicking on the total eddies on the dashboard should go to your ledger, not the characters page.
+
+On the dashboard the open shop has nice yellow text for the open window, can we do the same for the attend? Also In the fixer hub I would like to be able to look up a player and see everything they've done, every edit, every attend, every transaction, every store, etc etc.
+
+Also on the open shop on the dashboard it says "NEXT_CHARGE: monthly rent cycle" we can remove that and we should add the "last claimed" like we have with the attend command on the dashboard
+
+New characters when submitted by a player, should be voted on the same way as everything else, with a majority of fixers needing to approve it for it to be fully approved and created. The same with Misc requests.
+
+Also for any pending edits or new characters or misc requests or anything, give admins an approval override to approve without needing majority fixer approval.
+
+When clicking on one of your own characters and going to cyberware, we should have a button to request custom cyberware like we do in the cyberware catalog that asks you for the same information. We also need to add a drop down for both dialog boxes that lets the player select a store or click custom which shows a free text feel.
+
+When someone submits a request of any kind and fixers are reviewing, fixers need a way to submit a comment about a submission that when submitted sends a notification to the player and puts a notification in "my requests" for the player to review the comment and they can click edit (and make the edits the comment asks for) and then a resubmit button, they can resubmit without making any changes. This should also change the pending request on the fixer side to say "Waiting for player response". Also multiple fixers should be able to send in comments.
+
+When selling an item or gun or cyberware to a player, it auto deducts the money from the player without waiting for the player to approve the sale via pending approvals.
