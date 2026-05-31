@@ -79,6 +79,19 @@ function buildingKey(building: string, district?: string | null): string {
   return `${building.toLowerCase()}|||${(district ?? "").toLowerCase()}`;
 }
 
+// For a business, the listing name IS the business name; the real building
+// (when distinct) is stored by the importer in the description as a
+// "Building: <name>" segment joined with " • ". Returns null when absent so the
+// Building column doesn't just echo the business name.
+function businessBuilding(description?: string | null): string | null {
+  if (!description) return null;
+  for (const part of description.split(" • ")) {
+    const m = part.match(/^\s*building:\s*(.+)$/i);
+    if (m) return m[1].trim() || null;
+  }
+  return null;
+}
+
 export default function CatalogRent() {
   const { data, isLoading } = useListRentListings();
   const { data: me } = useAuthMe();
@@ -334,7 +347,7 @@ export default function CatalogRent() {
                 </thead>
                 <tbody>
                   {businesses.map((r) => {
-                    const { building } = splitName(r.name);
+                    const building = businessBuilding(r.description);
                     return (
                       <tr key={r.id} className="border-b border-border/30 hover:bg-card/80 align-top" data-testid={`row-rent-${r.id}`}>
                         <td className="p-3">
@@ -349,7 +362,7 @@ export default function CatalogRent() {
                           />
                         </td>
                         <td className="p-3 font-bold">{r.name}</td>
-                        <td className="p-3 text-foreground/80">{building}</td>
+                        <td className="p-3 text-foreground/80">{building ?? "—"}</td>
                         <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
                         <td className="p-3 uppercase">{tierLabel(r.tier) ?? "—"}</td>
                         <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
