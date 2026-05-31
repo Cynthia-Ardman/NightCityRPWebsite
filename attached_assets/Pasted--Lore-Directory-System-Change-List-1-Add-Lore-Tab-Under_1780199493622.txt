@@ -1,0 +1,423 @@
+# Lore Directory System Change List
+
+## 1. Add Lore Tab Under Directory
+
+Add a **Lore** tab under the existing left-hand **Directory** navigation.
+
+When users click Lore, they should see organized lore sections.
+
+### Lore sections
+
+* Corporations
+* Gangs
+* Factions
+* Miscellaneous
+
+**Acceptance criteria**
+
+* Lore appears under the Directory section in the left navigation.
+* Lore page loads successfully.
+* Users can browse Corporations, Gangs, Factions, and Miscellaneous.
+* Lore entries are easy to search, browse, and read.
+
+---
+
+## 2. Lore Entry Categories
+
+Each lore entry should belong to one primary category.
+
+### Categories
+
+* Corporation
+* Gang
+* Faction
+* Miscellaneous
+
+**Acceptance criteria**
+
+* Every lore entry has a category.
+* Users can filter or browse by category.
+* Entries are displayed in a clean card/list layout.
+* Category names are visible and clear.
+
+---
+
+## 3. Lore Entry Page Layout
+
+Each lore entry should have its own detail page.
+
+### Lore entry page should include
+
+* Lore entry name
+* Category
+* General overview
+* Related fixer / responsible fixer, if applicable
+* Public lore content
+* Fixer-only content tab, if applicable
+* Source references/import notes, staff-only if needed
+* Edit controls for authorized users
+
+**Acceptance criteria**
+
+* Lore entry pages are readable and formatted cleanly.
+* Public players can see public lore.
+* Fixers/admins can see additional fixer-only lore when available.
+* Related fixer appears clearly near the top when known.
+
+---
+
+## 4. Responsible Fixer Display
+
+Some factions/corporations/gangs have a **Story Leads** forum post that identifies which fixer is responsible for that faction.
+
+This should be imported and displayed.
+
+### Display behavior
+
+When viewing a faction/lore page, show the responsible fixer near the top.
+
+**Example**
+
+`Responsible Fixer: Medusa`
+
+**Acceptance criteria**
+
+* Story Lead / responsible fixer is imported where available.
+* Responsible fixer appears near the top of the lore entry page.
+* Missing fixer values are handled gracefully.
+* Fixer assignment can be edited by admins/fixers with permissions.
+
+---
+
+## 5. Public vs Fixer-Only Lore
+
+Each lore entry should support both public information and fixer-only information.
+
+### Public section
+
+Visible to all users who can access the lore page.
+
+### Fixer Only tab
+
+Visible only to:
+
+* Fixers
+* Admins
+
+The Fixer Only tab should contain spoiler/staff-only lore, such as internal faction details pulled from the Approved Faction forum or linked Google Docs.
+
+**Acceptance criteria**
+
+* Public users cannot see fixer-only content.
+* Fixers/admins see a clear `Fixer Only` tab at the top of lore entry pages.
+* Fixer-only content is stored separately from public content.
+* Fixer-only content is not accidentally included in player-facing views.
+* Permissions are enforced server-side, not just hidden in the UI.
+
+---
+
+## 6. Lore Editing Permissions
+
+Lore should be editable by:
+
+* Fixers
+* Admins
+
+However, fixer edits should require approval before going live.
+
+### Admin edits
+
+Admins can edit and publish directly.
+
+### Fixer edits
+
+Fixer edits should create a pending request and require approval before the public/fixer-only lore entry is updated.
+
+**Acceptance criteria**
+
+* Fixers can submit lore edits.
+* Fixer edits do not go live immediately.
+* Fixer edits appear in Pending Requests under Miscellaneous.
+* Admins can approve or deny fixer lore edits.
+* Approved edits update the lore entry.
+* Denied edits do not update the lore entry.
+* All edits are audit logged.
+
+---
+
+## 7. Pending Request Integration
+
+Fixer-submitted lore edits should go into the **Miscellaneous** section of Pending Requests.
+
+### Pending request should show
+
+* Lore entry affected
+* Submitted by
+* Category
+* Public content changes
+* Fixer-only content changes, if applicable
+* Before/after diff if feasible
+* Submitter notes
+* Approve button
+* Deny button
+
+**Acceptance criteria**
+
+* Lore edit requests appear in Miscellaneous Pending Requests.
+* Admins can review changes before approval.
+* Approval applies the edit.
+* Denial rejects the edit.
+* Pending edit buttons are labeled clearly and are not blank.
+
+---
+
+## 8. Discord Lore Forum Import
+
+The system needs to import lore from the Discord lore forum/channel.
+
+### Source
+
+* Discord lore channel/forum
+* Lore-related forum posts
+* Story Leads posts
+* Approved Faction forum
+* Linked Google Docs inside lore/faction posts
+
+**Import behavior**
+
+* Pull forum post titles, content, and links.
+* Group related posts by faction/corporation/gang name.
+* Detect overlapping entries where multiple posts refer to the same faction.
+* Combine related content into one lore entry when appropriate.
+* Preserve source references for staff review.
+* Separate public content from fixer-only content where possible.
+
+**Acceptance criteria**
+
+* Lore forum posts can be imported.
+* Multiple posts about the same faction can be grouped together.
+* Imported lore is organized into Corporations, Gangs, Factions, or Miscellaneous.
+* Story Leads data is captured.
+* Approved Faction/fixer-only data is captured separately.
+* Import action is logged.
+
+---
+
+## 9. Grouping / Deduplication Logic
+
+There may be multiple Discord forum posts for the same organization, such as Lazarus or the Butcher Boys.
+
+The import process should try to group related posts together.
+
+### Grouping should consider
+
+* Exact name match
+* Similar name match
+* Known aliases
+* Forum title
+* Linked document title
+* Manual staff override
+
+**Examples**
+
+* Multiple Lazarus posts should be grouped under one Lazarus lore entry.
+* Multiple Butcher Boys posts should be grouped under one Backstreet Butcher Boys lore entry.
+
+**Acceptance criteria**
+
+* Import does not create unnecessary duplicate lore entries when names clearly overlap.
+* Staff can manually merge entries.
+* Staff can manually split entries if the import grouped things incorrectly.
+* Grouping decisions are reviewable before final import if feasible.
+
+---
+
+## 10. Manual Import Review
+
+Because lore may overlap or contain spoilers, imported content should ideally go through a review step before being published.
+
+### Review should allow staff to
+
+* Confirm category
+* Confirm title/name
+* Confirm responsible fixer
+* Confirm public vs fixer-only content
+* Merge duplicate entries
+* Split incorrectly grouped entries
+* Edit formatting before publishing
+
+**Acceptance criteria**
+
+* Imported lore can be reviewed before publication.
+* Staff can correct bad grouping.
+* Staff can decide what is public vs fixer-only.
+* Staff can approve imported entries into the Lore directory.
+
+---
+
+## 11. Approved Faction Forum Import
+
+The Approved Faction forum contains additional faction information, much of which should be fixer-only.
+
+### Required behavior
+
+* Import Approved Faction posts.
+* Pull linked Google Docs where available.
+* Extract document content.
+* Add that information to the matching lore entry.
+* Put sensitive/internal information into the `Fixer Only` tab.
+
+**Acceptance criteria**
+
+* Approved Faction content is imported.
+* Linked Google Docs are fetched and parsed where permissions allow.
+* Approved Faction content is not exposed to regular players by default.
+* Imported fixer-only content appears in the Fixer Only tab.
+* Staff can review/edit before publishing.
+
+---
+
+## 12. Google Docs Import
+
+Some lore/faction content will be linked through Google Docs.
+
+The system should support importing content from those Google Docs.
+
+### Required behavior
+
+* Detect Google Docs links in Discord forum posts.
+* Fetch the Google Doc content if the bot/app has access.
+* Convert the content into clean website formatting.
+* Preserve headings, lists, and paragraphs where possible.
+* Attach the imported content to the correct lore entry.
+* Place content into public or fixer-only sections based on source/review.
+
+**Acceptance criteria**
+
+* Google Docs links can be imported.
+* Import handles permission errors gracefully.
+* Imported docs are formatted cleanly on the website.
+* Staff can edit imported content after import.
+* Source link is preserved for staff reference.
+
+---
+
+## 13. Lore Formatting
+
+Imported lore should be cleaned up and formatted nicely.
+
+### Formatting should support
+
+* Headings
+* Paragraphs
+* Bullet lists
+* Links
+* Images, if feasible
+* Section dividers
+* Fixer-only notes
+* Source references, staff-only if needed
+
+**Acceptance criteria**
+
+* Imported lore is readable.
+* Formatting is not a raw dump of Discord/Google Docs text.
+* Staff can edit formatting after import.
+* Player-facing lore looks polished.
+
+---
+
+## 14. Lore Search
+
+Add search/filter support to the Lore directory.
+
+### Search should support
+
+* Name
+* Category
+* Alias, if available
+* Responsible fixer
+* Keywords in overview/content
+
+**Acceptance criteria**
+
+* Users can search lore entries.
+* Users can filter by category.
+* Fixers/admins can search fixer-only content if permitted.
+* Search results do not expose fixer-only snippets to regular players.
+
+---
+
+## 15. Lore Audit Logging
+
+Lore changes should be audit logged.
+
+### Log these actions
+
+* Lore entry created
+* Lore entry edited
+* Lore entry deleted
+* Lore edit submitted by fixer
+* Lore edit approved
+* Lore edit denied
+* Lore imported from Discord
+* Lore imported from Google Docs
+* Lore entry merged
+* Lore entry split
+* Responsible fixer changed
+* Public/fixer-only visibility changed
+
+**Acceptance criteria**
+
+* Lore changes are traceable.
+* Audit logs include actor, timestamp, affected entry, old/new values where relevant, and source/import reference.
+* Import failures are logged with useful error messages.
+
+---
+
+## 16. Access Control Summary
+
+### Regular players
+
+Can view:
+
+* Lore directory
+* Public lore content only
+
+Cannot view:
+
+* Fixer Only tab
+* Draft/import review content
+* Pending lore edits
+* Source/import review tools
+
+### Fixers
+
+Can view:
+
+* Public lore
+* Fixer Only tab
+* Lore edit controls
+* Import/review tools, if allowed
+
+Can submit:
+
+* Lore edits for approval
+
+Cannot directly publish fixer edits unless also admin/authorized.
+
+### Admins
+
+Can:
+
+* View all lore
+* Edit directly
+* Approve/deny fixer edits
+* Import lore
+* Merge/split entries
+* Manage visibility
+
+**Acceptance criteria**
+
+* Permissions are enforced consistently.
+* Fixer-only lore is protected.
+* Edit/approval flow matches role permissions.
