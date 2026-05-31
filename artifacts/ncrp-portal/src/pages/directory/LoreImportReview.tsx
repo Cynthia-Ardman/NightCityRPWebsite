@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  useListLore,
   useListLoreImportDrafts,
   useRunLoreImport,
   useUpdateLoreImportDraft,
@@ -11,6 +12,7 @@ import {
   getListLoreQueryKey,
   type LoreImportDraft,
   type LoreImportDraftUpdate,
+  type LoreEntrySummary,
   LoreImportDraftUpdateProposedCategory,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -35,6 +37,7 @@ export default function LoreImportReview() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data, isLoading } = useListLoreImportDrafts({ status: "pending" });
+  const { data: entries } = useListLore();
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListLoreImportDraftsQueryKey() });
@@ -91,7 +94,7 @@ export default function LoreImportReview() {
       ) : (
         <div className="space-y-4">
           {data.map((d) => (
-            <DraftCard key={d.id} draft={d} onChanged={invalidate} />
+            <DraftCard key={d.id} draft={d} entries={entries ?? []} onChanged={invalidate} />
           ))}
         </div>
       )}
@@ -99,7 +102,9 @@ export default function LoreImportReview() {
   );
 }
 
-function DraftCard({ draft, onChanged }: { draft: LoreImportDraft; onChanged: () => void }) {
+const MERGE_NONE = "__none__";
+
+function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entries: LoreEntrySummary[]; onChanged: () => void }) {
   const { toast } = useToast();
   const [name, setName] = useState(draft.proposedName);
   const [category, setCategory] = useState<Category>(draft.proposedCategory);
@@ -107,6 +112,7 @@ function DraftCard({ draft, onChanged }: { draft: LoreImportDraft; onChanged: ()
   const [summary, setSummary] = useState(draft.summary ?? "");
   const [publicBody, setPublicBody] = useState(draft.publicBody);
   const [fixerBody, setFixerBody] = useState(draft.fixerBody ?? "");
+  const [mergeId, setMergeId] = useState<number | null>(draft.suggestedMergeEntryId ?? null);
 
   const update = useUpdateLoreImportDraft({
     mutation: {
@@ -134,7 +140,10 @@ function DraftCard({ draft, onChanged }: { draft: LoreImportDraft; onChanged: ()
     summary: summary.trim() || null,
     publicBody,
     fixerBody: fixerBody.trim() || null,
+    suggestedMergeEntryId: mergeId,
   });
+
+  const mergeTarget = entries.find((e) => e.id === mergeId) ?? null;
 
   const busy = update.isPending || approve.isPending || discard.isPending;
 
@@ -170,6 +179,30 @@ function DraftCard({ draft, onChanged }: { draft: LoreImportDraft; onChanged: ()
         <F label="Summary"><Input value={summary} onChange={(e) => setSummary(e.target.value)} className="rounded-none font-mono" data-testid={`input-draft-summary-${draft.id}`} /></F>
         <F label="Public Body"><Textarea value={publicBody} onChange={(e) => setPublicBody(e.target.value)} rows={6} className="rounded-none font-mono text-xs" data-testid={`input-draft-public-${draft.id}`} /></F>
         <F label="Fixer-Only Body"><Textarea value={fixerBody} onChange={(e) => setFixerBody(e.target.value)} rows={4} className="rounded-none font-mono text-xs" data-testid={`input-draft-fixer-body-${draft.id}`} /></F>
+
+        <F label="Merge into existing entry">
+          <Select
+            value={mergeId === null ? MERGE_NONE : String(mergeId)}
+            onValueChange={(v) => setMergeId(v === MERGE_NONE ? null : Number(v))}
+          >
+            <SelectTrigger className="rounded-none font-mono" data-testid={`select-draft-merge-${draft.id}`}>
+              <SelectValue placeholder="Create new entry" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={MERGE_NONE}>Create new entry</SelectItem>
+              {entries.map((e) => (
+                <SelectItem key={e.id} value={String(e.id)}>
+                  {e.name} <span className="text-muted-foreground">({e.category})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="font-mono text-[10px] text-muted-foreground">
+            {mergeTarget
+              ? `On publish, this draft overwrites "${mergeTarget.name}" and merges aliases + sources.`
+              : "On publish, a brand-new lore entry is created."}
+          </p>
+        </F>
 
         {draft.sources.length > 0 && (
           <div className="space-y-1">

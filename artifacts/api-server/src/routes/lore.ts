@@ -133,7 +133,19 @@ router.get("/directory/lore", requireAuth, async (req, res): Promise<void> => {
     clauses.push(eq(loreEntries.category, category));
   }
   if (q) {
-    clauses.push(or(ilike(loreEntries.name, `%${q}%`), ilike(loreEntries.summary, `%${q}%`)));
+    // Search public-safe fields only — never the fixer-only body — so a regular
+    // player's query can't probe restricted intel. aliases is a text[]; match it
+    // case-insensitively by collapsing the array to a string.
+    const like = `%${q}%`;
+    clauses.push(
+      or(
+        ilike(loreEntries.name, like),
+        ilike(loreEntries.summary, like),
+        ilike(loreEntries.responsibleFixer, like),
+        ilike(loreEntries.publicBody, like),
+        sql`array_to_string(${loreEntries.aliases}, ' ') ILIKE ${like}`,
+      ),
+    );
   }
   const where = clauses.length ? and(...clauses) : undefined;
   const rows = (await db
