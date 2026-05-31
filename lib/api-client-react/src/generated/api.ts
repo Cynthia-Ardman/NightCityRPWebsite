@@ -147,6 +147,7 @@ import type {
   StandaloneActorPayInput,
   StockInput,
   StockItem,
+  StockOfferInput,
   StockPurchaseInput,
   StockPurchaseResult,
   StockUpdate,
@@ -9292,6 +9293,150 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRemoveRipperdocStockMutationOptions(options));
+    }
+
+export const getCreateRipperdocStockOfferUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/stock-offer`
+}
+
+/**
+ * @summary Admin: propose adding a cyberware piece to this venue's stock (venue-paid, owner approves).
+ */
+export const createRipperdocStockOffer = async (id: number,
+    stockOfferInput: StockOfferInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getCreateRipperdocStockOfferUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      stockOfferInput,)
+  }
+);}
+
+
+
+
+export const getCreateRipperdocStockOfferMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRipperdocStockOffer>>, TError,{id: number;data: BodyType<StockOfferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRipperdocStockOffer>>, TError,{id: number;data: BodyType<StockOfferInput>}, TContext> => {
+
+const mutationKey = ['createRipperdocStockOffer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRipperdocStockOffer>>, {id: number;data: BodyType<StockOfferInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createRipperdocStockOffer(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRipperdocStockOfferMutationResult = NonNullable<Awaited<ReturnType<typeof createRipperdocStockOffer>>>
+    export type CreateRipperdocStockOfferMutationBody = BodyType<StockOfferInput>
+    export type CreateRipperdocStockOfferMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Admin: propose adding a cyberware piece to this venue's stock (venue-paid, owner approves).
+ */
+export const useCreateRipperdocStockOffer = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRipperdocStockOffer>>, TError,{id: number;data: BodyType<StockOfferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRipperdocStockOffer>>,
+        TError,
+        {id: number;data: BodyType<StockOfferInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRipperdocStockOfferMutationOptions(options));
+    }
+
+export const getCreateStoreStockOfferUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/stock-offer`
+}
+
+/**
+ * @summary Admin: propose adding an item to this venue's stock (venue-paid, owner approves).
+ */
+export const createStoreStockOffer = async (id: number,
+    stockOfferInput: StockOfferInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getCreateStoreStockOfferUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      stockOfferInput,)
+  }
+);}
+
+
+
+
+export const getCreateStoreStockOfferMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStoreStockOffer>>, TError,{id: number;data: BodyType<StockOfferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStoreStockOffer>>, TError,{id: number;data: BodyType<StockOfferInput>}, TContext> => {
+
+const mutationKey = ['createStoreStockOffer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStoreStockOffer>>, {id: number;data: BodyType<StockOfferInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createStoreStockOffer(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStoreStockOfferMutationResult = NonNullable<Awaited<ReturnType<typeof createStoreStockOffer>>>
+    export type CreateStoreStockOfferMutationBody = BodyType<StockOfferInput>
+    export type CreateStoreStockOfferMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Admin: propose adding an item to this venue's stock (venue-paid, owner approves).
+ */
+export const useCreateStoreStockOffer = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStoreStockOffer>>, TError,{id: number;data: BodyType<StockOfferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStoreStockOffer>>,
+        TError,
+        {id: number;data: BodyType<StockOfferInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStoreStockOfferMutationOptions(options));
     }
 
 export const getListMyFixerNpcsUrl = () => {

@@ -22,7 +22,7 @@ import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 import { logger } from "../lib/logger";
 import { applyWalletDelta } from "../lib/economy";
-import { createOffer, createRemoveOffer } from "../lib/saleOffers";
+import { createOffer, createRemoveOffer, createStockAddOffer } from "../lib/saleOffers";
 import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
 
@@ -850,6 +850,37 @@ router.delete("/ripperdocs/:id/stock/:stockId", requireAuth, async (req, res): P
   await db.delete(ripperdocStock).where(and(eq(ripperdocStock.id, stockId), eq(ripperdocStock.ripperdocId, r.id)));
   res.sendStatus(204);
 });
+
+// Admin-only: propose adding a cyberware piece to a venue's stock for a price
+// the venue pays on approval. The venue owner approves/denies at /offers/mine;
+// nothing moves until then. Money is billed to the venue's internal balance.
+async function createStockOffer(req: Request, res: Response, kind: "store" | "ripperdoc"): Promise<void> {
+  if (!hasRole(req.user!.roles, "ADMIN")) {
+    res.status(403).json({ error: "Admin only" });
+    return;
+  }
+  const venueId = parseInt(String(req.params.id), 10);
+  const { itemName, unitPrice, quantity, cwp, memo } = req.body ?? {};
+  const result = await createStockAddOffer({
+    kind,
+    venueId,
+    itemName: String(itemName ?? ""),
+    unitPrice: Number(unitPrice) || 0,
+    quantity: Math.max(1, Number(quantity) || 1),
+    cwp: cwp != null && cwp !== "" ? Number(cwp) : null,
+    memo: memo ?? null,
+    actor: {
+      id: req.user!.id,
+      roles: req.user!.roles,
+      username: req.user!.username,
+      avatarUrl: req.user!.avatarUrl,
+    },
+  });
+  res.status(result.status).json(result.body);
+}
+
+router.post("/stores/:id/stock-offer", requireAuth, (req, res) => createStockOffer(req, res, "store"));
+router.post("/ripperdocs/:id/stock-offer", requireAuth, (req, res) => createStockOffer(req, res, "ripperdoc"));
 
 // ===== Venue accounts: deposit / withdraw / transaction history =====
 // Stores and ripperdocs each have a website-only `balance`. The OWNER can move

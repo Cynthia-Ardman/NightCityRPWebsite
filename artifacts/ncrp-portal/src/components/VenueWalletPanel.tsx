@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowDownToLine, ArrowUpFromLine, Wallet } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export interface VenueTransaction {
   id: number;
@@ -17,8 +18,8 @@ export interface VenueTransaction {
 interface Props {
   balance: number;
   transactions: VenueTransaction[];
-  onDeposit: (amount: number) => void;
-  onWithdraw: (amount: number) => void;
+  onDeposit: (amount: number) => Promise<unknown>;
+  onWithdraw: (amount: number) => Promise<unknown>;
   busy?: boolean;
   accent?: "cyan" | "magenta";
   testIdPrefix: string;
@@ -35,6 +36,41 @@ export default function VenueWalletPanel({
 }: Props) {
   const [amount, setAmount] = useState(0);
   const accentClass = accent === "magenta" ? "bg-nc-magenta" : "bg-nc-cyan";
+  const { toast } = useToast();
+
+  // Deposit/withdraw used to be fire-and-forget, so when the economy was
+  // disabled (409) or in test mode (dry-run), the click appeared to do nothing.
+  // Await the mutation and always surface the outcome: success, simulated, or
+  // the server's error message.
+  const move = async (dir: "deposit" | "withdraw") => {
+    if (amount <= 0) return;
+    const moved = amount;
+    try {
+      const res = (await (dir === "deposit" ? onDeposit(moved) : onWithdraw(moved))) as
+        | { dryRun?: boolean }
+        | undefined;
+      setAmount(0);
+      if (res?.dryRun) {
+        toast({
+          title: "Economy in test mode",
+          description: `Simulated only — no eddies were actually ${dir === "deposit" ? "deposited" : "withdrawn"}. Balances are unchanged.`,
+        });
+        return;
+      }
+      toast({
+        title: dir === "deposit" ? "Deposit complete" : "Withdrawal complete",
+        description: `${moved.toLocaleString()} €$ ${dir === "deposit" ? "moved into" : "moved out of"} this account.`,
+      });
+    } catch (err) {
+      const data = (err as { data?: { error?: string } })?.data;
+      const msg = data?.error || (err instanceof Error ? err.message : "Something went wrong — no money moved.");
+      toast({
+        title: dir === "deposit" ? "Deposit failed" : "Withdrawal failed",
+        description: msg,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <Card className="rounded-none border-border bg-card/50">
@@ -59,11 +95,7 @@ export default function VenueWalletPanel({
           />
           <Button
             disabled={busy || amount <= 0}
-            onClick={() => {
-              if (amount <= 0) return;
-              onDeposit(amount);
-              setAmount(0);
-            }}
+            onClick={() => void move("deposit")}
             className={`rounded-none ${accentClass} text-background font-display`}
             data-testid={`button-${testIdPrefix}-deposit`}
           >
@@ -71,11 +103,7 @@ export default function VenueWalletPanel({
           </Button>
           <Button
             disabled={busy || amount <= 0 || amount > balance}
-            onClick={() => {
-              if (amount <= 0) return;
-              onWithdraw(amount);
-              setAmount(0);
-            }}
+            onClick={() => void move("withdraw")}
             variant="outline"
             className="rounded-none font-display border-border"
             data-testid={`button-${testIdPrefix}-withdraw`}

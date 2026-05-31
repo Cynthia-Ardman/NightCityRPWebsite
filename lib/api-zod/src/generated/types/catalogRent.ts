@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CatalogRentKind } from './catalogRentKind';
 
 export interface CatalogRent {
   id: number;
@@ -18,6 +19,14 @@ export interface CatalogRent {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** residential (player self-lease) or business (request-only). Defaults to residential. */
+  kind?: CatalogRentKind;
   /** True when an active lease already references this listing. */
   occupied: boolean;
+  /** Staff-only — the character currently occupying this listing. */
+  occupantCharacterId?: number;
+  /** Staff-only — name of the occupying character. */
+  occupantCharacterName?: string;
+  /** Staff-only — the housing (lease) row id, used to remove the occupant. */
+  housingId?: number;
 }

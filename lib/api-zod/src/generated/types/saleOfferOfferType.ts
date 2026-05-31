@@ -17,4 +17,5 @@ export const SaleOfferOfferType = {
   install: 'install',
   remove: 'remove',
   give: 'give',
+  stock_add: 'stock_add',
 } as const;

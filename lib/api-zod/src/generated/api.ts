@@ -731,7 +731,11 @@ export const ListRentListingsResponseItem = zod.object({
   "monthlyRent": zod.number(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "occupied": zod.boolean().describe('True when an active lease already references this listing.')
+  "kind": zod.enum(['residential', 'business']).optional().describe('residential (player self-lease) or business (request-only). Defaults to residential.'),
+  "occupied": zod.boolean().describe('True when an active lease already references this listing.'),
+  "occupantCharacterId": zod.number().optional().describe('Staff-only — the character currently occupying this listing.'),
+  "occupantCharacterName": zod.string().optional().describe('Staff-only — name of the occupying character.'),
+  "housingId": zod.number().optional().describe('Staff-only — the housing (lease) row id, used to remove the occupant.')
 })
 export const ListRentListingsResponse = zod.array(ListRentListingsResponseItem)
 
@@ -760,7 +764,11 @@ export const UpdateRentListingResponse = zod.object({
   "monthlyRent": zod.number(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "occupied": zod.boolean().describe('True when an active lease already references this listing.')
+  "kind": zod.enum(['residential', 'business']).optional().describe('residential (player self-lease) or business (request-only). Defaults to residential.'),
+  "occupied": zod.boolean().describe('True when an active lease already references this listing.'),
+  "occupantCharacterId": zod.number().optional().describe('Staff-only — the character currently occupying this listing.'),
+  "occupantCharacterName": zod.string().optional().describe('Staff-only — name of the occupying character.'),
+  "housingId": zod.number().optional().describe('Staff-only — the housing (lease) row id, used to remove the occupant.')
 })
 
 
@@ -1243,7 +1251,7 @@ export const ListStoreOffersParams = zod.object({
 export const ListStoreOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "storeId": zod.number().nullish(),
@@ -1592,7 +1600,7 @@ export const RemoveRipperdocEmployeeParams = zod.object({
 export const ListMyOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "storeId": zod.number().nullish(),
@@ -1632,7 +1640,7 @@ export const GetOfferParams = zod.object({
 export const GetOfferResponse = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "storeId": zod.number().nullish(),
@@ -1672,7 +1680,7 @@ export const ApproveOfferResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "storeId": zod.number().nullish(),
@@ -1729,7 +1737,7 @@ export const DenyOfferParams = zod.object({
 export const DenyOfferResponse = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "storeId": zod.number().nullish(),
@@ -3930,7 +3938,7 @@ export const ListRipperdocOffersParams = zod.object({
 export const ListRipperdocOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "storeId": zod.number().nullish(),
@@ -3984,6 +3992,54 @@ export const RemoveRipperdocStockParams = zod.object({
   "id": zod.coerce.number(),
   "stockId": zod.coerce.number()
 })
+
+
+/**
+ * @summary Admin: propose adding a cyberware piece to this venue's stock (venue-paid, owner approves).
+ */
+export const CreateRipperdocStockOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const createRipperdocStockOfferBodyUnitPriceMin = 0;
+
+
+export const createRipperdocStockOfferBodyCwpMin = 0;
+
+
+
+export const CreateRipperdocStockOfferBody = zod.object({
+  "itemName": zod.string().min(1),
+  "unitPrice": zod.number().min(createRipperdocStockOfferBodyUnitPriceMin).describe('Per-unit price billed to the venue account.'),
+  "quantity": zod.number().min(1).optional().describe('Defaults to 1.'),
+  "cwp": zod.number().min(createRipperdocStockOfferBodyCwpMin).nullish().describe('Per-unit cyberware points.'),
+  "memo": zod.string().nullish()
+}).describe('Admin proposal to add a cyberware piece to a venue\'s stock, billed to the venue on owner approval.')
+
+
+/**
+ * @summary Admin: propose adding an item to this venue's stock (venue-paid, owner approves).
+ */
+export const CreateStoreStockOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const createStoreStockOfferBodyUnitPriceMin = 0;
+
+
+export const createStoreStockOfferBodyCwpMin = 0;
+
+
+
+export const CreateStoreStockOfferBody = zod.object({
+  "itemName": zod.string().min(1),
+  "unitPrice": zod.number().min(createStoreStockOfferBodyUnitPriceMin).describe('Per-unit price billed to the venue account.'),
+  "quantity": zod.number().min(1).optional().describe('Defaults to 1.'),
+  "cwp": zod.number().min(createStoreStockOfferBodyCwpMin).nullish().describe('Per-unit cyberware points.'),
+  "memo": zod.string().nullish()
+}).describe('Admin proposal to add a cyberware piece to a venue\'s stock, billed to the venue on owner approval.')
 
 
 /**

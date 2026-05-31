@@ -9,6 +9,7 @@ import {
   useRemoveRipperdocEmployee,
   useAddRipperdocStock,
   useRemoveRipperdocStock,
+  useCreateRipperdocStockOffer,
   useDepositToRipperdoc,
   useWithdrawFromRipperdoc,
   useGetRipperdocTransactions,
@@ -27,7 +28,6 @@ import CyberwareActionDialog from "@/components/CyberwareActionDialog";
 import RemoveCyberwareDialog from "@/components/RemoveCyberwareDialog";
 import PurchaseStockDialog from "@/components/PurchaseStockDialog";
 import VenueOffersPanel from "@/components/VenueOffersPanel";
-import WholesalerRestockDialog from "@/components/WholesalerRestockDialog";
 import WholesalerOrdersPanel from "@/components/WholesalerOrdersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import StaffVenuePanel from "@/components/StaffVenuePanel";
@@ -55,6 +55,16 @@ export default function MyClinicDetail() {
   };
   const deposit = useDepositToRipperdoc({ mutation: { onSuccess: invalidateWallet } });
   const withdraw = useWithdrawFromRipperdoc({ mutation: { onSuccess: invalidateWallet } });
+  const stockOffer = useCreateRipperdocStockOffer({
+    mutation: {
+      onSuccess: () => {
+        setOfferName("");
+        setOfferPrice(0);
+        setOfferCwp(0);
+        setOfferQty(1);
+      },
+    },
+  });
 
   const [empChar, setEmpChar] = useState<CharacterPickerValue>(null);
   const [empRole, setEmpRole] = useState("doc");
@@ -64,10 +74,13 @@ export default function MyClinicDetail() {
   const [stockPrice, setStockPrice] = useState(0);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
-  const [restockOpen, setRestockOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [offerName, setOfferName] = useState("");
+  const [offerPrice, setOfferPrice] = useState(0);
+  const [offerCwp, setOfferCwp] = useState(0);
+  const [offerQty, setOfferQty] = useState(1);
   const { data: me } = useAuthMe();
-  const canRestock = !!me && (me.isFixer || me.isAdmin);
+  const canManageCatalog = !!me && (me.isFixer || me.isAdmin);
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">NOT FOUND</div>;
@@ -94,16 +107,13 @@ export default function MyClinicDetail() {
           </div>
         </CardContent>
       </Card>
-      {!!me && (me.isAdmin || me.isFixer) && (
-        <StaffVenuePanel kind="ripperdoc" venueId={rid} onChanged={invalidate} />
-      )}
 
       <VenueWalletPanel
         balance={data.balance ?? 0}
         transactions={txns ?? []}
         busy={deposit.isPending || withdraw.isPending}
-        onDeposit={(amount) => deposit.mutate({ id: rid, data: { amount } })}
-        onWithdraw={(amount) => withdraw.mutate({ id: rid, data: { amount } })}
+        onDeposit={(amount) => deposit.mutateAsync({ id: rid, data: { amount } })}
+        onWithdraw={(amount) => withdraw.mutateAsync({ id: rid, data: { amount } })}
         accent="magenta"
         testIdPrefix="clinic"
       />
@@ -184,16 +194,6 @@ export default function MyClinicDetail() {
             >
               <Plus className="w-3 h-3 mr-1" /> BUY STOCK (CLINIC-FUNDED)
             </Button>
-            {canRestock && (
-              <Button
-                size="sm"
-                onClick={() => setRestockOpen(true)}
-                className="rounded-none bg-nc-magenta text-background font-display"
-                data-testid="button-open-restock"
-              >
-                <Plus className="w-3 h-3 mr-1" /> RESTOCK FROM WHOLESALER
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -215,17 +215,20 @@ export default function MyClinicDetail() {
             </div>
           ))}
           <div className="pt-3 space-y-2">
-            <div className="flex justify-end">
-              <CatalogPicker
-                kind="cyberware"
-                triggerClassName="rounded-none font-display border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background"
-                onPick={(item) => {
-                  setStockName(item.name);
-                  setStockCategory(item.category ?? "");
-                  setStockPrice(item.price);
-                }}
-              />
-            </div>
+            {canManageCatalog && (
+              <div className="flex justify-end">
+                <CatalogPicker
+                  kind="cyberware"
+                  triggerClassName="rounded-none font-display border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background"
+                  onPick={(item) => {
+                    setStockName(item.name);
+                    setStockCategory(item.category ?? "");
+                    setStockPrice(item.price);
+                  }}
+                />
+              </div>
+            )}
+            <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Add custom cyberware</p>
             <div className="flex gap-2">
               <Input className="flex-1" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
               <Input className="w-32" placeholder="Slot" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-cyber-slot" />
@@ -247,8 +250,94 @@ export default function MyClinicDetail() {
           </div>
         </CardContent>
       </Card>
+      {!!me && me.isAdmin && data.ownerId !== me.id && (
+        <Card className="rounded-none border-nc-yellow/50 bg-card/50" data-testid="card-admin-stock-offer">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-nc-yellow">ADMIN · OFFER CYBERWARE TO OWNER</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="font-mono text-xs text-muted-foreground">
+              Propose adding a cyberware piece to this clinic's stock. The owner is notified and must approve.
+              On approval, the clinic account is charged and the item is added to stock.
+              {!data.ownerCharacterId && (
+                <span className="block text-destructive mt-1">
+                  This clinic's owner has no linked character, so they can't approve an offer.
+                </span>
+              )}
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+              <Input
+                className="md:col-span-5"
+                placeholder="Cyberware name"
+                value={offerName}
+                onChange={(e) => setOfferName(e.target.value)}
+                data-testid="input-offer-name"
+              />
+              <Input
+                className="md:col-span-2"
+                type="number"
+                min={0}
+                placeholder="Price"
+                value={offerPrice || ""}
+                onChange={(e) => setOfferPrice(Number(e.target.value))}
+                data-testid="input-offer-price"
+              />
+              <Input
+                className="md:col-span-2"
+                type="number"
+                min={0}
+                placeholder="CWP"
+                value={offerCwp || ""}
+                onChange={(e) => setOfferCwp(Number(e.target.value))}
+                data-testid="input-offer-cwp"
+              />
+              <Input
+                className="md:col-span-1"
+                type="number"
+                min={1}
+                placeholder="Qty"
+                value={offerQty || ""}
+                onChange={(e) => setOfferQty(Math.max(1, Number(e.target.value)))}
+                data-testid="input-offer-qty"
+              />
+              <Button
+                disabled={!offerName.trim() || !data.ownerCharacterId || stockOffer.isPending}
+                onClick={() =>
+                  stockOffer.mutate({
+                    id: rid,
+                    data: {
+                      itemName: offerName.trim(),
+                      unitPrice: Math.max(0, Math.floor(offerPrice)),
+                      quantity: Math.max(1, Math.floor(offerQty)),
+                      cwp: offerCwp > 0 ? Math.floor(offerCwp) : null,
+                    },
+                  })
+                }
+                className="md:col-span-2 rounded-none bg-nc-yellow text-background font-display"
+                data-testid="button-send-offer"
+              >
+                {stockOffer.isPending ? "SENDING..." : "SEND OFFER"}
+              </Button>
+            </div>
+            {stockOffer.isSuccess && (
+              <div className="font-mono text-xs text-nc-green" data-testid="text-offer-sent">
+                Offer sent — waiting on the owner's approval.
+              </div>
+            )}
+            {stockOffer.isError && (
+              <div className="font-mono text-xs text-destructive" data-testid="text-offer-error">
+                {(stockOffer.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+                  "Could not send offer."}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
       <WholesalerOrdersPanel kind="ripperdoc" venueId={rid} />
       <VenueOffersPanel offers={offers ?? []} />
+      {!!me && (me.isAdmin || me.isFixer) && (
+        <StaffVenuePanel kind="ripperdoc" venueId={rid} onChanged={invalidate} />
+      )}
       {sellTarget && (
         <CyberwareActionDialog
           venueId={rid}
@@ -269,17 +358,6 @@ export default function MyClinicDetail() {
             invalidate();
             qc.invalidateQueries({ queryKey: getListRipperdocOffersQueryKey(rid) });
             setRemoveOpen(false);
-          }}
-        />
-      )}
-      {restockOpen && (
-        <WholesalerRestockDialog
-          kind="ripperdoc"
-          venueId={rid}
-          onClose={() => setRestockOpen(false)}
-          onDone={() => {
-            invalidate();
-            setRestockOpen(false);
           }}
         />
       )}

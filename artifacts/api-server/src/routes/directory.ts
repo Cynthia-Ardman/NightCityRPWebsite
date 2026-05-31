@@ -987,19 +987,56 @@ router.patch(
 router.get("/catalog/cyberware", async (_req, res): Promise<void> => {
   res.json(await db.select().from(catalogCyberware));
 });
-router.get("/catalog/rent", async (_req, res): Promise<void> => {
+router.get("/catalog/rent", async (req, res): Promise<void> => {
   // Mark listings that already have an active lease so the UI can
   // disable the LEASE button instead of letting players submit a
-  // request that the housing flow would have to reject anyway.
-  const [listings, occupied] = await Promise.all([
+  // request that the housing flow would have to reject anyway. Staff
+  // (admin/fixer) additionally see WHO occupies each listing so they can
+  // remove the occupant from the catalog; players never see the occupant.
+  const isStaff =
+    !!req.user && (hasRole(req.user.roles, "ADMIN") || hasRole(req.user.roles, "FIXER"));
+  const [listings, occupants] = await Promise.all([
     db.select().from(catalogRent),
     db
-      .selectDistinct({ listingId: housing.listingId })
+      .select({
+        listingId: housing.listingId,
+        housingId: housing.id,
+        characterId: housing.characterId,
+        characterName: characters.name,
+      })
       .from(housing)
+      .innerJoin(characters, eq(characters.id, housing.characterId))
       .where(isNotNull(housing.listingId)),
   ]);
-  const occupiedSet = new Set(occupied.map((r) => r.listingId).filter((id): id is number => id != null));
-  res.json(listings.map((l) => ({ ...l, occupied: occupiedSet.has(l.id) })));
+  const byListing = new Map<
+    number,
+    { housingId: number; characterId: number; characterName: string }
+  >();
+  for (const o of occupants) {
+    if (o.listingId != null && !byListing.has(o.listingId)) {
+      byListing.set(o.listingId, {
+        housingId: o.housingId,
+        characterId: o.characterId,
+        characterName: o.characterName,
+      });
+    }
+  }
+  res.json(
+    listings.map((l) => {
+      const occ = byListing.get(l.id);
+      return {
+        ...l,
+        occupied: !!occ,
+        ...(isStaff && occ
+          ? {
+              occupantCharacterId: occ.characterId,
+              occupantCharacterName: occ.characterName,
+              housingId: occ.housingId,
+            }
+          : {}),
+      };
+    }),
+  );
 });
 
 // Staff-only edit for a housing listing. Currently used by the catalog UI to
@@ -1013,6 +1050,7 @@ const RentEditSchema = z
     monthlyRent: z.number().int().min(0).optional(),
     description: nullableText,
     imageUrl: nullableText,
+    kind: z.enum(["residential", "business"]).optional(),
   })
   .strict();
 
@@ -1054,6 +1092,7 @@ router.patch(
     if (edit.monthlyRent !== undefined) mark("monthlyRent", cur.monthlyRent, edit.monthlyRent);
     if (edit.description !== undefined) mark("description", cur.description, edit.description);
     if (edit.imageUrl !== undefined) mark("imageUrl", cur.imageUrl, edit.imageUrl);
+    if (edit.kind !== undefined) mark("kind", cur.kind, edit.kind);
 
     if (Object.keys(after).length === 0) {
       res.status(400).json({ error: "No changes" });

@@ -25,7 +25,13 @@ import { buildCyberwareCostMap, checkCwpCapacity } from "./cyberware-cap";
 import { logger } from "./logger";
 
 // Offer kinds beyond a plain sale. `sale` is the historic default.
-export type OfferType = "sale" | "install" | "remove" | "give";
+//   stock_add — an admin proposes ADDING a cyberware piece to a venue's stock
+//               for a price billed to the VENUE account on approval. The
+//               approver is the venue owner (not a buyer); nothing moves until
+//               they accept. Money flows OUT of the venue's internal balance,
+//               so the whole completion is a single idempotent DB transaction
+//               (no external UB wallet leg, unlike a buyer-debited sale).
+export type OfferType = "sale" | "install" | "remove" | "give" | "stock_add";
 
 // ---------------------------------------------------------------------------
 // Buyer-approval sale offers. The store/ripperdoc operator creates an offer;
@@ -346,6 +352,252 @@ export async function createRemoveOffer(opts: {
   return { status: 201, body: offer };
 }
 
+// Admin proposes adding a cyberware piece to ANOTHER venue's stock for a price
+// the venue pays on approval. The offer's "buyer" is the venue owner (the
+// approver); nothing moves until they accept (or deny — a pure status flip).
+export async function createStockAddOffer(opts: {
+  kind: OfferKind;
+  venueId: number;
+  itemName: string;
+  unitPrice: number;
+  quantity: number;
+  cwp?: number | null;
+  memo?: string | null;
+  actor: Actor;
+}): Promise<OfferResult> {
+  const { kind, venueId, actor } = opts;
+  // Restock offers are an admin override, not an operator action.
+  if (!hasRole(actor.roles, "ADMIN")) {
+    return { status: 403, body: { error: "Admin only" } };
+  }
+  const itemName = (opts.itemName ?? "").trim();
+  if (!itemName) return { status: 400, body: { error: "Item name is required" } };
+  const unitPrice = Math.max(0, Math.floor(Number(opts.unitPrice) || 0));
+  const quantity = Math.max(1, Math.floor(Number(opts.quantity) || 1));
+  const cwp = opts.cwp != null && Number.isFinite(opts.cwp) ? Math.max(0, Math.floor(opts.cwp)) : null;
+
+  const venueTable = venueTableFor(kind);
+  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
+  if (!venue) return { status: 404, body: { error: "Venue not found" } };
+  if (!venue.ownerCharacterId) {
+    return { status: 409, body: { error: "Venue owner has no linked character to approve the offer" } };
+  }
+
+  const totalPrice = unitPrice * quantity;
+  const expiresAt = new Date(Date.now() + OFFER_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const priceLabel = totalPrice > 0 ? `for €$${totalPrice}` : "for free";
+
+  const [offer] = await db
+    .insert(saleOffers)
+    .values({
+      kind,
+      offerType: "stock_add",
+      [venueColName(kind)]: venueId,
+      stockId: null,
+      cwp,
+      itemName,
+      itemCategory: "cyberware",
+      unitPrice,
+      quantity,
+      totalPrice,
+      buyerCharacterId: venue.ownerCharacterId,
+      buyerUserId: venue.ownerId,
+      sellerCharacterId: null,
+      sellerEmployeeId: null,
+      commissionPct: 0,
+      createdById: actor.id,
+      memo: opts.memo ?? null,
+      status: "pending",
+      expiresAt,
+    } as never)
+    .returning();
+
+  await db.insert(activityEvents).values({
+    kind: "shop",
+    actorId: actor.id,
+    actorName: actor.username,
+    actorAvatarUrl: actor.avatarUrl,
+    message: `${actor.username} offered to add ${itemName} x${quantity} to ${venue.name} stock ${priceLabel}`,
+  });
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_create",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `Offered to add ${itemName} x${quantity} to ${venue.name} stock ${priceLabel}`,
+    afterJson: { offerType: "stock_add", totalPrice, quantity, cwp, venueId, venueKind: kind } as never,
+  });
+
+  // Best-effort owner DM (the in-portal surface is /offers/mine).
+  try {
+    const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, offer.buyerUserId));
+    if (u?.discordId) {
+      await sendDirectMessage(
+        u.discordId,
+        `**${venue.name}** has a stock offer: add **${itemName}** x${quantity} to your stock ${priceLabel} (billed to the venue account).\n` +
+          `Approve or deny it here: ${offerLink()}`,
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, offerId: offer.id }, "stock-add owner DM failed");
+  }
+
+  return { status: 201, body: offer };
+}
+
+// Approve a stock_add offer: debit the venue's internal balance and add the
+// item to the venue's stock — all in one transaction. There is no external
+// wallet leg, so the guarded pending->approved flip makes the whole thing
+// idempotent (a second approve finds status != pending and no-ops).
+async function approveStockAddOffer(offer: SaleOffer, actor: Actor): Promise<OfferResult> {
+  // A stock_add offer is a proposal that DEBITS the venue's account, so it must
+  // be accepted by the venue owner (the offer buyer) — not by the admin who
+  // created it. Admins can create and deny, but cannot self-approve a charge.
+  if (offer.buyerUserId !== actor.id) {
+    return { status: 403, body: { error: "Only the venue owner can approve a stock-add offer." } };
+  }
+  if (offer.status === "approved") {
+    return { status: 200, body: { offer, duplicate: true } };
+  }
+  if (offer.status !== "pending") {
+    return { status: 409, body: { error: `Offer already ${offer.status}` } };
+  }
+  if (offer.expiresAt && offer.expiresAt.getTime() < Date.now()) {
+    await db
+      .update(saleOffers)
+      .set({ status: "expired", decidedAt: new Date() })
+      .where(and(eq(saleOffers.id, offer.id), eq(saleOffers.status, "pending")));
+    return { status: 409, body: { error: "Offer has expired" } };
+  }
+
+  const mode = await getEconomyMode();
+  if (mode === "disabled") {
+    return { status: 409, body: { error: "Economy is disabled; offers cannot be approved right now." } };
+  }
+  if (mode === "test") {
+    return {
+      status: 200,
+      body: { dryRun: true, offer, wouldDebitVenue: offer.totalPrice, wouldAddStock: offer.quantity },
+    };
+  }
+
+  const kind = offer.kind as OfferKind;
+  const venueTable = venueTableFor(kind);
+  const stockTable = stockTableFor(kind);
+  const venueId = (kind === "store" ? offer.storeId : offer.ripperdocId)!;
+  const hasMoney = offer.totalPrice > 0;
+
+  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
+  if (!venue) return { status: 404, body: { error: "Venue not found" } };
+
+  let insufficient = false;
+  let alreadyResolved = false;
+  let completionError: unknown = null;
+  let venueBalanceAfter = venue.balance;
+  await db
+    .transaction(async (tx) => {
+      const [flipped] = await tx
+        .update(saleOffers)
+        .set({ status: "approved", decidedAt: new Date() })
+        .where(and(eq(saleOffers.id, offer.id), eq(saleOffers.status, "pending")))
+        .returning();
+      if (!flipped) {
+        alreadyResolved = true;
+        return;
+      }
+
+      if (hasMoney) {
+        // Guarded debit: only succeeds when the venue can cover it. A miss
+        // rolls back the flip so the offer stays pending.
+        const [debited] = await tx
+          .update(venueTable)
+          .set({ balance: sql`${venueTable.balance} - ${offer.totalPrice}` })
+          .where(and(eq(venueTable.id, venueId), gte(venueTable.balance, offer.totalPrice)))
+          .returning();
+        if (!debited) {
+          insufficient = true;
+          throw new Error("venue-insufficient-funds");
+        }
+        venueBalanceAfter = debited.balance;
+        await tx.insert(walletTransactions).values({
+          [venueColName(kind)]: venueId,
+          characterId: venue.ownerCharacterId ?? null,
+          amount: -offer.totalPrice,
+          kind: "shop",
+          source: kind,
+          memo: `Stock added: ${offer.itemName} x${offer.quantity}`,
+          relatedEntityType: "sale_offer",
+          relatedEntityId: offer.id,
+          previousBalance: venueBalanceAfter + offer.totalPrice,
+          newBalance: venueBalanceAfter,
+        } as never);
+      }
+
+      // Fold into an identical existing stock line (same name/price) when one
+      // exists, otherwise create a new one.
+      const stockVenueCol = stockVenueColFor(kind);
+      const [existing] = await tx
+        .select()
+        .from(stockTable)
+        .where(and(eq(stockVenueCol, venueId), eq(stockTable.name, offer.itemName), eq(stockTable.price, offer.unitPrice)))
+        .limit(1);
+      const notes = offer.cwp != null ? `CWP ${offer.cwp}` : null;
+      if (existing) {
+        await tx
+          .update(stockTable)
+          .set({ quantity: sql`${stockTable.quantity} + ${offer.quantity}` })
+          .where(eq(stockTable.id, existing.id));
+      } else {
+        await tx.insert(stockTable).values({
+          [stockVenueCol.name]: venueId,
+          name: offer.itemName,
+          category: "cyberware",
+          price: offer.unitPrice,
+          quantity: offer.quantity,
+          notes,
+        } as never);
+      }
+    })
+    .catch((err) => {
+      completionError = err;
+    });
+
+  if (insufficient) {
+    return { status: 400, body: { error: "Venue account has insufficient funds" } };
+  }
+  if (completionError) {
+    return { status: 409, body: { error: "Offer could not be completed" } };
+  }
+  if (alreadyResolved) {
+    const [fresh] = await db.select().from(saleOffers).where(eq(saleOffers.id, offer.id));
+    if (fresh?.status === "approved") return { status: 200, body: { offer: fresh, duplicate: true } };
+    return { status: 409, body: { error: `Offer was already ${fresh?.status ?? "resolved"}` } };
+  }
+
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_approve",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `Approved stock_add: ${offer.itemName} x${offer.quantity} for €$${offer.totalPrice} @ ${venue.name}`,
+    afterJson: { offerType: "stock_add", totalPrice: offer.totalPrice, quantity: offer.quantity, venueBalanceAfter } as never,
+  });
+  await db.insert(activityEvents).values({
+    kind: "shop",
+    actorId: actor.id,
+    actorName: actor.username,
+    actorAvatarUrl: actor.avatarUrl,
+    message: `${venue.name} added ${offer.itemName} x${offer.quantity} to stock${hasMoney ? ` for €$${offer.totalPrice}` : ""}`,
+  });
+
+  const [finalOffer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offer.id));
+  return { status: 200, body: { offer: finalOffer, venueBalance: venueBalanceAfter } };
+}
+
 // Authorization for approve/deny: the buyer (offer owner) or an admin.
 function canDecide(offer: SaleOffer, actor: Actor): boolean {
   return offer.buyerUserId === actor.id || hasRole(actor.roles, "ADMIN");
@@ -382,6 +634,11 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
   const [offer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));
   if (!offer) return { status: 404, body: { error: "Offer not found" } };
   if (!canDecide(offer, actor)) return { status: 403, body: { error: "Forbidden" } };
+  // stock_add bills the venue account (internal balance) and adds to stock —
+  // an entirely different money/stock path, handled in its own function.
+  if ((offer.offerType as OfferType) === "stock_add") {
+    return await approveStockAddOffer(offer, actor);
+  }
   // Re-entry for an already-approved offer: the only thing that can remain
   // unfinished is an unpaid commission, so retry that idempotent credit.
   if (offer.status === "approved") {

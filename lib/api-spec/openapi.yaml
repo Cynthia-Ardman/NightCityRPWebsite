@@ -1979,6 +1979,44 @@ paths:
       responses:
         "204": { description: Removed }
 
+  /ripperdocs/{id}/stock-offer:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: createRipperdocStockOffer
+      tags: [ripperdocs]
+      summary: "Admin: propose adding a cyberware piece to this venue's stock (venue-paid, owner approves)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockOfferInput" }
+      responses:
+        "201":
+          description: Offer created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+
+  /stores/{id}/stock-offer:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: createStoreStockOffer
+      tags: [stores]
+      summary: "Admin: propose adding an item to this venue's stock (venue-paid, owner approves)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockOfferInput" }
+      responses:
+        "201":
+          description: Offer created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+
   # ---------------- FIXER HUB ----------------
   /fixer/npcs/mine:
     get:
@@ -3652,7 +3690,7 @@ components:
       properties:
         id: { type: integer }
         kind: { type: string, enum: [store, ripperdoc] }
-        offerType: { type: string, enum: [sale, install, remove, give], description: "What the offer does. Defaults to sale." }
+        offerType: { type: string, enum: [sale, install, remove, give, stock_add], description: "What the offer does. Defaults to sale." }
         cwp: { type: ["integer", "null"], description: "Per-unit cyberware points (install) or the points removed (remove)." }
         removedItemId: { type: ["integer", "null"], description: "The installed inventory item a remove offer uninstalls." }
         storeId: { type: ["integer", "null"] }
@@ -3712,6 +3750,17 @@ components:
         price: { type: integer, minimum: 0 }
         quantity: { type: integer, minimum: 0 }
         notes: { type: string }
+
+    StockOfferInput:
+      type: object
+      required: [itemName, unitPrice]
+      description: "Admin proposal to add a cyberware piece to a venue's stock, billed to the venue on owner approval."
+      properties:
+        itemName: { type: string, minLength: 1 }
+        unitPrice: { type: integer, minimum: 0, description: "Per-unit price billed to the venue account." }
+        quantity: { type: integer, minimum: 1, description: "Defaults to 1." }
+        cwp: { type: ["integer", "null"], minimum: 0, description: "Per-unit cyberware points." }
+        memo: { type: ["string", "null"] }
 
     StoreSaleInput:
       type: object
@@ -3933,9 +3982,22 @@ components:
         monthlyRent: { type: integer }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        kind:
+          type: string
+          enum: [residential, business]
+          description: "residential (player self-lease) or business (request-only). Defaults to residential."
         occupied:
           type: boolean
           description: True when an active lease already references this listing.
+        occupantCharacterId:
+          type: integer
+          description: Staff-only — the character currently occupying this listing.
+        occupantCharacterName:
+          type: string
+          description: Staff-only — name of the occupying character.
+        housingId:
+          type: integer
+          description: Staff-only — the housing (lease) row id, used to remove the occupant.
 
     CatalogRentUpdate:
       type: object

@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useListCustomRequests, getListCustomRequestsQueryKey, useListPendingSheets, getListPendingSheetsQueryKey } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, ChevronLeft, Menu, Briefcase, Search, Receipt, ClipboardList, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,16 @@ function SidebarContent() {
   const [location] = useLocation();
   const { data: offers } = useListMyOffers({ query: { enabled: !!user, queryKey: getListMyOffersQueryKey() } });
   const pendingOffers = (offers ?? []).filter((o) => o.status === "pending").length;
+  // Staff review queue counter (misc requests + new-character sheets awaiting
+  // approval). Only fetched for staff so regular players never trigger the
+  // staff-scoped endpoints.
+  const isStaff = !!user && (user.isFixer || user.isCsApprover || user.isAdmin);
+  const { data: pendingReqs } = useListCustomRequests(
+    { status: "pending" },
+    { query: { enabled: isStaff, queryKey: getListCustomRequestsQueryKey({ status: "pending" }) } },
+  );
+  const { data: pendingSheets } = useListPendingSheets({ query: { enabled: isStaff, queryKey: getListPendingSheetsQueryKey() } });
+  const staffPending = (pendingReqs?.length ?? 0) + (pendingSheets?.length ?? 0);
 
   const NavItem = ({ href, icon: Icon, label, disabled, badge }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number }) => {
     const isActive = location === href || location.startsWith(href + '/');
@@ -59,7 +69,7 @@ function SidebarContent() {
         <span className="font-display tracking-widest uppercase">{label}</span>
         {badge ? (
           <span
-            className="ml-auto min-w-5 h-5 px-1.5 flex items-center justify-center bg-nc-yellow text-background font-mono text-xs font-bold"
+            className="ml-auto min-w-5 h-5 px-1.5 flex items-center justify-center bg-nc-yellow text-background font-mono text-xs font-bold shadow-[0_0_8px_rgba(255,255,0,0.6)] animate-pulse"
             data-testid={`badge-nav-${label.toLowerCase().replace(/\s+/g, '-')}`}
           >
             {badge}
@@ -133,7 +143,7 @@ function SidebarContent() {
             but only fixers / cs-approvers / admins have anything to do here,
             so the nav link is staff-gated. */}
         {user && (user.isFixer || user.isCsApprover || user.isAdmin) && (
-          <NavItem href="/requests" icon={FileText} label="Pending Requests" />
+          <NavItem href="/requests" icon={FileText} label="Pending Requests" badge={staffPending} />
         )}
         {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" />}
       </div>

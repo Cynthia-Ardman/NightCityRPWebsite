@@ -20,10 +20,12 @@ function typeBadge(offer: SaleOffer) {
   const cls =
     t === "install" ? "bg-nc-magenta text-background"
     : t === "remove" ? "bg-destructive text-destructive-foreground"
+    : t === "stock_add" ? "bg-nc-yellow text-background"
     : "bg-nc-cyan text-background";
+  const label = t === "stock_add" ? "STOCK ADD" : t.toUpperCase();
   return (
     <Badge className={`rounded-none font-mono ${cls}`}>
-      {t.toUpperCase()}
+      {label}
       {offer.cwp != null ? ` · ${offer.cwp} CWP` : ""}
     </Badge>
   );
@@ -133,6 +135,11 @@ export default function MyOffers() {
                     </div>
                     {o.memo && (
                       <div className="font-mono text-xs italic text-muted-foreground mt-1">"{o.memo}"</div>
+                    )}
+                    {o.offerType === "stock_add" && (
+                      <div className="font-mono text-[11px] text-nc-yellow mt-1">
+                        Adds to your venue's stock · charged to the venue account
+                      </div>
                     )}
                   </div>
                   <div className="text-right shrink-0">

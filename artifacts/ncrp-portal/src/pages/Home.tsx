@@ -1,4 +1,4 @@
-import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useGetUpcomingBills, useListMyMissions, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
@@ -134,6 +134,8 @@ function Dashboard() {
               )}
             </CardContent>
           </Card>
+
+          <MyVenuesSection />
         </div>
 
         <div className="lg:col-span-2 space-y-6 lg:order-2">
@@ -144,6 +146,54 @@ function Dashboard() {
           <SystemLogsCard />
         </div>
       </div>
+    </div>
+  );
+}
+
+// "My stores" rail on the dashboard: the venues the signed-in user owns
+// (storefronts + ripperdoc clinics), each linking into its management page.
+// Hidden entirely when the user owns none so non-merchants don't see an
+// empty card.
+function MyVenuesSection() {
+  const { data: stores } = useListMyStores();
+  const { data: clinics } = useListMyRipperdocs();
+  const storeList = stores ?? [];
+  const clinicList = clinics ?? [];
+  if (storeList.length === 0 && clinicList.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-display font-bold text-foreground" data-testid="text-my-stores-title">MY_STORES</h2>
+      </div>
+      <Card className="rounded-none border-border bg-card/50">
+        <CardContent className="p-0">
+          <div className="divide-y divide-border/50">
+            {storeList.map((s) => (
+              <Link key={`store-${s.id}`} href={`/stores/${s.id}`}>
+                <div className="p-3 flex items-center gap-3 hover:bg-nc-cyan/5 cursor-pointer group" data-testid={`row-dashboard-store-${s.id}`}>
+                  <Store className="w-4 h-4 text-nc-cyan shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-display text-sm truncate group-hover:text-nc-cyan transition-colors">{s.name}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">Storefront</div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+            {clinicList.map((c) => (
+              <Link key={`clinic-${c.id}`} href={`/clinics/${c.id}`}>
+                <div className="p-3 flex items-center gap-3 hover:bg-nc-magenta/5 cursor-pointer group" data-testid={`row-dashboard-clinic-${c.id}`}>
+                  <Syringe className="w-4 h-4 text-nc-magenta shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-display text-sm truncate group-hover:text-nc-magenta transition-colors">{c.name}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">Ripperdoc Clinic</div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

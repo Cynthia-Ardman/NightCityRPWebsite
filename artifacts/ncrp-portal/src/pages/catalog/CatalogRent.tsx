@@ -2,14 +2,18 @@ import { useMemo, useState } from "react";
 import {
   useListRentListings,
   useListMyCharacters,
-  useCreateHousingRequest,
+  useLeaseHousing,
+  useVacateHousing,
+  useSubmitCustomRequest,
   useListMyHousingRequests,
   useListLifestyleTiers,
   useUpdateRentListing,
   getListRentListingsQueryKey,
+  getListMyCustomRequestsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,7 +25,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Home, ImageIcon } from "lucide-react";
+import { X, Home, ImageIcon, Briefcase, UserMinus } from "lucide-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
 import SingleImageField from "@/components/catalog/SingleImageField";
@@ -38,7 +42,11 @@ type Listing = {
   monthlyRent: number;
   description?: string | null;
   imageUrl?: string | null;
+  kind?: "residential" | "business" | null;
   occupied?: boolean;
+  occupantCharacterId?: number;
+  occupantCharacterName?: string;
+  housingId?: number;
 };
 
 const FILTER_COLUMNS: Array<{ key: keyof Listing; label: string }> = [
@@ -50,10 +58,23 @@ export default function CatalogRent() {
   const { data, isLoading } = useListRentListings();
   const { data: me } = useAuthMe();
   const isStaff = !!(me?.isAdmin || me?.isFixer);
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [leaseTarget, setLeaseTarget] = useState<{ id: number; name: string; monthlyRent: number } | null>(null);
+  const [leaseTarget, setLeaseTarget] = useState<Listing | null>(null);
   const [imageTarget, setImageTarget] = useState<Listing | null>(null);
+
+  // Staff-only: remove the current occupant from a listing (ends their lease).
+  const vacate = useVacateHousing({
+    mutation: {
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: getListRentListingsQueryKey() });
+        toast({ title: "Occupant removed" });
+      },
+      onError: () => toast({ title: "Could not remove occupant", variant: "destructive" }),
+    },
+  });
 
   const listings = (data ?? []) as Listing[];
 
@@ -159,7 +180,14 @@ export default function CatalogRent() {
                       </div>
                     )}
                   </td>
-                  <td className="p-3 font-bold">{r.name}</td>
+                  <td className="p-3 font-bold">
+                    {r.name}
+                    {r.kind === "business" && (
+                      <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 border border-nc-yellow/60 text-nc-yellow text-[9px] font-display tracking-widest align-middle">
+                        <Briefcase className="w-2.5 h-2.5" /> BUSINESS
+                      </span>
+                    )}
+                  </td>
                   <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
                   <td className="p-3 uppercase">{r.tier ?? "—"}</td>
                   <td className="p-3 text-muted-foreground max-w-md truncate" title={r.description ?? ""}>{r.description ?? "—"}</td>
@@ -179,21 +207,56 @@ export default function CatalogRent() {
                         </Button>
                       )}
                       {r.occupied ? (
-                        <span
-                          className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest"
-                          data-testid={`badge-occupied-${r.id}`}
-                        >
-                          OCCUPIED
-                        </span>
+                        <div className="flex items-center justify-end gap-2">
+                          {isStaff && r.occupantCharacterName ? (
+                            <span
+                              className="font-mono text-xs text-nc-magenta"
+                              data-testid={`text-occupant-${r.id}`}
+                            >
+                              {r.occupantCharacterName}
+                            </span>
+                          ) : null}
+                          <span
+                            className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest"
+                            data-testid={`badge-occupied-${r.id}`}
+                          >
+                            OCCUPIED
+                          </span>
+                          {isStaff && r.housingId ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={vacate.isPending}
+                              className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display text-xs"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `Remove ${r.occupantCharacterName ?? "the occupant"} from ${r.name}? This ends their lease.`,
+                                  )
+                                ) {
+                                  vacate.mutate({ id: r.housingId! });
+                                }
+                              }}
+                              data-testid={`button-remove-occupant-${r.id}`}
+                            >
+                              <UserMinus className="w-3 h-3 mr-1" /> REMOVE
+                            </Button>
+                          ) : null}
+                        </div>
                       ) : (
                         <Button
                           type="button"
                           size="sm"
                           className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
-                          onClick={() => setLeaseTarget({ id: r.id, name: r.name, monthlyRent: r.monthlyRent })}
+                          onClick={() => setLeaseTarget(r)}
                           data-testid={`button-lease-${r.id}`}
                         >
-                          <Home className="w-3 h-3 mr-1" /> LEASE
+                          {r.kind === "business" ? (
+                            <><Briefcase className="w-3 h-3 mr-1" /> APPLY</>
+                          ) : (
+                            <><Home className="w-3 h-3 mr-1" /> LEASE</>
+                          )}
                         </Button>
                       )}
                     </div>
@@ -207,13 +270,19 @@ export default function CatalogRent() {
       )}
       <MyHousingRequests />
       <LifestyleComparison />
-      {leaseTarget && (
+      {leaseTarget && leaseTarget.kind === "business" ? (
+        <BusinessLeaseDialog
+          listing={leaseTarget}
+          onClose={() => setLeaseTarget(null)}
+          onDone={() => setLeaseTarget(null)}
+        />
+      ) : leaseTarget ? (
         <LeaseDialog
           listing={leaseTarget}
           onClose={() => setLeaseTarget(null)}
           onDone={() => setLeaseTarget(null)}
         />
-      )}
+      ) : null}
       <RentImageDialog
         listing={imageTarget}
         open={!!imageTarget}
@@ -376,37 +445,41 @@ function LifestyleComparison() {
   );
 }
 
+// Residential listings lease DIRECTLY — no staff approval. The housing row is
+// created immediately and the monthly rent cron handles billing from there.
 function LeaseDialog({
   listing,
   onClose,
   onDone,
 }: {
-  listing: { id: number; name: string; monthlyRent: number };
+  listing: Listing;
   onClose: () => void;
   onDone: () => void;
 }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: chars } = useListMyCharacters();
   const eligible = (chars ?? []).filter((c) => !c.archived);
   const [characterId, setCharacterId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
-  const request = useCreateHousingRequest({
+  const lease = useLeaseHousing({
     mutation: {
       onSuccess: () => {
-        qc.invalidateQueries({ queryKey: ["/housing/requests/mine"] });
+        void qc.invalidateQueries({ queryKey: getListRentListingsQueryKey() });
+        toast({ title: "Lease signed", description: `${listing.name} is now yours.` });
         onDone();
       },
     },
   });
   const errMsg =
-    (request.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (request.error ? "Request failed" : null);
+    (lease.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (lease.error ? "Lease failed" : null);
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-lease">
       <Card className="rounded-none border-nc-cyan bg-card w-full max-w-lg">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="font-display tracking-widest text-nc-cyan">
-            REQUEST LEASE: {listing.name}
+            LEASE: {listing.name}
           </CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-lease">
             <X className="w-4 h-4" />
@@ -418,11 +491,11 @@ function LeaseDialog({
             onSubmit={(e) => {
               e.preventDefault();
               if (!characterId) return;
-              request.mutate({ data: { catalogRentId: listing.id, characterId, notes: notes || undefined } });
+              lease.mutate({ data: { catalogRentId: listing.id, characterId, notes: notes || undefined } });
             }}
           >
             <p className="text-muted-foreground">
-              Submits a rental request to staff. Once approved, rent <span className="text-nc-yellow">€${listing.monthlyRent.toLocaleString()}/mo</span> auto-debits on the 1st of each month.
+              Signs the lease immediately. Rent <span className="text-nc-yellow">€${listing.monthlyRent.toLocaleString()}/mo</span> auto-debits on the 1st of each month.
             </p>
             <div>
               <Label className="text-xs">CHARACTER</Label>
@@ -454,7 +527,7 @@ function LeaseDialog({
               <Input
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Context for staff (move-in date, business purpose, etc.)"
+                placeholder="Move-in notes (optional)"
                 className="rounded-none font-mono"
                 data-testid="input-request-notes"
               />
@@ -464,11 +537,139 @@ function LeaseDialog({
             )}
             <Button
               type="submit"
-              disabled={request.isPending || !characterId}
+              disabled={lease.isPending || !characterId}
               className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
               data-testid="button-confirm-lease"
             >
-              {request.isPending ? "SUBMITTING..." : "SUBMIT REQUEST"}
+              {lease.isPending ? "SIGNING..." : "SIGN LEASE"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Business spaces are NOT self-serve: applying opens a form that becomes a
+// fixer/admin-reviewed custom request (type "property"). Staff approve it and
+// set the lease up from the request review screen.
+function BusinessLeaseDialog({
+  listing,
+  onClose,
+  onDone,
+}: {
+  listing: Listing;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: chars } = useListMyCharacters();
+  const eligible = (chars ?? []).filter((c) => !c.archived);
+  const [characterId, setCharacterId] = useState<number | null>(null);
+  const [businessName, setBusinessName] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const submit = useSubmitCustomRequest({
+    mutation: {
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey({ type: "property" }) });
+        toast({ title: "Application submitted", description: "Staff will review your business space request." });
+        onDone();
+      },
+    },
+  });
+  const errMsg =
+    (submit.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (submit.error ? "Submission failed" : null);
+  const canSubmit = !!characterId && !!businessName.trim() && !!purpose.trim() && !submit.isPending;
+  return (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-business-lease">
+      <Card className="rounded-none border-nc-yellow bg-card w-full max-w-lg">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest text-nc-yellow">
+            BUSINESS APPLICATION: {listing.name}
+          </CardTitle>
+          <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-business-lease">
+            <X className="w-4 h-4" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4 font-mono text-sm"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!characterId) return;
+              submit.mutate({
+                data: {
+                  type: "property",
+                  characterId,
+                  title: `${businessName.trim()} @ ${listing.name}`,
+                  description:
+                    `Business space: ${listing.name} (€$${listing.monthlyRent.toLocaleString()}/mo)\n` +
+                    `Business name: ${businessName.trim()}\n` +
+                    `Purpose: ${purpose.trim()}`,
+                },
+              });
+            }}
+          >
+            <p className="text-muted-foreground">
+              Business spaces require staff review. Submit your plans below — a fixer sets up the lease on approval.
+            </p>
+            <div>
+              <Label className="text-xs">CHARACTER</Label>
+              {eligible.length === 0 ? (
+                <div className="text-muted-foreground text-xs mt-1">No eligible characters.</div>
+              ) : (
+                <div className="space-y-1 mt-1 max-h-48 overflow-y-auto">
+                  {eligible.map((c) => (
+                    <label
+                      key={c.id}
+                      className={`flex items-center gap-2 p-2 border cursor-pointer ${characterId === c.id ? "border-nc-yellow bg-nc-yellow/10" : "border-border/40"}`}
+                      data-testid={`option-business-char-${c.id}`}
+                    >
+                      <input
+                        type="radio"
+                        name="bizChar"
+                        checked={characterId === c.id}
+                        onChange={() => setCharacterId(c.id)}
+                      />
+                      <span>{c.name}</span>
+                      {c.archetype ? <span className="text-xs text-muted-foreground">— {c.archetype}</span> : null}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs">BUSINESS NAME</Label>
+              <Input
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="e.g. Afterlife Annex"
+                className="rounded-none font-mono"
+                data-testid="input-business-name"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">PURPOSE</Label>
+              <Textarea
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+                placeholder="What the business is and how you'll use the space."
+                className="rounded-none font-mono min-h-[90px]"
+                data-testid="input-business-purpose"
+              />
+            </div>
+            {errMsg && (
+              <div className="text-destructive text-xs" data-testid="text-business-lease-error">{errMsg}</div>
+            )}
+            <Button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display"
+              data-testid="button-confirm-business-lease"
+            >
+              {submit.isPending ? "SUBMITTING..." : "SUBMIT APPLICATION"}
             </Button>
           </form>
         </CardContent>

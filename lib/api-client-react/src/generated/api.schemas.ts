@@ -1054,6 +1054,7 @@ export const SaleOfferOfferType = {
   install: 'install',
   remove: 'remove',
   give: 'give',
+  stock_add: 'stock_add',
 } as const;
 
 export type SaleOfferStatus = typeof SaleOfferStatus[keyof typeof SaleOfferStatus];
@@ -1142,6 +1143,32 @@ export interface StockInput {
   /** @minimum 0 */
   quantity: number;
   notes?: string;
+}
+
+/**
+ * Admin proposal to add a cyberware piece to a venue's stock, billed to the venue on owner approval.
+ */
+export interface StockOfferInput {
+  /** @minLength 1 */
+  itemName: string;
+  /**
+     * Per-unit price billed to the venue account.
+     * @minimum 0
+     */
+  unitPrice: number;
+  /**
+     * Defaults to 1.
+     * @minimum 1
+     */
+  quantity?: number;
+  /**
+     * Per-unit cyberware points.
+     * @minimum 0
+     * @nullable
+     */
+  cwp?: number | null;
+  /** @nullable */
+  memo?: string | null;
 }
 
 export interface StoreSaleInput {
@@ -1459,6 +1486,17 @@ export interface CatalogCyberware {
   wholesalePrice?: number | null;
 }
 
+/**
+ * residential (player self-lease) or business (request-only). Defaults to residential.
+ */
+export type CatalogRentKind = typeof CatalogRentKind[keyof typeof CatalogRentKind];
+
+
+export const CatalogRentKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
 export interface CatalogRent {
   id: number;
   name: string;
@@ -1471,8 +1509,16 @@ export interface CatalogRent {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** residential (player self-lease) or business (request-only). Defaults to residential. */
+  kind?: CatalogRentKind;
   /** True when an active lease already references this listing. */
   occupied: boolean;
+  /** Staff-only — the character currently occupying this listing. */
+  occupantCharacterId?: number;
+  /** Staff-only — name of the occupying character. */
+  occupantCharacterName?: string;
+  /** Staff-only — the housing (lease) row id, used to remove the occupant. */
+  housingId?: number;
 }
 
 /**

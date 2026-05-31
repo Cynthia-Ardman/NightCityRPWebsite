@@ -8,6 +8,10 @@ function isAdmin(user: { roles: string[] }) {
   return hasRole(user.roles, "ADMIN");
 }
 
+function isFixerOrAdmin(user: { roles: string[] }) {
+  return hasRole(user.roles, "ADMIN") || hasRole(user.roles, "FIXER");
+}
+
 const router: IRouter = Router();
 
 type LeaseRow = {
@@ -113,14 +117,12 @@ router.get("/characters/:id/housing", requireAuth, async (req, res): Promise<voi
 });
 
 router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
-  // Admin-only direct lease creation. Players must use the request workflow
-  // (POST /housing/requests). This endpoint exists for admin overrides only.
-  if (!isAdmin(req.user!)) {
-    res.status(403).json({ error: "Admin only. Players must submit a housing request." });
-    return;
-  }
-  const { catalogRentId, characterId, notes, kind } = req.body ?? {};
-  const leaseKind = kind === "business" ? "business" : "residential";
+  // Direct lease creation. Admins/fixers can lease any listing for any
+  // character. Players may self-lease RESIDENTIAL listings for their own
+  // approved character; business spaces still require a reviewed request
+  // (POST /requests, type "property").
+  const staff = isFixerOrAdmin(req.user!);
+  const { catalogRentId, characterId, notes } = req.body ?? {};
   const lid = parseInt(String(catalogRentId), 10);
   const cid = parseInt(String(characterId), 10);
   if (!lid || !cid) {
@@ -141,29 +143,57 @@ router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Listing not found" });
     return;
   }
-  // Single-unit listings: reject if any active lease already references it.
-  const [existingLease] = await db
-    .select({ id: housing.id })
-    .from(housing)
-    .where(eq(housing.listingId, lid))
-    .limit(1);
-  if (existingLease) {
+  // The lease kind is derived from the listing itself — staff cannot override
+  // it via the request body, so housing stays consistent with the catalog.
+  const leaseKind = listing.kind === "business" ? "business" : "residential";
+  if (!staff) {
+    if (c.ownerId !== req.user!.id) {
+      res.status(403).json({ error: "You can only lease for your own character." });
+      return;
+    }
+    if (!c.approved) {
+      res.status(400).json({ error: "Character must be approved before leasing." });
+      return;
+    }
+    if (leaseKind !== "residential") {
+      res.status(400).json({ error: "Business spaces require a request — use the lease form." });
+      return;
+    }
+  }
+  const address = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
+  // Single-unit occupancy. Lock the listing row FOR UPDATE first so concurrent
+  // lease attempts serialize: the occupancy re-check and insert happen while we
+  // hold the lock, so two callers can't both pass the check and double-lease.
+  let inserted: typeof housing.$inferSelect | undefined;
+  let occupied = false;
+  await db.transaction(async (tx) => {
+    await tx.select({ id: catalogRent.id }).from(catalogRent).where(eq(catalogRent.id, lid)).for("update");
+    const [existingLease] = await tx
+      .select({ id: housing.id })
+      .from(housing)
+      .where(eq(housing.listingId, lid))
+      .limit(1);
+    if (existingLease) {
+      occupied = true;
+      return;
+    }
+    [inserted] = await tx
+      .insert(housing)
+      .values({
+        characterId: cid,
+        listingId: lid,
+        address,
+        monthlyRent: listing.monthlyRent,
+        paidThrough: endOfCurrentMonth(),
+        notes: notes ?? null,
+        kind: leaseKind,
+      })
+      .returning();
+  });
+  if (occupied || !inserted) {
     res.status(409).json({ error: "Listing is already occupied by another lease" });
     return;
   }
-  const address = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
-  const [inserted] = await db
-    .insert(housing)
-    .values({
-      characterId: cid,
-      listingId: lid,
-      address,
-      monthlyRent: listing.monthlyRent,
-      paidThrough: endOfCurrentMonth(),
-      notes: notes ?? null,
-      kind: leaseKind,
-    })
-    .returning();
   await db.insert(activityEvents).values({
     kind: "transfer",
     actorId: req.user!.id,
@@ -233,7 +263,7 @@ router.delete("/housing/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  if (row.ownerId !== req.user!.id && !isAdmin(req.user!)) {
+  if (row.ownerId !== req.user!.id && !isFixerOrAdmin(req.user!)) {
     res.status(404).json({ error: "Not found" });
     return;
   }

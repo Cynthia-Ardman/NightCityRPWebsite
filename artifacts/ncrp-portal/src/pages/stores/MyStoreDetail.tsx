@@ -107,16 +107,13 @@ export default function MyStoreDetail() {
           </div>
         </CardContent>
       </Card>
-      {!!me && (me.isAdmin || me.isFixer) && (
-        <StaffVenuePanel kind="store" venueId={storeId} onChanged={invalidate} />
-      )}
 
       <VenueWalletPanel
         balance={store.balance ?? 0}
         transactions={txns ?? []}
         busy={deposit.isPending || withdraw.isPending}
-        onDeposit={(amount) => deposit.mutate({ id: storeId, data: { amount } })}
-        onWithdraw={(amount) => withdraw.mutate({ id: storeId, data: { amount } })}
+        onDeposit={(amount) => deposit.mutateAsync({ id: storeId, data: { amount } })}
+        onWithdraw={(amount) => withdraw.mutateAsync({ id: storeId, data: { amount } })}
         accent="cyan"
         testIdPrefix="store"
       />
@@ -259,6 +256,9 @@ export default function MyStoreDetail() {
       </Card>
       <WholesalerOrdersPanel kind="store" venueId={storeId} />
       <VenueOffersPanel offers={offers ?? []} />
+      {!!me && (me.isAdmin || me.isFixer) && (
+        <StaffVenuePanel kind="store" venueId={storeId} onChanged={invalidate} />
+      )}
       {sellTarget && (
         <SellStockDialog
           kind="store"

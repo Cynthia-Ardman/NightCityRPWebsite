@@ -428,6 +428,9 @@ export const catalogRent = pgTable("catalog_rent", {
   description: text("description"),
   // Single optional listing image, stored as a /api/storage/objects/<id> path.
   imageUrl: text("image_url"),
+  // "residential" (default) or "business". Residential listings can be leased
+  // directly by players; business spaces require a fixer/admin-reviewed request.
+  kind: text("kind").notNull().default("residential"),
 });
 
 // Global, reusable catalog of character tag options. Staff "create" a tag
