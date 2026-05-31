@@ -74,6 +74,11 @@ function tierLabel(tier?: string | null): string | null {
   return tier.replace(/^(business|housing)\s+/i, "").trim() || tier;
 }
 
+// Stable grouping key for a housing building (name + district, case-insensitive).
+function buildingKey(building: string, district?: string | null): string {
+  return `${building.toLowerCase()}|||${(district ?? "").toLowerCase()}`;
+}
+
 export default function CatalogRent() {
   const { data, isLoading } = useListRentListings();
   const { data: me } = useAuthMe();
@@ -143,21 +148,37 @@ export default function CatalogRent() {
     [filtered],
   );
 
+  // Every housing unit id per building, computed from the FULL (unfiltered)
+  // list. A building image is shared across its units, so uploading/removing
+  // must fan out to all of them — even ones hidden by the current search/filter.
+  const allUnitIdsByBuilding = useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const r of listings) {
+      if (isBusinessListing(r)) continue;
+      const { building } = splitName(r.name);
+      const key = buildingKey(building, r.district);
+      const arr = map.get(key);
+      if (arr) arr.push(r.id);
+      else map.set(key, [r.id]);
+    }
+    return map;
+  }, [listings]);
+
   // Housing grouped by building (+ district, so identically-named buildings in
   // different districts stay separate). The building image is the first unit
   // that has one.
   const housingGroups = useMemo(() => {
     const map = new Map<
       string,
-      { building: string; district: string | null; image: string | null; rows: Listing[] }
+      { key: string; building: string; district: string | null; image: string | null; rows: Listing[] }
     >();
     for (const r of filtered) {
       if (isBusinessListing(r)) continue;
       const { building } = splitName(r.name);
-      const key = `${building.toLowerCase()}|||${(r.district ?? "").toLowerCase()}`;
+      const key = buildingKey(building, r.district);
       let g = map.get(key);
       if (!g) {
-        g = { building, district: r.district ?? null, image: null, rows: [] };
+        g = { key, building, district: r.district ?? null, image: null, rows: [] };
         map.set(key, g);
       }
       if (!g.image && r.imageUrl) g.image = r.imageUrl;
@@ -358,7 +379,7 @@ export default function CatalogRent() {
             ) : (
               <div className="space-y-4">
                 {housingGroups.map((g) => {
-                  const ids = g.rows.map((r) => r.id);
+                  const ids = allUnitIdsByBuilding.get(g.key) ?? g.rows.map((r) => r.id);
                   return (
                     <Card
                       key={`${g.building}-${g.district ?? ""}`}
