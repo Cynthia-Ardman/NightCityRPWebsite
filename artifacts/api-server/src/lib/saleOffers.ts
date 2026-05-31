@@ -28,10 +28,11 @@ import { logger } from "./logger";
 //   2. One DB tx: flip pending->approved (guarded), guarded stock decrement,
 //      credit the venue account, insert buyer inventory, write the venue ledger.
 //      A stock-guard miss rolls the tx back and refunds the buyer.
-//   3. Commission (employee seller, pct>0): credit the employee wallet
-//      (idempotent), then settle the venue side once (commissionSettledAt guard).
-//      A commission failure leaves the funds in the venue account (nothing
-//      vanishes) and is retry-safe.
+//   3. Commission (employee seller, pct>0): reserve the venue side once
+//      (commissionSettledAt guard + venue debit), then credit the employee
+//      (idempotent). A credit failure HOLDS the reservation — money is conserved
+//      (venue debited, employee unpaid) and a later approve deterministically
+//      retries the credit (see settleCommission / recoverApprovedOffer).
 // Deny/expiry are pure status flips — no money or stock moves.
 // ---------------------------------------------------------------------------
 
@@ -188,6 +189,16 @@ export async function createOffer(opts: {
     actorAvatarUrl: actor.avatarUrl,
     message: `${venue.name} offered ${item.name} x${qty} to ${buyer.name} for €$${totalPrice}`,
   });
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_create",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `Offered ${item.name} x${qty} to ${buyer.name} for €$${totalPrice}`,
+    afterJson: { totalPrice, quantity: qty, commissionPct: seller.commissionPct, buyerCharacterId: buyer.id } as never,
+  });
   await notifyBuyerOfOffer(offer, venue.name);
 
   return { status: 201, body: offer };
@@ -213,6 +224,15 @@ export async function denyOffer(offerId: number, actor: Actor): Promise<OfferRes
     const [fresh] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));
     return { status: 409, body: { error: `Offer already ${fresh?.status ?? "resolved"}` } };
   }
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_deny",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offerId),
+    message: `Denied offer: ${offer.itemName} x${offer.quantity} for €$${offer.totalPrice}`,
+  });
   return { status: 200, body: denied };
 }
 
@@ -220,15 +240,32 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
   const [offer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));
   if (!offer) return { status: 404, body: { error: "Offer not found" } };
   if (!canDecide(offer, actor)) return { status: 403, body: { error: "Forbidden" } };
+  // Re-entry for an already-approved offer: the only thing that can remain
+  // unfinished is an unpaid commission, so retry that idempotent credit.
+  if (offer.status === "approved") {
+    return await recoverApprovedOffer(offer, actor);
+  }
   if (offer.status !== "pending") {
     return { status: 409, body: { error: `Offer already ${offer.status}` } };
   }
   // Lazy expiry: an expired offer is flipped to 'expired' and never applied.
   if (offer.expiresAt && offer.expiresAt.getTime() < Date.now()) {
-    await db
+    const [expired] = await db
       .update(saleOffers)
       .set({ status: "expired", decidedAt: new Date() })
-      .where(and(eq(saleOffers.id, offerId), eq(saleOffers.status, "pending")));
+      .where(and(eq(saleOffers.id, offerId), eq(saleOffers.status, "pending")))
+      .returning();
+    if (expired) {
+      await db.insert(auditLog).values({
+        category: "shop",
+        action: "sale_offer_expire",
+        actorId: actor.id,
+        actorName: actor.username,
+        targetType: "sale_offer",
+        targetId: String(offerId),
+        message: `Offer expired: ${offer.itemName} x${offer.quantity} for €$${offer.totalPrice}`,
+      });
+    }
     return { status: 409, body: { error: "Offer has expired" } };
   }
 
@@ -411,71 +448,12 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
     return { status: 409, body: { error: `Offer was already ${fresh?.status ?? "resolved"}; buyer was refunded.` } };
   }
 
-  // 3) Commission to the selling employee (best-effort, retry-safe).
-  let commissionPaid = 0;
-  if (offer.sellerEmployeeId && offer.commissionPct > 0 && offer.sellerCharacterId) {
-    const commissionAmount = Math.floor((offer.totalPrice * offer.commissionPct) / 100);
-    if (commissionAmount > 0) {
-      const [sellerChar] = await db.select().from(characters).where(eq(characters.id, offer.sellerCharacterId));
-      const sellerUserId = sellerChar?.ownerId ?? null;
-      const [sellerUser] = sellerUserId ? await db.select().from(users).where(eq(users.id, sellerUserId)) : [undefined];
-      if (sellerUser) {
-        const credit = await applyWalletDelta({
-          userId: sellerUser.id,
-          discordId: sellerUser.discordId,
-          amount: commissionAmount,
-          source: "commission",
-          kind: "commission",
-          reason: `Commission (${offer.commissionPct}%): ${offer.itemName} @ ${venue.name}`,
-          characterId: offer.sellerCharacterId,
-          counterpartyName: venue.name,
-          relatedEntityType: "sale_offer",
-          relatedEntityId: offer.id,
-          storeId: kind === "store" ? venueId : null,
-          ripperdocId: kind === "ripperdoc" ? venueId : null,
-          idempotencyKey: `offer:${offer.id}:commission`,
-        });
-        if (credit.ok) {
-          // Settle the venue side exactly once (commissionSettledAt guard).
-          await db.transaction(async (tx) => {
-            const [settled] = await tx
-              .update(saleOffers)
-              .set({ commissionSettledAt: new Date(), commissionAmount })
-              .where(and(eq(saleOffers.id, offerId), sql`${saleOffers.commissionSettledAt} IS NULL`))
-              .returning();
-            if (!settled) return; // already settled by a concurrent retry
-            const [debited] = await tx
-              .update(venueTable)
-              .set({ balance: sql`${venueTable.balance} - ${commissionAmount}` })
-              .where(eq(venueTable.id, venueId))
-              .returning();
-            venueBalanceAfter = debited.balance;
-            await tx.insert(walletTransactions).values({
-              [venueColName(kind)]: venueId,
-              characterId: offer.sellerCharacterId,
-              counterpartyName: sellerChar?.name ?? "Employee",
-              amount: -commissionAmount,
-              kind: "commission",
-              source: "commission",
-              memo: `Commission ${offer.commissionPct}% to ${sellerChar?.name ?? "employee"}`,
-              relatedEntityType: "sale_offer",
-              relatedEntityId: offer.id,
-              previousBalance: debited.balance + commissionAmount,
-              newBalance: debited.balance,
-            } as never);
-          });
-          commissionPaid = commissionAmount;
-        } else {
-          // The sale is done; the venue keeps the funds (nothing vanishes). Loud
-          // audit so staff can re-run commission settlement.
-          logger.error(
-            { offerId: offer.id, venueId, commissionAmount, status: credit.status },
-            "OFFER_COMMISSION_FAILED: sale completed but employee commission not paid; venue retains funds, retry required",
-          );
-        }
-      }
-    }
-  }
+  // 3) Commission to the selling employee — idempotent and retry-safe. Reserves
+  // the venue side first (so money is never created), then credits the employee;
+  // a credit failure holds the reservation for a later approve to retry.
+  const settlement = await settleCommission(offer, { balance: venueBalanceAfter, name: venue.name }, kind, venueId);
+  const commissionPaid = settlement.commissionPaid;
+  venueBalanceAfter = settlement.venueBalanceAfter;
 
   // Inventory event + audit (best-effort, decision already committed).
   if (insertedItem) {
@@ -513,4 +491,148 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
 
   const [finalOffer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));
   return { status: 200, body: { offer: finalOffer, inventoryItem: insertedItem, commissionPaid, venueBalance: venueBalanceAfter } };
+}
+
+// Idempotent, retry-safe commission settlement for an approved offer.
+// Two durable phases:
+//   reserve — `commissionSettledAt` set + venue debited + venue ledger row,
+//             committed atomically and guarded so it happens at most once.
+//   pay     — a *synced* `offer:<id>:commission` wallet row credits the employee.
+// "Paid?" is derived from the synced ledger row (durable state), so a crash or
+// failure between reserve and pay is fully recoverable: re-running re-attempts
+// ONLY the idempotent credit (the reserve guard prevents a second venue debit).
+// On a credit failure the reservation is HELD — money is conserved in the venue
+// debit, the employee stays unpaid, and a later approve retries the credit.
+async function settleCommission(
+  offer: SaleOffer,
+  venue: { balance: number; name: string },
+  kind: OfferKind,
+  venueId: number,
+): Promise<{ commissionPaid: number; venueBalanceAfter: number }> {
+  let venueBalanceAfter = venue.balance;
+  if (!offer.sellerEmployeeId || offer.commissionPct <= 0 || !offer.sellerCharacterId) {
+    return { commissionPaid: 0, venueBalanceAfter };
+  }
+  const commissionAmount = Math.floor((offer.totalPrice * offer.commissionPct) / 100);
+  if (commissionAmount <= 0) return { commissionPaid: 0, venueBalanceAfter };
+
+  // Already paid? A synced ledger row for this key is the source of truth.
+  const [paid] = await db
+    .select({ id: walletTransactions.id })
+    .from(walletTransactions)
+    .where(
+      and(
+        eq(walletTransactions.idempotencyKey, `offer:${offer.id}:commission`),
+        eq(walletTransactions.syncStatus, "synced"),
+      ),
+    );
+  if (paid) return { commissionPaid: commissionAmount, venueBalanceAfter };
+
+  const [sellerChar] = await db.select().from(characters).where(eq(characters.id, offer.sellerCharacterId));
+  const sellerUserId = sellerChar?.ownerId ?? null;
+  const [sellerUser] = sellerUserId ? await db.select().from(users).where(eq(users.id, sellerUserId)) : [undefined];
+  if (!sellerUser) return { commissionPaid: 0, venueBalanceAfter };
+
+  const venueTable = venueTableFor(kind);
+  // Reserve once: settle-once guard + venue debit + ledger, all-or-nothing. If a
+  // prior run already reserved (recovery), the guard is a no-op and the venue is
+  // NOT debited again — the passed-in `venue.balance` already reflects that debit.
+  await db.transaction(async (tx) => {
+    const [settled] = await tx
+      .update(saleOffers)
+      .set({ commissionSettledAt: new Date(), commissionAmount })
+      .where(and(eq(saleOffers.id, offer.id), sql`${saleOffers.commissionSettledAt} IS NULL`))
+      .returning();
+    if (!settled) return;
+    const [debited] = await tx
+      .update(venueTable)
+      .set({ balance: sql`${venueTable.balance} - ${commissionAmount}` })
+      .where(eq(venueTable.id, venueId))
+      .returning();
+    venueBalanceAfter = debited.balance;
+    await tx.insert(walletTransactions).values({
+      [venueColName(kind)]: venueId,
+      characterId: offer.sellerCharacterId,
+      counterpartyName: sellerChar?.name ?? "Employee",
+      amount: -commissionAmount,
+      kind: "commission",
+      source: "commission",
+      memo: `Commission ${offer.commissionPct}% to ${sellerChar?.name ?? "employee"}`,
+      relatedEntityType: "sale_offer",
+      relatedEntityId: offer.id,
+      previousBalance: debited.balance + commissionAmount,
+      newBalance: debited.balance,
+    } as never);
+  });
+
+  // Credit the employee (idempotent; reuses a prior failed row on retry).
+  const credit = await applyWalletDelta({
+    userId: sellerUser.id,
+    discordId: sellerUser.discordId,
+    amount: commissionAmount,
+    source: "commission",
+    kind: "commission",
+    reason: `Commission (${offer.commissionPct}%): ${offer.itemName} @ ${venue.name}`,
+    characterId: offer.sellerCharacterId,
+    counterpartyName: venue.name,
+    relatedEntityType: "sale_offer",
+    relatedEntityId: offer.id,
+    storeId: kind === "store" ? venueId : null,
+    ripperdocId: kind === "ripperdoc" ? venueId : null,
+    idempotencyKey: `offer:${offer.id}:commission`,
+  });
+  if (credit.ok) return { commissionPaid: commissionAmount, venueBalanceAfter };
+
+  logger.error(
+    { offerId: offer.id, venueId, commissionAmount, status: credit.status },
+    "OFFER_COMMISSION_FAILED: employee credit failed; commission reserved (venue debited) but unpaid — re-approve to retry",
+  );
+  return { commissionPaid: 0, venueBalanceAfter };
+}
+
+// Re-entry point for an already-approved offer. The only thing that can remain
+// unfinished after approval is an unpaid commission (the employee credit failed
+// or the process crashed between reserve and credit). This deterministically
+// retries that idempotent credit; everything else about an approved offer is
+// immutable, so it reports "already approved".
+async function recoverApprovedOffer(offer: SaleOffer, actor: Actor): Promise<OfferResult> {
+  const alreadyApproved: OfferResult = { status: 409, body: { error: "Offer already approved" } };
+  if (!offer.sellerEmployeeId || offer.commissionPct <= 0 || !offer.sellerCharacterId) return alreadyApproved;
+
+  // Already paid? A synced ledger row means there is nothing to recover.
+  const [paid] = await db
+    .select({ id: walletTransactions.id })
+    .from(walletTransactions)
+    .where(
+      and(
+        eq(walletTransactions.idempotencyKey, `offer:${offer.id}:commission`),
+        eq(walletTransactions.syncStatus, "synced"),
+      ),
+    );
+  if (paid) return alreadyApproved;
+
+  // Money can only move in live mode.
+  if ((await getEconomyMode()) !== "enabled") return alreadyApproved;
+
+  const kind = offer.kind as OfferKind;
+  const venueId = (kind === "store" ? offer.storeId : offer.ripperdocId)!;
+  const [venue] = await db.select().from(venueTableFor(kind)).where(eq(venueTableFor(kind).id, venueId));
+  if (!venue) return { status: 404, body: { error: "Venue not found" } };
+
+  const { commissionPaid, venueBalanceAfter } = await settleCommission(offer, venue, kind, venueId);
+  if (commissionPaid <= 0) {
+    return { status: 502, body: { error: "Commission payment is still failing; please retry shortly." } };
+  }
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_commission_retry",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `Recovered unpaid commission: €$${commissionPaid} for ${offer.itemName} x${offer.quantity}`,
+    afterJson: { commissionPaid, venueBalanceAfter } as never,
+  });
+  const [fresh] = await db.select().from(saleOffers).where(eq(saleOffers.id, offer.id));
+  return { status: 200, body: { offer: fresh, recovered: true, commissionPaid, venueBalance: venueBalanceAfter } };
 }

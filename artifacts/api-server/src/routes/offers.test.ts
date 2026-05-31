@@ -207,6 +207,90 @@ describe("POST /offers/:id/approve", () => {
     expect(commissionLedger.filter((l) => l.amount === -50)).toHaveLength(1);
   });
 
+  it("holds the commission reservation when the employee credit fails (money conserved, no minting)", async () => {
+    await setEconomyMode("enabled");
+    // Buyer debit (1st external call) succeeds; commission credit (2nd) fails.
+    mockPatch.mockReset();
+    mockPatch.mockResolvedValueOnce({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    mockPatch.mockResolvedValue(null);
+    const { offer, buyerUser, store, clerkUser } = await seedStoreOffer({ price: 100, qty: 2, commissionPct: 25 });
+    await fund(buyerUser.id, 1000);
+
+    const res = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
+    // The sale completes; the commission is reserved but not yet paid out.
+    expect(res.status).toBe(200);
+    expect(res.body.commissionPaid).toBe(0);
+
+    // Venue is debited for the reserved commission (200 sale - 50 reserved = 150).
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(150);
+    // Reservation is HELD (not reversed) so a later approve can pay it.
+    const [offerRow] = await db.select().from(saleOffers).where(eq(saleOffers.id, offer.id));
+    expect(offerRow.status).toBe("approved");
+    expect(offerRow.commissionSettledAt).not.toBeNull();
+    expect(offerRow.commissionAmount).toBe(50);
+    // Employee was NOT paid (no money created from a failed credit).
+    const [cu] = await db.select().from(users).where(eq(users.id, clerkUser!.id));
+    expect(cu.walletBalance).toBe(0);
+    // Buyer was still charged for the purchase.
+    const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
+    expect(bu.walletBalance).toBe(800);
+  });
+
+  it("recovers an unpaid commission on a later approve, without re-debiting the venue (deterministic retry)", async () => {
+    await setEconomyMode("enabled");
+    // First approve: buyer debit succeeds, commission credit fails -> held.
+    mockPatch.mockReset();
+    mockPatch.mockResolvedValueOnce({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    mockPatch.mockResolvedValueOnce(null);
+    const { offer, buyerUser, store, clerkUser } = await seedStoreOffer({ price: 100, qty: 2, commissionPct: 25 });
+    await fund(buyerUser.id, 1000);
+
+    const first = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
+    expect(first.status).toBe(200);
+    expect(first.body.commissionPaid).toBe(0);
+    const [afterFail] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(afterFail.balance).toBe(150);
+
+    // Credit succeeds on retry: a re-approve recovers the held commission.
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const retry = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
+    expect(retry.status).toBe(200);
+    expect(retry.body.recovered).toBe(true);
+    expect(retry.body.commissionPaid).toBe(50);
+
+    // Venue is NOT debited a second time (reserve guard): stays at 150.
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(150);
+    // Employee is now paid exactly once.
+    const [cu] = await db.select().from(users).where(eq(users.id, clerkUser!.id));
+    expect(cu.walletBalance).toBe(50);
+    // Buyer is not re-charged on the recovery approve.
+    const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
+    expect(bu.walletBalance).toBe(800);
+  });
+
+  it("reports 'already approved' when re-approving a fully-paid offer (no double commission)", async () => {
+    await setEconomyMode("enabled");
+    mockPatch.mockReset();
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const { offer, buyerUser, store, clerkUser } = await seedStoreOffer({ price: 100, qty: 2, commissionPct: 25 });
+    await fund(buyerUser.id, 1000);
+
+    const first = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
+    expect(first.status).toBe(200);
+    expect(first.body.commissionPaid).toBe(50);
+
+    const second = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
+    expect(second.status).toBe(409);
+
+    // No second commission payout.
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(150);
+    const [cu] = await db.select().from(users).where(eq(users.id, clerkUser!.id));
+    expect(cu.walletBalance).toBe(50);
+  });
+
   it("is idempotent: a second approve does not double-apply", async () => {
     await setEconomyMode("enabled");
     mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
