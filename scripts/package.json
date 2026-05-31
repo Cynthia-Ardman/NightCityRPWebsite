@@ -10,6 +10,7 @@
     "sync-from-prod": "tsx ./src/sync-from-prod.ts",
     "import-character-sheets": "tsx ./src/import-character-sheets.ts",
     "import-rent-leases": "tsx ./src/import-rent-leases.ts",
+    "import-ripperdocs": "tsx ./src/import-ripperdocs.ts",
     "import-npcs-cyberware": "tsx ./src/import-npcs-cyberware.ts",
     "import-cyberware-inventory": "tsx ./src/import-cyberware-inventory.ts",
     "audit-cyberware-coverage": "tsx ./src/audit-cyberware-coverage.ts",
