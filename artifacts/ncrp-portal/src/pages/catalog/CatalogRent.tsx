@@ -484,7 +484,7 @@ function ListingImage({
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
-  const dim = size === "building" ? "w-28 h-28" : "w-24 h-24";
+  const dim = size === "building" ? "w-48 h-48" : "w-36 h-36";
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
