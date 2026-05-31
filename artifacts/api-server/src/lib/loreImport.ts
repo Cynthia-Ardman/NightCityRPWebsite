@@ -198,7 +198,7 @@ async function fetchGoogleDocText(docId: string): Promise<string | null> {
 
 // --- heuristics -------------------------------------------------------------
 
-function normalizeName(s: string): string {
+export function normalizeName(s: string): string {
   return s
     .toLowerCase()
     .replace(/^the\s+/, "")
@@ -296,9 +296,43 @@ async function resolveMentions(
   });
 }
 
+// A run of 2+ adjacent mentions separated only by whitespace / commas / "&" /
+// "/" / "and".
+const FIXER_RUN_RE = /<@!?\d+>(?:[\s,&/]*(?:and\s+)?<@!?\d+>)+/gi;
+
+// Resolve the responsible-fixer field, which is a LIST of people rather than
+// prose. A run of adjacent mentions ("<@a> <@b>") collapses to comma-separated
+// names ("Name A, Name B") so two Story Leads read as a proper list instead of
+// being smooshed together. Lone mentions resolve to a bare name; unresolvable
+// ids are left untouched.
+export async function resolveFixerMentions(
+  text: string,
+  cache: Map<string, string | null>,
+): Promise<string> {
+  if (!text || !text.includes("<@")) return text;
+  const ids = new Set<string>();
+  for (const m of text.matchAll(MENTION_RE)) ids.add(m[1]);
+  for (const id of ids) {
+    if (cache.has(id)) continue;
+    const u = await fetchDiscordUser(id);
+    cache.set(id, u ? u.globalName || u.username : null);
+  }
+  const resolveOne = (id: string): string => cache.get(id) ?? `<@${id}>`;
+  // Collapse adjacent-mention runs into comma-joined names first...
+  let out = text.replace(FIXER_RUN_RE, (run) =>
+    [...run.matchAll(MENTION_RE)].map((m) => resolveOne(m[1])).join(", "),
+  );
+  // ...then resolve any lone leftover mentions to a bare name.
+  out = out.replace(MENTION_RE, (full, id: string) => {
+    const name = cache.get(id);
+    return name ? name : full;
+  });
+  return out;
+}
+
 // Parse the Story Leads thread into name -> lead fixer mapping. Accepts lines
 // like "Arasaka — Medusa", "Arasaka: Medusa", "Arasaka - Medusa".
-async function fetchStoryLeads(): Promise<Map<string, string>> {
+export async function fetchStoryLeads(): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   try {
     const body = await fetchThreadBody(STORY_LEADS_THREAD_ID);
@@ -373,7 +407,7 @@ async function scanChannel(
         inferCategory(displayName, combinedBody, tagNames);
       const groupKey = normalizeName(displayName);
       const rawFixer = leads.get(groupKey) ?? leads.get(normalizeName(thread.name)) ?? null;
-      const fixer = rawFixer ? await resolveMentions(rawFixer, mentionCache, "") : null;
+      const fixer = rawFixer ? await resolveFixerMentions(rawFixer, mentionCache) : null;
 
       candidates.push({
         groupKey,

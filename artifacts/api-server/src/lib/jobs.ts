@@ -1,4 +1,4 @@
-import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig, shopOpens, inventoryItems } from "@workspace/db";
+import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
@@ -485,6 +485,84 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             .where(eq(housing.id, lease.id));
         }
         affected++;
+      }
+
+      // ----- 2b. Passive income for venue-only shop owners -------------------
+      // Store / ripperdoc owners don't necessarily hold a `business` housing
+      // lease, but they're still "shop owners" and the OPEN SHOP button is
+      // available to them. They have no rent base, so they earn the flat
+      // Tier-0 schedule (SHOP_T0_PAYOUTS) driven purely by how many days they
+      // pressed OPEN SHOP this period. Characters that DO hold a business
+      // lease are intentionally excluded here — they were already paid (often
+      // more) in the lease pass above, and the shared `alreadyBilled` /
+      // `shop_income` guard prevents any double credit.
+      const businessLeaseCharIds = new Set<number>();
+      for (const { lease, character: c } of rows) {
+        if (lease.kind === "business") businessLeaseCharIds.add(c.id);
+      }
+      const [storeOwners, clinicOwners] = await Promise.all([
+        db.select({ cid: stores.ownerCharacterId, name: stores.name }).from(stores).where(isNotNull(stores.ownerCharacterId)),
+        db.select({ cid: ripperdocs.ownerCharacterId, name: ripperdocs.name }).from(ripperdocs).where(isNotNull(ripperdocs.ownerCharacterId)),
+      ]);
+      const venueNameByChar = new Map<number, string>();
+      for (const v of [...storeOwners, ...clinicOwners]) {
+        if (v.cid == null) continue;
+        if (businessLeaseCharIds.has(v.cid)) continue;
+        if (!venueNameByChar.has(v.cid)) venueNameByChar.set(v.cid, v.name);
+      }
+      if (venueNameByChar.size > 0) {
+        const venueChars = await db
+          .select()
+          .from(characters)
+          .where(and(
+            inArray(characters.id, [...venueNameByChar.keys()]),
+            eq(characters.approved, true),
+            eq(characters.archived, false),
+          ));
+        for (const c of venueChars) {
+          if (!c.ownerId) continue;
+          if (billedThisRun(c.id, "shop_income")) continue;
+          const owner = await getOwner(c.ownerId);
+          if (!owner) continue;
+          const opensThisMonth = await db
+            .select({ n: sql<number>`count(*)` })
+            .from(shopOpens)
+            .where(and(eq(shopOpens.characterId, c.id), gte(shopOpens.openedAt, periodStart)));
+          const opens = Math.min(Number(opensThisMonth[0]?.n ?? 0), SHOP_OPENS_CAP);
+          if (opens <= 0) continue;
+          const income = SHOP_T0_PAYOUTS[opens];
+          if (income <= 0) continue;
+          const shopName = venueNameByChar.get(c.id) ?? `${c.name}'s shop`;
+          // Same crash-window reservation as the business pass: RESERVE the
+          // ledger row + period marker BEFORE the external UB credit so a
+          // rerun can't double-pay; roll back only on a clean UB failure.
+          const incomeMemo = `Shop income: ${shopName} (${opens} day${opens === 1 ? "" : "s"})`;
+          const [reservedIncome] = await db
+            .insert(walletTransactions)
+            .values({
+              characterId: c.id,
+              userId: c.ownerId,
+              amount: income,
+              kind: "shop_income",
+              memo: incomeMemo,
+            })
+            .returning({ id: walletTransactions.id });
+          markBilled(c.id, "shop_income");
+          const ubCredit = await patchBalance(owner.discordId, {
+            cash: income,
+            reason: incomeMemo,
+          });
+          if (ubCredit) {
+            affected++;
+          } else {
+            await db.delete(walletTransactions).where(eq(walletTransactions.id, reservedIncome.id));
+            unmarkBilled(c.id, "shop_income");
+            logger.warn(
+              { characterId: c.id, income },
+              "monthly_rent venue shop_income UB credit failed; rolled back ledger reservation",
+            );
+          }
+        }
       }
 
       // ----- 3. Lifestyle ----------------------------------------------------

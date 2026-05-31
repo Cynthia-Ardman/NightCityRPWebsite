@@ -80,13 +80,6 @@ function Dashboard() {
           : []),
       ]
     : [];
-  const statColClass =
-    statCards.length >= 3
-      ? "sm:grid-cols-3 sm:max-w-3xl"
-      : statCards.length === 2
-        ? "sm:grid-cols-2 sm:max-w-xl"
-        : "sm:grid-cols-1 sm:max-w-[240px]";
-
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -106,11 +99,13 @@ function Dashboard() {
 
       <PlayerLoaControl characters={characters ?? []} />
 
-      {statCards.length > 0 && (
-        <div className={`grid grid-cols-1 gap-4 ${statColClass}`}>
-          {statCards}
-        </div>
-      )}
+      {/* Top "actions" row: the Total Eddies stat sits beside the weekly
+          Attend claim so the dashboard's two most-used controls live together
+          and fill the space left by the removed stat cards. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {statCards}
+        <AttendCard />
+      </div>
 
       <NextMissionBanner />
 
@@ -168,7 +163,6 @@ function Dashboard() {
 
         <div className="lg:col-span-2 space-y-6 lg:order-2">
           <PendingMissionsCard />
-          <AttendCard />
           <ShopOpenCard characters={characters ?? []} />
           <UpcomingBillsCard />
           <SystemLogsCard />
@@ -718,11 +712,14 @@ interface ShopOpenInfo {
   opensThisMonth: number;
   opensCountedForIncome: number;
   businessLeases: Array<{ id: number; address: string; monthlyRent: number }>;
+  venues?: Array<{ kind: "store" | "ripperdoc"; id: number; name: string }>;
+  shopLabel?: string | null;
   history: Array<{ openedOn: string; openedAt: string }>;
 }
 
-// Hidden entirely when the character has no active business lease — there's
-// no useful UI for "you can't open a shop you don't own."
+// Hidden entirely when the character owns no shop (no business lease and no
+// storefront / clinic) — there's no useful UI for "you can't open a shop you
+// don't own."
 function ShopOpenSection({ characterId, name }: { characterId: number; name?: string }) {
   const qc = useQueryClient();
   const queryKey = ["character-shop", characterId] as const;
@@ -755,6 +752,9 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
   if (!data.canOpen) return null;
 
   const lease = data.businessLeases[0];
+  const shopDesc = lease
+    ? `${lease.address} · €$${lease.monthlyRent.toLocaleString()}/mo`
+    : (data.shopLabel ?? "Storefront / clinic");
   const capped = data.opensThisMonth > data.opensCountedForIncome;
   const disabled = data.openedToday || open.isPending;
 
@@ -766,7 +766,7 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
             {name ? `SHOP — ${name.toUpperCase()}` : "SHOP STATUS"}
           </div>
           <div className="text-xs text-muted-foreground mt-1">
-            {lease ? `${lease.address} · €$${lease.monthlyRent.toLocaleString()}/mo` : "Business lease"}
+            {shopDesc}
           </div>
         </div>
         <Button

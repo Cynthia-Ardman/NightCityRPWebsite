@@ -36,6 +36,7 @@
 - [Request review approve/reject race](request-review-race.md) — both approve AND reject of a reviewable row must lock (FOR UPDATE) + re-check pending status, or reject clobbers an applied approve.
 - [Batch grouping by timestamp](batch-grouping-timestamp.md) — per-row INSERTs get distinct createdAt/now(); group a logical batch on a single JS timestamp written to every row, never the column default.
 - [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.
+- [Open-shop venue income](shop-open-venue-income.md) — shop owners need no lease (lease OR venue gates the button); 2b job pays venue-only owners flat Tier-0, MUST exclude lease holders to avoid double-pay.
 - [Pending-row dedup](pending-row-dedup.md) — "at most one pending row per key" needs a PARTIAL unique index (WHERE status='pending') + onConflictDoNothing, not an in-memory seen-set (TOCTOU race).
 - [Housing occupancy linkage](housing-occupancy-linkage.md) — catalog marks OCCUPIED via housing.listing_id; legacy leases store name in housing.address with NULL listing_id; backfill by name match.
 - [Rent importer stale listings](rent-importer-stale-listings.md) — import-rent-leases reconciles leases but never deletes catalog_rent rows; naming changes leave orphan listings; prune by count diff.

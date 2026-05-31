@@ -14,6 +14,8 @@ import {
   lifestyleTiers,
   housing,
   shopOpens,
+  stores,
+  ripperdocs,
   type Character,
 } from "@workspace/db";
 import { gte } from "drizzle-orm";
@@ -971,6 +973,17 @@ router.get("/characters/:id/shop", requireAuth, async (req, res): Promise<void> 
     .select()
     .from(housing)
     .where(and(eq(housing.characterId, id), eq(housing.kind, "business")));
+  // A character is a "shop owner" if it holds a business lease OR owns a
+  // storefront / ripperdoc clinic. Venue owners have no rent base, so they
+  // earn the flat Tier-0 schedule on the monthly run (see lib/jobs.ts).
+  const [ownedStores, ownedClinics] = await Promise.all([
+    db.select({ id: stores.id, name: stores.name }).from(stores).where(eq(stores.ownerCharacterId, id)),
+    db.select({ id: ripperdocs.id, name: ripperdocs.name }).from(ripperdocs).where(eq(ripperdocs.ownerCharacterId, id)),
+  ]);
+  const venues = [
+    ...ownedStores.map((s) => ({ kind: "store" as const, id: s.id, name: s.name })),
+    ...ownedClinics.map((r) => ({ kind: "ripperdoc" as const, id: r.id, name: r.name })),
+  ];
   // Start of current UTC month.
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -983,6 +996,9 @@ router.get("/characters/:id/shop", requireAuth, async (req, res): Promise<void> 
     .toISOString()
     .slice(0, 10);
   const openedToday = opens.some((o) => o.openedOn === today);
+  // Label the shop: lease address for lease-holders (with rent), else the
+  // venue name for storefront / clinic owners.
+  const shopLabel = leases[0]?.address ?? venues[0]?.name ?? null;
   res.json({
     characterId: id,
     businessLeases: leases.map((l) => ({
@@ -991,7 +1007,9 @@ router.get("/characters/:id/shop", requireAuth, async (req, res): Promise<void> 
       address: l.address,
       monthlyRent: l.monthlyRent,
     })),
-    canOpen: leases.length > 0,
+    venues,
+    shopLabel,
+    canOpen: leases.length > 0 || venues.length > 0,
     openedToday,
     opensThisMonth: opens.length,
     opensCountedForIncome: Math.min(opens.length, 4),
@@ -1014,20 +1032,28 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
     .select()
     .from(housing)
     .where(and(eq(housing.characterId, id), eq(housing.kind, "business")));
-  if (leases.length === 0) {
-    res.status(403).json({ error: "Character has no active business lease" });
+  // Venue owners (storefront / ripperdoc clinic) can open shop too, even
+  // without a business lease — they earn the flat Tier-0 schedule monthly.
+  const [ownedStores, ownedClinics] = await Promise.all([
+    db.select({ id: stores.id, name: stores.name }).from(stores).where(eq(stores.ownerCharacterId, id)),
+    db.select({ id: ripperdocs.id, name: ripperdocs.name }).from(ripperdocs).where(eq(ripperdocs.ownerCharacterId, id)),
+  ]);
+  const venueName = ownedStores[0]?.name ?? ownedClinics[0]?.name ?? null;
+  if (leases.length === 0 && !venueName) {
+    res.status(403).json({ error: "Character does not own a shop" });
     return;
   }
   // If the body specifies a leaseId, validate it belongs to this character;
-  // otherwise default to the first business lease.
+  // otherwise default to the first business lease (if any).
   const requestedLeaseId = Number(req.body?.leaseId);
   const lease = requestedLeaseId
     ? leases.find((l) => l.id === requestedLeaseId)
     : leases[0];
-  if (!lease) {
+  if (requestedLeaseId && !lease) {
     res.status(400).json({ error: "Lease not owned by this character" });
     return;
   }
+  const shopLabel = lease?.address ?? venueName ?? "their shop";
   const now = new Date();
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
     .toISOString()
@@ -1037,7 +1063,7 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
       .insert(shopOpens)
       .values({
         characterId: id,
-        listingId: lease.listingId,
+        listingId: lease?.listingId ?? null,
         openedOn: today,
         notes: typeof req.body?.notes === "string" ? req.body.notes : null,
       })
@@ -1047,7 +1073,7 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
       actorId: req.user!.id,
       actorName: req.user!.username,
       actorAvatarUrl: req.user!.avatarUrl,
-      message: `${c.name} opened shop at ${lease.address}`,
+      message: `${c.name} opened shop at ${shopLabel}`,
     });
     await recordAudit({
       req,
@@ -1055,14 +1081,14 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
       action: "open",
       targetType: "character",
       targetId: id,
-      message: `${c.name} opened shop at ${lease.address}`,
-      after: { leaseId: lease.id, address: lease.address, openedOn: today },
+      message: `${c.name} opened shop at ${shopLabel}`,
+      after: { leaseId: lease?.id ?? null, address: shopLabel, openedOn: today },
     });
     res.json({
       characterId: id,
       openedOn: row.openedOn,
       openedAt: row.openedAt,
-      leaseAddress: lease.address,
+      leaseAddress: shopLabel,
     });
   } catch (err: unknown) {
     const code = (err as { code?: string })?.code;
