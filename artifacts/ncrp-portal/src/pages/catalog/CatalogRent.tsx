@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   useListRentListings,
   useListMyCharacters,
@@ -18,17 +18,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { X, Home, ImageIcon, Briefcase, UserMinus } from "lucide-react";
+import { X, Home, ImageIcon, ImagePlus, Upload, Briefcase, UserMinus } from "lucide-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
-import SingleImageField from "@/components/catalog/SingleImageField";
+import { uploadImage } from "@/lib/uploadImage";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
@@ -54,6 +47,33 @@ const FILTER_COLUMNS: Array<{ key: keyof Listing; label: string }> = [
   { key: "tier", label: "Tier" },
 ];
 
+// A listing is a business space if its kind says so OR (for older imported data
+// where kind defaulted to residential) its tier is a "Business Tier N". This
+// keeps the two catalog sections correct even when kind hasn't been backfilled.
+function isBusinessListing(r: Listing): boolean {
+  return r.kind === "business" || /business/i.test(r.tier ?? "");
+}
+
+// The importer encodes building + unit into the name as "<Building> #<Unit>"
+// (apartments) or "<Building> (<Room>)" (business side-rooms). Split it back
+// out so housing can be grouped by building and apartments listed per-unit.
+function splitName(name: string): { building: string; unit: string | null } {
+  const hash = name.indexOf(" #");
+  if (hash >= 0) {
+    return { building: name.slice(0, hash).trim(), unit: name.slice(hash + 2).trim() || null };
+  }
+  const paren = name.match(/^(.*)\s+\(([^)]+)\)\s*$/);
+  if (paren) return { building: paren[1].trim(), unit: paren[2].trim() || null };
+  return { building: name.trim(), unit: null };
+}
+
+// "Business Tier 3" / "Housing Tier 2" -> "Tier 3" / "Tier 2". The category is
+// already conveyed by the section, so the prefix is redundant in the column.
+function tierLabel(tier?: string | null): string | null {
+  if (!tier) return null;
+  return tier.replace(/^(business|housing)\s+/i, "").trim() || tier;
+}
+
 export default function CatalogRent() {
   const { data, isLoading } = useListRentListings();
   const { data: me } = useAuthMe();
@@ -63,7 +83,6 @@ export default function CatalogRent() {
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [leaseTarget, setLeaseTarget] = useState<Listing | null>(null);
-  const [imageTarget, setImageTarget] = useState<Listing | null>(null);
 
   // Staff-only: remove the current occupant from a listing (ends their lease).
   const vacate = useVacateHousing({
@@ -75,6 +94,20 @@ export default function CatalogRent() {
       onError: () => toast({ title: "Could not remove occupant", variant: "destructive" }),
     },
   });
+
+  // Staff-only: clicking a listing image uploads/replaces it. For a housing
+  // building the image is shared across all of its units, so we patch every
+  // unit id in the group at once.
+  const updateListing = useUpdateRentListing();
+  const saveImage = async (ids: number[], url: string | null) => {
+    try {
+      await Promise.all(ids.map((id) => updateListing.mutateAsync({ id, data: { imageUrl: url } })));
+      void qc.invalidateQueries({ queryKey: getListRentListingsQueryKey() });
+      toast({ title: url ? "Image updated" : "Image removed" });
+    } catch {
+      toast({ title: "Could not update image", variant: "destructive" });
+    }
+  };
 
   const listings = (data ?? []) as Listing[];
 
@@ -104,6 +137,112 @@ export default function CatalogRent() {
       (r.description ?? "").toLowerCase().includes(needle)
     );
   });
+
+  const businesses = useMemo(
+    () => filtered.filter(isBusinessListing).sort((a, b) => a.name.localeCompare(b.name)),
+    [filtered],
+  );
+
+  // Housing grouped by building (+ district, so identically-named buildings in
+  // different districts stay separate). The building image is the first unit
+  // that has one.
+  const housingGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      { building: string; district: string | null; image: string | null; rows: Listing[] }
+    >();
+    for (const r of filtered) {
+      if (isBusinessListing(r)) continue;
+      const { building } = splitName(r.name);
+      const key = `${building.toLowerCase()}|||${(r.district ?? "").toLowerCase()}`;
+      let g = map.get(key);
+      if (!g) {
+        g = { building, district: r.district ?? null, image: null, rows: [] };
+        map.set(key, g);
+      }
+      if (!g.image && r.imageUrl) g.image = r.imageUrl;
+      g.rows.push(r);
+    }
+    for (const g of map.values()) {
+      g.rows.sort((a, b) =>
+        (splitName(a.name).unit ?? "").localeCompare(splitName(b.name).unit ?? "", undefined, {
+          numeric: true,
+        }),
+      );
+    }
+    return Array.from(map.values()).sort((a, b) => a.building.localeCompare(b.building));
+  }, [filtered]);
+
+  // The lease/availability control shared by both sections.
+  const renderAction = (r: Listing) => {
+    if (r.occupied) {
+      if (isStaff) {
+        return (
+          <div className="flex items-center justify-end gap-2">
+            {r.occupantCharacterName ? (
+              <span className="font-mono text-xs text-nc-magenta" data-testid={`text-occupant-${r.id}`}>
+                {r.occupantCharacterName}
+              </span>
+            ) : null}
+            <span
+              className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest"
+              data-testid={`badge-occupied-${r.id}`}
+            >
+              OCCUPIED
+            </span>
+            {r.housingId ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={vacate.isPending}
+                className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display text-xs"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Remove ${r.occupantCharacterName ?? "the occupant"} from ${r.name}? This ends their lease.`,
+                    )
+                  ) {
+                    vacate.mutate({ id: r.housingId! });
+                  }
+                }}
+                data-testid={`button-remove-occupant-${r.id}`}
+              >
+                <UserMinus className="w-3 h-3 mr-1" /> REMOVE
+              </Button>
+            ) : null}
+          </div>
+        );
+      }
+      return (
+        <span
+          className="inline-block px-2 py-1 border border-border text-muted-foreground font-display text-[10px] tracking-widest"
+          data-testid={`badge-unavailable-${r.id}`}
+        >
+          NOT AVAILABLE
+        </span>
+      );
+    }
+    return (
+      <Button
+        type="button"
+        size="sm"
+        className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
+        onClick={() => setLeaseTarget(r)}
+        data-testid={`button-lease-${r.id}`}
+      >
+        {isBusinessListing(r) ? (
+          <>
+            <Briefcase className="w-3 h-3 mr-1" /> APPLY
+          </>
+        ) : (
+          <>
+            <Home className="w-3 h-3 mr-1" /> LEASE
+          </>
+        )}
+      </Button>
+    );
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
@@ -149,128 +288,142 @@ export default function CatalogRent() {
           ))}
         </div>
       </div>
-      {isLoading ? <div className="text-nc-cyan font-display animate-pulse">LOADING...</div> : (
-        <Card className="rounded-none border-border bg-card/50 p-0 overflow-x-auto">
-          <table className="w-full font-mono text-sm min-w-[800px]">
-            <thead className="border-b border-border bg-card">
-              <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
-                <th className="text-left p-3 w-0">Image</th>
-                <th className="text-left p-3">Name</th>
-                <th className="text-left p-3">District</th>
-                <th className="text-left p-3">Tier</th>
-                <th className="text-left p-3">Description</th>
-                <th className="text-right p-3">Rent/mo</th>
-                <th className="p-3 w-0"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="border-b border-border/30 hover:bg-card/80" data-testid={`row-rent-${r.id}`}>
-                  <td className="p-3">
-                    {r.imageUrl ? (
-                      <img
-                        src={r.imageUrl}
-                        alt={r.name}
-                        className="w-16 h-16 object-cover border border-border"
-                        data-testid={`img-rent-${r.id}`}
-                      />
-                    ) : (
-                      <div className="w-16 h-16 border border-border/40 flex items-center justify-center text-muted-foreground/50">
-                        <ImageIcon className="w-5 h-5" />
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-3 font-bold">
-                    {r.name}
-                    {r.kind === "business" && (
-                      <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 border border-nc-yellow/60 text-nc-yellow text-[9px] font-display tracking-widest align-middle">
-                        <Briefcase className="w-2.5 h-2.5" /> BUSINESS
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
-                  <td className="p-3 uppercase">{r.tier ?? "—"}</td>
-                  <td className="p-3 text-muted-foreground max-w-md truncate" title={r.description ?? ""}>{r.description ?? "—"}</td>
-                  <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
-                  <td className="p-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      {isStaff && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="rounded-none font-display text-xs"
-                          onClick={() => setImageTarget(r)}
-                          data-testid={`button-rent-image-${r.id}`}
-                        >
-                          <ImageIcon className="w-3 h-3 mr-1" /> IMAGE
-                        </Button>
-                      )}
-                      {r.occupied ? (
-                        <div className="flex items-center justify-end gap-2">
-                          {isStaff && r.occupantCharacterName ? (
-                            <span
-                              className="font-mono text-xs text-nc-magenta"
-                              data-testid={`text-occupant-${r.id}`}
-                            >
-                              {r.occupantCharacterName}
-                            </span>
-                          ) : null}
-                          <span
-                            className="inline-block px-2 py-1 border border-nc-magenta/60 text-nc-magenta font-display text-[10px] tracking-widest"
-                            data-testid={`badge-occupied-${r.id}`}
-                          >
-                            OCCUPIED
-                          </span>
-                          {isStaff && r.housingId ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={vacate.isPending}
-                              className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display text-xs"
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    `Remove ${r.occupantCharacterName ?? "the occupant"} from ${r.name}? This ends their lease.`,
-                                  )
-                                ) {
-                                  vacate.mutate({ id: r.housingId! });
-                                }
-                              }}
-                              data-testid={`button-remove-occupant-${r.id}`}
-                            >
-                              <UserMinus className="w-3 h-3 mr-1" /> REMOVE
-                            </Button>
-                          ) : null}
+
+      {isLoading ? (
+        <div className="text-nc-cyan font-display animate-pulse">LOADING...</div>
+      ) : (
+        <>
+          {/* BUSINESS SPACES */}
+          <section className="space-y-3" data-testid="section-business">
+            <h2 className="font-display tracking-widest text-nc-yellow flex items-center gap-2 text-xl">
+              <Briefcase className="w-5 h-5" /> BUSINESS PROPERTIES
+            </h2>
+            <Card className="rounded-none border-border bg-card/50 p-0 overflow-x-auto">
+              <table className="w-full font-mono text-sm min-w-[800px]">
+                <thead className="border-b border-border bg-card">
+                  <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
+                    <th className="text-left p-3 w-0">Image</th>
+                    <th className="text-left p-3">Business Name</th>
+                    <th className="text-left p-3">Building</th>
+                    <th className="text-left p-3">District</th>
+                    <th className="text-left p-3">Tier</th>
+                    <th className="text-right p-3">Rent/mo</th>
+                    <th className="p-3 w-0"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {businesses.map((r) => {
+                    const { building } = splitName(r.name);
+                    return (
+                      <tr key={r.id} className="border-b border-border/30 hover:bg-card/80 align-top" data-testid={`row-rent-${r.id}`}>
+                        <td className="p-3">
+                          <ListingImage
+                            src={r.imageUrl}
+                            alt={r.name}
+                            canEdit={isStaff}
+                            ids={[r.id]}
+                            size="row"
+                            onSave={saveImage}
+                            testId={`rent-${r.id}`}
+                          />
+                        </td>
+                        <td className="p-3 font-bold">{r.name}</td>
+                        <td className="p-3 text-foreground/80">{building}</td>
+                        <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
+                        <td className="p-3 uppercase">{tierLabel(r.tier) ?? "—"}</td>
+                        <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
+                        <td className="p-3 text-right">{renderAction(r)}</td>
+                      </tr>
+                    );
+                  })}
+                  {businesses.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center p-8 text-muted-foreground">No business spaces.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Card>
+          </section>
+
+          {/* HOUSING — grouped by building */}
+          <section className="space-y-3" data-testid="section-housing">
+            <h2 className="font-display tracking-widest text-nc-cyan flex items-center gap-2 text-xl">
+              <Home className="w-5 h-5" /> HOUSING
+            </h2>
+            {housingGroups.length === 0 ? (
+              <Card className="rounded-none border-border bg-card/50 p-8 text-center text-muted-foreground font-mono">
+                No housing listings.
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {housingGroups.map((g) => {
+                  const ids = g.rows.map((r) => r.id);
+                  return (
+                    <Card
+                      key={`${g.building}-${g.district ?? ""}`}
+                      className="rounded-none border-border bg-card/50 overflow-hidden"
+                      data-testid={`building-${g.building.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      <div className="flex items-start gap-4 p-4 border-b border-border bg-card/60">
+                        <ListingImage
+                          src={g.image}
+                          alt={g.building}
+                          canEdit={isStaff}
+                          ids={ids}
+                          size="building"
+                          onSave={saveImage}
+                          testId={`building-${ids[0]}`}
+                        />
+                        <div className="min-w-0">
+                          <div className="font-display text-lg text-foreground">{g.building}</div>
+                          <div className="font-mono text-sm text-nc-magenta">{g.district ?? "—"}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground mt-1">
+                            {g.rows.length} {g.rows.length === 1 ? "unit" : "units"}
+                          </div>
                         </div>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
-                          onClick={() => setLeaseTarget(r)}
-                          data-testid={`button-lease-${r.id}`}
-                        >
-                          {r.kind === "business" ? (
-                            <><Briefcase className="w-3 h-3 mr-1" /> APPLY</>
-                          ) : (
-                            <><Home className="w-3 h-3 mr-1" /> LEASE</>
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && <tr><td colSpan={7} className="text-center p-8 text-muted-foreground">No results.</td></tr>}
-            </tbody>
-          </table>
-        </Card>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full font-mono text-sm min-w-[600px]">
+                          <thead className="border-b border-border/60">
+                            <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
+                              <th className="text-left p-3">Apt #</th>
+                              <th className="text-left p-3">Tier</th>
+                              <th className="text-right p-3">Rent/mo</th>
+                              <th className="p-3 w-0"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {g.rows.map((r) => {
+                              const { unit } = splitName(r.name);
+                              return (
+                                <tr
+                                  key={r.id}
+                                  className="border-b border-border/30 hover:bg-card/80"
+                                  data-testid={`row-rent-${r.id}`}
+                                >
+                                  <td className="p-3 font-bold">{unit ?? "—"}</td>
+                                  <td className="p-3 uppercase">{tierLabel(r.tier) ?? "—"}</td>
+                                  <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
+                                  <td className="p-3 text-right">{renderAction(r)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
       )}
+
       <MyHousingRequests />
       <LifestyleComparison />
-      {leaseTarget && leaseTarget.kind === "business" ? (
+      {leaseTarget && isBusinessListing(leaseTarget) ? (
         <BusinessLeaseDialog
           listing={leaseTarget}
           onClose={() => setLeaseTarget(null)}
@@ -283,89 +436,109 @@ export default function CatalogRent() {
           onDone={() => setLeaseTarget(null)}
         />
       ) : null}
-      <RentImageDialog
-        listing={imageTarget}
-        open={!!imageTarget}
-        onOpenChange={(v) => !v && setImageTarget(null)}
-      />
     </div>
   );
 }
 
-// Staff-only dialog to attach/replace/clear the single image on a housing
-// listing. Saves immediately via the audit-logged PATCH endpoint.
-function RentImageDialog({
-  listing,
-  open,
-  onOpenChange,
+// A single listing/building image. For staff, the image itself is the upload
+// control (no separate button): clicking it opens the file picker and replaces
+// the image; a small X removes it. Non-staff just see the picture.
+function ListingImage({
+  src,
+  alt,
+  canEdit,
+  ids,
+  size,
+  onSave,
+  testId,
 }: {
-  listing: Listing | null;
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
+  src?: string | null;
+  alt: string;
+  canEdit: boolean;
+  ids: number[];
+  size: "row" | "building";
+  onSave: (ids: number[], url: string | null) => void | Promise<void>;
+  testId: string;
 }) {
-  const qc = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const dim = size === "building" ? "w-28 h-28" : "w-24 h-24";
 
-  // Re-seed the local value each time a different listing is opened.
-  const seedKey = listing?.id ?? -1;
-  const [seededFor, setSeededFor] = useState(-1);
-  if (open && seededFor !== seedKey) {
-    setImageUrl(listing?.imageUrl ?? "");
-    setSeededFor(seedKey);
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadImage(file);
+      await onSave(ids, url);
+    } catch (err: unknown) {
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
   }
 
-  const update = useUpdateRentListing({
-    mutation: {
-      onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: getListRentListingsQueryKey() });
-        toast({ title: "Listing image updated" });
-        onOpenChange(false);
-      },
-      onError: () => {
-        toast({ title: "Update failed", description: "Could not save the image.", variant: "destructive" });
-      },
-    },
-  });
+  const inner = src ? (
+    <img src={src} alt={alt} className="w-full h-full object-cover" data-testid={`img-${testId}`} />
+  ) : (
+    <div className="w-full h-full flex items-center justify-center text-muted-foreground/50">
+      <ImageIcon className="w-7 h-7" />
+    </div>
+  );
 
-  if (!listing) return null;
-
-  const save = () => {
-    const next = imageUrl.trim() ? imageUrl.trim() : null;
-    if ((listing.imageUrl ?? null) === next) {
-      onOpenChange(false);
-      return;
-    }
-    update.mutate({ id: listing.id, data: { imageUrl: next } });
-  };
+  if (!canEdit) {
+    return <div className={`${dim} border border-border/40 overflow-hidden bg-black/30`}>{inner}</div>;
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-none border-nc-cyan/40 bg-card max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="font-display tracking-widest text-nc-cyan">
-            LISTING IMAGE — {listing.name.toUpperCase()}
-          </DialogTitle>
-          <DialogDescription className="font-mono text-xs text-muted-foreground">
-            Upload a single image for this housing listing. Saved immediately and recorded in the audit log.
-          </DialogDescription>
-        </DialogHeader>
-        <SingleImageField
-          label="Listing image"
-          value={imageUrl}
-          onChange={setImageUrl}
-          testIdPrefix="rent-image"
-        />
-        <div className="flex justify-end gap-2 pt-4 border-t border-border mt-2">
-          <Button variant="ghost" className="rounded-none" onClick={() => onOpenChange(false)} data-testid="button-rent-image-cancel">
-            Cancel
-          </Button>
-          <Button className="rounded-none" disabled={update.isPending} onClick={save} data-testid="button-rent-image-save">
-            {update.isPending ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <div className={`${dim} relative group shrink-0`}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onPick}
+        data-testid={`input-upload-${testId}`}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        title="Click to upload an image"
+        className="w-full h-full border border-border/60 overflow-hidden bg-black/30 hover:border-nc-cyan focus:outline-none focus:border-nc-cyan"
+        data-testid={`button-upload-${testId}`}
+      >
+        {inner}
+        <span className="absolute inset-0 flex items-center justify-center bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-display tracking-widest text-nc-cyan">
+          {uploading ? (
+            <>
+              <Upload className="w-3 h-3 mr-1 animate-pulse" /> UPLOADING
+            </>
+          ) : (
+            <>
+              <ImagePlus className="w-3 h-3 mr-1" /> {src ? "REPLACE" : "UPLOAD"}
+            </>
+          )}
+        </span>
+      </button>
+      {src && !uploading && (
+        <button
+          type="button"
+          onClick={() => onSave(ids, null)}
+          title="Remove image"
+          className="absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center bg-background border border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          data-testid={`button-remove-${testId}`}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
+    </div>
   );
 }
 
