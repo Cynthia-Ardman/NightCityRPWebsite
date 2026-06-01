@@ -1,5 +1,5 @@
-import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, ne, sql } from "drizzle-orm";
+import { Router, type IRouter, type Request } from "express";
+import { and, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import {
   db,
   customRequests,
@@ -30,6 +30,7 @@ import {
   castReviewVote,
   clearReviewVotes,
   loadVotesBySubject,
+  type ReviewActionResult,
 } from "../lib/review";
 
 // Off-catalog "miscellaneous" requests: off-map property, custom guns, and
@@ -104,6 +105,20 @@ function isFixerOrAdmin(user: { roles: string[] }): boolean {
 
 function isAdmin(user: { roles: string[] }): boolean {
   return hasRole(user.roles, "ADMIN");
+}
+
+// Maps a lifecycle bucket name to the set of statuses it covers. Active =
+// awaiting a decision; Resolved = decided but not yet committed/archived;
+// Archive = closed. Unknown bucket falls back to pending.
+function bucketStatuses(bucket: string): string[] {
+  if (bucket === "active") return ["pending", "changes_requested"];
+  if (bucket === "resolved") return ["approved", "rejected", "cancelled"];
+  if (bucket === "archive") return ["closed"];
+  return ["pending"];
+}
+
+function bucketPredicate(bucket: string) {
+  return inArray(customRequests.status, bucketStatuses(bucket));
 }
 
 // First-of-next-month at 00:00 UTC — initial paid_through so a new lease is
@@ -378,6 +393,8 @@ type RequestRow = {
   reviewedAt: Date | null;
   reviewerNote: string | null;
   appliedRef: string | null;
+  closedAt: Date | null;
+  closedBy: string | null;
   createdAt: Date;
 };
 
@@ -398,6 +415,8 @@ function shape(row: RequestRow): Record<string, unknown> {
     reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
     reviewerNote: row.reviewerNote,
     appliedRef: row.appliedRef,
+    closedAt: row.closedAt ? row.closedAt.toISOString() : null,
+    closedBy: row.closedBy,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -420,6 +439,8 @@ async function selectWhere(predicate: ReturnType<typeof and> | ReturnType<typeof
       reviewedAt: customRequests.reviewedAt,
       reviewerNote: customRequests.reviewerNote,
       appliedRef: customRequests.appliedRef,
+      closedAt: customRequests.closedAt,
+      closedBy: customRequests.closedBy,
       createdAt: customRequests.createdAt,
     })
     .from(customRequests)
@@ -570,13 +591,19 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Requires fixer or admin role" });
     return;
   }
-  const status = String(req.query.status ?? "pending");
+  // Lifecycle buckets for the Active / Resolved / Archive sections. A `bucket`
+  // query param maps to a set of statuses; the legacy single `status` param is
+  // still honored for back-compat (and defaults to pending).
+  const bucket = req.query.bucket ? String(req.query.bucket) : null;
+  const statusPredicate = bucket
+    ? bucketPredicate(bucket)
+    : eq(customRequests.status, String(req.query.status ?? "pending"));
   // `stock_cost` (owner-approved) and `employee_invite` (decided by the invited
   // player) live only in "My Requests", never in the staff triage queue.
   // `venue_stock` IS fixer-voted, so it stays here.
   const rows = await selectWhere(
     and(
-      eq(customRequests.status, status),
+      statusPredicate,
       ne(customRequests.type, "stock_cost"),
       ne(customRequests.type, "employee_invite"),
     ),
@@ -648,18 +675,17 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
       return { ok: { decided: "rejected" as const, reqRow, tally } };
     }
 
-    // Decided approve — materialize from the stored approval params.
-    const [c] = await tx.select().from(characters).where(eq(characters.id, reqRow.characterId));
-    if (!c || c.archived) return { error: { status: 400, body: { error: "Character is missing or archived" } } };
-    if (!c.ownerId) return { error: { status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } } };
-    const storedApproval = ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? approvalToStore ?? {};
-    const mat = await materializeRequest(tx, reqRow, c, storedApproval);
-    if ("error" in mat) return { error: mat.error };
+    // Decided approve — STAGE the decision only. Under the deferred-effects
+    // lifecycle the effect (lease / inventory / venue) is NOT applied here; it
+    // is committed when a fixer closes the ticket. We persist the reviewer's
+    // mechanical params on `decisionParams` so close can materialize from them
+    // without re-prompting.
+    const storedApproval = approvalToStore ?? ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? null;
     await tx
       .update(customRequests)
-      .set({ status: "approved", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note, appliedRef: mat.ok.appliedRef })
+      .set({ status: "approved", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note, decisionParams: storedApproval as never })
       .where(eq(customRequests.id, rid));
-    return { ok: { decided: "approved" as const, reqRow, c, tally, appliedRef: mat.ok.appliedRef, summary: mat.ok.summary } };
+    return { ok: { decided: "approved" as const, reqRow, tally } };
   });
 
   if (!("ok" in txResult) || !txResult.ok) {
@@ -668,10 +694,19 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
     return;
   }
   const out = txResult.ok;
-  if (out.decided === "approved" && "c" in out && out.c) {
-    await afterApprove(req as never, out.reqRow, out.c, out.appliedRef!, out.summary!, "vote");
-    const [row] = await selectWhere(eq(customRequests.id, rid));
-    await notifyRequesterOfDecision(row, out.summary ?? null);
+  if (out.decided === "approved") {
+    // Effects are deferred to close — record only the staged-decision audit
+    // here. The player DM, character note, inventory ledger and activity feed
+    // all fire from afterApprove when the ticket is closed.
+    await recordAudit({
+      req,
+      category: auditCategoryFor(out.reqRow.type),
+      action: "request_vote_approve",
+      targetType: "custom_request",
+      targetId: rid,
+      message: `Approved ${out.reqRow.type} request (pending close): ${out.reqRow.title}`,
+      after: { type: out.reqRow.type, characterId: out.reqRow.characterId, staged: true },
+    });
   } else if (out.decided === "rejected") {
     const [row] = await selectWhere(eq(customRequests.id, rid));
     try {
@@ -721,11 +756,11 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
     if (reqRow.requestedById === req.user!.id) {
       return { error: { status: 403, body: { error: "You cannot override your own request" } } };
     }
-    const [c] = await tx.select().from(characters).where(eq(characters.id, reqRow.characterId));
-    if (!c || c.archived) return { error: { status: 400, body: { error: "Character is missing or archived" } } };
-    if (!c.ownerId) return { error: { status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } } };
-    const mat = await materializeRequest(tx, reqRow, c, body);
-    if ("error" in mat) return { error: mat.error };
+    // Validate (but do not yet apply) the mechanical params, then STAGE the
+    // approval. The effect is committed when the ticket is closed, reading the
+    // params back from decisionParams.
+    const norm = normalizeApprovalParams(reqRow.type, body);
+    if ("error" in norm) return { error: { status: 400, body: { error: norm.error } } };
     await tx
       .update(customRequests)
       .set({
@@ -733,11 +768,11 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
         reviewedById: req.user!.id,
         reviewedAt: new Date(),
         reviewerNote: note,
-        appliedRef: mat.ok.appliedRef,
+        decisionParams: norm.ok as never,
         overriddenBy: req.user!.id,
       })
       .where(eq(customRequests.id, rid));
-    return { ok: { reqRow, c, appliedRef: mat.ok.appliedRef, summary: mat.ok.summary } };
+    return { ok: { reqRow } };
   });
 
   if (!("ok" in txResult) || !txResult.ok) {
@@ -745,11 +780,122 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
     res.status(err.status).json(err.body);
     return;
   }
-  await afterApprove(req as never, txResult.ok.reqRow, txResult.ok.c, txResult.ok.appliedRef, txResult.ok.summary, "override");
+  // Effects deferred to close — staged-decision audit only.
+  await recordAudit({
+    req,
+    category: auditCategoryFor(txResult.ok.reqRow.type),
+    action: "request_override_approve",
+    targetType: "custom_request",
+    targetId: rid,
+    message: `Approved ${txResult.ok.reqRow.type} request via admin override (pending close): ${txResult.ok.reqRow.title}`,
+    after: { type: txResult.ok.reqRow.type, characterId: txResult.ok.reqRow.characterId, staged: true, overriddenBy: req.user!.id },
+  });
   const [row] = await selectWhere(eq(customRequests.id, rid));
-  await notifyRequesterOfDecision(row, txResult.ok.summary);
   res.json(shape(row));
 });
+
+// Close a RESOLVED custom request (approved | rejected | cancelled) → archived.
+// Closing an APPROVED ticket commits its effect exactly once (guarded by
+// appliedRef); closing a rejected/cancelled ticket just archives it. Idempotent:
+// re-closing an already-closed ticket is a 200 no-op. Materialize runs inside the
+// locked txn so apply + status flip are atomic; the player DM / character note /
+// inventory ledger / activity feed run after commit. The caller (review.ts) has
+// already verified the actor is a reviewer.
+export async function closeRequest(req: Request, id: number): Promise<ReviewActionResult> {
+  const u = req.user!;
+  const result = await db.transaction(async (tx) => {
+    const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, id)).for("update");
+    if (!reqRow) return { kind: "error" as const, status: 404, body: { error: "Request not found" } };
+    const blocked = ownerDecidedError(reqRow.type);
+    if (blocked) return { kind: "error" as const, status: blocked.status, body: blocked.body };
+    if (reqRow.status === "closed") return { kind: "noop" as const };
+    if (reqRow.status !== "approved" && reqRow.status !== "rejected" && reqRow.status !== "cancelled") {
+      return { kind: "error" as const, status: 409, body: { error: `Only a resolved ticket can be closed (this one is ${reqRow.status})` } };
+    }
+    if (reqRow.status === "approved" && !reqRow.appliedRef) {
+      const [c] = await tx.select().from(characters).where(eq(characters.id, reqRow.characterId));
+      if (!c || c.archived) return { kind: "error" as const, status: 400, body: { error: "Character is missing or archived" } };
+      if (!c.ownerId) return { kind: "error" as const, status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } };
+      const params = (reqRow.decisionParams ?? ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? {}) as ApprovalParams;
+      const mat = await materializeRequest(tx, reqRow, c, params);
+      if ("error" in mat) return { kind: "error" as const, status: mat.error.status, body: mat.error.body };
+      await tx
+        .update(customRequests)
+        .set({ status: "closed", closedAt: new Date(), closedBy: u.id, appliedRef: mat.ok.appliedRef })
+        .where(eq(customRequests.id, id));
+      return { kind: "applied" as const, reqRow, c, appliedRef: mat.ok.appliedRef, summary: mat.ok.summary };
+    }
+    // Rejected / cancelled (or an already-applied approved row): archive only.
+    await tx
+      .update(customRequests)
+      .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
+      .where(eq(customRequests.id, id));
+    return { kind: "archived" as const, reqRow };
+  });
+
+  if (result.kind === "error") return { status: result.status, body: result.body };
+  if (result.kind === "applied") {
+    await afterApprove(req as never, result.reqRow, result.c, result.appliedRef, result.summary, result.reqRow.overriddenBy ? "override" : "vote");
+    const [row] = await selectWhere(eq(customRequests.id, id));
+    await notifyRequesterOfDecision(row, result.summary);
+  } else if (result.kind === "archived") {
+    await recordAudit({
+      req,
+      category: auditCategoryFor(result.reqRow.type),
+      action: "request_closed",
+      targetType: "custom_request",
+      targetId: id,
+      message: `Closed ${result.reqRow.type} request (${result.reqRow.status}): ${result.reqRow.title}`,
+    });
+  }
+  const [row] = await selectWhere(eq(customRequests.id, id));
+  return { status: 200, body: shape(row) };
+}
+
+// Reopen a RESOLVED-but-not-archived custom request (approved | rejected) back
+// to pending for another review round. Votes are cleared and the decision /
+// override / decisionParams fields are wiped. Refuses to reopen a ticket whose
+// effect was already applied (appliedRef set) — that would orphan a lease /
+// inventory item. cancelled and closed tickets cannot be reopened.
+export async function reopenRequest(req: Request, id: number): Promise<ReviewActionResult> {
+  const result = await db.transaction(async (tx) => {
+    const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, id)).for("update");
+    if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
+    if (reqRow.status !== "approved" && reqRow.status !== "rejected") {
+      return { error: { status: 409, body: { error: `Only an approved or rejected ticket can be reopened (this one is ${reqRow.status})` } } };
+    }
+    if (reqRow.appliedRef) {
+      return { error: { status: 409, body: { error: "This request's effect was already applied; it cannot be reopened" } } };
+    }
+    const det = { ...((reqRow.details ?? {}) as Record<string, unknown>) };
+    delete det.approval;
+    await tx
+      .update(customRequests)
+      .set({
+        status: "pending",
+        reviewedById: null,
+        reviewedAt: null,
+        reviewerNote: null,
+        overriddenBy: null,
+        decisionParams: null,
+        details: det as never,
+      })
+      .where(eq(customRequests.id, id));
+    await clearReviewVotes({ subjectType: "request", subjectId: id, conn: tx });
+    return { ok: { reqRow } };
+  });
+  if ("error" in result && result.error) return result.error;
+  await recordAudit({
+    req,
+    category: auditCategoryFor(result.ok.reqRow.type),
+    action: "request_reopened",
+    targetType: "custom_request",
+    targetId: id,
+    message: `Reopened ${result.ok.reqRow.type} request: ${result.ok.reqRow.title}`,
+  });
+  const [row] = await selectWhere(eq(customRequests.id, id));
+  return { status: 200, body: shape(row) };
+}
 
 // POST /requests/:id/request-changes — RETIRED. Reviewers no longer park
 // requests in a blocking `changes_requested` state; the /review comment thread

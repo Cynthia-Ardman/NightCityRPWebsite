@@ -58,11 +58,11 @@ function validSheetData(name: string) {
 }
 
 describe("sheet voting — majority threshold", () => {
-  it("holds at pending after one of two required approvals, then materializes on the second", async () => {
+  it("holds at pending after one approval, approves (no materialize) on the second, materializes only on close", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
     const f2 = await createFixer();
-    await createFixer(); // third reviewer makes the majority threshold 2
+    const f3 = await createFixer(); // third reviewer makes the majority threshold 2
     const sheet = await createPendingSheet(owner.id, "Majority Subject");
 
     const first = await request(app)
@@ -88,8 +88,19 @@ describe("sheet voting — majority threshold", () => {
 
     const [after] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
     expect(after.status).toBe("approved");
-    expect(after.characterId).not.toBeNull();
-    expect(await db.select().from(characters).where(eq(characters.id, after.characterId!))).toHaveLength(1);
+    // Staged lifecycle: the character is NOT materialized at approval time.
+    expect(after.characterId).toBeNull();
+
+    // Close materializes the character and archives the sheet.
+    const close = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", f3.id)
+      .send({});
+    expect(close.status).toBe(200);
+    const [closed] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(closed.status).toBe("closed");
+    expect(closed.characterId).not.toBeNull();
+    expect(await db.select().from(characters).where(eq(characters.id, closed.characterId!))).toHaveLength(1);
   });
 
   it("403s a reviewer voting on a sheet they submitted", async () => {
@@ -123,7 +134,17 @@ describe("sheet override", () => {
 
     const [row] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
     expect(row.overriddenBy).toBe(admin.id);
-    expect(row.characterId).not.toBeNull();
+    // Override approves but defers materialization to close.
+    expect(row.characterId).toBeNull();
+
+    const close = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(close.status).toBe(200);
+    const [closed] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(closed.status).toBe("closed");
+    expect(closed.characterId).not.toBeNull();
   });
 
   it("403s a non-admin reviewer attempting an override", async () => {

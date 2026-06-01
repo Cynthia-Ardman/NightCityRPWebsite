@@ -12,7 +12,10 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage } from "../lib/discord";
-import { isReviewer } from "../lib/review";
+import { isReviewer, type ReviewActionResult } from "../lib/review";
+import { closeRequest, reopenRequest } from "./requests";
+import { closeEdit, reopenEdit } from "./pending-edits";
+import { closeSheet, reopenSheet } from "./sheets";
 
 // ---------------------------------------------------------------------------
 // Generic review discussion + notification API.
@@ -84,6 +87,24 @@ function parseParams(req: { params: Record<string, unknown> }): { type: SubjectT
   const id = parseInt(String(req.params.id), 10);
   if (!type || !Number.isFinite(id) || id <= 0) return null;
   return { type, id };
+}
+
+// Per-queue authorization for state-changing actions (close / reopen). Mirrors
+// the visibility policy used by the unseen endpoints: custom requests are
+// fixer/admin only (they commit economic effects on close), character sheets are
+// CS approver/admin, and character edits are open to any reviewer. Without this,
+// a CS_APPROVER could close a request and trigger its deferred materialization.
+function canActOnType(user: { roles: string[] }, type: SubjectType): boolean {
+  const isAdmin = hasRole(user.roles, "ADMIN");
+  if (type === "request") return hasRole(user.roles, "FIXER") || isAdmin;
+  if (type === "sheet") return hasRole(user.roles, "CS_APPROVER") || isAdmin;
+  return isReviewer(user as never); // edit
+}
+
+function deniedMessageFor(type: SubjectType): string {
+  if (type === "request") return "Only fixers / admins can close or reopen request tickets";
+  if (type === "sheet") return "Only character-sheet approvers / admins can close or reopen sheet tickets";
+  return "Only fixers / approvers / admins can close or reopen edit tickets";
 }
 
 // GET /review/:type/:id/comments — full thread, oldest first (chat order).
@@ -261,6 +282,140 @@ router.get("/review/unseen-counts", requireAuth, async (req, res): Promise<void>
   }
 
   res.json({ edits, requests, sheets, total: edits + requests + sheets });
+});
+
+// Like countUnseen but returns the unseen subject ids (drives per-row dots on
+// both the player and staff pages).
+async function listUnseenIds(
+  subjectType: SubjectType,
+  items: Array<{ id: number; baseAt: Date }>,
+  viewerId: string,
+): Promise<number[]> {
+  if (items.length === 0) return [];
+  const ids = items.map((i) => i.id);
+  const commentRows = await db
+    .select({ subjectId: reviewComments.subjectId, last: sql<string>`max(${reviewComments.createdAt})` })
+    .from(reviewComments)
+    .where(and(eq(reviewComments.subjectType, subjectType), inArray(reviewComments.subjectId, ids)))
+    .groupBy(reviewComments.subjectId);
+  const lastComment = new Map(commentRows.map((r) => [r.subjectId, new Date(r.last)]));
+  const seenRows = await db
+    .select({ subjectId: reviewSeen.subjectId, lastSeenAt: reviewSeen.lastSeenAt })
+    .from(reviewSeen)
+    .where(and(eq(reviewSeen.userId, viewerId), eq(reviewSeen.subjectType, subjectType), inArray(reviewSeen.subjectId, ids)));
+  const seen = new Map(seenRows.map((r) => [r.subjectId, r.lastSeenAt]));
+  const out: number[] = [];
+  for (const item of items) {
+    const c = lastComment.get(item.id);
+    const activityAt = c && c > item.baseAt ? c : item.baseAt;
+    const s = seen.get(item.id);
+    if (!s || s.getTime() < activityAt.getTime()) out.push(item.id);
+  }
+  return out;
+}
+
+function maxDate(...dates: Array<Date | null | undefined>): Date {
+  let m = new Date(0);
+  for (const d of dates) if (d && d.getTime() > m.getTime()) m = d;
+  return m;
+}
+
+// GET /review/my-unseen — the SUBMITTER's unread view. Returns, per queue, the
+// ids of the player's OWN submissions that have activity (a reviewer comment or
+// a decision/close) the player has not seen yet, plus a grand total for the nav
+// badge. Unlike the reviewer endpoints this is not role-gated and only ever
+// looks at rows the caller submitted.
+router.get("/review/my-unseen", requireAuth, async (req, res): Promise<void> => {
+  const viewerId = req.user!.id;
+
+  const editRows = await db
+    .select({ id: pendingCharacterEdits.id, submittedAt: pendingCharacterEdits.submittedAt, decidedAt: pendingCharacterEdits.decidedAt, closedAt: pendingCharacterEdits.closedAt })
+    .from(pendingCharacterEdits)
+    .where(eq(pendingCharacterEdits.submittedBy, viewerId));
+  const requestRows = await db
+    .select({ id: customRequests.id, createdAt: customRequests.createdAt, reviewedAt: customRequests.reviewedAt, closedAt: customRequests.closedAt })
+    .from(customRequests)
+    .where(eq(customRequests.requestedById, viewerId));
+  const sheetRows = await db
+    .select({ id: characterSheets.id, createdAt: characterSheets.createdAt, decidedAt: characterSheets.decidedAt, closedAt: characterSheets.closedAt })
+    .from(characterSheets)
+    .where(eq(characterSheets.ownerId, viewerId));
+
+  const edit = await listUnseenIds("edit", editRows.map((r) => ({ id: r.id, baseAt: maxDate(r.submittedAt, r.decidedAt, r.closedAt) })), viewerId);
+  const request = await listUnseenIds("request", requestRows.map((r) => ({ id: r.id, baseAt: maxDate(r.createdAt, r.reviewedAt, r.closedAt) })), viewerId);
+  const sheet = await listUnseenIds("sheet", sheetRows.map((r) => ({ id: r.id, baseAt: maxDate(r.createdAt, r.decidedAt, r.closedAt) })), viewerId);
+
+  res.json({ edit, request, sheet, total: edit.length + request.length + sheet.length });
+});
+
+// GET /review/unseen-ids — the REVIEWER's per-row unread view. Same actionable
+// scope and role gating as /review/unseen-counts, but returns the ids so the
+// staff page can render a dot on each unseen ticket.
+router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  const viewerId = u.id;
+  const ACTIONABLE = ["pending", "changes_requested"] as const;
+  const isAdmin = hasRole(u.roles, "ADMIN");
+  const canMisc = hasRole(u.roles, "FIXER") || isAdmin;
+  const canSheets = hasRole(u.roles, "CS_APPROVER") || isAdmin;
+  const canEdits = isReviewer(u as never);
+
+  let edit: number[] = [];
+  let request: number[] = [];
+  let sheet: number[] = [];
+
+  if (canEdits) {
+    const rows = await db
+      .select({ id: pendingCharacterEdits.id, submittedBy: pendingCharacterEdits.submittedBy, baseAt: pendingCharacterEdits.submittedAt })
+      .from(pendingCharacterEdits)
+      .where(inArray(pendingCharacterEdits.status, ACTIONABLE as unknown as string[]));
+    edit = await listUnseenIds("edit", rows.filter((r) => r.submittedBy !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
+  }
+  if (canMisc) {
+    const rows = await db
+      .select({ id: customRequests.id, requestedById: customRequests.requestedById, baseAt: customRequests.createdAt })
+      .from(customRequests)
+      .where(inArray(customRequests.status, ACTIONABLE as unknown as string[]));
+    request = await listUnseenIds("request", rows.filter((r) => r.requestedById !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
+  }
+  if (canSheets) {
+    const rows = await db
+      .select({ id: characterSheets.id, ownerId: characterSheets.ownerId, baseAt: characterSheets.createdAt })
+      .from(characterSheets)
+      .where(inArray(characterSheets.status, ACTIONABLE as unknown as string[]));
+    sheet = await listUnseenIds("sheet", rows.filter((r) => r.ownerId !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
+  }
+
+  res.json({ edit, request, sheet });
+});
+
+// POST /review/:type/:id/close — a reviewer archives a RESOLVED ticket. When the
+// ticket was approved this is where its deferred effect (lease / inventory /
+// character materialization / diff) is finally committed. Dispatches to the
+// per-queue close handler which owns the materialize logic. Idempotent.
+router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<void> => {
+  const parsed = parseParams(req);
+  if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
+  if (!canActOnType(req.user!, parsed.type)) { res.status(403).json({ error: deniedMessageFor(parsed.type) }); return; }
+  let result: ReviewActionResult;
+  if (parsed.type === "edit") result = await closeEdit(req, parsed.id);
+  else if (parsed.type === "request") result = await closeRequest(req, parsed.id);
+  else result = await closeSheet(req, parsed.id);
+  res.status(result.status).json(result.body);
+});
+
+// POST /review/:type/:id/reopen — a reviewer sends a resolved (approved |
+// rejected) ticket back to pending for another vote. Votes are cleared. Refuses
+// when the effect was already applied. Dispatches to the per-queue handler.
+router.post("/review/:type/:id/reopen", requireAuth, async (req, res): Promise<void> => {
+  const parsed = parseParams(req);
+  if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
+  if (!canActOnType(req.user!, parsed.type)) { res.status(403).json({ error: deniedMessageFor(parsed.type) }); return; }
+  let result: ReviewActionResult;
+  if (parsed.type === "edit") result = await reopenEdit(req, parsed.id);
+  else if (parsed.type === "request") result = await reopenRequest(req, parsed.id);
+  else result = await reopenSheet(req, parsed.id);
+  res.status(result.status).json(result.body);
 });
 
 export default router;

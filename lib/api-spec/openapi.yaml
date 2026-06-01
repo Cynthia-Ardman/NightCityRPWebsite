@@ -2251,7 +2251,13 @@ paths:
     get:
       operationId: listPendingSheets
       tags: [sheets]
-      summary: Pending sheets (reviewers only) with per-sheet vote tallies
+      summary: Pending sheets (reviewers only) with per-sheet vote tallies. Filter by lifecycle bucket.
+      parameters:
+        - in: query
+          name: bucket
+          required: false
+          description: Lifecycle bucket. active = pending/changes_requested; resolved = approved/rejected/cancelled; archive = closed. Defaults to pending only.
+          schema: { type: string, enum: [active, resolved, archive] }
       responses:
         "200":
           description: Pending
@@ -2372,7 +2378,13 @@ paths:
     get:
       operationId: listPendingEdits
       tags: [pending-edits]
-      summary: List pending character edits (staff see all; players see only their own)
+      summary: List pending character edits (staff see all; players see only their own). Reviewers can filter by lifecycle bucket.
+      parameters:
+        - in: query
+          name: bucket
+          required: false
+          description: Lifecycle bucket (reviewers only). active = pending/changes_requested; resolved = approved/rejected/cancelled; archive = closed. Defaults to open edits plus anything decided in the last 7 days.
+          schema: { type: string, enum: [active, resolved, archive] }
       responses:
         "200":
           description: Pending edits
@@ -3040,12 +3052,17 @@ paths:
     get:
       operationId: listCustomRequests
       tags: [requests]
-      summary: List custom requests across all players (fixer/admin only).
+      summary: List custom requests across all players (fixer/admin only). Filter by lifecycle bucket (active/resolved/archive) or legacy status.
       parameters:
+        - in: query
+          name: bucket
+          required: false
+          description: Lifecycle bucket. active = pending/changes_requested; resolved = approved/rejected/cancelled; archive = closed. Overrides `status` when set.
+          schema: { type: string, enum: [active, resolved, archive] }
         - in: query
           name: status
           required: false
-          schema: { type: string, enum: [pending, approved, rejected, changes_requested], default: pending }
+          schema: { type: string, enum: [pending, approved, rejected, changes_requested, cancelled, closed], default: pending }
       responses:
         "200":
           description: Custom requests
@@ -3564,6 +3581,64 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReviewUnseenCounts" }
+  /review/my-unseen:
+    get:
+      operationId: getMyUnseen
+      tags: [review]
+      summary: The submitter's unread view — per queue, the ids of the caller's own submissions with unseen activity (a reviewer comment or a decision/close), plus a grand total for the nav badge. Not role-gated.
+      responses:
+        "200":
+          description: Unseen submission ids for the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MyUnseen" }
+  /review/unseen-ids:
+    get:
+      operationId: getReviewUnseenIds
+      tags: [review]
+      summary: The reviewer's per-row unread view — same actionable scope and role gating as unseen-counts, but returns the unseen ids per queue so the staff page can dot each ticket.
+      responses:
+        "200":
+          description: Unseen actionable ids per queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewUnseenIds" }
+  /review/{subjectType}/{id}/close:
+    parameters:
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: closeReviewTicket
+      tags: [review]
+      summary: Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
+      responses:
+        "200":
+          description: Closed (returns the updated subject shape)
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "400": { description: Bad subject / character missing/archived/unclaimed }
+        "403": { description: Reviewers only }
+        "404": { description: Not found }
+        "409": { description: Ticket is not in a resolved state }
+  /review/{subjectType}/{id}/reopen:
+    parameters:
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: reopenReviewTicket
+      tags: [review]
+      summary: Send a resolved (approved | rejected) ticket back to pending for another vote. Clears votes and the decision fields. Refuses when the effect was already applied. Reviewers only.
+      responses:
+        "200":
+          description: Reopened (returns the updated subject shape)
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "400": { description: Bad subject }
+        "403": { description: Reviewers only }
+        "404": { description: Not found }
+        "409": { description: Ticket cannot be reopened (wrong state or effect already applied) }
 
 components:
   schemas:
@@ -3592,6 +3667,21 @@ components:
         edits: { type: integer }
         requests: { type: integer }
         sheets: { type: integer }
+        total: { type: integer }
+    ReviewUnseenIds:
+      type: object
+      required: [edit, request, sheet]
+      properties:
+        edit: { type: array, items: { type: integer } }
+        request: { type: array, items: { type: integer } }
+        sheet: { type: array, items: { type: integer } }
+    MyUnseen:
+      type: object
+      required: [edit, request, sheet, total]
+      properties:
+        edit: { type: array, items: { type: integer } }
+        request: { type: array, items: { type: integer } }
+        sheet: { type: array, items: { type: integer } }
         total: { type: integer }
     LoreSource:
       type: object

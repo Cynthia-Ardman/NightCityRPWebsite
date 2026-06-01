@@ -378,6 +378,10 @@ export const characterSheets = pgTable("character_sheets", {
   // Admin who used "approve override" to bypass the majority vote (nullable).
   overriddenBy: text("overridden_by").references(() => users.id),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  // Archive lifecycle (see custom_requests). Closing an approved sheet
+  // materializes the character; closing a rejected sheet just archives it.
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  closedBy: text("closed_by").references(() => users.id),
   discordMessageId: text("discord_message_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -581,6 +585,16 @@ export const customRequests = pgTable("custom_requests", {
   overriddenBy: text("overridden_by").references(() => users.id),
   // Idempotency marker for what was materialized on approval.
   appliedRef: text("applied_ref"),
+  // Reviewer-entered mechanical parameters captured at approval time and applied
+  // at CLOSE time. Under the deferred-effects lifecycle, a majority approve /
+  // override only stages the decision; the effect (and any reviewer-tuned values
+  // such as cyberware CWP) is committed when a fixer closes the ticket.
+  decisionParams: jsonb("decision_params"),
+  // Archive lifecycle. A reviewer "closes" a resolved ticket: closing an approved
+  // ticket commits its effect (once — guarded by appliedRef), closing a
+  // rejected/cancelled ticket just archives it. closedBy = who closed it.
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  closedBy: text("closed_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusIdx: index("custom_requests_status_idx").on(t.status),
@@ -959,6 +973,10 @@ export const pendingCharacterEdits = pgTable("pending_character_edits", {
   overriddenBy: text("overridden_by").references(() => users.id),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  // Archive lifecycle (see custom_requests). Closing an approved edit applies
+  // the proposed diff to the character; closing a rejected edit just archives it.
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  closedBy: text("closed_by").references(() => users.id),
   discordMessageId: text("discord_message_id"),
 }, (t) => ({
   pendingPerCharacterIdx: uniqueIndex("pending_edit_one_per_char_idx")

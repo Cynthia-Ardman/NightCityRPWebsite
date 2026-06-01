@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useListLoreEdits, getListLoreEditsQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Search, Receipt, ClipboardList, ShoppingBag, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,11 @@ function SidebarContent() {
     (unseen?.requests ?? 0) +
     (unseen?.sheets ?? 0) +
     (user?.isAdmin ? pendingLore?.length ?? 0 : 0);
+  // Player-facing "My Requests" badge: how many of the player's OWN submissions
+  // have unseen activity (a reviewer comment, a decision, or a close). Fetched
+  // for every logged-in user, not just staff.
+  const { data: myUnseen } = useGetMyUnseen({ query: { enabled: !!user, queryKey: getGetMyUnseenQueryKey() } });
+  const myRequestsUnseen = myUnseen?.total ?? 0;
 
   const NavItem = ({ href, icon: Icon, label, disabled, badge }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number }) => {
     const isActive = location === href || location.startsWith(href + '/');
@@ -126,7 +131,7 @@ function SidebarContent() {
         <NavItem href="/" icon={User} label="Dashboard" />
         <NavItem href="/characters" icon={Users} label="Characters" />
         <NavItem href="/ledger" icon={Receipt} label="Ledger" />
-        <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" />
+        <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} />
         <NavItem href="/offers/mine" icon={ShoppingBag} label="Pending Approvals" badge={pendingOffers} />
         <NavItem href="/missions" icon={Briefcase} label="Missions" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />

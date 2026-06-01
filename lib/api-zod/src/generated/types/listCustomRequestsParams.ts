@@ -5,8 +5,13 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListCustomRequestsBucket } from './listCustomRequestsBucket';
 import type { ListCustomRequestsStatus } from './listCustomRequestsStatus';
 
 export type ListCustomRequestsParams = {
+/**
+ * Lifecycle bucket. active = pending/changes_requested; resolved = approved/rejected/cancelled; archive = closed. Overrides `status` when set.
+ */
+bucket?: ListCustomRequestsBucket;
 status?: ListCustomRequestsStatus;
 };

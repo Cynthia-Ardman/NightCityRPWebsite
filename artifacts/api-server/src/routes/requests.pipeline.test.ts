@@ -40,11 +40,11 @@ async function submitGunRequest(ownerId: string) {
 }
 
 describe("custom request voting — majority threshold", () => {
-  it("holds at pending after one of two required approvals, then materializes on the second", async () => {
+  it("holds at pending after one approval, approves (no effect) on the second, materializes only on close", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
     const f2 = await createFixer();
-    await createFixer(); // third reviewer makes the majority threshold 2
+    const f3 = await createFixer(); // third reviewer makes the majority threshold 2
     const { reqId } = await submitGunRequest(owner.id);
 
     const first = await request(app)
@@ -65,6 +65,24 @@ describe("custom request voting — majority threshold", () => {
     expect(second.status).toBe(200);
     expect(second.body.decided).toBe("approved");
     expect(second.body.status).toBe("approved");
+    // Staged lifecycle: approval no longer applies effects.
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+
+    // Close commits the deferred effect and archives the ticket.
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", f3.id)
+      .send({});
+    expect(close.status).toBe(200);
+    expect(close.body.status).toBe("closed");
+    expect(await db.select().from(inventoryItems)).toHaveLength(1);
+
+    // Closing again is idempotent — no second materialization.
+    const closeAgain = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", f3.id)
+      .send({});
+    expect(closeAgain.status).toBe(200);
     expect(await db.select().from(inventoryItems)).toHaveLength(1);
   });
 
@@ -96,6 +114,15 @@ describe("custom request override", () => {
 
     const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
     expect(row.overriddenBy).toBe(admin.id);
+    // Override approves but defers the effect to close, same as a vote majority.
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(close.status).toBe(200);
+    expect(close.body.status).toBe("closed");
     expect(await db.select().from(inventoryItems)).toHaveLength(1);
   });
 
@@ -108,6 +135,45 @@ describe("custom request override", () => {
       .set("x-test-user", fixer.id)
       .send({});
     expect(res.status).toBe(403);
+  });
+});
+
+describe("close/reopen per-type authorization", () => {
+  it("403s a CS_APPROVER (no fixer/admin) closing a request and never materializes the effect", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const csApprover = await createUser({ roles: ["cs_approver"] });
+    const { reqId } = await submitGunRequest(owner.id);
+
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const decide = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    expect(decide.body.status).toBe("approved");
+
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", csApprover.id)
+      .send({});
+    expect(close.status).toBe(403);
+    // The deferred effect must NOT have been committed by the unauthorized close.
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+  });
+
+  it("403s a CS_APPROVER (no fixer/admin) reopening a request", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const csApprover = await createUser({ roles: ["cs_approver"] });
+    const { reqId } = await submitGunRequest(owner.id);
+
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+
+    const reopen = await request(app)
+      .post(`/api/review/request/${reqId}/reopen`)
+      .set("x-test-user", csApprover.id)
+      .send({});
+    expect(reopen.status).toBe(403);
   });
 });
 

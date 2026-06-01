@@ -85,7 +85,7 @@ describe("POST /requests (venue submit validation)", () => {
 });
 
 describe("POST /requests/:id/vote (venue materialization)", () => {
-  it("creates a store owned by requester+character, audit-logs, and DMs", async () => {
+  it("defers store creation to close, then audit-logs and DMs", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const char = await createCharacter({ ownerId: owner.id });
@@ -101,7 +101,19 @@ describe("POST /requests/:id/vote (venue materialization)", () => {
       .send({ vote: "approve" });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("approved");
-    expect(res.body.appliedRef).toMatch(/^store:\d+$/);
+    // Staged lifecycle: approval defers the effect (no store, no DM yet).
+    expect(res.body.appliedRef).toBeNull();
+    expect(await db.select().from(stores)).toHaveLength(0);
+    expect(mockDm).not.toHaveBeenCalled();
+
+    // Close commits the store and notifies the requester.
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({});
+    expect(close.status).toBe(200);
+    expect(close.body.status).toBe("closed");
+    expect(close.body.appliedRef).toMatch(/^store:\d+$/);
 
     const createdStores = await db.select().from(stores);
     expect(createdStores).toHaveLength(1);
@@ -114,13 +126,13 @@ describe("POST /requests/:id/vote (venue materialization)", () => {
     expect(s.description).toBe(VENUE_BODY.description);
 
     const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_vote_approve"));
-    expect(audits).toHaveLength(1);
+    expect(audits.length).toBeGreaterThanOrEqual(1);
     expect(audits[0].category).toBe("shop");
 
     expect(mockDm).toHaveBeenCalledTimes(1);
   });
 
-  it("is idempotent: a second approve 409s and creates no extra store", async () => {
+  it("vote is idempotent: a second approve 409s and creates no store before close", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const char = await createCharacter({ ownerId: owner.id });
@@ -135,11 +147,11 @@ describe("POST /requests/:id/vote (venue materialization)", () => {
     const second = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
     expect(second.status).toBe(409);
 
-    const createdStores = await db.select().from(stores);
-    expect(createdStores).toHaveLength(1);
+    // Still deferred — nothing materialized until close.
+    expect(await db.select().from(stores)).toHaveLength(0);
   });
 
-  it("creates a ripperdoc on approval", async () => {
+  it("creates a ripperdoc on close", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const char = await createCharacter({ ownerId: owner.id });
@@ -149,7 +161,11 @@ describe("POST /requests/:id/vote (venue materialization)", () => {
       .send({ type: "ripperdoc", characterId: char.id, ...VENUE_BODY, title: "Vik's Clinic" });
     const reqId = submit.body.id as number;
 
-    const res = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    const vote = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    expect(vote.status).toBe(200);
+    expect(await db.select().from(ripperdocs)).toHaveLength(0);
+
+    const res = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", fixer.id).send({});
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^ripperdoc:\d+$/);
 
@@ -172,10 +188,16 @@ describe("POST /requests/:id/vote (venue materialization)", () => {
       .send({ type: "store", characterId: char.id, ...VENUE_BODY });
     expect(submit.status).toBe(201);
 
-    const res = await request(app)
+    const vote = await request(app)
       .post(`/api/requests/${submit.body.id}/vote`)
       .set("x-test-user", fixer.id)
       .send({ vote: "approve" });
+    expect(vote.status).toBe(200);
+
+    const res = await request(app)
+      .post(`/api/review/request/${submit.body.id}/close`)
+      .set("x-test-user", fixer.id)
+      .send({});
     expect(res.status).toBe(200);
 
     const createdStores = await db.select().from(stores);
@@ -214,14 +236,18 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     return { char, reqId: res.body.id as number, status: res.status };
   }
 
-  it("materializes a housing lease for a property request", async () => {
+  it("materializes a housing lease on close, carrying decision params from the vote", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "property");
-    const res = await request(app)
+    const vote = await request(app)
       .post(`/api/requests/${reqId}/vote`)
       .set("x-test-user", fixer.id)
       .send({ vote: "approve", monthlyRent: 1500 });
+    expect(vote.status).toBe(200);
+    expect(await db.select().from(housing)).toHaveLength(0);
+
+    const res = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", fixer.id).send({});
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^housing:\d+$/);
     const leases = await db.select().from(housing);
@@ -230,11 +256,15 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     expect(leases[0].monthlyRent).toBe(1500);
   });
 
-  it("materializes a gun inventory item", async () => {
+  it("materializes a gun inventory item on close", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "gun");
-    const res = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    const vote = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    expect(vote.status).toBe(200);
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+
+    const res = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", fixer.id).send({});
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^inventory:/);
     const items = await db.select().from(inventoryItems);
@@ -244,11 +274,15 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     expect(items[0].ownerId).toBe(owner.id);
   });
 
-  it("materializes a cyberware inventory item with a CWP token", async () => {
+  it("materializes a cyberware inventory item with a CWP token on close", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "cyberware");
-    const res = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve", cwp: 4 });
+    const vote = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve", cwp: 4 });
+    expect(vote.status).toBe(200);
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+
+    const res = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", fixer.id).send({});
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^inventory:/);
     const items = await db.select().from(inventoryItems);

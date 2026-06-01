@@ -10,12 +10,17 @@ import {
   useApproveLoreEdit,
   useRejectLoreEdit,
   useGetReviewUnseenCounts,
+  useGetReviewUnseenIds,
+  getGetReviewUnseenIdsQueryKey,
   getListCustomRequestsQueryKey,
+  getListPendingSheetsQueryKey,
   getListLoreEditsQueryKey,
   type CustomRequest,
   type LorePendingEdit,
   type LoreEntryUpdate,
 } from "@workspace/api-client-react";
+import { type LifecycleBucket } from "@/lib/reviewLifecycle";
+import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,9 +77,12 @@ function venueDetails(r: CustomRequest): { purpose?: string; location?: string }
 }
 
 function MiscRequestsTab() {
-  const { data, isLoading } = useListCustomRequests({ status: "pending" });
+  const qc = useQueryClient();
+  const { data: active, isLoading: loadingActive } = useListCustomRequests({ bucket: "active" });
+  const { data: resolved, isLoading: loadingResolved } = useListCustomRequests({ bucket: "resolved" });
+  const { data: archive, isLoading: loadingArchive } = useListCustomRequests({ bucket: "archive" });
+  const { data: unseenIds } = useGetReviewUnseenIds();
   const { data: me } = useAuthMe();
-  const requests = (data ?? []) as CustomRequest[];
   const [approveTarget, setApproveTarget] = useState<CustomRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CustomRequest | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<CustomRequest | null>(null);
@@ -82,23 +90,22 @@ function MiscRequestsTab() {
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   const isAdmin = !!me?.isAdmin;
+  const isLoading = loadingActive || loadingResolved || loadingArchive;
 
-  if (isLoading) {
-    return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
-  }
-  if (requests.length === 0) {
-    return (
-      <div className="py-20 text-center border border-dashed border-border bg-card/30">
-        <Inbox className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-        <h3 className="text-xl font-display text-foreground mb-2">QUEUE EMPTY</h3>
-        <p className="text-muted-foreground font-mono text-sm">No miscellaneous requests require attention.</p>
-      </div>
-    );
-  }
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+  };
+  const actions = useReviewTicketActions(invalidate);
+  const unseen = new Set(unseenIds?.request ?? []);
 
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {requests.map((r) => {
+  const buckets: Record<LifecycleBucket, CustomRequest[]> = {
+    active: (active ?? []) as CustomRequest[],
+    resolved: (resolved ?? []) as CustomRequest[],
+    archive: (archive ?? []) as CustomRequest[],
+  };
+
+  const renderCard = (r: CustomRequest, bucket: LifecycleBucket) => {
         const meta = TYPE_META[r.type];
         const Icon = meta.Icon;
         return (
@@ -109,9 +116,12 @@ function MiscRequestsTab() {
           >
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
-                <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
-                  <Icon className="w-3 h-3 mr-1" /> {meta.label}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <UnseenDot show={unseen.has(r.id)} testid={`dot-unseen-request-${r.id}`} />
+                  <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
+                    <Icon className="w-3 h-3 mr-1" /> {meta.label}
+                  </Badge>
+                </div>
                 <span className="text-xs font-mono text-muted-foreground">
                   {new Date(r.createdAt).toLocaleDateString()}
                 </span>
@@ -165,19 +175,28 @@ function MiscRequestsTab() {
                 <p className="font-mono text-sm text-muted-foreground italic">No description provided.</p>
               )}
               <div className="mt-auto pt-3 border-t border-border/40 space-y-3">
-                <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
-                  <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
-                  <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
-                  {r.myVote ? (
-                    <span className="ml-2">
-                      · you voted{" "}
-                      <span className={r.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
-                        {r.myVote.toUpperCase()}
+                {bucket === "active" ? (
+                  <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
+                    <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
+                    <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
+                    {r.myVote ? (
+                      <span className="ml-2">
+                        · you voted{" "}
+                        <span className={r.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
+                          {r.myVote.toUpperCase()}
+                        </span>
                       </span>
-                    </span>
-                  ) : null}
-                </div>
-                {isReviewer && (
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="font-mono text-xs text-muted-foreground" data-testid={`status-misc-${r.id}`}>
+                    Status: <span className="text-foreground uppercase">{r.status.replace("_", " ")}</span>
+                    {r.reviewerNote ? (
+                      <span className="block italic mt-0.5">"{r.reviewerNote}"</span>
+                    ) : null}
+                  </div>
+                )}
+                {isReviewer && bucket === "active" && r.status === "pending" && (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
@@ -206,6 +225,9 @@ function MiscRequestsTab() {
                     )}
                   </div>
                 )}
+                {isReviewer && bucket === "resolved" && (
+                  <LifecycleActions subjectType="request" id={r.id} status={r.status} actions={actions} />
+                )}
                 <Button
                   variant="outline"
                   className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
@@ -218,7 +240,7 @@ function MiscRequestsTab() {
                 </Button>
                 {expanded === r.id && (
                   <div className="space-y-3">
-                    <AwaitingVoteBanner show={isReviewer && !r.myVote} />
+                    <AwaitingVoteBanner show={isReviewer && bucket === "active" && r.status === "pending" && !r.myVote} />
                     <ReviewCommentThread subjectType="request" subjectId={r.id} markSeenOnMount={isReviewer} />
                   </div>
                 )}
@@ -226,7 +248,30 @@ function MiscRequestsTab() {
             </CardContent>
           </Card>
         );
-      })}
+  };
+
+  if (isLoading) {
+    return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
+  }
+
+  const total = buckets.active.length + buckets.resolved.length + buckets.archive.length;
+  if (total === 0) {
+    return (
+      <div className="py-20 text-center border border-dashed border-border bg-card/30">
+        <Inbox className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+        <h3 className="text-xl font-display text-foreground mb-2">QUEUE EMPTY</h3>
+        <p className="text-muted-foreground font-mono text-sm">No miscellaneous requests require attention.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {(["active", "resolved", "archive"] as const).map((b) => (
+        <BucketSection key={b} bucket={b} count={buckets[b].length}>
+          {buckets[b].map((r) => renderCard(r, b))}
+        </BucketSection>
+      ))}
 
       <ApproveDialog request={approveTarget} mode="vote" onClose={() => setApproveTarget(null)} />
       <ApproveDialog request={overrideTarget} mode="override" onClose={() => setOverrideTarget(null)} />
@@ -526,12 +571,32 @@ function RejectDialog({ request, onClose }: { request: CustomRequest | null; onC
 }
 
 function NewCharactersTab() {
-  const { data: sheets, isLoading } = useListPendingSheets();
+  const qc = useQueryClient();
+  const { data: active, isLoading: loadingActive } = useListPendingSheets({ bucket: "active" });
+  const { data: resolved, isLoading: loadingResolved } = useListPendingSheets({ bucket: "resolved" });
+  const { data: archive, isLoading: loadingArchive } = useListPendingSheets({ bucket: "archive" });
+  const { data: unseenIds } = useGetReviewUnseenIds();
+  const isLoading = loadingActive || loadingResolved || loadingArchive;
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+  };
+  const actions = useReviewTicketActions(invalidate);
+  const unseen = new Set(unseenIds?.sheet ?? []);
+
+  const buckets: Record<LifecycleBucket, any[]> = {
+    active: active ?? [],
+    resolved: resolved ?? [],
+    archive: archive ?? [],
+  };
 
   if (isLoading) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
   }
-  if (!sheets || sheets.length === 0) {
+
+  const total = buckets.active.length + buckets.resolved.length + buckets.archive.length;
+  if (total === 0) {
     return (
       <div className="py-20 text-center border border-dashed border-border bg-card/30">
         <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
@@ -541,28 +606,56 @@ function NewCharactersTab() {
     );
   }
 
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {sheets.map((sheet: any) => (
-        <Link key={sheet.id} href={`/sheets/${sheet.id}`}>
-          <Card
-            className="rounded-none border-border bg-card/50 hover:border-nc-yellow hover:shadow-[0_0_15px_rgba(255,255,0,0.1)] transition-all cursor-pointer h-full flex flex-col"
-            data-testid={`card-pending-sheet-${sheet.id}`}
+  const renderCard = (sheet: any, bucket: LifecycleBucket) => (
+    <Card
+      key={sheet.id}
+      className="rounded-none border-border bg-card/50 flex flex-col h-full"
+      data-testid={`card-pending-sheet-${sheet.id}`}
+    >
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <UnseenDot show={unseen.has(sheet.id)} testid={`dot-unseen-sheet-${sheet.id}`} />
+          <CardTitle className="text-xl font-display truncate">{sheet.name}</CardTitle>
+        </div>
+        <CardDescription className="font-mono text-xs">By {sheet.ownerName || sheet.ownerId}</CardDescription>
+      </CardHeader>
+      <CardContent className="mt-auto flex flex-col gap-3 border-t border-border/50 pt-4">
+        <div className="flex justify-between items-center">
+          <div className="text-xs font-mono text-muted-foreground">
+            {new Date(sheet.createdAt).toLocaleDateString()}
+          </div>
+          {bucket === "active" ? (
+            <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none animate-pulse">
+              REVIEW REQ
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-border text-muted-foreground rounded-none uppercase" data-testid={`status-sheet-${sheet.id}`}>
+              {String(sheet.status).replace("_", " ")}
+            </Badge>
+          )}
+        </div>
+        <Link href={`/sheets/${sheet.id}`}>
+          <Button
+            variant="outline"
+            className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
+            data-testid={`button-open-sheet-${sheet.id}`}
           >
-            <CardHeader>
-              <CardTitle className="text-xl font-display truncate">{sheet.name}</CardTitle>
-              <CardDescription className="font-mono text-xs">By {sheet.ownerName || sheet.ownerId}</CardDescription>
-            </CardHeader>
-            <CardContent className="mt-auto flex justify-between items-center border-t border-border/50 pt-4">
-              <div className="text-xs font-mono text-muted-foreground">
-                {new Date(sheet.createdAt).toLocaleDateString()}
-              </div>
-              <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none animate-pulse">
-                REVIEW REQ
-              </Badge>
-            </CardContent>
-          </Card>
+            OPEN SHEET
+          </Button>
         </Link>
+        {bucket === "resolved" && (
+          <LifecycleActions subjectType="sheet" id={sheet.id} status={String(sheet.status)} actions={actions} />
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-8">
+      {(["active", "resolved", "archive"] as const).map((b) => (
+        <BucketSection key={b} bucket={b} count={buckets[b].length}>
+          {buckets[b].map((sheet) => renderCard(sheet, b))}
+        </BucketSection>
       ))}
     </div>
   );

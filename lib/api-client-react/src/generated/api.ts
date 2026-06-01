@@ -65,6 +65,7 @@ import type {
   CharacterUpdate,
   CharacterUpdateNote,
   CheckMissionConflictsParams,
+  CloseReviewTicket200,
   CustomRequest,
   CustomRequestApproval,
   CustomRequestInput,
@@ -120,6 +121,8 @@ import type {
   ListMissionHistoryParams,
   ListMissionsParams,
   ListMyCustomRequestsParams,
+  ListPendingEditsParams,
+  ListPendingSheetsParams,
   ListPublicCharactersParams,
   ListingHistory,
   LiveModeState,
@@ -146,6 +149,7 @@ import type {
   MissionHistoryPage,
   MissionSummary,
   MissionUpdateInput,
+  MyUnseen,
   OverridePendingEdit200,
   PayActorsInput,
   PendingEditDetail,
@@ -159,6 +163,7 @@ import type {
   PublicCharacter,
   PublicCharacterSummary,
   ReactivateCharacter200,
+  ReopenReviewTicket200,
   RequestChangesInput,
   RequestChangesPendingEdit200,
   ResubmitPendingEdit200,
@@ -166,6 +171,7 @@ import type {
   ReviewComment,
   ReviewCommentInput,
   ReviewUnseenCounts,
+  ReviewUnseenIds,
   Ripperdoc,
   RipperdocPublic,
   RipperdocUpdate,
@@ -10514,20 +10520,27 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getSubmitSheetMutationOptions(options));
     }
 
-export const getListPendingSheetsUrl = () => {
+export const getListPendingSheetsUrl = (params?: ListPendingSheetsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/sheets/pending`
+  return stringifiedParams.length > 0 ? `/api/sheets/pending?${stringifiedParams}` : `/api/sheets/pending`
 }
 
 /**
- * @summary Pending sheets (reviewers only) with per-sheet vote tallies
+ * @summary Pending sheets (reviewers only) with per-sheet vote tallies. Filter by lifecycle bucket.
  */
-export const listPendingSheets = async ( options?: RequestInit): Promise<PendingSheetSummary[]> => {
+export const listPendingSheets = async (params?: ListPendingSheetsParams, options?: RequestInit): Promise<PendingSheetSummary[]> => {
 
-  return customFetch<PendingSheetSummary[]>(getListPendingSheetsUrl(),
+  return customFetch<PendingSheetSummary[]>(getListPendingSheetsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -10540,23 +10553,23 @@ export const listPendingSheets = async ( options?: RequestInit): Promise<Pending
 
 
 
-export const getListPendingSheetsQueryKey = () => {
+export const getListPendingSheetsQueryKey = (params?: ListPendingSheetsParams,) => {
     return [
-    `/api/sheets/pending`
+    `/api/sheets/pending`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListPendingSheetsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingSheets>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingSheets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListPendingSheetsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingSheets>>, TError = ErrorType<unknown>>(params?: ListPendingSheetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingSheets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListPendingSheetsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListPendingSheetsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingSheets>>> = ({ signal }) => listPendingSheets({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingSheets>>> = ({ signal }) => listPendingSheets(params, { signal, ...requestOptions });
 
 
 
@@ -10570,15 +10583,15 @@ export type ListPendingSheetsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Pending sheets (reviewers only) with per-sheet vote tallies
+ * @summary Pending sheets (reviewers only) with per-sheet vote tallies. Filter by lifecycle bucket.
  */
 
 export function useListPendingSheets<TData = Awaited<ReturnType<typeof listPendingSheets>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingSheets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListPendingSheetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingSheets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListPendingSheetsQueryOptions(options)
+  const queryOptions = getListPendingSheetsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -11088,20 +11101,27 @@ export const useRequestChangesSheet = <TError = ErrorType<void>,
       return useMutation(getRequestChangesSheetMutationOptions(options));
     }
 
-export const getListPendingEditsUrl = () => {
+export const getListPendingEditsUrl = (params?: ListPendingEditsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/pending-edits`
+  return stringifiedParams.length > 0 ? `/api/pending-edits?${stringifiedParams}` : `/api/pending-edits`
 }
 
 /**
- * @summary List pending character edits (staff see all; players see only their own)
+ * @summary List pending character edits (staff see all; players see only their own). Reviewers can filter by lifecycle bucket.
  */
-export const listPendingEdits = async ( options?: RequestInit): Promise<PendingEditSummary[]> => {
+export const listPendingEdits = async (params?: ListPendingEditsParams, options?: RequestInit): Promise<PendingEditSummary[]> => {
 
-  return customFetch<PendingEditSummary[]>(getListPendingEditsUrl(),
+  return customFetch<PendingEditSummary[]>(getListPendingEditsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -11114,23 +11134,23 @@ export const listPendingEdits = async ( options?: RequestInit): Promise<PendingE
 
 
 
-export const getListPendingEditsQueryKey = () => {
+export const getListPendingEditsQueryKey = (params?: ListPendingEditsParams,) => {
     return [
-    `/api/pending-edits`
+    `/api/pending-edits`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListPendingEditsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingEdits>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListPendingEditsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingEdits>>, TError = ErrorType<unknown>>(params?: ListPendingEditsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListPendingEditsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListPendingEditsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingEdits>>> = ({ signal }) => listPendingEdits({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingEdits>>> = ({ signal }) => listPendingEdits(params, { signal, ...requestOptions });
 
 
 
@@ -11144,15 +11164,15 @@ export type ListPendingEditsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List pending character edits (staff see all; players see only their own)
+ * @summary List pending character edits (staff see all; players see only their own). Reviewers can filter by lifecycle bucket.
  */
 
 export function useListPendingEdits<TData = Awaited<ReturnType<typeof listPendingEdits>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListPendingEditsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListPendingEditsQueryOptions(options)
+  const queryOptions = getListPendingEditsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -14253,7 +14273,7 @@ export const getListCustomRequestsUrl = (params?: ListCustomRequestsParams,) => 
 }
 
 /**
- * @summary List custom requests across all players (fixer/admin only).
+ * @summary List custom requests across all players (fixer/admin only). Filter by lifecycle bucket (active/resolved/archive) or legacy status.
  */
 export const listCustomRequests = async (params?: ListCustomRequestsParams, options?: RequestInit): Promise<CustomRequest[]> => {
 
@@ -14300,7 +14320,7 @@ export type ListCustomRequestsQueryError = ErrorType<void>
 
 
 /**
- * @summary List custom requests across all players (fixer/admin only).
+ * @summary List custom requests across all players (fixer/admin only). Filter by lifecycle bucket (active/resolved/archive) or legacy status.
  */
 
 export function useListCustomRequests<TData = Awaited<ReturnType<typeof listCustomRequests>>, TError = ErrorType<void>>(
@@ -16398,4 +16418,302 @@ export function useGetReviewUnseenCounts<TData = Awaited<ReturnType<typeof getRe
 
 
 
+
+export const getGetMyUnseenUrl = () => {
+
+
+
+
+  return `/api/review/my-unseen`
+}
+
+/**
+ * @summary The submitter's unread view — per queue, the ids of the caller's own submissions with unseen activity (a reviewer comment or a decision/close), plus a grand total for the nav badge. Not role-gated.
+ */
+export const getMyUnseen = async ( options?: RequestInit): Promise<MyUnseen> => {
+
+  return customFetch<MyUnseen>(getGetMyUnseenUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyUnseenQueryKey = () => {
+    return [
+    `/api/review/my-unseen`
+    ] as const;
+    }
+
+
+export const getGetMyUnseenQueryOptions = <TData = Awaited<ReturnType<typeof getMyUnseen>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyUnseen>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyUnseenQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyUnseen>>> = ({ signal }) => getMyUnseen({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyUnseen>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyUnseenQueryResult = NonNullable<Awaited<ReturnType<typeof getMyUnseen>>>
+export type GetMyUnseenQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The submitter's unread view — per queue, the ids of the caller's own submissions with unseen activity (a reviewer comment or a decision/close), plus a grand total for the nav badge. Not role-gated.
+ */
+
+export function useGetMyUnseen<TData = Awaited<ReturnType<typeof getMyUnseen>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyUnseen>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyUnseenQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetReviewUnseenIdsUrl = () => {
+
+
+
+
+  return `/api/review/unseen-ids`
+}
+
+/**
+ * @summary The reviewer's per-row unread view — same actionable scope and role gating as unseen-counts, but returns the unseen ids per queue so the staff page can dot each ticket.
+ */
+export const getReviewUnseenIds = async ( options?: RequestInit): Promise<ReviewUnseenIds> => {
+
+  return customFetch<ReviewUnseenIds>(getGetReviewUnseenIdsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReviewUnseenIdsQueryKey = () => {
+    return [
+    `/api/review/unseen-ids`
+    ] as const;
+    }
+
+
+export const getGetReviewUnseenIdsQueryOptions = <TData = Awaited<ReturnType<typeof getReviewUnseenIds>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewUnseenIds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReviewUnseenIdsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReviewUnseenIds>>> = ({ signal }) => getReviewUnseenIds({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReviewUnseenIds>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReviewUnseenIdsQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewUnseenIds>>>
+export type GetReviewUnseenIdsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The reviewer's per-row unread view — same actionable scope and role gating as unseen-counts, but returns the unseen ids per queue so the staff page can dot each ticket.
+ */
+
+export function useGetReviewUnseenIds<TData = Awaited<ReturnType<typeof getReviewUnseenIds>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewUnseenIds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReviewUnseenIdsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCloseReviewTicketUrl = (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,) => {
+
+
+
+
+  return `/api/review/${subjectType}/${id}/close`
+}
+
+/**
+ * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
+ */
+export const closeReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: RequestInit): Promise<CloseReviewTicket200> => {
+
+  return customFetch<CloseReviewTicket200>(getCloseReviewTicketUrl(subjectType,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCloseReviewTicketMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext> => {
+
+const mutationKey = ['closeReviewTicket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeReviewTicket>>, {subjectType: 'edit' | 'request' | 'sheet';id: number}> = (props) => {
+          const {subjectType,id} = props ?? {};
+
+          return  closeReviewTicket(subjectType,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseReviewTicketMutationResult = NonNullable<Awaited<ReturnType<typeof closeReviewTicket>>>
+
+    export type CloseReviewTicketMutationError = ErrorType<void>
+
+    /**
+ * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
+ */
+export const useCloseReviewTicket = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closeReviewTicket>>,
+        TError,
+        {subjectType: 'edit' | 'request' | 'sheet';id: number},
+        TContext
+      > => {
+      return useMutation(getCloseReviewTicketMutationOptions(options));
+    }
+
+export const getReopenReviewTicketUrl = (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,) => {
+
+
+
+
+  return `/api/review/${subjectType}/${id}/reopen`
+}
+
+/**
+ * @summary Send a resolved (approved | rejected) ticket back to pending for another vote. Clears votes and the decision fields. Refuses when the effect was already applied. Reviewers only.
+ */
+export const reopenReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: RequestInit): Promise<ReopenReviewTicket200> => {
+
+  return customFetch<ReopenReviewTicket200>(getReopenReviewTicketUrl(subjectType,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getReopenReviewTicketMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext> => {
+
+const mutationKey = ['reopenReviewTicket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenReviewTicket>>, {subjectType: 'edit' | 'request' | 'sheet';id: number}> = (props) => {
+          const {subjectType,id} = props ?? {};
+
+          return  reopenReviewTicket(subjectType,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenReviewTicketMutationResult = NonNullable<Awaited<ReturnType<typeof reopenReviewTicket>>>
+
+    export type ReopenReviewTicketMutationError = ErrorType<void>
+
+    /**
+ * @summary Send a resolved (approved | rejected) ticket back to pending for another vote. Clears votes and the decision fields. Refuses when the effect was already applied. Reviewers only.
+ */
+export const useReopenReviewTicket = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reopenReviewTicket>>,
+        TError,
+        {subjectType: 'edit' | 'request' | 'sheet';id: number},
+        TContext
+      > => {
+      return useMutation(getReopenReviewTicketMutationOptions(options));
+    }
 

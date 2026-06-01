@@ -49,6 +49,11 @@ export function majorityOf(n: number): number {
 
 export type ReviewSubjectType = "sheet" | "request";
 
+// A response-shaped result returned by the per-type close/reopen handlers in
+// the route files and surfaced verbatim by the unified /review/:type/:id/close
+// and /reopen endpoints.
+export type ReviewActionResult = { status: number; body: unknown };
+
 // Tally the votes for one subject against the eligible-reviewer majority.
 // `submitterId` is excluded from the eligible pool. Pass a transaction handle
 // as `conn` to read votes inside a locked decision transaction.

@@ -4855,8 +4855,12 @@ export const SubmitSheetBody = zod.object({
 
 
 /**
- * @summary Pending sheets (reviewers only) with per-sheet vote tallies
+ * @summary Pending sheets (reviewers only) with per-sheet vote tallies. Filter by lifecycle bucket.
  */
+export const ListPendingSheetsQueryParams = zod.object({
+  "bucket": zod.enum(['active', 'resolved', 'archive']).optional().describe('Lifecycle bucket. active = pending\/changes_requested; resolved = approved\/rejected\/cancelled; archive = closed. Defaults to pending only.')
+})
+
 export const ListPendingSheetsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -5423,8 +5427,12 @@ export const RequestChangesSheetResponse = zod.object({
 
 
 /**
- * @summary List pending character edits (staff see all; players see only their own)
+ * @summary List pending character edits (staff see all; players see only their own). Reviewers can filter by lifecycle bucket.
  */
+export const ListPendingEditsQueryParams = zod.object({
+  "bucket": zod.enum(['active', 'resolved', 'archive']).optional().describe('Lifecycle bucket (reviewers only). active = pending\/changes_requested; resolved = approved\/rejected\/cancelled; archive = closed. Defaults to open edits plus anything decided in the last 7 days.')
+})
+
 export const ListPendingEditsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
@@ -6516,12 +6524,13 @@ export const GetMyWalletTransactionsResponse = zod.array(GetMyWalletTransactions
 
 
 /**
- * @summary List custom requests across all players (fixer/admin only).
+ * @summary List custom requests across all players (fixer/admin only). Filter by lifecycle bucket (active/resolved/archive) or legacy status.
  */
 export const listCustomRequestsQueryStatusDefault = `pending`;
 
 export const ListCustomRequestsQueryParams = zod.object({
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']).default(listCustomRequestsQueryStatusDefault)
+  "bucket": zod.enum(['active', 'resolved', 'archive']).optional().describe('Lifecycle bucket. active = pending\/changes_requested; resolved = approved\/rejected\/cancelled; archive = closed. Overrides `status` when set.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']).default(listCustomRequestsQueryStatusDefault)
 })
 
 export const ListCustomRequestsResponseItem = zod.object({
@@ -7358,5 +7367,48 @@ export const GetReviewUnseenCountsResponse = zod.object({
   "sheets": zod.number(),
   "total": zod.number()
 })
+
+
+/**
+ * @summary The submitter's unread view — per queue, the ids of the caller's own submissions with unseen activity (a reviewer comment or a decision/close), plus a grand total for the nav badge. Not role-gated.
+ */
+export const GetMyUnseenResponse = zod.object({
+  "edit": zod.array(zod.number()),
+  "request": zod.array(zod.number()),
+  "sheet": zod.array(zod.number()),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary The reviewer's per-row unread view — same actionable scope and role gating as unseen-counts, but returns the unseen ids per queue so the staff page can dot each ticket.
+ */
+export const GetReviewUnseenIdsResponse = zod.object({
+  "edit": zod.array(zod.number()),
+  "request": zod.array(zod.number()),
+  "sheet": zod.array(zod.number())
+})
+
+
+/**
+ * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
+ */
+export const CloseReviewTicketParams = zod.object({
+  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "id": zod.coerce.number()
+})
+
+export const CloseReviewTicketResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Send a resolved (approved | rejected) ticket back to pending for another vote. Clears votes and the decision fields. Refuses when the effect was already applied. Reviewers only.
+ */
+export const ReopenReviewTicketParams = zod.object({
+  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "id": zod.coerce.number()
+})
+
+export const ReopenReviewTicketResponse = zod.record(zod.string(), zod.unknown())
 
 

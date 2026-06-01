@@ -12,9 +12,11 @@ import {
   type User,
   type Character,
 } from "@workspace/db";
+import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, postToChannel } from "../lib/discord";
-import { isReviewer, listEligibleReviewerIds, majorityOf } from "../lib/review";
+import { isReviewer, listEligibleReviewerIds, majorityOf, type ReviewActionResult } from "../lib/review";
+import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -47,7 +49,9 @@ export type EditableDiff = z.infer<typeof EditableSchema>;
 // Apply an approved diff to the characters row. Mirrors the legacy
 // PATCH /characters/:id apply logic so the eventual database state is
 // identical to what the player would have gotten pre-review.
-async function applyDiff(characterId: number, diff: EditableDiff): Promise<Character> {
+type DbConn = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function applyDiff(characterId: number, diff: EditableDiff, conn: DbConn = db): Promise<Character> {
   const u: Record<string, unknown> = {};
   if (diff.name !== undefined) u.name = diff.name;
   if (diff.archetype !== undefined) u.archetype = diff.archetype || null;
@@ -59,7 +63,7 @@ async function applyDiff(characterId: number, diff: EditableDiff): Promise<Chara
   if (diff.lifeStatus !== undefined) u.lifeStatus = diff.lifeStatus;
   if (diff.traumaTeamTier !== undefined) u.traumaTeamTier = diff.traumaTeamTier;
   if (diff.xanaduGold !== undefined) u.xanaduGold = diff.xanaduGold;
-  const [updated] = await db.update(characters).set(u).where(eq(characters.id, characterId)).returning();
+  const [updated] = await conn.update(characters).set(u).where(eq(characters.id, characterId)).returning();
   return updated;
 }
 
@@ -309,18 +313,28 @@ async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelec
 router.get("/pending-edits", requireAuth, async (req, res): Promise<void> => {
   const u = req.user!;
   const isStaff = isReviewer(u);
+  // Reviewers can scope the staff queue to a lifecycle bucket (active /
+  // resolved / archive). With no bucket we keep the legacy default: open edits
+  // plus anything decided in the last 7 days.
+  const bucket = req.query.bucket ? String(req.query.bucket) : null;
+  let staffWhere;
+  if (bucket === "active") {
+    staffWhere = inArray(pendingCharacterEdits.status, ["pending", "changes_requested"]);
+  } else if (bucket === "resolved") {
+    staffWhere = inArray(pendingCharacterEdits.status, ["approved", "rejected", "cancelled"]);
+  } else if (bucket === "archive") {
+    staffWhere = eq(pendingCharacterEdits.status, "closed");
+  } else {
+    staffWhere = or(
+      eq(pendingCharacterEdits.status, "pending"),
+      eq(pendingCharacterEdits.status, "changes_requested"),
+      sql`${pendingCharacterEdits.decidedAt} > NOW() - INTERVAL '7 days'`,
+    );
+  }
   const rows = await db
     .select()
     .from(pendingCharacterEdits)
-    .where(
-      isStaff
-        ? or(
-            eq(pendingCharacterEdits.status, "pending"),
-            eq(pendingCharacterEdits.status, "changes_requested"),
-            sql`${pendingCharacterEdits.decidedAt} > NOW() - INTERVAL '7 days'`,
-          )
-        : eq(pendingCharacterEdits.submittedBy, u.id),
-    )
+    .where(isStaff ? staffWhere : eq(pendingCharacterEdits.submittedBy, u.id))
     .orderBy(desc(pendingCharacterEdits.submittedAt));
   res.json(await hydrateEdits(rows));
 });
@@ -479,20 +493,9 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
     if (approves >= threshold) decided = "approved";
     else if (rejects >= threshold) decided = "rejected";
 
-    if (decided === "approved") {
-      const diff = (locked.proposed_diff ?? {}) as EditableDiff;
-      // applyDiff issues its own non-tx update; OK because we hold the
-      // row lock on the pending edit and the characters row is the only
-      // other write target.
-      await applyDiff(locked.character_id, diff);
-      if (locked.update_note) {
-        await tx.insert(characterUpdates).values({
-          characterId: locked.character_id,
-          authorId: locked.submitted_by,
-          note: locked.update_note,
-        });
-      }
-    }
+    // Effects are DEFERRED: a majority approve only STAGES the decision; the
+    // proposed diff is applied to the character when a fixer closes the ticket.
+    // Rejection has no effect to defer, so we keep its activity-feed event.
     if (decided) {
       await tx
         .update(pendingCharacterEdits)
@@ -502,13 +505,15 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
           decisionSummary: `${approves} approve / ${rejects} reject (threshold ${threshold} of ${eligibleIds.length})`,
         })
         .where(eq(pendingCharacterEdits.id, id));
-      await tx.insert(activityEvents).values({
-        kind: decided === "approved" ? "character_edit_approved" : "character_edit_rejected",
-        actorId: u.id,
-        actorName: u.username,
-        actorAvatarUrl: u.avatarUrl,
-        message: `Edit on character #${locked.character_id} ${decided} (${approves}/${threshold})`,
-      });
+      if (decided === "rejected") {
+        await tx.insert(activityEvents).values({
+          kind: "character_edit_rejected",
+          actorId: u.id,
+          actorName: u.username,
+          actorAvatarUrl: u.avatarUrl,
+          message: `Edit on character #${locked.character_id} rejected (${rejects}/${threshold})`,
+        });
+      }
     }
     return { kind: "ok" as const, decided, approves, rejects, threshold, eligibleVoterCount: eligibleIds.length };
   });
@@ -553,15 +558,8 @@ router.post("/pending-edits/:id/override", requireAuth, async (req, res): Promis
       return { kind: "already_decided" as const, status: locked.status };
     }
     if (locked.submitted_by === u.id) return { kind: "own" as const };
-    const diff = (locked.proposed_diff ?? {}) as EditableDiff;
-    await applyDiff(locked.character_id, diff);
-    if (locked.update_note) {
-      await tx.insert(characterUpdates).values({
-        characterId: locked.character_id,
-        authorId: locked.submitted_by,
-        note: locked.update_note,
-      });
-    }
+    // Effects deferred: staging the approval only; the diff is applied when the
+    // ticket is closed.
     await tx
       .update(pendingCharacterEdits)
       .set({
@@ -571,13 +569,6 @@ router.post("/pending-edits/:id/override", requireAuth, async (req, res): Promis
         decisionSummary: `Approved via admin override by ${u.username}`,
       })
       .where(eq(pendingCharacterEdits.id, id));
-    await tx.insert(activityEvents).values({
-      kind: "character_edit_approved",
-      actorId: u.id,
-      actorName: u.username,
-      actorAvatarUrl: u.avatarUrl,
-      message: `Edit on character #${locked.character_id} approved via admin override`,
-    });
     return { kind: "ok" as const };
   });
   if (result.kind === "not_found") { res.status(404).json({ error: "Not found" }); return; }
@@ -686,5 +677,108 @@ router.get("/characters/:id/pending-edit", requireAuth, async (req, res): Promis
   }
   res.json({ id: row.id, submittedAt: row.submittedAt, submittedBy: row.submittedBy });
 });
+
+// Close a RESOLVED character edit (approved | rejected | cancelled) → archived.
+// Closing an APPROVED edit commits the proposed diff to the character exactly
+// once (an edit becomes `closed` and is terminal, so it can't be re-applied);
+// closing a rejected/cancelled edit just archives it. Idempotent: re-closing an
+// already-closed edit is a 200 no-op. The diff is applied inside the locked txn
+// so apply + status flip are atomic. Caller has already verified the actor is a
+// reviewer.
+export async function closeEdit(req: Request, id: number): Promise<ReviewActionResult> {
+  const u = req.user!;
+  const result = await db.transaction(async (tx) => {
+    const lockedRows = await tx.execute(
+      sql`SELECT id, status, character_id, submitted_by, proposed_diff, update_note
+          FROM pending_character_edits WHERE id = ${id} FOR UPDATE`,
+    );
+    const locked = (lockedRows as unknown as { rows: Array<{ status: string; character_id: number; submitted_by: string; proposed_diff: unknown; update_note: string | null }> }).rows?.[0]
+      ?? (lockedRows as unknown as Array<{ status: string; character_id: number; submitted_by: string; proposed_diff: unknown; update_note: string | null }>)[0];
+    if (!locked) return { kind: "error" as const, status: 404, body: { error: "Not found" } };
+    if (locked.status === "closed") return { kind: "noop" as const };
+    if (locked.status !== "approved" && locked.status !== "rejected" && locked.status !== "cancelled") {
+      return { kind: "error" as const, status: 409, body: { error: `Only a resolved edit can be closed (this one is ${locked.status})` } };
+    }
+    if (locked.status === "approved") {
+      const diff = (locked.proposed_diff ?? {}) as EditableDiff;
+      await applyDiff(locked.character_id, diff, tx);
+      if (locked.update_note) {
+        await tx.insert(characterUpdates).values({
+          characterId: locked.character_id,
+          authorId: locked.submitted_by,
+          note: locked.update_note,
+        });
+      }
+      await tx.insert(activityEvents).values({
+        kind: "character_edit_approved",
+        actorId: u.id,
+        actorName: u.username,
+        actorAvatarUrl: u.avatarUrl,
+        message: `Edit on character #${locked.character_id} applied on close`,
+      });
+    }
+    await tx
+      .update(pendingCharacterEdits)
+      .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
+      .where(eq(pendingCharacterEdits.id, id));
+    return { kind: "ok" as const, status: locked.status };
+  });
+  if (result.kind === "error") return { status: result.status, body: result.body };
+  if (result.kind === "ok") {
+    await recordAudit({
+      req,
+      category: "character",
+      action: "edit_closed",
+      targetType: "pending_character_edit",
+      targetId: id,
+      message: `Closed character edit (${result.status})`,
+    });
+  }
+  const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
+  return { status: 200, body: { ok: true, status: "closed", id: row?.id } };
+}
+
+// Reopen a RESOLVED-but-not-archived character edit (approved | rejected) back
+// to pending for another review round. Votes are deleted and the decision fields
+// are wiped. Because effects are deferred, an approved-not-closed edit has not
+// been applied yet, so reopening it is safe. cancelled and closed edits cannot
+// be reopened.
+export async function reopenEdit(req: Request, id: number): Promise<ReviewActionResult> {
+  const result = await db.transaction(async (tx) => {
+    const lockedRows = await tx.execute(
+      sql`SELECT id, status, character_id FROM pending_character_edits WHERE id = ${id} FOR UPDATE`,
+    );
+    const locked = (lockedRows as unknown as { rows: Array<{ status: string; character_id: number }> }).rows?.[0]
+      ?? (lockedRows as unknown as Array<{ status: string; character_id: number }>)[0];
+    if (!locked) return { error: { status: 404, body: { error: "Not found" } } };
+    if (locked.status !== "approved" && locked.status !== "rejected") {
+      return { error: { status: 409, body: { error: `Only an approved or rejected edit can be reopened (this one is ${locked.status})` } } };
+    }
+    // Another pending edit may exist on this character; the partial unique
+    // index only covers status='pending', so guard explicitly.
+    const [conflict] = await tx
+      .select({ id: pendingCharacterEdits.id })
+      .from(pendingCharacterEdits)
+      .where(and(eq(pendingCharacterEdits.characterId, locked.character_id), eq(pendingCharacterEdits.status, "pending")));
+    if (conflict) return { error: { status: 409, body: { error: "Another edit for this character is already pending" } } };
+    await tx
+      .update(pendingCharacterEdits)
+      .set({ status: "pending", decidedAt: null, decisionSummary: null, reviewComment: null, overriddenBy: null, submittedAt: new Date() })
+      .where(eq(pendingCharacterEdits.id, id));
+    await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, id));
+    return { ok: true as const };
+  });
+  if ("error" in result && result.error) return result.error;
+  await recordAudit({
+    req,
+    category: "character",
+    action: "edit_reopened",
+    targetType: "pending_character_edit",
+    targetId: id,
+    message: `Reopened character edit`,
+  });
+  const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
+  return { status: 200, body: { ok: true, status: "pending", id: row?.id } };
+}
 
 export default router;

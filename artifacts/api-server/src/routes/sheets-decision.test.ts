@@ -36,7 +36,7 @@ describe("POST /api/sheets/:id/vote self-review guard", () => {
     expect(after.characterId).toBeNull();
   });
 
-  it("lets a different approver approve and materialize the character", async () => {
+  it("lets a different approver approve, then materializes the character on close", async () => {
     const owner = await createUser();
     const approver = await createUser({ roles: ["cs approver"] });
     const sheet = await createPendingSheet(owner.id, "Approve Me");
@@ -53,12 +53,26 @@ describe("POST /api/sheets/:id/vote self-review guard", () => {
       .from(characterSheets)
       .where(eq(characterSheets.id, sheet.id));
     expect(after.status).toBe("approved");
-    expect(after.characterId).not.toBeNull();
+    // Staged lifecycle: approval defers materialization until close.
+    expect(after.characterId).toBeNull();
+
+    const close = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", approver.id)
+      .send({});
+    expect(close.status).toBe(200);
+
+    const [closed] = await db
+      .select()
+      .from(characterSheets)
+      .where(eq(characterSheets.id, sheet.id));
+    expect(closed.status).toBe("closed");
+    expect(closed.characterId).not.toBeNull();
 
     const [char] = await db
       .select()
       .from(characters)
-      .where(eq(characters.id, after.characterId!));
+      .where(eq(characters.id, closed.characterId!));
     expect(char).toBeTruthy();
     expect(char.ownerId).toBe(owner.id);
   });

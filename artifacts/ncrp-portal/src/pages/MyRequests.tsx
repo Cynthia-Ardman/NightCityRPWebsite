@@ -10,13 +10,16 @@ import {
   useDecideEmployeeInvite,
   useUpdateCustomRequest,
   useResubmitCustomRequest,
+  useGetMyUnseen,
   getListMyCustomRequestsQueryKey,
+  getGetMyUnseenQueryKey,
   type CustomRequest,
   type HousingRequest,
   type CharacterSheet,
   type PendingEditSummary,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
+import { statusBucket, BUCKET_LABEL, type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +63,10 @@ type HistoryRow = {
   // Set for custom requests the owner can act on directly (stock-cost).
   customId?: number;
   customType?: CustomRequest["type"];
+  // Review-subject identity for the discussion thread + unread dots. Housing
+  // leases aren't part of the review pipeline, so they leave these unset.
+  subjectType?: "request" | "edit" | "sheet";
+  subjectId?: number;
   // Set for character sheets / edits: where the player goes to read the
   // reviewer's note and resubmit. Inline resubmit isn't possible for these
   // (they have full forms / diffs), so we link to their detail page.
@@ -134,8 +141,22 @@ export default function MyRequests() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState<{ id: number; title: string; description: string } | null>(null);
-  const [discussing, setDiscussing] = useState<number | null>(null);
-  const invalidateMine = () => qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() });
+  const [discussing, setDiscussing] = useState<string | null>(null);
+  // Per-queue ids of the player's own submissions with unseen activity. Drives
+  // the per-row unread dot; opening a row's discussion clears it server-side.
+  const { data: myUnseen } = useGetMyUnseen({ query: { enabled: !!me, queryKey: getGetMyUnseenQueryKey() } });
+  const unseenKeys = useMemo(() => {
+    const s = new Set<string>();
+    for (const id of myUnseen?.request ?? []) s.add(`request-${id}`);
+    for (const id of myUnseen?.edit ?? []) s.add(`edit-${id}`);
+    for (const id of myUnseen?.sheet ?? []) s.add(`sheet-${id}`);
+    return s;
+  }, [myUnseen]);
+  const isUnseen = (r: HistoryRow) => !!r.subjectType && r.subjectId != null && unseenKeys.has(`${r.subjectType}-${r.subjectId}`);
+  const invalidateMine = () => {
+    qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
+  };
   const errMsg = (err: unknown, fallback: string) =>
     (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
   const decide = useDecideStockCostRequest({
@@ -197,6 +218,8 @@ export default function MyRequests() {
         description: r.description,
         customId: r.id,
         customType: r.type,
+        subjectType: "request",
+        subjectId: r.id,
         inviteRole: r.type === "employee_invite" ? det.role ?? null : null,
         inviteCommissionPct: r.type === "employee_invite" ? det.commissionPct ?? null : null,
         inviteVenueName: r.type === "employee_invite" ? det.venueName ?? null : null,
@@ -227,6 +250,8 @@ export default function MyRequests() {
         createdAt: s.createdAt,
         reviewedAt: s.decidedAt,
         reviewerNote: s.decisionNote,
+        subjectType: "sheet",
+        subjectId: s.id,
         respondTo: `/sheets/${s.id}`,
       });
     }
@@ -243,6 +268,8 @@ export default function MyRequests() {
         createdAt: e.submittedAt,
         reviewedAt: e.decidedAt,
         reviewerNote: e.reviewComment,
+        subjectType: "edit",
+        subjectId: e.id,
         respondTo: `/pending-edits/${e.id}`,
       });
     }
@@ -251,7 +278,207 @@ export default function MyRequests() {
   }, [custom, housing, sheets, edits, me]);
 
   const visible = category === "All" ? rows : rows.filter((r) => r.category === category);
+  const buckets = useMemo(() => {
+    const b: Record<LifecycleBucket, HistoryRow[]> = { active: [], resolved: [], archive: [] };
+    for (const r of visible) b[statusBucket(r.status)].push(r);
+    return b;
+  }, [visible]);
   const isLoading = loadingCustom || loadingHousing || loadingSheets || loadingEdits;
+
+  const renderRow = (r: HistoryRow) => (
+    <Fragment key={r.key}>
+      <tr
+        className="border-b border-border/30 hover:bg-card/80 align-top"
+        data-testid={`row-my-request-${r.key}`}
+      >
+        <td className={`p-3 font-bold whitespace-nowrap ${categoryColor(r.category)}`}>
+          <span className="inline-flex items-center gap-2">
+            {isUnseen(r) ? (
+              <span
+                className="w-2 h-2 rounded-full bg-nc-magenta shadow-[0_0_6px_rgba(255,0,128,0.8)] shrink-0"
+                title="New activity"
+                data-testid={`dot-unseen-${r.key}`}
+              />
+            ) : null}
+            {r.category.toUpperCase()}
+          </span>
+        </td>
+        <td className="p-3">
+          <div className="text-foreground">{r.title}</div>
+          {r.customType === "stock_cost" && r.description ? (
+            <div className="text-[11px] text-muted-foreground mt-0.5">{r.description}</div>
+          ) : null}
+          {r.customType === "employee_invite" ? (
+            <div className="text-[11px] text-muted-foreground mt-0.5" data-testid={`invite-terms-${r.customId}`}>
+              {r.inviteVenueName ?? "Venue"} · {r.inviteRole ?? "employee"}
+              {r.inviteCommissionPct != null ? ` · ${r.inviteCommissionPct}% commission` : ""}
+            </div>
+          ) : null}
+          {r.reviewerNote ? (
+            <div className="text-[11px] text-muted-foreground italic mt-0.5">
+              "{r.reviewerNote}"
+            </div>
+          ) : null}
+        </td>
+        <td className="p-3 text-muted-foreground whitespace-nowrap">{r.characterName}</td>
+        <td className="p-3 text-muted-foreground whitespace-nowrap">
+          {new Date(r.createdAt).toLocaleDateString()}
+        </td>
+        <td className="p-3 text-muted-foreground whitespace-nowrap">
+          {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : "—"}
+        </td>
+        <td className="p-3">
+          <RequestStatusBadge status={r.status} />
+          {r.status === "changes_requested" && r.customId != null && r.customType !== "stock_cost" ? (
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "" })}
+                data-testid={`button-edit-resubmit-${r.customId}`}
+              >
+                <Pencil className="w-3 h-3 mr-1" /> EDIT & RESUBMIT
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={resubmit.isPending}
+                className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
+                onClick={() => resubmit.mutate({ id: r.customId! })}
+                data-testid={`button-resubmit-${r.customId}`}
+              >
+                <RotateCcw className="w-3 h-3 mr-1" /> RESUBMIT
+              </Button>
+            </div>
+          ) : null}
+          {r.respondTo && r.status === "changes_requested" ? (
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
+                onClick={() => navigate(r.respondTo!)}
+                data-testid={`button-respond-${r.key}`}
+              >
+                <Pencil className="w-3 h-3 mr-1" /> VIEW &amp; RESPOND
+              </Button>
+            </div>
+          ) : null}
+          {r.customType === "stock_cost" && r.status === "pending" && r.customId != null ? (
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={decide.isPending}
+                className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
+                onClick={() => decide.mutate({ id: r.customId!, data: { decision: "approve" } })}
+                data-testid={`button-stock-approve-${r.customId}`}
+              >
+                APPROVE
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={decide.isPending}
+                className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
+                onClick={() => decide.mutate({ id: r.customId!, data: { decision: "reject" } })}
+                data-testid={`button-stock-reject-${r.customId}`}
+              >
+                REJECT
+              </Button>
+            </div>
+          ) : null}
+          {r.customType === "employee_invite" && r.status === "pending" && r.customId != null ? (
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={decideInvite.isPending}
+                className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
+                onClick={() => decideInvite.mutate({ id: r.customId!, data: { decision: "accept" } })}
+                data-testid={`button-invite-accept-${r.customId}`}
+              >
+                ACCEPT
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={decideInvite.isPending}
+                className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
+                onClick={() => decideInvite.mutate({ id: r.customId!, data: { decision: "deny" } })}
+                data-testid={`button-invite-deny-${r.customId}`}
+              >
+                DENY
+              </Button>
+            </div>
+          ) : null}
+          {r.subjectType && r.subjectId != null ? (
+            <div className="mt-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
+                onClick={() => setDiscussing((cur) => (cur === r.key ? null : r.key))}
+                data-testid={`button-discuss-${r.key}`}
+              >
+                <MessageSquare className="w-3 h-3 mr-1" /> DISCUSS
+                {discussing === r.key ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+              </Button>
+            </div>
+          ) : null}
+        </td>
+      </tr>
+      {r.subjectType && r.subjectId != null && discussing === r.key ? (
+        <tr className="border-b border-border/30" data-testid={`row-discuss-${r.key}`}>
+          <td colSpan={6} className="p-3 bg-card/40">
+            <ReviewCommentThread subjectType={r.subjectType} subjectId={r.subjectId} markSeenOnMount />
+          </td>
+        </tr>
+      ) : null}
+    </Fragment>
+  );
+
+  const renderSection = (bucket: LifecycleBucket) => {
+    const sectionRows = buckets[bucket];
+    return (
+      <Card className="rounded-none border-border bg-card/50" key={bucket}>
+        <CardHeader>
+          <CardTitle className="font-display tracking-widest text-nc-cyan flex items-center gap-2">
+            {BUCKET_LABEL[bucket]}
+            <span className="text-muted-foreground text-xs font-mono">({sectionRows.length})</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {sectionRows.length === 0 ? (
+            <div className="py-10 text-center text-muted-foreground font-mono text-xs">
+              Nothing here.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full font-mono text-sm min-w-[760px]">
+                <thead className="border-b border-border bg-card">
+                  <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
+                    <th className="text-left p-3">Type</th>
+                    <th className="text-left p-3">Title</th>
+                    <th className="text-left p-3">Character</th>
+                    <th className="text-left p-3">Submitted</th>
+                    <th className="text-left p-3">Decided</th>
+                    <th className="text-left p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>{sectionRows.map(renderRow)}</tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto pb-12">
@@ -285,197 +512,27 @@ export default function MyRequests() {
         ))}
       </div>
 
-      <Card className="rounded-none border-border bg-card/50">
-        <CardHeader>
-          <CardTitle className="font-display tracking-widest text-nc-cyan">REQUEST HISTORY</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {!me ? (
-            <div className="py-16 text-center text-muted-foreground font-mono text-sm">
-              Log in to see your requests.
-            </div>
-          ) : isLoading ? (
-            <div className="py-16 text-center text-nc-cyan animate-pulse font-display">LOADING...</div>
-          ) : visible.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground font-mono text-sm">
-              {rows.length === 0 ? "You haven't submitted any requests yet." : "No requests in this category."}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full font-mono text-sm min-w-[760px]">
-                <thead className="border-b border-border bg-card">
-                  <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
-                    <th className="text-left p-3">Type</th>
-                    <th className="text-left p-3">Title</th>
-                    <th className="text-left p-3">Character</th>
-                    <th className="text-left p-3">Submitted</th>
-                    <th className="text-left p-3">Decided</th>
-                    <th className="text-left p-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((r) => (
-                    <Fragment key={r.key}>
-                    <tr
-                      className="border-b border-border/30 hover:bg-card/80 align-top"
-                      data-testid={`row-my-request-${r.key}`}
-                    >
-                      <td className={`p-3 font-bold whitespace-nowrap ${categoryColor(r.category)}`}>
-                        {r.category.toUpperCase()}
-                      </td>
-                      <td className="p-3">
-                        <div className="text-foreground">{r.title}</div>
-                        {r.customType === "stock_cost" && r.description ? (
-                          <div className="text-[11px] text-muted-foreground mt-0.5">{r.description}</div>
-                        ) : null}
-                        {r.customType === "employee_invite" ? (
-                          <div className="text-[11px] text-muted-foreground mt-0.5" data-testid={`invite-terms-${r.customId}`}>
-                            {r.inviteVenueName ?? "Venue"} · {r.inviteRole ?? "employee"}
-                            {r.inviteCommissionPct != null ? ` · ${r.inviteCommissionPct}% commission` : ""}
-                          </div>
-                        ) : null}
-                        {r.reviewerNote ? (
-                          <div className="text-[11px] text-muted-foreground italic mt-0.5">
-                            "{r.reviewerNote}"
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="p-3 text-muted-foreground whitespace-nowrap">{r.characterName}</td>
-                      <td className="p-3 text-muted-foreground whitespace-nowrap">
-                        {new Date(r.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-3 text-muted-foreground whitespace-nowrap">
-                        {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : "—"}
-                      </td>
-                      <td className="p-3">
-                        <RequestStatusBadge status={r.status} />
-                        {r.status === "changes_requested" && r.customId != null && r.customType !== "stock_cost" ? (
-                          <div className="flex gap-2 mt-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
-                              onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "" })}
-                              data-testid={`button-edit-resubmit-${r.customId}`}
-                            >
-                              <Pencil className="w-3 h-3 mr-1" /> EDIT & RESUBMIT
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={resubmit.isPending}
-                              className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
-                              onClick={() => resubmit.mutate({ id: r.customId! })}
-                              data-testid={`button-resubmit-${r.customId}`}
-                            >
-                              <RotateCcw className="w-3 h-3 mr-1" /> RESUBMIT
-                            </Button>
-                          </div>
-                        ) : null}
-                        {r.respondTo && r.status === "changes_requested" ? (
-                          <div className="flex gap-2 mt-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
-                              onClick={() => navigate(r.respondTo!)}
-                              data-testid={`button-respond-${r.key}`}
-                            >
-                              <Pencil className="w-3 h-3 mr-1" /> VIEW &amp; RESPOND
-                            </Button>
-                          </div>
-                        ) : null}
-                        {r.customType === "stock_cost" && r.status === "pending" && r.customId != null ? (
-                          <div className="flex gap-2 mt-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={decide.isPending}
-                              className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
-                              onClick={() =>
-                                decide.mutate({ id: r.customId!, data: { decision: "approve" } })
-                              }
-                              data-testid={`button-stock-approve-${r.customId}`}
-                            >
-                              APPROVE
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={decide.isPending}
-                              className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
-                              onClick={() =>
-                                decide.mutate({ id: r.customId!, data: { decision: "reject" } })
-                              }
-                              data-testid={`button-stock-reject-${r.customId}`}
-                            >
-                              REJECT
-                            </Button>
-                          </div>
-                        ) : null}
-                        {r.customType === "employee_invite" && r.status === "pending" && r.customId != null ? (
-                          <div className="flex gap-2 mt-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={decideInvite.isPending}
-                              className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
-                              onClick={() =>
-                                decideInvite.mutate({ id: r.customId!, data: { decision: "accept" } })
-                              }
-                              data-testid={`button-invite-accept-${r.customId}`}
-                            >
-                              ACCEPT
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={decideInvite.isPending}
-                              className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
-                              onClick={() =>
-                                decideInvite.mutate({ id: r.customId!, data: { decision: "deny" } })
-                              }
-                              data-testid={`button-invite-deny-${r.customId}`}
-                            >
-                              DENY
-                            </Button>
-                          </div>
-                        ) : null}
-                        {r.customId != null ? (
-                          <div className="mt-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
-                              onClick={() => setDiscussing((cur) => (cur === r.customId ? null : r.customId!))}
-                              data-testid={`button-discuss-${r.customId}`}
-                            >
-                              <MessageSquare className="w-3 h-3 mr-1" /> DISCUSS
-                              {discussing === r.customId ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
-                            </Button>
-                          </div>
-                        ) : null}
-                      </td>
-                    </tr>
-                    {r.customId != null && discussing === r.customId ? (
-                      <tr className="border-b border-border/30" data-testid={`row-discuss-${r.customId}`}>
-                        <td colSpan={6} className="p-3 bg-card/40">
-                          <ReviewCommentThread subjectType="request" subjectId={r.customId} markSeenOnMount={false} />
-                        </td>
-                      </tr>
-                    ) : null}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {!me ? (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardContent className="py-16 text-center text-muted-foreground font-mono text-sm">
+            Log in to see your requests.
+          </CardContent>
+        </Card>
+      ) : isLoading ? (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardContent className="py-16 text-center text-nc-cyan animate-pulse font-display">LOADING...</CardContent>
+        </Card>
+      ) : visible.length === 0 ? (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardContent className="py-16 text-center text-muted-foreground font-mono text-sm">
+            {rows.length === 0 ? "You haven't submitted any requests yet." : "No requests in this category."}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {(["active", "resolved", "archive"] as const).map((b) => renderSection(b))}
+        </div>
+      )}
 
       <Dialog open={editing != null} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         <DialogContent className="rounded-none border-nc-cyan bg-card">

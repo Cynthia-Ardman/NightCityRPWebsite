@@ -44,6 +44,19 @@ export interface ReviewUnseenCounts {
   total: number;
 }
 
+export interface ReviewUnseenIds {
+  edit: number[];
+  request: number[];
+  sheet: number[];
+}
+
+export interface MyUnseen {
+  edit: number[];
+  request: number[];
+  sheet: number[];
+  total: number;
+}
+
 export interface LoreSource {
   label: string;
   url: string;
@@ -4239,6 +4252,38 @@ export type SearchFixerPlayersParams = {
 q?: string;
 };
 
+export type ListPendingSheetsParams = {
+/**
+ * Lifecycle bucket. active = pending/changes_requested; resolved = approved/rejected/cancelled; archive = closed. Defaults to pending only.
+ */
+bucket?: ListPendingSheetsBucket;
+};
+
+export type ListPendingSheetsBucket = typeof ListPendingSheetsBucket[keyof typeof ListPendingSheetsBucket];
+
+
+export const ListPendingSheetsBucket = {
+  active: 'active',
+  resolved: 'resolved',
+  archive: 'archive',
+} as const;
+
+export type ListPendingEditsParams = {
+/**
+ * Lifecycle bucket (reviewers only). active = pending/changes_requested; resolved = approved/rejected/cancelled; archive = closed. Defaults to open edits plus anything decided in the last 7 days.
+ */
+bucket?: ListPendingEditsBucket;
+};
+
+export type ListPendingEditsBucket = typeof ListPendingEditsBucket[keyof typeof ListPendingEditsBucket];
+
+
+export const ListPendingEditsBucket = {
+  active: 'active',
+  resolved: 'resolved',
+  archive: 'archive',
+} as const;
+
 export type OverridePendingEdit200 = {
   ok: boolean;
   status: string;
@@ -4365,8 +4410,21 @@ q?: string;
 };
 
 export type ListCustomRequestsParams = {
+/**
+ * Lifecycle bucket. active = pending/changes_requested; resolved = approved/rejected/cancelled; archive = closed. Overrides `status` when set.
+ */
+bucket?: ListCustomRequestsBucket;
 status?: ListCustomRequestsStatus;
 };
+
+export type ListCustomRequestsBucket = typeof ListCustomRequestsBucket[keyof typeof ListCustomRequestsBucket];
+
+
+export const ListCustomRequestsBucket = {
+  active: 'active',
+  resolved: 'resolved',
+  archive: 'archive',
+} as const;
 
 export type ListCustomRequestsStatus = typeof ListCustomRequestsStatus[keyof typeof ListCustomRequestsStatus];
 
@@ -4376,6 +4434,8 @@ export const ListCustomRequestsStatus = {
   approved: 'approved',
   rejected: 'rejected',
   changes_requested: 'changes_requested',
+  cancelled: 'cancelled',
+  closed: 'closed',
 } as const;
 
 export type ListMyCustomRequestsParams = {
@@ -4439,4 +4499,8 @@ export const ListLoreImportDraftsStatus = {
 export type MarkReviewSeen200 = {
   ok: boolean;
 };
+
+export type CloseReviewTicket200 = { [key: string]: unknown };
+
+export type ReopenReviewTicket200 = { [key: string]: unknown };
 

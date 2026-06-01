@@ -15,7 +15,9 @@ import {
   clearReviewVotes,
   listReviewVotes,
   loadVotesBySubject,
+  type ReviewActionResult,
 } from "../lib/review";
+import type { Request } from "express";
 
 type SheetRow = typeof characterSheets.$inferSelect;
 type Executor = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -40,6 +42,19 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  // Reviewers can scope the queue to a lifecycle bucket (active / resolved /
+  // archive). With no bucket we keep the legacy default: pending only.
+  const bucket = req.query.bucket ? String(req.query.bucket) : null;
+  let statusWhere;
+  if (bucket === "active") {
+    statusWhere = inArray(characterSheets.status, ["pending", "changes_requested"]);
+  } else if (bucket === "resolved") {
+    statusWhere = inArray(characterSheets.status, ["approved", "rejected", "cancelled"]);
+  } else if (bucket === "archive") {
+    statusWhere = eq(characterSheets.status, "closed");
+  } else {
+    statusWhere = eq(characterSheets.status, "pending");
+  }
   const rows = await db
     .select({
       id: characterSheets.id,
@@ -52,7 +67,7 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
     })
     .from(characterSheets)
     .leftJoin(users, eq(users.id, characterSheets.ownerId))
-    .where(eq(characterSheets.status, "pending"))
+    .where(statusWhere)
     .orderBy(desc(characterSheets.createdAt));
   // Attach the vote tally for each sheet in one query (no N+1). The threshold
   // for each sheet excludes that sheet's owner from the eligible pool.
@@ -517,32 +532,25 @@ router.post("/sheets/:id/vote", requireAuth, async (req, res): Promise<void> => 
     await castReviewVote({ subjectType: "sheet", subjectId: id, voterId: u.id, vote, note: note ?? null, conn: tx });
     const tally = await tallyReviewVotes({ subjectType: "sheet", subjectId: id, submitterId: sheet.ownerId, conn: tx });
     if (!tally.decided) {
-      return { ok: { decided: null as "approved" | "rejected" | null, sheet, tally, characterId: null as number | null } };
+      return { ok: { decided: null as "approved" | "rejected" | null, sheet, tally } };
     }
 
-    const characterId = tally.decided === "approved" ? await materializeCharacterFromSheet(tx, sheet) : sheet.characterId ?? null;
+    // Effects DEFERRED: a majority approve STAGES the decision only; the
+    // character is materialized when a fixer closes the ticket. We do NOT set
+    // characterId here — close materializes and links it.
     const summary = `${tally.approveCount} approve / ${tally.rejectCount} reject (threshold ${tally.threshold})`;
     const [updated] = await tx
       .update(characterSheets)
-      .set({ status: tally.decided, decisionBy: u.id, decisionNote: summary, decidedAt: new Date(), characterId })
+      .set({ status: tally.decided, decisionBy: u.id, decisionNote: summary, decidedAt: new Date() })
       .where(eq(characterSheets.id, id))
       .returning();
-    return { ok: { decided: tally.decided, sheet: updated, tally, characterId } };
+    return { ok: { decided: tally.decided, sheet: updated, tally } };
   });
   if (result.error) {
     res.status(result.error.status).json(result.error.body);
     return;
   }
   const { decided, sheet, tally } = result.ok;
-  if (decided === "approved" && result.ok.characterId) {
-    await db.insert(activityEvents).values({
-      kind: "character_approved",
-      actorId: u.id,
-      actorName: u.username,
-      actorAvatarUrl: u.avatarUrl,
-      message: `${u.username} approved ${sheet.name}`,
-    });
-  }
   await recordAudit({
     req,
     category: "sheet",
@@ -573,7 +581,8 @@ router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void>
     if (sheet.ownerId === u.id) {
       return { error: { status: 403, body: { error: "You cannot override your own sheet" } } };
     }
-    const characterId = await materializeCharacterFromSheet(tx, sheet);
+    // Effects deferred: stage the approval; the character is materialized on
+    // close.
     const [updated] = await tx
       .update(characterSheets)
       .set({
@@ -582,34 +591,124 @@ router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void>
         overriddenBy: u.id,
         decisionNote: `Approved via admin override by ${u.username}`,
         decidedAt: new Date(),
-        characterId,
       })
       .where(eq(characterSheets.id, id))
       .returning();
-    return { ok: { updated, characterId } };
+    return { ok: { updated } };
   });
   if (result.error) {
     res.status(result.error.status).json(result.error.body);
     return;
   }
-  await db.insert(activityEvents).values({
-    kind: "character_approved",
-    actorId: u.id,
-    actorName: u.username,
-    actorAvatarUrl: u.avatarUrl,
-    message: `${u.username} approved ${result.ok.updated.name} via admin override`,
-  });
   await recordAudit({
     req,
     category: "sheet",
     action: "override_approved",
     targetType: "sheet",
     targetId: id,
-    message: `${u.username} approved sheet "${result.ok.updated.name}" via admin override`,
-    after: { overriddenBy: u.id },
+    message: `${u.username} approved sheet "${result.ok.updated.name}" via admin override (pending close)`,
+    after: { overriddenBy: u.id, staged: true },
   });
   res.json(result.ok.updated);
 });
+
+// Close a RESOLVED character sheet (approved | rejected | cancelled) → archived.
+// Closing an APPROVED sheet materializes the character exactly once (an approved
+// sheet under the deferred lifecycle has not been materialized yet; closing it
+// is terminal so it can't re-run); closing a rejected/cancelled sheet just
+// archives it. Idempotent: re-closing an already-closed sheet is a 200 no-op.
+// Materialize runs inside the locked txn so apply + status flip are atomic.
+// Caller has already verified the actor is a reviewer.
+export async function closeSheet(req: Request, id: number): Promise<ReviewActionResult> {
+  const u = req.user!;
+  const result = await db.transaction(async (tx) => {
+    const [sheet] = await tx.select().from(characterSheets).where(eq(characterSheets.id, id)).for("update");
+    if (!sheet) return { kind: "error" as const, status: 404, body: { error: "Not found" } };
+    if (sheet.status === "closed") return { kind: "noop" as const };
+    if (sheet.status !== "approved" && sheet.status !== "rejected" && sheet.status !== "cancelled") {
+      return { kind: "error" as const, status: 409, body: { error: `Only a resolved sheet can be closed (this one is ${sheet.status})` } };
+    }
+    if (sheet.status === "approved") {
+      const characterId = await materializeCharacterFromSheet(tx, sheet);
+      const [updated] = await tx
+        .update(characterSheets)
+        .set({ status: "closed", closedAt: new Date(), closedBy: u.id, characterId })
+        .where(eq(characterSheets.id, id))
+        .returning();
+      return { kind: "applied" as const, sheet: updated };
+    }
+    const [updated] = await tx
+      .update(characterSheets)
+      .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
+      .where(eq(characterSheets.id, id))
+      .returning();
+    return { kind: "archived" as const, sheet: updated };
+  });
+  if (result.kind === "error") return { status: result.status, body: result.body };
+  if (result.kind === "applied") {
+    await db.insert(activityEvents).values({
+      kind: "character_approved",
+      actorId: u.id,
+      actorName: u.username,
+      actorAvatarUrl: u.avatarUrl,
+      message: `${u.username} approved ${result.sheet.name}`,
+    });
+    await recordAudit({
+      req,
+      category: "sheet",
+      action: "sheet_closed_applied",
+      targetType: "sheet",
+      targetId: id,
+      message: `Closed & materialized sheet "${result.sheet.name}"`,
+    });
+  } else if (result.kind === "archived") {
+    await recordAudit({
+      req,
+      category: "sheet",
+      action: "sheet_closed",
+      targetType: "sheet",
+      targetId: id,
+      message: `Closed sheet "${result.sheet.name}" (${result.sheet.status})`,
+    });
+  }
+  const [row] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));
+  return { status: 200, body: row };
+}
+
+// Reopen a RESOLVED-but-not-archived character sheet (approved | rejected) back
+// to pending for another review round. Votes are cleared and the decision fields
+// are wiped. Because effects are deferred, an approved-not-closed sheet has not
+// been materialized yet, so reopening it is safe. We leave characterId untouched
+// — it is the submitter's chosen link, not a side effect. cancelled and closed
+// sheets cannot be reopened.
+export async function reopenSheet(req: Request, id: number): Promise<ReviewActionResult> {
+  const u = req.user!;
+  const result = await db.transaction(async (tx) => {
+    const [sheet] = await tx.select().from(characterSheets).where(eq(characterSheets.id, id)).for("update");
+    if (!sheet) return { error: { status: 404, body: { error: "Not found" } } };
+    if (sheet.status !== "approved" && sheet.status !== "rejected") {
+      return { error: { status: 409, body: { error: `Only an approved or rejected sheet can be reopened (this one is ${sheet.status})` } } };
+    }
+    const [updated] = await tx
+      .update(characterSheets)
+      .set({ status: "pending", decisionBy: null, decisionNote: null, decidedAt: null, overriddenBy: null })
+      .where(eq(characterSheets.id, id))
+      .returning();
+    await clearReviewVotes({ subjectType: "sheet", subjectId: id, conn: tx });
+    return { ok: { updated } };
+  });
+  if ("error" in result && result.error) return result.error;
+  await recordAudit({
+    req,
+    category: "sheet",
+    action: "sheet_reopened",
+    targetType: "sheet",
+    targetId: id,
+    message: `Reopened sheet "${result.ok.updated.name}"`,
+  });
+  const [row] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));
+  return { status: 200, body: row };
+}
 
 // POST /sheets/:id/request-changes — RETIRED. Reviewers no longer park sheets
 // in a blocking `changes_requested` state; the /review comment thread is

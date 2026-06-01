@@ -50,11 +50,11 @@ async function seedPendingEdit(opts: { submitterId: string; ownerId?: string | n
 }
 
 describe("pending edit voting — majority threshold", () => {
-  it("holds at pending after one of two required approvals, then applies on the second", async () => {
+  it("holds at pending after one approval, approves (no apply) on the second, applies the diff only on close", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
     const f2 = await createFixer();
-    await createFixer(); // third reviewer makes the majority threshold 2
+    const f3 = await createFixer(); // third reviewer makes the majority threshold 2
     const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
 
     const first = await request(app)
@@ -78,6 +78,18 @@ describe("pending edit voting — majority threshold", () => {
 
     const [afterEdit] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
     expect(afterEdit.status).toBe("approved");
+    // Staged lifecycle: the diff is NOT applied at approval time.
+    const [stillOldChar] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(stillOldChar.background).toBe("old story");
+
+    // Close commits the diff and archives the edit.
+    const close = await request(app)
+      .post(`/api/review/edit/${edit.id}/close`)
+      .set("x-test-user", f3.id)
+      .send({});
+    expect(close.status).toBe(200);
+    const [closedEdit] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
+    expect(closedEdit.status).toBe("closed");
     const [afterChar] = await db.select().from(characters).where(eq(characters.id, char.id));
     expect(afterChar.background).toBe("new story");
   });
@@ -110,6 +122,15 @@ describe("pending edit override", () => {
 
     const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
     expect(row.overriddenBy).toBe(admin.id);
+    // Override approves but defers the diff to close.
+    const [beforeClose] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(beforeClose.background).toBe("old story");
+
+    const close = await request(app)
+      .post(`/api/review/edit/${edit.id}/close`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(close.status).toBe(200);
     const [afterChar] = await db.select().from(characters).where(eq(characters.id, char.id));
     expect(afterChar.background).toBe("new story");
   });
