@@ -992,6 +992,17 @@ export type PlayerActivityProfileActivityEventsItem = {
   createdAt: string;
 };
 
+/**
+ * @nullable
+ */
+export type PlayerActivityProfileWalletTransactionsItemCounterpartyVenueKind = typeof PlayerActivityProfileWalletTransactionsItemCounterpartyVenueKind[keyof typeof PlayerActivityProfileWalletTransactionsItemCounterpartyVenueKind] | null;
+
+
+export const PlayerActivityProfileWalletTransactionsItemCounterpartyVenueKind = {
+  store: 'store',
+  ripperdoc: 'ripperdoc',
+} as const;
+
 export type PlayerActivityProfileWalletTransactionsItem = {
   id: number;
   /** @nullable */
@@ -1005,6 +1016,12 @@ export type PlayerActivityProfileWalletTransactionsItem = {
   source: string;
   /** @nullable */
   counterpartyName?: string | null;
+  /** @nullable */
+  counterpartyVenueKind?: PlayerActivityProfileWalletTransactionsItemCounterpartyVenueKind;
+  /** @nullable */
+  counterpartyVenueId?: number | null;
+  /** @nullable */
+  counterpartyVenueName?: string | null;
   createdAt: string;
 };
 

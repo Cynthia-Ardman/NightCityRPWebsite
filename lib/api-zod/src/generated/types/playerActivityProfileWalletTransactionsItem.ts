@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlayerActivityProfileWalletTransactionsItemCounterpartyVenueKind } from './playerActivityProfileWalletTransactionsItemCounterpartyVenueKind';
 
 export type PlayerActivityProfileWalletTransactionsItem = {
   id: number;
@@ -19,5 +20,11 @@ export type PlayerActivityProfileWalletTransactionsItem = {
   source: string;
   /** @nullable */
   counterpartyName?: string | null;
+  /** @nullable */
+  counterpartyVenueKind?: PlayerActivityProfileWalletTransactionsItemCounterpartyVenueKind;
+  /** @nullable */
+  counterpartyVenueId?: number | null;
+  /** @nullable */
+  counterpartyVenueName?: string | null;
   createdAt: Date;
 };

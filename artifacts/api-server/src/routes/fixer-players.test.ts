@@ -249,6 +249,59 @@ describe("GET /fixer/players/:userId/activity (aggregation)", () => {
     expect(new Date(clinic.createdAt).toISOString()).toBe(clinic.createdAt);
   });
 
+  it("exposes counterparty venue ids and names on wallet transactions that reference a venue", async () => {
+    const admin = await createAdmin();
+    const target = await createUser({ username: "judy" });
+    const venueOwner = await createUser({ username: "tom" });
+    const char = await createCharacter({ ownerId: target.id, name: "Judy Alvarez" });
+
+    const [store] = await db
+      .insert(stores)
+      .values({ ownerId: venueOwner.id, name: "Lizzie's Bar", balance: 5000 })
+      .returning();
+    const [ripperdoc] = await db
+      .insert(ripperdocs)
+      .values({ ownerId: venueOwner.id, name: "Vik's Clinic", balance: 3000 })
+      .returning();
+
+    // purchase from a store the player does NOT own (counterparty venue)
+    await db.insert(walletTransactions).values({
+      characterId: char.id,
+      amount: -150,
+      kind: "store_withdraw",
+      storeId: store.id,
+      counterpartyName: "Lizzie's Bar",
+    });
+    // deposit/withdraw at a ripperdoc with no counterpartyName text (name resolved from venue)
+    await db.insert(walletTransactions).values({
+      userId: target.id,
+      amount: -400,
+      kind: "ripperdoc_withdraw",
+      ripperdocId: ripperdoc.id,
+    });
+    // a plain transaction with no linkable counterparty stays bare
+    await db.insert(walletTransactions).values({ userId: target.id, amount: 100, kind: "deposit" });
+
+    const res = await request(app).get(`/api/fixer/players/${target.id}/activity`).set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+
+    const storeTx = res.body.walletTransactions.find((t: { kind: string }) => t.kind === "store_withdraw");
+    expect(storeTx.counterpartyVenueKind).toBe("store");
+    expect(storeTx.counterpartyVenueId).toBe(store.id);
+    expect(storeTx.counterpartyVenueName).toBe("Lizzie's Bar");
+    expect(storeTx.characterId).toBe(char.id);
+
+    const ripperTx = res.body.walletTransactions.find((t: { kind: string }) => t.kind === "ripperdoc_withdraw");
+    expect(ripperTx.counterpartyVenueKind).toBe("ripperdoc");
+    expect(ripperTx.counterpartyVenueId).toBe(ripperdoc.id);
+    expect(ripperTx.counterpartyVenueName).toBe("Vik's Clinic");
+
+    const plainTx = res.body.walletTransactions.find((t: { kind: string }) => t.kind === "deposit");
+    expect(plainTx.counterpartyVenueKind).toBeNull();
+    expect(plainTx.counterpartyVenueId).toBeNull();
+    expect(plainTx.counterpartyVenueName).toBeNull();
+  });
+
   it("does not misattribute a character-scoped wallet row after ownership transfer", async () => {
     const admin = await createAdmin();
     const seller = await createUser({ username: "seller" });

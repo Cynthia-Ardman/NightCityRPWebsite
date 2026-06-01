@@ -327,15 +327,52 @@ export default function FixerPlayerLookup() {
                   <Empty>No wallet transactions.</Empty>
                 ) : (
                   <RowList>
-                    {profile.walletTransactions.map((t) => (
-                      <Row key={t.id} testId={`row-wallet-${t.id}`} when={fmt(t.createdAt)}>
-                        <span className={t.amount < 0 ? "text-destructive" : "text-nc-green"}>{eddies(t.amount)}</span>
-                        <span className="text-muted-foreground"> · {t.kind}</span>
-                        {t.characterName && <span className="text-nc-cyan"> · {t.characterName}</span>}
-                        {t.counterpartyName && <span className="text-muted-foreground"> · {t.counterpartyName}</span>}
-                        {t.memo && <span className="text-muted-foreground/70"> · {t.memo}</span>}
-                      </Row>
-                    ))}
+                    {profile.walletTransactions.map((t) => {
+                      const venueHref =
+                        t.counterpartyVenueKind === "store" && t.counterpartyVenueId != null
+                          ? `/directory/stores/${t.counterpartyVenueId}`
+                          : t.counterpartyVenueKind === "ripperdoc" && t.counterpartyVenueId != null
+                            ? `/directory/ripperdocs/${t.counterpartyVenueId}`
+                            : null;
+                      const venueLabel = t.counterpartyName ?? t.counterpartyVenueName;
+                      return (
+                        <Row key={t.id} testId={`row-wallet-${t.id}`} when={fmt(t.createdAt)}>
+                          <span className={t.amount < 0 ? "text-destructive" : "text-nc-green"}>{eddies(t.amount)}</span>
+                          <span className="text-muted-foreground"> · {t.kind}</span>
+                          {t.characterName &&
+                            (t.characterId != null ? (
+                              <>
+                                {" · "}
+                                <Link
+                                  href={`/characters/${t.characterId}`}
+                                  className="text-nc-cyan hover:underline cursor-pointer"
+                                  data-testid={`link-wallet-character-${t.id}`}
+                                >
+                                  {t.characterName}
+                                </Link>
+                              </>
+                            ) : (
+                              <span className="text-nc-cyan"> · {t.characterName}</span>
+                            ))}
+                          {venueLabel &&
+                            (venueHref ? (
+                              <>
+                                {" · "}
+                                <Link
+                                  href={venueHref}
+                                  className="text-muted-foreground hover:text-nc-cyan hover:underline cursor-pointer"
+                                  data-testid={`link-wallet-venue-${t.id}`}
+                                >
+                                  {venueLabel}
+                                </Link>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground"> · {venueLabel}</span>
+                            ))}
+                          {t.memo && <span className="text-muted-foreground/70"> · {t.memo}</span>}
+                        </Row>
+                      );
+                    })}
                   </RowList>
                 )}
               </Section>

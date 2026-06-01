@@ -270,6 +270,8 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
         memo: walletTransactions.memo,
         source: walletTransactions.source,
         counterpartyName: walletTransactions.counterpartyName,
+        storeId: walletTransactions.storeId,
+        ripperdocId: walletTransactions.ripperdocId,
         createdAt: walletTransactions.createdAt,
       })
       .from(walletTransactions)
@@ -326,6 +328,22 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
     db.select().from(ripperdocs).where(eq(ripperdocs.ownerId, userId)).orderBy(desc(ripperdocs.createdAt)),
   ]);
 
+  // Resolve counterparty venue names for wallet transactions that reference a
+  // store/ripperdoc the player interacted with (the counterparty may be a venue
+  // they don't own, so we can't rely on storeRows/ripperRows above).
+  const txStoreIds = [...new Set(walletRows.map((r) => r.storeId).filter((v): v is number => v != null))];
+  const txRipperIds = [...new Set(walletRows.map((r) => r.ripperdocId).filter((v): v is number => v != null))];
+  const [txStoreRows, txRipperRows] = await Promise.all([
+    txStoreIds.length
+      ? db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, txStoreIds))
+      : Promise.resolve([] as { id: number; name: string }[]),
+    txRipperIds.length
+      ? db.select({ id: ripperdocs.id, name: ripperdocs.name }).from(ripperdocs).where(inArray(ripperdocs.id, txRipperIds))
+      : Promise.resolve([] as { id: number; name: string }[]),
+  ]);
+  const storeNameById = new Map(txStoreRows.map((s) => [s.id, s.name]));
+  const ripperNameById = new Map(txRipperRows.map((r) => [r.id, r.name]));
+
   res.json({
     player: {
       id: u.id,
@@ -338,17 +356,32 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
     characters: chars.map((c) => ({ id: c.id, name: c.name, lifeStatus: c.lifeStatus, archived: c.archived, claimed: c.claimed })),
     auditEntries: auditRows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
     activityEvents: activityRows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
-    walletTransactions: walletRows.map((r) => ({
-      id: r.id,
-      characterId: r.characterId,
-      characterName: r.characterId != null ? charNameById.get(r.characterId) ?? null : null,
-      amount: r.amount,
-      kind: r.kind,
-      memo: r.memo,
-      source: r.source,
-      counterpartyName: r.counterpartyName,
-      createdAt: r.createdAt.toISOString(),
-    })),
+    walletTransactions: walletRows.map((r) => {
+      // A transaction can reference a counterparty venue (store/ripperdoc). Surface
+      // its kind/id/name so the UI can link straight to that venue's detail page.
+      const counterpartyVenueKind = r.storeId != null ? "store" : r.ripperdocId != null ? "ripperdoc" : null;
+      const counterpartyVenueId = r.storeId ?? r.ripperdocId ?? null;
+      const counterpartyVenueName =
+        r.storeId != null
+          ? storeNameById.get(r.storeId) ?? null
+          : r.ripperdocId != null
+            ? ripperNameById.get(r.ripperdocId) ?? null
+            : null;
+      return {
+        id: r.id,
+        characterId: r.characterId,
+        characterName: r.characterId != null ? charNameById.get(r.characterId) ?? null : null,
+        amount: r.amount,
+        kind: r.kind,
+        memo: r.memo,
+        source: r.source,
+        counterpartyName: r.counterpartyName,
+        counterpartyVenueKind,
+        counterpartyVenueId,
+        counterpartyVenueName,
+        createdAt: r.createdAt.toISOString(),
+      };
+    }),
     missions: missionRows.map((r) => ({
       id: r.id,
       missionId: r.missionId,

@@ -4177,6 +4177,9 @@ components:
               memo: { type: [string, "null"] }
               source: { type: string }
               counterpartyName: { type: [string, "null"] }
+              counterpartyVenueKind: { type: [string, "null"], enum: [store, ripperdoc, null] }
+              counterpartyVenueId: { type: [integer, "null"] }
+              counterpartyVenueName: { type: [string, "null"] }
               createdAt: { type: string, format: date-time }
         missions:
           type: array

@@ -4593,6 +4593,9 @@ export const GetFixerPlayerActivityResponse = zod.object({
   "memo": zod.string().nullish(),
   "source": zod.string(),
   "counterpartyName": zod.string().nullish(),
+  "counterpartyVenueKind": zod.union([zod.literal('store'),zod.literal('ripperdoc'),zod.literal(null)]).nullish(),
+  "counterpartyVenueId": zod.number().nullish(),
+  "counterpartyVenueName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })),
   "missions": zod.array(zod.object({

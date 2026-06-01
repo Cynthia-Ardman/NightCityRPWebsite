@@ -280,6 +280,7 @@ export * from './playerActivityProfilePlayer';
 export * from './playerActivityProfileRipperdocsItem';
 export * from './playerActivityProfileStoresItem';
 export * from './playerActivityProfileWalletTransactionsItem';
+export * from './playerActivityProfileWalletTransactionsItemCounterpartyVenueKind';
 export * from './playerAttendanceRow';
 export * from './playerAttendanceRowMissionsItem';
 export * from './playerSearchResult';
