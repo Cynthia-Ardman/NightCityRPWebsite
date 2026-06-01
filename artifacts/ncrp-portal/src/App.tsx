@@ -76,6 +76,17 @@ function StaffArchiveGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// The Player Dossier is a fixer/admin lookup surface that aggregates a
+// player's full activity history. The endpoints are staff-gated server-side,
+// but a non-staff player could still load the page shell by typing the URL —
+// so guard the route itself and bounce them home.
+function FixerGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useAuthMe();
+  if (isLoading) return null;
+  if (!user || !(user.isFixer || user.isAdmin)) return <Redirect to="/" />;
+  return <>{children}</>;
+}
+
 // The lore import pipeline is admin-only on the backend (drafts review +
 // publish). Fixers can propose entries but cannot run/clear the import queue,
 // so guard the route to admins and bounce everyone else home.
@@ -170,7 +181,9 @@ function AppRoutes() {
           <Route path="/fixer/reports" component={FixerReports} />
           <Route path="/fixer/pay-actors" component={PayActors} />
           <Route path="/fixer/items" component={FixerInventorySearch} />
-          <Route path="/fixer/players" component={FixerPlayerLookup} />
+          <Route path="/fixer/players">
+            <FixerGuard><FixerPlayerLookup /></FixerGuard>
+          </Route>
           <Route path="/fixer/npcs/:id" component={FixerNpcDetail} />
           <Route path="/items/:uuid" component={InventoryItemDetail} />
           <Route path="/dice" component={DiceRoller} />
