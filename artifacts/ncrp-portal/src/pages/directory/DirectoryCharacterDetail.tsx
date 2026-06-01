@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams } from "wouter";
 import { useGetArchiveCharacter } from "@workspace/api-client-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,8 @@ export default function DirectoryCharacterDetail() {
   const charId = Number(id);
   const { data: char, isLoading } = useGetArchiveCharacter(charId);
   const [editOpen, setEditOpen] = useState(false);
+  const me = useAuthMe();
+  const isAdmin = !!me.data?.isAdmin;
 
   if (isLoading) return <div className="p-8 text-nc-cyan font-display text-xl animate-pulse">DECRYPTING_IDENTITY...</div>;
   if (!char) return <div className="p-8 text-destructive font-display text-xl">ERROR: IDENTITY_NOT_FOUND</div>;
@@ -124,7 +127,7 @@ export default function DirectoryCharacterDetail() {
       <Gallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
       <Gallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
 
-      <ArchiveEditDialog character={char} open={editOpen} onOpenChange={setEditOpen} />
+      <ArchiveEditDialog character={char} open={editOpen} onOpenChange={setEditOpen} isAdmin={isAdmin} />
     </div>
   );
 }

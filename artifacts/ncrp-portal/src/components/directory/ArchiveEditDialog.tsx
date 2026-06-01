@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   useListArchiveUsers,
   useUpdateArchiveCharacter,
+  useDeleteCharacter,
   getGetArchiveCharacterQueryKey,
   getListArchiveCharactersQueryKey,
   getListArchiveUsersQueryKey,
@@ -18,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { X } from "lucide-react";
+import { X, AlertTriangle } from "lucide-react";
 import type { CwpBand } from "@/components/directory/CharacterBadges";
 
 type SectionRow = { key: string; value: string };
@@ -77,13 +79,16 @@ export default function ArchiveEditDialog({
   character,
   open,
   onOpenChange,
+  isAdmin = false,
 }: {
   character: ArchiveCharacter;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  isAdmin?: boolean;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const sheet = (character.sheetData ?? {}) as { preamble?: string; sections?: Record<string, string> };
 
@@ -103,6 +108,9 @@ export default function ArchiveEditDialog({
   const [preamble, setPreamble] = useState(sheet.preamble ?? "");
   const [rows, setRows] = useState<SectionRow[]>(sectionsToRows(sheet.sections));
   const [commitMessage, setCommitMessage] = useState("");
+  // Admin-only destructive delete lives at the bottom of this dialog. The
+  // delete button stays disabled until the admin types the literal word DELETE.
+  const [deleteConfirm, setDeleteConfirm] = useState("");
 
   const [ownerSearch, setOwnerSearch] = useState("");
   const ownerSearchParams = { q: ownerSearch || undefined };
@@ -114,6 +122,39 @@ export default function ArchiveEditDialog({
   });
 
   const update = useUpdateArchiveCharacter();
+
+  // Permanent deletion (admin only) — hits DELETE /characters/:id, which
+  // cascades all character-scoped rows. On success we close and bounce back to
+  // the archive roster since this detail page no longer exists.
+  const del = useDeleteCharacter({
+    mutation: {
+      onSuccess: () => {
+        toast({
+          title: "Character deleted",
+          description: `${character.name} has been permanently removed.`,
+        });
+        void qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
+        void qc.invalidateQueries({ queryKey: getListPublicCharactersQueryKey() });
+        onOpenChange(false);
+        navigate("/directory/characters");
+      },
+      onError: (err) => {
+        const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
+        toast({
+          title: "Delete failed",
+          description: data?.error ?? "Could not delete this character.",
+          variant: "destructive",
+        });
+      },
+    },
+  });
+  const canDelete = deleteConfirm === "DELETE" && !del.isPending;
+
+  // Re-arm the delete confirmation every time the dialog opens or switches to a
+  // different character, so a previously typed DELETE can never carry over.
+  useEffect(() => {
+    if (open) setDeleteConfirm("");
+  }, [open, character.id]);
 
   const addTag = (raw: string) => {
     const t = raw.trim().replace(/\s+/g, " ");
@@ -425,6 +466,41 @@ export default function ArchiveEditDialog({
               </div>
             )}
           </div>
+          {isAdmin && (
+            <div className="border-t border-destructive/50 pt-4 space-y-3" data-testid="section-danger-zone">
+              <div className="flex items-center gap-2 text-destructive font-display tracking-widest">
+                <AlertTriangle className="w-4 h-4" /> DANGER ZONE
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Permanently delete{" "}
+                <span className="text-foreground font-bold">{character.name}</span> and everything
+                tied to them — inventory, wallet, housing, status, and update history. This{" "}
+                <span className="text-destructive font-bold">cannot be undone</span>.
+              </p>
+              <div>
+                <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                  Type <span className="text-destructive">DELETE</span> to confirm
+                </Label>
+                <Input
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  autoComplete="off"
+                  placeholder="DELETE"
+                  className="rounded-none"
+                  data-testid="input-delete-confirm"
+                />
+              </div>
+              <Button
+                type="button"
+                disabled={!canDelete}
+                onClick={() => del.mutate({ id: character.id })}
+                className="rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display disabled:opacity-50"
+                data-testid="button-confirm-delete"
+              >
+                {del.isPending ? "DELETING..." : "DELETE CHARACTER"}
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
