@@ -4326,6 +4326,8 @@ components:
             Treat as an open vocabulary.
         memo: { type: ["string", "null"] }
         counterpartyName: { type: ["string", "null"] }
+        counterpartyCharacterId: { type: ["integer", "null"] }
+        counterpartyCharacterName: { type: ["string", "null"] }
         source:
           type: string
           description: "Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary."

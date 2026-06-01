@@ -1218,6 +1218,10 @@ export interface WalletTransaction {
   memo?: string | null;
   /** @nullable */
   counterpartyName?: string | null;
+  /** @nullable */
+  counterpartyCharacterId?: number | null;
+  /** @nullable */
+  counterpartyCharacterName?: string | null;
   /** Origin of the change (website, ub, reconciliation, store, ripperdoc, mission, commission, admin). Open vocabulary. */
   source?: string;
   /** UB sync state: synced, pending, failed, reconciled. Open vocabulary. */

@@ -16,9 +16,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import { Receipt, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Link } from "wouter";
 
 function humanizeKind(kind: string): string {
   return kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Renders the counterparty of a transaction (when there's no memo). When the
+// counterparty resolves to a character, link straight to its detail page so
+// players get the same jump-to-character navigation fixers have.
+function CounterpartyMemo({ t }: { t: WalletTransaction }) {
+  const label = t.counterpartyName ?? t.counterpartyCharacterName;
+  if (!label) return <>—</>;
+  if (t.counterpartyCharacterId != null) {
+    return (
+      <Link
+        href={`/characters/${t.counterpartyCharacterId}`}
+        className="text-nc-cyan hover:underline cursor-pointer"
+        data-testid={`link-ledger-counterparty-${t.id}`}
+      >
+        → {label}
+      </Link>
+    );
+  }
+  return <>→ {label}</>;
 }
 
 export default function Ledger() {
@@ -94,7 +115,7 @@ export default function Ledger() {
                         </td>
                         <td className="p-3">{humanizeKind(t.kind)}</td>
                         <td className="p-3 text-muted-foreground">
-                          {t.memo ?? (t.counterpartyName ? `→ ${t.counterpartyName}` : "—")}
+                          {t.memo ?? <CounterpartyMemo t={t} />}
                         </td>
                         <td
                           className={`p-3 text-right whitespace-nowrap font-bold ${credit ? "text-nc-green" : "text-nc-magenta"}`}

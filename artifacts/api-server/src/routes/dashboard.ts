@@ -398,7 +398,30 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
     .where(or(...conditions))
     .orderBy(desc(walletTransactions.createdAt))
     .limit(100);
-  res.json(rows);
+
+  // Resolve counterparty character names for player-to-player transfers so the
+  // ledger can link straight to that character's detail page. The counterparty
+  // is usually not one of this player's own characters, so look them up.
+  const counterpartyCharIds = [
+    ...new Set(rows.map((r) => r.counterpartyCharacterId).filter((v): v is number => v != null)),
+  ];
+  const counterpartyCharRows = counterpartyCharIds.length
+    ? await db
+        .select({ id: characters.id, name: characters.name })
+        .from(characters)
+        .where(inArray(characters.id, counterpartyCharIds))
+    : ([] as { id: number; name: string }[]);
+  const counterpartyCharNameById = new Map(counterpartyCharRows.map((c) => [c.id, c.name]));
+
+  res.json(
+    rows.map((r) => ({
+      ...r,
+      counterpartyCharacterName:
+        r.counterpartyCharacterId != null
+          ? counterpartyCharNameById.get(r.counterpartyCharacterId) ?? null
+          : null,
+    })),
+  );
 });
 
 export default router;
