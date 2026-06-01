@@ -83,6 +83,10 @@ describe("GET /me/wallet/transactions (player ledger scoping)", () => {
 
     const tx = res.body.find((t: { amount: number }) => t.amount === -500);
     expect(tx).toBeTruthy();
+    // The player's own character (sender) is resolved by name...
+    expect(tx.characterId).toBe(myChar.id);
+    expect(tx.characterName).toBe("River Ward");
+    // ...as is the counterparty character (recipient).
     expect(tx.counterpartyCharacterId).toBe(receiverChar.id);
     expect(tx.counterpartyCharacterName).toBe("Kerry Eurodyne");
   });

@@ -22,42 +22,65 @@ function humanizeKind(kind: string): string {
   return kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Renders the counterparty of a transaction (when there's no memo). When the
-// counterparty resolves to a character, link straight to its detail page so
-// players get the same jump-to-character navigation fixers have. When it
-// resolves to a venue (store/ripperdoc) instead, link to that venue's page.
-function CounterpartyMemo({ t }: { t: WalletTransaction }) {
+// Whether a transaction has anything to show in the Details column: a memo, a
+// named counterparty, or a counterparty venue. When none are present we render a
+// placeholder dash instead of an empty cell.
+function hasDetails(t: WalletTransaction): boolean {
+  return Boolean(
+    t.memo ?? t.counterpartyCharacterName ?? t.counterpartyName ?? t.counterpartyVenueName,
+  );
+}
+
+// Renders the other side of a transaction with a direction prefix so players
+// can read at a glance who sent or received the money. A credit (money in)
+// shows "From <counterparty>"; a debit (money out) shows "To <counterparty>".
+// When the counterparty resolves to a character, link straight to its detail
+// page; when it resolves to a venue (store/ripperdoc), link to that venue.
+function Counterparty({ t }: { t: WalletTransaction }) {
+  const credit = t.amount >= 0;
+  const prefix = credit ? "From" : "To";
   const venueHref =
     t.counterpartyVenueKind === "store" && t.counterpartyVenueId != null
       ? `/directory/stores/${t.counterpartyVenueId}`
       : t.counterpartyVenueKind === "ripperdoc" && t.counterpartyVenueId != null
         ? `/directory/ripperdocs/${t.counterpartyVenueId}`
         : null;
-  const label = t.counterpartyName ?? t.counterpartyCharacterName ?? t.counterpartyVenueName;
-  if (!label) return <>—</>;
+  const label = t.counterpartyCharacterName ?? t.counterpartyName ?? t.counterpartyVenueName;
+  if (!label) return null;
   if (t.counterpartyCharacterId != null) {
     return (
-      <Link
-        href={`/characters/${t.counterpartyCharacterId}`}
-        className="text-nc-cyan hover:underline cursor-pointer"
-        data-testid={`link-ledger-counterparty-${t.id}`}
-      >
-        → {label}
-      </Link>
+      <span className="whitespace-nowrap">
+        <span className="text-muted-foreground/60">{prefix} </span>
+        <Link
+          href={`/characters/${t.counterpartyCharacterId}`}
+          className="text-nc-cyan hover:underline cursor-pointer"
+          data-testid={`link-ledger-counterparty-${t.id}`}
+        >
+          {label}
+        </Link>
+      </span>
     );
   }
   if (venueHref != null) {
     return (
-      <Link
-        href={venueHref}
-        className="text-nc-cyan hover:underline cursor-pointer"
-        data-testid={`link-ledger-venue-${t.id}`}
-      >
-        → {label}
-      </Link>
+      <span className="whitespace-nowrap">
+        <span className="text-muted-foreground/60">{prefix} </span>
+        <Link
+          href={venueHref}
+          className="text-nc-cyan hover:underline cursor-pointer"
+          data-testid={`link-ledger-venue-${t.id}`}
+        >
+          {label}
+        </Link>
+      </span>
     );
   }
-  return <>→ {label}</>;
+  return (
+    <span className="whitespace-nowrap text-foreground">
+      <span className="text-muted-foreground/60">{prefix} </span>
+      {label}
+    </span>
+  );
 }
 
 export default function Ledger() {
@@ -114,8 +137,9 @@ export default function Ledger() {
                 <thead className="border-b border-border bg-card">
                   <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
                     <th className="text-left p-3">Date</th>
+                    <th className="text-left p-3">Character</th>
                     <th className="text-left p-3">Type</th>
-                    <th className="text-left p-3">Memo</th>
+                    <th className="text-left p-3">Details</th>
                     <th className="text-right p-3">Amount</th>
                   </tr>
                 </thead>
@@ -131,9 +155,31 @@ export default function Ledger() {
                         <td className="p-3 text-muted-foreground whitespace-nowrap">
                           {new Date(t.createdAt).toLocaleString()}
                         </td>
+                        <td
+                          className="p-3 whitespace-nowrap text-foreground"
+                          data-testid={`text-ledger-character-${t.id}`}
+                        >
+                          {t.characterId != null ? (
+                            <Link
+                              href={`/characters/${t.characterId}`}
+                              className="text-nc-cyan hover:underline cursor-pointer"
+                            >
+                              {t.characterName ?? `#${t.characterId}`}
+                            </Link>
+                          ) : (
+                            <span className="text-muted-foreground/70">Account</span>
+                          )}
+                        </td>
                         <td className="p-3">{humanizeKind(t.kind)}</td>
                         <td className="p-3 text-muted-foreground">
-                          {t.memo ?? <CounterpartyMemo t={t} />}
+                          {hasDetails(t) ? (
+                            <div className="flex flex-col gap-0.5">
+                              <Counterparty t={t} />
+                              {t.memo && <span className="text-muted-foreground/80">{t.memo}</span>}
+                            </div>
+                          ) : (
+                            <>—</>
+                          )}
                         </td>
                         <td
                           className={`p-3 text-right whitespace-nowrap font-bold ${credit ? "text-nc-green" : "text-nc-magenta"}`}

@@ -445,6 +445,7 @@ export const GetWalletTransactionsParams = zod.object({
 export const GetWalletTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
   "userId": zod.string().nullish(),
   "amount": zod.number(),
   "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
@@ -1485,6 +1486,7 @@ export const GetStoreTransactionsParams = zod.object({
 export const GetStoreTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
   "userId": zod.string().nullish(),
   "amount": zod.number(),
   "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
@@ -3960,6 +3962,7 @@ export const GetRipperdocTransactionsParams = zod.object({
 export const GetRipperdocTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
   "userId": zod.string().nullish(),
   "amount": zod.number(),
   "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
@@ -6501,6 +6504,7 @@ export const GetMyWalletResponse = zod.object({
 export const GetMyWalletTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
   "userId": zod.string().nullish(),
   "amount": zod.number(),
   "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),

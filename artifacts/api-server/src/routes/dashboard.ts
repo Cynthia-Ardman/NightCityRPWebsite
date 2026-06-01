@@ -388,10 +388,11 @@ router.get("/me/wallet", requireAuth, async (req, res): Promise<void> => {
 
 router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<void> => {
   const myChars = await db
-    .select({ id: characters.id })
+    .select({ id: characters.id, name: characters.name })
     .from(characters)
     .where(eq(characters.ownerId, req.user!.id));
   const charIds = myChars.map((c) => c.id);
+  const myCharNameById = new Map(myChars.map((c) => [c.id, c.name]));
   const conditions = [eq(walletTransactions.userId, req.user!.id)];
   if (charIds.length > 0) conditions.push(inArray(walletTransactions.characterId, charIds));
   const rows = await db
@@ -443,6 +444,7 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
             : null;
       return {
         ...r,
+        characterName: r.characterId != null ? myCharNameById.get(r.characterId) ?? null : null,
         counterpartyCharacterName:
           r.counterpartyCharacterId != null
             ? counterpartyCharNameById.get(r.counterpartyCharacterId) ?? null

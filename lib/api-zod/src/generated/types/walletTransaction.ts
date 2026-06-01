@@ -11,6 +11,8 @@ export interface WalletTransaction {
   /** @nullable */
   characterId?: number | null;
   /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
   userId?: string | null;
   amount: number;
   /** Wallet transaction kind. Includes legacy values plus per-billing-line

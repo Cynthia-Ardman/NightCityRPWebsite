@@ -4499,6 +4499,7 @@ components:
       properties:
         id: { type: integer }
         characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
         userId: { type: ["string", "null"] }
         amount: { type: integer }
         kind:
