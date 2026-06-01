@@ -7,6 +7,30 @@ export const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET ?? "";
 export const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID ?? "";
 export const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? process.env.TOKEN ?? "";
 
+/**
+ * Whether this process may perform outbound WRITES to live Discord — posting
+ * channel messages, sending DMs, and creating/editing/deleting scheduled
+ * events.
+ *
+ * Only the real production deployment (`REPLIT_DEPLOYMENT === "1"`) is allowed
+ * to write to the live server. The community test site runs in the Replit dev
+ * workspace (no REPLIT_DEPLOYMENT), so every outbound Discord write is
+ * suppressed there — even though the same bot token is present, and even if
+ * Live Mode flags were inherited from a production data sync. Reads (OAuth
+ * token exchange, guild role lookups, user/thread fetches) are NOT gated and
+ * keep working in every environment, so login and role-gating still function
+ * on the test site.
+ *
+ * Set `ALLOW_EXTERNAL_WRITES=1` to deliberately opt a non-deployment
+ * environment back in (e.g. when testing Discord delivery from the workspace).
+ */
+export function externalWritesAllowed(): boolean {
+  return (
+    process.env.REPLIT_DEPLOYMENT === "1" ||
+    process.env.ALLOW_EXTERNAL_WRITES === "1"
+  );
+}
+
 export const ROLE_NAMES = {
   ADMIN: ["admin", "administrator", "staff"],
   // "coordinator" is treated as equivalent to a fixer everywhere FIXER is checked.
@@ -396,6 +420,10 @@ export async function createGuildScheduledEvent(input: ScheduledEventInput): Pro
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
     return { ok: false, error: "Discord bot token or guild id not configured" };
   }
+  if (!externalWritesAllowed()) {
+    logger.info({ name: input.name }, "Discord write suppressed (non-deployment env); skipping event create");
+    return { ok: false, error: "External Discord writes are disabled in this (test) environment" };
+  }
   try {
     const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events`, {
       method: "POST",
@@ -423,6 +451,10 @@ export async function modifyGuildScheduledEvent(
 ): Promise<ScheduledEventResult> {
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
     return { ok: false, error: "Discord bot token or guild id not configured" };
+  }
+  if (!externalWritesAllowed()) {
+    logger.info({ eventId }, "Discord write suppressed (non-deployment env); skipping event modify");
+    return { ok: false, error: "External Discord writes are disabled in this (test) environment" };
   }
   try {
     const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events/${eventId}`, {
@@ -452,6 +484,10 @@ export async function modifyGuildScheduledEvent(
 export async function deleteGuildScheduledEvent(eventId: string): Promise<ScheduledEventResult> {
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
     return { ok: false, error: "Discord bot token or guild id not configured" };
+  }
+  if (!externalWritesAllowed()) {
+    logger.info({ eventId }, "Discord write suppressed (non-deployment env); skipping event delete");
+    return { ok: false, error: "External Discord writes are disabled in this (test) environment" };
   }
   try {
     const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events/${eventId}`, {
@@ -529,6 +565,10 @@ export async function postToChannel(channelId: string, content: string, embeds?:
     logger.warn("No bot token; cannot post to Discord channel");
     return null;
   }
+  if (!externalWritesAllowed()) {
+    logger.info({ channelId }, "Discord write suppressed (non-deployment env); skipping channel post");
+    return null;
+  }
   const res = await fetch(`${API}/channels/${channelId}/messages`, {
     method: "POST",
     headers: {
@@ -554,6 +594,10 @@ export async function postToChannel(channelId: string, content: string, embeds?:
 export async function sendDirectMessage(userId: string, content: string): Promise<string | null> {
   if (!DISCORD_BOT_TOKEN) {
     logger.warn("No bot token; cannot send Discord DM");
+    return null;
+  }
+  if (!externalWritesAllowed()) {
+    logger.info({ userId }, "Discord write suppressed (non-deployment env); skipping DM");
     return null;
   }
   const dmRes = await fetch(`${API}/users/@me/channels`, {

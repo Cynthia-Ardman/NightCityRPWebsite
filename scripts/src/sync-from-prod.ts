@@ -189,6 +189,30 @@ async function main() {
     for (const table of TABLES) {
       total += await syncTable(prod, devClient, table);
     }
+    // Safety: bot_config is copied above, and prod runs Live (so its Live Mode
+    // flags arrive ON). Force every Live Mode switch back to Test in the
+    // destination so the dev / community test site can never move real eddies
+    // or post to live Discord just because it inherited prod's flags. We leave
+    // economy_enabled untouched so wallet logic still runs in dry-run "test"
+    // mode for realistic testing.
+    const LIVE_MODE_OFF_KEYS = [
+      "master_live_mode",
+      "missions_live_mode",
+      "housing_live_mode",
+      "cyberware_live_mode",
+      "evictions_live_mode",
+      "economy_live_mode",
+    ];
+    for (const key of LIVE_MODE_OFF_KEYS) {
+      await devClient.query(
+        `INSERT INTO bot_config (key, value) VALUES ($1, 'false'::jsonb)
+           ON CONFLICT (key) DO UPDATE SET value = 'false'::jsonb`,
+        [key],
+      );
+    }
+    console.log(
+      `  bot_config: forced ${LIVE_MODE_OFF_KEYS.length} Live Mode flags OFF (Test mode)`,
+    );
     await devClient.query("COMMIT");
     console.log(`Sync complete — ${total} rows copied across ${TABLES.length} tables.`);
   } catch (err) {

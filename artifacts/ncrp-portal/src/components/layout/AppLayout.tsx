@@ -33,6 +33,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
+        <TestEnvBanner />
         <TopBar />
         <ViewAsBanner />
         <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
@@ -167,6 +168,24 @@ function SidebarContent() {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+// Test-environment banner. The live site is a production Vite build
+// (import.meta.env.DEV === false); the free community test site runs from the
+// Replit dev workspace (DEV === true). Showing this only in dev makes it
+// obvious to testers that nothing here affects the real server: outbound
+// Discord posts/DMs and real eddie movements are suppressed off-deployment.
+function TestEnvBanner() {
+  if (!import.meta.env.DEV) return null;
+  return (
+    <div
+      className="w-full bg-nc-yellow/10 border-b border-nc-yellow/40 text-nc-yellow px-4 py-2 text-center font-mono text-xs tracking-wider"
+      data-testid="banner-test-env"
+    >
+      ⚠ TEST ENVIRONMENT — this is a sandbox copy of live data. Nothing you do
+      here touches the real server, economy, or Discord.
     </div>
   );
 }

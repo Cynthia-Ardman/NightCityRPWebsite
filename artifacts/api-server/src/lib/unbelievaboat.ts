@@ -1,5 +1,5 @@
 import { logger } from "./logger";
-import { DISCORD_GUILD_ID } from "./discord";
+import { DISCORD_GUILD_ID, externalWritesAllowed } from "./discord";
 
 const TOKEN = process.env.UNBELIEVABOAT_TOKEN ?? process.env.UNBELIEVABOAT_API_TOKEN ?? "";
 const API = "https://unbelievaboat.com/api/v1";
@@ -40,6 +40,13 @@ export async function patchBalance(
   delta: { cash?: number; bank?: number; reason?: string },
 ): Promise<UbBalance | null> {
   if (!TOKEN || !DISCORD_GUILD_ID) return null;
+  if (!externalWritesAllowed()) {
+    logger.info(
+      { discordUserId },
+      "UB write suppressed (non-deployment env); skipping balance patch",
+    );
+    return null;
+  }
   try {
     const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/users/${discordUserId}`, {
       method: "PATCH",
