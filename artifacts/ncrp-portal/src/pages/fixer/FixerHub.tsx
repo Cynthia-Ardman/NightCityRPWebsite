@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch } from "lucide-react";
 
 export default function FixerHub() {
   const { data: mine } = useListMyFixerNpcs();
@@ -18,6 +18,7 @@ export default function FixerHub() {
           <Link href="/fixer/reports" className="px-3 py-2 border border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-reports"><BarChart3 className="w-3 h-3" /> MISSION REPORTS</Link>
           <Link href="/fixer/pay-actors" className="px-3 py-2 border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-pay-actors"><Coins className="w-3 h-3" /> PAY ACTORS</Link>
           <Link href="/fixer/items" className="px-3 py-2 border border-nc-yellow text-nc-yellow hover:bg-nc-yellow hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-items"><Search className="w-3 h-3" /> INVENTORY SEARCH</Link>
+          <Link href="/fixer/players" className="px-3 py-2 border border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background font-display text-xs tracking-widest inline-flex items-center gap-2" data-testid="link-fixer-players"><UserSearch className="w-3 h-3" /> PLAYER LOOKUP</Link>
         </div>
       </div>
       <div className="flex items-center justify-between flex-wrap gap-2">

@@ -50,6 +50,7 @@ import FixerMissions from "@/pages/fixer/FixerMissions";
 import FixerReports from "@/pages/fixer/FixerReports";
 import PayActors from "@/pages/fixer/PayActors";
 import FixerInventorySearch from "@/pages/fixer/FixerInventorySearch";
+import FixerPlayerLookup from "@/pages/fixer/FixerPlayerLookup";
 import InventoryItemDetail from "@/pages/InventoryItemDetail";
 import Missions from "@/pages/Missions";
 import MissionDetail from "@/pages/MissionDetail";
@@ -169,6 +170,7 @@ function AppRoutes() {
           <Route path="/fixer/reports" component={FixerReports} />
           <Route path="/fixer/pay-actors" component={PayActors} />
           <Route path="/fixer/items" component={FixerInventorySearch} />
+          <Route path="/fixer/players" component={FixerPlayerLookup} />
           <Route path="/fixer/npcs/:id" component={FixerNpcDetail} />
           <Route path="/items/:uuid" component={InventoryItemDetail} />
           <Route path="/dice" component={DiceRoller} />

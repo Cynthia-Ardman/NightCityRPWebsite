@@ -2163,6 +2163,35 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/InventorySearchResult" }
+  /fixer/players:
+    get:
+      operationId: searchFixerPlayers
+      tags: [fixer]
+      summary: Search players by username/global name or owned character name (fixer/admin)
+      parameters:
+        - { in: query, name: q, schema: { type: string }, description: "Name fragment matched against username, global name, and owned character names (ILIKE)" }
+      responses:
+        "200":
+          description: Matching players
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlayerSearchResult" }
+  /fixer/players/{userId}/activity:
+    parameters:
+      - { in: path, name: userId, required: true, schema: { type: string } }
+    get:
+      operationId: getFixerPlayerActivity
+      tags: [fixer]
+      summary: Aggregated read-only activity profile for one player (fixer/admin)
+      responses:
+        "200":
+          description: Player activity profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlayerActivityProfile" }
+        "404": { description: Player not found }
   /fixer/npcs/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -4068,6 +4097,153 @@ components:
             properties:
               event: { $ref: "#/components/schemas/InventoryEvent" }
               liveItem: { oneOf: [{ $ref: "#/components/schemas/InventoryItem" }, { type: "null" }] }
+
+    PlayerSearchResult:
+      type: object
+      required: [id, username, characterNames]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        globalName: { type: [string, "null"] }
+        avatarUrl: { type: [string, "null"] }
+        roles:
+          type: array
+          items: { type: string }
+        characterNames:
+          type: array
+          items: { type: string }
+
+    PlayerActivityProfile:
+      type: object
+      required: [player, characters, auditEntries, activityEvents, walletTransactions, missions, actorPayments, attendanceClaims, stores, ripperdocs]
+      properties:
+        player:
+          type: object
+          required: [id, username, roles]
+          properties:
+            id: { type: string }
+            username: { type: string }
+            globalName: { type: [string, "null"] }
+            avatarUrl: { type: [string, "null"] }
+            roles:
+              type: array
+              items: { type: string }
+            lastSeenAt: { type: [string, "null"], format: date-time }
+        characters:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              lifeStatus: { type: string }
+              archived: { type: boolean }
+              claimed: { type: boolean }
+        auditEntries:
+          type: array
+          items:
+            type: object
+            required: [id, category, action, createdAt]
+            properties:
+              id: { type: integer }
+              category: { type: string }
+              action: { type: string }
+              message: { type: [string, "null"] }
+              targetType: { type: [string, "null"] }
+              targetId: { type: [string, "null"] }
+              createdAt: { type: string, format: date-time }
+        activityEvents:
+          type: array
+          items:
+            type: object
+            required: [id, kind, message, createdAt]
+            properties:
+              id: { type: integer }
+              kind: { type: string }
+              message: { type: string }
+              createdAt: { type: string, format: date-time }
+        walletTransactions:
+          type: array
+          items:
+            type: object
+            required: [id, amount, kind, source, createdAt]
+            properties:
+              id: { type: integer }
+              characterId: { type: [integer, "null"] }
+              characterName: { type: [string, "null"] }
+              amount: { type: integer }
+              kind: { type: string }
+              memo: { type: [string, "null"] }
+              source: { type: string }
+              counterpartyName: { type: [string, "null"] }
+              createdAt: { type: string, format: date-time }
+        missions:
+          type: array
+          items:
+            type: object
+            required: [id, paymentStatus, createdAt]
+            properties:
+              id: { type: integer }
+              missionId: { type: [integer, "null"] }
+              missionTitle: { type: [string, "null"] }
+              missionStartAt: { type: [string, "null"], format: date-time }
+              characterName: { type: [string, "null"] }
+              attendanceCreditedAt: { type: [string, "null"], format: date-time }
+              paymentStatus: { type: string }
+              payAmount: { type: [integer, "null"] }
+              paidAt: { type: [string, "null"], format: date-time }
+              createdAt: { type: string, format: date-time }
+        actorPayments:
+          type: array
+          items:
+            type: object
+            required: [id, amount, paymentStatus, createdAt]
+            properties:
+              id: { type: integer }
+              missionId: { type: [integer, "null"] }
+              missionName: { type: [string, "null"] }
+              eventType: { type: [string, "null"] }
+              characterName: { type: [string, "null"] }
+              fixerName: { type: [string, "null"] }
+              amount: { type: integer }
+              paymentStatus: { type: string }
+              missionDate: { type: [string, "null"], format: date-time }
+              paidAt: { type: [string, "null"], format: date-time }
+              createdAt: { type: string, format: date-time }
+        attendanceClaims:
+          type: array
+          items:
+            type: object
+            required: [id, weekStart, amount, claimedAt]
+            properties:
+              id: { type: integer }
+              weekStart: { type: string }
+              amount: { type: integer }
+              claimedAt: { type: string, format: date-time }
+        stores:
+          type: array
+          items:
+            type: object
+            required: [id, name, balance, createdAt]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              kind: { type: [string, "null"] }
+              location: { type: [string, "null"] }
+              balance: { type: integer }
+              createdAt: { type: string, format: date-time }
+        ripperdocs:
+          type: array
+          items:
+            type: object
+            required: [id, name, balance, createdAt]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              location: { type: [string, "null"] }
+              balance: { type: integer }
+              createdAt: { type: string, format: date-time }
 
     InventoryItemInput:
       type: object

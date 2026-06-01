@@ -152,7 +152,9 @@ import type {
   PendingEditVoteInput,
   PendingEditVoteResult,
   PendingSheetSummary,
+  PlayerActivityProfile,
   PlayerAttendanceRow,
+  PlayerSearchResult,
   PublicCharacter,
   PublicCharacterSummary,
   ReactivateCharacter200,
@@ -164,6 +166,7 @@ import type {
   RipperdocPublic,
   RipperdocUpdate,
   SaleOffer,
+  SearchFixerPlayersParams,
   SearchInventoryByOwnerParams,
   SearchMissionActorsParams,
   SheetVoteInput,
@@ -10055,6 +10058,167 @@ export function useSearchInventoryByOwner<TData = Awaited<ReturnType<typeof sear
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getSearchInventoryByOwnerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSearchFixerPlayersUrl = (params?: SearchFixerPlayersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/fixer/players?${stringifiedParams}` : `/api/fixer/players`
+}
+
+/**
+ * @summary Search players by username/global name or owned character name (fixer/admin)
+ */
+export const searchFixerPlayers = async (params?: SearchFixerPlayersParams, options?: RequestInit): Promise<PlayerSearchResult[]> => {
+
+  return customFetch<PlayerSearchResult[]>(getSearchFixerPlayersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchFixerPlayersQueryKey = (params?: SearchFixerPlayersParams,) => {
+    return [
+    `/api/fixer/players`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchFixerPlayersQueryOptions = <TData = Awaited<ReturnType<typeof searchFixerPlayers>>, TError = ErrorType<unknown>>(params?: SearchFixerPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchFixerPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchFixerPlayersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchFixerPlayers>>> = ({ signal }) => searchFixerPlayers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchFixerPlayers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchFixerPlayersQueryResult = NonNullable<Awaited<ReturnType<typeof searchFixerPlayers>>>
+export type SearchFixerPlayersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search players by username/global name or owned character name (fixer/admin)
+ */
+
+export function useSearchFixerPlayers<TData = Awaited<ReturnType<typeof searchFixerPlayers>>, TError = ErrorType<unknown>>(
+ params?: SearchFixerPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchFixerPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchFixerPlayersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetFixerPlayerActivityUrl = (userId: string,) => {
+
+
+
+
+  return `/api/fixer/players/${userId}/activity`
+}
+
+/**
+ * @summary Aggregated read-only activity profile for one player (fixer/admin)
+ */
+export const getFixerPlayerActivity = async (userId: string, options?: RequestInit): Promise<PlayerActivityProfile> => {
+
+  return customFetch<PlayerActivityProfile>(getGetFixerPlayerActivityUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFixerPlayerActivityQueryKey = (userId: string,) => {
+    return [
+    `/api/fixer/players/${userId}/activity`
+    ] as const;
+    }
+
+
+export const getGetFixerPlayerActivityQueryOptions = <TData = Awaited<ReturnType<typeof getFixerPlayerActivity>>, TError = ErrorType<void>>(userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFixerPlayerActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFixerPlayerActivityQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFixerPlayerActivity>>> = ({ signal }) => getFixerPlayerActivity(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFixerPlayerActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFixerPlayerActivityQueryResult = NonNullable<Awaited<ReturnType<typeof getFixerPlayerActivity>>>
+export type GetFixerPlayerActivityQueryError = ErrorType<void>
+
+
+/**
+ * @summary Aggregated read-only activity profile for one player (fixer/admin)
+ */
+
+export function useGetFixerPlayerActivity<TData = Awaited<ReturnType<typeof getFixerPlayerActivity>>, TError = ErrorType<void>>(
+ userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFixerPlayerActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFixerPlayerActivityQueryOptions(userId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

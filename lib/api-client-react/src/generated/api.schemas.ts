@@ -941,6 +941,154 @@ export interface InventorySearchResult {
   pastOwners: InventorySearchResultPastOwnersItem[];
 }
 
+export interface PlayerSearchResult {
+  id: string;
+  username: string;
+  /** @nullable */
+  globalName?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  roles?: string[];
+  characterNames: string[];
+}
+
+export type PlayerActivityProfilePlayer = {
+  id: string;
+  username: string;
+  /** @nullable */
+  globalName?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  roles: string[];
+  /** @nullable */
+  lastSeenAt?: string | null;
+};
+
+export type PlayerActivityProfileCharactersItem = {
+  id: number;
+  name: string;
+  lifeStatus?: string;
+  archived?: boolean;
+  claimed?: boolean;
+};
+
+export type PlayerActivityProfileAuditEntriesItem = {
+  id: number;
+  category: string;
+  action: string;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  targetType?: string | null;
+  /** @nullable */
+  targetId?: string | null;
+  createdAt: string;
+};
+
+export type PlayerActivityProfileActivityEventsItem = {
+  id: number;
+  kind: string;
+  message: string;
+  createdAt: string;
+};
+
+export type PlayerActivityProfileWalletTransactionsItem = {
+  id: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  amount: number;
+  kind: string;
+  /** @nullable */
+  memo?: string | null;
+  source: string;
+  /** @nullable */
+  counterpartyName?: string | null;
+  createdAt: string;
+};
+
+export type PlayerActivityProfileMissionsItem = {
+  id: number;
+  /** @nullable */
+  missionId?: number | null;
+  /** @nullable */
+  missionTitle?: string | null;
+  /** @nullable */
+  missionStartAt?: string | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  attendanceCreditedAt?: string | null;
+  paymentStatus: string;
+  /** @nullable */
+  payAmount?: number | null;
+  /** @nullable */
+  paidAt?: string | null;
+  createdAt: string;
+};
+
+export type PlayerActivityProfileActorPaymentsItem = {
+  id: number;
+  /** @nullable */
+  missionId?: number | null;
+  /** @nullable */
+  missionName?: string | null;
+  /** @nullable */
+  eventType?: string | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  fixerName?: string | null;
+  amount: number;
+  paymentStatus: string;
+  /** @nullable */
+  missionDate?: string | null;
+  /** @nullable */
+  paidAt?: string | null;
+  createdAt: string;
+};
+
+export type PlayerActivityProfileAttendanceClaimsItem = {
+  id: number;
+  weekStart: string;
+  amount: number;
+  claimedAt: string;
+};
+
+export type PlayerActivityProfileStoresItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  kind?: string | null;
+  /** @nullable */
+  location?: string | null;
+  balance: number;
+  createdAt: string;
+};
+
+export type PlayerActivityProfileRipperdocsItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  location?: string | null;
+  balance: number;
+  createdAt: string;
+};
+
+export interface PlayerActivityProfile {
+  player: PlayerActivityProfilePlayer;
+  characters: PlayerActivityProfileCharactersItem[];
+  auditEntries: PlayerActivityProfileAuditEntriesItem[];
+  activityEvents: PlayerActivityProfileActivityEventsItem[];
+  walletTransactions: PlayerActivityProfileWalletTransactionsItem[];
+  missions: PlayerActivityProfileMissionsItem[];
+  actorPayments: PlayerActivityProfileActorPaymentsItem[];
+  attendanceClaims: PlayerActivityProfileAttendanceClaimsItem[];
+  stores: PlayerActivityProfileStoresItem[];
+  ripperdocs: PlayerActivityProfileRipperdocsItem[];
+}
+
 export interface InventoryItemInput {
   /**
      * @minLength 1
@@ -4009,6 +4157,13 @@ q?: string;
  * Character name fragment matched against current owner and event log past owners (ILIKE)
  */
 owner?: string;
+};
+
+export type SearchFixerPlayersParams = {
+/**
+ * Name fragment matched against username, global name, and owned character names (ILIKE)
+ */
+q?: string;
 };
 
 export type OverridePendingEdit200 = {

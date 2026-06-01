@@ -4528,6 +4528,122 @@ export const SearchInventoryByOwnerResponse = zod.object({
 })
 
 
+/**
+ * @summary Search players by username/global name or owned character name (fixer/admin)
+ */
+export const SearchFixerPlayersQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Name fragment matched against username, global name, and owned character names (ILIKE)')
+})
+
+export const SearchFixerPlayersResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "roles": zod.array(zod.string()).optional(),
+  "characterNames": zod.array(zod.string())
+})
+export const SearchFixerPlayersResponse = zod.array(SearchFixerPlayersResponseItem)
+
+
+/**
+ * @summary Aggregated read-only activity profile for one player (fixer/admin)
+ */
+export const GetFixerPlayerActivityParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const GetFixerPlayerActivityResponse = zod.object({
+  "player": zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "roles": zod.array(zod.string()),
+  "lastSeenAt": zod.coerce.date().nullish()
+}),
+  "characters": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "lifeStatus": zod.string().optional(),
+  "archived": zod.boolean().optional(),
+  "claimed": zod.boolean().optional()
+})),
+  "auditEntries": zod.array(zod.object({
+  "id": zod.number(),
+  "category": zod.string(),
+  "action": zod.string(),
+  "message": zod.string().nullish(),
+  "targetType": zod.string().nullish(),
+  "targetId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "activityEvents": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.string(),
+  "message": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
+  "walletTransactions": zod.array(zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "kind": zod.string(),
+  "memo": zod.string().nullish(),
+  "source": zod.string(),
+  "counterpartyName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "missions": zod.array(zod.object({
+  "id": zod.number(),
+  "missionId": zod.number().nullish(),
+  "missionTitle": zod.string().nullish(),
+  "missionStartAt": zod.coerce.date().nullish(),
+  "characterName": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.string(),
+  "payAmount": zod.number().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "missionId": zod.number().nullish(),
+  "missionName": zod.string().nullish(),
+  "eventType": zod.string().nullish(),
+  "characterName": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.string(),
+  "missionDate": zod.coerce.date().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "attendanceClaims": zod.array(zod.object({
+  "id": zod.number(),
+  "weekStart": zod.string(),
+  "amount": zod.number(),
+  "claimedAt": zod.coerce.date()
+})),
+  "stores": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "kind": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "balance": zod.number(),
+  "createdAt": zod.coerce.date()
+})),
+  "ripperdocs": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "location": zod.string().nullish(),
+  "balance": zod.number(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
 export const GetFixerNpcParams = zod.object({
   "id": zod.coerce.number()
 })
