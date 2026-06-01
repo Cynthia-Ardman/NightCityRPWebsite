@@ -138,12 +138,12 @@ describe("custom request override", () => {
   });
 });
 
-describe("close/reopen per-type authorization", () => {
-  it("403s a CS_APPROVER (no fixer/admin) closing a request and never materializes the effect", async () => {
+describe("close/reopen authorization", () => {
+  it("403s a non-reviewer closing a request and never materializes the effect", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
     const f2 = await createFixer();
-    const csApprover = await createUser({ roles: ["cs_approver"] });
+    const outsider = await createUser();
     const { reqId } = await submitGunRequest(owner.id);
 
     await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
@@ -152,18 +152,18 @@ describe("close/reopen per-type authorization", () => {
 
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
-      .set("x-test-user", csApprover.id)
+      .set("x-test-user", outsider.id)
       .send({});
     expect(close.status).toBe(403);
     // The deferred effect must NOT have been committed by the unauthorized close.
     expect(await db.select().from(inventoryItems)).toHaveLength(0);
   });
 
-  it("403s a CS_APPROVER (no fixer/admin) reopening a request", async () => {
+  it("403s a non-reviewer reopening a request", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
     const f2 = await createFixer();
-    const csApprover = await createUser({ roles: ["cs_approver"] });
+    const outsider = await createUser();
     const { reqId } = await submitGunRequest(owner.id);
 
     await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
@@ -171,7 +171,7 @@ describe("close/reopen per-type authorization", () => {
 
     const reopen = await request(app)
       .post(`/api/review/request/${reqId}/reopen`)
-      .set("x-test-user", csApprover.id)
+      .set("x-test-user", outsider.id)
       .send({});
     expect(reopen.status).toBe(403);
   });

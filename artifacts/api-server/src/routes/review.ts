@@ -89,24 +89,6 @@ function parseParams(req: { params: Record<string, unknown> }): { type: SubjectT
   return { type, id };
 }
 
-// Per-queue authorization for state-changing actions (close / reopen). Mirrors
-// the visibility policy used by the unseen endpoints: custom requests are
-// fixer/admin only (they commit economic effects on close), character sheets are
-// CS approver/admin, and character edits are open to any reviewer. Without this,
-// a CS_APPROVER could close a request and trigger its deferred materialization.
-function canActOnType(user: { roles: string[] }, type: SubjectType): boolean {
-  const isAdmin = hasRole(user.roles, "ADMIN");
-  if (type === "request") return hasRole(user.roles, "FIXER") || isAdmin;
-  if (type === "sheet") return hasRole(user.roles, "CS_APPROVER") || isAdmin;
-  return isReviewer(user as never); // edit
-}
-
-function deniedMessageFor(type: SubjectType): string {
-  if (type === "request") return "Only fixers / admins can close or reopen request tickets";
-  if (type === "sheet") return "Only character-sheet approvers / admins can close or reopen sheet tickets";
-  return "Only fixers / approvers / admins can close or reopen edit tickets";
-}
-
 // GET /review/:type/:id/comments — full thread, oldest first (chat order).
 router.get("/review/:type/:id/comments", requireAuth, async (req, res): Promise<void> => {
   const parsed = parseParams(req);
@@ -396,7 +378,7 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
 router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<void> => {
   const parsed = parseParams(req);
   if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
-  if (!canActOnType(req.user!, parsed.type)) { res.status(403).json({ error: deniedMessageFor(parsed.type) }); return; }
+  if (!isReviewer(req.user!)) { res.status(403).json({ error: "Only fixers / approvers / admins can close tickets" }); return; }
   let result: ReviewActionResult;
   if (parsed.type === "edit") result = await closeEdit(req, parsed.id);
   else if (parsed.type === "request") result = await closeRequest(req, parsed.id);
@@ -410,7 +392,7 @@ router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<vo
 router.post("/review/:type/:id/reopen", requireAuth, async (req, res): Promise<void> => {
   const parsed = parseParams(req);
   if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
-  if (!canActOnType(req.user!, parsed.type)) { res.status(403).json({ error: deniedMessageFor(parsed.type) }); return; }
+  if (!isReviewer(req.user!)) { res.status(403).json({ error: "Only fixers / approvers / admins can reopen tickets" }); return; }
   let result: ReviewActionResult;
   if (parsed.type === "edit") result = await reopenEdit(req, parsed.id);
   else if (parsed.type === "request") result = await reopenRequest(req, parsed.id);

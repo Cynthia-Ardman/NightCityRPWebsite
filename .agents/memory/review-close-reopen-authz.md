@@ -1,29 +1,27 @@
 ---
-name: Unified review close/reopen per-type authz
-description: The unified /review/:type/:id/close|reopen endpoints must gate per queue-type, not with a flat isReviewer check.
+name: Review close/reopen authz must match vote authz
+description: close/reopen authz for staged review tickets must mirror the per-type VOTE authz, not the queue-visibility policy
 ---
 
-# Unified review close/reopen per-type authorization
+# Close/reopen authz mirrors VOTE authz, not queue visibility
 
-The unified `POST /review/:type/:id/close` and `/reopen` endpoints dispatch to the
-per-queue handlers (closeRequest/closeEdit/closeSheet, etc). They MUST authorize
-per `type`, not with a flat `isReviewer(user)`:
+The unified `POST /review/:type/:id/close|reopen` endpoints gate on `isReviewer`
+(FIXER || CS_APPROVER || ADMIN) — the SAME predicate the three vote endpoints use
+(`requests.ts` vote, `pending-edits.ts` vote, `sheets.ts` vote all check
+`isReviewer`).
 
-- `request` → FIXER || ADMIN
-- `sheet`   → CS_APPROVER || ADMIN
-- `edit`    → any reviewer (isReviewer)
+**Why:** In the staged model, approval is decided at vote/majority time and the
+economic/character effect is DEFERRED to close. Whoever can vote-approve a ticket
+can already drive it to `approved`; restricting close to a narrower role does NOT
+add a privilege boundary — it only creates an inconsistency. A tempting-but-wrong
+fix is to gate close per-type using the QUEUE-VISIBILITY policy from the
+unseen-counts endpoints (requests → FIXER/ADMIN via `canMisc`, sheets →
+CS_APPROVER/ADMIN via `canSheets`). That is a *visibility* policy, not an *action*
+policy: sheet voting is open to any reviewer (a FIXER can vote on a sheet), so
+gating sheet-close on CS_APPROVER/ADMIN makes a FIXER who just voted unable to
+close it (→ 403, breaks `sheets.pipeline.test.ts` "majority threshold").
 
-This mirrors the visibility policy already used by the unseen endpoints
-(canMisc/canSheets/canEdits).
-
-**Why:** Under the staged lifecycle, a request's economic effect (lease /
-inventory / venue materialization) is DEFERRED and only committed at close. A flat
-`isReviewer` gate lets a CS_APPROVER (a reviewer for sheets/edits, but NOT a fixer)
-close a request and trigger its deferred materialization — a privilege escalation
-on a dangerous state transition.
-
-**How to apply:** Any new unified review state-transition endpoint that fans out to
-multiple queue types must gate on the per-type policy before dispatch. The exported
-close*/reopen* handlers trust the caller contract, so the route is the single
-chokepoint — keep the authz there (and add a denial test per type, e.g. CS_APPROVER
-cannot close/reopen a request and the effect must not materialize).
+**How to apply:** When adding any state-changing action to a review ticket, gate
+it on the SAME predicate as that ticket's vote/override endpoint, not on the
+unseen/queue visibility helpers. Visibility (who sees the queue) and action (who
+can decide/close) are deliberately decoupled here.
