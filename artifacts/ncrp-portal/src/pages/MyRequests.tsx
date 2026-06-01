@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   useListMyCustomRequests,
   useListMyHousingRequests,
+  useListMySheets,
+  useListPendingEdits,
   useDecideStockCostRequest,
   useDecideEmployeeInvite,
   useUpdateCustomRequest,
@@ -10,6 +13,8 @@ import {
   getListMyCustomRequestsQueryKey,
   type CustomRequest,
   type HousingRequest,
+  type CharacterSheet,
+  type PendingEditSummary,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +38,8 @@ import { ClipboardList, RotateCcw, Pencil } from "lucide-react";
 type HistoryRow = {
   key: string;
   category:
+    | "Character"
+    | "Character Edit"
     | "Property"
     | "Gun"
     | "Cyberware"
@@ -52,6 +59,10 @@ type HistoryRow = {
   // Set for custom requests the owner can act on directly (stock-cost).
   customId?: number;
   customType?: CustomRequest["type"];
+  // Set for character sheets / edits: where the player goes to read the
+  // reviewer's note and resubmit. Inline resubmit isn't possible for these
+  // (they have full forms / diffs), so we link to their detail page.
+  respondTo?: string;
   // Employment-invite terms surfaced so the invitee can verify before accepting.
   inviteRole?: string | null;
   inviteCommissionPct?: number | null;
@@ -71,6 +82,8 @@ const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
 
 const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "All",
+  "Character",
+  "Character Edit",
   "Property",
   "Gun",
   "Cyberware",
@@ -84,6 +97,10 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
 
 function categoryColor(category: HistoryRow["category"]): string {
   switch (category) {
+    case "Character":
+      return "text-nc-green";
+    case "Character Edit":
+      return "text-nc-cyan";
     case "Property":
       return "text-nc-cyan";
     case "Gun":
@@ -109,6 +126,9 @@ export default function MyRequests() {
   const { data: me } = useAuthMe();
   const { data: custom, isLoading: loadingCustom } = useListMyCustomRequests();
   const { data: housing, isLoading: loadingHousing } = useListMyHousingRequests();
+  const { data: sheets, isLoading: loadingSheets } = useListMySheets();
+  const { data: edits, isLoading: loadingEdits } = useListPendingEdits();
+  const [, navigate] = useLocation();
   const [category, setCategory] = useState<HistoryRow["category"] | "All">("All");
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -192,12 +212,44 @@ export default function MyRequests() {
         reviewerNote: r.reviewerNote,
       });
     }
+    // New character submissions. /sheets is owner-scoped, so every row is the
+    // player's own. Drafts aren't submitted requests yet, so skip them.
+    for (const s of (sheets ?? []) as CharacterSheet[]) {
+      if (s.status === "draft") continue;
+      out.push({
+        key: `sheet-${s.id}`,
+        category: "Character",
+        title: s.name,
+        characterName: s.name,
+        status: s.status,
+        createdAt: s.createdAt,
+        reviewedAt: s.decidedAt,
+        reviewerNote: s.decisionNote,
+        respondTo: `/sheets/${s.id}`,
+      });
+    }
+    // Edits to an existing character. /pending-edits returns ALL rows for
+    // staff, so keep only the ones this player actually submitted.
+    for (const e of (edits ?? []) as PendingEditSummary[]) {
+      if (me && e.submittedBy !== me.id) continue;
+      out.push({
+        key: `edit-${e.id}`,
+        category: "Character Edit",
+        title: e.updateNote?.trim() ? e.updateNote : `Edit to ${e.characterName}`,
+        characterName: e.characterName,
+        status: e.status,
+        createdAt: e.submittedAt,
+        reviewedAt: e.decidedAt,
+        reviewerNote: e.reviewComment,
+        respondTo: `/pending-edits/${e.id}`,
+      });
+    }
     out.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return out;
-  }, [custom, housing]);
+  }, [custom, housing, sheets, edits, me]);
 
   const visible = category === "All" ? rows : rows.filter((r) => r.category === category);
-  const isLoading = loadingCustom || loadingHousing;
+  const isLoading = loadingCustom || loadingHousing || loadingSheets || loadingEdits;
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto pb-12">
@@ -209,7 +261,7 @@ export default function MyRequests() {
           <ClipboardList className="w-8 h-8 text-nc-magenta" /> MY REQUESTS
         </h1>
         <p className="text-muted-foreground font-mono mt-2">
-          Every property, gun, cyberware, stock-cost, and lease request you've submitted — with the outcome and staff notes.
+          Every character, character edit, property, gun, cyberware, stock-cost, and lease request you've submitted — with the outcome and staff notes. When a fixer asks for changes, respond right here.
         </p>
       </div>
 
@@ -316,6 +368,19 @@ export default function MyRequests() {
                               data-testid={`button-resubmit-${r.customId}`}
                             >
                               <RotateCcw className="w-3 h-3 mr-1" /> RESUBMIT
+                            </Button>
+                          </div>
+                        ) : null}
+                        {r.respondTo && r.status === "changes_requested" ? (
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
+                              onClick={() => navigate(r.respondTo!)}
+                              data-testid={`button-respond-${r.key}`}
+                            >
+                              <Pencil className="w-3 h-3 mr-1" /> VIEW &amp; RESPOND
                             </Button>
                           </div>
                         ) : null}
