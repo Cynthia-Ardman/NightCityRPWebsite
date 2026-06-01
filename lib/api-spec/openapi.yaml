@@ -4073,7 +4073,7 @@ components:
       type: object
       required: [name, quantity]
       properties:
-        name: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 500 }
         category: { type: string }
         quantity: { type: integer, minimum: 1 }
         notes: { type: string }
@@ -4082,7 +4082,7 @@ components:
     InventoryItemUpdate:
       type: object
       properties:
-        name: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 500 }
         category: { type: string }
         quantity: { type: integer, minimum: 0 }
         notes: { type: string }

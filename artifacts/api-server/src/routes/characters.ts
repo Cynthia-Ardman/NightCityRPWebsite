@@ -339,6 +339,10 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
     res.status(400).json({ error: "name required" });
     return;
   }
+  if (typeof name === "string" && name.length > 500) {
+    res.status(400).json({ error: "name must be 500 characters or fewer" });
+    return;
+  }
   const [it] = await db
     .insert(inventoryItems)
     .values({
@@ -379,6 +383,10 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
     return;
   }
   const { name, category, quantity, notes, equipped } = req.body ?? {};
+  if (typeof name === "string" && name.length > 500) {
+    res.status(400).json({ error: "name must be 500 characters or fewer" });
+    return;
+  }
   const [before] = await db
     .select()
     .from(inventoryItems)

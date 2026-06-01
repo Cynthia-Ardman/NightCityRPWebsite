@@ -273,12 +273,13 @@ export const AddInventoryItemParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const addInventoryItemBodyNameMax = 500;
 
 
 
 
 export const AddInventoryItemBody = zod.object({
-  "name": zod.string().min(1),
+  "name": zod.string().min(1).max(addInventoryItemBodyNameMax),
   "category": zod.string().optional(),
   "quantity": zod.number().min(1),
   "notes": zod.string().optional(),
@@ -291,13 +292,14 @@ export const UpdateInventoryItemParams = zod.object({
   "itemId": zod.coerce.number()
 })
 
+export const updateInventoryItemBodyNameMax = 500;
 
 export const updateInventoryItemBodyQuantityMin = 0;
 
 
 
 export const UpdateInventoryItemBody = zod.object({
-  "name": zod.string().min(1).optional(),
+  "name": zod.string().min(1).max(updateInventoryItemBodyNameMax).optional(),
   "category": zod.string().optional(),
   "quantity": zod.number().min(updateInventoryItemBodyQuantityMin).optional(),
   "notes": zod.string().optional(),

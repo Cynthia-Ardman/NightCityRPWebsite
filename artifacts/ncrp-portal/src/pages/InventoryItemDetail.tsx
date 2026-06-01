@@ -53,7 +53,7 @@ export default function InventoryItemDetail() {
           <div className="flex items-center gap-3">
             <Package className="w-6 h-6 text-nc-cyan" />
             <div>
-              <CardTitle className="font-display tracking-widest text-2xl text-nc-cyan" data-testid="text-item-name">
+              <CardTitle className="font-display tracking-widest text-2xl text-nc-cyan break-words" data-testid="text-item-name">
                 {item?.name ?? events[events.length - 1]?.itemName ?? "ITEM"}
               </CardTitle>
               <div className="text-xs font-mono text-muted-foreground mt-1">

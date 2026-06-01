@@ -71,7 +71,7 @@ function Dashboard() {
 
   const statCards = summary
     ? [
-        <StatCard key="eddies" icon={Wallet} label="Total Eddies" value={`€$${summary.totalEddies.toLocaleString()}`} color="yellow" href="/characters" />,
+        <StatCard key="eddies" icon={Wallet} label="Total Eddies" value={`€$${summary.totalEddies.toLocaleString()}`} color="yellow" href="/ledger" />,
         ...(isStaff && summary.pendingSheets > 0
           ? [<StatCard key="sheets" icon={FileText} label="Pending Sheets" value={summary.pendingSheets} color="red" href="/sheets/pending" />]
           : []),
@@ -603,7 +603,7 @@ function AttendCard() {
             <div className="text-xs text-muted-foreground font-mono mt-1">
               WEEK_OF {data.weekStart} · €${data.payout.toLocaleString()}
             </div>
-            <div className="text-[10px] font-mono text-muted-foreground/80 mt-1 uppercase tracking-widest">
+            <div className="text-[10px] font-mono text-nc-yellow mt-1 uppercase tracking-widest">
               {data.windowHint}
             </div>
           </div>
@@ -618,12 +618,12 @@ function AttendCard() {
           </Button>
         </div>
         {!windowOpen && !data.claimed && data.nextWindowOpensAt && (
-          <div className="text-xs font-mono text-muted-foreground" data-testid="text-attend-next-window">
+          <div className="text-xs font-mono text-nc-yellow" data-testid="text-attend-next-window">
             NEXT_WINDOW: {new Date(data.nextWindowOpensAt).toLocaleString()}
           </div>
         )}
         {data.claimedAt && (
-          <div className="text-xs font-mono text-muted-foreground">
+          <div className="text-xs font-mono text-nc-yellow">
             LAST_CLAIM: {new Date(data.claimedAt).toLocaleString()}
           </div>
         )}
@@ -790,8 +790,12 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
       <div className="text-xs font-mono text-muted-foreground">
         OPENS_THIS_MONTH: <span className="text-nc-cyan">{data.opensCountedForIncome}/4</span>
         {capped && <span className="text-nc-yellow"> (+{data.opensThisMonth - data.opensCountedForIncome} past cap)</span>}
-        {" · "}NEXT_CHARGE: monthly rent cycle
       </div>
+      {data.history?.[0] && (
+        <div className="text-xs font-mono text-nc-yellow">
+          LAST_OPENED: {new Date(data.history[0].openedAt).toLocaleString()}
+        </div>
+      )}
       {open.error instanceof Error && (
         <div className="text-xs font-mono text-destructive">ERR: {open.error.message}</div>
       )}

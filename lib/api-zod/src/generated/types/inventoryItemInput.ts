@@ -7,7 +7,10 @@
  */
 
 export interface InventoryItemInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
   name: string;
   category?: string;
   /** @minimum 1 */

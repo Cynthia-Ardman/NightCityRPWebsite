@@ -560,7 +560,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
           >
             <div className="sm:col-span-4">
               <Label className="text-xs font-mono">NAME</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} data-testid="input-item-name" />
+              <Input value={name} maxLength={500} onChange={(e) => setName(e.target.value)} data-testid="input-item-name" />
             </div>
             <div className="sm:col-span-3">
               <Label className="text-xs font-mono">CATEGORY</Label>
@@ -594,7 +594,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
             <div className="space-y-2 font-mono text-sm" data-testid="list-inventory">
               {items.map((it) => (
                 <div key={it.id} className="grid grid-cols-12 gap-2 border border-border/40 p-2 items-center" data-testid={`row-item-${it.id}`}>
-                  <span className="col-span-3 text-foreground">{it.name}</span>
+                  <span className="col-span-3 text-foreground break-words">{it.name}</span>
                   <span className="col-span-2 text-nc-cyan uppercase truncate">{it.category ?? "—"}</span>
                   <span className="col-span-1 text-right">x{it.quantity}</span>
                   <span className="col-span-2 truncate text-muted-foreground">{it.notes ?? ""}</span>
@@ -734,7 +734,7 @@ function EditItemDialog({
           >
             <div>
               <Label className="text-xs">NAME</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} data-testid="input-edit-item-name" />
+              <Input value={name} maxLength={500} onChange={(e) => setName(e.target.value)} data-testid="input-edit-item-name" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
