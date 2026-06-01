@@ -26,3 +26,16 @@ export function uniqueTestDatabaseUrl(token: string): string {
   u.pathname = `/${name}_${safeToken}`;
   return u.toString();
 }
+
+// Derives a per-worker database URL from this invocation's base (template) URL
+// by appending the vitest worker id (VITEST_POOL_ID). Each forked worker gets
+// its own database so files can run in parallel without sharing a database or
+// clobbering each other via the per-test TRUNCATE. The db is dependency-free so
+// this can run in a setup file *before* the @workspace/db singleton is imported.
+export function workerDatabaseUrl(baseUrl: string, poolId: string | number): string {
+  const u = new URL(baseUrl);
+  const name = u.pathname.replace(/^\//, "");
+  const id = String(poolId).replace(/[^0-9]/g, "") || "1";
+  u.pathname = `/${name}_w${id}`;
+  return u.toString();
+}

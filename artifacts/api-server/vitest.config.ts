@@ -1,3 +1,4 @@
+import os from "node:os";
 import { defineConfig } from "vitest/config";
 import { uniqueTestDatabaseUrl } from "./src/test/testDbUrl";
 
@@ -21,14 +22,28 @@ const dbUrl = (() => {
 
 if (dbUrl) process.env.TEST_DATABASE_URL = dbUrl;
 
+// Run test files in parallel across this many forked workers. Each worker gets
+// its OWN per-worker database (a clone of this invocation's template, see
+// globalSetup.ts + workerDbEnv.ts), so parallel files never share a database and
+// the per-test TRUNCATE in one worker can't clobber another's seed data. Capped
+// so we don't open more Postgres connections / clones than the host can handle.
+const workerCount = Math.max(1, Math.min(os.availableParallelism?.() ?? os.cpus().length, 4));
+process.env.VITEST_WORKER_COUNT = String(workerCount);
+
 export default defineConfig({
   test: {
     environment: "node",
     globalSetup: ["./src/test/globalSetup.ts"],
-    setupFiles: ["./src/test/setup.ts"],
-    // Files run serially (each in its own forked process). Combined with the
-    // per-invocation database above, no run can ever clobber another's data.
-    fileParallelism: false,
+    // workerDbEnv.ts MUST come first: it rewrites DATABASE_URL to this worker's
+    // own database before setup.ts (which imports the @workspace/db singleton).
+    setupFiles: ["./src/test/workerDbEnv.ts", "./src/test/setup.ts"],
+    // Files run in parallel across forked workers; pin the count so it matches
+    // the number of per-worker databases globalSetup provisions (VITEST_POOL_ID
+    // is 1-indexed and contiguous up to the worker count).
+    pool: "forks",
+    minWorkers: workerCount,
+    maxWorkers: workerCount,
+    fileParallelism: true,
     env: {
       NODE_ENV: "test",
       ...(dbUrl ? { DATABASE_URL: dbUrl } : {}),
