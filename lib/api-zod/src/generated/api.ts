@@ -459,6 +459,9 @@ export const GetWalletTransactionsResponseItem = zod.object({
   "errorMessage": zod.string().nullish(),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
+  "counterpartyVenueKind": zod.string().nullish().describe('Kind of counterparty venue referenced by the transaction: store, ripperdoc, or null.'),
+  "counterpartyVenueId": zod.number().nullish(),
+  "counterpartyVenueName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const GetWalletTransactionsResponse = zod.array(GetWalletTransactionsResponseItem)
@@ -1496,6 +1499,9 @@ export const GetStoreTransactionsResponseItem = zod.object({
   "errorMessage": zod.string().nullish(),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
+  "counterpartyVenueKind": zod.string().nullish().describe('Kind of counterparty venue referenced by the transaction: store, ripperdoc, or null.'),
+  "counterpartyVenueId": zod.number().nullish(),
+  "counterpartyVenueName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const GetStoreTransactionsResponse = zod.array(GetStoreTransactionsResponseItem)
@@ -3968,6 +3974,9 @@ export const GetRipperdocTransactionsResponseItem = zod.object({
   "errorMessage": zod.string().nullish(),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
+  "counterpartyVenueKind": zod.string().nullish().describe('Kind of counterparty venue referenced by the transaction: store, ripperdoc, or null.'),
+  "counterpartyVenueId": zod.number().nullish(),
+  "counterpartyVenueName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const GetRipperdocTransactionsResponse = zod.array(GetRipperdocTransactionsResponseItem)
@@ -6498,6 +6507,9 @@ export const GetMyWalletTransactionsResponseItem = zod.object({
   "errorMessage": zod.string().nullish(),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
+  "counterpartyVenueKind": zod.string().nullish().describe('Kind of counterparty venue referenced by the transaction: store, ripperdoc, or null.'),
+  "counterpartyVenueId": zod.number().nullish(),
+  "counterpartyVenueName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const GetMyWalletTransactionsResponse = zod.array(GetMyWalletTransactionsResponseItem)

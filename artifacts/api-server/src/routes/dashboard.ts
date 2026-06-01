@@ -14,6 +14,8 @@ import {
   inventoryItems,
   botCyberwareStatus,
   botCyberwareWeeklyRuns,
+  stores,
+  ripperdocs,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
@@ -413,14 +415,43 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
     : ([] as { id: number; name: string }[]);
   const counterpartyCharNameById = new Map(counterpartyCharRows.map((c) => [c.id, c.name]));
 
+  // Resolve counterparty venue names for transactions that reference a
+  // store/ripperdoc (store_deposit, ripperdoc_withdraw, etc) so the ledger
+  // can link straight to that venue's detail page.
+  const txStoreIds = [...new Set(rows.map((r) => r.storeId).filter((v): v is number => v != null))];
+  const txRipperIds = [...new Set(rows.map((r) => r.ripperdocId).filter((v): v is number => v != null))];
+  const [txStoreRows, txRipperRows] = await Promise.all([
+    txStoreIds.length
+      ? db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, txStoreIds))
+      : Promise.resolve([] as { id: number; name: string }[]),
+    txRipperIds.length
+      ? db.select({ id: ripperdocs.id, name: ripperdocs.name }).from(ripperdocs).where(inArray(ripperdocs.id, txRipperIds))
+      : Promise.resolve([] as { id: number; name: string }[]),
+  ]);
+  const storeNameById = new Map(txStoreRows.map((s) => [s.id, s.name]));
+  const ripperNameById = new Map(txRipperRows.map((r) => [r.id, r.name]));
+
   res.json(
-    rows.map((r) => ({
-      ...r,
-      counterpartyCharacterName:
-        r.counterpartyCharacterId != null
-          ? counterpartyCharNameById.get(r.counterpartyCharacterId) ?? null
-          : null,
-    })),
+    rows.map((r) => {
+      const counterpartyVenueKind = r.storeId != null ? "store" : r.ripperdocId != null ? "ripperdoc" : null;
+      const counterpartyVenueId = r.storeId ?? r.ripperdocId ?? null;
+      const counterpartyVenueName =
+        r.storeId != null
+          ? storeNameById.get(r.storeId) ?? null
+          : r.ripperdocId != null
+            ? ripperNameById.get(r.ripperdocId) ?? null
+            : null;
+      return {
+        ...r,
+        counterpartyCharacterName:
+          r.counterpartyCharacterId != null
+            ? counterpartyCharNameById.get(r.counterpartyCharacterId) ?? null
+            : null,
+        counterpartyVenueKind,
+        counterpartyVenueId,
+        counterpartyVenueName,
+      };
+    }),
   );
 });
 

@@ -43,5 +43,14 @@ export interface WalletTransaction {
   storeId?: number | null;
   /** @nullable */
   ripperdocId?: number | null;
+  /**
+     * Kind of counterparty venue referenced by the transaction: store, ripperdoc, or null.
+     * @nullable
+     */
+  counterpartyVenueKind?: string | null;
+  /** @nullable */
+  counterpartyVenueId?: number | null;
+  /** @nullable */
+  counterpartyVenueName?: string | null;
   createdAt: Date;
 }

@@ -4339,6 +4339,11 @@ components:
         errorMessage: { type: ["string", "null"] }
         storeId: { type: ["integer", "null"] }
         ripperdocId: { type: ["integer", "null"] }
+        counterpartyVenueKind:
+          type: ["string", "null"]
+          description: "Kind of counterparty venue referenced by the transaction: store, ripperdoc, or null."
+        counterpartyVenueId: { type: ["integer", "null"] }
+        counterpartyVenueName: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
 
     CharacterStatus:

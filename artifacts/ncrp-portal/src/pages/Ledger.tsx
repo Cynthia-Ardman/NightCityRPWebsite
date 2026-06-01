@@ -24,9 +24,16 @@ function humanizeKind(kind: string): string {
 
 // Renders the counterparty of a transaction (when there's no memo). When the
 // counterparty resolves to a character, link straight to its detail page so
-// players get the same jump-to-character navigation fixers have.
+// players get the same jump-to-character navigation fixers have. When it
+// resolves to a venue (store/ripperdoc) instead, link to that venue's page.
 function CounterpartyMemo({ t }: { t: WalletTransaction }) {
-  const label = t.counterpartyName ?? t.counterpartyCharacterName;
+  const venueHref =
+    t.counterpartyVenueKind === "store" && t.counterpartyVenueId != null
+      ? `/directory/stores/${t.counterpartyVenueId}`
+      : t.counterpartyVenueKind === "ripperdoc" && t.counterpartyVenueId != null
+        ? `/directory/ripperdocs/${t.counterpartyVenueId}`
+        : null;
+  const label = t.counterpartyName ?? t.counterpartyCharacterName ?? t.counterpartyVenueName;
   if (!label) return <>—</>;
   if (t.counterpartyCharacterId != null) {
     return (
@@ -34,6 +41,17 @@ function CounterpartyMemo({ t }: { t: WalletTransaction }) {
         href={`/characters/${t.counterpartyCharacterId}`}
         className="text-nc-cyan hover:underline cursor-pointer"
         data-testid={`link-ledger-counterparty-${t.id}`}
+      >
+        → {label}
+      </Link>
+    );
+  }
+  if (venueHref != null) {
+    return (
+      <Link
+        href={venueHref}
+        className="text-nc-cyan hover:underline cursor-pointer"
+        data-testid={`link-ledger-venue-${t.id}`}
       >
         → {label}
       </Link>
