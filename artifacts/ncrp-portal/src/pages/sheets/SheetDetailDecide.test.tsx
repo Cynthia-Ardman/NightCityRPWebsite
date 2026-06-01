@@ -4,7 +4,6 @@ import { render, screen, fireEvent } from "@testing-library/react";
 const h = vi.hoisted(() => ({
   voteMutate: vi.fn(),
   overrideMutate: vi.fn(),
-  requestChangesMutate: vi.fn(),
   resubmitMutate: vi.fn(),
   setLocation: vi.fn(),
   state: {
@@ -59,11 +58,15 @@ vi.mock("@workspace/api-client-react", () => ({
   }),
   useVoteSheet: () => ({ mutate: h.voteMutate, isPending: false }),
   useOverrideSheet: () => ({ mutate: h.overrideMutate, isPending: false }),
-  useRequestChangesSheet: () => ({ mutate: h.requestChangesMutate, isPending: false }),
   useSubmitDraftSheet: () => ({ mutate: h.resubmitMutate, isPending: false }),
   useListCyberware: () => ({ data: [] }),
   getGetSheetQueryKey: (id: number) => ["sheets", id],
   getListPendingSheetsQueryKey: () => ["sheets", "pending"],
+  useListReviewComments: () => ({ data: [], isLoading: false }),
+  usePostReviewComment: () => ({ mutate: vi.fn(), isPending: false }),
+  useMarkReviewSeen: () => ({ mutate: vi.fn(), isPending: false }),
+  getListReviewCommentsQueryKey: (t: string, id: number) => ["review", t, id, "comments"],
+  getGetReviewUnseenCountsQueryKey: () => ["review", "unseen-counts"],
 }));
 
 vi.mock("@/hooks/useAuthMe", () => ({
@@ -86,7 +89,6 @@ describe("SheetDetail review pipeline", () => {
   beforeEach(() => {
     h.voteMutate.mockReset();
     h.overrideMutate.mockReset();
-    h.requestChangesMutate.mockReset();
     h.resubmitMutate.mockReset();
     h.setLocation.mockReset();
     h.state.status = "pending";
@@ -119,19 +121,6 @@ describe("SheetDetail review pipeline", () => {
     });
 
     expect(h.voteMutate).toHaveBeenCalledTimes(2);
-  });
-
-  it("lets a reviewer request changes with a comment", () => {
-    render(<SheetDetail />);
-
-    fireEvent.change(screen.getByTestId("input-change-comment"), {
-      target: { value: "Add more backstory" },
-    });
-    fireEvent.click(screen.getByTestId("button-request-changes"));
-    expect(h.requestChangesMutate).toHaveBeenLastCalledWith({
-      id: 7,
-      data: { comment: "Add more backstory" },
-    });
   });
 
   it("lets an admin override-approve", () => {
