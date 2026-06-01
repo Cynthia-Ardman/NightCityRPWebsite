@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { db, walletTransactions, stores, ripperdocs } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { buildTestApp } from "../test/app";
 import { createUser, createCharacter } from "../test/testDb";
 
@@ -136,5 +137,48 @@ describe("GET /me/wallet/transactions (player ledger scoping)", () => {
     expect(plainTx.counterpartyVenueKind).toBeNull();
     expect(plainTx.counterpartyVenueId).toBeNull();
     expect(plainTx.counterpartyVenueName).toBeNull();
+  });
+
+  it("reflects a venue's CURRENT name after a shop or clinic is renamed", async () => {
+    const me = await createUser({ username: "alt" });
+    const venueOwner = await createUser({ username: "rogue" });
+    const myChar = await createCharacter({ ownerId: me.id, name: "Alt Cunningham" });
+
+    const [store] = await db
+      .insert(stores)
+      .values({ ownerId: venueOwner.id, name: "Old Store Name", balance: 5000 })
+      .returning();
+    const [ripperdoc] = await db
+      .insert(ripperdocs)
+      .values({ ownerId: venueOwner.id, name: "Old Clinic Name", balance: 3000 })
+      .returning();
+
+    await db.insert(walletTransactions).values({
+      characterId: myChar.id,
+      amount: -150,
+      kind: "store_withdraw",
+      storeId: store.id,
+    });
+    await db.insert(walletTransactions).values({
+      userId: me.id,
+      amount: -400,
+      kind: "ripperdoc_withdraw",
+      ripperdocId: ripperdoc.id,
+    });
+
+    // Rename both venues AFTER the ledger rows were written.
+    await db.update(stores).set({ name: "New Store Name" }).where(eq(stores.id, store.id));
+    await db.update(ripperdocs).set({ name: "New Clinic Name" }).where(eq(ripperdocs.id, ripperdoc.id));
+
+    const res = await request(app).get("/api/me/wallet/transactions").set("x-test-user", me.id);
+    expect(res.status).toBe(200);
+
+    const storeTx = res.body.find((t: { kind: string }) => t.kind === "store_withdraw");
+    expect(storeTx.counterpartyVenueId).toBe(store.id);
+    expect(storeTx.counterpartyVenueName).toBe("New Store Name");
+
+    const ripperTx = res.body.find((t: { kind: string }) => t.kind === "ripperdoc_withdraw");
+    expect(ripperTx.counterpartyVenueId).toBe(ripperdoc.id);
+    expect(ripperTx.counterpartyVenueName).toBe("New Clinic Name");
   });
 });
