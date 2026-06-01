@@ -129,8 +129,18 @@ describe("pending edit override", () => {
   });
 });
 
-describe("pending edit request-changes + resubmit", () => {
-  it("parks the edit in changes_requested, DMs the submitter, then resubmit returns it to pending", async () => {
+// Park a pending edit in the legacy `changes_requested` state directly. The
+// request-changes endpoint that used to do this is retired (it now 410s and
+// never blocks), but legacy rows still exist and must keep working.
+async function parkChangesRequested(editId: number, comment = "needs work") {
+  await db
+    .update(pendingCharacterEdits)
+    .set({ status: "changes_requested", reviewComment: comment, decidedAt: null })
+    .where(eq(pendingCharacterEdits.id, editId));
+}
+
+describe("pending edit request-changes (retired) + resubmit", () => {
+  it("request-changes is retired: returns 410 and never parks/blocks the edit", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { edit } = await seedPendingEdit({ submitterId: owner.id });
@@ -139,15 +149,18 @@ describe("pending edit request-changes + resubmit", () => {
       .post(`/api/pending-edits/${edit.id}/request-changes`)
       .set("x-test-user", fixer.id)
       .send({ comment: "Tighten the backstory." });
-    expect(rc.status).toBe(200);
-    expect(mockDm).toHaveBeenCalledTimes(1);
+    expect(rc.status).toBe(410);
+    expect(mockDm).not.toHaveBeenCalled();
 
-    const [parked] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
-    expect(parked.status).toBe("changes_requested");
-    expect(parked.reviewComment).toBe("Tighten the backstory.");
+    // The edit is untouched — still pending, no blocking state introduced.
+    const [after] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
+    expect(after.status).toBe("pending");
+  });
 
-    const events = await db.select().from(activityEvents).where(eq(activityEvents.kind, "character_edit_changes_requested"));
-    expect(events.length).toBeGreaterThanOrEqual(1);
+  it("a legacy changes_requested edit still resubmits back to pending", async () => {
+    const owner = await createUser();
+    const { edit } = await seedPendingEdit({ submitterId: owner.id });
+    await parkChangesRequested(edit.id, "Tighten the backstory.");
 
     const resub = await request(app)
       .post(`/api/pending-edits/${edit.id}/resubmit`)
@@ -159,20 +172,15 @@ describe("pending edit request-changes + resubmit", () => {
     expect(back.status).toBe("pending");
   });
 
-  it("editing a character in changes_requested UPDATES the same review instead of creating a new one", async () => {
+  it("editing a character with an in-flight review UPDATES the same review instead of creating a new one", async () => {
     const owner = await createUser();
-    const fixer = await createFixer();
     const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
 
-    // Fixer sends it back for changes.
-    const rc = await request(app)
-      .post(`/api/pending-edits/${edit.id}/request-changes`)
-      .set("x-test-user", fixer.id)
-      .send({ comment: "Needs more detail." });
-    expect(rc.status).toBe(200);
+    // A legacy changes_requested row exists for this character.
+    await parkChangesRequested(edit.id, "Needs more detail.");
 
-    // Owner re-edits the character (the response to the request). This must
-    // amend the EXISTING review, not spawn a second one.
+    // Owner re-edits the character. This must amend the EXISTING review, not
+    // spawn a second one.
     const patch = await request(app)
       .patch(`/api/characters/${char.id}`)
       .set("x-test-user", owner.id)
@@ -193,7 +201,7 @@ describe("pending edit request-changes + resubmit", () => {
   it("clears prior votes when an edit is updated-and-resubmitted via a character PATCH", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
-    const f2 = await createFixer();
+    await createFixer();
     await createFixer(); // threshold 2
     const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
 
@@ -201,10 +209,7 @@ describe("pending edit request-changes + resubmit", () => {
       .post(`/api/pending-edits/${edit.id}/vote`)
       .set("x-test-user", f1.id)
       .send({ vote: "approve" });
-    await request(app)
-      .post(`/api/pending-edits/${edit.id}/request-changes`)
-      .set("x-test-user", f2.id)
-      .send({ comment: "Redo it." });
+    await parkChangesRequested(edit.id, "Redo it.");
 
     const patch = await request(app)
       .patch(`/api/characters/${char.id}`)
@@ -219,15 +224,11 @@ describe("pending edit request-changes + resubmit", () => {
   it("never reverts a decided edit: a later PATCH leaves the approved row alone and opens a fresh edit", async () => {
     const owner = await createUser();
     const admin = await createAdmin();
-    const fixer = await createFixer();
     const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
 
-    // Fixer requests changes, then an admin overrides it to approved before the
-    // owner gets around to re-editing.
-    await request(app)
-      .post(`/api/pending-edits/${edit.id}/request-changes`)
-      .set("x-test-user", fixer.id)
-      .send({ comment: "Fix it." });
+    // A legacy changes_requested row that an admin then overrides to approved
+    // before the owner gets around to re-editing.
+    await parkChangesRequested(edit.id, "Fix it.");
     const override = await request(app)
       .post(`/api/pending-edits/${edit.id}/override`)
       .set("x-test-user", admin.id)
@@ -254,21 +255,10 @@ describe("pending edit request-changes + resubmit", () => {
     expect(pendingRows[0].id).not.toBe(edit.id);
   });
 
-  it("400s request-changes without a comment", async () => {
-    const owner = await createUser();
-    const fixer = await createFixer();
-    const { edit } = await seedPendingEdit({ submitterId: owner.id });
-    const res = await request(app)
-      .post(`/api/pending-edits/${edit.id}/request-changes`)
-      .set("x-test-user", fixer.id)
-      .send({});
-    expect(res.status).toBe(400);
-  });
-
   it("clears prior approvals on resubmit so the next round starts fresh", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
-    const f2 = await createFixer();
+    await createFixer();
     await createFixer(); // threshold 2 so one approve does not decide
     const { edit } = await seedPendingEdit({ submitterId: owner.id });
 
@@ -280,13 +270,8 @@ describe("pending edit request-changes + resubmit", () => {
     expect(vote.body.status).toBe("pending");
     expect(await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id))).toHaveLength(1);
 
-    // A second reviewer sends it back for changes, then the owner resubmits.
-    const rc = await request(app)
-      .post(`/api/pending-edits/${edit.id}/request-changes`)
-      .set("x-test-user", f2.id)
-      .send({ comment: "Reconsider." });
-    expect(rc.status).toBe(200);
-
+    // A legacy changes_requested park, then the owner resubmits.
+    await parkChangesRequested(edit.id, "Reconsider.");
     const resub = await request(app)
       .post(`/api/pending-edits/${edit.id}/resubmit`)
       .set("x-test-user", owner.id)

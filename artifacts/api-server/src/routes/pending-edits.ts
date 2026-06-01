@@ -13,7 +13,7 @@ import {
   type Character,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, postToChannel, sendDirectMessage } from "../lib/discord";
+import { hasRole, postToChannel } from "../lib/discord";
 import { isReviewer, listEligibleReviewerIds, majorityOf } from "../lib/review";
 
 const router: IRouter = Router();
@@ -134,27 +134,31 @@ export async function createPendingEdit(opts: {
   const noteRaw = (opts.body as Record<string, unknown>)?.updateNote;
   const updateNote = typeof noteRaw === "string" && noteRaw.trim().length > 0 ? noteRaw.trim().slice(0, 2000) : null;
 
-  // One in-flight edit per character. If a 'pending' edit already exists the
-  // caller must amend that one (409 — handled by the route). If a
-  // 'changes_requested' edit exists, the player is responding to a reviewer's
-  // request: UPDATE that same row in place and resubmit it rather than
-  // spawning a duplicate review, clearing the prior round's votes/decision.
-  const [pendingExisting] = await db
+  // One in-flight edit per character. Since reviewer feedback now flows through
+  // the non-blocking comment thread (not a blocking 'changes_requested' park),
+  // the submitter must be able to AMEND their still-in-flight edit in place —
+  // whether it is 'pending' or a legacy 'changes_requested' row. Amending
+  // updates that same row and clears the prior round's votes/decision so the
+  // review re-tallies against the new content, instead of spawning a duplicate
+  // review. The 409 is reserved for the (practically impossible) case where a
+  // DIFFERENT user already holds the pending edit for this character.
+  const [inFlight] = await db
     .select()
     .from(pendingCharacterEdits)
-    .where(and(eq(pendingCharacterEdits.characterId, opts.character.id), eq(pendingCharacterEdits.status, "pending")));
-  if (pendingExisting) {
-    return { ok: false, error: { kind: "edit_already_pending", editId: pendingExisting.id } };
-  }
-  const [changesRequested] = await db
-    .select()
-    .from(pendingCharacterEdits)
-    .where(and(eq(pendingCharacterEdits.characterId, opts.character.id), eq(pendingCharacterEdits.status, "changes_requested")))
+    .where(
+      and(
+        eq(pendingCharacterEdits.characterId, opts.character.id),
+        inArray(pendingCharacterEdits.status, ["pending", "changes_requested"]),
+      ),
+    )
     .orderBy(desc(pendingCharacterEdits.submittedAt));
-  if (changesRequested) {
-    // Atomic state guard: only resubmit-in-place if the row is STILL
-    // changes_requested. A concurrent admin override/decision could have moved
-    // it to approved/rejected between the select above and this update; the
+  if (inFlight) {
+    if (inFlight.submittedBy !== opts.submitter.id) {
+      return { ok: false, error: { kind: "edit_already_pending", editId: inFlight.id } };
+    }
+    // Atomic state guard: only amend-in-place if the row is STILL in-flight. A
+    // concurrent admin override/decision could have moved it to
+    // approved/rejected between the select above and this update; the
     // status-scoped WHERE makes that update a no-op so we never revert a
     // decided edit back to pending.
     const updated = await db.transaction(async (tx) => {
@@ -170,16 +174,21 @@ export async function createPendingEdit(opts: {
           decidedAt: null,
           submittedAt: new Date(),
         })
-        .where(and(eq(pendingCharacterEdits.id, changesRequested.id), eq(pendingCharacterEdits.status, "changes_requested")))
+        .where(
+          and(
+            eq(pendingCharacterEdits.id, inFlight.id),
+            inArray(pendingCharacterEdits.status, ["pending", "changes_requested"]),
+          ),
+        )
         .returning();
       if (!row) return null;
-      await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, changesRequested.id));
+      await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, inFlight.id));
       return row;
     });
     if (!updated) {
-      // The edit was decided concurrently; fall through is unsafe (would create
-      // a duplicate), so surface a conflict the client can refresh on.
-      return { ok: false, error: { kind: "edit_already_decided", editId: changesRequested.id } };
+      // The edit was decided concurrently; falling through is unsafe (would
+      // create a duplicate), so surface a conflict the client can refresh on.
+      return { ok: false, error: { kind: "edit_already_decided", editId: inFlight.id } };
     }
     announceEdit(updated.id, opts.character, opts.submitter, diff as EditableDiff, updateNote).catch((e) => {
       console.error("[pending-edits] Discord announce failed", e);
@@ -189,7 +198,7 @@ export async function createPendingEdit(opts: {
       actorId: opts.submitter.id,
       actorName: opts.submitter.username,
       actorAvatarUrl: opts.submitter.avatarUrl,
-      message: `${opts.submitter.username} updated and resubmitted an edit for ${opts.character.name}`,
+      message: `${opts.submitter.username} updated an in-flight edit for ${opts.character.name}`,
     });
     return { ok: true, edit: updated };
   }
@@ -577,49 +586,13 @@ router.post("/pending-edits/:id/override", requireAuth, async (req, res): Promis
   res.json({ ok: true, status: "approved" });
 });
 
-const CommentSchema = z.object({ comment: z.string().trim().min(1).max(2000) });
-
-// POST /pending-edits/:id/request-changes — a reviewer (not the submitter)
-// parks the edit in changes_requested with a comment and DMs the submitter.
-// The submitter then resubmits to send it back to the queue.
-router.post("/pending-edits/:id/request-changes", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const u = req.user!;
-  if (!isReviewer(u)) {
-    res.status(403).json({ error: "Only fixers / approvers / admins can request changes" });
-    return;
-  }
-  const parsed = CommentSchema.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: "A comment is required", details: parsed.error.issues });
-    return;
-  }
-  const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
-  if (row.submittedBy === u.id) { res.status(403).json({ error: "You cannot review your own edit" }); return; }
-  // Atomic state guard: only flip to changes_requested if the edit is STILL
-  // pending. A concurrent vote/override (FOR UPDATE) may have already decided
-  // it; an unconditional update would clobber that decision.
-  const [changed] = await db
-    .update(pendingCharacterEdits)
-    .set({ status: "changes_requested", reviewComment: parsed.data.comment, decidedAt: null })
-    .where(and(eq(pendingCharacterEdits.id, id), eq(pendingCharacterEdits.status, "pending")))
-    .returning();
-  if (!changed) { res.status(409).json({ error: "Edit is no longer pending" }); return; }
-  const [c] = await db.select().from(characters).where(eq(characters.id, row.characterId));
-  await db.insert(activityEvents).values({
-    kind: "character_edit_changes_requested",
-    actorId: u.id,
-    actorName: u.username,
-    actorAvatarUrl: u.avatarUrl,
-    message: `Changes requested on edit for ${c?.name ?? `character #${row.characterId}`}`,
-  });
-  // Best-effort DM — the state change is already committed.
-  sendDirectMessage(
-    row.submittedBy,
-    `Changes were requested on your edit for **${c?.name ?? "your character"}**:\n> ${parsed.data.comment}\n\nEdit and resubmit when ready.`,
-  ).catch((e) => console.error("[pending-edits] request-changes DM failed", e));
-  res.json({ ok: true, status: "changes_requested" });
+// POST /pending-edits/:id/request-changes — RETIRED. Reviewers no longer park
+// edits in a blocking `changes_requested` state; comments via the /review thread
+// are non-blocking communication and never gate approval. Legacy rows already
+// in `changes_requested` still resubmit normally. Endpoint kept registered so
+// stale clients get a clear 410 rather than a 404.
+router.post("/pending-edits/:id/request-changes", requireAuth, async (_req, res): Promise<void> => {
+  res.status(410).json({ error: "Request-changes is retired. Use the comment thread; it never blocks approval." });
 });
 
 // POST /pending-edits/:id/resubmit — the submitter sends a changes_requested

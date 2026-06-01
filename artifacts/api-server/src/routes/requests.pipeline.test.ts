@@ -111,8 +111,18 @@ describe("custom request override", () => {
   });
 });
 
-describe("custom request request-changes + resubmit", () => {
-  it("parks the request in changes_requested, DMs the player, then resubmit returns it to pending", async () => {
+// Park a request in the legacy `changes_requested` state directly. The
+// request-changes endpoint that used to do this is retired (it now 410s and
+// never blocks), but legacy rows still exist and must keep resubmitting.
+async function parkChangesRequested(reqId: number, note = "needs work") {
+  await db
+    .update(customRequests)
+    .set({ status: "changes_requested", reviewerNote: note })
+    .where(eq(customRequests.id, reqId));
+}
+
+describe("custom request request-changes (retired) + resubmit", () => {
+  it("request-changes is retired: returns 410 and never parks/blocks the request", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { reqId } = await submitGunRequest(owner.id);
@@ -121,13 +131,20 @@ describe("custom request request-changes + resubmit", () => {
       .post(`/api/requests/${reqId}/request-changes`)
       .set("x-test-user", fixer.id)
       .send({ comment: "Pick a different model." });
-    expect(rc.status).toBe(200);
-    expect(rc.body.status).toBe("changes_requested");
-    expect(rc.body.reviewerNote).toBe("Pick a different model.");
-    expect(mockDm).toHaveBeenCalledTimes(1);
+    expect(rc.status).toBe(410);
+    expect(mockDm).not.toHaveBeenCalled();
 
+    // Untouched — still pending, and no request_changes audit was written.
+    const [after] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(after.status).toBe("pending");
     const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_changes"));
-    expect(audits).toHaveLength(1);
+    expect(audits).toHaveLength(0);
+  });
+
+  it("a legacy changes_requested request still resubmits back to pending", async () => {
+    const owner = await createUser();
+    const { reqId } = await submitGunRequest(owner.id);
+    await parkChangesRequested(reqId, "Pick a different model.");
 
     const resub = await request(app)
       .post(`/api/requests/${reqId}/resubmit`)
@@ -137,21 +154,10 @@ describe("custom request request-changes + resubmit", () => {
     expect(resub.body.status).toBe("pending");
   });
 
-  it("400s request-changes without a comment", async () => {
-    const owner = await createUser();
-    const fixer = await createFixer();
-    const { reqId } = await submitGunRequest(owner.id);
-    const res = await request(app)
-      .post(`/api/requests/${reqId}/request-changes`)
-      .set("x-test-user", fixer.id)
-      .send({});
-    expect(res.status).toBe(400);
-  });
-
   it("clears prior votes on resubmit so the next round starts fresh", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
-    const f2 = await createFixer();
+    await createFixer();
     await createFixer(); // threshold 2 so one approve does not decide
     const { reqId } = await submitGunRequest(owner.id);
 
@@ -168,13 +174,8 @@ describe("custom request request-changes + resubmit", () => {
         .where(and(eq(reviewVotes.subjectType, "request"), eq(reviewVotes.subjectId, reqId))),
     ).toHaveLength(1);
 
-    // A second reviewer sends it back for changes, then the owner resubmits.
-    const rc = await request(app)
-      .post(`/api/requests/${reqId}/request-changes`)
-      .set("x-test-user", f2.id)
-      .send({ comment: "Reconsider." });
-    expect(rc.status).toBe(200);
-
+    // A legacy changes_requested park, then the owner resubmits.
+    await parkChangesRequested(reqId, "Reconsider.");
     const resub = await request(app)
       .post(`/api/requests/${reqId}/resubmit`)
       .set("x-test-user", owner.id)

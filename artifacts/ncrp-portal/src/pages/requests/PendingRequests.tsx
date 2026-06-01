@@ -5,15 +5,13 @@ import {
   useListCustomRequests,
   useVoteCustomRequest,
   useOverrideCustomRequest,
-  useRequestChangesCustomRequest,
   useListPendingSheets,
-  useListPendingEdits,
   useListLoreEdits,
   useApproveLoreEdit,
   useRejectLoreEdit,
+  useGetReviewUnseenCounts,
   getListCustomRequestsQueryKey,
   getListLoreEditsQueryKey,
-  getListPendingSheetsQueryKey,
   type CustomRequest,
   type LorePendingEdit,
   type LoreEntryUpdate,
@@ -39,10 +37,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, PackagePlus } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, PackagePlus, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
+import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 
 const TYPE_META: Record<
   CustomRequest["type"],
@@ -78,8 +77,8 @@ function MiscRequestsTab() {
   const requests = (data ?? []) as CustomRequest[];
   const [approveTarget, setApproveTarget] = useState<CustomRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CustomRequest | null>(null);
-  const [changesTarget, setChangesTarget] = useState<CustomRequest | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<CustomRequest | null>(null);
+  const [expanded, setExpanded] = useState<number | null>(null);
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   const isAdmin = !!me?.isAdmin;
@@ -195,14 +194,6 @@ function MiscRequestsTab() {
                     >
                       {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display text-xs tracking-widest"
-                      onClick={() => setChangesTarget(r)}
-                      data-testid={`button-request-changes-misc-${r.id}`}
-                    >
-                      REQUEST CHANGES
-                    </Button>
                     {isAdmin && (
                       <Button
                         variant="outline"
@@ -215,6 +206,22 @@ function MiscRequestsTab() {
                     )}
                   </div>
                 )}
+                <Button
+                  variant="outline"
+                  className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
+                  onClick={() => setExpanded((cur) => (cur === r.id ? null : r.id))}
+                  data-testid={`button-view-respond-misc-${r.id}`}
+                >
+                  <MessageSquare className="w-3 h-3 mr-1" />
+                  VIEW &amp; RESPOND
+                  {expanded === r.id ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                </Button>
+                {expanded === r.id && (
+                  <div className="space-y-3">
+                    <AwaitingVoteBanner show={isReviewer && !r.myVote} />
+                    <ReviewCommentThread subjectType="request" subjectId={r.id} markSeenOnMount={isReviewer} />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -224,7 +231,6 @@ function MiscRequestsTab() {
       <ApproveDialog request={approveTarget} mode="vote" onClose={() => setApproveTarget(null)} />
       <ApproveDialog request={overrideTarget} mode="override" onClose={() => setOverrideTarget(null)} />
       <RejectDialog request={rejectTarget} onClose={() => setRejectTarget(null)} />
-      <RequestChangesDialog request={changesTarget} onClose={() => setChangesTarget(null)} />
     </div>
   );
 }
@@ -519,77 +525,6 @@ function RejectDialog({ request, onClose }: { request: CustomRequest | null; onC
   );
 }
 
-function RequestChangesDialog({ request, onClose }: { request: CustomRequest | null; onClose: () => void }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [comment, setComment] = useState("");
-
-  const seedKey = request?.id ?? -1;
-  const [seededFor, setSeededFor] = useState(-1);
-  if (request && seededFor !== seedKey) {
-    setComment("");
-    setSeededFor(seedKey);
-  }
-
-  const requestChanges = useRequestChangesCustomRequest({
-    mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey({ status: "pending" }) });
-        toast({ title: "Changes requested", description: "The player has been notified." });
-        onClose();
-      },
-      onError: (err) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-          (err instanceof Error ? err.message : "Please try again.");
-        toast({ title: "Could not request changes", description: msg, variant: "destructive" });
-      },
-    },
-  });
-
-  if (!request) return null;
-  const trimmed = comment.trim();
-
-  return (
-    <Dialog open={!!request} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="rounded-none border-nc-magenta/40 bg-card sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-display tracking-widest text-nc-magenta">
-            REQUEST CHANGES — {request.title.toUpperCase()}
-          </DialogTitle>
-          <DialogDescription className="font-mono text-xs">
-            Sends {request.characterName}'s player a note and parks the request until they edit & resubmit.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-1.5 py-2">
-          <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Comment (required)</Label>
-          <Input
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="What needs to change?"
-            className="rounded-none font-mono"
-            data-testid="input-request-changes-comment"
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" className="rounded-none font-display" onClick={onClose}>
-            CANCEL
-          </Button>
-          <Button
-            variant="outline"
-            className="rounded-none font-display tracking-widest border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10"
-            disabled={!trimmed || requestChanges.isPending}
-            onClick={() => requestChanges.mutate({ id: request.id, data: { comment: trimmed } })}
-            data-testid="button-confirm-request-changes"
-          >
-            {requestChanges.isPending ? "SENDING..." : "REQUEST CHANGES"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function NewCharactersTab() {
   const { data: sheets, isLoading } = useListPendingSheets();
 
@@ -815,21 +750,17 @@ export default function PendingRequests() {
   const canNewChars = !!(me?.isAdmin || me?.isCsApprover);
   const canLore = !!me?.isAdmin;
 
-  // Per-tab "awaiting action" counts. These reuse the same query keys as each
-  // tab's own list, so React Query dedupes — no extra network cost.
-  const { data: miscData } = useListCustomRequests(
-    { status: "pending" },
-    { query: { enabled: canMisc, queryKey: getListCustomRequestsQueryKey({ status: "pending" }) } },
-  );
-  const { data: editsData } = useListPendingEdits();
-  const { data: sheetsData } = useListPendingSheets({ query: { enabled: canNewChars, queryKey: getListPendingSheetsQueryKey() } });
+  // Per-tab badges show UNSEEN-by-me counts (drop once the reviewer opens an
+  // item), not the raw pending totals. Lore is the exception — it's a single-
+  // approver admin queue with no seen-tracking, so it keeps the pending count.
+  const { data: unseen } = useGetReviewUnseenCounts();
   const { data: loreData } = useListLoreEdits(
     { status: "pending" },
     { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "pending" }) } },
   );
-  const miscCount = (miscData ?? []).length;
-  const editsCount = (editsData ?? []).filter((e) => e.status === "pending").length;
-  const sheetsCount = (sheetsData ?? []).length;
+  const miscCount = unseen?.requests ?? 0;
+  const editsCount = unseen?.edits ?? 0;
+  const sheetsCount = unseen?.sheets ?? 0;
   const loreCount = (loreData ?? []).length;
 
   // Default to the first tab the staffer can act on.

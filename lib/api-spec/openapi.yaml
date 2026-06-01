@@ -3495,8 +3495,104 @@ paths:
         "404": { description: Not found }
         "409": { description: Already decided }
 
+  /review/{subjectType}/{id}/comments:
+    parameters:
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listReviewComments
+      tags: [review]
+      summary: The two-way comment thread on a review subject (character edit / custom request / sheet). Visible to the submitter and any reviewer. Comments never change the subject's status.
+      responses:
+        "200":
+          description: Thread, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReviewComment" }
+        "400": { description: Bad subject }
+        "403": { description: Submitter or reviewers only }
+        "404": { description: Not found }
+    post:
+      operationId: postReviewComment
+      tags: [review]
+      summary: Post a comment on a review subject. Never changes status, so it can never block an approval. Best-effort DMs the submitter when a reviewer comments.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewCommentInput" }
+      responses:
+        "201":
+          description: Comment created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewComment" }
+        "400": { description: Comment body required / too long / bad subject }
+        "403": { description: Submitter or reviewers only }
+        "404": { description: Not found }
+  /review/{subjectType}/{id}/seen:
+    parameters:
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: markReviewSeen
+      tags: [review]
+      summary: Mark a review subject as seen by the current user (called when a reviewer opens it). Drops it from their unseen notification count until there is fresh activity.
+      responses:
+        "200":
+          description: Marked seen
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "400": { description: Bad subject }
+        "403": { description: Submitter or reviewers only }
+        "404": { description: Not found }
+  /review/unseen-counts:
+    get:
+      operationId: getReviewUnseenCounts
+      tags: [review]
+      summary: Per-queue count of actionable review items the current reviewer has not yet seen. Role-gated like the queue lists; excludes the viewer's own submissions. Lore is not included.
+      responses:
+        "200":
+          description: Unseen counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewUnseenCounts" }
+
 components:
   schemas:
+    ReviewComment:
+      type: object
+      required: [id, subjectType, subjectId, authorId, body, createdAt]
+      properties:
+        id: { type: integer }
+        subjectType: { type: string, enum: [edit, request, sheet] }
+        subjectId: { type: integer }
+        authorId: { type: string }
+        authorName: { type: ["string", "null"] }
+        authorAvatarUrl: { type: ["string", "null"] }
+        isReviewer: { type: boolean, description: "True if the author was acting as a reviewer (not the submitter) at post time." }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+    ReviewCommentInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4000 }
+    ReviewUnseenCounts:
+      type: object
+      required: [edits, requests, sheets, total]
+      properties:
+        edits: { type: integer }
+        requests: { type: integer }
+        sheets: { type: integer }
+        total: { type: integer }
     LoreSource:
       type: object
       required: [label, url]

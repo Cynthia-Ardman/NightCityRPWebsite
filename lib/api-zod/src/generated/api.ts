@@ -7297,3 +7297,66 @@ export const DiscardLoreImportDraftResponse = zod.object({
 })
 
 
+/**
+ * @summary The two-way comment thread on a review subject (character edit / custom request / sheet). Visible to the submitter and any reviewer. Comments never change the subject's status.
+ */
+export const ListReviewCommentsParams = zod.object({
+  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "id": zod.coerce.number()
+})
+
+export const ListReviewCommentsResponseItem = zod.object({
+  "id": zod.number(),
+  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "subjectId": zod.number(),
+  "authorId": zod.string(),
+  "authorName": zod.string().nullish(),
+  "authorAvatarUrl": zod.string().nullish(),
+  "isReviewer": zod.boolean().optional().describe('True if the author was acting as a reviewer (not the submitter) at post time.'),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListReviewCommentsResponse = zod.array(ListReviewCommentsResponseItem)
+
+
+/**
+ * @summary Post a comment on a review subject. Never changes status, so it can never block an approval. Best-effort DMs the submitter when a reviewer comments.
+ */
+export const PostReviewCommentParams = zod.object({
+  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "id": zod.coerce.number()
+})
+
+export const postReviewCommentBodyBodyMax = 4000;
+
+
+
+export const PostReviewCommentBody = zod.object({
+  "body": zod.string().min(1).max(postReviewCommentBodyBodyMax)
+})
+
+
+/**
+ * @summary Mark a review subject as seen by the current user (called when a reviewer opens it). Drops it from their unseen notification count until there is fresh activity.
+ */
+export const MarkReviewSeenParams = zod.object({
+  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "id": zod.coerce.number()
+})
+
+export const MarkReviewSeenResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Per-queue count of actionable review items the current reviewer has not yet seen. Role-gated like the queue lists; excludes the viewer's own submissions. Lore is not included.
+ */
+export const GetReviewUnseenCountsResponse = zod.object({
+  "edits": zod.number(),
+  "requests": zod.number(),
+  "sheets": zod.number(),
+  "total": zod.number()
+})
+
+

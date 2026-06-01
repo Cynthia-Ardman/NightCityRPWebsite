@@ -4,7 +4,6 @@ import {
   useGetSheet,
   useVoteSheet,
   useOverrideSheet,
-  useRequestChangesSheet,
   useSubmitDraftSheet,
   useListCyberware,
   getGetSheetQueryKey,
@@ -16,8 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, ShieldCheck, MessageSquareWarning, RotateCcw } from "lucide-react";
+import { Check, X, ShieldCheck, RotateCcw } from "lucide-react";
 import Markdown from "@/components/Markdown";
+import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 import { useMemo, useState } from "react";
 
 function sheetStatusBadge(status: string) {
@@ -45,7 +45,6 @@ export default function SheetDetail() {
   const { data: catalog } = useListCyberware();
   const { toast } = useToast();
   const [note, setNote] = useState("");
-  const [changeComment, setChangeComment] = useState("");
 
   // Mirror the server's catalog-authoritative CWP resolution
   // (loadCyberwareCostMap / entryPoints in api-server sheets.ts): cost is keyed
@@ -79,12 +78,6 @@ export default function SheetDetail() {
     mutation: {
       onSuccess: () => { toast({ title: "Sheet approved via override" }); invalidate(); },
       onError: (err) => toast({ title: "Override failed", description: errMsg(err, "Override failed"), variant: "destructive" }),
-    },
-  });
-  const requestChanges = useRequestChangesSheet({
-    mutation: {
-      onSuccess: () => { toast({ title: "Changes requested — the player has been notified" }); setChangeComment(""); invalidate(); },
-      onError: (err) => toast({ title: "Could not request changes", description: errMsg(err, "Request failed"), variant: "destructive" }),
     },
   });
   const resubmit = useSubmitDraftSheet({
@@ -173,6 +166,8 @@ export default function SheetDetail() {
           </Button>
         )}
       </div>
+
+      <AwaitingVoteBanner show={!!sheet.canVote && !sheet.myVote} />
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PROFILE</CardTitle></CardHeader>
@@ -367,15 +362,9 @@ export default function SheetDetail() {
         </Card>
       )}
 
-      {/* Reviewer request-changes */}
-      {sheet.canRequestChanges && (
-        <Card className="rounded-none border-nc-magenta bg-card/50">
-          <CardHeader><CardTitle className="font-display tracking-widest text-nc-magenta">REQUEST CHANGES</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <Textarea placeholder="Tell the player what needs to change..." value={changeComment} onChange={(e) => setChangeComment(e.target.value)} maxLength={2000} data-testid="input-change-comment" />
-            <Button onClick={() => requestChanges.mutate({ id: sheetId, data: { comment: changeComment } })} disabled={requestChanges.isPending || changeComment.trim().length === 0} variant="outline" className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display" data-testid="button-request-changes"><MessageSquareWarning className="w-4 h-4 mr-1" /> SEND BACK TO PLAYER</Button>
-          </CardContent>
-        </Card>
+      {/* Two-way discussion thread (player <-> reviewers). Never blocks approval. */}
+      {(isStaff || isOwner) && (
+        <ReviewCommentThread subjectType="sheet" subjectId={sheetId} markSeenOnMount={isStaff} />
       )}
 
       {/* Admin override */}

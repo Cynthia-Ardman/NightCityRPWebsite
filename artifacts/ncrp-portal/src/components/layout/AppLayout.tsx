@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useListCustomRequests, getListCustomRequestsQueryKey, useListPendingSheets, getListPendingSheetsQueryKey, useListPendingEdits, getListPendingEditsQueryKey, useListLoreEdits, getListLoreEditsQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useListLoreEdits, getListLoreEditsQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Search, Receipt, ClipboardList, ShoppingBag, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,26 +57,19 @@ function SidebarContent() {
   // approval). Only fetched for staff so regular players never trigger the
   // staff-scoped endpoints.
   const isStaff = !!user && (user.isFixer || user.isCsApprover || user.isAdmin);
-  const { data: pendingReqs } = useListCustomRequests(
-    { status: "pending" },
-    { query: { enabled: isStaff, queryKey: getListCustomRequestsQueryKey({ status: "pending" }) } },
-  );
-  const { data: pendingSheets } = useListPendingSheets({ query: { enabled: isStaff, queryKey: getListPendingSheetsQueryKey() } });
-  const { data: pendingEdits } = useListPendingEdits({ query: { enabled: isStaff, queryKey: getListPendingEditsQueryKey() } });
+  // Unseen-by-me review counts (edits + misc requests + sheets). These already
+  // role-gate and exclude the viewer's own submissions server-side, and drop as
+  // the reviewer opens each item. Lore has no seen-tracking (single admin
+  // approver), so it keeps the raw pending count.
+  const { data: unseen } = useGetReviewUnseenCounts({ query: { enabled: isStaff, queryKey: getGetReviewUnseenCountsQueryKey() } });
   const { data: pendingLore } = useListLoreEdits(
     { status: "pending" },
     { query: { enabled: !!user?.isAdmin, queryKey: getListLoreEditsQueryKey({ status: "pending" }) } },
   );
-  // Sum only the queues this staffer can actually act on, so the badge total
-  // matches what they see on the Pending Requests page. Character edits are
-  // reviewable by all staff; misc=fixer/admin, sheets=cs/admin, lore=admin.
-  const canMisc = !!user && (user.isFixer || user.isAdmin);
-  const canSheets = !!user && (user.isCsApprover || user.isAdmin);
-  const pendingEditCount = (pendingEdits ?? []).filter((e) => e.status === "pending").length;
   const staffPending =
-    (canMisc ? pendingReqs?.length ?? 0 : 0) +
-    pendingEditCount +
-    (canSheets ? pendingSheets?.length ?? 0 : 0) +
+    (unseen?.edits ?? 0) +
+    (unseen?.requests ?? 0) +
+    (unseen?.sheets ?? 0) +
     (user?.isAdmin ? pendingLore?.length ?? 0 : 0);
 
   const NavItem = ({ href, icon: Icon, label, disabled, badge }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number }) => {

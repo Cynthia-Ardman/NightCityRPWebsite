@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { postToChannel, hasRole, sendDirectMessage } from "../lib/discord";
+import { postToChannel, hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields } from "../lib/sheet-validation";
@@ -611,54 +611,13 @@ router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void>
   res.json(result.ok.updated);
 });
 
-// POST /sheets/:id/request-changes — a reviewer (not the owner) parks the
-// sheet in changes_requested with a comment and DMs the owner. The owner then
-// resubmits via /sheets/:id/submit to send it back to the queue.
-router.post("/sheets/:id/request-changes", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const u = req.user!;
-  if (!isReviewer(u)) {
-    res.status(403).json({ error: "Only fixers / approvers / admins can request changes" });
-    return;
-  }
-  const comment = typeof req.body?.comment === "string" ? req.body.comment.trim() : "";
-  if (!comment) {
-    res.status(400).json({ error: "A comment is required" });
-    return;
-  }
-  const [sheet] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));
-  if (!sheet) { res.status(404).json({ error: "Not found" }); return; }
-  if (sheet.ownerId === u.id) { res.status(403).json({ error: "You cannot review your own sheet" }); return; }
-  // Atomic state guard: only flip to changes_requested if the sheet is STILL
-  // pending. A concurrent vote/override (FOR UPDATE) may have already decided
-  // it; an unconditional update would clobber that decision.
-  const [updated] = await db
-    .update(characterSheets)
-    .set({ status: "changes_requested", decisionBy: u.id, decisionNote: comment, decidedAt: new Date() })
-    .where(and(eq(characterSheets.id, id), eq(characterSheets.status, "pending")))
-    .returning();
-  if (!updated) { res.status(409).json({ error: "Sheet is no longer pending" }); return; }
-  await db.insert(activityEvents).values({
-    kind: "sheet_changes_requested",
-    actorId: u.id,
-    actorName: u.username,
-    actorAvatarUrl: u.avatarUrl,
-    message: `Changes requested on sheet for ${updated.name}`,
-  });
-  sendDirectMessage(
-    sheet.ownerId,
-    `Changes were requested on your character sheet **${updated.name}**:\n> ${comment}\n\nEdit and resubmit when ready.`,
-  ).catch((e) => console.error("[sheets] request-changes DM failed", e));
-  await recordAudit({
-    req,
-    category: "sheet",
-    action: "request_changes",
-    targetType: "sheet",
-    targetId: id,
-    message: `${u.username} requested changes on sheet "${updated.name}"`,
-    after: { comment },
-  });
-  res.json(updated);
+// POST /sheets/:id/request-changes — RETIRED. Reviewers no longer park sheets
+// in a blocking `changes_requested` state; the /review comment thread is
+// non-blocking communication and never gates approval. Legacy rows already in
+// `changes_requested` still resubmit via /sheets/:id/submit. Endpoint kept
+// registered so stale clients get a clear 410 rather than a 404.
+router.post("/sheets/:id/request-changes", requireAuth, async (_req, res): Promise<void> => {
+  res.status(410).json({ error: "Request-changes is retired. Use the comment thread; it never blocks approval." });
 });
 
 export default router;

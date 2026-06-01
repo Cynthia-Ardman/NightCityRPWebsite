@@ -7,7 +7,6 @@ import {
   useVotePendingEdit,
   useCancelPendingEdit,
   useOverridePendingEdit,
-  useRequestChangesPendingEdit,
   useResubmitPendingEdit,
   getGetPendingEditQueryKey,
   getListPendingEditsQueryKey,
@@ -24,6 +23,7 @@ import { Check, X, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ShieldChe
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
+import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 
 function statusBadge(status: string) {
   if (status === "pending") return <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-xs animate-pulse"><Clock className="w-3 h-3 mr-1" /> PENDING</Badge>;
@@ -92,7 +92,6 @@ export default function PendingEditDetail() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [voteNote, setVoteNote] = useState("");
-  const [changeComment, setChangeComment] = useState("");
   const [editOpen, setEditOpen] = useState(false);
 
   const { data: edit, isLoading } = useGetPendingEdit(editId);
@@ -154,13 +153,6 @@ export default function PendingEditDetail() {
     },
   });
 
-  const requestChanges = useRequestChangesPendingEdit({
-    mutation: {
-      onSuccess: () => { toast({ title: "Changes requested — the submitter has been notified" }); setChangeComment(""); invalidate(); },
-      onError: (err) => toast({ title: "Could not request changes", description: errMsg(err, "Request failed"), variant: "destructive" }),
-    },
-  });
-
   const resubmit = useResubmitPendingEdit({
     mutation: {
       onSuccess: () => { toast({ title: "Resubmitted to the review queue" }); invalidate(); },
@@ -208,6 +200,8 @@ export default function PendingEditDetail() {
         </div>
         {statusBadge(edit.status)}
       </div>
+
+      <AwaitingVoteBanner show={!!edit.canVote && !(edit.myVote && edit.myVote.vote)} />
 
       {/* Tally */}
       <Card className="rounded-none border-border bg-card/30">
@@ -293,33 +287,8 @@ export default function PendingEditDetail() {
         </Card>
       )}
 
-      {/* Request changes (reviewer) */}
-      {edit.canRequestChanges && (
-        <Card className="rounded-none border-nc-magenta bg-card/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="font-display text-sm tracking-widest text-nc-magenta">REQUEST CHANGES</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Textarea
-              value={changeComment}
-              onChange={(e) => setChangeComment(e.target.value)}
-              placeholder="Tell the player what needs to change..."
-              rows={2}
-              maxLength={2000}
-              data-testid="input-change-comment"
-            />
-            <Button
-              onClick={() => requestChanges.mutate({ id: editId, data: { comment: changeComment } })}
-              disabled={requestChanges.isPending || changeComment.trim().length === 0}
-              variant="outline"
-              className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display"
-              data-testid="button-request-changes"
-            >
-              <MessageSquareWarning className="w-4 h-4 mr-1" /> SEND BACK TO PLAYER
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* Two-way discussion thread (player <-> reviewers). Never blocks approval. */}
+      <ReviewCommentThread subjectType="edit" subjectId={editId} />
 
       {/* Admin override */}
       {edit.canOverride && (

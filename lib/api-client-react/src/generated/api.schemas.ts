@@ -5,6 +5,45 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+export type ReviewCommentSubjectType = typeof ReviewCommentSubjectType[keyof typeof ReviewCommentSubjectType];
+
+
+export const ReviewCommentSubjectType = {
+  edit: 'edit',
+  request: 'request',
+  sheet: 'sheet',
+} as const;
+
+export interface ReviewComment {
+  id: number;
+  subjectType: ReviewCommentSubjectType;
+  subjectId: number;
+  authorId: string;
+  /** @nullable */
+  authorName?: string | null;
+  /** @nullable */
+  authorAvatarUrl?: string | null;
+  /** True if the author was acting as a reviewer (not the submitter) at post time. */
+  isReviewer?: boolean;
+  body: string;
+  createdAt: string;
+}
+
+export interface ReviewCommentInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}
+
+export interface ReviewUnseenCounts {
+  edits: number;
+  requests: number;
+  sheets: number;
+  total: number;
+}
+
 export interface LoreSource {
   label: string;
   url: string;
@@ -4396,4 +4435,8 @@ export const ListLoreImportDraftsStatus = {
   approved: 'approved',
   discarded: 'discarded',
 } as const;
+
+export type MarkReviewSeen200 = {
+  ok: boolean;
+};
 

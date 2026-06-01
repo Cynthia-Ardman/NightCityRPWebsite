@@ -18,6 +18,7 @@ import attendanceRouter from "./attendance";
 import requestsRouter from "./requests";
 import offersRouter from "./offers";
 import loreRouter from "./lore";
+import reviewRouter from "./review";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(attendanceRouter);
 router.use(requestsRouter);
 router.use(offersRouter);
 router.use(loreRouter);
+router.use(reviewRouter);
 
 export default router;

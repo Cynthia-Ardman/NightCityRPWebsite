@@ -751,64 +751,13 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
   res.json(shape(row));
 });
 
-// POST /requests/:id/request-changes — a reviewer (not the requester) parks
-// the request in changes_requested with a note and DMs the player. The player
-// edits + resubmits to send it back to the queue.
-router.post("/requests/:id/request-changes", requireAuth, async (req, res): Promise<void> => {
-  if (!isReviewer(req.user!)) {
-    res.status(403).json({ error: "Only fixers / approvers / admins can request changes" });
-    return;
-  }
-  const rid = parseInt(String(req.params.id), 10);
-  const comment = typeof req.body?.comment === "string" ? req.body.comment.trim() : "";
-  if (!comment) {
-    res.status(400).json({ error: "A comment is required" });
-    return;
-  }
-  const [reqRow] = await db.select().from(customRequests).where(eq(customRequests.id, rid));
-  if (!reqRow) { res.status(404).json({ error: "Request not found" }); return; }
-  if (reqRow.type === "stock_cost") { res.status(400).json({ error: "Not applicable to stock-cost requests" }); return; }
-  if (reqRow.type === "employee_invite") { res.status(400).json({ error: "Not applicable to employment invitations" }); return; }
-  if (reqRow.requestedById === req.user!.id) { res.status(403).json({ error: "You cannot review your own request" }); return; }
-  // Atomic state guard: only flip to changes_requested if the row is STILL
-  // pending at update time. A concurrent vote/override (which locks FOR UPDATE)
-  // could otherwise have already decided it, and an unconditional update would
-  // clobber that decision back to changes_requested.
-  const [changed] = await db
-    .update(customRequests)
-    .set({ status: "changes_requested", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: comment })
-    .where(and(eq(customRequests.id, rid), eq(customRequests.status, "pending")))
-    .returning();
-  if (!changed) { res.status(409).json({ error: "Request is no longer pending" }); return; }
-  const [row] = await selectWhere(eq(customRequests.id, rid));
-  await db.insert(activityEvents).values({
-    kind: "request_changes_requested",
-    actorId: req.user!.id,
-    actorName: req.user!.username,
-    actorAvatarUrl: req.user!.avatarUrl,
-    message: `${row.characterName ?? "(unknown)"}: Changes requested on ${typeLabelFor(reqRow.type)} request "${reqRow.title}"`,
-  });
-  try {
-    const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, reqRow.requestedById));
-    if (u?.discordId) {
-      await sendDirectMessage(
-        u.discordId,
-        `Changes were requested on your ${typeLabelFor(reqRow.type)} request "${reqRow.title}":\n> ${comment}\n\nEdit and resubmit when ready.`,
-      );
-    }
-  } catch (err) {
-    logger.warn({ err, requestId: rid }, "request-changes DM failed");
-  }
-  await recordAudit({
-    req,
-    category: auditCategoryFor(reqRow.type),
-    action: "request_changes",
-    targetType: "custom_request",
-    targetId: rid,
-    message: `Requested changes on ${reqRow.type} request: ${reqRow.title}`,
-    after: { comment },
-  });
-  res.json(shape(row));
+// POST /requests/:id/request-changes — RETIRED. Reviewers no longer park
+// requests in a blocking `changes_requested` state; the /review comment thread
+// is non-blocking communication and never gates approval. Legacy rows already
+// in `changes_requested` still resubmit normally. Endpoint kept registered so
+// stale clients get a clear 410 rather than a 404.
+router.post("/requests/:id/request-changes", requireAuth, async (_req, res): Promise<void> => {
+  res.status(410).json({ error: "Request-changes is retired. Use the comment thread; it never blocks approval." });
 });
 
 // PATCH /requests/:id — the requester (or admin) edits the request while it is

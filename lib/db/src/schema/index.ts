@@ -10,6 +10,7 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  primaryKey,
   uuid,
   date,
 } from "drizzle-orm/pg-core";
@@ -1010,6 +1011,43 @@ export const reviewVotes = pgTable("review_votes", {
   subjectIdx: index("review_vote_subject_idx").on(t.subjectType, t.subjectId),
 }));
 export type ReviewVote = typeof reviewVotes.$inferSelect;
+
+// Two-way discussion thread on a review subject — character EDITS, custom
+// REQUESTS, and character SHEETS. Both the submitter and any reviewer can post.
+// Comments are PURELY a communication channel: they never change the subject's
+// status, so leaving a comment never blocks an approval (unlike the older
+// "request changes" flow). subjectType mirrors review_votes ('sheet' |
+// 'request') plus 'edit' for character edits.
+export const reviewComments = pgTable("review_comments", {
+  id: serial("id").primaryKey(),
+  subjectType: text("subject_type").notNull(),
+  subjectId: integer("subject_id").notNull(),
+  authorId: text("author_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  subjectIdx: index("review_comment_subject_idx").on(t.subjectType, t.subjectId, t.createdAt),
+}));
+export type ReviewComment = typeof reviewComments.$inferSelect;
+
+// Per-user "I have looked at this review subject" marker. Drives the unseen
+// notification counts: an actionable subject counts toward a reviewer's badge
+// until they open it (which upserts lastSeenAt = now). New activity on the
+// subject (a fresh comment) bumps its activityAt past lastSeenAt, making it
+// unseen again so the reviewer is re-notified that the player responded.
+export const reviewSeen = pgTable("review_seen", {
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  subjectType: text("subject_type").notNull(),
+  subjectId: integer("subject_id").notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.subjectType, t.subjectId] }),
+}));
+export type ReviewSeen = typeof reviewSeen.$inferSelect;
 
 // Per-character shop opens — one row per "the owner opened their venue
 // today" event. The monthly_rent cron counts rows in the current month to

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
@@ -30,7 +30,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
-import { ClipboardList, RotateCcw, Pencil } from "lucide-react";
+import { ClipboardList, RotateCcw, Pencil, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import ReviewCommentThread from "@/components/ReviewCommentThread";
 
 // One unified shape for everything a player has submitted, so custom
 // requests (property / gun / cyberware) and standard catalog leases can
@@ -133,6 +134,7 @@ export default function MyRequests() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState<{ id: number; title: string; description: string } | null>(null);
+  const [discussing, setDiscussing] = useState<number | null>(null);
   const invalidateMine = () => qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() });
   const errMsg = (err: unknown, fallback: string) =>
     (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
@@ -313,8 +315,8 @@ export default function MyRequests() {
                 </thead>
                 <tbody>
                   {visible.map((r) => (
+                    <Fragment key={r.key}>
                     <tr
-                      key={r.key}
                       className="border-b border-border/30 hover:bg-card/80 align-top"
                       data-testid={`row-my-request-${r.key}`}
                     >
@@ -442,8 +444,31 @@ export default function MyRequests() {
                             </Button>
                           </div>
                         ) : null}
+                        {r.customId != null ? (
+                          <div className="mt-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
+                              onClick={() => setDiscussing((cur) => (cur === r.customId ? null : r.customId!))}
+                              data-testid={`button-discuss-${r.customId}`}
+                            >
+                              <MessageSquare className="w-3 h-3 mr-1" /> DISCUSS
+                              {discussing === r.customId ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                            </Button>
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
+                    {r.customId != null && discussing === r.customId ? (
+                      <tr className="border-b border-border/30" data-testid={`row-discuss-${r.customId}`}>
+                        <td colSpan={6} className="p-3 bg-card/40">
+                          <ReviewCommentThread subjectType="request" subjectId={r.customId} markSeenOnMount={false} />
+                        </td>
+                      </tr>
+                    ) : null}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

@@ -134,6 +134,7 @@ import type {
   LoreImportDraftUpdate,
   LoreImportRunResult,
   LorePendingEdit,
+  MarkReviewSeen200,
   Me,
   MissionApplicationListItem,
   MissionApplicationOutcome,
@@ -162,6 +163,9 @@ import type {
   RequestChangesPendingEdit200,
   ResubmitPendingEdit200,
   ReviewApplicationInput,
+  ReviewComment,
+  ReviewCommentInput,
+  ReviewUnseenCounts,
   Ripperdoc,
   RipperdocPublic,
   RipperdocUpdate,
@@ -16089,4 +16093,309 @@ export const useDiscardLoreImportDraft = <TError = ErrorType<void>,
       > => {
       return useMutation(getDiscardLoreImportDraftMutationOptions(options));
     }
+
+export const getListReviewCommentsUrl = (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,) => {
+
+
+
+
+  return `/api/review/${subjectType}/${id}/comments`
+}
+
+/**
+ * @summary The two-way comment thread on a review subject (character edit / custom request / sheet). Visible to the submitter and any reviewer. Comments never change the subject's status.
+ */
+export const listReviewComments = async (subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: RequestInit): Promise<ReviewComment[]> => {
+
+  return customFetch<ReviewComment[]>(getListReviewCommentsUrl(subjectType,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReviewCommentsQueryKey = (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,) => {
+    return [
+    `/api/review/${subjectType}/${id}/comments`
+    ] as const;
+    }
+
+
+export const getListReviewCommentsQueryOptions = <TData = Awaited<ReturnType<typeof listReviewComments>>, TError = ErrorType<void>>(subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReviewComments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReviewCommentsQueryKey(subjectType,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReviewComments>>> = ({ signal }) => listReviewComments(subjectType,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(subjectType && id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReviewComments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReviewCommentsQueryResult = NonNullable<Awaited<ReturnType<typeof listReviewComments>>>
+export type ListReviewCommentsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The two-way comment thread on a review subject (character edit / custom request / sheet). Visible to the submitter and any reviewer. Comments never change the subject's status.
+ */
+
+export function useListReviewComments<TData = Awaited<ReturnType<typeof listReviewComments>>, TError = ErrorType<void>>(
+ subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReviewComments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReviewCommentsQueryOptions(subjectType,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getPostReviewCommentUrl = (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,) => {
+
+
+
+
+  return `/api/review/${subjectType}/${id}/comments`
+}
+
+/**
+ * @summary Post a comment on a review subject. Never changes status, so it can never block an approval. Best-effort DMs the submitter when a reviewer comments.
+ */
+export const postReviewComment = async (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,
+    reviewCommentInput: ReviewCommentInput, options?: RequestInit): Promise<ReviewComment> => {
+
+  return customFetch<ReviewComment>(getPostReviewCommentUrl(subjectType,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      reviewCommentInput,)
+  }
+);}
+
+
+
+
+export const getPostReviewCommentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>}, TContext> => {
+
+const mutationKey = ['postReviewComment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postReviewComment>>, {subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>}> = (props) => {
+          const {subjectType,id,data} = props ?? {};
+
+          return  postReviewComment(subjectType,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostReviewCommentMutationResult = NonNullable<Awaited<ReturnType<typeof postReviewComment>>>
+    export type PostReviewCommentMutationBody = BodyType<ReviewCommentInput>
+    export type PostReviewCommentMutationError = ErrorType<void>
+
+    /**
+ * @summary Post a comment on a review subject. Never changes status, so it can never block an approval. Best-effort DMs the submitter when a reviewer comments.
+ */
+export const usePostReviewComment = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof postReviewComment>>,
+        TError,
+        {subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>},
+        TContext
+      > => {
+      return useMutation(getPostReviewCommentMutationOptions(options));
+    }
+
+export const getMarkReviewSeenUrl = (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,) => {
+
+
+
+
+  return `/api/review/${subjectType}/${id}/seen`
+}
+
+/**
+ * @summary Mark a review subject as seen by the current user (called when a reviewer opens it). Drops it from their unseen notification count until there is fresh activity.
+ */
+export const markReviewSeen = async (subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: RequestInit): Promise<MarkReviewSeen200> => {
+
+  return customFetch<MarkReviewSeen200>(getMarkReviewSeenUrl(subjectType,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getMarkReviewSeenMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext> => {
+
+const mutationKey = ['markReviewSeen'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markReviewSeen>>, {subjectType: 'edit' | 'request' | 'sheet';id: number}> = (props) => {
+          const {subjectType,id} = props ?? {};
+
+          return  markReviewSeen(subjectType,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkReviewSeenMutationResult = NonNullable<Awaited<ReturnType<typeof markReviewSeen>>>
+
+    export type MarkReviewSeenMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark a review subject as seen by the current user (called when a reviewer opens it). Drops it from their unseen notification count until there is fresh activity.
+ */
+export const useMarkReviewSeen = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markReviewSeen>>,
+        TError,
+        {subjectType: 'edit' | 'request' | 'sheet';id: number},
+        TContext
+      > => {
+      return useMutation(getMarkReviewSeenMutationOptions(options));
+    }
+
+export const getGetReviewUnseenCountsUrl = () => {
+
+
+
+
+  return `/api/review/unseen-counts`
+}
+
+/**
+ * @summary Per-queue count of actionable review items the current reviewer has not yet seen. Role-gated like the queue lists; excludes the viewer's own submissions. Lore is not included.
+ */
+export const getReviewUnseenCounts = async ( options?: RequestInit): Promise<ReviewUnseenCounts> => {
+
+  return customFetch<ReviewUnseenCounts>(getGetReviewUnseenCountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReviewUnseenCountsQueryKey = () => {
+    return [
+    `/api/review/unseen-counts`
+    ] as const;
+    }
+
+
+export const getGetReviewUnseenCountsQueryOptions = <TData = Awaited<ReturnType<typeof getReviewUnseenCounts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewUnseenCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReviewUnseenCountsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReviewUnseenCounts>>> = ({ signal }) => getReviewUnseenCounts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReviewUnseenCounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReviewUnseenCountsQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewUnseenCounts>>>
+export type GetReviewUnseenCountsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Per-queue count of actionable review items the current reviewer has not yet seen. Role-gated like the queue lists; excludes the viewer's own submissions. Lore is not included.
+ */
+
+export function useGetReviewUnseenCounts<TData = Awaited<ReturnType<typeof getReviewUnseenCounts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewUnseenCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReviewUnseenCountsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 

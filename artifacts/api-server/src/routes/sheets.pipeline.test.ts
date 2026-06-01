@@ -141,8 +141,18 @@ describe("sheet override", () => {
   });
 });
 
-describe("sheet request-changes + resubmit", () => {
-  it("parks the sheet in changes_requested, DMs the owner, and audits", async () => {
+// Park a sheet in the legacy `changes_requested` state directly. The
+// request-changes endpoint that used to do this is retired (it now 410s and
+// never blocks), but legacy rows still exist and must keep resubmitting.
+async function parkChangesRequested(sheetId: number, note = "needs work") {
+  await db
+    .update(characterSheets)
+    .set({ status: "changes_requested", decisionNote: note })
+    .where(eq(characterSheets.id, sheetId));
+}
+
+describe("sheet request-changes (retired) + resubmit", () => {
+  it("request-changes is retired: returns 410 and never parks/blocks the sheet", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const sheet = await createPendingSheet(owner.id, "Needs Work");
@@ -151,30 +161,19 @@ describe("sheet request-changes + resubmit", () => {
       .post(`/api/sheets/${sheet.id}/request-changes`)
       .set("x-test-user", fixer.id)
       .send({ comment: "Add a portrait." });
-    expect(rc.status).toBe(200);
-    expect(rc.body.status).toBe("changes_requested");
-    expect(rc.body.decisionNote).toBe("Add a portrait.");
-    expect(mockDm).toHaveBeenCalledTimes(1);
+    expect(rc.status).toBe(410);
+    expect(mockDm).not.toHaveBeenCalled();
 
+    const [after] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(after.status).toBe("pending");
     const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_changes"));
-    expect(audits).toHaveLength(1);
-  });
-
-  it("400s request-changes without a comment", async () => {
-    const owner = await createUser();
-    const fixer = await createFixer();
-    const sheet = await createPendingSheet(owner.id, "No Comment");
-    const res = await request(app)
-      .post(`/api/sheets/${sheet.id}/request-changes`)
-      .set("x-test-user", fixer.id)
-      .send({});
-    expect(res.status).toBe(400);
+    expect(audits).toHaveLength(0);
   });
 
   it("clears prior votes on resubmit so the next round starts fresh", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
-    const f2 = await createFixer();
+    await createFixer();
     await createFixer(); // threshold 2 so one approve does not decide
     const [sheet] = await db
       .insert(characterSheets)
@@ -194,13 +193,8 @@ describe("sheet request-changes + resubmit", () => {
         .where(and(eq(reviewVotes.subjectType, "sheet"), eq(reviewVotes.subjectId, sheet.id))),
     ).toHaveLength(1);
 
-    // A second reviewer sends it back for changes, then the owner resubmits.
-    const rc = await request(app)
-      .post(`/api/sheets/${sheet.id}/request-changes`)
-      .set("x-test-user", f2.id)
-      .send({ comment: "Reconsider." });
-    expect(rc.status).toBe(200);
-
+    // A legacy changes_requested park, then the owner resubmits.
+    await parkChangesRequested(sheet.id, "Reconsider.");
     const resub = await request(app)
       .post(`/api/sheets/${sheet.id}/submit`)
       .set("x-test-user", owner.id)
