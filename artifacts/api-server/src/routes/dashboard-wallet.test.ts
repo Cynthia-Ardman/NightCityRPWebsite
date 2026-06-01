@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { db, walletTransactions } from "@workspace/db";
+import { db, walletTransactions, stores, ripperdocs } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createCharacter } from "../test/testDb";
 
@@ -84,5 +84,57 @@ describe("GET /me/wallet/transactions (player ledger scoping)", () => {
     expect(tx).toBeTruthy();
     expect(tx.counterpartyCharacterId).toBe(receiverChar.id);
     expect(tx.counterpartyCharacterName).toBe("Kerry Eurodyne");
+  });
+
+  it("links ledger rows to the right shop or clinic and leaves plain rows bare", async () => {
+    const me = await createUser({ username: "judy" });
+    const venueOwner = await createUser({ username: "tom" });
+    const myChar = await createCharacter({ ownerId: me.id, name: "Judy Alvarez" });
+
+    // a store and ripperdoc the player does NOT own
+    const [store] = await db
+      .insert(stores)
+      .values({ ownerId: venueOwner.id, name: "Lizzie's Bar", balance: 5000 })
+      .returning();
+    const [ripperdoc] = await db
+      .insert(ripperdocs)
+      .values({ ownerId: venueOwner.id, name: "Vik's Clinic", balance: 3000 })
+      .returning();
+
+    // character-scoped purchase from a store the player does not own
+    await db.insert(walletTransactions).values({
+      characterId: myChar.id,
+      amount: -150,
+      kind: "store_withdraw",
+      storeId: store.id,
+    });
+    // account-level withdraw at a ripperdoc
+    await db.insert(walletTransactions).values({
+      userId: me.id,
+      amount: -400,
+      kind: "ripperdoc_withdraw",
+      ripperdocId: ripperdoc.id,
+    });
+    // a plain deposit with no linkable venue
+    await db.insert(walletTransactions).values({ userId: me.id, amount: 100, kind: "deposit" });
+
+    const res = await request(app).get("/api/me/wallet/transactions").set("x-test-user", me.id);
+    expect(res.status).toBe(200);
+
+    const storeTx = res.body.find((t: { kind: string }) => t.kind === "store_withdraw");
+    expect(storeTx.counterpartyVenueKind).toBe("store");
+    expect(storeTx.counterpartyVenueId).toBe(store.id);
+    expect(storeTx.counterpartyVenueName).toBe("Lizzie's Bar");
+    expect(storeTx.characterId).toBe(myChar.id);
+
+    const ripperTx = res.body.find((t: { kind: string }) => t.kind === "ripperdoc_withdraw");
+    expect(ripperTx.counterpartyVenueKind).toBe("ripperdoc");
+    expect(ripperTx.counterpartyVenueId).toBe(ripperdoc.id);
+    expect(ripperTx.counterpartyVenueName).toBe("Vik's Clinic");
+
+    const plainTx = res.body.find((t: { kind: string }) => t.kind === "deposit");
+    expect(plainTx.counterpartyVenueKind).toBeNull();
+    expect(plainTx.counterpartyVenueId).toBeNull();
+    expect(plainTx.counterpartyVenueName).toBeNull();
   });
 });
