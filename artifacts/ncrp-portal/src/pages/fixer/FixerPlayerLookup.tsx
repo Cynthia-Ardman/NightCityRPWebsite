@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import {
   useSearchFixerPlayers,
   getSearchFixerPlayersQueryKey,
@@ -31,6 +32,31 @@ function fmt(ts: string | null | undefined): string {
 function eddies(n: number): string {
   const sign = n < 0 ? "-" : "+";
   return `${sign}€$${Math.abs(n).toLocaleString()}`;
+}
+
+// Map a known audit/activity target to its detail route. Returns null for
+// target types that have no dedicated detail page, so the row stays plain text.
+function targetHref(
+  targetType: string | null | undefined,
+  targetId: string | number | null | undefined,
+): string | null {
+  if (!targetType || targetId == null || targetId === "") return null;
+  switch (targetType) {
+    case "character":
+      return `/characters/${targetId}`;
+    case "sheet":
+      return `/sheets/${targetId}`;
+    case "mission":
+      return `/missions/${targetId}`;
+    case "store":
+      return `/directory/stores/${targetId}`;
+    case "ripperdoc":
+      return `/directory/ripperdocs/${targetId}`;
+    case "lore_entry":
+      return `/directory/lore/${targetId}`;
+    default:
+      return null;
+  }
 }
 
 export default function FixerPlayerLookup() {
@@ -185,15 +211,19 @@ export default function FixerPlayerLookup() {
                 ) : (
                   <div className="flex flex-wrap gap-2 font-mono text-sm">
                     {profile.characters.map((c) => (
-                      <Badge
+                      <Link
                         key={c.id}
-                        variant="outline"
-                        className="rounded-none border-border text-foreground"
+                        href={`/characters/${c.id}`}
                         data-testid={`chip-character-${c.id}`}
                       >
-                        {c.name}
-                        {c.archived && <span className="text-destructive ml-1">(archived)</span>}
-                      </Badge>
+                        <Badge
+                          variant="outline"
+                          className="rounded-none border-border text-foreground hover:border-nc-cyan hover:text-nc-cyan cursor-pointer"
+                        >
+                          {c.name}
+                          {c.archived && <span className="text-destructive ml-1">(archived)</span>}
+                        </Badge>
+                      </Link>
                     ))}
                   </div>
                 )}
@@ -206,7 +236,7 @@ export default function FixerPlayerLookup() {
                 ) : (
                   <RowList>
                     {profile.stores.map((s) => (
-                      <Row key={s.id} testId={`row-store-${s.id}`} when={fmt(s.createdAt)}>
+                      <Row key={s.id} testId={`row-store-${s.id}`} when={fmt(s.createdAt)} href={`/directory/stores/${s.id}`}>
                         <span className="text-foreground">{s.name}</span>
                         {s.location && <span className="text-muted-foreground"> · {s.location}</span>}
                         <span className="text-nc-yellow"> · €${s.balance.toLocaleString()}</span>
@@ -222,7 +252,7 @@ export default function FixerPlayerLookup() {
                 ) : (
                   <RowList>
                     {profile.ripperdocs.map((r) => (
-                      <Row key={r.id} testId={`row-ripperdoc-${r.id}`} when={fmt(r.createdAt)}>
+                      <Row key={r.id} testId={`row-ripperdoc-${r.id}`} when={fmt(r.createdAt)} href={`/directory/ripperdocs/${r.id}`}>
                         <span className="text-foreground">{r.name}</span>
                         {r.location && <span className="text-muted-foreground"> · {r.location}</span>}
                         <span className="text-nc-yellow"> · €${r.balance.toLocaleString()}</span>
@@ -239,7 +269,12 @@ export default function FixerPlayerLookup() {
                 ) : (
                   <RowList>
                     {profile.missions.map((m) => (
-                      <Row key={m.id} testId={`row-mission-${m.id}`} when={fmt(m.missionStartAt || m.createdAt)}>
+                      <Row
+                        key={m.id}
+                        testId={`row-mission-${m.id}`}
+                        when={fmt(m.missionStartAt || m.createdAt)}
+                        href={m.missionId != null ? `/missions/${m.missionId}` : undefined}
+                      >
                         <span className="text-foreground">{m.missionTitle ?? `Mission #${m.missionId ?? "?"}`}</span>
                         {m.characterName && <span className="text-nc-cyan"> · {m.characterName}</span>}
                         <span className="text-muted-foreground"> · {m.paymentStatus}</span>
@@ -312,7 +347,12 @@ export default function FixerPlayerLookup() {
                 ) : (
                   <RowList>
                     {profile.auditEntries.map((a) => (
-                      <Row key={a.id} testId={`row-audit-${a.id}`} when={fmt(a.createdAt)}>
+                      <Row
+                        key={a.id}
+                        testId={`row-audit-${a.id}`}
+                        when={fmt(a.createdAt)}
+                        href={targetHref(a.targetType, a.targetId)}
+                      >
                         <Badge variant="outline" className="rounded-none text-nc-magenta border-nc-magenta mr-2 text-[10px]">
                           {a.category}/{a.action}
                         </Badge>
@@ -376,10 +416,26 @@ function RowList({ children }: { children: React.ReactNode }) {
   return <div className="space-y-1 font-mono text-sm">{children}</div>;
 }
 
-function Row({ children, when, testId }: { children: React.ReactNode; when: string; testId?: string }) {
+function Row({
+  children,
+  when,
+  testId,
+  href,
+}: {
+  children: React.ReactNode;
+  when: string;
+  testId?: string;
+  href?: string | null;
+}) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/30 pb-1" data-testid={testId}>
-      <div className="min-w-0 break-words">{children}</div>
+      {href ? (
+        <Link href={href} className="min-w-0 break-words hover:text-nc-cyan hover:underline cursor-pointer">
+          {children}
+        </Link>
+      ) : (
+        <div className="min-w-0 break-words">{children}</div>
+      )}
       <span className="text-xs text-muted-foreground whitespace-nowrap">{when}</span>
     </div>
   );
