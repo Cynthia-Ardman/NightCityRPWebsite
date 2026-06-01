@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch as UiSwitch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
+import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
 
 export default function Home() {
   const { data: user, isLoading: userLoading } = useAuthMe();
@@ -25,6 +26,12 @@ export default function Home() {
       <div className="min-h-[80vh] flex items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0 bg-background/80 z-0" />
         <div className="relative z-10 max-w-3xl text-center space-y-8 p-6">
+          <img
+            src={ncrpBanner}
+            alt="Night City RP"
+            className="w-full max-w-2xl mx-auto border border-nc-cyan/30 shadow-[0_0_30px_rgba(0,255,255,0.15)]"
+            data-testid="img-hero-banner"
+          />
           <h1 className="text-6xl md:text-8xl font-display font-bold text-nc-cyan glitch-hover tracking-tighter" data-testid="text-hero-title">
             NIGHT CITY RP
           </h1>
@@ -82,6 +89,15 @@ function Dashboard() {
     : [];
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
+      <div className="relative overflow-hidden border border-nc-cyan/20">
+        <img
+          src={ncrpBanner}
+          alt="Night City RP"
+          className="w-full h-32 md:h-44 object-cover object-center"
+          data-testid="img-dashboard-banner"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-4xl font-display font-bold text-foreground" data-testid="text-dashboard-title">SYS_OVERVIEW</h1>
         {user?.vrchat ? (

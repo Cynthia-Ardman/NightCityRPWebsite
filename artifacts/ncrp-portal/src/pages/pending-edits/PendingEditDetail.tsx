@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   useGetPendingEdit,
+  useGetCharacter,
   useVotePendingEdit,
   useCancelPendingEdit,
   useOverridePendingEdit,
@@ -12,15 +13,17 @@ import {
   getListPendingEditsQueryKey,
   getGetCharacterPendingEditQueryKey,
   getGetCharacterQueryKey,
+  type Character,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, X, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ShieldCheck, MessageSquareWarning } from "lucide-react";
+import { Check, X, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ShieldCheck, MessageSquareWarning, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import EditCharacterDialog from "@/components/EditCharacterDialog";
 
 function statusBadge(status: string) {
   if (status === "pending") return <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-xs animate-pulse"><Clock className="w-3 h-3 mr-1" /> PENDING</Badge>;
@@ -90,8 +93,17 @@ export default function PendingEditDetail() {
   const [, navigate] = useLocation();
   const [voteNote, setVoteNote] = useState("");
   const [changeComment, setChangeComment] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: edit, isLoading } = useGetPendingEdit(editId);
+  // Pull the live character so the submitter can edit-and-resubmit in place
+  // (only needed when they're the one able to resubmit after changes).
+  const { data: character } = useGetCharacter(edit?.characterId ?? 0, {
+    query: {
+      enabled: !!edit?.characterId && !!edit?.canResubmit,
+      queryKey: getGetCharacterQueryKey(edit?.characterId ?? 0),
+    },
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getGetPendingEditQueryKey(editId) });
@@ -162,6 +174,9 @@ export default function PendingEditDetail() {
   const diff = (edit.proposedDiff ?? {}) as Record<string, unknown>;
   const before = (edit.before ?? {}) as Record<string, unknown>;
   const fields = Object.keys(diff);
+  // Pre-fill the edit dialog with the player's previously-proposed values
+  // (live character merged with their pending diff) so they amend, not redo.
+  const mergedCharacter = character ? ({ ...character, ...diff } as Character) : null;
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -325,19 +340,34 @@ export default function PendingEditDetail() {
 
       {/* Resubmit (submitter, after changes requested) */}
       {edit.canResubmit && (
-        <div className="border-t border-border pt-4">
-          <Button
-            onClick={() => resubmit.mutate({ id: editId })}
-            disabled={resubmit.isPending}
-            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-            data-testid="button-resubmit"
-          >
-            <RotateCcw className="w-4 h-4 mr-1" /> RESUBMIT FOR REVIEW
-          </Button>
+        <div className="border-t border-border pt-4 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => setEditOpen(true)}
+              disabled={!mergedCharacter}
+              className="rounded-none bg-nc-magenta text-foreground hover:bg-nc-magenta/80 font-display"
+              data-testid="button-edit-resubmit"
+            >
+              <Pencil className="w-4 h-4 mr-1" /> EDIT &amp; RESUBMIT
+            </Button>
+            <Button
+              onClick={() => resubmit.mutate({ id: editId })}
+              disabled={resubmit.isPending}
+              variant="outline"
+              className="rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display"
+              data-testid="button-resubmit"
+            >
+              <RotateCcw className="w-4 h-4 mr-1" /> RESUBMIT AS-IS
+            </Button>
+          </div>
           <p className="font-mono text-xs text-muted-foreground mt-1">
-            Edit your character first if needed, then resubmit. This clears prior votes and returns the edit to the queue.
+            Use <span className="text-nc-magenta">EDIT &amp; RESUBMIT</span> to make the requested changes — your update amends this same review. Or resubmit as-is to send it back unchanged. Either way, prior votes are cleared.
           </p>
         </div>
+      )}
+
+      {mergedCharacter && (
+        <EditCharacterDialog character={mergedCharacter} open={editOpen} onOpenChange={setEditOpen} />
       )}
 
       {/* Cancel (submitter only, while still pending) */}

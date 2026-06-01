@@ -102,6 +102,7 @@ async function announceEdit(editId: number, character: Character, submitter: Use
 export type CreatePendingEditError =
   | { kind: "no_changes" }
   | { kind: "edit_already_pending"; editId: number }
+  | { kind: "edit_already_decided"; editId: number }
   | { kind: "invalid"; details: unknown };
 
 export async function createPendingEdit(opts: {
@@ -130,15 +131,69 @@ export async function createPendingEdit(opts: {
   if (Object.keys(diff).length === 0) {
     return { ok: false, error: { kind: "no_changes" } };
   }
-  const [existing] = await db
+  const noteRaw = (opts.body as Record<string, unknown>)?.updateNote;
+  const updateNote = typeof noteRaw === "string" && noteRaw.trim().length > 0 ? noteRaw.trim().slice(0, 2000) : null;
+
+  // One in-flight edit per character. If a 'pending' edit already exists the
+  // caller must amend that one (409 — handled by the route). If a
+  // 'changes_requested' edit exists, the player is responding to a reviewer's
+  // request: UPDATE that same row in place and resubmit it rather than
+  // spawning a duplicate review, clearing the prior round's votes/decision.
+  const [pendingExisting] = await db
     .select()
     .from(pendingCharacterEdits)
     .where(and(eq(pendingCharacterEdits.characterId, opts.character.id), eq(pendingCharacterEdits.status, "pending")));
-  if (existing) {
-    return { ok: false, error: { kind: "edit_already_pending", editId: existing.id } };
+  if (pendingExisting) {
+    return { ok: false, error: { kind: "edit_already_pending", editId: pendingExisting.id } };
   }
-  const noteRaw = (opts.body as Record<string, unknown>)?.updateNote;
-  const updateNote = typeof noteRaw === "string" && noteRaw.trim().length > 0 ? noteRaw.trim().slice(0, 2000) : null;
+  const [changesRequested] = await db
+    .select()
+    .from(pendingCharacterEdits)
+    .where(and(eq(pendingCharacterEdits.characterId, opts.character.id), eq(pendingCharacterEdits.status, "changes_requested")))
+    .orderBy(desc(pendingCharacterEdits.submittedAt));
+  if (changesRequested) {
+    // Atomic state guard: only resubmit-in-place if the row is STILL
+    // changes_requested. A concurrent admin override/decision could have moved
+    // it to approved/rejected between the select above and this update; the
+    // status-scoped WHERE makes that update a no-op so we never revert a
+    // decided edit back to pending.
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(pendingCharacterEdits)
+        .set({
+          proposedDiff: diff,
+          beforeSnapshot,
+          updateNote,
+          status: "pending",
+          reviewComment: null,
+          decisionSummary: null,
+          decidedAt: null,
+          submittedAt: new Date(),
+        })
+        .where(and(eq(pendingCharacterEdits.id, changesRequested.id), eq(pendingCharacterEdits.status, "changes_requested")))
+        .returning();
+      if (!row) return null;
+      await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, changesRequested.id));
+      return row;
+    });
+    if (!updated) {
+      // The edit was decided concurrently; fall through is unsafe (would create
+      // a duplicate), so surface a conflict the client can refresh on.
+      return { ok: false, error: { kind: "edit_already_decided", editId: changesRequested.id } };
+    }
+    announceEdit(updated.id, opts.character, opts.submitter, diff as EditableDiff, updateNote).catch((e) => {
+      console.error("[pending-edits] Discord announce failed", e);
+    });
+    await db.insert(activityEvents).values({
+      kind: "character_edit_submitted",
+      actorId: opts.submitter.id,
+      actorName: opts.submitter.username,
+      actorAvatarUrl: opts.submitter.avatarUrl,
+      message: `${opts.submitter.username} updated and resubmitted an edit for ${opts.character.name}`,
+    });
+    return { ok: true, edit: updated };
+  }
+
   const [edit] = await db
     .insert(pendingCharacterEdits)
     .values({

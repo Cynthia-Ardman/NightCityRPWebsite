@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 vi.mock("../lib/discord", async (importActual) => {
   const actual = await importActual<typeof import("../lib/discord")>();
@@ -157,6 +157,101 @@ describe("pending edit request-changes + resubmit", () => {
 
     const [back] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
     expect(back.status).toBe("pending");
+  });
+
+  it("editing a character in changes_requested UPDATES the same review instead of creating a new one", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
+
+    // Fixer sends it back for changes.
+    const rc = await request(app)
+      .post(`/api/pending-edits/${edit.id}/request-changes`)
+      .set("x-test-user", fixer.id)
+      .send({ comment: "Needs more detail." });
+    expect(rc.status).toBe(200);
+
+    // Owner re-edits the character (the response to the request). This must
+    // amend the EXISTING review, not spawn a second one.
+    const patch = await request(app)
+      .patch(`/api/characters/${char.id}`)
+      .set("x-test-user", owner.id)
+      .send({ background: "a much richer story" });
+    expect(patch.status).toBe(202);
+    expect(patch.body.pendingEditId).toBe(edit.id);
+
+    // Exactly one edit row for this character, reused and back to pending with
+    // the new content and the prior decision/comment cleared.
+    const rows = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.characterId, char.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(edit.id);
+    expect(rows[0].status).toBe("pending");
+    expect(rows[0].reviewComment).toBeNull();
+    expect((rows[0].proposedDiff as { background?: string }).background).toBe("a much richer story");
+  });
+
+  it("clears prior votes when an edit is updated-and-resubmitted via a character PATCH", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // threshold 2
+    const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
+
+    await request(app)
+      .post(`/api/pending-edits/${edit.id}/vote`)
+      .set("x-test-user", f1.id)
+      .send({ vote: "approve" });
+    await request(app)
+      .post(`/api/pending-edits/${edit.id}/request-changes`)
+      .set("x-test-user", f2.id)
+      .send({ comment: "Redo it." });
+
+    const patch = await request(app)
+      .patch(`/api/characters/${char.id}`)
+      .set("x-test-user", owner.id)
+      .send({ background: "rewritten" });
+    expect(patch.status).toBe(202);
+    expect(patch.body.pendingEditId).toBe(edit.id);
+
+    expect(await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id))).toHaveLength(0);
+  });
+
+  it("never reverts a decided edit: a later PATCH leaves the approved row alone and opens a fresh edit", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const fixer = await createFixer();
+    const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
+
+    // Fixer requests changes, then an admin overrides it to approved before the
+    // owner gets around to re-editing.
+    await request(app)
+      .post(`/api/pending-edits/${edit.id}/request-changes`)
+      .set("x-test-user", fixer.id)
+      .send({ comment: "Fix it." });
+    const override = await request(app)
+      .post(`/api/pending-edits/${edit.id}/override`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(override.status).toBe(200);
+    expect(override.body.status).toBe("approved");
+
+    // A later edit must NOT reopen the decided row; it opens a new review.
+    const patch = await request(app)
+      .patch(`/api/characters/${char.id}`)
+      .set("x-test-user", owner.id)
+      .send({ background: "an even newer story" });
+    expect(patch.status).toBe(202);
+    expect(patch.body.pendingEditId).not.toBe(edit.id);
+
+    // Original stays approved; exactly one new pending row exists.
+    const [original] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
+    expect(original.status).toBe("approved");
+    const pendingRows = await db
+      .select()
+      .from(pendingCharacterEdits)
+      .where(and(eq(pendingCharacterEdits.characterId, char.id), eq(pendingCharacterEdits.status, "pending")));
+    expect(pendingRows).toHaveLength(1);
+    expect(pendingRows[0].id).not.toBe(edit.id);
   });
 
   it("400s request-changes without a comment", async () => {

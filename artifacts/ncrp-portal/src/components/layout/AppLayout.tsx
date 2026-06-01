@@ -1,19 +1,23 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useListCustomRequests, getListCustomRequestsQueryKey, useListPendingSheets, getListPendingSheetsQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useListCustomRequests, getListCustomRequestsQueryKey, useListPendingSheets, getListPendingSheetsQueryKey, useListPendingEdits, getListPendingEditsQueryKey, useListLoreEdits, getListLoreEditsQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Search, Receipt, ClipboardList, ShoppingBag, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ViewAsControl, ViewAsBanner } from "@/components/layout/ViewAsControl";
+import ncrpLogo from "@assets/image_1780331782394.png";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-background">
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
-        <div className="font-display font-bold text-lg text-nc-cyan glitch-hover">NCRP_PORTAL</div>
+        <Link href="/" className="flex items-center gap-2" data-testid="link-brand-mobile">
+          <img src={ncrpLogo} alt="NCRP" className="h-8 w-8 object-contain" />
+          <span className="font-display font-bold text-lg text-nc-cyan glitch-hover">NCRP_PORTAL</span>
+        </Link>
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="border-nc-cyan text-nc-cyan">
@@ -58,7 +62,22 @@ function SidebarContent() {
     { query: { enabled: isStaff, queryKey: getListCustomRequestsQueryKey({ status: "pending" }) } },
   );
   const { data: pendingSheets } = useListPendingSheets({ query: { enabled: isStaff, queryKey: getListPendingSheetsQueryKey() } });
-  const staffPending = (pendingReqs?.length ?? 0) + (pendingSheets?.length ?? 0);
+  const { data: pendingEdits } = useListPendingEdits({ query: { enabled: isStaff, queryKey: getListPendingEditsQueryKey() } });
+  const { data: pendingLore } = useListLoreEdits(
+    { status: "pending" },
+    { query: { enabled: !!user?.isAdmin, queryKey: getListLoreEditsQueryKey({ status: "pending" }) } },
+  );
+  // Sum only the queues this staffer can actually act on, so the badge total
+  // matches what they see on the Pending Requests page. Character edits are
+  // reviewable by all staff; misc=fixer/admin, sheets=cs/admin, lore=admin.
+  const canMisc = !!user && (user.isFixer || user.isAdmin);
+  const canSheets = !!user && (user.isCsApprover || user.isAdmin);
+  const pendingEditCount = (pendingEdits ?? []).filter((e) => e.status === "pending").length;
+  const staffPending =
+    (canMisc ? pendingReqs?.length ?? 0 : 0) +
+    pendingEditCount +
+    (canSheets ? pendingSheets?.length ?? 0 : 0) +
+    (user?.isAdmin ? pendingLore?.length ?? 0 : 0);
 
   const NavItem = ({ href, icon: Icon, label, disabled, badge }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number }) => {
     const isActive = location === href || location.startsWith(href + '/');
@@ -83,8 +102,13 @@ function SidebarContent() {
   return (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-sidebar-border">
-        <h1 className="font-display font-bold text-2xl text-nc-cyan tracking-wider glitch-hover">NCRP</h1>
-        <div className="text-xs text-muted-foreground font-mono mt-1">NIGHT_CITY_OS v2.1.4</div>
+        <Link href="/" className="flex items-center gap-3" data-testid="link-brand-desktop">
+          <img src={ncrpLogo} alt="NCRP" className="h-10 w-10 object-contain shrink-0" />
+          <div className="min-w-0">
+            <h1 className="font-display font-bold text-2xl text-nc-cyan tracking-wider glitch-hover">NCRP</h1>
+            <div className="text-xs text-muted-foreground font-mono mt-1">NIGHT_CITY_OS v2.1.4</div>
+          </div>
+        </Link>
       </div>
 
       {user && (

@@ -7,11 +7,13 @@ import {
   useOverrideCustomRequest,
   useRequestChangesCustomRequest,
   useListPendingSheets,
+  useListPendingEdits,
   useListLoreEdits,
   useApproveLoreEdit,
   useRejectLoreEdit,
   getListCustomRequestsQueryKey,
   getListLoreEditsQueryKey,
+  getListPendingSheetsQueryKey,
   type CustomRequest,
   type LorePendingEdit,
   type LoreEntryUpdate,
@@ -793,11 +795,42 @@ function LoreEditsTab() {
   );
 }
 
+// Small count chip shown next to a tab label. Renders nothing when zero so
+// quiet queues stay uncluttered.
+function TabCount({ n }: { n: number }) {
+  if (!n) return null;
+  return (
+    <span
+      className="ml-2 min-w-5 h-5 px-1.5 inline-flex items-center justify-center bg-nc-yellow text-background font-mono text-[11px] font-bold rounded-none shadow-[0_0_8px_rgba(255,255,0,0.5)]"
+      data-testid="badge-tab-count"
+    >
+      {n}
+    </span>
+  );
+}
+
 export default function PendingRequests() {
   const { data: me } = useAuthMe();
   const canMisc = !!(me?.isAdmin || me?.isFixer);
   const canNewChars = !!(me?.isAdmin || me?.isCsApprover);
   const canLore = !!me?.isAdmin;
+
+  // Per-tab "awaiting action" counts. These reuse the same query keys as each
+  // tab's own list, so React Query dedupes — no extra network cost.
+  const { data: miscData } = useListCustomRequests(
+    { status: "pending" },
+    { query: { enabled: canMisc, queryKey: getListCustomRequestsQueryKey({ status: "pending" }) } },
+  );
+  const { data: editsData } = useListPendingEdits();
+  const { data: sheetsData } = useListPendingSheets({ query: { enabled: canNewChars, queryKey: getListPendingSheetsQueryKey() } });
+  const { data: loreData } = useListLoreEdits(
+    { status: "pending" },
+    { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "pending" }) } },
+  );
+  const miscCount = (miscData ?? []).length;
+  const editsCount = (editsData ?? []).filter((e) => e.status === "pending").length;
+  const sheetsCount = (sheetsData ?? []).length;
+  const loreCount = (loreData ?? []).length;
 
   // Default to the first tab the staffer can act on.
   const defaultTab = canMisc ? "misc" : "edits";
@@ -818,20 +851,20 @@ export default function PendingRequests() {
         <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">
           {canMisc && (
             <TabsTrigger value="misc" className="rounded-none font-display tracking-widest" data-testid="tab-misc">
-              MISC REQUESTS
+              MISC REQUESTS<TabCount n={miscCount} />
             </TabsTrigger>
           )}
           <TabsTrigger value="edits" className="rounded-none font-display tracking-widest" data-testid="tab-edits">
-            CHARACTER EDITS
+            CHARACTER EDITS<TabCount n={editsCount} />
           </TabsTrigger>
           {canNewChars && (
             <TabsTrigger value="sheets" className="rounded-none font-display tracking-widest" data-testid="tab-sheets">
-              NEW CHARACTERS
+              NEW CHARACTERS<TabCount n={sheetsCount} />
             </TabsTrigger>
           )}
           {canLore && (
             <TabsTrigger value="lore" className="rounded-none font-display tracking-widest" data-testid="tab-lore">
-              LORE
+              LORE<TabCount n={loreCount} />
             </TabsTrigger>
           )}
         </TabsList>
