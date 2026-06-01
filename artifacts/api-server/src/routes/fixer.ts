@@ -270,6 +270,7 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
         memo: walletTransactions.memo,
         source: walletTransactions.source,
         counterpartyName: walletTransactions.counterpartyName,
+        counterpartyCharacterId: walletTransactions.counterpartyCharacterId,
         storeId: walletTransactions.storeId,
         ripperdocId: walletTransactions.ripperdocId,
         createdAt: walletTransactions.createdAt,
@@ -344,6 +345,17 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
   const storeNameById = new Map(txStoreRows.map((s) => [s.id, s.name]));
   const ripperNameById = new Map(txRipperRows.map((r) => [r.id, r.name]));
 
+  // Resolve counterparty character names for player-to-player transfers. The
+  // counterparty is usually not one of this player's own characters, so we can't
+  // rely on charNameById.
+  const txCounterpartyCharIds = [
+    ...new Set(walletRows.map((r) => r.counterpartyCharacterId).filter((v): v is number => v != null)),
+  ];
+  const txCounterpartyCharRows = txCounterpartyCharIds.length
+    ? await db.select({ id: characters.id, name: characters.name }).from(characters).where(inArray(characters.id, txCounterpartyCharIds))
+    : ([] as { id: number; name: string }[]);
+  const counterpartyCharNameById = new Map(txCounterpartyCharRows.map((c) => [c.id, c.name]));
+
   res.json({
     player: {
       id: u.id,
@@ -376,6 +388,9 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
         memo: r.memo,
         source: r.source,
         counterpartyName: r.counterpartyName,
+        counterpartyCharacterId: r.counterpartyCharacterId,
+        counterpartyCharacterName:
+          r.counterpartyCharacterId != null ? counterpartyCharNameById.get(r.counterpartyCharacterId) ?? null : null,
         counterpartyVenueKind,
         counterpartyVenueId,
         counterpartyVenueName,

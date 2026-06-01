@@ -1017,6 +1017,10 @@ export type PlayerActivityProfileWalletTransactionsItem = {
   /** @nullable */
   counterpartyName?: string | null;
   /** @nullable */
+  counterpartyCharacterId?: number | null;
+  /** @nullable */
+  counterpartyCharacterName?: string | null;
+  /** @nullable */
   counterpartyVenueKind?: PlayerActivityProfileWalletTransactionsItemCounterpartyVenueKind;
   /** @nullable */
   counterpartyVenueId?: number | null;

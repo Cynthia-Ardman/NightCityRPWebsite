@@ -334,7 +334,10 @@ export default function FixerPlayerLookup() {
                           : t.counterpartyVenueKind === "ripperdoc" && t.counterpartyVenueId != null
                             ? `/directory/ripperdocs/${t.counterpartyVenueId}`
                             : null;
-                      const venueLabel = t.counterpartyName ?? t.counterpartyVenueName;
+                      const counterpartyHref =
+                        t.counterpartyCharacterId != null ? `/characters/${t.counterpartyCharacterId}` : venueHref;
+                      const counterpartyLabel =
+                        t.counterpartyName ?? t.counterpartyCharacterName ?? t.counterpartyVenueName;
                       return (
                         <Row key={t.id} testId={`row-wallet-${t.id}`} when={fmt(t.createdAt)}>
                           <span className={t.amount < 0 ? "text-destructive" : "text-nc-green"}>{eddies(t.amount)}</span>
@@ -354,20 +357,24 @@ export default function FixerPlayerLookup() {
                             ) : (
                               <span className="text-nc-cyan"> · {t.characterName}</span>
                             ))}
-                          {venueLabel &&
-                            (venueHref ? (
+                          {counterpartyLabel &&
+                            (counterpartyHref ? (
                               <>
                                 {" · "}
                                 <Link
-                                  href={venueHref}
+                                  href={counterpartyHref}
                                   className="text-muted-foreground hover:text-nc-cyan hover:underline cursor-pointer"
-                                  data-testid={`link-wallet-venue-${t.id}`}
+                                  data-testid={
+                                    t.counterpartyCharacterId != null
+                                      ? `link-wallet-counterparty-character-${t.id}`
+                                      : `link-wallet-venue-${t.id}`
+                                  }
                                 >
-                                  {venueLabel}
+                                  {counterpartyLabel}
                                 </Link>
                               </>
                             ) : (
-                              <span className="text-muted-foreground"> · {venueLabel}</span>
+                              <span className="text-muted-foreground"> · {counterpartyLabel}</span>
                             ))}
                           {t.memo && <span className="text-muted-foreground/70"> · {t.memo}</span>}
                         </Row>

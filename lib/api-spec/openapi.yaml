@@ -4177,6 +4177,8 @@ components:
               memo: { type: [string, "null"] }
               source: { type: string }
               counterpartyName: { type: [string, "null"] }
+              counterpartyCharacterId: { type: [integer, "null"] }
+              counterpartyCharacterName: { type: [string, "null"] }
               counterpartyVenueKind: { type: [string, "null"], enum: [store, ripperdoc, null] }
               counterpartyVenueId: { type: [integer, "null"] }
               counterpartyVenueName: { type: [string, "null"] }

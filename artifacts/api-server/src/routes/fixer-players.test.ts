@@ -302,6 +302,43 @@ describe("GET /fixer/players/:userId/activity (aggregation)", () => {
     expect(plainTx.counterpartyVenueName).toBeNull();
   });
 
+  it("exposes counterparty character id and name on player-to-player transfers", async () => {
+    const admin = await createAdmin();
+    const sender = await createUser({ username: "river" });
+    const receiver = await createUser({ username: "kerry" });
+    const senderChar = await createCharacter({ ownerId: sender.id, name: "River Ward" });
+    const receiverChar = await createCharacter({ ownerId: receiver.id, name: "Kerry Eurodyne" });
+
+    // sender pays receiver: the counterparty is the receiver's character
+    await db.insert(walletTransactions).values({
+      characterId: senderChar.id,
+      amount: -500,
+      kind: "transfer",
+      counterpartyCharacterId: receiverChar.id,
+      counterpartyName: "Kerry Eurodyne",
+    });
+    // a counterparty character with no stored name text (name resolved from the character)
+    await db.insert(walletTransactions).values({
+      characterId: senderChar.id,
+      amount: -250,
+      kind: "transfer",
+      counterpartyCharacterId: receiverChar.id,
+    });
+
+    const res = await request(app).get(`/api/fixer/players/${sender.id}/activity`).set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+
+    const namedTx = res.body.walletTransactions.find((t: { amount: number }) => t.amount === -500);
+    expect(namedTx.counterpartyCharacterId).toBe(receiverChar.id);
+    expect(namedTx.counterpartyCharacterName).toBe("Kerry Eurodyne");
+    expect(namedTx.counterpartyName).toBe("Kerry Eurodyne");
+
+    const resolvedTx = res.body.walletTransactions.find((t: { amount: number }) => t.amount === -250);
+    expect(resolvedTx.counterpartyCharacterId).toBe(receiverChar.id);
+    expect(resolvedTx.counterpartyCharacterName).toBe("Kerry Eurodyne");
+    expect(resolvedTx.counterpartyName).toBeNull();
+  });
+
   it("does not misattribute a character-scoped wallet row after ownership transfer", async () => {
     const admin = await createAdmin();
     const seller = await createUser({ username: "seller" });
