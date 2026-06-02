@@ -182,7 +182,7 @@ const AUDIT_SUBTABS: Array<{ key: string; label: string; categories: string[] }>
   { key: "admin", label: "Admin", categories: ["admin"] },
 ];
 
-function AuditLogTab() {
+export function AuditLogTab() {
   const [sub, setSub] = useState("all");
   const [actorId, setActorId] = useState("");
   const [since, setSince] = useState("");
@@ -278,7 +278,7 @@ function AuditLogTab() {
   );
 }
 
-function FlagsTab() {
+export function FlagsTab() {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getAdminListBotConfigQueryKey() });
   const { data: rows, isLoading } = useAdminListBotConfig();
@@ -403,7 +403,7 @@ function FlagsTab() {
   );
 }
 
-function UsersTab() {
+export function UsersTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: users, isLoading } = useAdminListUsers();
@@ -521,7 +521,7 @@ function UsersTab() {
   );
 }
 
-function CharactersTab() {
+export function CharactersTab() {
   const qc = useQueryClient();
   const { data: chars, isLoading } = useAdminListCharacters();
   const [filter, setFilter] = useState<"all" | "unclaimed">("all");
@@ -645,7 +645,7 @@ const walletSchema = z.object({
   reason: z.string().min(1, "Reason is required"),
 });
 
-function EconomyTab() {
+export function EconomyTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data, isLoading, isFetching, refetch } = useAdminGetEconomyOutOfSync();
@@ -856,7 +856,7 @@ const LIVE_MODE_SYSTEMS: Array<{ key: "missions" | "housing" | "cyberware" | "ev
 // A system performs real external/destructive effects ONLY when BOTH the master
 // switch and that system's own switch are Live. In Test mode every system
 // simulates/logs what it would have done without sending anything.
-function LiveModeSwitchboard() {
+export function LiveModeSwitchboard() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: state, isLoading } = useAdminGetLiveMode();
@@ -1033,7 +1033,7 @@ function AutobillSwitch({
   );
 }
 
-function JobsTab() {
+export function JobsTab() {
   const { data: jobs, isLoading } = useAdminListJobs();
   const runJob = useAdminRunJob();
   const { toast } = useToast();
@@ -1149,7 +1149,7 @@ function JobsTab() {
   );
 }
 
-function MaintenanceTab() {
+export function MaintenanceTab() {
   const { toast } = useToast();
   const [importResult, setImportResult] = useState<null | {
     inserted: number;
