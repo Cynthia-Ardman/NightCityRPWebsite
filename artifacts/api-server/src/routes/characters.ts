@@ -14,6 +14,7 @@ import {
   lifestyleTiers,
   housing,
   shopOpens,
+  botBusinessOpenLog,
   stores,
   ripperdocs,
   classifyWalletCategory,
@@ -1043,6 +1044,59 @@ router.get("/characters/:id/shop", requireAuth, async (req, res): Promise<void> 
       openedOn: o.openedOn,
       openedAt: o.openedAt,
       listingId: o.listingId,
+    })),
+  });
+});
+
+// Full open-shop history: this character's portal-era opens (shop_opens, all
+// time) merged with the player's imported bot-era opens (bot_business_open_log,
+// keyed by Discord id — account-wide, since the bot logged opens per player not
+// per character). Read-only — powers the "OPEN SHOP HISTORY" dialog.
+router.get("/characters/:id/shop-history", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const discordId = req.user!.discordId;
+  const [portalOpens, botOpens] = await Promise.all([
+    db
+      .select()
+      .from(shopOpens)
+      .where(eq(shopOpens.characterId, id))
+      .orderBy(desc(shopOpens.openedAt))
+      .limit(500),
+    db
+      .select()
+      .from(botBusinessOpenLog)
+      .where(eq(botBusinessOpenLog.userId, discordId))
+      .orderBy(desc(botBusinessOpenLog.openedAt))
+      .limit(500),
+  ]);
+
+  const entries = [
+    ...portalOpens.map((o) => ({
+      source: "portal" as const,
+      at: new Date(o.openedAt),
+      date: o.openedOn,
+    })),
+    ...botOpens.map((o) => ({
+      source: "bot" as const,
+      at: new Date(o.openedAt),
+      date: new Date(o.openedAt).toISOString().slice(0, 10),
+    })),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  res.json({
+    characterId: id,
+    totalCount: entries.length,
+    portalCount: portalOpens.length,
+    botCount: botOpens.length,
+    entries: entries.map((e) => ({
+      source: e.source,
+      date: e.date,
+      at: e.at.toISOString(),
     })),
   });
 });

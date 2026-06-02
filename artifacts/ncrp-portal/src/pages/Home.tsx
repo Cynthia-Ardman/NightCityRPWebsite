@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch as UiSwitch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
 import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
@@ -581,6 +582,103 @@ function PendingMissionsCard() {
   );
 }
 
+interface ActivityHistoryEntry {
+  source: "portal" | "bot";
+  date: string;
+  at: string | null;
+  amount?: number | null;
+}
+interface ActivityHistoryResponse {
+  totalCount: number;
+  portalCount: number;
+  botCount: number;
+  entries: ActivityHistoryEntry[];
+}
+
+// Read-only history dialog shared by the attendance + open-shop cards. Fetches
+// a merged (portal-era + imported bot-era) chronological list on open. The
+// `accent` class picks the card's neon color so each dialog matches its source.
+function ActivityHistoryDialog({
+  open,
+  onOpenChange,
+  title,
+  url,
+  queryKey,
+  accent,
+  showAmount,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  title: string;
+  url: string;
+  queryKey: readonly unknown[];
+  accent: string;
+  showAmount?: boolean;
+}) {
+  const { data, isLoading, error } = useQuery<ActivityHistoryResponse>({
+    queryKey,
+    enabled: open,
+    queryFn: async () => {
+      const r = await fetch(url, { credentials: "include" });
+      if (!r.ok) throw new Error(`Failed to load history (HTTP ${r.status})`);
+      return r.json();
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={`rounded-none border ${accent} bg-card max-w-md`}>
+        <DialogHeader>
+          <DialogTitle className="font-display tracking-widest">{title}</DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <div className="font-mono text-sm text-nc-cyan animate-pulse py-6 text-center">LOADING_HISTORY...</div>
+        ) : error instanceof Error ? (
+          <div className="font-mono text-sm text-destructive py-6 text-center">ERR: {error.message}</div>
+        ) : !data || data.entries.length === 0 ? (
+          <div className="font-mono text-sm text-muted-foreground py-6 text-center">NO_HISTORY_RECORDED</div>
+        ) : (
+          <div className="space-y-2">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+              {data.totalCount} TOTAL · {data.botCount} BOT-ERA · {data.portalCount} PORTAL
+            </div>
+            <div className="max-h-[55vh] overflow-y-auto divide-y divide-border/40 border border-border/40">
+              {data.entries.map((e, i) => (
+                <div
+                  key={`${e.source}-${e.at ?? e.date}-${i}`}
+                  className="flex items-center justify-between gap-3 px-3 py-2 font-mono text-xs"
+                  data-testid={`row-history-${i}`}
+                >
+                  <span className="text-foreground">
+                    {new Date(e.at ?? `${e.date}T00:00:00Z`).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    {showAmount && e.amount != null && (
+                      <span className="text-nc-yellow">+€${e.amount.toLocaleString()}</span>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className={`rounded-none text-[9px] tracking-widest ${
+                        e.source === "bot" ? "border-nc-magenta/50 text-nc-magenta" : "border-nc-cyan/50 text-nc-cyan"
+                      }`}
+                    >
+                      {e.source === "bot" ? "BOT-ERA" : "PORTAL"}
+                    </Badge>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Weekly attendance claim card on the home dashboard. The button is just
 // a thin wrapper over POST /attendance/claim — the server is the source
 // of truth for whether the user has already claimed this week (the
@@ -589,6 +687,7 @@ function PendingMissionsCard() {
 // burn UB roundtrips clicking 'CLAIM' five times in a row.
 function AttendCard() {
   const qc = useQueryClient();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const queryKey = ["attendance-me"] as const;
   const { data, isLoading } = useQuery<AttendInfo>({
     queryKey,
@@ -638,15 +737,26 @@ function AttendCard() {
               {data.windowHint}
             </div>
           </div>
-          <Button
-            type="button"
-            disabled={disabled}
-            onClick={() => claim.mutate()}
-            className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest disabled:opacity-50"
-            data-testid="button-attend-claim"
-          >
-            {buttonLabel}
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              disabled={disabled}
+              onClick={() => claim.mutate()}
+              className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest disabled:opacity-50"
+              data-testid="button-attend-claim"
+            >
+              {buttonLabel}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setHistoryOpen(true)}
+              className="rounded-none border-nc-yellow/40 text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-xs"
+              data-testid="button-attend-history"
+            >
+              ATTENDANCE HISTORY
+            </Button>
+          </div>
         </div>
         {!windowOpen && !data.claimed && data.nextWindowOpensAt && (
           <div className="text-xs font-mono text-nc-yellow" data-testid="text-attend-next-window">
@@ -662,6 +772,15 @@ function AttendCard() {
           <div className="text-xs font-mono text-destructive">ERR: {claim.error.message}</div>
         )}
       </CardContent>
+      <ActivityHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        title="ATTENDANCE HISTORY"
+        url="/api/attendance/history"
+        queryKey={["attendance-history"]}
+        accent="border-nc-yellow/60"
+        showAmount
+      />
     </Card>
   );
 }
@@ -746,6 +865,7 @@ interface ShopOpenInfo {
 // don't own."
 function ShopOpenSection({ characterId, name }: { characterId: number; name?: string }) {
   const qc = useQueryClient();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const queryKey = ["character-shop", characterId] as const;
   const { data, isLoading } = useQuery<ShopOpenInfo>({
     queryKey,
@@ -796,21 +916,32 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
             {shopDesc}
           </div>
         </div>
-        <Button
-          type="button"
-          disabled={disabled}
-          onClick={() => open.mutate()}
-          className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest disabled:opacity-50"
-          data-testid={`button-open-shop-today-${characterId}`}
-        >
-          {data.openedToday
-            ? "OPENED TODAY ✓"
-            : open.isPending
-              ? "OPENING..."
-              : !windowOpen
-                ? "SESSION CLOSED"
-                : "OPEN SHOP TODAY"}
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            type="button"
+            disabled={disabled}
+            onClick={() => open.mutate()}
+            className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest disabled:opacity-50"
+            data-testid={`button-open-shop-today-${characterId}`}
+          >
+            {data.openedToday
+              ? "OPENED TODAY ✓"
+              : open.isPending
+                ? "OPENING..."
+                : !windowOpen
+                  ? "SESSION CLOSED"
+                  : "OPEN SHOP TODAY"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setHistoryOpen(true)}
+            className="rounded-none border-nc-magenta/40 text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest text-xs"
+            data-testid={`button-open-shop-history-${characterId}`}
+          >
+            OPEN SHOP HISTORY
+          </Button>
+        </div>
       </div>
       {!windowOpen && !data.openedToday && (
         <div className="text-xs font-mono text-nc-yellow">
@@ -830,6 +961,14 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
       {open.error instanceof Error && (
         <div className="text-xs font-mono text-destructive">ERR: {open.error.message}</div>
       )}
+      <ActivityHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        title={name ? `OPEN SHOP HISTORY — ${name.toUpperCase()}` : "OPEN SHOP HISTORY"}
+        url={`/api/characters/${characterId}/shop-history`}
+        queryKey={["shop-history", characterId]}
+        accent="border-nc-magenta/60"
+      />
     </div>
   );
 }

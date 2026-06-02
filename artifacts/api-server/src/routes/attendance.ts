@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, attendanceClaims, activityEvents } from "@workspace/db";
+import { db, attendanceClaims, activityEvents, botAttendanceLog } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { patchBalance } from "../lib/unbelievaboat";
 import { logger } from "../lib/logger";
@@ -162,6 +162,56 @@ router.post("/attendance/claim", requireAuth, async (req, res): Promise<void> =>
     logger.error({ err, userId, weekStart }, "attendance/claim insert failed after UB credit");
     res.status(500).json({ error: "claim recorded in UB but ledger insert failed" });
   }
+});
+
+// Full attendance history for the signed-in user: portal-era weekly claims
+// (attendance_claims, keyed by portal user id) merged with the imported
+// bot-era check-ins (bot_attendance_log, keyed by Discord id). Read-only —
+// powers the "ATTENDANCE HISTORY" dialog on the dashboard.
+router.get("/attendance/history", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+  const discordId = req.user!.discordId;
+  const [claims, botLogs] = await Promise.all([
+    db
+      .select()
+      .from(attendanceClaims)
+      .where(eq(attendanceClaims.userId, userId))
+      .orderBy(desc(attendanceClaims.weekStart))
+      .limit(500),
+    db
+      .select()
+      .from(botAttendanceLog)
+      .where(eq(botAttendanceLog.userId, discordId))
+      .orderBy(desc(botAttendanceLog.loggedAt))
+      .limit(500),
+  ]);
+
+  const entries = [
+    ...claims.map((c) => ({
+      source: "portal" as const,
+      at: c.claimedAt ? new Date(c.claimedAt) : new Date(`${c.weekStart}T00:00:00Z`),
+      date: c.weekStart,
+      amount: c.amount as number | null,
+    })),
+    ...botLogs.map((b) => ({
+      source: "bot" as const,
+      at: new Date(b.loggedAt),
+      date: new Date(b.loggedAt).toISOString().slice(0, 10),
+      amount: null as number | null,
+    })),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  res.json({
+    totalCount: entries.length,
+    portalCount: claims.length,
+    botCount: botLogs.length,
+    entries: entries.map((e) => ({
+      source: e.source,
+      date: e.date,
+      at: e.at.toISOString(),
+      amount: e.amount,
+    })),
+  });
 });
 
 export default router;
