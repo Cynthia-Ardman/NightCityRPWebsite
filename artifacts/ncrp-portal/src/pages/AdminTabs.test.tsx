@@ -83,6 +83,7 @@ import {
   MaintenanceTab,
   LiveModeSwitchboard,
 } from "./AdminDashboard";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Several tabs call useQueryClient().invalidateQueries, so they need a live
 // QueryClientProvider even though the network hooks themselves are mocked.
@@ -279,5 +280,22 @@ describe("MaintenanceTab", () => {
   it("mounts the NPC sync surfaces without crashing", () => {
     expect(() => renderWithClient(<MaintenanceTab />)).not.toThrow();
     expect(screen.getByTestId("button-npc-export")).toBeInTheDocument();
+  });
+});
+
+describe("admin tab error boundary", () => {
+  it("contains a crashing tab and shows a recoverable fault message", () => {
+    const Boom = () => {
+      throw new Error("tab exploded");
+    };
+    // Silence the expected React error log for the thrown render.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderWithClient(
+      <ErrorBoundary>
+        <Boom />
+      </ErrorBoundary>,
+    );
+    expect(screen.getByTestId("ui-error-boundary")).toBeInTheDocument();
+    spy.mockRestore();
   });
 });

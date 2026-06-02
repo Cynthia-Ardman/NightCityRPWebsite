@@ -17,6 +17,7 @@ import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default function AdminDashboard() {
   const { data: user, isLoading: userLoading } = useAuthMe();
@@ -68,28 +69,28 @@ export default function AdminDashboard() {
 
         <div className="mt-8">
           <TabsContent value="users">
-            <UsersTab />
+            <ErrorBoundary><UsersTab /></ErrorBoundary>
           </TabsContent>
           <TabsContent value="characters">
-            <CharactersTab />
+            <ErrorBoundary><CharactersTab /></ErrorBoundary>
           </TabsContent>
           <TabsContent value="wallet">
-            <WalletTab />
+            <ErrorBoundary><WalletTab /></ErrorBoundary>
           </TabsContent>
           <TabsContent value="economy">
-            <EconomyTab />
+            <ErrorBoundary><EconomyTab /></ErrorBoundary>
           </TabsContent>
           <TabsContent value="jobs">
-            <JobsTab />
+            <ErrorBoundary><JobsTab /></ErrorBoundary>
           </TabsContent>
           <TabsContent value="audit">
-            <AuditLogTab />
+            <ErrorBoundary><AuditLogTab /></ErrorBoundary>
           </TabsContent>
           <TabsContent value="flags">
-            <FlagsTab />
+            <ErrorBoundary><FlagsTab /></ErrorBoundary>
           </TabsContent>
           <TabsContent value="maintenance">
-            <MaintenanceTab />
+            <ErrorBoundary><MaintenanceTab /></ErrorBoundary>
           </TabsContent>
         </div>
       </Tabs>
