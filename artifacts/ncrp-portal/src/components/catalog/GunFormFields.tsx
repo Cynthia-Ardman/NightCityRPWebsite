@@ -108,42 +108,13 @@ export default function GunFormFields({
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Field label="Price (€$)">
-          <Input
-            type="number"
-            value={form.price}
-            onChange={(e) => set("price", e.target.value)}
-            className="rounded-none"
-            data-testid="input-gun-price"
-          />
-        </Field>
-        <Field label="Wholesale (€$, staff)">
-          <Input
-            type="number"
-            value={form.wholesalePrice}
-            onChange={(e) => set("wholesalePrice", e.target.value)}
-            className="rounded-none"
-            data-testid="input-gun-wholesalePrice"
-          />
-        </Field>
-        <Field label="Mag Size">
-          <Input
-            type="number"
-            value={form.magSize}
-            onChange={(e) => set("magSize", e.target.value)}
-            className="rounded-none"
-            data-testid="input-gun-magSize"
-          />
-        </Field>
-      </div>
-
-      <Field label="Damage">
+      <Field label="Price (€$)">
         <Input
-          value={form.damage}
-          onChange={(e) => set("damage", e.target.value)}
+          type="number"
+          value={form.price}
+          onChange={(e) => set("price", e.target.value)}
           className="rounded-none"
-          data-testid="input-gun-damage"
+          data-testid="input-gun-price"
         />
       </Field>
 

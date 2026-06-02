@@ -135,24 +135,12 @@ export default function GunDetailDialog({
             <Row label="Weapon Type" value={humanize(current.weaponType)} />
             <Row label="Power Level" value={humanize(current.powerLevel)} />
             <Row label="Restriction" value={<span className="text-nc-magenta">{humanize(current.restriction)}</span>} />
-            <Row label="Damage" value={humanize(current.damage)} />
-            <Row label="Mag Size" value={current.magSize ?? "—"} />
             <Row
               label="Price"
               value={<span className="text-nc-yellow">{current.price.toLocaleString()} €$</span>}
             />
             {isStaff && (
-              <>
-                <Row
-                  label="Wholesale"
-                  value={
-                    <span className="text-nc-yellow">
-                      {current.wholesalePrice == null ? "—" : `${current.wholesalePrice.toLocaleString()} €$`}
-                    </span>
-                  }
-                />
-                <Row label="Status" value={humanize(current.status)} />
-              </>
+              <Row label="Status" value={humanize(current.status)} />
             )}
             {current.notes && current.notes.trim() && (
               <div className="pt-3">

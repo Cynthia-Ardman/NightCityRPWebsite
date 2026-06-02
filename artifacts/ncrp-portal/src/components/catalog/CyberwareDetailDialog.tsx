@@ -200,16 +200,6 @@ export default function CyberwareDetailDialog({
               />
             </div>
             <div>
-              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Humanity Loss</Label>
-              <Input
-                type="number"
-                className="rounded-none font-mono"
-                value={form.humanityLoss}
-                onChange={(e) => set("humanityLoss", e.target.value)}
-                data-testid="input-cyberware-humanity"
-              />
-            </div>
-            <div>
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Price (€$)</Label>
               <Input
                 type="number"
@@ -229,16 +219,6 @@ export default function CyberwareDetailDialog({
                 data-testid="input-cyberware-install"
               />
             </div>
-            <div>
-              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Wholesale (€$)</Label>
-              <Input
-                type="number"
-                className="rounded-none font-mono"
-                value={form.wholesalePrice}
-                onChange={(e) => set("wholesalePrice", e.target.value)}
-                data-testid="input-cyberware-wholesale"
-              />
-            </div>
             <div className="col-span-2">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
               <Textarea
@@ -254,25 +234,14 @@ export default function CyberwareDetailDialog({
           <div className="space-y-1">
             <Row label="Slot" value={current.slot} />
             <Row label="CWP" value={current.cwp ?? "—"} />
-            <Row label="Humanity Loss" value={current.humanityLoss ?? 0} />
             <Row
               label="Price"
               value={<span className="text-nc-yellow">{current.price.toLocaleString()} €$</span>}
             />
             <Row
               label="Install Cost"
-              value={current.installCost == null ? "—" : `${current.installCost.toLocaleString()} €$`}
+              value={current.installCost == null ? "Ripperdoc determined" : `${current.installCost.toLocaleString()} €$`}
             />
-            {isStaff && (
-              <Row
-                label="Wholesale"
-                value={
-                  <span className="text-nc-yellow">
-                    {current.wholesalePrice == null ? "—" : `${current.wholesalePrice.toLocaleString()} €$`}
-                  </span>
-                }
-              />
-            )}
             {current.description && current.description.trim() && (
               <div className="pt-3">
                 <div className="text-[10px] uppercase tracking-widest text-nc-cyan font-display mb-1">

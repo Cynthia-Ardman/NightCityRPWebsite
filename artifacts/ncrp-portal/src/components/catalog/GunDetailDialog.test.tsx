@@ -56,13 +56,15 @@ describe("GunDetailDialog (read-only for players)", () => {
 
   it("does not surface wholesale price to non-staff", () => {
     renderDialog(makeGun({ wholesalePrice: 800 }), false);
-    // The "Wholesale" row is staff-only.
+    // Wholesale is no longer displayed in the gun detail view (NCRP does not use it).
     expect(screen.queryByText("Wholesale")).toBeNull();
   });
 
-  it("shows wholesale price and an edit button to staff", () => {
-    renderDialog(makeGun({ wholesalePrice: 800 }), true);
-    expect(screen.getByText("Wholesale")).toBeTruthy();
+  it("hides unused fields (Wholesale, Damage, Mag Size) and shows an edit button to staff", () => {
+    renderDialog(makeGun({ wholesalePrice: 800, damage: "5d6", magSize: 12 }), true);
+    expect(screen.queryByText("Wholesale")).toBeNull();
+    expect(screen.queryByText("Damage")).toBeNull();
+    expect(screen.queryByText("Mag Size")).toBeNull();
     expect(screen.getByTestId("button-gun-edit")).toBeTruthy();
   });
 });
