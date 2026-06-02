@@ -16,6 +16,8 @@ export interface CustomRequestApproval {
   monthlyRent?: number;
   /** For property requests; defaults residential. */
   kind?: CustomRequestApprovalKind;
+  /** Optional for property requests: sets/replaces the leased business/property name. */
+  businessName?: string;
   /**
      * Required for cyberware requests; sets chrome point cost.
      * @minimum 0

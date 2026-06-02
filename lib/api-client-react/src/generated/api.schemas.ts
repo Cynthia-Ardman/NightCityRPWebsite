@@ -2315,6 +2315,8 @@ export interface CustomRequestVoteInput {
   monthlyRent?: number;
   /** For property approve votes; defaults residential. */
   kind?: CustomRequestVoteInputKind;
+  /** Optional for property approve votes: sets/replaces the leased business/property name. */
+  businessName?: string;
   /**
      * Required on an approve vote for cyberware requests.
      * @minimum 0
@@ -2418,6 +2420,8 @@ export interface CustomRequestApproval {
   monthlyRent?: number;
   /** For property requests; defaults residential. */
   kind?: CustomRequestApprovalKind;
+  /** Optional for property requests: sets/replaces the leased business/property name. */
+  businessName?: string;
   /**
      * Required for cyberware requests; sets chrome point cost.
      * @minimum 0

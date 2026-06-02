@@ -19,6 +19,8 @@ export interface CustomRequestVoteInput {
   monthlyRent?: number;
   /** For property approve votes; defaults residential. */
   kind?: CustomRequestVoteInputKind;
+  /** Optional for property approve votes: sets/replaces the leased business/property name. */
+  businessName?: string;
   /**
      * Required on an approve vote for cyberware requests.
      * @minimum 0

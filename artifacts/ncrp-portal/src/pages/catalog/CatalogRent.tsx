@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { X, Home, ImageIcon, ImagePlus, Upload, Briefcase, UserMinus, History, UserPlus, Receipt, Clock } from "lucide-react";
+import { X, Home, ImageIcon, ImagePlus, Upload, Briefcase, UserMinus, History, UserPlus, Receipt, Clock, Pencil } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 import { uploadImage } from "@/lib/uploadImage";
@@ -100,12 +100,12 @@ function businessBuilding(description?: string | null): string | null {
 
 export default function CatalogRent() {
   const { data, isLoading } = useListRentListings();
-  const { data: me, realIsAdmin, viewAs } = useEffectiveMe();
+  const { data: me, realIsAdmin, realIsFixer, viewAs } = useEffectiveMe();
   const isStaff = !!(me?.isAdmin || me?.isFixer);
-  // Assign/remove a listing to a character is a real-admin action. It stays
-  // hidden while previewing a lower role (override active) so the preview is
-  // faithful — the backend gates it anyway.
-  const canAdminAssign = realIsAdmin && !viewAs;
+  // Assign/remove a listing to a character is a staff action (admins + fixers).
+  // It stays hidden while an admin previews a lower role (override active) so
+  // the preview is faithful — the backend gates it anyway.
+  const canAdminAssign = (realIsAdmin || realIsFixer) && !viewAs;
   const qc = useQueryClient();
   const { toast } = useToast();
   const [q, setQ] = useState("");
@@ -506,6 +506,7 @@ export default function CatalogRent() {
         <PropertyHistoryDialog
           listing={historyTarget}
           canAdminAssign={canAdminAssign}
+          canEdit={isStaff}
           onClose={() => setHistoryTarget(null)}
         />
       )}
@@ -519,16 +520,28 @@ export default function CatalogRent() {
 function PropertyHistoryDialog({
   listing,
   canAdminAssign,
+  canEdit,
   onClose,
 }: {
   listing: Listing;
   canAdminAssign: boolean;
+  canEdit: boolean;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: history, isLoading } = useGetListingHistory(listing.id);
   const [assignId, setAssignId] = useState<string>("");
+
+  // Staff edit form (name / business name, district, tier, rent, description).
+  // Collapsed by default; seeded from the listing when opened.
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(listing.name);
+  const [editDistrict, setEditDistrict] = useState(listing.district ?? "");
+  const [editTier, setEditTier] = useState(listing.tier ?? "");
+  const [editRent, setEditRent] = useState(String(listing.monthlyRent));
+  const [editDescription, setEditDescription] = useState(listing.description ?? "");
+  const updateListing = useUpdateRentListing();
 
   // Character picker source (admin-only endpoint). Only fetched when the
   // assign panel is actually available.
@@ -585,6 +598,129 @@ function PropertyHistoryDialog({
               .join(" • ")}
           </DialogDescription>
         </DialogHeader>
+
+        {canEdit && (
+          <section className="border border-nc-yellow/40 p-3 space-y-3" data-testid="history-edit-panel">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display tracking-widest text-nc-yellow text-sm flex items-center gap-2">
+                <Pencil className="w-4 h-4" /> EDIT LISTING
+              </h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-none font-display text-xs"
+                onClick={() => {
+                  if (!editing) {
+                    setEditName(listing.name);
+                    setEditDistrict(listing.district ?? "");
+                    setEditTier(listing.tier ?? "");
+                    setEditRent(String(listing.monthlyRent));
+                    setEditDescription(listing.description ?? "");
+                  }
+                  setEditing((v) => !v);
+                }}
+                data-testid="history-button-edit-toggle"
+              >
+                {editing ? "CANCEL" : "EDIT"}
+              </Button>
+            </div>
+            {editing && (
+              <form
+                className="space-y-3 font-mono text-sm"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const rentNum = parseInt(editRent, 10);
+                  const patch: Record<string, string | number> = {};
+                  if (editName.trim() && editName.trim() !== listing.name) patch.name = editName.trim();
+                  if (editDistrict.trim() !== (listing.district ?? "")) patch.district = editDistrict.trim();
+                  if (editTier.trim() !== (listing.tier ?? "")) patch.tier = editTier.trim();
+                  if (Number.isFinite(rentNum) && rentNum >= 0 && rentNum !== listing.monthlyRent) patch.monthlyRent = rentNum;
+                  if (editDescription !== (listing.description ?? "")) patch.description = editDescription;
+                  if (Object.keys(patch).length === 0) {
+                    toast({ title: "No changes to save" });
+                    return;
+                  }
+                  updateListing.mutate(
+                    { id: listing.id, data: patch },
+                    {
+                      onSuccess: () => {
+                        refresh();
+                        setEditing(false);
+                        toast({ title: "Listing updated" });
+                      },
+                      onError: (err) => {
+                        const msg =
+                          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+                          "Could not update listing";
+                        toast({ title: msg, variant: "destructive" });
+                      },
+                    },
+                  );
+                }}
+              >
+                <div>
+                  <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Name / Business Name</Label>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="rounded-none font-mono"
+                    data-testid="history-input-name"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">District</Label>
+                    <Input
+                      value={editDistrict}
+                      onChange={(e) => setEditDistrict(e.target.value)}
+                      className="rounded-none font-mono"
+                      data-testid="history-input-district"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Tier</Label>
+                    <Input
+                      value={editTier}
+                      onChange={(e) => setEditTier(e.target.value)}
+                      className="rounded-none font-mono"
+                      data-testid="history-input-tier"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Monthly Rent (€$)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editRent}
+                    onChange={(e) => setEditRent(e.target.value)}
+                    className="rounded-none font-mono"
+                    data-testid="history-input-rent"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
+                  <Textarea
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="rounded-none font-mono min-h-[80px]"
+                    data-testid="history-input-description"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={updateListing.isPending}
+                  className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display text-xs"
+                  data-testid="history-button-save-edit"
+                >
+                  {updateListing.isPending ? "SAVING..." : "SAVE CHANGES"}
+                </Button>
+              </form>
+            )}
+          </section>
+        )}
 
         {isLoading ? (
           <div className="text-nc-cyan font-display animate-pulse py-8 text-center">LOADING...</div>

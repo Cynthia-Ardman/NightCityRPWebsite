@@ -56,7 +56,8 @@ export function useEffectiveMe() {
   const { viewAs } = useViewAs();
   const real = query.data;
   const realIsAdmin = !!real?.isAdmin;
+  const realIsFixer = !!real?.isFixer;
   const active = realIsAdmin ? viewAs : null;
   const data = real && active ? downgrade(real, active) : real;
-  return { ...query, data, realIsAdmin, viewAs: active };
+  return { ...query, data, realIsAdmin, realIsFixer, viewAs: active };
 }

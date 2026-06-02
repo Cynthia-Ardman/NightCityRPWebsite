@@ -3,6 +3,7 @@ import { and, eq, sql, ilike, inArray, desc } from "drizzle-orm";
 import { db, housing, characters, catalogRent, activityEvents, characterUpdates, housingRequests, users, walletTransactions } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
+import { recordAudit } from "../lib/audit";
 
 function isAdmin(user: { roles: string[] }) {
   return hasRole(user.roles, "ADMIN");
@@ -349,6 +350,23 @@ router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
     authorId: req.user!.id,
     note: `Leased housing: ${listing.name} (€$${listing.monthlyRent.toLocaleString()}/mo)`,
   });
+  await recordAudit({
+    req,
+    category: "housing",
+    action: staff ? "lease_assign" : "lease_self",
+    targetType: "housing",
+    targetId: inserted.id,
+    message: `${staff ? "Assigned" : "Self-leased"} ${listing.name} to ${c.name}`,
+    after: {
+      leaseId: inserted.id,
+      listingId: lid,
+      characterId: cid,
+      characterName: c.name,
+      address,
+      monthlyRent: listing.monthlyRent,
+      kind: leaseKind,
+    },
+  });
   const [row] = await selectLeasesWhere(eq(housing.id, inserted.id));
   res.status(201).json(shape(row));
 });
@@ -410,6 +428,7 @@ router.delete("/housing/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Not found" });
     return;
   }
+  const staffForced = row.ownerId !== req.user!.id;
   await db.delete(housing).where(eq(housing.id, id));
   await db.insert(activityEvents).values({
     kind: "transfer",
@@ -422,6 +441,23 @@ router.delete("/housing/:id", requireAuth, async (req, res): Promise<void> => {
     characterId: row.h.characterId,
     authorId: req.user!.id,
     note: `Vacated housing: ${row.h.address}`,
+  });
+  await recordAudit({
+    req,
+    category: "housing",
+    action: staffForced ? "lease_remove" : "lease_vacate",
+    targetType: "housing",
+    targetId: id,
+    message: `${staffForced ? "Removed" : "Vacated"} lease ${row.h.address} (${row.characterName})`,
+    before: {
+      leaseId: id,
+      listingId: row.h.listingId,
+      characterId: row.h.characterId,
+      characterName: row.characterName,
+      address: row.h.address,
+      monthlyRent: row.h.monthlyRent,
+      kind: row.h.kind,
+    },
   });
   res.sendStatus(204);
 });

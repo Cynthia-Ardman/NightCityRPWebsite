@@ -5174,6 +5174,7 @@ components:
         note: { type: string, maxLength: 2000 }
         monthlyRent: { type: integer, minimum: 0, description: "Required on an approve vote for property requests." }
         kind: { type: string, enum: [residential, business], description: "For property approve votes; defaults residential." }
+        businessName: { type: string, description: "Optional for property approve votes: sets/replaces the leased business/property name." }
         cwp: { type: number, minimum: 0, description: "Required on an approve vote for cyberware requests." }
         unitCost: { type: integer, minimum: 0, description: "Required on an approve vote for venue_stock requests: per-unit cost billed to the venue on owner approval." }
         retail: { type: integer, minimum: 0, description: "Required on an approve vote for venue_stock requests: shelf price for the new stock." }
@@ -5220,6 +5221,7 @@ components:
         reviewerNote: { type: string }
         monthlyRent: { type: integer, minimum: 0, description: "Required for property requests." }
         kind: { type: string, enum: [residential, business], description: "For property requests; defaults residential." }
+        businessName: { type: string, description: "Optional for property requests: sets/replaces the leased business/property name." }
         cwp: { type: number, minimum: 0, description: "Required for cyberware requests; sets chrome point cost." }
         unitCost: { type: integer, minimum: 0, description: "For venue_stock requests: per-unit cost billed to the venue on owner approval." }
         retail: { type: integer, minimum: 0, description: "For venue_stock requests: shelf price for the new stock." }

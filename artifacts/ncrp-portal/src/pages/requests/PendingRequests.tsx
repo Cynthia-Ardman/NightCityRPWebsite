@@ -294,6 +294,7 @@ function ApproveDialog({
   const [reviewerNote, setReviewerNote] = useState("");
   const [monthlyRent, setMonthlyRent] = useState("");
   const [kind, setKind] = useState<"residential" | "business">("residential");
+  const [businessName, setBusinessName] = useState("");
   const [cwp, setCwp] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [retail, setRetail] = useState("");
@@ -306,6 +307,7 @@ function ApproveDialog({
     setReviewerNote("");
     setMonthlyRent("");
     setKind("residential");
+    setBusinessName("");
     setCwp("");
     setUnitCost("");
     setRetail("");
@@ -359,7 +361,7 @@ function ApproveDialog({
 
   const submit = () => {
     const params = {
-      ...(isProperty ? { monthlyRent: rentNum, kind } : {}),
+      ...(isProperty ? { monthlyRent: rentNum, kind, ...(businessName.trim() ? { businessName: businessName.trim() } : {}) } : {}),
       ...(isCyberware ? { cwp: cwpNum } : {}),
       ...(isVenueStock ? { unitCost: unitCostNum, retail: retailNum, qty: qtyNum } : {}),
     };
@@ -399,6 +401,16 @@ function ApproveDialog({
                   placeholder="e.g. 2500"
                   className="rounded-none font-mono"
                   data-testid="input-approve-rent"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Business / Property Name</Label>
+                <Input
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="Leave blank to keep the requested name"
+                  className="rounded-none font-mono"
+                  data-testid="input-approve-business-name"
                 />
               </div>
               <div className="space-y-1.5">

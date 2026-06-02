@@ -137,7 +137,7 @@ type CharacterRow = typeof characters.$inferSelect;
 // Other types need nothing. These are validated up-front when an approve vote
 // (or override) is cast and persisted on `details.approval`, so the deciding
 // approve can materialize from the stored values without re-prompting.
-type ApprovalParams = { monthlyRent?: unknown; kind?: unknown; cwp?: unknown; unitCost?: unknown; retail?: unknown; qty?: unknown };
+type ApprovalParams = { monthlyRent?: unknown; kind?: unknown; businessName?: unknown; cwp?: unknown; unitCost?: unknown; retail?: unknown; qty?: unknown };
 
 // Validates that the params required to APPROVE a given request type are
 // present and well-formed. Returns a normalized object on success or an error
@@ -153,7 +153,13 @@ function normalizeApprovalParams(
       return { error: "monthlyRent (>= 0) required to approve a property request" };
     }
     const kind = params.kind === "business" ? "business" : "residential";
-    return { ok: { monthlyRent, kind } };
+    const out: Record<string, number | string> = { monthlyRent, kind };
+    // Optional: staff may set/replace the leased business/property name at
+    // approval time. When omitted the request title is used as-is.
+    if (typeof params.businessName === "string" && params.businessName.trim()) {
+      out.businessName = params.businessName.trim();
+    }
+    return { ok: out };
   }
   if (type === "cyberware") {
     const cwp = Number(params.cwp);
@@ -201,19 +207,25 @@ async function materializeRequest(
     if (!c.approved) {
       return { error: { status: 400, body: { error: "Character is not approved; cannot bill rent" } } };
     }
+    // Staff may set/replace the business/property name on approval; it becomes
+    // the lease's displayed address. Falls back to the request title.
+    const businessName =
+      typeof params.businessName === "string" && params.businessName.trim()
+        ? params.businessName.trim()
+        : reqRow.title;
     const [lease] = await tx
       .insert(housing)
       .values({
         characterId: reqRow.characterId,
         listingId: null,
-        address: reqRow.title,
+        address: businessName,
         monthlyRent,
         paidThrough: endOfCurrentMonth(),
         notes: reqRow.description ?? null,
         kind,
       })
       .returning();
-    return { ok: { appliedRef: `housing:${lease.id}`, summary: `Off-map property approved: ${reqRow.title} (€$${monthlyRent.toLocaleString()}/mo, ${kind})` } };
+    return { ok: { appliedRef: `housing:${lease.id}`, summary: `Off-map property approved: ${businessName} (€$${monthlyRent.toLocaleString()}/mo, ${kind})` } };
   }
   if (reqRow.type === "gun") {
     const [item] = await tx
