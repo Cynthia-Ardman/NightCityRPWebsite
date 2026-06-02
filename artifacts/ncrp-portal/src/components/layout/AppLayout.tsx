@@ -67,11 +67,12 @@ function BrandFooter() {
         href="https://discord.gg/ncrp"
         target="_blank"
         rel="noreferrer"
-        className="group flex items-center gap-2 border border-nc-cyan/40 bg-nc-cyan/5 px-4 py-2 font-mono text-xs text-nc-cyan transition-colors hover:bg-nc-cyan/15 hover:border-nc-cyan"
+        className="group flex w-full sm:w-auto items-center justify-center gap-2.5 border border-nc-cyan bg-nc-cyan/10 px-5 py-3 font-display text-sm text-nc-cyan shadow-[0_0_18px_rgba(0,255,255,0.25)] transition-all hover:bg-nc-cyan/20 hover:shadow-[0_0_26px_rgba(0,255,255,0.45)]"
         data-testid="link-footer-discord"
       >
-        <DiscordIcon className="h-4 w-4 shrink-0" />
-        <span className="uppercase tracking-widest">Join Night City Today — discord.gg/ncrp</span>
+        <DiscordIcon className="h-5 w-5 shrink-0" />
+        <span className="uppercase tracking-widest">Join Night City Today</span>
+        <span className="font-mono text-[11px] text-nc-cyan/70 normal-case tracking-normal">discord.gg/ncrp</span>
       </a>
     </footer>
   );
