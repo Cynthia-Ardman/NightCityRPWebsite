@@ -466,14 +466,14 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
 // account-wide view. Same merge strategy as rent (two complementary sources):
 //   - bot_balance_history ledger: the authoritative recent source (~2026-05
 //     onward) carrying the real weekly amount the player paid.
-//   - #rent-payments channel (bot_rent_payment_events): the handful of older
-//     confirmed "Deducted $N ... cyberware meds (week N)" lines that predate the
-//     ledger. NOTE: most of the gap year has no recoverable confirmed meds
-//     charges — the bot only posted estimates "collected separately by staff",
-//     not confirmations, so there is little older data to surface.
-// Channel rows strictly before this user's first ledger meds charge are merged
-// in to avoid double-counting the overlap. Each entry surfaces the week label +
-// amount paid. Read-only — powers the "MEDS HISTORY" dialog.
+//   - bot_rent_payment_events (kind='cyberware_meds'): the FULL year of older
+//     confirmed deductions, imported from the bot's operator DM sweep logs
+//     (~1,500 rows back to 2025-07) plus a few #rent-payments channel lines.
+//     This is the only surviving complete record for the pre-ledger period.
+// Channel/DM rows strictly before this user's first ledger meds charge are merged
+// in to avoid double-counting the overlap (the ledger owns the recent weeks).
+// Each entry surfaces the week label + amount paid. Read-only — powers the
+// "MEDS HISTORY" dialog.
 router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void> => {
   const discordId = req.user!.discordId;
 

@@ -39,16 +39,27 @@ already negative; channel amounts are negated. Sort desc, limit 500.
   `trauma team subscription`. `ledgerRentLabel()` normalizes these to friendly
   labels ("flat monthly fee" → "Baseline living cost", etc.).
 
-# Cyberware meds history → SAME merge (ledger primary + older channel)
-**Why:** the ledger (`bot_balance_history` reason ILIKE 'Cyberware meds%') is the
-authoritative recent source (~191 rows, 2026-05 onward) WITH real weekly amounts.
-The channel adds only ~17 older confirmed deductions (mostly week-1 June 2025).
-Most of the gap year has NO recoverable confirmed meds charges — the bot posted
-only `💸 Estimated Due` estimates ("collected separately by staff — not included
-in total"), which are NOT real deductions. So meds history is shallow by nature.
+# Cyberware meds history → ledger (recent) + DM-log import (full year)
+**Why:** confirmed meds deductions for the whole year live ONLY in the bot's
+OPERATOR DM thread, not in any channel or DB table. The bot DM'd whichever staffer
+ran the sweeps the full weekly collection log for the entire server (~1.5k
+confirmed `✅ Deducted $N ... for cyberware meds` lines, back ~a year). The
+`bot_balance_history` ledger only kept the recent (~last month) and the
+#rent-payments channel only a handful. The `💸 Estimated Due` channel estimates
+are NOT deductions — ignore them; the DM "Deducted" lines are the real record.
+**Key enabler:** our `DISCORD_BOT_TOKEN` IS the bot account itself, so it can read
+its OWN DM history (open DM via `POST /users/@me/channels` with the operator's id,
+then GET messages). `/users/@me` returns the bot's id — don't confuse it with a
+player id.
+- Importer `scripts/src/import-dm-meds.ts` reads the operator DM (operator id via
+  `MEDS_DM_USER_ID`, default baked into the script). Each DM msg holds MANY
+  deductions → synthetic per-event message_id + logical dedup on
+  `userId|UTC-date|amount|week` (one meds charge per user per week) so
+  channel/DM/rerun never double-insert. week from inline `(week N)` or the
+  preceding `Charging <@id> $N for week N` line.
 - `/me/cyberware-history` uses the SAME boundary merge as rent: ledger rows +
-  channel `kind='cyberware_meds'` rows STRICTLY BEFORE this user's earliest ledger
-  meds ts. Don't expect a full year of meds — the data doesn't exist.
+  `bot_rent_payment_events kind='cyberware_meds'` rows STRICTLY BEFORE this user's
+  earliest ledger meds ts (ledger owns the recent weeks, DM/channel the older).
 
 **How to apply:** both rent AND meds history use the same ledger+channel boundary
 merge; debits are returned NEGATIVE so the shared `ActivityHistoryDialog`
