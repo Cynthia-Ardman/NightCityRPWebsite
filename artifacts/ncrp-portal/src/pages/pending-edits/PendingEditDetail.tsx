@@ -8,6 +8,7 @@ import {
   useCancelPendingEdit,
   useOverridePendingEdit,
   useResubmitPendingEdit,
+  useCloseReviewTicket,
   getGetPendingEditQueryKey,
   getListPendingEditsQueryKey,
   getGetCharacterPendingEditQueryKey,
@@ -19,7 +20,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, X, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ShieldCheck, MessageSquareWarning, Pencil } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Check, X, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ShieldCheck, MessageSquareWarning, Pencil, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
@@ -93,6 +102,8 @@ export default function PendingEditDetail() {
   const [, navigate] = useLocation();
   const [voteNote, setVoteNote] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closeNote, setCloseNote] = useState("");
 
   const { data: edit, isLoading } = useGetPendingEdit(editId);
   // Pull the live character so the submitter can edit-and-resubmit in place
@@ -160,6 +171,19 @@ export default function PendingEditDetail() {
     },
   });
 
+  const closeTicket = useCloseReviewTicket({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Changes applied & ticket closed" });
+        setCloseOpen(false);
+        setCloseNote("");
+        invalidate();
+        navigate("/pending-edits");
+      },
+      onError: (err) => toast({ title: "Close failed", description: errMsg(err, "Close failed"), variant: "destructive" }),
+    },
+  });
+
   if (isLoading) return <div className="p-8 font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!edit) return <div className="p-8 font-display text-destructive">NOT FOUND</div>;
 
@@ -202,6 +226,27 @@ export default function PendingEditDetail() {
       </div>
 
       <AwaitingVoteBanner show={!!edit.canVote && !(edit.myVote && edit.myVote.vote)} />
+
+      {/* Apply & close — appears once all approvals are in (status approved).
+          Any reviewer can commit the diff and archive the ticket. */}
+      {edit.canClose && (
+        <Card className="rounded-none border-nc-green bg-nc-green/5">
+          <CardContent className="pt-6 space-y-3">
+            <p className="font-mono text-sm text-foreground/80">
+              All approvals are in. Applying will commit these changes to{" "}
+              <span className="text-nc-cyan">{edit.characterName}</span> and archive this ticket.
+            </p>
+            <Button
+              onClick={() => setCloseOpen(true)}
+              disabled={closeTicket.isPending}
+              className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display tracking-widest"
+              data-testid="button-apply-close"
+            >
+              <Lock className="w-4 h-4 mr-1" /> APPLY CHANGES &amp; CLOSE TICKET
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tally */}
       <Card className="rounded-none border-border bg-card/30">
@@ -338,6 +383,48 @@ export default function PendingEditDetail() {
       {mergedCharacter && (
         <EditCharacterDialog character={mergedCharacter} open={editOpen} onOpenChange={setEditOpen} />
       )}
+
+      {/* Apply & close confirmation — optional reviewer note before committing. */}
+      <Dialog open={closeOpen} onOpenChange={(o) => { if (!closeTicket.isPending) setCloseOpen(o); }}>
+        <DialogContent className="rounded-none border-nc-green bg-card">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-nc-green">
+              APPLY CHANGES &amp; CLOSE TICKET
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              This commits the approved edit to <span className="text-nc-cyan">{edit.characterName}</span> and archives
+              the ticket. Add an optional note for the record.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={closeNote}
+            onChange={(e) => setCloseNote(e.target.value)}
+            placeholder="Optional note (e.g. why you're applying these changes)..."
+            rows={3}
+            maxLength={2000}
+            data-testid="input-close-note"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-none font-display text-xs"
+              onClick={() => setCloseOpen(false)}
+              disabled={closeTicket.isPending}
+              data-testid="button-close-cancel"
+            >
+              CANCEL
+            </Button>
+            <Button
+              className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+              onClick={() => closeTicket.mutate({ subjectType: "edit", id: editId, data: { note: closeNote.trim() || undefined } })}
+              disabled={closeTicket.isPending}
+              data-testid="button-close-confirm"
+            >
+              <Lock className="w-4 h-4 mr-1" /> APPLY &amp; CLOSE
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Cancel (submitter only, while still pending) */}
       {edit.status === "pending" && (

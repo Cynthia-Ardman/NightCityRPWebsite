@@ -3040,6 +3040,16 @@ export interface PendingEditDetail {
   canRequestChanges?: boolean;
   canOverride?: boolean;
   canResubmit?: boolean;
+  /** True if the caller (any reviewer) may apply the diff and close this approved edit. */
+  canClose?: boolean;
+}
+
+export interface ReviewCloseInput {
+  /**
+     * Optional reviewer note recorded with the close/apply action (edit tickets).
+     * @maxLength 2000
+     */
+  note?: string;
 }
 
 export type PendingEditVoteInputVote = typeof PendingEditVoteInputVote[keyof typeof PendingEditVoteInputVote];

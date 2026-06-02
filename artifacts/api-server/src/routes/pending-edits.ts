@@ -415,6 +415,8 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     canOverride: hasRole(u.roles, "ADMIN") && !isSubmitter && row.status === "pending",
     // The submitter can resubmit once changes were requested.
     canResubmit: isSubmitter && row.status === "changes_requested",
+    // Any reviewer can apply-and-close an edit once all approvals are in.
+    canClose: isStaff && row.status === "approved",
   });
 });
 
@@ -685,7 +687,7 @@ router.get("/characters/:id/pending-edit", requireAuth, async (req, res): Promis
 // already-closed edit is a 200 no-op. The diff is applied inside the locked txn
 // so apply + status flip are atomic. Caller has already verified the actor is a
 // reviewer.
-export async function closeEdit(req: Request, id: number): Promise<ReviewActionResult> {
+export async function closeEdit(req: Request, id: number, note?: string): Promise<ReviewActionResult> {
   const u = req.user!;
   const result = await db.transaction(async (tx) => {
     const lockedRows = await tx.execute(
@@ -714,7 +716,7 @@ export async function closeEdit(req: Request, id: number): Promise<ReviewActionR
         actorId: u.id,
         actorName: u.username,
         actorAvatarUrl: u.avatarUrl,
-        message: `Edit on character #${locked.character_id} applied on close`,
+        message: `Edit on character #${locked.character_id} applied on close${note ? ` — note: ${note}` : ""}`,
       });
     }
     await tx
@@ -731,7 +733,7 @@ export async function closeEdit(req: Request, id: number): Promise<ReviewActionR
       action: "edit_closed",
       targetType: "pending_character_edit",
       targetId: id,
-      message: `Closed character edit (${result.status})`,
+      message: `Closed character edit (${result.status})${note ? ` — note: ${note}` : ""}`,
     });
   }
   const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));

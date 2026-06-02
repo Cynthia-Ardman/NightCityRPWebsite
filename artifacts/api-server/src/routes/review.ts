@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
@@ -375,12 +376,17 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
 // ticket was approved this is where its deferred effect (lease / inventory /
 // character materialization / diff) is finally committed. Dispatches to the
 // per-queue close handler which owns the materialize logic. Idempotent.
+const CloseBodySchema = z.object({ note: z.string().trim().max(2000).optional() });
+
 router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<void> => {
   const parsed = parseParams(req);
   if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
   if (!isReviewer(req.user!)) { res.status(403).json({ error: "Only fixers / approvers / admins can close tickets" }); return; }
+  const bodyParsed = CloseBodySchema.safeParse(req.body ?? {});
+  if (!bodyParsed.success) { res.status(400).json({ error: "Invalid note" }); return; }
+  const note = bodyParsed.data.note || undefined;
   let result: ReviewActionResult;
-  if (parsed.type === "edit") result = await closeEdit(req, parsed.id);
+  if (parsed.type === "edit") result = await closeEdit(req, parsed.id, note);
   else if (parsed.type === "request") result = await closeRequest(req, parsed.id);
   else result = await closeSheet(req, parsed.id);
   res.status(result.status).json(result.body);

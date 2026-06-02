@@ -52,4 +52,6 @@ export interface PendingEditDetail {
   canRequestChanges?: boolean;
   canOverride?: boolean;
   canResubmit?: boolean;
+  /** True if the caller (any reviewer) may apply the diff and close this approved edit. */
+  canClose?: boolean;
 }

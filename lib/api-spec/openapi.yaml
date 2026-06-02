@@ -3611,6 +3611,11 @@ paths:
       operationId: closeReviewTicket
       tags: [review]
       summary: Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewCloseInput" }
       responses:
         "200":
           description: Closed (returns the updated subject shape)
@@ -5624,6 +5629,12 @@ components:
         canRequestChanges: { type: boolean }
         canOverride: { type: boolean }
         canResubmit: { type: boolean }
+        canClose: { type: boolean, description: "True if the caller (any reviewer) may apply the diff and close this approved edit." }
+
+    ReviewCloseInput:
+      type: object
+      properties:
+        note: { type: string, maxLength: 2000, description: "Optional reviewer note recorded with the close/apply action (edit tickets)." }
 
     PendingEditVoteInput:
       type: object

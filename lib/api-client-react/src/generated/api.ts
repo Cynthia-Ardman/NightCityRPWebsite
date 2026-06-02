@@ -168,6 +168,7 @@ import type {
   RequestChangesPendingEdit200,
   ResubmitPendingEdit200,
   ReviewApplicationInput,
+  ReviewCloseInput,
   ReviewComment,
   ReviewCommentInput,
   ReviewUnseenCounts,
@@ -16586,14 +16587,16 @@ export const getCloseReviewTicketUrl = (subjectType: 'edit' | 'request' | 'sheet
  * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
  */
 export const closeReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet',
-    id: number, options?: RequestInit): Promise<CloseReviewTicket200> => {
+    id: number,
+    reviewCloseInput?: ReviewCloseInput, options?: RequestInit): Promise<CloseReviewTicket200> => {
 
   return customFetch<CloseReviewTicket200>(getCloseReviewTicketUrl(subjectType,id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      reviewCloseInput,)
   }
 );}
 
@@ -16601,8 +16604,8 @@ export const closeReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet
 
 
 export const getCloseReviewTicketMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>}, TContext> => {
 
 const mutationKey = ['closeReviewTicket'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -16614,10 +16617,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeReviewTicket>>, {subjectType: 'edit' | 'request' | 'sheet';id: number}> = (props) => {
-          const {subjectType,id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeReviewTicket>>, {subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>}> = (props) => {
+          const {subjectType,id,data} = props ?? {};
 
-          return  closeReviewTicket(subjectType,id,requestOptions)
+          return  closeReviewTicket(subjectType,id,data,requestOptions)
         }
 
 
@@ -16628,18 +16631,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CloseReviewTicketMutationResult = NonNullable<Awaited<ReturnType<typeof closeReviewTicket>>>
-
+    export type CloseReviewTicketMutationBody = BodyType<ReviewCloseInput> | undefined
     export type CloseReviewTicketMutationError = ErrorType<void>
 
     /**
  * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
  */
 export const useCloseReviewTicket = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof closeReviewTicket>>,
         TError,
-        {subjectType: 'edit' | 'request' | 'sheet';id: number},
+        {subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>},
         TContext
       > => {
       return useMutation(getCloseReviewTicketMutationOptions(options));

@@ -5508,7 +5508,8 @@ export const GetPendingEditResponse = zod.object({
   "canVote": zod.boolean(),
   "canRequestChanges": zod.boolean().optional(),
   "canOverride": zod.boolean().optional(),
-  "canResubmit": zod.boolean().optional()
+  "canResubmit": zod.boolean().optional(),
+  "canClose": zod.boolean().optional().describe('True if the caller (any reviewer) may apply the diff and close this approved edit.')
 })
 
 
@@ -7411,6 +7412,14 @@ export const GetReviewUnseenIdsResponse = zod.object({
 export const CloseReviewTicketParams = zod.object({
   "subjectType": zod.enum(['edit', 'request', 'sheet']),
   "id": zod.coerce.number()
+})
+
+export const closeReviewTicketBodyNoteMax = 2000;
+
+
+
+export const CloseReviewTicketBody = zod.object({
+  "note": zod.string().max(closeReviewTicketBodyNoteMax).optional().describe('Optional reviewer note recorded with the close\/apply action (edit tickets).')
 })
 
 export const CloseReviewTicketResponse = zod.record(zod.string(), zod.unknown())
