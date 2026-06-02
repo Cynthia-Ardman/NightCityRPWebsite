@@ -29,6 +29,7 @@ import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 import { uploadImage } from "@/lib/uploadImage";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
+import RentCreateDialog from "@/components/catalog/RentCreateDialog";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
 const ALL = "__all__";
@@ -113,6 +114,7 @@ export default function CatalogRent() {
   const [leaseTarget, setLeaseTarget] = useState<Listing | null>(null);
   // The listing whose history/admin modal is open (staff click on a row).
   const [historyTarget, setHistoryTarget] = useState<Listing | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Staff-only: remove the current occupant from a listing (ends their lease).
   const vacate = useVacateHousing({
@@ -297,9 +299,20 @@ export default function CatalogRent() {
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-12">
-      <div>
-        <h1 className="text-4xl font-display" data-testid="text-catalog-rent-title">PROPERTY CATALOG</h1>
-        <p className="font-mono text-muted-foreground mt-2">Available homes, apartments, and business spaces.</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-display" data-testid="text-catalog-rent-title">PROPERTY CATALOG</h1>
+          <p className="font-mono text-muted-foreground mt-2">Available homes, apartments, and business spaces.</p>
+        </div>
+        {isStaff && (
+          <Button
+            className="rounded-none font-display tracking-widest bg-nc-magenta text-background hover:bg-nc-magenta/80"
+            onClick={() => setCreateOpen(true)}
+            data-testid="button-add-property"
+          >
+            + ADD NEW PROPERTY
+          </Button>
+        )}
       </div>
       <CatalogRequestSection
         type="property"
@@ -502,6 +515,8 @@ export default function CatalogRent() {
           onDone={() => setLeaseTarget(null)}
         />
       ) : null}
+      {isStaff && <RentCreateDialog open={createOpen} onOpenChange={setCreateOpen} />}
+
       {historyTarget && (
         <PropertyHistoryDialog
           listing={historyTarget}

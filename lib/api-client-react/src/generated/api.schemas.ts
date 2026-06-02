@@ -2042,6 +2042,21 @@ export type CatalogCyberwareUpdateResult = CatalogCyberware & {
   changed: string[];
 };
 
+export interface CatalogCyberwareInput {
+  name: string;
+  slot: string;
+  humanityLoss?: number;
+  /** @nullable */
+  cwp?: string | null;
+  price?: number;
+  /** @nullable */
+  wholesalePrice?: number | null;
+  /** @nullable */
+  installCost?: number | null;
+  /** @nullable */
+  description?: string | null;
+}
+
 /**
  * residential (player self-lease) or business (request-only). Defaults to residential.
  */
@@ -2094,6 +2109,32 @@ export interface CatalogRentUpdate {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+}
+
+/**
+ * residential (player self-lease) or business (request-only).
+ */
+export type CatalogRentInputKind = typeof CatalogRentInputKind[keyof typeof CatalogRentInputKind];
+
+
+export const CatalogRentInputKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
+export interface CatalogRentInput {
+  name: string;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+  monthlyRent?: number;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  /** residential (player self-lease) or business (request-only). */
+  kind?: CatalogRentInputKind;
 }
 
 export interface TagOption {

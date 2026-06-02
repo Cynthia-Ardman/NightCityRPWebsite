@@ -1001,6 +1001,63 @@ const CyberwareEditSchema = z
   })
   .strict();
 
+// Create a new cyberware catalog entry. Fixer/admin only. Audit-logged with
+// the full created field set as "after".
+const CyberwareCreateSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    slot: z.string().trim().min(1),
+    humanityLoss: z.number().int().min(0).optional(),
+    cwp: nullableText,
+    price: z.number().int().min(0).optional(),
+    wholesalePrice: nullableInt,
+    installCost: nullableInt,
+    description: nullableText,
+  })
+  .strict();
+
+router.post(
+  "/catalog/cyberware",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const parsed = CyberwareCreateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+      return;
+    }
+    const d = parsed.data;
+    const values = {
+      name: d.name,
+      slot: d.slot,
+      humanityLoss: d.humanityLoss ?? 0,
+      cwp: d.cwp ?? null,
+      price: d.price ?? 0,
+      wholesalePrice: d.wholesalePrice ?? null,
+      installCost: d.installCost ?? null,
+      description: d.description ?? null,
+    };
+    const { ip, ua } = auditMeta(req);
+    const created = await db.transaction(async (tx) => {
+      const [c] = await tx.insert(catalogCyberware).values(values).returning();
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "cyberware_create",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_cyberware",
+        targetId: String(c.id),
+        message: `Created cyberware "${c.name}"`,
+        beforeJson: null,
+        afterJson: values as never,
+      });
+      return c;
+    });
+    res.status(201).json(created);
+  },
+);
+
 // Full-field cyberware edit, mirroring the gun editor: any subset of fields
 // may be supplied, omitted fields are untouched, bail 400 on a no-op, and
 // apply + audit inside one transaction so an edit never lands without a trail.
@@ -1221,6 +1278,63 @@ router.patch(
       .limit(1);
 
     res.json({ ...updated, occupied: !!activeLease });
+  },
+);
+
+// Create a new property (housing/business) catalog listing. Fixer/admin only.
+// `kind` selects residential (player self-lease) vs business (request-only).
+// A freshly created listing has no lease, so it is always returned occupied:false
+// to match the GET /catalog/rent (CatalogRent) shape.
+const RentCreateSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    district: nullableText,
+    tier: nullableText,
+    monthlyRent: z.number().int().min(0).optional(),
+    description: nullableText,
+    imageUrl: nullableText,
+    kind: z.enum(["residential", "business"]).optional(),
+  })
+  .strict();
+
+router.post(
+  "/catalog/rent",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const parsed = RentCreateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+      return;
+    }
+    const d = parsed.data;
+    const values = {
+      name: d.name,
+      district: d.district ?? null,
+      tier: d.tier ?? null,
+      monthlyRent: d.monthlyRent ?? 0,
+      description: d.description ?? null,
+      imageUrl: d.imageUrl ?? null,
+      kind: d.kind ?? "residential",
+    };
+    const { ip, ua } = auditMeta(req);
+    const created = await db.transaction(async (tx) => {
+      const [l] = await tx.insert(catalogRent).values(values).returning();
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "rent_create",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_rent",
+        targetId: String(l.id),
+        message: `Created ${values.kind} listing "${l.name}"`,
+        beforeJson: null,
+        afterJson: values as never,
+      });
+      return l;
+    });
+    res.status(201).json({ ...created, occupied: false });
   },
 );
 

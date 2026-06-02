@@ -527,6 +527,24 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CatalogCyberware" }
+    post:
+      operationId: createCyberware
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Creates a new cyberware catalog entry. The
+        creation is audit-logged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogCyberwareInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogCyberware" }
+        "400": { description: Invalid payload }
   /catalog/cyberware/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -562,6 +580,26 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CatalogRent" }
+    post:
+      operationId: createRentListing
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Creates a new property catalog listing. `kind`
+        selects residential (player self-lease) or business (request-only);
+        defaults to residential. A freshly created listing is never occupied.
+        The creation is audit-logged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogRentInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogRent" }
+        "400": { description: Invalid payload }
   /catalog/rent/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -5030,6 +5068,19 @@ components:
               type: array
               items: { type: string }
 
+    CatalogCyberwareInput:
+      type: object
+      required: [name, slot]
+      properties:
+        name: { type: string }
+        slot: { type: string }
+        humanityLoss: { type: integer, default: 0 }
+        cwp: { type: ["string", "null"] }
+        price: { type: integer, default: 0 }
+        wholesalePrice: { type: ["integer", "null"] }
+        installCost: { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+
     CatalogRent:
       type: object
       required: [id, name, monthlyRent, occupied]
@@ -5071,6 +5122,22 @@ components:
         monthlyRent: { type: integer }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+
+    CatalogRentInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
+        monthlyRent: { type: integer, default: 0 }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        kind:
+          type: string
+          enum: [residential, business]
+          default: residential
+          description: "residential (player self-lease) or business (request-only)."
 
     TagOption:
       type: object

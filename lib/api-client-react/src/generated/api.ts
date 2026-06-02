@@ -44,6 +44,7 @@ import type {
   BotConfigUpdate,
   CancelPendingEdit200,
   CatalogCyberware,
+  CatalogCyberwareInput,
   CatalogCyberwareUpdate,
   CatalogCyberwareUpdateResult,
   CatalogGun,
@@ -51,6 +52,7 @@ import type {
   CatalogGunUpdate,
   CatalogGunUpdateResult,
   CatalogRent,
+  CatalogRentInput,
   CatalogRentUpdate,
   Character,
   CharacterCyberwareStatus,
@@ -2670,6 +2672,76 @@ export function useListCyberware<TData = Awaited<ReturnType<typeof listCyberware
 
 
 
+export const getCreateCyberwareUrl = () => {
+
+
+
+
+  return `/api/catalog/cyberware`
+}
+
+/**
+ * Fixer/admin endpoint. Creates a new cyberware catalog entry. The
+creation is audit-logged.
+
+ */
+export const createCyberware = async (catalogCyberwareInput: CatalogCyberwareInput, options?: RequestInit): Promise<CatalogCyberware> => {
+
+  return customFetch<CatalogCyberware>(getCreateCyberwareUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogCyberwareInput,)
+  }
+);}
+
+
+
+
+export const getCreateCyberwareMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCyberware>>, TError,{data: BodyType<CatalogCyberwareInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCyberware>>, TError,{data: BodyType<CatalogCyberwareInput>}, TContext> => {
+
+const mutationKey = ['createCyberware'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCyberware>>, {data: BodyType<CatalogCyberwareInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCyberware(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCyberwareMutationResult = NonNullable<Awaited<ReturnType<typeof createCyberware>>>
+    export type CreateCyberwareMutationBody = BodyType<CatalogCyberwareInput>
+    export type CreateCyberwareMutationError = ErrorType<void>
+
+    export const useCreateCyberware = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCyberware>>, TError,{data: BodyType<CatalogCyberwareInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCyberware>>,
+        TError,
+        {data: BodyType<CatalogCyberwareInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCyberwareMutationOptions(options));
+    }
+
 export const getUpdateCyberwareUrl = (id: number,) => {
 
 
@@ -2812,6 +2884,78 @@ export function useListRentListings<TData = Awaited<ReturnType<typeof listRentLi
 
 
 
+
+export const getCreateRentListingUrl = () => {
+
+
+
+
+  return `/api/catalog/rent`
+}
+
+/**
+ * Fixer/admin endpoint. Creates a new property catalog listing. `kind`
+selects residential (player self-lease) or business (request-only);
+defaults to residential. A freshly created listing is never occupied.
+The creation is audit-logged.
+
+ */
+export const createRentListing = async (catalogRentInput: CatalogRentInput, options?: RequestInit): Promise<CatalogRent> => {
+
+  return customFetch<CatalogRent>(getCreateRentListingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogRentInput,)
+  }
+);}
+
+
+
+
+export const getCreateRentListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRentListing>>, TError,{data: BodyType<CatalogRentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRentListing>>, TError,{data: BodyType<CatalogRentInput>}, TContext> => {
+
+const mutationKey = ['createRentListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRentListing>>, {data: BodyType<CatalogRentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createRentListing(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRentListingMutationResult = NonNullable<Awaited<ReturnType<typeof createRentListing>>>
+    export type CreateRentListingMutationBody = BodyType<CatalogRentInput>
+    export type CreateRentListingMutationError = ErrorType<void>
+
+    export const useCreateRentListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRentListing>>, TError,{data: BodyType<CatalogRentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRentListing>>,
+        TError,
+        {data: BodyType<CatalogRentInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRentListingMutationOptions(options));
+    }
 
 export const getUpdateRentListingUrl = (id: number,) => {
 

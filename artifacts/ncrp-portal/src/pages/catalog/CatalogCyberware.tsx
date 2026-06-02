@@ -4,9 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import CyberwareDetailDialog, { type Cyber } from "@/components/catalog/CyberwareDetailDialog";
+import CyberwareCreateDialog from "@/components/catalog/CyberwareCreateDialog";
 
 const ALL = "__all__";
 
@@ -59,6 +61,7 @@ export default function CatalogCyberware() {
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Cyber | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const rows = (data ?? []) as Cyber[];
 
@@ -91,12 +94,23 @@ export default function CatalogCyberware() {
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-12 px-2">
-      <div>
-        <h1 className="text-4xl font-display" data-testid="text-catalog-cyberware-title">CYBERWARE CATALOG</h1>
-        <p className="font-mono text-muted-foreground mt-2">
-          Approved augmentations.
-          {isStaff ? " Click a piece to view or edit its full record." : ""}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-display" data-testid="text-catalog-cyberware-title">CYBERWARE CATALOG</h1>
+          <p className="font-mono text-muted-foreground mt-2">
+            Approved augmentations.
+            {isStaff ? " Click a piece to view or edit its full record." : ""}
+          </p>
+        </div>
+        {isStaff && (
+          <Button
+            className="rounded-none font-display tracking-widest bg-nc-magenta text-background hover:bg-nc-magenta/80"
+            onClick={() => setCreateOpen(true)}
+            data-testid="button-add-cyberware"
+          >
+            + ADD NEW CYBERWARE
+          </Button>
+        )}
       </div>
       <CatalogRequestSection
         type="cyberware"
@@ -179,6 +193,8 @@ export default function CatalogCyberware() {
           }}
         />
       )}
+
+      {isStaff && <CyberwareCreateDialog open={createOpen} onOpenChange={setCreateOpen} />}
     </div>
   );
 }

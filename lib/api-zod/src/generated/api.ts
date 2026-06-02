@@ -732,6 +732,26 @@ export const ListCyberwareResponse = zod.array(ListCyberwareResponseItem)
 
 
 /**
+ * Fixer/admin endpoint. Creates a new cyberware catalog entry. The
+creation is audit-logged.
+
+ */
+export const createCyberwareBodyHumanityLossDefault = 0;
+export const createCyberwareBodyPriceDefault = 0;
+
+export const CreateCyberwareBody = zod.object({
+  "name": zod.string(),
+  "slot": zod.string(),
+  "humanityLoss": zod.number().default(createCyberwareBodyHumanityLossDefault),
+  "cwp": zod.string().nullish(),
+  "price": zod.number().default(createCyberwareBodyPriceDefault),
+  "wholesalePrice": zod.number().nullish(),
+  "installCost": zod.number().nullish(),
+  "description": zod.string().nullish()
+})
+
+
+/**
  * Fixer/admin endpoint. Any subset of editable fields may be supplied;
 omitted fields are left unchanged. Every applied edit is audit-logged
 with before/after values.
@@ -782,6 +802,27 @@ export const ListRentListingsResponseItem = zod.object({
   "housingId": zod.number().optional().describe('Staff-only — the housing (lease) row id, used to remove the occupant.')
 })
 export const ListRentListingsResponse = zod.array(ListRentListingsResponseItem)
+
+
+/**
+ * Fixer/admin endpoint. Creates a new property catalog listing. `kind`
+selects residential (player self-lease) or business (request-only);
+defaults to residential. A freshly created listing is never occupied.
+The creation is audit-logged.
+
+ */
+export const createRentListingBodyMonthlyRentDefault = 0;
+export const createRentListingBodyKindDefault = `residential`;
+
+export const CreateRentListingBody = zod.object({
+  "name": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number().default(createRentListingBodyMonthlyRentDefault),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "kind": zod.enum(['residential', 'business']).default(createRentListingBodyKindDefault).describe('residential (player self-lease) or business (request-only).')
+})
 
 
 /**
