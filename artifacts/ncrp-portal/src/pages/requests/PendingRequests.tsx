@@ -306,7 +306,11 @@ function ApproveDialog({
   }
 
   const onDone = (title: string) => {
-    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey({ status: "pending" }) });
+    // Invalidate the base key (no params) so every bucket variant — active /
+    // resolved / archive — refetches. The list is fetched with { bucket } but a
+    // status-scoped key here would not prefix-match it, leaving votes stale
+    // until a manual refresh.
+    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
     toast({ title });
     onClose();
   };
@@ -515,7 +519,8 @@ function RejectDialog({ request, onClose }: { request: CustomRequest | null; onC
   const voteReject = useVoteCustomRequest({
     mutation: {
       onSuccess: (res) => {
-        qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey({ status: "pending" }) });
+        // Base key (no params) so every bucket variant refetches — see onDone.
+        qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
         toast({
           title: (res as { decided?: string })?.decided === "rejected" ? "Request rejected — majority reached" : "Reject vote recorded",
         });

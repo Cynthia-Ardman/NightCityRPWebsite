@@ -77,7 +77,25 @@ type HistoryRow = {
   inviteRole?: string | null;
   inviteCommissionPct?: number | null;
   inviteVenueName?: string | null;
+  // Fixer vote tally for custom requests that run through the staff multi-vote
+  // pipeline. Only shown for fixer-voted types — owner/player-decided types
+  // tally 0/0, which would be misleading.
+  approveCount?: number | null;
+  rejectCount?: number | null;
+  voteThreshold?: number | null;
 };
+
+// Custom-request types whose approval runs through the fixer multi-vote
+// pipeline. stock_cost / employee_invite / mission_participation are decided by
+// the owner or invited player (no fixer votes), so we never show a tally there.
+const FIXER_VOTED_TYPES = new Set<CustomRequest["type"]>([
+  "property",
+  "gun",
+  "cyberware",
+  "store",
+  "ripperdoc",
+  "venue_stock",
+]);
 
 const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
   property: "Property",
@@ -243,6 +261,9 @@ export default function MyRequests() {
         inviteRole: r.type === "employee_invite" ? det.role ?? null : null,
         inviteCommissionPct: r.type === "employee_invite" ? det.commissionPct ?? null : null,
         inviteVenueName: r.type === "employee_invite" ? det.venueName ?? null : null,
+        approveCount: r.approveCount,
+        rejectCount: r.rejectCount,
+        voteThreshold: r.threshold,
       });
     }
     for (const r of (housing ?? []) as HousingRequest[]) {
@@ -325,6 +346,14 @@ export default function MyRequests() {
         </td>
         <td className="p-3">
           <div className="text-foreground">{r.title}</div>
+          {r.customType && FIXER_VOTED_TYPES.has(r.customType) && r.approveCount != null ? (
+            <div className="text-[11px] text-muted-foreground mt-0.5" data-testid={`votes-${r.key}`}>
+              Votes: <span className="text-nc-green">{r.approveCount}</span>/{r.voteThreshold ?? "?"} approve
+              {r.rejectCount ? (
+                <> · <span className="text-destructive">{r.rejectCount}</span> reject</>
+              ) : null}
+            </div>
+          ) : null}
           {r.customType === "stock_cost" && r.description ? (
             <div className="text-[11px] text-muted-foreground mt-0.5">{r.description}</div>
           ) : null}
@@ -471,7 +500,7 @@ export default function MyRequests() {
                 onClick={() => setDiscussing((cur) => (cur === r.key ? null : r.key))}
                 data-testid={`button-discuss-${r.key}`}
               >
-                <MessageSquare className="w-3 h-3 mr-1" /> DISCUSS
+                <MessageSquare className="w-3 h-3 mr-1" /> DETAILS
                 {discussing === r.key ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
               </Button>
             </div>
@@ -481,7 +510,23 @@ export default function MyRequests() {
       {r.subjectType && r.subjectId != null && discussing === r.key ? (
         <tr className="border-b border-border/30" data-testid={`row-discuss-${r.key}`}>
           <td colSpan={6} className="p-3 bg-card/40">
-            <ReviewCommentThread subjectType={r.subjectType} subjectId={r.subjectId} markSeenOnMount />
+            <div className="space-y-3">
+              {r.description || (r.customType && FIXER_VOTED_TYPES.has(r.customType) && r.approveCount != null) ? (
+                <div
+                  className="font-mono text-xs text-muted-foreground space-y-1 border border-border/40 bg-background/40 p-3"
+                  data-testid={`details-${r.key}`}
+                >
+                  {r.description ? <p className="whitespace-pre-wrap text-foreground">{r.description}</p> : null}
+                  {r.customType && FIXER_VOTED_TYPES.has(r.customType) && r.approveCount != null ? (
+                    <div>
+                      Votes: <span className="text-nc-green">{r.approveCount}</span>/{r.voteThreshold ?? "?"} approve ·{" "}
+                      <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <ReviewCommentThread subjectType={r.subjectType} subjectId={r.subjectId} markSeenOnMount />
+            </div>
           </td>
         </tr>
       ) : null}

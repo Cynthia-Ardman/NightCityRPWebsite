@@ -735,53 +735,49 @@ function AttendCard() {
         ? "WINDOW CLOSED"
         : "CLAIM";
   return (
-    <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5 h-full">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="font-display tracking-widest text-nc-yellow text-sm">WEEKLY ATTENDANCE</div>
-            <div className="text-xs text-muted-foreground font-mono mt-1">
-              WEEK_OF {data.weekStart} · €${data.payout.toLocaleString()}
-            </div>
-            <div className="text-[10px] font-mono text-nc-yellow mt-1 uppercase tracking-widest">
-              {data.windowHint}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Button
-              type="button"
-              disabled={disabled}
-              onClick={() => claim.mutate()}
-              className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest disabled:opacity-50"
-              data-testid="button-attend-claim"
-            >
-              {buttonLabel}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setHistoryOpen(true)}
-              className="rounded-none border-nc-yellow/40 text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-xs"
-              data-testid="button-attend-history"
-            >
-              ATTENDANCE HISTORY
-            </Button>
+    <div className="border border-nc-yellow/40 bg-nc-yellow/5 p-4 space-y-3 h-full">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="font-display tracking-widest text-nc-yellow text-sm">WEEKLY ATTENDANCE</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            WEEK_OF {data.weekStart} · €${data.payout.toLocaleString()}
           </div>
         </div>
-        {!windowOpen && !data.claimed && data.nextWindowOpensAt && (
-          <div className="text-xs font-mono text-nc-yellow" data-testid="text-attend-next-window">
-            NEXT_WINDOW: {new Date(data.nextWindowOpensAt).toLocaleString()}
-          </div>
-        )}
-        {data.claimedAt && (
-          <div className="text-xs font-mono text-nc-yellow">
-            LAST_CLAIM: {new Date(data.claimedAt).toLocaleString()}
-          </div>
-        )}
-        {claim.error instanceof Error && (
-          <div className="text-xs font-mono text-destructive">ERR: {claim.error.message}</div>
-        )}
-      </CardContent>
+        <div className="flex flex-col gap-2">
+          <Button
+            type="button"
+            disabled={disabled}
+            onClick={() => claim.mutate()}
+            className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest disabled:opacity-50"
+            data-testid="button-attend-claim"
+          >
+            {buttonLabel}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setHistoryOpen(true)}
+            className="rounded-none border-nc-yellow/40 text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-xs"
+            data-testid="button-attend-history"
+          >
+            ATTENDANCE HISTORY
+          </Button>
+        </div>
+      </div>
+      {!windowOpen && !data.claimed && (
+        <div className="text-xs font-mono text-nc-yellow" data-testid="text-attend-next-window">
+          SESSION_WINDOW: {data.windowHint ?? "Sundays 2:00pm–9:00pm Pacific"}
+          {data.nextWindowOpensAt && ` · OPENS ${formatDueDate(data.nextWindowOpensAt)}`}
+        </div>
+      )}
+      {data.claimedAt && (
+        <div className="text-xs font-mono text-nc-yellow">
+          LAST_CLAIM: {new Date(data.claimedAt).toLocaleString()}
+        </div>
+      )}
+      {claim.error instanceof Error && (
+        <div className="text-xs font-mono text-destructive">ERR: {claim.error.message}</div>
+      )}
       <ActivityHistoryDialog
         open={historyOpen}
         onOpenChange={setHistoryOpen}
@@ -791,7 +787,7 @@ function AttendCard() {
         accent="border-nc-yellow/60"
         showAmount
       />
-    </Card>
+    </div>
   );
 }
 
