@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Search, Receipt, ClipboardList, ShoppingBag, BookOpen } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -219,7 +219,6 @@ function SidebarContent() {
         {user?.isRipperdoc && <NavItem href="/clinics" icon={Syringe} label="Manage Clinics" />}
         {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Syringe} label="Ripperdoc Console" />}
         {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
-        {user?.isFixer && <NavItem href="/fixer/items" icon={Search} label="Item Trace" />}
         {/* Unified staff review queue (misc requests / character edits /
             new characters). Each tab self-gates by role inside the page,
             but only fixers / cs-approvers / admins have anything to do here,
