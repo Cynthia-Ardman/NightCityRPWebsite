@@ -109,6 +109,7 @@ export default function MyStoreDetail() {
   const [empCommission, setEmpCommission] = useState(0);
   const [stockName, setStockName] = useState("");
   const [stockCategory, setStockCategory] = useState("");
+  const [stockDescription, setStockDescription] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
   const [stockQty, setStockQty] = useState(1);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
@@ -119,6 +120,9 @@ export default function MyStoreDetail() {
   const [stockReqDescription, setStockReqDescription] = useState("");
   const { data: me, viewAs } = useEffectiveMe();
   const canSetCost = !!me && (me.isFixer || me.isAdmin);
+  // "Add from catalog" is an admin-only convenience for seeding stock from the
+  // master gun catalog; owners/employees use the custom-stock + buy-stock flows.
+  const isAdmin = !!me && me.isAdmin;
 
   // When an admin previews the app as a lower-privilege role, the management
   // view must hide just like it would for that role. Send them to the public
@@ -253,50 +257,70 @@ export default function MyStoreDetail() {
         </CardHeader>
         <CardContent className="space-y-2">
           {store.stock.map((s) => (
-            <div key={s.id} className="grid grid-cols-12 gap-2 items-center border-b border-border/30 py-2" data-testid={`row-stock-${s.id}`}>
-              <Input className="col-span-4" defaultValue={s.name} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { name: e.target.value } })} />
-              <Input className="col-span-2" type="number" defaultValue={s.price} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { price: Number(e.target.value) } })} />
-              <Input className="col-span-2" type="number" defaultValue={s.quantity} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { quantity: Number(e.target.value) } })} />
-              <Input className="col-span-2" defaultValue={s.category ?? ""} placeholder="Category" onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { category: e.target.value } })} />
-              <Button
-                size="sm"
-                onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
-                disabled={s.quantity <= 0}
-                className="col-span-1 rounded-none bg-nc-cyan text-background font-display text-xs"
-                data-testid={`button-sell-${s.id}`}
-              >
-                <DollarSign className="w-3 h-3" />
-              </Button>
-              <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: storeId, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+            <div key={s.id} className="space-y-1 border-b border-border/30 py-2" data-testid={`row-stock-${s.id}`}>
+              <div className="grid grid-cols-12 gap-2 items-center">
+                <Input className="col-span-4" defaultValue={s.name} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { name: e.target.value } })} />
+                <Input className="col-span-2" type="number" defaultValue={s.price} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { price: Number(e.target.value) } })} />
+                <Input className="col-span-2" type="number" defaultValue={s.quantity} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { quantity: Number(e.target.value) } })} />
+                <Input className="col-span-2" defaultValue={s.category ?? ""} placeholder="Category" onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { category: e.target.value } })} />
+                <Button
+                  size="sm"
+                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
+                  disabled={s.quantity <= 0}
+                  className="col-span-1 rounded-none bg-nc-cyan text-background font-display text-xs"
+                  data-testid={`button-sell-${s.id}`}
+                >
+                  <DollarSign className="w-3 h-3" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: storeId, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+              </div>
+              <Input
+                className="font-mono text-xs"
+                defaultValue={s.description ?? ""}
+                placeholder="Description"
+                onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { description: e.target.value } })}
+                data-testid={`input-stock-description-${s.id}`}
+              />
             </div>
           ))}
           <div className="pt-3 space-y-2">
-            <div className="flex justify-end">
-              <CatalogPicker
-                kind="guns"
-                onPick={(item) => {
-                  setStockName(item.name);
-                  setStockCategory(item.category ?? "");
-                  setStockPrice(item.price);
-                  if (stockQty < 1) setStockQty(1);
-                }}
-              />
-            </div>
+            {isAdmin && (
+              <div className="flex justify-end">
+                <CatalogPicker
+                  kind="guns"
+                  triggerLabel="ADD FROM CATALOG (ADMIN)"
+                  onPick={(item) => {
+                    setStockName(item.name);
+                    setStockCategory(item.category ?? "");
+                    setStockPrice(item.price);
+                    if (stockQty < 1) setStockQty(1);
+                  }}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-12 gap-2">
               <Input className="col-span-4" placeholder="Item name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-stock-name" />
-              <Input className="col-span-3" placeholder="Category" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
+              <Input className="col-span-3" placeholder="Category / type" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
               <Input className="col-span-2" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
               <Input className="col-span-1" type="number" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
               <Button
                 className="col-span-2 rounded-none bg-nc-cyan text-background font-display"
+                disabled={!stockName.trim() || stockPrice < 0 || addStock.isPending}
                 onClick={() => {
-                  if (!stockName) return;
+                  if (!stockName.trim()) return;
                   addStock.mutate({
                     id: storeId,
-                    data: { name: stockName, category: stockCategory || undefined, price: stockPrice, quantity: stockQty },
+                    data: {
+                      name: stockName.trim(),
+                      category: stockCategory || undefined,
+                      description: stockDescription || undefined,
+                      price: stockPrice,
+                      quantity: stockQty,
+                    },
                   });
                   setStockName("");
                   setStockCategory("");
+                  setStockDescription("");
                   setStockPrice(0);
                   setStockQty(1);
                 }}
@@ -304,6 +328,13 @@ export default function MyStoreDetail() {
               >
                 <Plus className="w-4 h-4 mr-1" /> ADD
               </Button>
+              <Input
+                className="col-span-12 font-mono text-xs"
+                placeholder="Description (optional)"
+                value={stockDescription}
+                onChange={(e) => setStockDescription(e.target.value)}
+                data-testid="input-add-stock-description"
+              />
             </div>
           </div>
         </CardContent>

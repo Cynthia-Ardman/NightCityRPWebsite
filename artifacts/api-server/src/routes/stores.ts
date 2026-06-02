@@ -567,15 +567,43 @@ router.delete("/stores/:id/employees/:employeeId", requireAuth, async (req, res)
 router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> => {
   const s = await loadManageableStore(req, res);
   if (!s) return;
-  const { name, category, price, quantity, notes } = req.body ?? {};
-  if (!name) {
+  const { name, category, price, quantity, notes, description } = req.body ?? {};
+  if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "name required" });
     return;
   }
-  const [it] = await db
-    .insert(storeStock)
-    .values({ storeId: s.id, name, category: category ?? null, price: price ?? 0, quantity: quantity ?? 0, notes: notes ?? null })
-    .returning();
+  const cleanPrice = Math.max(0, Math.round(Number(price) || 0));
+  const cleanQty = Math.max(0, Math.round(Number(quantity) || 0));
+  const { ip, ua } = auditMeta(req);
+  // Insert + audit atomically so a manual stock add can never land without an
+  // audit trail (the task requires every manual add be logged).
+  const it = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(storeStock)
+      .values({
+        storeId: s.id,
+        name: name.trim(),
+        category: category ?? null,
+        price: cleanPrice,
+        quantity: cleanQty,
+        notes: notes ?? null,
+        description: typeof description === "string" && description.trim() ? description.trim() : null,
+      })
+      .returning();
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "store_stock_add",
+      actorId: req.user?.id ?? null,
+      actorName: req.user?.username ?? null,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "store",
+      targetId: String(s.id),
+      message: `Manually added "${row.name}" x${row.quantity} to ${s.name} stock`,
+      afterJson: row as never,
+    });
+    return row;
+  });
   res.status(201).json(it);
 });
 
@@ -583,7 +611,7 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
   const s = await loadManageableStore(req, res);
   if (!s) return;
   const stockId = parseInt(String(req.params.stockId), 10);
-  const { name, category, price, quantity, notes } = req.body ?? {};
+  const { name, category, price, quantity, notes, description } = req.body ?? {};
   const [u] = await db
     .update(storeStock)
     .set({
@@ -592,6 +620,7 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
       ...(price !== undefined ? { price } : {}),
       ...(quantity !== undefined ? { quantity } : {}),
       ...(notes !== undefined ? { notes } : {}),
+      ...(description !== undefined ? { description } : {}),
     })
     .where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, s.id)))
     .returning();
@@ -1190,15 +1219,58 @@ router.delete("/ripperdocs/:id/employees/:employeeId", requireAuth, async (req, 
 router.post("/ripperdocs/:id/stock", requireAuth, async (req, res): Promise<void> => {
   const r = await loadManageableRipperdoc(req, res);
   if (!r) return;
-  const { name, category, price, quantity, notes } = req.body ?? {};
-  if (!name) {
+  const { name, category, price, quantity, notes, slot, cwp, description } = req.body ?? {};
+  if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "name required" });
     return;
   }
-  const [it] = await db
-    .insert(ripperdocStock)
-    .values({ ripperdocId: r.id, name, category: category ?? null, price: price ?? 0, quantity: quantity ?? 0, notes: notes ?? null })
-    .returning();
+  if (typeof slot !== "string" || !slot.trim()) {
+    res.status(400).json({ error: "slot required" });
+    return;
+  }
+  const cleanPrice = Math.max(0, Math.round(Number(price) || 0));
+  const cleanQty = Math.max(0, Math.round(Number(quantity) || 0));
+  // Encode cyberware slot + CWP into notes using the importer/parseCwp
+  // convention ("CWP <n> · Slot: <slot>") so downstream CWP derivation keeps
+  // working. An explicit `notes` body field wins if provided.
+  let finalNotes: string | null = typeof notes === "string" && notes.trim() ? notes.trim() : null;
+  if (finalNotes === null) {
+    const parts: string[] = [];
+    const cwpNum = cwp != null && cwp !== "" ? Math.max(0, Math.round(Number(cwp))) : null;
+    if (cwpNum != null && Number.isFinite(cwpNum)) parts.push(`CWP ${cwpNum}`);
+    parts.push(`Slot: ${slot.trim()}`);
+    finalNotes = parts.join(" · ");
+  }
+  const { ip, ua } = auditMeta(req);
+  // Insert + audit atomically so a manual stock add can never land without an
+  // audit trail (the task requires every manual add be logged).
+  const it = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(ripperdocStock)
+      .values({
+        ripperdocId: r.id,
+        name: name.trim(),
+        category: typeof category === "string" && category.trim() ? category.trim() : null,
+        price: cleanPrice,
+        quantity: cleanQty,
+        notes: finalNotes,
+        description: typeof description === "string" && description.trim() ? description.trim() : null,
+      })
+      .returning();
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "ripperdoc_stock_add",
+      actorId: req.user?.id ?? null,
+      actorName: req.user?.username ?? null,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "ripperdoc",
+      targetId: String(r.id),
+      message: `Manually added "${row.name}" x${row.quantity} to ${r.name} cyberware stock`,
+      afterJson: row as never,
+    });
+    return row;
+  });
   res.status(201).json(it);
 });
 

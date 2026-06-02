@@ -1411,6 +1411,8 @@ export interface StockItem {
   quantity: number;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  description?: string | null;
 }
 
 export interface Store {
@@ -1659,6 +1661,14 @@ export interface StockInput {
   /** @minimum 0 */
   quantity: number;
   notes?: string;
+  description?: string;
+  /** Cyberware slot (clinic stock). Encoded into notes alongside CWP. */
+  slot?: string;
+  /**
+     * Cyberware points (clinic stock). Encoded into notes as 'CWP <n>'.
+     * @minimum 0
+     */
+  cwp?: number;
 }
 
 /**
@@ -1856,6 +1866,7 @@ export interface StockUpdate {
   /** @minimum 0 */
   quantity?: number;
   notes?: string;
+  description?: string;
 }
 
 export interface CatalogGun {

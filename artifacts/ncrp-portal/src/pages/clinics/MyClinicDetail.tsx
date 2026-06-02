@@ -117,6 +117,9 @@ export default function MyClinicDetail() {
   const [empCommission, setEmpCommission] = useState(0);
   const [stockName, setStockName] = useState("");
   const [stockCategory, setStockCategory] = useState("");
+  const [stockSlot, setStockSlot] = useState("");
+  const [stockCwp, setStockCwp] = useState(0);
+  const [stockDescription, setStockDescription] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -267,9 +270,19 @@ export default function MyClinicDetail() {
         </CardHeader>
         <CardContent className="space-y-2">
           {data.stock.map((s) => (
-            <div key={s.id} className="flex justify-between items-center border-b border-border/30 py-2 font-mono text-sm">
-              <span>{s.name} <span className="text-nc-yellow ml-2">{s.price.toLocaleString()} €$</span> <span className="text-muted-foreground ml-2">x{s.quantity}</span></span>
-              <div className="flex items-center gap-1">
+            <div key={s.id} className="flex justify-between items-start border-b border-border/30 py-2 font-mono text-sm gap-2">
+              <div className="min-w-0">
+                <div>{s.name} <span className="text-nc-yellow ml-2">{s.price.toLocaleString()} €$</span> <span className="text-muted-foreground ml-2">x{s.quantity}</span></div>
+                {(s.category || s.notes) && (
+                  <div className="text-muted-foreground text-xs mt-0.5">
+                    {s.category ? <span className="text-nc-magenta">{s.category}</span> : null}
+                    {s.category && s.notes ? " · " : null}
+                    {s.notes ?? null}
+                  </div>
+                )}
+                {s.description && <div className="text-muted-foreground text-xs mt-0.5 whitespace-pre-wrap">{s.description}</div>}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
                 <Button
                   size="sm"
                   onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
@@ -292,29 +305,47 @@ export default function MyClinicDetail() {
                   triggerClassName="rounded-none font-display border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background"
                   onPick={(item) => {
                     setStockName(item.name);
-                    setStockCategory(item.category ?? "");
+                    setStockSlot(item.category ?? "");
                     setStockPrice(item.price);
                   }}
                 />
               </div>
             )}
             <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Add custom cyberware</p>
-            <div className="flex gap-2">
-              <Input className="flex-1" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
-              <Input className="w-32" placeholder="Slot" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-cyber-slot" />
-              <Input className="w-32" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
+            <div className="grid grid-cols-12 gap-2">
+              <Input className="col-span-6" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
+              <Input className="col-span-3" placeholder="Cyber category" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-cyber-category" />
+              <Input className="col-span-3" placeholder="Slot" value={stockSlot} onChange={(e) => setStockSlot(e.target.value)} data-testid="input-add-cyber-slot" />
+              <Input className="col-span-3" type="number" min={0} placeholder="CWP" value={stockCwp || ""} onChange={(e) => setStockCwp(Number(e.target.value))} data-testid="input-add-cyber-cwp" />
+              <Input className="col-span-3" type="number" min={0} placeholder="Price" value={stockPrice || ""} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
+              <Input className="col-span-6" placeholder="Description (optional)" value={stockDescription} onChange={(e) => setStockDescription(e.target.value)} data-testid="input-add-cyber-description" />
               <Button
+                disabled={!stockName.trim() || !stockSlot.trim() || stockPrice < 0 || addStock.isPending}
                 onClick={() => {
-                  if (!stockName) return;
-                  addStock.mutate({ id: rid, data: { name: stockName, category: stockCategory || undefined, price: stockPrice, quantity: 1 } });
+                  if (!stockName.trim() || !stockSlot.trim()) return;
+                  addStock.mutate({
+                    id: rid,
+                    data: {
+                      name: stockName.trim(),
+                      category: stockCategory.trim() || undefined,
+                      slot: stockSlot.trim() || undefined,
+                      cwp: stockCwp > 0 ? Math.floor(stockCwp) : undefined,
+                      description: stockDescription.trim() || undefined,
+                      price: stockPrice,
+                      quantity: 1,
+                    },
+                  });
                   setStockName("");
                   setStockCategory("");
+                  setStockSlot("");
+                  setStockCwp(0);
+                  setStockDescription("");
                   setStockPrice(0);
                 }}
-                className="rounded-none bg-nc-magenta text-background font-display"
+                className="col-span-12 rounded-none bg-nc-magenta text-background font-display"
                 data-testid="button-add-cyber"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 mr-1" /> ADD CYBERWARE
               </Button>
             </div>
           </div>

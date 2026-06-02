@@ -316,6 +316,7 @@ export const storeStock = pgTable("store_stock", {
   price: integer("price").notNull().default(0),
   quantity: integer("quantity").notNull().default(0),
   notes: text("notes"),
+  description: text("description"),
 });
 
 export const ripperdocs = pgTable("ripperdocs", {
@@ -349,6 +350,7 @@ export const ripperdocStock = pgTable("ripperdoc_stock", {
   price: integer("price").notNull().default(0),
   quantity: integer("quantity").notNull().default(0),
   notes: text("notes"),
+  description: text("description"),
 });
 
 export const fixerNpcs = pgTable("fixer_npcs", {

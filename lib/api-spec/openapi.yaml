@@ -4760,6 +4760,7 @@ components:
         price: { type: integer }
         quantity: { type: integer }
         notes: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
 
     StockInput:
       type: object
@@ -4770,6 +4771,9 @@ components:
         price: { type: integer, minimum: 0 }
         quantity: { type: integer, minimum: 0 }
         notes: { type: string }
+        description: { type: string }
+        slot: { type: string, description: "Cyberware slot (clinic stock). Encoded into notes alongside CWP." }
+        cwp: { type: integer, minimum: 0, description: "Cyberware points (clinic stock). Encoded into notes as 'CWP <n>'." }
 
     StockOfferInput:
       type: object
@@ -4900,6 +4904,7 @@ components:
         price: { type: integer, minimum: 0 }
         quantity: { type: integer, minimum: 0 }
         notes: { type: string }
+        description: { type: string }
 
     CatalogGun:
       type: object

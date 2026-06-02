@@ -15,4 +15,6 @@ export interface StockItem {
   quantity: number;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  description?: string | null;
 }

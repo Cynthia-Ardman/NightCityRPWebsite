@@ -15,4 +15,5 @@ export interface StockUpdate {
   /** @minimum 0 */
   quantity?: number;
   notes?: string;
+  description?: string;
 }

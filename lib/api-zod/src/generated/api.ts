@@ -1138,7 +1138,8 @@ export const ListMyStoresResponseItem = zod.object({
   "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "description": zod.string().nullish()
 }))
 })
 export const ListMyStoresResponse = zod.array(ListMyStoresResponseItem)
@@ -1177,7 +1178,8 @@ export const GetStoreResponse = zod.object({
   "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "description": zod.string().nullish()
 }))
 })
 
@@ -1226,7 +1228,8 @@ export const UpdateStoreResponse = zod.object({
   "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "description": zod.string().nullish()
 }))
 })
 
@@ -1518,6 +1521,8 @@ export const addStoreStockBodyPriceMin = 0;
 
 export const addStoreStockBodyQuantityMin = 0;
 
+export const addStoreStockBodyCwpMin = 0;
+
 
 
 export const AddStoreStockBody = zod.object({
@@ -1525,7 +1530,10 @@ export const AddStoreStockBody = zod.object({
   "category": zod.string().optional(),
   "price": zod.number().min(addStoreStockBodyPriceMin),
   "quantity": zod.number().min(addStoreStockBodyQuantityMin),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "description": zod.string().optional(),
+  "slot": zod.string().optional().describe('Cyberware slot (clinic stock). Encoded into notes alongside CWP.'),
+  "cwp": zod.number().min(addStoreStockBodyCwpMin).optional().describe('Cyberware points (clinic stock). Encoded into notes as \'CWP <n>\'.')
 })
 
 
@@ -1564,7 +1572,8 @@ export const UpdateStoreStockBody = zod.object({
   "category": zod.string().optional(),
   "price": zod.number().min(updateStoreStockBodyPriceMin).optional(),
   "quantity": zod.number().min(updateStoreStockBodyQuantityMin).optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "description": zod.string().optional()
 })
 
 export const UpdateStoreStockResponse = zod.object({
@@ -1573,7 +1582,8 @@ export const UpdateStoreStockResponse = zod.object({
   "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "description": zod.string().nullish()
 })
 
 
@@ -1611,7 +1621,8 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "description": zod.string().nullish()
 }))
 })
 export const ListMyRipperdocsResponse = zod.array(ListMyRipperdocsResponseItem)
@@ -1649,7 +1660,8 @@ export const GetRipperdocResponse = zod.object({
   "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "description": zod.string().nullish()
 }))
 })
 
@@ -1696,7 +1708,8 @@ export const UpdateRipperdocResponse = zod.object({
   "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "description": zod.string().nullish()
 }))
 })
 
@@ -4360,6 +4373,8 @@ export const addRipperdocStockBodyPriceMin = 0;
 
 export const addRipperdocStockBodyQuantityMin = 0;
 
+export const addRipperdocStockBodyCwpMin = 0;
+
 
 
 export const AddRipperdocStockBody = zod.object({
@@ -4367,7 +4382,10 @@ export const AddRipperdocStockBody = zod.object({
   "category": zod.string().optional(),
   "price": zod.number().min(addRipperdocStockBodyPriceMin),
   "quantity": zod.number().min(addRipperdocStockBodyQuantityMin),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "description": zod.string().optional(),
+  "slot": zod.string().optional().describe('Cyberware slot (clinic stock). Encoded into notes alongside CWP.'),
+  "cwp": zod.number().min(addRipperdocStockBodyCwpMin).optional().describe('Cyberware points (clinic stock). Encoded into notes as \'CWP <n>\'.')
 })
 
 
