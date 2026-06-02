@@ -140,6 +140,7 @@ function Dashboard() {
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
         {statCards}
         <AttendCard />
+        <AccountHistoryCard />
         {(characters ?? []).map((c) => (
           <ShopOpenSection key={c.id} characterId={c.id} name={c.name} />
         ))}
@@ -587,6 +588,7 @@ interface ActivityHistoryEntry {
   date: string;
   at: string | null;
   amount?: number | null;
+  label?: string | null;
 }
 interface ActivityHistoryResponse {
   totalCount: number;
@@ -649,16 +651,25 @@ function ActivityHistoryDialog({
                   className="flex items-center justify-between gap-3 px-3 py-2 font-mono text-xs"
                   data-testid={`row-history-${i}`}
                 >
-                  <span className="text-foreground">
-                    {new Date(e.at ?? `${e.date}T00:00:00Z`).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-foreground">
+                      {new Date(e.at ?? `${e.date}T00:00:00Z`).toLocaleDateString(undefined, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                    {e.label && (
+                      <span className="truncate text-[10px] text-muted-foreground" title={e.label}>
+                        {e.label}
+                      </span>
+                    )}
                   </span>
-                  <span className="flex items-center gap-2">
-                    {showAmount && e.amount != null && (
-                      <span className="text-nc-yellow">+€${e.amount.toLocaleString()}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {(showAmount || e.amount != null) && e.amount != null && (
+                      <span className={e.amount < 0 ? "text-destructive" : "text-nc-yellow"}>
+                        {e.amount < 0 ? "-" : "+"}€${Math.abs(e.amount).toLocaleString()}
+                      </span>
                     )}
                     <Badge
                       variant="outline"
@@ -782,6 +793,61 @@ function AttendCard() {
         showAmount
       />
     </Card>
+  );
+}
+
+// Account-level history card: the bot tracked cyberware upkeep and the cash
+// ledger PER DISCORD USER (not per character), so these two views are
+// account-wide and live in one player-level card rather than per-character.
+function AccountHistoryCard() {
+  const [cyberOpen, setCyberOpen] = useState(false);
+  const [financeOpen, setFinanceOpen] = useState(false);
+  return (
+    <div className="border border-nc-cyan/40 bg-nc-cyan/5 p-4 space-y-3 h-full flex flex-col">
+      <div>
+        <div className="font-display tracking-widest text-nc-cyan text-sm">ACCOUNT HISTORY</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          Your bot-era cyberware upkeep and full cash ledger.
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 mt-auto">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setCyberOpen(true)}
+          className="rounded-none border-nc-cyan/40 text-nc-cyan hover:bg-nc-cyan/10 font-display tracking-widest text-xs"
+          data-testid="button-cyberware-history"
+        >
+          CYBERWARE HISTORY
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setFinanceOpen(true)}
+          className="rounded-none border-nc-yellow/40 text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-xs"
+          data-testid="button-financial-history"
+        >
+          FINANCIAL HISTORY
+        </Button>
+      </div>
+      <ActivityHistoryDialog
+        open={cyberOpen}
+        onOpenChange={setCyberOpen}
+        title="CYBERWARE HISTORY"
+        url="/api/me/cyberware-history"
+        queryKey={["cyberware-history"]}
+        accent="border-nc-cyan/60"
+      />
+      <ActivityHistoryDialog
+        open={financeOpen}
+        onOpenChange={setFinanceOpen}
+        title="FINANCIAL HISTORY"
+        url="/api/me/financial-history"
+        queryKey={["financial-history"]}
+        accent="border-nc-yellow/60"
+        showAmount
+      />
+    </div>
   );
 }
 

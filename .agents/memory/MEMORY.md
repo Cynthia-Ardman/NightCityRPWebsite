@@ -22,6 +22,7 @@
 - [Discord CDN url expiry](discord-cdn-url-expiry.md) — cdn.discordapp.com URLs are signed and 401 after ~24h; always re-host via ObjectStorageService.uploadBuffer.
 - [Character name collisions](character-name-collisions.md) — same-name chars (e.g. "Bones") can be different people; only merge when owner_id AND backstory match.
 - [api-server test harness](api-server-test-harness.md) — separate *_test DB, x-test-user auth shim runs real role mw; run per-file or redirect full suite to a file (>120s); never `--reporter=basic`.
+- [api-server dev no watcher](api-server-dev-no-watcher.md) — dev workflow is build+start, NO reload; new routes 404 until restart_workflow; curl :8080 expect 401 not 404.
 - [Cyberware band source](cyberware-band-source.md) — band is DERIVED from inventory_items CWP (sumCwpByCharacter+deriveCyberwareBand), NOT the empty characters.cyberwareLevel column; lifeStatus is all 'active' in prod.
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
 - [Audit-trail durability](audit-trail-durability.md) — recordAudit() swallows failures; endpoints that MUST be traceable write audit+changelog inline in a db.transaction.

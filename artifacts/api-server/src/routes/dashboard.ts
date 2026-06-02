@@ -14,6 +14,7 @@ import {
   inventoryItems,
   botCyberwareStatus,
   botCyberwareWeeklyRuns,
+  botBalanceHistory,
   stores,
   ripperdocs,
   classifyWalletCategory,
@@ -457,6 +458,79 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
       };
     }),
   );
+});
+
+// Account-level cyberware upkeep history for the signed-in player, derived from
+// the imported bot weekly sweep runs (bot_cyberware_weekly_runs). The bot
+// tracked cyberware meds PER DISCORD USER (not per character), so this is an
+// account-wide view: for each weekly run we report whether the player paid,
+// went unpaid, or had a checkup that week. Read-only — powers the "CYBERWARE
+// HISTORY" dialog. Earliest data ~2025-06.
+router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void> => {
+  const discordId = req.user!.discordId;
+  const runs = await db
+    .select()
+    .from(botCyberwareWeeklyRuns)
+    .orderBy(desc(botCyberwareWeeklyRuns.runAt))
+    .limit(500);
+
+  const has = (arr: unknown, id: string): boolean =>
+    Array.isArray(arr) && (arr as unknown[]).some((v) => String(v) === id);
+
+  const entries = runs
+    .map((r) => {
+      const paid = has(r.paidIds, discordId);
+      const unpaid = has(r.unpaidIds, discordId);
+      const checkup = has(r.checkupIds, discordId);
+      if (!paid && !unpaid && !checkup) return null;
+      // A run can list a user in multiple buckets; surface the most
+      // informative single label (unpaid > checkup > paid).
+      const label = unpaid ? "UNPAID" : checkup ? "CHECKUP" : "PAID";
+      const at = new Date(r.runAt);
+      return { source: "bot" as const, at, date: at.toISOString().slice(0, 10), label };
+    })
+    .filter((e): e is NonNullable<typeof e> => e !== null);
+
+  res.json({
+    totalCount: entries.length,
+    portalCount: 0,
+    botCount: entries.length,
+    entries: entries.map((e) => ({ source: e.source, date: e.date, at: e.at.toISOString(), label: e.label })),
+  });
+});
+
+// Account-level financial history for the signed-in player, from the imported
+// bot transaction ledger (bot_balance_history). Every cash/bank delta the bot
+// applied, with its free-text reason (rent, cyberware meds, attendance reward,
+// actor pay, mission payout, purchases, etc.). Keyed by Discord id, so this is
+// account-wide. Read-only — powers the "FINANCIAL HISTORY" dialog. Bot ledger
+// coverage starts ~2026-05.
+router.get("/me/financial-history", requireAuth, async (req, res): Promise<void> => {
+  const discordId = req.user!.discordId;
+  const rows = await db
+    .select()
+    .from(botBalanceHistory)
+    .where(eq(botBalanceHistory.userId, discordId))
+    .orderBy(desc(botBalanceHistory.ts))
+    .limit(500);
+
+  const entries = rows.map((r) => {
+    const at = new Date(r.ts);
+    return {
+      source: "bot" as const,
+      date: at.toISOString().slice(0, 10),
+      at: at.toISOString(),
+      amount: (r.cashDelta ?? 0) + (r.bankDelta ?? 0),
+      label: r.reason ?? null,
+    };
+  });
+
+  res.json({
+    totalCount: entries.length,
+    portalCount: 0,
+    botCount: entries.length,
+    entries,
+  });
 });
 
 export default router;
