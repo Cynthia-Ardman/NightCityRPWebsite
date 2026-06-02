@@ -14,7 +14,6 @@ fields are left unchanged.
 export interface CatalogCyberwareUpdate {
   name?: string;
   slot?: string;
-  humanityLoss?: number;
   /** @nullable */
   cwp?: string | null;
   price?: number;

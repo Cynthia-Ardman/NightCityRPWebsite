@@ -9,7 +9,6 @@
 export interface CatalogCyberwareInput {
   name: string;
   slot: string;
-  humanityLoss?: number;
   /** @nullable */
   cwp?: string | null;
   price?: number;

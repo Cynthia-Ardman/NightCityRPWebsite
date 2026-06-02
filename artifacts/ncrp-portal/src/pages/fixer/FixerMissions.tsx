@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Briefcase, X } from "lucide-react";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import MarkdownEditor from "@/components/MarkdownEditor";
 import SingleImageUpload from "@/components/SingleImageUpload";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import {
@@ -44,6 +45,27 @@ function toLocalInputValue(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Given a start ISO time and a duration in minutes, return the END time as a
+// datetime-local input value. Used to seed the End picker when editing a mission
+// that was stored as start + durationMinutes.
+function endLocalInputValue(iso: string | null | undefined, durationMinutes: number): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const end = new Date(d.getTime() + (durationMinutes || 0) * 60000);
+  return toLocalInputValue(end.toISOString());
+}
+
+// Derive durationMinutes from local start/end input values. Falls back to the
+// default 120 when either side is missing or end is not after start.
+function durationFromRange(startLocal: string, endLocal: string): number {
+  if (!startLocal || !endLocal) return 120;
+  const s = new Date(startLocal).getTime();
+  const e = new Date(endLocal).getTime();
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return 120;
+  return Math.round((e - s) / 60000);
 }
 
 export default function FixerMissions() {
@@ -126,7 +148,7 @@ export default function FixerMissions() {
                       <td className="p-0">
                         <Link href={href} className="block p-2 text-right">
                           {m.assignedCount}
-                          {m.slots > 0 ? ` / ${m.slots}` : ""}
+                          {m.maxPlayers > 0 ? ` / ${m.maxPlayers}` : ""}
                         </Link>
                       </td>
                       <td className="p-0">
@@ -161,8 +183,7 @@ type FormValues = {
   description: string;
   imageUrl: string;
   startAt: string;
-  durationMinutes: number;
-  slots: number;
+  endAt: string;
   status: MissionCreateInputStatus;
   worldLink: string;
   jobType: MissionCreateInputJobType | "";
@@ -181,8 +202,7 @@ const EMPTY: FormValues = {
   description: "",
   imageUrl: "",
   startAt: "",
-  durationMinutes: 120,
-  slots: 0,
+  endAt: "",
   status: "open",
   worldLink: "",
   jobType: "",
@@ -192,6 +212,8 @@ const EMPTY: FormValues = {
   maxPlayers: 0,
   assignments: [],
 };
+
+const MISSION_DRAFT_KEY = "ncrp:mission-create-draft";
 
 const JOB_TYPE_OPTIONS: { value: MissionCreateInputJobType; label: string }[] = [
   { value: "combat", label: "Combat" },
@@ -211,8 +233,7 @@ function EditMissionForm({ missionId, onSaved }: { missionId: number; onSaved: (
     description: data.description ?? "",
     imageUrl: data.imageUrl ?? "",
     startAt: toLocalInputValue(data.startAt),
-    durationMinutes: data.durationMinutes,
-    slots: data.slots,
+    endAt: endLocalInputValue(data.startAt, data.durationMinutes),
     status: data.status,
     worldLink: data.worldLink ?? "",
     jobType: data.jobType ?? "",
@@ -248,11 +269,52 @@ function MissionForm({
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
-  const [v, setV] = useState<FormValues>(initial ?? EMPTY);
+  // Only the CREATE form autosaves to localStorage; edits are server-backed.
+  const isCreate = missionId == null;
+  const [v, setV] = useState<FormValues>(() => {
+    if (initial) return initial;
+    if (missionId == null) {
+      try {
+        const raw = localStorage.getItem(MISSION_DRAFT_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<FormValues>;
+          // Defend against stale/malformed drafts: only merge known fields and
+          // force `assignments` to a valid array so a corrupt value can't poison
+          // the form (and crash rendering).
+          return {
+            ...EMPTY,
+            ...parsed,
+            assignments: Array.isArray(parsed.assignments) ? parsed.assignments : [],
+          };
+        }
+      } catch {
+        /* ignore malformed draft */
+      }
+    }
+    return EMPTY;
+  });
   useEffect(() => {
     if (initial) setV(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [missionId]);
+
+  // Persist the in-progress create form so a refresh/navigation doesn't lose work.
+  useEffect(() => {
+    if (!isCreate) return;
+    try {
+      localStorage.setItem(MISSION_DRAFT_KEY, JSON.stringify(v));
+    } catch {
+      /* storage full / unavailable — non-fatal */
+    }
+  }, [v, isCreate]);
+
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(MISSION_DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const create = useCreateMission({ mutation: { onSuccess: onSaved } });
   const update = useUpdateMission({ mutation: { onSuccess: onSaved } });
@@ -264,9 +326,10 @@ function MissionForm({
   // Fail-safe Discord scheduling-conflict warning (never blocks). Only queries
   // once a start time is set; surfaces overlapping events for staff awareness.
   const startIso = v.startAt ? new Date(v.startAt).toISOString() : "";
+  const computedDuration = durationFromRange(v.startAt, v.endAt);
   const conflictParams = {
     startAt: startIso,
-    durationMinutes: v.durationMinutes || undefined,
+    durationMinutes: computedDuration || undefined,
     // When editing an already-posted mission, ignore its own Discord event so
     // a reschedule doesn't warn against itself.
     ...(excludeEventId ? { excludeEventId } : {}),
@@ -309,8 +372,7 @@ function MissionForm({
       description: v.description || undefined,
       imageUrl: v.imageUrl || undefined,
       startAt: v.startAt ? new Date(v.startAt).toISOString() : undefined,
-      durationMinutes: v.durationMinutes,
-      slots: v.slots,
+      durationMinutes: computedDuration,
       status: v.status,
       worldLink: v.worldLink || undefined,
       jobType: v.jobType || undefined,
@@ -327,7 +389,15 @@ function MissionForm({
         { onSuccess: () => qc.invalidateQueries() },
       );
     } else {
-      create.mutate({ data: payload }, { onSuccess: () => setV(EMPTY) });
+      create.mutate(
+        { data: payload },
+        {
+          onSuccess: () => {
+            clearDraft();
+            setV(EMPTY);
+          },
+        },
+      );
     }
   };
 
@@ -387,7 +457,7 @@ function MissionForm({
           </div>
 
           <div className="md:col-span-4">
-            <Label className="text-xs">START (local)</Label>
+            <Label className="text-xs">START (date &amp; time, local)</Label>
             <Input
               type="datetime-local"
               value={v.startAt}
@@ -395,6 +465,22 @@ function MissionForm({
               className="rounded-none"
               data-testid="input-mission-start"
             />
+          </div>
+          <div className="md:col-span-4">
+            <Label className="text-xs">END (date &amp; time, local)</Label>
+            <Input
+              type="datetime-local"
+              value={v.endAt}
+              min={v.startAt || undefined}
+              onChange={(e) => set("endAt", e.target.value)}
+              className="rounded-none"
+              data-testid="input-mission-end"
+            />
+            {v.startAt && v.endAt && new Date(v.endAt) <= new Date(v.startAt) && (
+              <p className="text-destructive text-[10px] mt-1" data-testid="text-end-before-start">
+                End must be after start.
+              </p>
+            )}
           </div>
           {conflict && conflict.conflicts.length > 0 && (
             <div
@@ -415,18 +501,7 @@ function MissionForm({
               Couldn't check Discord for scheduling conflicts ({conflict.error}). Proceeding anyway.
             </div>
           )}
-          <div className="md:col-span-2">
-            <Label className="text-xs">DURATION (min)</Label>
-            <Input
-              type="number"
-              min={1}
-              value={v.durationMinutes || ""}
-              onChange={(e) => set("durationMinutes", Number(e.target.value))}
-              className="rounded-none"
-              data-testid="input-mission-duration"
-            />
-          </div>
-          <div className="md:col-span-3">
+          <div className="md:col-span-4">
             <Label className="text-xs">PLAYER PAY €$</Label>
             <Input
               type="number"
@@ -435,17 +510,6 @@ function MissionForm({
               onChange={(e) => set("playerPay", Number(e.target.value))}
               className="rounded-none"
               data-testid="input-mission-playerpay"
-            />
-          </div>
-          <div className="md:col-span-3">
-            <Label className="text-xs">SLOTS (0 = open)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={v.slots || ""}
-              onChange={(e) => set("slots", Number(e.target.value))}
-              className="rounded-none"
-              data-testid="input-mission-slots"
             />
           </div>
 
@@ -491,8 +555,8 @@ function MissionForm({
             <Input
               type="number"
               min={0}
-              value={v.maxPlayers || ""}
-              onChange={(e) => set("maxPlayers", Number(e.target.value))}
+              value={Number.isFinite(v.maxPlayers) ? String(v.maxPlayers) : ""}
+              onChange={(e) => set("maxPlayers", e.target.value === "" ? 0 : Number(e.target.value))}
               className="rounded-none"
               data-testid="input-mission-maxplayers"
             />
@@ -532,12 +596,11 @@ function MissionForm({
 
           <div className="md:col-span-12">
             <Label className="text-xs">DESCRIPTION</Label>
-            <Textarea
+            <MarkdownEditor
               value={v.description}
-              onChange={(e) => set("description", e.target.value)}
+              onChange={(val) => set("description", val)}
               rows={3}
-              className="rounded-none"
-              data-testid="input-mission-description"
+              testId="input-mission-description"
             />
           </div>
 

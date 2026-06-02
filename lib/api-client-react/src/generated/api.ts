@@ -47,6 +47,8 @@ import type {
   CatalogCyberwareInput,
   CatalogCyberwareUpdate,
   CatalogCyberwareUpdateResult,
+  CatalogDistrict,
+  CatalogDistrictInput,
   CatalogGun,
   CatalogGunInput,
   CatalogGunUpdate,
@@ -3100,6 +3102,154 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getCreateRentListingMutationOptions(options));
+    }
+
+export const getListDistrictsUrl = () => {
+
+
+
+
+  return `/api/catalog/districts`
+}
+
+/**
+ * @summary Fixer-managed district list for the property creator dropdown.
+ */
+export const listDistricts = async ( options?: RequestInit): Promise<CatalogDistrict[]> => {
+
+  return customFetch<CatalogDistrict[]>(getListDistrictsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDistrictsQueryKey = () => {
+    return [
+    `/api/catalog/districts`
+    ] as const;
+    }
+
+
+export const getListDistrictsQueryOptions = <TData = Awaited<ReturnType<typeof listDistricts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDistricts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDistrictsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDistricts>>> = ({ signal }) => listDistricts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDistricts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDistrictsQueryResult = NonNullable<Awaited<ReturnType<typeof listDistricts>>>
+export type ListDistrictsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Fixer-managed district list for the property creator dropdown.
+ */
+
+export function useListDistricts<TData = Awaited<ReturnType<typeof listDistricts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDistricts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDistrictsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateDistrictUrl = () => {
+
+
+
+
+  return `/api/catalog/districts`
+}
+
+/**
+ * @summary Add a district to the managed list (FIXER/ADMIN). Idempotent by name.
+ */
+export const createDistrict = async (catalogDistrictInput: CatalogDistrictInput, options?: RequestInit): Promise<CatalogDistrict> => {
+
+  return customFetch<CatalogDistrict>(getCreateDistrictUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogDistrictInput,)
+  }
+);}
+
+
+
+
+export const getCreateDistrictMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDistrict>>, TError,{data: BodyType<CatalogDistrictInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDistrict>>, TError,{data: BodyType<CatalogDistrictInput>}, TContext> => {
+
+const mutationKey = ['createDistrict'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDistrict>>, {data: BodyType<CatalogDistrictInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDistrict(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDistrictMutationResult = NonNullable<Awaited<ReturnType<typeof createDistrict>>>
+    export type CreateDistrictMutationBody = BodyType<CatalogDistrictInput>
+    export type CreateDistrictMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a district to the managed list (FIXER/ADMIN). Idempotent by name.
+ */
+export const useCreateDistrict = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDistrict>>, TError,{data: BodyType<CatalogDistrictInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDistrict>>,
+        TError,
+        {data: BodyType<CatalogDistrictInput>},
+        TContext
+      > => {
+      return useMutation(getCreateDistrictMutationOptions(options));
     }
 
 export const getUpdateRentListingUrl = (id: number,) => {
@@ -15428,6 +15578,78 @@ export const useDecideEmployeeInvite = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDecideEmployeeInviteMutationOptions(options));
+    }
+
+export const getDecideMissionParticipationUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/participation-decision`
+}
+
+/**
+ * @summary The assigned character's player (or an admin) approves or declines a fixer's mission assignment. Declining removes the player from the mission roster.
+ */
+export const decideMissionParticipation = async (id: number,
+    employeeDecisionInput: EmployeeDecisionInput, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getDecideMissionParticipationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      employeeDecisionInput,)
+  }
+);}
+
+
+
+
+export const getDecideMissionParticipationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideMissionParticipation>>, TError,{id: number;data: BodyType<EmployeeDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideMissionParticipation>>, TError,{id: number;data: BodyType<EmployeeDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideMissionParticipation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideMissionParticipation>>, {id: number;data: BodyType<EmployeeDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  decideMissionParticipation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideMissionParticipationMutationResult = NonNullable<Awaited<ReturnType<typeof decideMissionParticipation>>>
+    export type DecideMissionParticipationMutationBody = BodyType<EmployeeDecisionInput>
+    export type DecideMissionParticipationMutationError = ErrorType<void>
+
+    /**
+ * @summary The assigned character's player (or an admin) approves or declines a fixer's mission assignment. Declining removes the player from the mission roster.
+ */
+export const useDecideMissionParticipation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideMissionParticipation>>, TError,{id: number;data: BodyType<EmployeeDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideMissionParticipation>>,
+        TError,
+        {id: number;data: BodyType<EmployeeDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideMissionParticipationMutationOptions(options));
     }
 
 export const getListLoreUrl = (params?: ListLoreParams,) => {

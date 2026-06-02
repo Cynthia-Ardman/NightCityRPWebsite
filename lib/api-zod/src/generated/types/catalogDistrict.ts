@@ -6,10 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CharacterSheetCyberwareEntry {
-  slot: string;
+export interface CatalogDistrict {
+  id: number;
   name: string;
-  points: number;
-  /** @nullable */
-  notes?: string | null;
 }

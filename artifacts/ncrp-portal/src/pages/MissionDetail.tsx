@@ -56,6 +56,7 @@ import {
   jobTypeLabel,
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
+import Markdown from "@/components/Markdown";
 
 function errOf(e: unknown): string | null {
   const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
@@ -165,8 +166,17 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
         </div>
       </div>
 
-      {(data.canComplete || data.canUncomplete || data.completedAt) && (
+      {(data.canComplete || data.canUncomplete || data.completedAt || data.canManage) && (
         <div className="flex flex-wrap items-center gap-3 border border-border bg-card/40 p-3">
+          {data.canManage && (
+            <Link
+              href={`/fixer/missions?edit=${data.id}`}
+              className="rounded-none border border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display tracking-widest inline-flex items-center gap-1 px-4 py-2 text-sm"
+              data-testid="button-edit-mission"
+            >
+              <Pencil className="w-4 h-4" /> EDIT MISSION
+            </Link>
+          )}
           {data.completedAt && (
             <span
               className="font-mono text-xs text-muted-foreground inline-flex items-center gap-1"
@@ -181,7 +191,15 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
             <Button
               type="button"
               disabled={completionBusy}
-              onClick={() => complete.mutate({ id: data.id })}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Mark this mission as completed? This locks actor payments. You can reopen it later if needed.",
+                  )
+                ) {
+                  complete.mutate({ id: data.id });
+                }
+              }}
               className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
               data-testid="button-complete-mission"
             >
@@ -311,7 +329,7 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
             <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">Brief</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="font-mono text-sm whitespace-pre-wrap text-foreground">{data.description}</p>
+            <Markdown className="font-mono text-sm text-foreground">{data.description}</Markdown>
           </CardContent>
         </Card>
       )}
@@ -796,28 +814,6 @@ function FixerView({ data }: { data: MissionDetailModel }) {
       <WorkflowPanel data={data} />
 
       <ApplicationsPanel data={data} />
-
-      <Card className="rounded-none border-border bg-card/50">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
-            Mission Tools
-          </CardTitle>
-          <Link
-            href={`/fixer/missions?edit=${data.id}`}
-            className="text-nc-cyan font-mono text-xs hover:underline inline-flex items-center gap-1"
-            data-testid="link-edit-mission"
-          >
-            <Pencil className="w-3 h-3" /> edit
-          </Link>
-        </CardHeader>
-        <CardContent className="font-mono text-sm">
-          <p className="text-muted-foreground text-xs" data-testid="text-players-autopay-note">
-            Players are paid automatically — €${data.playerPay.toLocaleString()} to each attending player,
-            with attendance credited, by the payout cron. See the <span className="text-foreground">Players</span> tab
-            for per-player paid / unpaid / failed status.
-          </p>
-        </CardContent>
-      </Card>
     </>
   );
 }

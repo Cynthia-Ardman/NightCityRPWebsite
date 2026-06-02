@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCreateRentListing, getListRentListingsQueryKey } from "@workspace/api-client-react";
+import {
+  useCreateRentListing,
+  useListDistricts,
+  useCreateDistrict,
+  getListRentListingsQueryKey,
+  getListDistrictsQueryKey,
+} from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +14,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,10 +31,24 @@ import SingleImageField from "./SingleImageField";
 const KINDS = ["residential", "business"] as const;
 type Kind = (typeof KINDS)[number];
 
+const CUSTOM_DISTRICT = "__custom__";
+const CUSTOM_TIER = "Custom";
+
+// Tier → monthly rent, keyed by property kind. Custom is manual-entry only.
+const TIER_RENTS: Record<Kind, Record<string, number>> = {
+  residential: { T1: 1500, T2: 2000, T3: 3000 },
+  business: { T0: 0, T1: 2000, T2: 3000, T3: 5000 },
+};
+
+function tierOptions(kind: Kind): string[] {
+  return [...Object.keys(TIER_RENTS[kind]), CUSTOM_TIER];
+}
+
 type RentCreateForm = {
   name: string;
   kind: Kind;
   district: string;
+  districtIsCustom: boolean;
   tier: string;
   monthlyRent: string;
   description: string;
@@ -33,6 +60,7 @@ function emptyForm(): RentCreateForm {
     name: "",
     kind: "residential",
     district: "",
+    districtIsCustom: false,
     tier: "",
     monthlyRent: "0",
     description: "",
@@ -73,6 +101,10 @@ export default function RentCreateDialog({
   const qc = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState(emptyForm);
+  const { data: districts } = useListDistricts();
+
+  const isCustomTier = form.tier === CUSTOM_TIER;
+  const tiers = useMemo(() => tierOptions(form.kind), [form.kind]);
 
   useEffect(() => {
     if (open) setForm(emptyForm());
@@ -80,6 +112,38 @@ export default function RentCreateDialog({
 
   const set = <K extends keyof RentCreateForm>(key: K, value: RentCreateForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  // Switching kind resets the tier (T-numbers differ) and the derived rent.
+  const onKindChange = (k: Kind) =>
+    setForm((f) => ({ ...f, kind: k, tier: "", monthlyRent: "0" }));
+
+  // Picking a non-custom tier auto-fills the rent (read-only); Custom unlocks it.
+  const onTierChange = (tier: string) =>
+    setForm((f) => {
+      if (tier === CUSTOM_TIER) return { ...f, tier };
+      const rent = TIER_RENTS[f.kind][tier];
+      return { ...f, tier, monthlyRent: rent == null ? f.monthlyRent : String(rent) };
+    });
+
+  const onDistrictSelect = (value: string) => {
+    if (value === CUSTOM_DISTRICT) {
+      setForm((f) => ({ ...f, districtIsCustom: true, district: "" }));
+    } else {
+      setForm((f) => ({ ...f, districtIsCustom: false, district: value }));
+    }
+  };
+
+  const addDistrict = useCreateDistrict({
+    mutation: {
+      onSuccess: (res) => {
+        void qc.invalidateQueries({ queryKey: getListDistrictsQueryKey() });
+        setForm((f) => ({ ...f, districtIsCustom: false, district: res.name }));
+        toast({ title: "District added", description: `${res.name} is now in the list.` });
+      },
+      onError: () =>
+        toast({ title: "Could not add district", variant: "destructive" }),
+    },
+  });
 
   const create = useCreateRentListing({
     mutation: {
@@ -137,7 +201,7 @@ export default function RentCreateDialog({
                 <button
                   key={k}
                   type="button"
-                  onClick={() => set("kind", k)}
+                  onClick={() => onKindChange(k)}
                   className={`px-3 py-2 border font-display text-xs uppercase tracking-widest ${
                     form.kind === k
                       ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
@@ -161,20 +225,58 @@ export default function RentCreateDialog({
               />
             </Field>
             <Field label="District">
-              <Input
-                value={form.district}
-                onChange={(e) => set("district", e.target.value)}
-                className="rounded-none"
-                data-testid="input-rent-district"
-              />
+              <Select
+                value={form.districtIsCustom ? CUSTOM_DISTRICT : form.district || undefined}
+                onValueChange={onDistrictSelect}
+              >
+                <SelectTrigger className="rounded-none" data-testid="select-rent-district">
+                  <SelectValue placeholder="Select district" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(districts ?? []).map((d) => (
+                    <SelectItem key={d.id} value={d.name}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={CUSTOM_DISTRICT}>Custom / off-map…</SelectItem>
+                </SelectContent>
+              </Select>
+              {form.districtIsCustom && (
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    value={form.district}
+                    onChange={(e) => set("district", e.target.value)}
+                    placeholder="District name"
+                    className="rounded-none"
+                    data-testid="input-rent-district-custom"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-none whitespace-nowrap"
+                    disabled={!form.district.trim() || addDistrict.isPending}
+                    onClick={() => addDistrict.mutate({ data: { name: form.district.trim() } })}
+                    data-testid="button-rent-district-add"
+                    title="Save this district to the managed list"
+                  >
+                    + Add to list
+                  </Button>
+                </div>
+              )}
             </Field>
             <Field label="Tier">
-              <Input
-                value={form.tier}
-                onChange={(e) => set("tier", e.target.value)}
-                className="rounded-none"
-                data-testid="input-rent-tier"
-              />
+              <Select value={form.tier || undefined} onValueChange={onTierChange}>
+                <SelectTrigger className="rounded-none" data-testid="select-rent-tier">
+                  <SelectValue placeholder="Select tier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiers.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
             <Field label="Rent / month (€$)">
               <Input
@@ -182,8 +284,14 @@ export default function RentCreateDialog({
                 value={form.monthlyRent}
                 onChange={(e) => set("monthlyRent", e.target.value)}
                 className="rounded-none"
+                readOnly={!!form.tier && !isCustomTier}
                 data-testid="input-rent-monthlyRent"
               />
+              {!!form.tier && !isCustomTier && (
+                <p className="text-[10px] font-mono text-muted-foreground mt-1">
+                  Auto-set by tier. Choose “Custom” to enter a manual rent.
+                </p>
+              )}
             </Field>
           </div>
 

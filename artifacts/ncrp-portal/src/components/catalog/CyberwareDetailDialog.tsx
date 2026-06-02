@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUpdateCyberware, useDeleteCyberware, getListCyberwareQueryKey } from "@workspace/api-client-react";
+import {
+  useUpdateCyberware,
+  useDeleteCyberware,
+  useListCyberware,
+  getListCyberwareQueryKey,
+} from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -8,17 +13,25 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
+const CUSTOM_SLOT = "__custom__";
+
 export type Cyber = {
   id: number;
   name: string;
   slot: string;
-  humanityLoss: number;
   price: number;
   installCost?: number | null;
   description?: string | null;
@@ -29,7 +42,7 @@ export type Cyber = {
 type CyberForm = {
   name: string;
   slot: string;
-  humanityLoss: string;
+  slotIsCustom: boolean;
   cwp: string;
   price: string;
   wholesalePrice: string;
@@ -41,7 +54,7 @@ function formFromCyber(c: Cyber): CyberForm {
   return {
     name: c.name,
     slot: c.slot,
-    humanityLoss: String(c.humanityLoss ?? 0),
+    slotIsCustom: false,
     cwp: c.cwp ?? "",
     price: String(c.price ?? 0),
     wholesalePrice: c.wholesalePrice == null ? "" : String(c.wholesalePrice),
@@ -58,9 +71,6 @@ function formToPatch(form: CyberForm, cur: Cyber): Record<string, unknown> {
   if (name !== cur.name) patch.name = name;
   const slot = form.slot.trim();
   if (slot !== cur.slot) patch.slot = slot;
-
-  const hl = Math.max(0, Math.trunc(Number(form.humanityLoss) || 0));
-  if (hl !== (cur.humanityLoss ?? 0)) patch.humanityLoss = hl;
 
   const price = Math.max(0, Math.trunc(Number(form.price) || 0));
   if (price !== (cur.price ?? 0)) patch.price = price;
@@ -105,6 +115,19 @@ export default function CyberwareDetailDialog({
   const [editing, setEditing] = useState(false);
   const [current, setCurrent] = useState<Cyber | null>(cyber);
   const [form, setForm] = useState<CyberForm | null>(() => (cyber ? formFromCyber(cyber) : null));
+  const { data: catalog } = useListCyberware();
+
+  // Distinct existing slot names drive the dropdown; current item's own slot is
+  // always present since it came from the catalog. "Custom…" reveals a text input.
+  const slotOptions = useMemo(() => {
+    const set = new Set<string>();
+    (catalog ?? []).forEach((c) => {
+      const s = (c.slot ?? "").trim();
+      if (s) set.add(s);
+    });
+    if (current?.slot) set.add(current.slot);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [catalog, current?.slot]);
 
   useEffect(() => {
     setEditing(false);
@@ -177,6 +200,15 @@ export default function CyberwareDetailDialog({
   const set = (k: keyof CyberForm, v: string) =>
     setForm((prev) => (prev ? { ...prev, [k]: v } : prev));
 
+  const onSlotSelect = (value: string) =>
+    setForm((prev) =>
+      prev
+        ? value === CUSTOM_SLOT
+          ? { ...prev, slotIsCustom: true, slot: "" }
+          : { ...prev, slotIsCustom: false, slot: value }
+        : prev,
+    );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-none border-nc-cyan/40 bg-card max-w-xl max-h-[90vh] overflow-y-auto">
@@ -204,12 +236,31 @@ export default function CyberwareDetailDialog({
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Slot</Label>
-              <Input
-                className="rounded-none font-mono"
-                value={form.slot}
-                onChange={(e) => set("slot", e.target.value)}
-                data-testid="input-cyberware-slot"
-              />
+              <Select
+                value={form.slotIsCustom ? CUSTOM_SLOT : form.slot || undefined}
+                onValueChange={onSlotSelect}
+              >
+                <SelectTrigger className="rounded-none font-mono" data-testid="select-cyberware-slot">
+                  <SelectValue placeholder="Select slot" />
+                </SelectTrigger>
+                <SelectContent>
+                  {slotOptions.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={CUSTOM_SLOT}>Custom…</SelectItem>
+                </SelectContent>
+              </Select>
+              {form.slotIsCustom && (
+                <Input
+                  className="rounded-none font-mono mt-2"
+                  value={form.slot}
+                  onChange={(e) => set("slot", e.target.value)}
+                  placeholder="New slot name"
+                  data-testid="input-cyberware-slot-custom"
+                />
+              )}
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">CWP</Label>

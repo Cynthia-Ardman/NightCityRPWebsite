@@ -38,11 +38,10 @@ describe("POST /catalog/cyberware (staff create)", () => {
     const res = await request(app)
       .post("/api/catalog/cyberware")
       .set("x-test-user", fixer.id)
-      .send({ name: "Sandevistan", slot: "operating system", humanityLoss: 4, price: 45000 });
+      .send({ name: "Sandevistan", slot: "operating system", price: 45000 });
     expect(res.status).toBe(201);
     expect(res.body.name).toBe("Sandevistan");
     expect(res.body.slot).toBe("operating system");
-    expect(res.body.humanityLoss).toBe(4);
     expect(res.body.price).toBe(45000);
 
     const [row] = await db
@@ -66,7 +65,7 @@ describe("PATCH /catalog/cyberware/:id (staff edit)", () => {
   async function seedCyber() {
     const [c] = await db
       .insert(catalogCyberware)
-      .values({ name: "Before Chrome", slot: "arms", humanityLoss: 2, price: 1000 })
+      .values({ name: "Before Chrome", slot: "arms", price: 1000 })
       .returning();
     return c;
   }

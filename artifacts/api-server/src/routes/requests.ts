@@ -16,6 +16,7 @@ import {
   walletTransactions,
   characterUpdates,
   activityEvents,
+  missionAssignments,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage } from "../lib/discord";
@@ -68,6 +69,8 @@ function typeLabelFor(type: string): string {
       return "custom stock";
     case "stock_cost":
       return "stock cost";
+    case "mission_participation":
+      return "mission participation";
     default:
       return "request";
   }
@@ -79,6 +82,7 @@ function typeLabelFor(type: string): string {
 function ownerDecidedError(type: string): { status: number; body: { error: string } } | null {
   if (type === "stock_cost") return { status: 400, body: { error: "Stock-cost requests are decided by the venue owner" } };
   if (type === "employee_invite") return { status: 400, body: { error: "Employment invitations are decided by the invited player" } };
+  if (type === "mission_participation") return { status: 400, body: { error: "Participation requests are decided by the assigned character's player" } };
   return null;
 }
 
@@ -618,6 +622,7 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
       statusPredicate,
       ne(customRequests.type, "stock_cost"),
       ne(customRequests.type, "employee_invite"),
+      ne(customRequests.type, "mission_participation"),
     ),
   );
   res.json(await attachTallies(rows, req.user!.id));
@@ -1336,6 +1341,146 @@ router.post("/requests/:id/employee-decision", requireAuth, async (req, res): Pr
         ? `${charName} accepted employment at ${venueName}`
         : `${charName} declined employment at ${venueName}`,
     after: { kind: det.kind, venueId: det.venueId, employeeId: txResult.ok.employeeId },
+  });
+  const [row] = await selectWhere(eq(customRequests.id, rid));
+  res.json(shape(row));
+});
+
+// The assigned character's player (or an admin) approves or declines a fixer's
+// mission assignment. Approving leaves the mission_assignment row in place;
+// declining removes the (unpaid) assignment so the player is no longer on the
+// roster. Gated to the requestedById (the owning player) or admin. FOR UPDATE +
+// pending guard keep concurrent approve/decline crash-safe.
+router.post("/requests/:id/participation-decision", requireAuth, async (req, res): Promise<void> => {
+  const rid = parseInt(String(req.params.id), 10);
+  const decision = String(req.body?.decision ?? "");
+  if (decision !== "accept" && decision !== "deny") {
+    res.status(400).json({ error: 'decision must be "accept" or "deny"' });
+    return;
+  }
+
+  type ParticipationDetails = {
+    missionId: number;
+    missionTitle?: string;
+    characterId?: number;
+    characterName?: string;
+    invitedById?: string;
+    invitedByName?: string;
+  };
+
+  const txResult = await db.transaction(async (tx) => {
+    const [reqRow] = await tx
+      .select()
+      .from(customRequests)
+      .where(eq(customRequests.id, rid))
+      .for("update");
+    if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
+    if (reqRow.type !== "mission_participation") {
+      return { error: { status: 400, body: { error: "Not a mission-participation request" } } };
+    }
+    // Authorize against the character's CURRENT owner (not the snapshotted
+    // requestedById), so a post-creation ownership transfer can't let a stale
+    // owner decide. Admins may always decide.
+    const [charOwner] = await tx
+      .select({ ownerId: characters.ownerId })
+      .from(characters)
+      .where(eq(characters.id, reqRow.characterId));
+    if (charOwner?.ownerId !== req.user!.id && !isAdmin(req.user!)) {
+      return { error: { status: 403, body: { error: "Only the assigned character's player can decide this request" } } };
+    }
+    if (reqRow.status !== "pending") {
+      return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
+    }
+    const det = (reqRow.details ?? {}) as ParticipationDetails;
+
+    if (decision === "deny") {
+      // Drop the (unpaid) assignment so the player is removed from the roster.
+      if (Number.isFinite(Number(det.missionId))) {
+        await tx
+          .delete(missionAssignments)
+          .where(
+            and(
+              eq(missionAssignments.missionId, Number(det.missionId)),
+              eq(missionAssignments.characterId, reqRow.characterId),
+              eq(missionAssignments.paymentStatus, "unpaid"),
+            ),
+          );
+      }
+      await tx
+        .update(customRequests)
+        .set({ status: "rejected", reviewedById: req.user!.id, reviewedAt: new Date() })
+        .where(eq(customRequests.id, rid));
+      return { ok: { reqRow, det, decision } };
+    }
+
+    await tx
+      .update(customRequests)
+      .set({
+        status: "approved",
+        reviewedById: req.user!.id,
+        reviewedAt: new Date(),
+        appliedRef: `mission:${det.missionId}`,
+      })
+      .where(eq(customRequests.id, rid));
+    return { ok: { reqRow, det, decision } };
+  });
+
+  if (!("ok" in txResult) || !txResult.ok) {
+    const err = (txResult as { error: { status: number; body: { error: string } } }).error;
+    res.status(err.status).json(err.body);
+    return;
+  }
+  const { reqRow, det, decision: dec } = txResult.ok;
+  const missionTitle = det.missionTitle ?? "a mission";
+  const [charRow] = await db
+    .select({ name: characters.name })
+    .from(characters)
+    .where(eq(characters.id, reqRow.characterId));
+  const charName = charRow?.name ?? det.characterName ?? "A character";
+  // Activity feed + DM the assigning fixer, best-effort (decision committed).
+  try {
+    await db.insert(activityEvents).values({
+      kind: dec === "accept" ? "request_approved" : "request_rejected",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorAvatarUrl: req.user!.avatarUrl,
+      message:
+        dec === "accept"
+          ? `${charName} accepted the assignment to "${missionTitle}"`
+          : `${charName} declined the assignment to "${missionTitle}"`,
+    });
+  } catch (err) {
+    logger.warn({ err, requestId: rid }, "participation-decision activity-feed write failed");
+  }
+  if (det.invitedById) {
+    try {
+      const [fixer] = await db
+        .select({ discordId: users.discordId })
+        .from(users)
+        .where(eq(users.id, det.invitedById));
+      if (fixer?.discordId) {
+        await sendDirectMessage(
+          fixer.discordId,
+          dec === "accept"
+            ? `${charName} accepted the assignment to "${missionTitle}".`
+            : `${charName} declined the assignment to "${missionTitle}".`,
+        );
+      }
+    } catch (err) {
+      logger.warn({ err, requestId: rid }, "participation-decision fixer DM failed");
+    }
+  }
+  await recordAudit({
+    req,
+    category: "mission",
+    action: dec === "accept" ? "mission_participation_accept" : "mission_participation_deny",
+    targetType: "custom_request",
+    targetId: rid,
+    message:
+      dec === "accept"
+        ? `${charName} accepted participation in "${missionTitle}"`
+        : `${charName} declined participation in "${missionTitle}"`,
+    after: { missionId: det.missionId, characterId: reqRow.characterId },
   });
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));

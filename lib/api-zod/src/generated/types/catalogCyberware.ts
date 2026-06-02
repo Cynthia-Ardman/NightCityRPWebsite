@@ -10,7 +10,6 @@ export interface CatalogCyberware {
   id: number;
   name: string;
   slot: string;
-  humanityLoss: number;
   price: number;
   /** @nullable */
   installCost?: number | null;

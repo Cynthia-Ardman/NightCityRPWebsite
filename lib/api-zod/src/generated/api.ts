@@ -738,7 +738,6 @@ export const ListCyberwareResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "slot": zod.string(),
-  "humanityLoss": zod.number(),
   "price": zod.number(),
   "installCost": zod.number().nullish(),
   "description": zod.string().nullish(),
@@ -753,13 +752,11 @@ export const ListCyberwareResponse = zod.array(ListCyberwareResponseItem)
 creation is audit-logged.
 
  */
-export const createCyberwareBodyHumanityLossDefault = 0;
 export const createCyberwareBodyPriceDefault = 0;
 
 export const CreateCyberwareBody = zod.object({
   "name": zod.string(),
   "slot": zod.string(),
-  "humanityLoss": zod.number().default(createCyberwareBodyHumanityLossDefault),
   "cwp": zod.string().nullish(),
   "price": zod.number().default(createCyberwareBodyPriceDefault),
   "wholesalePrice": zod.number().nullish(),
@@ -781,7 +778,6 @@ export const UpdateCyberwareParams = zod.object({
 export const UpdateCyberwareBody = zod.object({
   "name": zod.string().optional(),
   "slot": zod.string().optional(),
-  "humanityLoss": zod.number().optional(),
   "cwp": zod.string().nullish(),
   "price": zod.number().optional(),
   "wholesalePrice": zod.number().nullish(),
@@ -793,7 +789,6 @@ export const UpdateCyberwareResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "slot": zod.string(),
-  "humanityLoss": zod.number(),
   "price": zod.number(),
   "installCost": zod.number().nullish(),
   "description": zod.string().nullish(),
@@ -855,6 +850,33 @@ export const CreateRentListingBody = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "kind": zod.enum(['residential', 'business']).default(createRentListingBodyKindDefault).describe('residential (player self-lease) or business (request-only).')
+})
+
+
+/**
+ * @summary Fixer-managed district list for the property creator dropdown.
+ */
+export const ListDistrictsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+})
+export const ListDistrictsResponse = zod.array(ListDistrictsResponseItem)
+
+
+/**
+ * @summary Add a district to the managed list (FIXER/ADMIN). Idempotent by name.
+ */
+export const createDistrictBodyNameMax = 64;
+
+
+
+export const CreateDistrictBody = zod.object({
+  "name": zod.string().min(1).max(createDistrictBodyNameMax)
+})
+
+export const CreateDistrictResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string()
 })
 
 
@@ -4864,21 +4886,18 @@ export const ListMySheetsResponseItem = zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(listMySheetsResponseDataCyberwarePointsSpentMax).optional(),
@@ -4941,21 +4960,18 @@ export const SubmitSheetBody = zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(submitSheetBodyDataCyberwarePointsSpentMax).optional(),
@@ -5034,21 +5050,18 @@ export const GetSheetResponse = zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(getSheetResponseDataCyberwarePointsSpentMax).optional(),
@@ -5116,21 +5129,18 @@ export const UpdateSheetBody = zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(updateSheetBodyDataCyberwarePointsSpentMax).optional(),
@@ -5177,21 +5187,18 @@ export const UpdateSheetResponse = zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(updateSheetResponseDataCyberwarePointsSpentMax).optional(),
@@ -5276,21 +5283,18 @@ export const SubmitDraftSheetResponse = zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(submitDraftSheetResponseDataCyberwarePointsSpentMax).optional(),
@@ -5392,21 +5396,18 @@ export const OverrideSheetResponse = zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(overrideSheetResponseDataCyberwarePointsSpentMax).optional(),
@@ -5491,21 +5492,18 @@ export const RequestChangesSheetResponse = zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
   "cyberwareBySlot": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
   "cyberwareMisc": zod.array(zod.object({
   "slot": zod.string(),
   "name": zod.string(),
   "points": zod.number(),
-  "humanityLoss": zod.number().optional(),
   "notes": zod.string().nullish()
 })).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
   "cyberwarePointsSpent": zod.number().max(requestChangesSheetResponseDataCyberwarePointsSpentMax).optional(),
@@ -6667,7 +6665,7 @@ export const ListCustomRequestsQueryParams = zod.object({
 
 export const ListCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6715,7 +6713,7 @@ export const ListMyCustomRequestsQueryParams = zod.object({
 
 export const ListMyCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6773,7 +6771,7 @@ export const VoteCustomRequestBody = zod.object({
 
 export const VoteCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6829,7 +6827,7 @@ export const OverrideCustomRequestBody = zod.object({
 
 export const OverrideCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6869,7 +6867,7 @@ export const RequestChangesCustomRequestBody = zod.object({
 
 export const RequestChangesCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6901,7 +6899,7 @@ export const ResubmitCustomRequestParams = zod.object({
 
 export const ResubmitCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6941,7 +6939,7 @@ export const UpdateCustomRequestBody = zod.object({
 
 export const UpdateCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -6978,7 +6976,7 @@ export const DecideStockCostRequestBody = zod.object({
 
 export const DecideStockCostRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -7014,7 +7012,43 @@ export const DecideEmployeeInviteBody = zod.object({
 
 export const DecideEmployeeInviteResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary The assigned character's player (or an admin) approves or declines a fixer's mission assignment. Declining removes the player from the mission roster.
+ */
+export const DecideMissionParticipationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideMissionParticipationBody = zod.object({
+  "decision": zod.enum(['accept', 'deny'])
+})
+
+export const DecideMissionParticipationResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),

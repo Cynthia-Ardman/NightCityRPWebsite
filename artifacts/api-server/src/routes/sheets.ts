@@ -420,11 +420,9 @@ async function seedInventoryFromSheet(
       const name = String(cw.name ?? "").trim() || String(cw.slot ?? "").trim();
       if (!name) continue;
       const points = Number(cw.points) || 0;
-      const humanityLoss = Number(cw.humanityLoss) || 0;
       const slot = String(cw.slot ?? "").trim();
       const userNotes = String(cw.notes ?? "").trim();
       const parts = [`CWP ${points}`];
-      if (humanityLoss > 0) parts.push(`HL ${humanityLoss}`);
       if (userNotes) parts.push(userNotes);
       // Keep "slot: <x>" LAST — CharacterDetail's slot regex captures up to the
       // next comma/semicolon/newline, and our separator is " · ", so anything

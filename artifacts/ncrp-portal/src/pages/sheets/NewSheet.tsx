@@ -26,7 +26,6 @@ interface CW {
   slot: string;
   name: string;
   points: number;
-  humanityLoss: number;
   notes: string;
   isCustom: boolean;
 }
@@ -62,7 +61,6 @@ function loadCyberware(init: Record<string, any>): CW[] {
       slot: String(c.slot ?? ""),
       name: String(c.name ?? ""),
       points: Number(c.points) || 0,
-      humanityLoss: Number(c.humanityLoss) || 0,
       notes: String(c.notes ?? ""),
       isCustom: false,
     }));
@@ -200,9 +198,9 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
   function onSlotChange(i: number, value: string) {
     if (value === CUSTOM_SLOT) {
-      updateRow(i, { isCustom: true, slot: "", name: "", points: 0, humanityLoss: 0, notes: "" });
+      updateRow(i, { isCustom: true, slot: "", name: "", points: 0, notes: "" });
     } else {
-      updateRow(i, { isCustom: false, slot: value, name: "", points: 0, humanityLoss: 0, notes: "" });
+      updateRow(i, { isCustom: false, slot: value, name: "", points: 0, notes: "" });
     }
   }
 
@@ -211,7 +209,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     updateRow(i, {
       name,
       points: item ? Number(item.cwp) || 0 : 0,
-      humanityLoss: item ? Number(item.humanityLoss) || 0 : 0,
       notes: item?.description ?? "",
     });
   }
@@ -226,7 +223,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
       slot: c.slot.trim() || "Custom",
       name: c.name,
       points: Number(c.points) || 0,
-      humanityLoss: Number(c.humanityLoss) || 0,
       notes: c.notes,
     })),
     cyberwarePointsSpent: pointsSpent,
@@ -526,7 +522,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           <CardTitle className="font-display tracking-widest">
             CYBERWARE <span className={`ml-2 ${overCap ? "text-destructive" : "text-nc-yellow"}`}>CWP: {pointsSpent}/6</span>
           </CardTitle>
-          <Button type="button" onClick={() => setChrome([...chrome, { slot: "", name: "", points: 0, humanityLoss: 0, notes: "", isCustom: false }])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-cyberware"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
+          <Button type="button" onClick={() => setChrome([...chrome, { slot: "", name: "", points: 0, notes: "", isCustom: false }])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-cyberware"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs font-mono text-muted-foreground">

@@ -2010,7 +2010,6 @@ export interface CatalogCyberware {
   id: number;
   name: string;
   slot: string;
-  humanityLoss: number;
   price: number;
   /** @nullable */
   installCost?: number | null;
@@ -2030,7 +2029,6 @@ fields are left unchanged.
 export interface CatalogCyberwareUpdate {
   name?: string;
   slot?: string;
-  humanityLoss?: number;
   /** @nullable */
   cwp?: string | null;
   price?: number;
@@ -2054,7 +2052,6 @@ export type CatalogCyberwareUpdateResult = CatalogCyberware & {
 export interface CatalogCyberwareInput {
   name: string;
   slot: string;
-  humanityLoss?: number;
   /** @nullable */
   cwp?: string | null;
   price?: number;
@@ -2064,6 +2061,19 @@ export interface CatalogCyberwareInput {
   installCost?: number | null;
   /** @nullable */
   description?: string | null;
+}
+
+export interface CatalogDistrict {
+  id: number;
+  name: string;
+}
+
+export interface CatalogDistrictInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  name: string;
 }
 
 /**
@@ -2259,6 +2269,7 @@ export const CustomRequestType = {
   stock_cost: 'stock_cost',
   employee_invite: 'employee_invite',
   venue_stock: 'venue_stock',
+  mission_participation: 'mission_participation',
 } as const;
 
 export type CustomRequestStatus = typeof CustomRequestStatus[keyof typeof CustomRequestStatus];
@@ -2705,7 +2716,6 @@ export interface CharacterSheetCyberwareEntry {
   slot: string;
   name: string;
   points: number;
-  humanityLoss?: number;
   /** @nullable */
   notes?: string | null;
 }

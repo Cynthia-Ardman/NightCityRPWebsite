@@ -69,6 +69,9 @@ const TYPE_META: Record<
   // decided by the invited player (also excluded), kept for exhaustiveness.
   stock_cost: { label: "STOCK COST", Icon: Store },
   employee_invite: { label: "EMPLOYEE INVITE", Icon: Store },
+  // Mission participation is decided by the assigned character's player
+  // (excluded from the staff queue); kept here only for exhaustiveness.
+  mission_participation: { label: "MISSION PARTICIPATION", Icon: FileText },
 };
 
 // Venue requests stash purpose/location in the details payload — surface them

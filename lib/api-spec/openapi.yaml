@@ -640,6 +640,40 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CatalogRent" }
         "400": { description: Invalid payload }
+  /catalog/districts:
+    get:
+      operationId: listDistricts
+      tags: [catalog]
+      summary: "Fixer-managed district list for the property creator dropdown."
+      responses:
+        "200":
+          description: Districts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CatalogDistrict" }
+    post:
+      operationId: createDistrict
+      tags: [catalog]
+      summary: "Add a district to the managed list (FIXER/ADMIN). Idempotent by name."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogDistrictInput" }
+      responses:
+        "200":
+          description: Already existed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogDistrict" }
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogDistrict" }
+        "400": { description: Invalid payload }
   /catalog/rent/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3372,6 +3406,29 @@ paths:
         "404": { description: Not found }
         "409": { description: Already reviewed }
 
+  /requests/{id}/participation-decision:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: decideMissionParticipation
+      tags: [requests]
+      summary: The assigned character's player (or an admin) approves or declines a fixer's mission assignment. Declining removes the player from the mission roster.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmployeeDecisionInput" }
+      responses:
+        "200":
+          description: Decided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: "Bad request or not a mission-participation request" }
+        "403": { description: "Only the assigned character's player (or an admin) may decide" }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+
   # ---------------- LORE DIRECTORY ----------------
   /directory/lore:
     get:
@@ -5113,12 +5170,11 @@ components:
 
     CatalogCyberware:
       type: object
-      required: [id, name, price, slot, humanityLoss]
+      required: [id, name, price, slot]
       properties:
         id: { type: integer }
         name: { type: string }
         slot: { type: string }
-        humanityLoss: { type: integer }
         price: { type: integer }
         installCost: { type: ["integer", "null"] }
         description: { type: ["string", "null"] }
@@ -5133,7 +5189,6 @@ components:
       properties:
         name: { type: string }
         slot: { type: string }
-        humanityLoss: { type: integer }
         cwp: { type: ["string", "null"] }
         price: { type: integer }
         wholesalePrice: { type: ["integer", "null"] }
@@ -5144,7 +5199,7 @@ components:
       description: |
         The updated cyberware plus the list of fields that actually changed in
         this edit (used for audit/UX context).
-      required: [id, name, price, slot, humanityLoss, changed]
+      required: [id, name, price, slot, changed]
       allOf:
         - $ref: "#/components/schemas/CatalogCyberware"
         - type: object
@@ -5160,12 +5215,23 @@ components:
       properties:
         name: { type: string }
         slot: { type: string }
-        humanityLoss: { type: integer, default: 0 }
         cwp: { type: ["string", "null"] }
         price: { type: integer, default: 0 }
         wholesalePrice: { type: ["integer", "null"] }
         installCost: { type: ["integer", "null"] }
         description: { type: ["string", "null"] }
+
+    CatalogDistrict:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    CatalogDistrictInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 64 }
 
     CatalogRent:
       type: object
@@ -5298,7 +5364,7 @@ components:
       required: [id, type, characterId, characterName, requestedById, title, status, createdAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc, stock_cost, employee_invite, venue_stock] }
+        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc, stock_cost, employee_invite, venue_stock, mission_participation] }
         characterId: { type: integer }
         characterName: { type: string }
         requestedById: { type: string }
@@ -5677,7 +5743,6 @@ components:
         slot: { type: string }
         name: { type: string }
         points: { type: integer }
-        humanityLoss: { type: integer }
         notes: { type: ["string", "null"] }
 
     CharacterSheetInput:

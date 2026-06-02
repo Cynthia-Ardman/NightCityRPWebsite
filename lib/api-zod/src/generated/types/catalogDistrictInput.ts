@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CharacterSheetCyberwareEntry {
-  slot: string;
+export interface CatalogDistrictInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
   name: string;
-  points: number;
-  /** @nullable */
-  notes?: string | null;
 }

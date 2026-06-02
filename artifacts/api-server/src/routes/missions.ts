@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { eq, inArray, or, ilike, asc } from "drizzle-orm";
+import { and, eq, inArray, or, ilike, asc } from "drizzle-orm";
 import {
   db,
   missions,
@@ -7,11 +7,13 @@ import {
   characters,
   users,
   botConfig,
+  customRequests,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole } from "../lib/discord";
+import { hasRole, sendDirectMessage } from "../lib/discord";
 import { getMissionContext, MISSION_CONFIG_KEYS } from "../lib/missionsConfig";
 import { recordAudit } from "../lib/audit";
+import { logger } from "../lib/logger";
 import {
   listMissionSummaries,
   listMyMissionSummaries,
@@ -140,7 +142,7 @@ async function normalizeAssignments(
 async function applyAssignments(
   missionId: number,
   desired: Array<{ userId: string; characterId: number | null }>,
-): Promise<void> {
+): Promise<Array<{ userId: string; characterId: number | null }>> {
   const existing = await db
     .select()
     .from(missionAssignments)
@@ -154,14 +156,98 @@ async function applyAssignments(
     await db.delete(missionAssignments).where(inArray(missionAssignments.id, toDelete.map((a) => a.id)));
   }
 
+  // Track assignments that gained a character this call (new row, or an
+  // existing row whose character changed) so the caller can ask the affected
+  // player to approve their participation.
+  const newlyAssigned: Array<{ userId: string; characterId: number | null }> = [];
   for (const d of desired) {
     const cur = existingByUser.get(d.userId);
     if (cur) {
       if (cur.characterId !== d.characterId) {
         await db.update(missionAssignments).set({ characterId: d.characterId }).where(eq(missionAssignments.id, cur.id));
+        if (d.characterId != null) newlyAssigned.push(d);
       }
     } else {
       await db.insert(missionAssignments).values({ missionId, userId: d.userId, characterId: d.characterId });
+      if (d.characterId != null) newlyAssigned.push(d);
+    }
+  }
+  return newlyAssigned;
+}
+
+// When a fixer assigns one of a player's characters to a mission, raise a
+// pending `mission_participation` request the owning player must approve from
+// "My Requests" (mirrors the employee-invite owner-decision flow). Skips the
+// fixer's own characters and any character that already has a pending
+// participation request for this mission. Best-effort + DM the player.
+async function createParticipationRequests(
+  mission: { id: number; title: string },
+  newlyAssigned: Array<{ userId: string; characterId: number | null }>,
+  actorId: string,
+  actorName: string,
+): Promise<void> {
+  const targets = newlyAssigned.filter(
+    (a): a is { userId: string; characterId: number } => a.characterId != null && a.userId !== actorId,
+  );
+  if (targets.length === 0) return;
+  const charIds = [...new Set(targets.map((t) => t.characterId))];
+  const chars = await db
+    .select({ id: characters.id, name: characters.name })
+    .from(characters)
+    .where(inArray(characters.id, charIds));
+  const nameById = new Map(chars.map((c) => [c.id, c.name]));
+
+  // Dedup against existing pending participation requests for this mission.
+  const pending = await db
+    .select({ characterId: customRequests.characterId, details: customRequests.details })
+    .from(customRequests)
+    .where(
+      and(
+        eq(customRequests.type, "mission_participation"),
+        eq(customRequests.status, "pending"),
+        inArray(customRequests.characterId, charIds),
+      ),
+    );
+  const alreadyPending = new Set(
+    pending
+      .filter((p) => Number((p.details as { missionId?: number } | null)?.missionId) === mission.id)
+      .map((p) => p.characterId),
+  );
+
+  for (const t of targets) {
+    if (alreadyPending.has(t.characterId)) continue;
+    const charName = nameById.get(t.characterId) ?? "Your character";
+    const [inserted] = await db
+      .insert(customRequests)
+      .values({
+        type: "mission_participation",
+        characterId: t.characterId,
+        requestedById: t.userId,
+        title: mission.title,
+        description: null,
+        details: {
+          missionId: mission.id,
+          missionTitle: mission.title,
+          characterId: t.characterId,
+          characterName: charName,
+          invitedById: actorId,
+          invitedByName: actorName,
+        } as never,
+      })
+      .returning({ id: customRequests.id });
+    try {
+      const [owner] = await db
+        .select({ discordId: users.discordId })
+        .from(users)
+        .where(eq(users.id, t.userId));
+      if (owner?.discordId) {
+        await sendDirectMessage(
+          owner.discordId,
+          `${actorName} assigned ${charName} to the mission "${mission.title}". Approve or decline participation in My Requests.`,
+        );
+      }
+    } catch (err) {
+      logger.warn({ err, requestId: inserted?.id }, "participation-request DM failed");
     }
   }
 }
@@ -229,7 +315,10 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
     .returning();
 
   const assignments = await normalizeAssignments(b.assignments);
-  if (assignments) await applyAssignments(created.id, assignments);
+  if (assignments) {
+    const newlyAssigned = await applyAssignments(created.id, assignments);
+    await createParticipationRequests(created, newlyAssigned, req.user!.id, req.user!.username);
+  }
 
   // Discord sync (Test/Live gated). Persist event id / error without blocking.
   const sync = await syncMissionDiscordEvent(created, ctx, created.imageUrl);
@@ -563,7 +652,15 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
     await db.update(missions).set(set).where(eq(missions.id, id));
   }
   const assignments = await normalizeAssignments(b.assignments);
-  if (assignments) await applyAssignments(id, assignments);
+  if (assignments) {
+    const newlyAssigned = await applyAssignments(id, assignments);
+    await createParticipationRequests(
+      { id, title: (set.title as string) ?? before.title },
+      newlyAssigned,
+      req.user!.id,
+      req.user!.username,
+    );
+  }
 
   // Re-read and re-sync the Discord event for the new state.
   const [after] = await db.select().from(missions).where(eq(missions.id, id));

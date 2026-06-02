@@ -16,6 +16,7 @@ import {
   catalogGuns,
   catalogCyberware,
   catalogRent,
+  catalogDistricts,
   characterTagOptions,
   housing,
 } from "@workspace/db";
@@ -1031,7 +1032,6 @@ const CyberwareEditSchema = z
   .object({
     name: z.string().trim().min(1).optional(),
     slot: z.string().trim().min(1).optional(),
-    humanityLoss: z.number().int().min(0).optional(),
     cwp: nullableText,
     price: z.number().int().min(0).optional(),
     wholesalePrice: nullableInt,
@@ -1046,7 +1046,6 @@ const CyberwareCreateSchema = z
   .object({
     name: z.string().trim().min(1),
     slot: z.string().trim().min(1),
-    humanityLoss: z.number().int().min(0).optional(),
     cwp: nullableText,
     price: z.number().int().min(0).optional(),
     wholesalePrice: nullableInt,
@@ -1068,7 +1067,6 @@ router.post(
     const values = {
       name: d.name,
       slot: d.slot,
-      humanityLoss: d.humanityLoss ?? 0,
       cwp: d.cwp ?? null,
       price: d.price ?? 0,
       wholesalePrice: d.wholesalePrice ?? null,
@@ -1134,7 +1132,6 @@ router.patch(
 
     if (edit.name !== undefined) mark("name", cur.name, edit.name);
     if (edit.slot !== undefined) mark("slot", cur.slot, edit.slot);
-    if (edit.humanityLoss !== undefined) mark("humanityLoss", cur.humanityLoss, edit.humanityLoss);
     if (edit.cwp !== undefined) mark("cwp", cur.cwp, edit.cwp);
     if (edit.price !== undefined) mark("price", cur.price, edit.price);
     if (edit.wholesalePrice !== undefined)
@@ -1209,6 +1206,41 @@ router.delete(
       });
     });
     res.json({ ok: true });
+  },
+);
+
+// Fixer-managed district list powering the property-creator dropdown. Any
+// logged-in user can read it; only fixers/admins can add a new district.
+router.get("/catalog/districts", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(catalogDistricts).orderBy(asc(catalogDistricts.name));
+  res.json(rows.map((d) => ({ id: d.id, name: d.name })));
+});
+
+const DistrictCreateSchema = z.object({ name: z.string().trim().min(1).max(64) }).strict();
+
+router.post(
+  "/catalog/districts",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const parsed = DistrictCreateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+      return;
+    }
+    const name = parsed.data.name;
+    const existing = await db
+      .select()
+      .from(catalogDistricts)
+      .where(ilike(catalogDistricts.name, name));
+    if (existing[0]) {
+      res.status(200).json({ id: existing[0].id, name: existing[0].name });
+      return;
+    }
+    const [created] = await db
+      .insert(catalogDistricts)
+      .values({ name, createdById: req.user!.id })
+      .returning();
+    res.status(201).json({ id: created.id, name: created.name });
   },
 );
 

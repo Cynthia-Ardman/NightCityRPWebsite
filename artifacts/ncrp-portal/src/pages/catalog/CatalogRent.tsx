@@ -11,8 +11,6 @@ import {
   useUpdateRentListing,
   useDeleteRentListing,
   useGetListingHistory,
-  useAdminListCharacters,
-  getAdminListCharactersQueryKey,
   getListRentListingsQueryKey,
   getGetListingHistoryQueryKey,
   getListMyCustomRequestsQueryKey,
@@ -30,6 +28,7 @@ import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 import { uploadImage } from "@/lib/uploadImage";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
+import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import RentCreateDialog from "@/components/catalog/RentCreateDialog";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
@@ -547,7 +546,7 @@ function PropertyHistoryDialog({
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: history, isLoading } = useGetListingHistory(listing.id);
-  const [assignId, setAssignId] = useState<string>("");
+  const [assignPick, setAssignPick] = useState<CharacterPickerValue>(null);
 
   // Staff edit form (name / business name, district, tier, rent, description).
   // Collapsed by default; seeded from the listing when opened.
@@ -560,12 +559,6 @@ function PropertyHistoryDialog({
   const updateListing = useUpdateRentListing();
   const deleteListing = useDeleteRentListing();
 
-  // Character picker source (admin-only endpoint). Only fetched when the
-  // assign panel is actually available.
-  const { data: characters } = useAdminListCharacters({
-    query: { enabled: canAdminAssign, queryKey: getAdminListCharactersQueryKey() },
-  });
-
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: getGetListingHistoryQueryKey(listing.id) });
     void qc.invalidateQueries({ queryKey: getListRentListingsQueryKey() });
@@ -575,7 +568,7 @@ function PropertyHistoryDialog({
     mutation: {
       onSuccess: () => {
         refresh();
-        setAssignId("");
+        setAssignPick(null);
         toast({ title: "Listing assigned" });
       },
       onError: () => toast({ title: "Could not assign listing", variant: "destructive" }),
@@ -832,36 +825,29 @@ function PropertyHistoryDialog({
                   <div className="flex items-end gap-2">
                     <div className="flex-1">
                       <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Character</Label>
-                      <Select value={assignId} onValueChange={setAssignId}>
-                        <SelectTrigger className="rounded-none font-mono text-xs" data-testid="history-select-character">
-                          <SelectValue placeholder="Select character..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(characters ?? [])
-                            .filter((c) => !c.archived)
-                            .map((c) => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                {c.name}
-                                {c.ownerName ? ` — ${c.ownerName}` : ""}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                      <CharacterPicker
+                        value={assignPick}
+                        onChange={setAssignPick}
+                        scope="all"
+                        placeholder="Search by character or player name..."
+                        testId="history-select-character"
+                      />
                     </div>
                     <Button
                       type="button"
                       size="sm"
-                      disabled={!assignId || lease.isPending}
+                      disabled={!assignPick || lease.isPending}
                       className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs"
-                      onClick={() =>
+                      onClick={() => {
+                        if (!assignPick) return;
                         lease.mutate({
                           data: {
                             catalogRentId: listing.id,
-                            characterId: parseInt(assignId, 10),
+                            characterId: assignPick.id,
                             kind: isBusinessListing(listing) ? "business" : "residential",
                           },
-                        })
-                      }
+                        });
+                      }}
                       data-testid="history-button-assign"
                     >
                       <UserPlus className="w-3 h-3 mr-1" /> ASSIGN

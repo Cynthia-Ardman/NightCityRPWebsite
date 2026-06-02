@@ -451,6 +451,18 @@ export const catalogRent = pgTable("catalog_rent", {
   kind: text("kind").notNull().default("residential"),
 });
 
+// Fixer-managed list of districts shown as a dropdown in the property creator.
+// Free-form names, unique case-insensitively at the route layer. Properties may
+// also use a custom/off-map district not in this list (stored free-form on
+// catalog_rent.district), so this is a convenience list, not a constraint.
+export const catalogDistricts = pgTable("catalog_districts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type CatalogDistrict = typeof catalogDistricts.$inferSelect;
+
 // Global, reusable catalog of character tag options. Staff "create" a tag
 // option here (top of the Character Archive), then "add" it to individual
 // characters via the per-character picker (which writes into characters.

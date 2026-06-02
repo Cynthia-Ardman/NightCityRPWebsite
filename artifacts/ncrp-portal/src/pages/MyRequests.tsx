@@ -8,6 +8,7 @@ import {
   useListPendingEdits,
   useDecideStockCostRequest,
   useDecideEmployeeInvite,
+  useDecideMissionParticipation,
   useUpdateCustomRequest,
   useResubmitCustomRequest,
   useGetMyUnseen,
@@ -52,6 +53,7 @@ type HistoryRow = {
     | "Stock"
     | "Venue Stock"
     | "Employment"
+    | "Mission"
     | "Lease";
   title: string;
   characterName: string;
@@ -86,6 +88,7 @@ const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
   stock_cost: "Stock",
   venue_stock: "Venue Stock",
   employee_invite: "Employment",
+  mission_participation: "Mission",
 };
 
 const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
@@ -100,6 +103,7 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "Stock",
   "Venue Stock",
   "Employment",
+  "Mission",
   "Lease",
 ];
 
@@ -125,6 +129,8 @@ function categoryColor(category: HistoryRow["category"]): string {
       return "text-nc-yellow";
     case "Employment":
       return "text-nc-green";
+    case "Mission":
+      return "text-nc-cyan";
     case "Lease":
       return "text-nc-green";
   }
@@ -173,6 +179,20 @@ export default function MyRequests() {
             variables.data.decision === "accept"
               ? "Invitation accepted — you're hired"
               : "Invitation declined",
+        });
+      },
+      onError: (err) => toast({ title: "Could not respond", description: errMsg(err, "Please try again."), variant: "destructive" }),
+    },
+  });
+  const decideParticipation = useDecideMissionParticipation({
+    mutation: {
+      onSuccess: (_res, variables) => {
+        invalidateMine();
+        toast({
+          title:
+            variables.data.decision === "accept"
+              ? "Participation confirmed"
+              : "Assignment declined",
         });
       },
       onError: (err) => toast({ title: "Could not respond", description: errMsg(err, "Please try again."), variant: "destructive" }),
@@ -413,6 +433,31 @@ export default function MyRequests() {
                 data-testid={`button-invite-deny-${r.customId}`}
               >
                 DENY
+              </Button>
+            </div>
+          ) : null}
+          {r.customType === "mission_participation" && r.status === "pending" && r.customId != null ? (
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={decideParticipation.isPending}
+                className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
+                onClick={() => decideParticipation.mutate({ id: r.customId!, data: { decision: "accept" } })}
+                data-testid={`button-participation-accept-${r.customId}`}
+              >
+                ACCEPT
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={decideParticipation.isPending}
+                className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
+                onClick={() => decideParticipation.mutate({ id: r.customId!, data: { decision: "deny" } })}
+                data-testid={`button-participation-deny-${r.customId}`}
+              >
+                DECLINE
               </Button>
             </div>
           ) : null}

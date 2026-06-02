@@ -49,6 +49,8 @@ export * from './catalogCyberware';
 export * from './catalogCyberwareInput';
 export * from './catalogCyberwareUpdate';
 export * from './catalogCyberwareUpdateResult';
+export * from './catalogDistrict';
+export * from './catalogDistrictInput';
 export * from './catalogGun';
 export * from './catalogGunInput';
 export * from './catalogGunInputStatus';
