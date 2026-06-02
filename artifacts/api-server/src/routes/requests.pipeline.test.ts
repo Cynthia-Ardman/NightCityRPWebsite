@@ -175,6 +175,59 @@ describe("close/reopen authorization", () => {
       .send({});
     expect(reopen.status).toBe(403);
   });
+
+  it("reopens a CLOSED request to pending, preserves appliedRef, and re-closing never double-applies", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const { reqId } = await submitGunRequest(owner.id);
+
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+
+    // Close commits the deferred effect (one inventory item) and archives it.
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(close.status).toBe(200);
+    expect(close.body.status).toBe("closed");
+    expect(await db.select().from(inventoryItems)).toHaveLength(1);
+
+    const [closedRow] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(closedRow.appliedRef).toBeTruthy();
+
+    // Reopen the archived (closed) ticket back to pending.
+    const reopen = await request(app)
+      .post(`/api/review/request/${reqId}/reopen`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(reopen.status).toBe(200);
+    expect(reopen.body.status).toBe("pending");
+
+    // appliedRef is preserved (effect not orphaned); closed/decision fields wiped;
+    // votes cleared so the next round starts fresh.
+    const [reopened] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(reopened.appliedRef).toBe(closedRow.appliedRef);
+    expect(reopened.closedAt).toBeNull();
+    expect(reopened.closedBy).toBeNull();
+    expect(reopened.reviewedAt).toBeNull();
+    expect(await db.select().from(reviewVotes).where(eq(reviewVotes.subjectId, reqId))).toHaveLength(0);
+
+    // Re-approve the freshly-reopened ticket, then close again. Because
+    // appliedRef is preserved, the second close only archives — it never
+    // materializes a second inventory item.
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+
+    const reClose = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(reClose.status).toBe(200);
+    expect(reClose.body.status).toBe("closed");
+    expect(await db.select().from(inventoryItems)).toHaveLength(1);
+  });
 });
 
 // Park a request in the legacy `changes_requested` state directly. The

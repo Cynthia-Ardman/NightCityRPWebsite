@@ -864,20 +864,22 @@ export async function closeRequest(req: Request, id: number): Promise<ReviewActi
   return { status: 200, body: shape(row) };
 }
 
-// Reopen a RESOLVED-but-not-archived custom request (approved | rejected) back
-// to pending for another review round. Votes are cleared and the decision /
-// override / decisionParams fields are wiped. Refuses to reopen a ticket whose
-// effect was already applied (appliedRef set) — that would orphan a lease /
-// inventory item. cancelled and closed tickets cannot be reopened.
+// Reopen a RESOLVED (approved | rejected) or ARCHIVED (closed) custom request
+// back to pending for another review round. Votes are cleared and the decision /
+// override / decisionParams / closed fields are wiped so the normal respond /
+// approve / deny tools come back.
+//
+// Idempotency note: `appliedRef` is PRESERVED. It is only ever set when an
+// approved ticket was committed (a lease / inventory / venue was created) on
+// close. Keeping it means the live effect is not orphaned, and re-closing the
+// reopened ticket is a no-op archive (closeRequest only materializes when
+// `approved && !appliedRef`), so reopening can never double-apply.
 export async function reopenRequest(req: Request, id: number): Promise<ReviewActionResult> {
   const result = await db.transaction(async (tx) => {
     const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, id)).for("update");
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
-    if (reqRow.status !== "approved" && reqRow.status !== "rejected") {
-      return { error: { status: 409, body: { error: `Only an approved or rejected ticket can be reopened (this one is ${reqRow.status})` } } };
-    }
-    if (reqRow.appliedRef) {
-      return { error: { status: 409, body: { error: "This request's effect was already applied; it cannot be reopened" } } };
+    if (reqRow.status !== "approved" && reqRow.status !== "rejected" && reqRow.status !== "closed") {
+      return { error: { status: 409, body: { error: `Only a resolved or archived ticket can be reopened (this one is ${reqRow.status})` } } };
     }
     const det = { ...((reqRow.details ?? {}) as Record<string, unknown>) };
     delete det.approval;
@@ -890,6 +892,8 @@ export async function reopenRequest(req: Request, id: number): Promise<ReviewAct
         reviewerNote: null,
         overriddenBy: null,
         decisionParams: null,
+        closedAt: null,
+        closedBy: null,
         details: det as never,
       })
       .where(eq(customRequests.id, id));

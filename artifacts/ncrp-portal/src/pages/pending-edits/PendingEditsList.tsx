@@ -139,25 +139,36 @@ function EditRow({
   );
 }
 
-export default function PendingEditsList({ embedded = false }: { embedded?: boolean } = {}) {
+export default function PendingEditsList({
+  embedded = false,
+  activeOnly = false,
+}: { embedded?: boolean; activeOnly?: boolean } = {}) {
   const { data: me } = useAuthMe();
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   return isReviewer ? (
-    <ReviewerEditsList embedded={embedded} />
+    <ReviewerEditsList embedded={embedded} activeOnly={activeOnly} />
   ) : (
     <PlayerEditsList embedded={embedded} />
   );
 }
 
 // Reviewer view: bucketed Active / Resolved / Archive with unseen dots and
-// close/reopen on resolved tickets.
-function ReviewerEditsList({ embedded }: { embedded: boolean }) {
+// close/reopen on resolved tickets. When `activeOnly` is set, only the active
+// bucket is shown — terminal (resolved/archived) edits live in the cross-cutting
+// Completed / Denied tabs of the Pending Requests page.
+function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean; activeOnly?: boolean }) {
   const qc = useQueryClient();
   const { data: active, isLoading: la } = useListPendingEdits({ bucket: "active" });
-  const { data: resolved, isLoading: lr } = useListPendingEdits({ bucket: "resolved" });
-  const { data: archive, isLoading: lar } = useListPendingEdits({ bucket: "archive" });
+  const { data: resolved, isLoading: lr } = useListPendingEdits(
+    { bucket: "resolved" },
+    { query: { enabled: !activeOnly, queryKey: getListPendingEditsQueryKey({ bucket: "resolved" }) } },
+  );
+  const { data: archive, isLoading: lar } = useListPendingEdits(
+    { bucket: "archive" },
+    { query: { enabled: !activeOnly, queryKey: getListPendingEditsQueryKey({ bucket: "archive" }) } },
+  );
   const { data: unseenIds } = useGetReviewUnseenIds();
-  const isLoading = la || lr || lar;
+  const isLoading = la || (!activeOnly && (lr || lar));
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
@@ -171,6 +182,7 @@ function ReviewerEditsList({ embedded }: { embedded: boolean }) {
     resolved: (resolved ?? []) as PendingEditSummary[],
     archive: (archive ?? []) as PendingEditSummary[],
   };
+  const shownBuckets: LifecycleBucket[] = activeOnly ? ["active"] : ["active", "resolved", "archive"];
 
   return (
     <div className={embedded ? "space-y-6" : "max-w-5xl mx-auto p-6 space-y-6"}>
@@ -179,7 +191,7 @@ function ReviewerEditsList({ embedded }: { embedded: boolean }) {
         <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>
       ) : (
         <div className="space-y-8" data-testid="pending-edits-list">
-          {(["active", "resolved", "archive"] as const).map((b) => (
+          {shownBuckets.map((b) => (
             <BucketSection key={b} bucket={b} count={buckets[b].length}>
               {buckets[b].map((e) => (
                 <EditRow

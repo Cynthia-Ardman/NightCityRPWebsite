@@ -6,6 +6,7 @@ import {
   useVoteCustomRequest,
   useOverrideCustomRequest,
   useListPendingSheets,
+  useListPendingEdits,
   useListLoreEdits,
   useApproveLoreEdit,
   useRejectLoreEdit,
@@ -14,13 +15,15 @@ import {
   getGetReviewUnseenIdsQueryKey,
   getListCustomRequestsQueryKey,
   getListPendingSheetsQueryKey,
+  getListPendingEditsQueryKey,
   getListLoreEditsQueryKey,
   type CustomRequest,
   type LorePendingEdit,
   type LoreEntryUpdate,
+  type PendingEditSummary,
 } from "@workspace/api-client-react";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
-import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
+import { UnseenDot, useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,10 +80,9 @@ function venueDetails(r: CustomRequest): { purpose?: string; location?: string }
 }
 
 function MiscRequestsTab() {
-  const qc = useQueryClient();
-  const { data: active, isLoading: loadingActive } = useListCustomRequests({ bucket: "active" });
-  const { data: resolved, isLoading: loadingResolved } = useListCustomRequests({ bucket: "resolved" });
-  const { data: archive, isLoading: loadingArchive } = useListCustomRequests({ bucket: "archive" });
+  // Active-only tab: completed/denied requests live in the cross-cutting
+  // Completed/Denied tabs. We only fetch the active bucket here.
+  const { data: active, isLoading } = useListCustomRequests({ bucket: "active" });
   const { data: unseenIds } = useGetReviewUnseenIds();
   const { data: me } = useAuthMe();
   const [approveTarget, setApproveTarget] = useState<CustomRequest | null>(null);
@@ -90,20 +92,10 @@ function MiscRequestsTab() {
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   const isAdmin = !!me?.isAdmin;
-  const isLoading = loadingActive || loadingResolved || loadingArchive;
 
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
-    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
-  };
-  const actions = useReviewTicketActions(invalidate);
   const unseen = new Set(unseenIds?.request ?? []);
 
-  const buckets: Record<LifecycleBucket, CustomRequest[]> = {
-    active: (active ?? []) as CustomRequest[],
-    resolved: (resolved ?? []) as CustomRequest[],
-    archive: (archive ?? []) as CustomRequest[],
-  };
+  const activeRequests = (active ?? []) as CustomRequest[];
 
   const renderCard = (r: CustomRequest, bucket: LifecycleBucket) => {
         const meta = TYPE_META[r.type];
@@ -225,9 +217,6 @@ function MiscRequestsTab() {
                     )}
                   </div>
                 )}
-                {isReviewer && bucket === "resolved" && (
-                  <LifecycleActions subjectType="request" id={r.id} status={r.status} actions={actions} />
-                )}
                 <Button
                   variant="outline"
                   className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
@@ -254,8 +243,7 @@ function MiscRequestsTab() {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
   }
 
-  const total = buckets.active.length + buckets.resolved.length + buckets.archive.length;
-  if (total === 0) {
+  if (activeRequests.length === 0) {
     return (
       <div className="py-20 text-center border border-dashed border-border bg-card/30">
         <Inbox className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
@@ -267,11 +255,9 @@ function MiscRequestsTab() {
 
   return (
     <div className="space-y-8">
-      {(["active", "resolved", "archive"] as const).map((b) => (
-        <BucketSection key={b} bucket={b} count={buckets[b].length}>
-          {buckets[b].map((r) => renderCard(r, b))}
-        </BucketSection>
-      ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {activeRequests.map((r) => renderCard(r, "active"))}
+      </div>
 
       <ApproveDialog request={approveTarget} mode="vote" onClose={() => setApproveTarget(null)} />
       <ApproveDialog request={overrideTarget} mode="override" onClose={() => setOverrideTarget(null)} />
@@ -583,32 +569,19 @@ function RejectDialog({ request, onClose }: { request: CustomRequest | null; onC
 }
 
 function NewCharactersTab() {
-  const qc = useQueryClient();
-  const { data: active, isLoading: loadingActive } = useListPendingSheets({ bucket: "active" });
-  const { data: resolved, isLoading: loadingResolved } = useListPendingSheets({ bucket: "resolved" });
-  const { data: archive, isLoading: loadingArchive } = useListPendingSheets({ bucket: "archive" });
+  // Active-only tab: resolved/closed sheets live in the cross-cutting
+  // Completed/Denied tabs.
+  const { data: active, isLoading } = useListPendingSheets({ bucket: "active" });
   const { data: unseenIds } = useGetReviewUnseenIds();
-  const isLoading = loadingActive || loadingResolved || loadingArchive;
-
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
-    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
-  };
-  const actions = useReviewTicketActions(invalidate);
   const unseen = new Set(unseenIds?.sheet ?? []);
 
-  const buckets: Record<LifecycleBucket, any[]> = {
-    active: active ?? [],
-    resolved: resolved ?? [],
-    archive: archive ?? [],
-  };
+  const sheets = (active ?? []) as any[];
 
   if (isLoading) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
   }
 
-  const total = buckets.active.length + buckets.resolved.length + buckets.archive.length;
-  if (total === 0) {
+  if (sheets.length === 0) {
     return (
       <div className="py-20 text-center border border-dashed border-border bg-card/30">
         <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
@@ -618,7 +591,7 @@ function NewCharactersTab() {
     );
   }
 
-  const renderCard = (sheet: any, bucket: LifecycleBucket) => (
+  const renderCard = (sheet: any) => (
     <Card
       key={sheet.id}
       className="rounded-none border-border bg-card/50 flex flex-col h-full"
@@ -636,15 +609,9 @@ function NewCharactersTab() {
           <div className="text-xs font-mono text-muted-foreground">
             {new Date(sheet.createdAt).toLocaleDateString()}
           </div>
-          {bucket === "active" ? (
-            <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none animate-pulse">
-              REVIEW REQ
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="border-border text-muted-foreground rounded-none uppercase" data-testid={`status-sheet-${sheet.id}`}>
-              {String(sheet.status).replace("_", " ")}
-            </Badge>
-          )}
+          <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none animate-pulse">
+            REVIEW REQ
+          </Badge>
         </div>
         <Link href={`/sheets/${sheet.id}`}>
           <Button
@@ -655,20 +622,13 @@ function NewCharactersTab() {
             OPEN SHEET
           </Button>
         </Link>
-        {bucket === "resolved" && (
-          <LifecycleActions subjectType="sheet" id={sheet.id} status={String(sheet.status)} actions={actions} />
-        )}
       </CardContent>
     </Card>
   );
 
   return (
-    <div className="space-y-8">
-      {(["active", "resolved", "archive"] as const).map((b) => (
-        <BucketSection key={b} bucket={b} count={buckets[b].length}>
-          {buckets[b].map((sheet) => renderCard(sheet, b))}
-        </BucketSection>
-      ))}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {sheets.map((sheet) => renderCard(sheet))}
     </div>
   );
 }
@@ -835,6 +795,304 @@ function LoreEditsTab() {
   );
 }
 
+// ---- Cross-cutting Completed / Denied terminal tabs ----
+//
+// These two tabs aggregate the terminal items from all four queues (custom
+// requests, character edits, new-character sheets, lore) so staff can review
+// what has already been decided in one place, separate from active work.
+//
+// Decision mapping:
+//   approved              -> Completed
+//   rejected / cancelled  -> Denied
+//   closed (custom req)   -> Completed when appliedRef is set, else Denied
+//   closed (edit/sheet)   -> Completed (closing is the apply-on-close of an
+//                            approved item; rejected-then-closed is rare)
+//   lore has no closed state (approved=Completed, rejected=Denied).
+
+type TerminalKind = "request" | "edit" | "sheet" | "lore";
+type TerminalDecision = "completed" | "denied";
+
+interface TerminalItem {
+  key: string;
+  kind: TerminalKind;
+  // Only request/edit/sheet support reopen via the review lifecycle; lore is null.
+  subjectType: "request" | "edit" | "sheet" | null;
+  id: number;
+  title: string;
+  subtitle: string;
+  date: string;
+  status: string;
+  note?: string | null;
+  archived: boolean;
+  detailHref?: string;
+  badgeLabel: string;
+  Icon: typeof Home;
+}
+
+function classifyRequest(r: CustomRequest): TerminalDecision | null {
+  const status = String(r.status);
+  if (status === "approved") return "completed";
+  if (status === "rejected" || status === "cancelled") return "denied";
+  if (status === "closed") return r.appliedRef ? "completed" : "denied";
+  return null;
+}
+
+// Shared mapping for edits and sheets: approved/closed -> Completed,
+// rejected/cancelled -> Denied.
+function classifyEditOrSheet(status: string): TerminalDecision | null {
+  if (status === "approved" || status === "closed") return "completed";
+  if (status === "rejected" || status === "cancelled") return "denied";
+  return null;
+}
+
+// Aggregates terminal items across the four queues, gated by role visibility so
+// we never fetch (or 403 on) a queue the viewer can't see.
+function useTerminalItems() {
+  const { data: me } = useAuthMe();
+  const canMisc = !!(me?.isAdmin || me?.isFixer);
+  const canEdits = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
+  const canSheets = !!(me?.isAdmin || me?.isCsApprover);
+  const canLore = !!me?.isAdmin;
+
+  const reqResolved = useListCustomRequests(
+    { bucket: "resolved" },
+    { query: { enabled: canMisc, queryKey: getListCustomRequestsQueryKey({ bucket: "resolved" }) } },
+  );
+  const reqArchive = useListCustomRequests(
+    { bucket: "archive" },
+    { query: { enabled: canMisc, queryKey: getListCustomRequestsQueryKey({ bucket: "archive" }) } },
+  );
+  const editResolved = useListPendingEdits(
+    { bucket: "resolved" },
+    { query: { enabled: canEdits, queryKey: getListPendingEditsQueryKey({ bucket: "resolved" }) } },
+  );
+  const editArchive = useListPendingEdits(
+    { bucket: "archive" },
+    { query: { enabled: canEdits, queryKey: getListPendingEditsQueryKey({ bucket: "archive" }) } },
+  );
+  const sheetResolved = useListPendingSheets(
+    { bucket: "resolved" },
+    { query: { enabled: canSheets, queryKey: getListPendingSheetsQueryKey({ bucket: "resolved" }) } },
+  );
+  const sheetArchive = useListPendingSheets(
+    { bucket: "archive" },
+    { query: { enabled: canSheets, queryKey: getListPendingSheetsQueryKey({ bucket: "archive" }) } },
+  );
+  const loreApproved = useListLoreEdits(
+    { status: "approved" },
+    { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "approved" }) } },
+  );
+  const loreRejected = useListLoreEdits(
+    { status: "rejected" },
+    { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "rejected" }) } },
+  );
+
+  const isLoading =
+    reqResolved.isLoading || reqArchive.isLoading ||
+    editResolved.isLoading || editArchive.isLoading ||
+    sheetResolved.isLoading || sheetArchive.isLoading ||
+    loreApproved.isLoading || loreRejected.isLoading;
+
+  const completed: TerminalItem[] = [];
+  const denied: TerminalItem[] = [];
+  const push = (decision: TerminalDecision | null, item: TerminalItem) => {
+    if (decision === "completed") completed.push(item);
+    else if (decision === "denied") denied.push(item);
+  };
+
+  const requests = [
+    ...((reqResolved.data ?? []) as CustomRequest[]),
+    ...((reqArchive.data ?? []) as CustomRequest[]),
+  ];
+  for (const r of requests) {
+    const status = String(r.status);
+    push(classifyRequest(r), {
+      key: `request-${r.id}`,
+      kind: "request",
+      subjectType: "request",
+      id: r.id,
+      title: r.title,
+      subtitle: `${r.characterName} · by ${r.requestedByName || r.requestedById}`,
+      date: (r as { closedAt?: string | null }).closedAt || r.reviewedAt || r.createdAt,
+      status,
+      note: r.reviewerNote,
+      archived: status === "closed",
+      badgeLabel: TYPE_META[r.type]?.label ?? "REQUEST",
+      Icon: TYPE_META[r.type]?.Icon ?? Inbox,
+    });
+  }
+
+  const edits = [
+    ...((editResolved.data ?? []) as PendingEditSummary[]),
+    ...((editArchive.data ?? []) as PendingEditSummary[]),
+  ];
+  for (const e of edits) {
+    const status = String(e.status);
+    const anyEdit = e as Record<string, any>;
+    push(classifyEditOrSheet(status), {
+      key: `edit-${e.id}`,
+      kind: "edit",
+      subjectType: "edit",
+      id: e.id,
+      title: anyEdit.characterName ?? `Edit #${e.id}`,
+      subtitle: `by ${anyEdit.submitterName || anyEdit.submittedBy || "unknown"}`,
+      date: anyEdit.decidedAt || anyEdit.submittedAt || anyEdit.createdAt || new Date().toISOString(),
+      status,
+      note: anyEdit.decisionSummary ?? null,
+      archived: status === "closed",
+      detailHref: `/pending-edits/${e.id}`,
+      badgeLabel: "CHAR EDIT",
+      Icon: FileText,
+    });
+  }
+
+  const sheets = [
+    ...((sheetResolved.data ?? []) as any[]),
+    ...((sheetArchive.data ?? []) as any[]),
+  ];
+  for (const s of sheets) {
+    const status = String(s.status);
+    push(classifyEditOrSheet(status), {
+      key: `sheet-${s.id}`,
+      kind: "sheet",
+      subjectType: "sheet",
+      id: s.id,
+      title: s.name ?? `Sheet #${s.id}`,
+      subtitle: `by ${s.ownerName || s.ownerId || "unknown"}`,
+      date: s.decidedAt || s.createdAt || new Date().toISOString(),
+      status,
+      note: null,
+      archived: status === "closed",
+      detailHref: `/sheets/${s.id}`,
+      badgeLabel: "NEW CHAR",
+      Icon: FileText,
+    });
+  }
+
+  const loreToItem = (l: LorePendingEdit, decision: TerminalDecision): TerminalItem => {
+    const diff = (l.proposedDiff ?? {}) as Record<string, unknown>;
+    return {
+      key: `lore-${l.id}`,
+      kind: "lore",
+      subjectType: null,
+      id: l.id,
+      title: (diff.name as string) || l.entryName || "Lore entry",
+      subtitle: `by ${l.submittedByName || l.submittedBy}`,
+      date: (l as { decidedAt?: string | null }).decidedAt || l.createdAt,
+      status: decision === "completed" ? "approved" : "rejected",
+      note: (l as { decisionSummary?: string | null }).decisionSummary ?? null,
+      archived: false,
+      badgeLabel: "LORE",
+      Icon: BookOpen,
+    };
+  };
+  for (const l of (loreApproved.data ?? []) as LorePendingEdit[]) completed.push(loreToItem(l, "completed"));
+  for (const l of (loreRejected.data ?? []) as LorePendingEdit[]) denied.push(loreToItem(l, "denied"));
+
+  const byDateDesc = (a: TerminalItem, b: TerminalItem) =>
+    new Date(b.date).getTime() - new Date(a.date).getTime();
+  completed.sort(byDateDesc);
+  denied.sort(byDateDesc);
+
+  return { completed, denied, isLoading };
+}
+
+function TerminalCard({
+  item,
+  actions,
+}: {
+  item: TerminalItem;
+  actions: ReturnType<typeof useReviewTicketActions>;
+}) {
+  const Icon = item.Icon;
+  return (
+    <Card className="rounded-none border-border bg-card/50 flex flex-col" data-testid={`card-terminal-${item.kind}-${item.id}`}>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
+            <Icon className="w-3 h-3 mr-1" /> {item.badgeLabel}
+          </Badge>
+          <span className="text-xs font-mono text-muted-foreground">{new Date(item.date).toLocaleDateString()}</span>
+        </div>
+        <CardTitle className="text-lg font-display truncate mt-2">{item.title}</CardTitle>
+        <CardDescription className="font-mono text-xs">{item.subtitle}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col flex-1 gap-3">
+        <div className="font-mono text-xs text-muted-foreground" data-testid={`status-terminal-${item.kind}-${item.id}`}>
+          Status: <span className="text-foreground uppercase">{item.status.replace("_", " ")}</span>
+          {item.archived ? <span className="ml-2 text-nc-yellow">ARCHIVED</span> : null}
+          {item.note ? <span className="block italic mt-0.5">"{item.note}"</span> : null}
+        </div>
+        <div className="mt-auto pt-3 border-t border-border/40 space-y-2">
+          {item.detailHref ? (
+            <Link href={item.detailHref}>
+              <Button
+                variant="outline"
+                className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
+                data-testid={`button-open-terminal-${item.kind}-${item.id}`}
+              >
+                OPEN
+              </Button>
+            </Link>
+          ) : null}
+          {/* Resolved (non-archived) request/edit/sheet keep Close + Reopen.
+              Archived custom requests offer Reopen only (responding disabled).
+              Archived edits/sheets and lore are read-only. */}
+          {!item.archived && item.subjectType ? (
+            <LifecycleActions subjectType={item.subjectType} id={item.id} status={item.status} actions={actions} />
+          ) : item.archived && item.kind === "request" ? (
+            <Button
+              variant="outline"
+              className="w-full rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+              disabled={actions.busy}
+              onClick={() => actions.reopen.mutate({ subjectType: "request", id: item.id })}
+              data-testid={`button-reopen-request-${item.id}`}
+            >
+              REOPEN
+            </Button>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TerminalTab({ which }: { which: TerminalDecision }) {
+  const qc = useQueryClient();
+  const { completed, denied, isLoading } = useTerminalItems();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListLoreEditsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+  };
+  const actions = useReviewTicketActions(invalidate);
+  const items = which === "completed" ? completed : denied;
+
+  if (isLoading) {
+    return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
+  }
+  if (items.length === 0) {
+    return (
+      <div className="py-20 text-center border border-dashed border-border bg-card/30">
+        <Inbox className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+        <h3 className="text-xl font-display text-foreground mb-2">NOTHING HERE</h3>
+        <p className="text-muted-foreground font-mono text-sm">
+          No {which} requests yet.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {items.map((item) => (
+        <TerminalCard key={item.key} item={item} actions={actions} />
+      ))}
+    </div>
+  );
+}
+
 // Small count chip shown next to a tab label. Renders nothing when zero so
 // quiet queues stay uncluttered.
 function TabCount({ n }: { n: number }) {
@@ -854,6 +1112,9 @@ export default function PendingRequests() {
   const canMisc = !!(me?.isAdmin || me?.isFixer);
   const canNewChars = !!(me?.isAdmin || me?.isCsApprover);
   const canLore = !!me?.isAdmin;
+  // The terminal (Completed/Denied) tabs aggregate reviewer queues; only show
+  // them to staff who can see at least one of those queues.
+  const isReviewer = canMisc || canNewChars || canLore;
 
   // Per-tab badges show UNSEEN-by-me counts (drop once the reviewer opens an
   // item), not the raw pending totals. Lore is the exception — it's a single-
@@ -903,6 +1164,16 @@ export default function PendingRequests() {
               LORE<TabCount n={loreCount} />
             </TabsTrigger>
           )}
+          {isReviewer && (
+            <TabsTrigger value="completed" className="rounded-none font-display tracking-widest" data-testid="tab-completed">
+              COMPLETED
+            </TabsTrigger>
+          )}
+          {isReviewer && (
+            <TabsTrigger value="denied" className="rounded-none font-display tracking-widest" data-testid="tab-denied">
+              DENIED
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {canMisc && (
@@ -911,7 +1182,7 @@ export default function PendingRequests() {
           </TabsContent>
         )}
         <TabsContent value="edits" className="mt-6">
-          <PendingEditsList embedded />
+          <PendingEditsList embedded activeOnly />
         </TabsContent>
         {canNewChars && (
           <TabsContent value="sheets" className="mt-6">
@@ -921,6 +1192,16 @@ export default function PendingRequests() {
         {canLore && (
           <TabsContent value="lore" className="mt-6">
             <LoreEditsTab />
+          </TabsContent>
+        )}
+        {isReviewer && (
+          <TabsContent value="completed" className="mt-6">
+            <TerminalTab which="completed" />
+          </TabsContent>
+        )}
+        {isReviewer && (
+          <TabsContent value="denied" className="mt-6">
+            <TerminalTab which="denied" />
           </TabsContent>
         )}
       </Tabs>
