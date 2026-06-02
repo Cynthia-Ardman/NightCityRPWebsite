@@ -612,23 +612,52 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
   if (!s) return;
   const stockId = parseInt(String(req.params.stockId), 10);
   const { name, category, price, quantity, notes, description } = req.body ?? {};
-  const [u] = await db
-    .update(storeStock)
-    .set({
-      ...(name !== undefined ? { name } : {}),
-      ...(category !== undefined ? { category } : {}),
-      ...(price !== undefined ? { price } : {}),
-      ...(quantity !== undefined ? { quantity } : {}),
-      ...(notes !== undefined ? { notes } : {}),
-      ...(description !== undefined ? { description } : {}),
-    })
-    .where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, s.id)))
-    .returning();
-  if (!u) {
+  const patch: Record<string, unknown> = {
+    ...(name !== undefined ? { name } : {}),
+    ...(category !== undefined ? { category } : {}),
+    ...(price !== undefined ? { price: Math.max(0, Math.round(Number(price) || 0)) } : {}),
+    ...(quantity !== undefined ? { quantity: Math.max(0, Math.round(Number(quantity) || 0)) } : {}),
+    ...(notes !== undefined ? { notes } : {}),
+    ...(description !== undefined ? { description } : {}),
+  };
+  if (Object.keys(patch).length === 0) {
+    res.status(400).json({ error: "No changes" });
+    return;
+  }
+  const { ip, ua } = auditMeta(req);
+  // Capture the before-row and write the audit in the same transaction so a
+  // manual stock edit can never land without a trail (mirrors the add path).
+  const result = await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select()
+      .from(storeStock)
+      .where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, s.id)));
+    if (!before) return null;
+    const [u] = await tx
+      .update(storeStock)
+      .set(patch)
+      .where(and(eq(storeStock.id, stockId), eq(storeStock.storeId, s.id)))
+      .returning();
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "store_stock_edit",
+      actorId: req.user?.id ?? null,
+      actorName: req.user?.username ?? null,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "store",
+      targetId: String(s.id),
+      message: `Edited stock "${u.name}" in ${s.name}`,
+      beforeJson: before as never,
+      afterJson: u as never,
+    });
+    return u;
+  });
+  if (!result) {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json(u);
+  res.json(result);
 });
 
 router.delete("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {

@@ -11,7 +11,7 @@ vi.mock("../lib/discord", async (importActual) => {
   };
 });
 
-import { db, characterSheets, characters, reviewVotes, auditLog } from "@workspace/db";
+import { db, characterSheets, characters, reviewVotes, auditLog, inventoryItems } from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
@@ -230,5 +230,88 @@ describe("sheet request-changes (retired) + resubmit", () => {
         .from(reviewVotes)
         .where(and(eq(reviewVotes.subjectType, "sheet"), eq(reviewVotes.subjectId, sheet.id))),
     ).toHaveLength(0);
+  });
+});
+
+describe("sheet close — materialize-once idempotency", () => {
+  async function seedApprovableSheet(ownerId: string) {
+    const [s] = await db
+      .insert(characterSheets)
+      .values({
+        ownerId,
+        name: "Chrome Subject",
+        status: "pending",
+        data: {
+          sheetType: "PC",
+          cyberware: [{ name: "Cyberarm", slot: "arms", points: 2 }],
+          gear: ["Armored Jacket", "Power Pistol"],
+        },
+      })
+      .returning();
+    return s;
+  }
+
+  it("close materializes exactly one character + one inventory seed, and a second close is a no-op", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // third reviewer → majority threshold 2
+
+    const sheet = await seedApprovableSheet(owner.id);
+
+    // Two approvals decide the sheet (effects are deferred to close).
+    for (const f of [f1, f2]) {
+      const v = await request(app)
+        .post(`/api/sheets/${sheet.id}/vote`)
+        .set("x-test-user", f.id)
+        .send({ vote: "approve" });
+      expect(v.status).toBe(200);
+    }
+    const [decided] = await db
+      .select()
+      .from(characterSheets)
+      .where(eq(characterSheets.id, sheet.id));
+    expect(decided.status).toBe("approved");
+
+    // First close: materialize character + seed inventory.
+    const c1 = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(c1.status).toBe(200);
+
+    const charsAfter1 = await db
+      .select()
+      .from(characters)
+      .where(eq(characters.ownerId, owner.id));
+    expect(charsAfter1).toHaveLength(1);
+    const charId = charsAfter1[0].id;
+    const invAfter1 = await db
+      .select()
+      .from(inventoryItems)
+      .where(eq(inventoryItems.characterId, charId));
+    // 1 cyberware + 2 gear seeded from the sheet.
+    expect(invAfter1).toHaveLength(3);
+
+    // Second close is idempotent: no duplicate character, no re-seed.
+    const c2 = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", f2.id)
+      .send({});
+    expect(c2.status).toBe(200);
+
+    expect(
+      await db.select().from(characters).where(eq(characters.ownerId, owner.id)),
+    ).toHaveLength(1);
+    expect(
+      await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, charId)),
+    ).toHaveLength(3);
+
+    // A closed sheet cannot be reopened.
+    const reopen = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/reopen`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(reopen.status).toBe(409);
   });
 });

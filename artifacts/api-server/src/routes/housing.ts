@@ -409,6 +409,18 @@ router.patch("/housing/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   await db.update(housing).set(updates).where(eq(housing.id, id));
+  await recordAudit({
+    req,
+    category: "housing",
+    action: "lease_edit",
+    targetType: "housing",
+    targetId: id,
+    message: `Edited lease #${id} (${Object.keys(updates).join(", ")})`,
+    before: Object.fromEntries(
+      Object.keys(updates).map((k) => [k, (existing as Record<string, unknown>)[k]]),
+    ),
+    after: updates,
+  });
   const [row] = await selectLeasesWhere(eq(housing.id, id));
   res.json(shape(row));
 });

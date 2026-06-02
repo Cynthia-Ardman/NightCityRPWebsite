@@ -539,3 +539,66 @@ describe("DELETE /ripperdocs/:id", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("PATCH /stores/:id/stock/:stockId (manual stock edit is audited)", () => {
+  it("404s for an unknown stock row", async () => {
+    const owner = await createUser();
+    const store = await makeStore(owner.id);
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}/stock/999999`)
+      .set("x-test-user", owner.id)
+      .send({ price: 1 });
+    expect(res.status).toBe(404);
+  });
+
+  it("applies the edit and writes a store_stock_edit audit row with before/after", async () => {
+    const owner = await createUser();
+    const store = await makeStore(owner.id);
+    const stock = await makeStock(store.id, { name: "Militech Pistol", price: 100, quantity: 5 });
+
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}/stock/${stock.id}`)
+      .set("x-test-user", owner.id)
+      .send({ price: 250, quantity: 3 });
+    expect(res.status).toBe(200);
+    expect(res.body.price).toBe(250);
+    expect(res.body.quantity).toBe(3);
+
+    const [row] = await db.select().from(storeStock).where(eq(storeStock.id, stock.id));
+    expect(row.price).toBe(250);
+    expect(row.quantity).toBe(3);
+
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "store_stock_edit"));
+    expect(audits.length).toBe(1);
+    expect(audits[0].category).toBe("shop");
+    expect(audits[0].targetId).toBe(String(store.id));
+    expect((audits[0].beforeJson as Record<string, unknown>).price).toBe(100);
+    expect((audits[0].afterJson as Record<string, unknown>).price).toBe(250);
+  });
+
+  it("400s on a no-op edit and writes no audit row", async () => {
+    const owner = await createUser();
+    const store = await makeStore(owner.id);
+    const stock = await makeStock(store.id);
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}/stock/${stock.id}`)
+      .set("x-test-user", owner.id)
+      .send({});
+    expect(res.status).toBe(400);
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "store_stock_edit"));
+    expect(audits.length).toBe(0);
+  });
+
+  it("coerces malformed/negative numeric input to a safe non-negative integer", async () => {
+    const owner = await createUser();
+    const store = await makeStore(owner.id);
+    const stock = await makeStock(store.id, { price: 100, quantity: 5 });
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}/stock/${stock.id}`)
+      .set("x-test-user", owner.id)
+      .send({ price: "abc", quantity: -10 });
+    expect(res.status).toBe(200);
+    expect(res.body.price).toBe(0);
+    expect(res.body.quantity).toBe(0);
+  });
+});
