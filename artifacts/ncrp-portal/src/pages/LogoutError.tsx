@@ -1,6 +1,8 @@
 import { Link, useSearch } from "wouter";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ncrpLogo from "@assets/image_1780331782394.png";
+import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
 
 type ReasonInfo = {
   title: string;
@@ -32,9 +34,16 @@ export default function LogoutError() {
   const info = describeReason(reason);
 
   return (
-    <div className="min-h-[60vh] w-full flex items-center justify-center p-4">
+    <div className="min-h-[60vh] w-full flex flex-col items-center justify-center gap-6 p-4">
+      <img
+        src={ncrpBanner}
+        alt="Night City RP"
+        className="w-full max-w-lg border border-nc-cyan/30 shadow-[0_0_30px_rgba(0,255,255,0.15)]"
+        data-testid="img-logout-banner"
+      />
       <div className="w-full max-w-lg border border-destructive/40 bg-card/70 backdrop-blur-sm shadow-[0_0_30px_rgba(255,0,80,0.15)]">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-destructive/30 bg-destructive/5">
+          <img src={ncrpLogo} alt="NCRP" className="h-7 w-7 object-contain shrink-0" data-testid="img-logout-logo" />
           <AlertTriangle className="h-6 w-6 text-destructive" />
           <div className="font-display tracking-widest text-destructive text-lg">
             {info.title}

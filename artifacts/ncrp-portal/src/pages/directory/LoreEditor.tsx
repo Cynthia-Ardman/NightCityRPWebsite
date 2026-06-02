@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import MarkdownEditor from "@/components/MarkdownEditor";
+import SingleImageUpload from "@/components/SingleImageUpload";
 import {
   Select,
   SelectContent,
@@ -68,6 +69,7 @@ export default function LoreEditor() {
   const [aliases, setAliases] = useState("");
   const [responsibleFixer, setResponsibleFixer] = useState("");
   const [summary, setSummary] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [publicBody, setPublicBody] = useState("");
   const [fixerBody, setFixerBody] = useState("");
   const [sourcesText, setSourcesText] = useState("");
@@ -79,6 +81,7 @@ export default function LoreEditor() {
     setAliases((existing.aliases ?? []).join(", "));
     setResponsibleFixer(existing.responsibleFixer ?? "");
     setSummary(existing.summary ?? "");
+    setImageUrl(existing.imageUrl ?? "");
     setPublicBody(existing.publicBody ?? "");
     setFixerBody(existing.fixerBody ?? "");
     setSourcesText(sourcesToText(existing.sources ?? []));
@@ -130,6 +133,7 @@ export default function LoreEditor() {
     aliases: aliases.split(",").map((a) => a.trim()).filter(Boolean),
     responsibleFixer: responsibleFixer.trim() || null,
     summary: summary.trim() || null,
+    imageUrl: imageUrl.trim() || null,
     publicBody,
     fixerBody: fixerBody.trim() || null,
     sources: textToSources(sourcesText),
@@ -199,6 +203,9 @@ export default function LoreEditor() {
           </Field>
           <Field label="Summary (one line)">
             <Input value={summary} onChange={(e) => setSummary(e.target.value)} className="rounded-none font-mono" data-testid="input-lore-summary" />
+          </Field>
+          <Field label="Image (optional)">
+            <SingleImageUpload value={imageUrl} onChange={setImageUrl} testIdPrefix="lore-image" alt={name || "lore image"} />
           </Field>
         </CardContent>
       </Card>

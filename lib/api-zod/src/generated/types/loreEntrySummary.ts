@@ -17,6 +17,8 @@ export interface LoreEntrySummary {
   summary?: string | null;
   /** @nullable */
   responsibleFixer?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   hasFixerContent: boolean;
   updatedAt: Date;
 }

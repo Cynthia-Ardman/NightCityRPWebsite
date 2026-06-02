@@ -18,6 +18,8 @@ export interface LoreEntry {
   summary?: string | null;
   /** @nullable */
   responsibleFixer?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;

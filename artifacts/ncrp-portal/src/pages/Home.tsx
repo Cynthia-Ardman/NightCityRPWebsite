@@ -13,12 +13,27 @@ import { Switch as UiSwitch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
 import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
+import ncrpLogo from "@assets/image_1780331782394.png";
+
+function BrandedLoader({ label }: { label: string }) {
+  return (
+    <div className="h-full min-h-[60vh] flex flex-col items-center justify-center gap-4">
+      <img
+        src={ncrpLogo}
+        alt="NCRP"
+        className="h-16 w-16 object-contain animate-pulse drop-shadow-[0_0_12px_rgba(0,255,255,0.4)]"
+        data-testid="img-loader-logo"
+      />
+      <div className="text-nc-cyan animate-pulse font-display text-2xl tracking-widest">{label}</div>
+    </div>
+  );
+}
 
 export default function Home() {
   const { data: user, isLoading: userLoading } = useAuthMe();
 
   if (userLoading) {
-    return <div className="h-full flex items-center justify-center text-nc-cyan animate-pulse font-display text-2xl">LOADING_SYS_DATA...</div>;
+    return <BrandedLoader label="LOADING_SYS_DATA..." />;
   }
 
   if (!user) {
@@ -73,7 +88,7 @@ function Dashboard() {
   const pendingRequestCount = pendingReqs?.length ?? 0;
 
   if (summaryLoading || charsLoading) {
-    return <div className="h-full flex items-center justify-center text-nc-cyan animate-pulse font-display text-2xl">SYNCING_DASHBOARD...</div>;
+    return <BrandedLoader label="SYNCING_DASHBOARD..." />;
   }
 
   const statCards = summary

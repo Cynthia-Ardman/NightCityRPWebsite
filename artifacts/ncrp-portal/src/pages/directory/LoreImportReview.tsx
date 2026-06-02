@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import SingleImageUpload from "@/components/SingleImageUpload";
 import {
   Select,
   SelectContent,
@@ -110,6 +111,7 @@ function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entr
   const [category, setCategory] = useState<Category>(draft.proposedCategory);
   const [fixer, setFixer] = useState(draft.proposedFixer ?? "");
   const [summary, setSummary] = useState(draft.summary ?? "");
+  const [imageUrl, setImageUrl] = useState(draft.imageUrl ?? "");
   const [publicBody, setPublicBody] = useState(draft.publicBody);
   const [fixerBody, setFixerBody] = useState(draft.fixerBody ?? "");
   const [mergeId, setMergeId] = useState<number | null>(draft.suggestedMergeEntryId ?? null);
@@ -138,6 +140,7 @@ function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entr
     proposedCategory: category,
     proposedFixer: fixer.trim() || null,
     summary: summary.trim() || null,
+    imageUrl: imageUrl.trim() || null,
     publicBody,
     fixerBody: fixerBody.trim() || null,
     suggestedMergeEntryId: mergeId,
@@ -177,6 +180,7 @@ function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entr
           <F label="Story Lead"><Input value={fixer} onChange={(e) => setFixer(e.target.value)} className="rounded-none font-mono" data-testid={`input-draft-fixer-${draft.id}`} /></F>
         </div>
         <F label="Summary"><Input value={summary} onChange={(e) => setSummary(e.target.value)} className="rounded-none font-mono" data-testid={`input-draft-summary-${draft.id}`} /></F>
+        <F label="Image (optional)"><SingleImageUpload value={imageUrl} onChange={setImageUrl} testIdPrefix={`draft-image-${draft.id}`} alt={name || "lore image"} /></F>
         <F label="Public Body"><Textarea value={publicBody} onChange={(e) => setPublicBody(e.target.value)} rows={6} className="rounded-none font-mono text-xs" data-testid={`input-draft-public-${draft.id}`} /></F>
         <F label="Fixer-Only Body"><Textarea value={fixerBody} onChange={(e) => setFixerBody(e.target.value)} rows={4} className="rounded-none font-mono text-xs" data-testid={`input-draft-fixer-body-${draft.id}`} /></F>
 

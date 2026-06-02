@@ -52,5 +52,6 @@
 - [Sheet approval seeds inventory](sheet-approval-inventory-seed.md) — approving a PC sheet must materialize data.cyberware/data.gear into inventory_items (fresh-insert branch only); cyberware notes need "CWP <n>" + trailing "slot: <x>".
 - [Session window shared lib](session-window-shared.md) — Sun 2-9pm Pacific gate (attendance + open-shop) lives in lib/sessionWindow.ts; server is authoritative, frontend just disables.
 - [Review-pipeline state guards](review-pipeline-state-guards.md) — request-changes/resubmit/submit must use status-guarded conditional UPDATE (409 on no-op); vote/override lock FOR UPDATE, these dont.
+- [Lore write paths](lore-write-paths.md) — a new lore_entries field must thread through direct create/update, applyProposal (both branches), AND the separate lore_import_drafts pipeline; easy to drop on import.
 - [Review close/reopen authz](review-close-reopen-authz.md) — close/reopen must mirror the per-type VOTE authz (all isReviewer), NOT queue-visibility; gating sheet-close on CS_APPROVER breaks fixers who voted.
 - [Staged review effects deferred to close](staged-review-effects.md) — approve/override only STAGE (persist decisionParams); effects (lease/inventory/materialize/diff) commit at close, idempotent under FOR UPDATE; lore/stock_cost/employee_invite stay immediate.

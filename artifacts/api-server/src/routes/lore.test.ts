@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import request from "supertest";
-import { db, loreEntries, lorePendingEdits } from "@workspace/db";
+import { db, loreEntries, lorePendingEdits, loreImportDrafts } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
 
@@ -218,6 +218,73 @@ describe("Admin approval publishes a pending edit", () => {
     expect(live.category).toBe("gang");
     expect(live.publicBody).toBe("A gang operating out of Japantown.");
     expect(live.fixerBody).toBe("Pay protection to the Arasaka remnant.");
+  });
+
+  it("round-trips imageUrl through a create-proposal approval and GET", async () => {
+    const fixer = await createFixer();
+    const admin = await createAdmin();
+    const img = "/api/storage/objects/lore-arasaka-tower.png";
+
+    const proposal = await request(app)
+      .post("/api/directory/lore/edits")
+      .set("x-test-user", fixer.id)
+      .send({
+        kind: "create",
+        diff: {
+          category: "corporation",
+          name: "Biotechnica",
+          publicBody: "Agricultural megacorp.",
+          imageUrl: img,
+        },
+      });
+    expect(proposal.status).toBe(201);
+
+    const res = await request(app)
+      .post(`/api/directory/lore/edits/${proposal.body.id}/approve`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+
+    const [live] = await db
+      .select()
+      .from(loreEntries)
+      .where(eq(loreEntries.id, res.body.appliedEntryId));
+    expect(live.imageUrl).toBe(img);
+
+    // And it is exposed back through the read API.
+    const get = await request(app)
+      .get(`/api/directory/lore/${res.body.appliedEntryId}`)
+      .set("x-test-user", fixer.id);
+    expect(get.status).toBe(200);
+    expect(get.body.imageUrl).toBe(img);
+  });
+
+  it("carries imageUrl through an import-draft create approval", async () => {
+    const admin = await createAdmin();
+    const img = "/api/storage/objects/lore-import-night-corp.png";
+    const [draft] = await db
+      .insert(loreImportDrafts)
+      .values({
+        groupKey: `nightcorp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        proposedName: "Night Corp",
+        proposedCategory: "corporation",
+        publicBody: "An imported megacorp.",
+        imageUrl: img,
+      })
+      .returning();
+
+    const res = await request(app)
+      .post(`/api/directory/lore/import/drafts/${draft.id}/approve`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.imageUrl).toBe(img);
+
+    const [live] = await db
+      .select()
+      .from(loreEntries)
+      .where(eq(loreEntries.id, res.body.id));
+    expect(live.imageUrl).toBe(img);
   });
 
   it("admin approve of an edit-proposal applies the diff to the existing entry", async () => {

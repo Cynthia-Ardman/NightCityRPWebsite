@@ -107,6 +107,17 @@ export default function DirectoryLore() {
                       </Badge>
                     )}
                   </div>
+                  {e.imageUrl && (
+                    <div className="mt-2 -mx-6 border-y border-border/50 bg-background/40">
+                      <img
+                        src={e.imageUrl}
+                        alt={e.name}
+                        className="w-full h-32 object-cover"
+                        loading="lazy"
+                        data-testid={`img-lore-${e.id}`}
+                      />
+                    </div>
+                  )}
                   <CardTitle className="font-display text-xl mt-2">{e.name}</CardTitle>
                   {e.responsibleFixer && (
                     <CardDescription className="font-mono text-xs text-nc-cyan" data-testid={`text-lore-lead-${e.id}`}>

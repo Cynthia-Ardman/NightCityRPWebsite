@@ -3703,6 +3703,7 @@ components:
           items: { type: string }
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         hasFixerContent: { type: boolean }
         updatedAt: { type: string, format: date-time }
 
@@ -3719,6 +3720,7 @@ components:
           items: { type: string }
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         publicBody: { type: string }
         # Only present (non-null) when the caller is ADMIN/FIXER.
         fixerBody: { type: ["string", "null"] }
@@ -3742,6 +3744,7 @@ components:
         name: { type: string }
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         aliases:
           type: array
           items: { type: string }
@@ -3758,6 +3761,7 @@ components:
         name: { type: string }
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         aliases:
           type: array
           items: { type: string }
@@ -3815,6 +3819,7 @@ components:
           type: array
           items: { type: string }
         summary: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         publicBody: { type: string }
         fixerBody: { type: ["string", "null"] }
         sources:
@@ -3836,6 +3841,7 @@ components:
           type: array
           items: { type: string }
         summary: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
         publicBody: { type: string }
         fixerBody: { type: ["string", "null"] }
         sources:

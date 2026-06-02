@@ -6923,6 +6923,7 @@ export const ListLoreResponseItem = zod.object({
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "hasFixerContent": zod.boolean(),
   "updatedAt": zod.coerce.date()
 })
@@ -6937,6 +6938,7 @@ export const CreateLoreBody = zod.object({
   "name": zod.string(),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -6962,6 +6964,7 @@ export const GetLoreResponse = zod.object({
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -6989,6 +6992,7 @@ export const UpdateLoreBody = zod.object({
   "name": zod.string().optional(),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -7006,6 +7010,7 @@ export const UpdateLoreResponse = zod.object({
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -7069,6 +7074,7 @@ export const SubmitLoreEditBody = zod.object({
   "name": zod.string().optional(),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -7192,6 +7198,7 @@ export const ListLoreImportDraftsResponseItem = zod.object({
   "proposedFixer": zod.string().nullish(),
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -7220,6 +7227,7 @@ export const UpdateLoreImportDraftBody = zod.object({
   "proposedFixer": zod.string().nullish(),
   "aliases": zod.array(zod.string()).optional(),
   "summary": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -7237,6 +7245,7 @@ export const UpdateLoreImportDraftResponse = zod.object({
   "proposedFixer": zod.string().nullish(),
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -7266,6 +7275,7 @@ export const ApproveLoreImportDraftResponse = zod.object({
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -7296,6 +7306,7 @@ export const DiscardLoreImportDraftResponse = zod.object({
   "proposedFixer": zod.string().nullish(),
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({

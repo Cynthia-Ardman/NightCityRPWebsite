@@ -82,6 +82,8 @@ export interface LoreEntrySummary {
   summary?: string | null;
   /** @nullable */
   responsibleFixer?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   hasFixerContent: boolean;
   updatedAt: string;
 }
@@ -106,6 +108,8 @@ export interface LoreEntry {
   summary?: string | null;
   /** @nullable */
   responsibleFixer?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;
@@ -137,6 +141,8 @@ export interface LoreEntryInput {
   summary?: string | null;
   /** @nullable */
   responsibleFixer?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   aliases?: string[];
   publicBody?: string;
   /** @nullable */
@@ -161,6 +167,8 @@ export interface LoreEntryUpdate {
   summary?: string | null;
   /** @nullable */
   responsibleFixer?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   aliases?: string[];
   publicBody?: string;
   /** @nullable */
@@ -262,6 +270,8 @@ export interface LoreImportDraft {
   aliases: string[];
   /** @nullable */
   summary?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;
@@ -294,6 +304,8 @@ export interface LoreImportDraftUpdate {
   aliases?: string[];
   /** @nullable */
   summary?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   publicBody?: string;
   /** @nullable */
   fixerBody?: string | null;

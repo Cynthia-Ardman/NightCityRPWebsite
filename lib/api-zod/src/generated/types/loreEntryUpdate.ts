@@ -15,6 +15,8 @@ export interface LoreEntryUpdate {
   summary?: string | null;
   /** @nullable */
   responsibleFixer?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   aliases?: string[];
   publicBody?: string;
   /** @nullable */

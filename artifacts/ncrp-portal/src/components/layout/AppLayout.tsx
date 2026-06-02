@@ -43,8 +43,25 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
           {children}
         </main>
+        <BrandFooter />
       </div>
     </div>
+  );
+}
+
+// Brand footer shown under every page's content so the NCRP identity is present
+// no matter where the user navigates.
+function BrandFooter() {
+  return (
+    <footer className="border-t border-border bg-card/40 px-4 md:px-8 py-5 flex items-center justify-center gap-3">
+      <img src={ncrpLogo} alt="NCRP" className="h-7 w-7 object-contain shrink-0 opacity-80" />
+      <div className="text-center">
+        <div className="font-display tracking-widest text-sm text-nc-cyan">NCRP</div>
+        <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+          Night City RP // Subnet Portal
+        </div>
+      </div>
+    </footer>
   );
 }
 

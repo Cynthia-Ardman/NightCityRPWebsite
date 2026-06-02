@@ -98,6 +98,18 @@ export default function DirectoryLoreDetail() {
         <p className="font-mono text-sm text-foreground/90 border-l-2 border-nc-cyan pl-4" data-testid="text-lore-summary">{data.summary}</p>
       )}
 
+      {data.imageUrl && (
+        <div className="border border-nc-cyan/20 bg-card/30 p-1">
+          <img
+            src={data.imageUrl}
+            alt={data.name}
+            className="w-full max-h-[32rem] object-contain"
+            loading="lazy"
+            data-testid="img-lore-detail"
+          />
+        </div>
+      )}
+
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">OVERVIEW</CardTitle></CardHeader>
         <CardContent className="font-mono text-sm whitespace-pre-wrap leading-relaxed" data-testid="text-lore-public-body">

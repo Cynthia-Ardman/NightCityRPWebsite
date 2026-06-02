@@ -16,6 +16,8 @@ export interface LoreImportDraftUpdate {
   aliases?: string[];
   /** @nullable */
   summary?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
   publicBody?: string;
   /** @nullable */
   fixerBody?: string | null;

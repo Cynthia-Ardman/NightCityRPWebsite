@@ -1314,6 +1314,10 @@ export const loreEntries = pgTable("lore_entries", {
   responsibleFixer: text("responsible_fixer"),
   // One-line public blurb shown in the list + at the top of the detail page.
   summary: text("summary"),
+  // Optional public image (object-storage path, e.g. /api/storage/objects/<id>).
+  // Shown on the list card + detail page. Submitted via the same presigned-URL
+  // upload flow as character portraits / gun images.
+  imageUrl: text("image_url"),
   // Public markdown body — visible to everyone.
   publicBody: text("public_body").notNull().default(""),
   // Fixer-only markdown body — only ADMIN/FIXER may read.
@@ -1377,6 +1381,7 @@ export const loreImportDrafts = pgTable("lore_import_drafts", {
   proposedFixer: text("proposed_fixer"),
   aliases: text("aliases").array().notNull().default([]),
   summary: text("summary"),
+  imageUrl: text("image_url"),
   publicBody: text("public_body").notNull().default(""),
   fixerBody: text("fixer_body"),
   // Raw source references: [{ type: "discord"|"gdoc", url, title }].

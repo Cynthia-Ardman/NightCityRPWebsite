@@ -35,6 +35,7 @@ const entryInputSchema = z.object({
   name: z.string().trim().min(1),
   summary: z.string().nullish(),
   responsibleFixer: z.string().nullish(),
+  imageUrl: z.string().nullish(),
   aliases: z.array(z.string().trim().min(1)).optional(),
   publicBody: z.string().optional(),
   fixerBody: z.string().nullish(),
@@ -96,6 +97,7 @@ function shapeEntry(row: LoreEntry, canViewFixer: boolean): Record<string, unkno
     aliases: row.aliases ?? [],
     summary: row.summary ?? null,
     responsibleFixer: row.responsibleFixer ?? null,
+    imageUrl: row.imageUrl ?? null,
     publicBody: row.publicBody ?? "",
     fixerBody: canViewFixer ? (row.fixerBody ?? null) : null,
     sources: canViewFixer ? sources : [],
@@ -117,6 +119,7 @@ function shapeSummary(row: LoreEntry): Record<string, unknown> {
     aliases: row.aliases ?? [],
     summary: row.summary ?? null,
     responsibleFixer: row.responsibleFixer ?? null,
+    imageUrl: row.imageUrl ?? null,
     hasFixerContent: !!(row.fixerBody && row.fixerBody.trim()) || sourcesOf(row.sources).length > 0,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -362,6 +365,7 @@ async function applyProposal(
         aliases: diff.aliases ?? [],
         summary: diff.summary ?? null,
         responsibleFixer: diff.responsibleFixer ?? null,
+        imageUrl: diff.imageUrl ?? null,
         publicBody: diff.publicBody ?? "",
         fixerBody: diff.fixerBody ?? null,
         sources: (diff.sources ?? []) as never,
@@ -376,6 +380,7 @@ async function applyProposal(
   if (diff.name !== undefined) set.name = diff.name;
   if (diff.summary !== undefined) set.summary = diff.summary ?? null;
   if (diff.responsibleFixer !== undefined) set.responsibleFixer = diff.responsibleFixer ?? null;
+  if (diff.imageUrl !== undefined) set.imageUrl = diff.imageUrl ?? null;
   if (diff.aliases !== undefined) set.aliases = diff.aliases;
   if (diff.publicBody !== undefined) set.publicBody = diff.publicBody;
   if (diff.fixerBody !== undefined) set.fixerBody = diff.fixerBody ?? null;
@@ -556,6 +561,7 @@ function shapeDraft(row: typeof loreImportDrafts.$inferSelect, mergeName: string
     proposedFixer: row.proposedFixer ?? null,
     aliases: row.aliases ?? [],
     summary: row.summary ?? null,
+    imageUrl: row.imageUrl ?? null,
     publicBody: row.publicBody ?? "",
     fixerBody: row.fixerBody ?? null,
     sources: sourcesOf(row.sources),
@@ -591,6 +597,7 @@ const draftUpdateSchema = z.object({
   proposedFixer: z.string().nullish(),
   aliases: z.array(z.string().trim().min(1)).optional(),
   summary: z.string().nullish(),
+  imageUrl: z.string().nullish(),
   publicBody: z.string().optional(),
   fixerBody: z.string().nullish(),
   sources: z.array(sourceSchema).optional(),
@@ -615,6 +622,7 @@ router.patch("/directory/lore/import/drafts/:id", requireAuth, async (req, res):
   if (d.proposedFixer !== undefined) set.proposedFixer = d.proposedFixer ?? null;
   if (d.aliases !== undefined) set.aliases = d.aliases;
   if (d.summary !== undefined) set.summary = d.summary ?? null;
+  if (d.imageUrl !== undefined) set.imageUrl = d.imageUrl ?? null;
   if (d.publicBody !== undefined) set.publicBody = d.publicBody;
   if (d.fixerBody !== undefined) set.fixerBody = d.fixerBody ?? null;
   if (d.sources !== undefined) set.sources = d.sources;
@@ -694,6 +702,7 @@ router.post("/directory/lore/import/drafts/:id/approve", requireAuth, async (req
             name: draft.proposedName,
             responsibleFixer: draft.proposedFixer ?? existing.responsibleFixer,
             summary: draft.summary ?? existing.summary,
+            imageUrl: draft.imageUrl ?? existing.imageUrl,
             publicBody: draft.publicBody,
             fixerBody: draft.fixerBody ?? existing.fixerBody,
             aliases: mergedAliases,
@@ -752,6 +761,7 @@ async function createFromDraft(
       slug,
       aliases: draft.aliases ?? [],
       summary: draft.summary ?? null,
+      imageUrl: draft.imageUrl ?? null,
       responsibleFixer: draft.proposedFixer ?? null,
       publicBody: draft.publicBody ?? "",
       fixerBody: draft.fixerBody ?? null,
@@ -833,6 +843,7 @@ router.post("/directory/lore", requireAuth, async (req, res): Promise<void> => {
       aliases: d.aliases ?? [],
       summary: d.summary ?? null,
       responsibleFixer: d.responsibleFixer ?? null,
+      imageUrl: d.imageUrl ?? null,
       publicBody: d.publicBody ?? "",
       fixerBody: d.fixerBody ?? null,
       sources: (d.sources ?? []) as never,
@@ -875,6 +886,7 @@ router.patch("/directory/lore/:id", requireAuth, async (req, res): Promise<void>
   if (d.name !== undefined) set.name = d.name;
   if (d.summary !== undefined) set.summary = d.summary ?? null;
   if (d.responsibleFixer !== undefined) set.responsibleFixer = d.responsibleFixer ?? null;
+  if (d.imageUrl !== undefined) set.imageUrl = d.imageUrl ?? null;
   if (d.aliases !== undefined) set.aliases = d.aliases;
   if (d.publicBody !== undefined) set.publicBody = d.publicBody;
   if (d.fixerBody !== undefined) set.fixerBody = d.fixerBody ?? null;
