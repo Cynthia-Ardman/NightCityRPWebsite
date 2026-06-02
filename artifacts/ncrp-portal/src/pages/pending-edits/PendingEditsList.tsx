@@ -185,7 +185,7 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
   const shownBuckets: LifecycleBucket[] = activeOnly ? ["active"] : ["active", "resolved", "archive"];
 
   return (
-    <div className={embedded ? "space-y-6" : "max-w-5xl mx-auto p-6 space-y-6"}>
+    <div className={embedded ? "space-y-6" : "max-w-7xl mx-auto p-6 space-y-6"}>
       {!embedded && <EditQueueHeader />}
       {isLoading ? (
         <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>
@@ -217,7 +217,7 @@ function PlayerEditsList({ embedded }: { embedded: boolean }) {
   const invalidate = () => qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
   const actions = useReviewTicketActions(invalidate);
   return (
-    <div className={embedded ? "space-y-6" : "max-w-5xl mx-auto p-6 space-y-6"}>
+    <div className={embedded ? "space-y-6" : "max-w-7xl mx-auto p-6 space-y-6"}>
       {!embedded && <EditQueueHeader />}
       {isLoading ? (
         <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>

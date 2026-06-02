@@ -22,11 +22,11 @@ export default function InventoryItemDetail() {
   const { data, isLoading, error } = useGetInventoryItemHistory(uuid);
 
   if (isLoading) {
-    return <div className="max-w-4xl mx-auto p-6 text-nc-cyan font-mono animate-pulse">Tracing chain of custody...</div>;
+    return <div className="max-w-7xl mx-auto p-6 text-nc-cyan font-mono animate-pulse">Tracing chain of custody...</div>;
   }
   if (error || !data) {
     return (
-      <div className="max-w-4xl mx-auto p-6 space-y-4">
+      <div className="max-w-7xl mx-auto p-6 space-y-4">
         <Link href="/characters"><Button variant="ghost" className="text-nc-cyan"><ArrowLeft className="w-4 h-4 mr-2" />BACK</Button></Link>
         <Card className="rounded-none border-destructive bg-card/50">
           <CardContent className="p-6 font-mono text-destructive">
@@ -39,7 +39,7 @@ export default function InventoryItemDetail() {
   const { item, currentCharacter, events } = data;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto p-6 space-y-6 pb-12">
       <div className="flex items-center justify-between">
         <Link href={currentCharacter ? `/characters/${currentCharacter.id}` : "/characters"}>
           <Button variant="ghost" className="text-nc-cyan" data-testid="link-back">

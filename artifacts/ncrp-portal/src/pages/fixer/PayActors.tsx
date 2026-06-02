@@ -92,7 +92,7 @@ export default function PayActors() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <div className="flex items-center justify-between">
         <h1 className="text-4xl font-display flex items-center gap-3" data-testid="text-pay-actors-title">
           <Users className="w-7 h-7 text-nc-magenta" /> PAY ACTORS

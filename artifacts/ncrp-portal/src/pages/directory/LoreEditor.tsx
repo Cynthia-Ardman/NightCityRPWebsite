@@ -163,7 +163,7 @@ export default function LoreEditor() {
   const title = isEdit ? (isAdmin ? "EDIT LORE" : "PROPOSE EDIT") : isAdmin ? "NEW LORE ENTRY" : "PROPOSE NEW ENTRY";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <Link href={isEdit ? `/directory/lore/${editingId}` : "/directory/lore"}>
         <Button variant="ghost" className="rounded-none font-mono text-xs text-muted-foreground -ml-2" data-testid="link-lore-editor-back">
           <ArrowLeft className="w-4 h-4 mr-1" /> BACK

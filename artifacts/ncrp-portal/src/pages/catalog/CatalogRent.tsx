@@ -296,7 +296,7 @@ export default function CatalogRent() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-[1600px] mx-auto space-y-6 pb-12">
       <div>
         <h1 className="text-4xl font-display" data-testid="text-catalog-rent-title">PROPERTY CATALOG</h1>
         <p className="font-mono text-muted-foreground mt-2">Available homes, apartments, and business spaces.</p>

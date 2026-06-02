@@ -76,7 +76,7 @@ export default function CatalogGuns() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-[1600px] mx-auto space-y-6 pb-12">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-4xl font-display" data-testid="text-catalog-guns-title">

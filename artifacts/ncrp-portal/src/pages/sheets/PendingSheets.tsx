@@ -8,7 +8,7 @@ export default function PendingSheets() {
   const { data: sheets, isLoading } = useListPendingSheets();
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12">
       <div>
         <h1 className="text-4xl font-display font-bold text-foreground flex items-center gap-3" data-testid="text-pending-title">
           <Clock className="w-8 h-8 text-nc-yellow" /> PENDING SHEETS

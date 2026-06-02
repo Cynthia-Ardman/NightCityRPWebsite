@@ -174,7 +174,7 @@ export default function EditCharacterDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="w-[95vw] max-w-5xl max-h-[90vh] overflow-y-auto rounded-none border-nc-cyan bg-background"
+        className="w-[95vw] max-w-[1400px] max-h-[90vh] overflow-y-auto rounded-none border-nc-cyan bg-background"
         data-testid="dialog-edit-character"
       >
         <DialogHeader>

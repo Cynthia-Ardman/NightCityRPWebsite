@@ -149,7 +149,7 @@ export default function MyClinicDetail() {
   if (!data) return <div className="font-display text-destructive">NOT FOUND</div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display" data-testid="text-clinic-name">{data.name}</h1>
 
       <Card className="rounded-none border-border bg-card/50">

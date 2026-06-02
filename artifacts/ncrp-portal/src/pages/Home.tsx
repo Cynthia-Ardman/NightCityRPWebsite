@@ -103,7 +103,7 @@ function Dashboard() {
       ]
     : [];
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12">
       <div className="relative overflow-hidden border border-nc-cyan/20">
         <img
           src={ncrpBanner}

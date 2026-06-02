@@ -13,7 +13,7 @@ export default function DirectoryRipperdocDetail() {
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">CLINIC NOT FOUND</div>;
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       {data.bannerUrl && (
         <div className="w-full overflow-hidden border border-nc-magenta/40 bg-black/30">
           <img

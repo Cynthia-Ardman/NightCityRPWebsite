@@ -18,7 +18,7 @@ export default function CharactersList() {
   const isLoading = charsLoading || sheetsLoading;
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-display font-bold text-foreground" data-testid="text-characters-title">CHARACTERS</h1>

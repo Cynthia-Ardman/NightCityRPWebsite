@@ -8,7 +8,7 @@ import VenueRequestSection from "@/components/catalog/VenueRequestSection";
 export default function MyStores() {
   const { data, isLoading } = useListMyStores();
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display" data-testid="text-my-stores-title">MY STORES</h1>
       <VenueRequestSection
         type="store"

@@ -95,7 +95,7 @@ export default function Ledger() {
   const rows = (txns ?? []) as WalletTransaction[];
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto pb-12">
+    <div className="space-y-8 max-w-[1600px] mx-auto pb-12">
       <div>
         <h1
           className="text-4xl font-display font-bold text-foreground flex items-center gap-3"

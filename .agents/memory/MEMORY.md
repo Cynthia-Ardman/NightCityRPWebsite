@@ -55,3 +55,4 @@
 - [Lore write paths](lore-write-paths.md) — a new lore_entries field must thread through direct create/update, applyProposal (both branches), AND the separate lore_import_drafts pipeline; easy to drop on import.
 - [Review close/reopen authz](review-close-reopen-authz.md) — close/reopen must mirror the per-type VOTE authz (all isReviewer), NOT queue-visibility; gating sheet-close on CS_APPROVER breaks fixers who voted.
 - [Staged review effects deferred to close](staged-review-effects.md) — approve/override only STAGE (persist decisionParams); effects (lease/inventory/materialize/diff) commit at close, idempotent under FOR UPDATE; lore/stock_cost/employee_invite stay immediate.
+- [Portal page width tiers](portal-page-width-tiers.md) — page-root containers use max-w-7xl (standard) or max-w-[1600px] (wide tables); no global cap, sidebar is fixed w-64.

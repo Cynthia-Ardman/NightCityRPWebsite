@@ -77,11 +77,11 @@ export default function MissionDetail() {
   });
 
   if (isLoading) {
-    return <div className="max-w-4xl mx-auto font-mono text-nc-cyan animate-pulse">Loading mission...</div>;
+    return <div className="max-w-7xl mx-auto font-mono text-nc-cyan animate-pulse">Loading mission...</div>;
   }
   if (error || !data) {
     return (
-      <div className="max-w-4xl mx-auto space-y-4">
+      <div className="max-w-7xl mx-auto space-y-4">
         <Link href="/missions" className="text-nc-cyan font-mono text-sm hover:underline inline-flex items-center gap-1">
           <ArrowLeft className="w-4 h-4" /> back to missions
         </Link>
@@ -104,7 +104,7 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
   const completionErr = errOf(complete.error) ?? errOf(uncomplete.error);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <Link
         href="/missions"
         className="text-nc-cyan font-mono text-sm hover:underline inline-flex items-center gap-1"

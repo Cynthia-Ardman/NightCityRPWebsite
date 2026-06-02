@@ -7,7 +7,7 @@ import { Store } from "lucide-react";
 export default function DirectoryStores() {
   const { data, isLoading } = useListStores();
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <div>
         <h1 className="text-4xl font-display text-foreground" data-testid="text-stores-title">STORE DIRECTORY</h1>
         <p className="font-mono text-muted-foreground mt-2">All registered storefronts in Night City.</p>

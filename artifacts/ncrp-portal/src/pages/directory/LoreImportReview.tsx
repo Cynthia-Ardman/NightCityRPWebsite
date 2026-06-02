@@ -59,7 +59,7 @@ export default function LoreImportReview() {
   });
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <Link href="/directory/lore">
         <Button variant="ghost" className="rounded-none font-mono text-xs text-muted-foreground -ml-2" data-testid="link-import-back">
           <ArrowLeft className="w-4 h-4 mr-1" /> ALL LORE

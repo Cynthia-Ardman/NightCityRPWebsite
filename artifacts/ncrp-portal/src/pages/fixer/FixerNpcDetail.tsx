@@ -22,7 +22,7 @@ export default function FixerNpcDetail() {
   if (!data) return <div className="font-display text-destructive">NPC NOT FOUND</div>;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display" data-testid="text-npc-name">{data.name}</h1>
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">EDIT NPC</CardTitle></CardHeader>

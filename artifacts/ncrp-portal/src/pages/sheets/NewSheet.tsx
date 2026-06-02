@@ -86,7 +86,7 @@ export default function NewSheet() {
     loaded.status !== "pending"
   ) {
     return (
-      <div className="max-w-4xl mx-auto py-8 space-y-3">
+      <div className="max-w-7xl mx-auto py-8 space-y-3">
         <h1 className="text-2xl font-display text-destructive">SHEET LOCKED</h1>
         <p className="font-mono text-sm text-muted-foreground">
           This sheet has already been {loaded.status} and can no longer be edited.
@@ -399,7 +399,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     : draftId ? "Draft loaded" : "";
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6 max-w-4xl mx-auto pb-12">
+    <form onSubmit={onSubmit} className="space-y-6 max-w-7xl mx-auto pb-12">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-display font-bold text-foreground" data-testid="text-new-sheet-title">

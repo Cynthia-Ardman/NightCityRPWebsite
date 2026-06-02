@@ -98,7 +98,7 @@ export default function RipperdocConsole() {
   if (!me.isRipperdoc && !me.isAdmin) return <Redirect to="/" />;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-display font-bold text-nc-cyan flex items-center gap-3">
           <Syringe className="w-7 h-7" /> RIPPERDOC CONSOLE

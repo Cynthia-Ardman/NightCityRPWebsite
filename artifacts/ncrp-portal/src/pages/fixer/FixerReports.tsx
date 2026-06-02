@@ -27,7 +27,7 @@ export default function FixerReports() {
   const [openPlayers, setOpenPlayers] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <div className="flex items-center justify-between">
         <h1 className="text-4xl font-display flex items-center gap-3" data-testid="text-reports-title">
           <BarChart3 className="w-7 h-7 text-nc-cyan" /> MISSION REPORTS

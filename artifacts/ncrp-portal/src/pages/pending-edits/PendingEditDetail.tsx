@@ -195,7 +195,7 @@ export default function PendingEditDetail() {
   const mergedCharacter = character ? ({ ...character, ...diff } as Character) : null;
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
       <Link href="/pending-edits">
         <a className="inline-flex items-center gap-2 font-mono text-xs text-muted-foreground hover:text-nc-cyan">
           <ArrowLeft className="w-3 h-3" /> BACK TO QUEUE

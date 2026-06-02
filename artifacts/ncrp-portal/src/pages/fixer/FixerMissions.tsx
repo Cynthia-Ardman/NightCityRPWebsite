@@ -59,7 +59,7 @@ export default function FixerMissions() {
   const invalidateList = () => qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display flex items-center gap-3" data-testid="text-missions-title">
         <Briefcase className="w-7 h-7 text-nc-magenta" /> MISSIONS
       </h1>

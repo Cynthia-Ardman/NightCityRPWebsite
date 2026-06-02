@@ -74,7 +74,7 @@ export default function DirectoryCharacters() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl md:text-4xl font-display text-nc-cyan tracking-widest">CHARACTER ARCHIVE</h1>

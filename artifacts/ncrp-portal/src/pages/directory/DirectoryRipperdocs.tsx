@@ -6,7 +6,7 @@ import { Syringe } from "lucide-react";
 export default function DirectoryRipperdocs() {
   const { data, isLoading } = useListRipperdocs();
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <div>
         <h1 className="text-4xl font-display" data-testid="text-ripperdocs-title">RIPPERDOC DIRECTORY</h1>
         <p className="font-mono text-muted-foreground mt-2">Find a ripperdoc for your next upgrade.</p>
