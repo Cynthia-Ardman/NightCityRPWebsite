@@ -20,7 +20,22 @@ export default function DirectoryStores() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {data.map((s) => (
             <Link key={s.id} href={`/directory/stores/${s.id}`}>
-              <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full" data-testid={`card-store-${s.id}`}>
+              <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full overflow-hidden flex flex-col" data-testid={`card-store-${s.id}`}>
+                {s.bannerUrl ? (
+                  <div className="w-full h-32 overflow-hidden border-b border-border bg-black/30">
+                    <img
+                      src={s.bannerUrl}
+                      alt={`${s.name} banner`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      data-testid={`img-store-${s.id}`}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-32 flex items-center justify-center border-b border-border bg-card/30" data-testid={`img-store-fallback-${s.id}`}>
+                    <Store className="w-10 h-10 text-muted-foreground opacity-30" />
+                  </div>
+                )}
                 <CardHeader>
                   <CardTitle className="font-display text-xl">{s.name}</CardTitle>
                   <CardDescription className="font-mono text-xs">{s.location ?? "—"}</CardDescription>
