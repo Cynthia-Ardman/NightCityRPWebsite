@@ -795,13 +795,13 @@ function WalletTab() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 font-mono max-w-md">
-            <FormItem>
-              <FormLabel>Character</FormLabel>
+            <div className="space-y-2">
+              <Label>Character</Label>
               <CharacterPicker value={target} onChange={setTarget} scope="all" testId="input-wallet-char" />
               {!target && (
                 <p className="text-xs text-muted-foreground">Search by character or player name.</p>
               )}
-            </FormItem>
+            </div>
             <FormField
               control={form.control}
               name="amount"
