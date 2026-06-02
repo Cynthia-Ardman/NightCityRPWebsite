@@ -50,6 +50,7 @@ import {
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 type TabKey = "open" | "accepted" | "applications" | "acting" | "created" | "history" | "all";
 
@@ -178,95 +179,109 @@ export default function Missions() {
         </TabsList>
 
         <TabsContent value="open" data-testid="tabpanel-open">
-          <ListSection
-            isLoading={available.isLoading}
-            isEmpty={openMissions.length === 0}
-            emptyText="No open missions right now. Check back soon."
-          >
-            <MissionCardList rows={openMissions} isAdmin={isAdmin} showApply />
-          </ListSection>
+          <ErrorBoundary>
+            <ListSection
+              isLoading={available.isLoading}
+              isEmpty={openMissions.length === 0}
+              emptyText="No open missions right now. Check back soon."
+            >
+              <MissionCardList rows={openMissions} isAdmin={isAdmin} showApply />
+            </ListSection>
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="accepted" data-testid="tabpanel-accepted">
-          <ListSection
-            isLoading={mine.isLoading}
-            isEmpty={acceptedMissions.length === 0}
-            emptyText="You're not on any upcoming missions yet. Apply to one from the Open tab."
-          >
-            <MissionCardList rows={acceptedMissions} isAdmin={isAdmin} />
-          </ListSection>
+          <ErrorBoundary>
+            <ListSection
+              isLoading={mine.isLoading}
+              isEmpty={acceptedMissions.length === 0}
+              emptyText="You're not on any upcoming missions yet. Apply to one from the Open tab."
+            >
+              <MissionCardList rows={acceptedMissions} isAdmin={isAdmin} />
+            </ListSection>
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="applications" data-testid="tabpanel-applications">
-          <ListSection
-            isLoading={myApps.isLoading}
-            isEmpty={(myApps.data?.length ?? 0) === 0}
-            emptyText="You haven't applied to any missions yet."
-          >
-            <MyApplicationsList rows={myApps.data ?? []} />
-          </ListSection>
+          <ErrorBoundary>
+            <ListSection
+              isLoading={myApps.isLoading}
+              isEmpty={(myApps.data?.length ?? 0) === 0}
+              emptyText="You haven't applied to any missions yet."
+            >
+              <MyApplicationsList rows={myApps.data ?? []} />
+            </ListSection>
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="acting" data-testid="tabpanel-acting">
-          <ListSection
-            isLoading={acting.isLoading}
-            isEmpty={(acting.data?.length ?? 0) === 0}
-            emptyText="You haven't acted in any missions or events yet."
-          >
-            <ActingList rows={acting.data ?? []} />
-          </ListSection>
+          <ErrorBoundary>
+            <ListSection
+              isLoading={acting.isLoading}
+              isEmpty={(acting.data?.length ?? 0) === 0}
+              emptyText="You haven't acted in any missions or events yet."
+            >
+              <ActingList rows={acting.data ?? []} />
+            </ListSection>
+          </ErrorBoundary>
         </TabsContent>
 
         {isStaff && (
           <TabsContent value="created" data-testid="tabpanel-created">
-            <ListSection
-              isLoading={created.isLoading}
-              isEmpty={(created.data?.length ?? 0) === 0}
-              emptyText="No missions yet. Use “Create Mission” to draft one."
-            >
-              <OwnedMissionBoard
-                rows={created.data ?? []}
-                isAdmin={isAdmin}
-                canApprove={canApprove}
-                canManage={isStaff}
-              />
-            </ListSection>
+            <ErrorBoundary>
+              <ListSection
+                isLoading={created.isLoading}
+                isEmpty={(created.data?.length ?? 0) === 0}
+                emptyText="No missions yet. Use “Create Mission” to draft one."
+              >
+                <OwnedMissionBoard
+                  rows={created.data ?? []}
+                  isAdmin={isAdmin}
+                  canApprove={canApprove}
+                  canManage={isStaff}
+                />
+              </ListSection>
+            </ErrorBoundary>
           </TabsContent>
         )}
 
         <TabsContent value="history" data-testid="tabpanel-history">
-          <ListSection
-            isLoading={history.isLoading}
-            isEmpty={historyRows.length === 0}
-            emptyText="No completed missions in your history yet."
-          >
-            <MissionCardList rows={historyRows} isAdmin={isAdmin} />
-            {history.hasNextPage && (
-              <div className="flex justify-center pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-none font-display tracking-widest"
-                  onClick={() => history.fetchNextPage()}
-                  disabled={history.isFetchingNextPage}
-                  data-testid="button-load-more-history"
-                >
-                  {history.isFetchingNextPage ? "LOADING…" : "LOAD MORE"}
-                </Button>
-              </div>
-            )}
-          </ListSection>
+          <ErrorBoundary>
+            <ListSection
+              isLoading={history.isLoading}
+              isEmpty={historyRows.length === 0}
+              emptyText="No completed missions in your history yet."
+            >
+              <MissionCardList rows={historyRows} isAdmin={isAdmin} />
+              {history.hasNextPage && (
+                <div className="flex justify-center pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-none font-display tracking-widest"
+                    onClick={() => history.fetchNextPage()}
+                    disabled={history.isFetchingNextPage}
+                    data-testid="button-load-more-history"
+                  >
+                    {history.isFetchingNextPage ? "LOADING…" : "LOAD MORE"}
+                  </Button>
+                </div>
+              )}
+            </ListSection>
+          </ErrorBoundary>
         </TabsContent>
 
         {canSeeStaffTabs && (
           <TabsContent value="all" data-testid="tabpanel-all">
-            <AllMissionsTab
-              rows={owned.data ?? []}
-              isLoading={owned.isLoading}
-              isAdmin={isAdmin}
-              canApprove={canApprove}
-              canManage={isStaff}
-            />
+            <ErrorBoundary>
+              <AllMissionsTab
+                rows={owned.data ?? []}
+                isLoading={owned.isLoading}
+                isAdmin={isAdmin}
+                canApprove={canApprove}
+                canManage={isStaff}
+              />
+            </ErrorBoundary>
           </TabsContent>
         )}
       </Tabs>

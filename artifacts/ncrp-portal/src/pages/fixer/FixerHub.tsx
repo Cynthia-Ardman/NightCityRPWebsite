@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, type LucideIcon } from "lucide-react";
 
 type FixerTool = {
@@ -107,11 +108,13 @@ export default function FixerHub() {
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display" data-testid="text-fixer-title">FIXER HUB</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {FIXER_TOOLS.map((tool) => (
-          <ToolCard key={tool.href} tool={tool} />
-        ))}
-      </div>
+      <ErrorBoundary>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {FIXER_TOOLS.map((tool) => (
+            <ToolCard key={tool.href} tool={tool} />
+          ))}
+        </div>
+      </ErrorBoundary>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
@@ -134,8 +137,8 @@ export default function FixerHub() {
           <TabsTrigger value="mine" className="rounded-none font-display" data-testid="tab-mine">MY NPCS</TabsTrigger>
           <TabsTrigger value="all" className="rounded-none font-display" data-testid="tab-all">ALL NPCS</TabsTrigger>
         </TabsList>
-        <TabsContent value="mine"><NpcGrid items={mine ?? []} kind="mine" /></TabsContent>
-        <TabsContent value="all"><NpcGrid items={all ?? []} kind="all" /></TabsContent>
+        <TabsContent value="mine"><ErrorBoundary><NpcGrid items={mine ?? []} kind="mine" /></ErrorBoundary></TabsContent>
+        <TabsContent value="all"><ErrorBoundary><NpcGrid items={all ?? []} kind="all" /></ErrorBoundary></TabsContent>
       </Tabs>
     </div>
   );

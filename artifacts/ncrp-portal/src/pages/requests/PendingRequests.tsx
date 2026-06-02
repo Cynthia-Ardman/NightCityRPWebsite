@@ -50,6 +50,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const TYPE_META: Record<
   CustomRequest["type"],
@@ -1178,30 +1179,30 @@ export default function PendingRequests() {
 
         {canMisc && (
           <TabsContent value="misc" className="mt-6">
-            <MiscRequestsTab />
+            <ErrorBoundary><MiscRequestsTab /></ErrorBoundary>
           </TabsContent>
         )}
         <TabsContent value="edits" className="mt-6">
-          <PendingEditsList embedded activeOnly />
+          <ErrorBoundary><PendingEditsList embedded activeOnly /></ErrorBoundary>
         </TabsContent>
         {canNewChars && (
           <TabsContent value="sheets" className="mt-6">
-            <NewCharactersTab />
+            <ErrorBoundary><NewCharactersTab /></ErrorBoundary>
           </TabsContent>
         )}
         {canLore && (
           <TabsContent value="lore" className="mt-6">
-            <LoreEditsTab />
+            <ErrorBoundary><LoreEditsTab /></ErrorBoundary>
           </TabsContent>
         )}
         {isReviewer && (
           <TabsContent value="completed" className="mt-6">
-            <TerminalTab which="completed" />
+            <ErrorBoundary><TerminalTab which="completed" /></ErrorBoundary>
           </TabsContent>
         )}
         {isReviewer && (
           <TabsContent value="denied" className="mt-6">
-            <TerminalTab which="denied" />
+            <ErrorBoundary><TerminalTab which="denied" /></ErrorBoundary>
           </TabsContent>
         )}
       </Tabs>
