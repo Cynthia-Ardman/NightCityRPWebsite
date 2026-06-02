@@ -15,6 +15,7 @@ import {
   botCyberwareStatus,
   botCyberwareWeeklyRuns,
   botBalanceHistory,
+  botRentPaymentEvents,
   stores,
   ripperdocs,
   classifyWalletCategory,
@@ -460,42 +461,89 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
   );
 });
 
-// Account-level cyberware upkeep history for the signed-in player, derived from
-// the imported bot weekly sweep runs (bot_cyberware_weekly_runs). The bot
-// tracked cyberware meds PER DISCORD USER (not per character), so this is an
-// account-wide view: for each weekly run we report whether the player paid,
-// went unpaid, or had a checkup that week. Read-only — powers the "CYBERWARE
-// HISTORY" dialog. Earliest data ~2025-06.
+// Account-level cyberware MEDS history for the signed-in player. The bot
+// charged cyberware meds PER DISCORD USER (not per character), so this is an
+// account-wide view. Sourced from the imported bot ledger (bot_balance_history)
+// filtered to "Cyberware meds week N" deductions — that ledger carries the real
+// amount the player paid each week, which the per-run sweep table does not.
+// Each entry surfaces the week label + amount paid. Read-only — powers the
+// "MEDS HISTORY" dialog.
 router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void> => {
   const discordId = req.user!.discordId;
-  const runs = await db
+  const rows = await db
     .select()
-    .from(botCyberwareWeeklyRuns)
-    .orderBy(desc(botCyberwareWeeklyRuns.runAt))
+    .from(botBalanceHistory)
+    .where(
+      and(
+        eq(botBalanceHistory.userId, discordId),
+        sql`${botBalanceHistory.reason} ILIKE 'Cyberware meds%'`,
+      ),
+    )
+    .orderBy(desc(botBalanceHistory.ts))
     .limit(500);
 
-  const has = (arr: unknown, id: string): boolean =>
-    Array.isArray(arr) && (arr as unknown[]).some((v) => String(v) === id);
-
-  const entries = runs
-    .map((r) => {
-      const paid = has(r.paidIds, discordId);
-      const unpaid = has(r.unpaidIds, discordId);
-      const checkup = has(r.checkupIds, discordId);
-      if (!paid && !unpaid && !checkup) return null;
-      // A run can list a user in multiple buckets; surface the most
-      // informative single label (unpaid > checkup > paid).
-      const label = unpaid ? "UNPAID" : checkup ? "CHECKUP" : "PAID";
-      const at = new Date(r.runAt);
-      return { source: "bot" as const, at, date: at.toISOString().slice(0, 10), label };
-    })
-    .filter((e): e is NonNullable<typeof e> => e !== null);
+  const entries = rows.map((r) => {
+    const at = new Date(r.ts);
+    return {
+      source: "bot" as const,
+      date: at.toISOString().slice(0, 10),
+      at: at.toISOString(),
+      amount: (r.cashDelta ?? 0) + (r.bankDelta ?? 0),
+      label: r.reason ?? "Cyberware meds",
+    };
+  });
 
   res.json({
     totalCount: entries.length,
     portalCount: 0,
     botCount: entries.length,
-    entries: entries.map((e) => ({ source: e.source, date: e.date, at: e.at.toISOString(), label: e.label })),
+    entries,
+  });
+});
+
+// Account-level RENT history for the signed-in player, parsed from the legacy
+// bot's #rent-payments Discord channel (bot_rent_payment_events) — one row per
+// charge confirmation, going back a full year. Covers baseline living cost,
+// housing rent, business rent and memberships (all the recurring rent-style
+// bills). Keyed by Discord id, so account-wide. Amounts are returned signed
+// negative (money charged) so the dialog renders them as outflows. Read-only —
+// powers the "RENT HISTORY" dialog.
+router.get("/me/rent-history", requireAuth, async (req, res): Promise<void> => {
+  const discordId = req.user!.discordId;
+  const rows = await db
+    .select()
+    .from(botRentPaymentEvents)
+    .where(
+      and(
+        eq(botRentPaymentEvents.userId, discordId),
+        inArray(botRentPaymentEvents.kind, [
+          "baseline",
+          "housing_rent",
+          "business_rent",
+          "membership",
+          "trauma_team",
+        ]),
+      ),
+    )
+    .orderBy(desc(botRentPaymentEvents.ts))
+    .limit(500);
+
+  const entries = rows.map((r) => {
+    const at = new Date(r.ts);
+    return {
+      source: "bot" as const,
+      date: at.toISOString().slice(0, 10),
+      at: at.toISOString(),
+      amount: -(r.amount ?? 0),
+      label: r.label,
+    };
+  });
+
+  res.json({
+    totalCount: entries.length,
+    portalCount: 0,
+    botCount: entries.length,
+    entries,
   });
 });
 

@@ -59,5 +59,6 @@
 - [Review close/reopen authz](review-close-reopen-authz.md) — close/reopen must mirror the per-type VOTE authz (all isReviewer), NOT queue-visibility; gating sheet-close on CS_APPROVER breaks fixers who voted.
 - [Staged review effects deferred to close](staged-review-effects.md) — approve/override only STAGE (persist decisionParams); effects (lease/inventory/materialize/diff) commit at close, idempotent under FOR UPDATE; lore/stock_cost/employee_invite stay immediate.
 - [Portal page width tiers](portal-page-width-tiers.md) — page-root containers use max-w-7xl (standard) or max-w-[1600px] (wide tables); no global cap, sidebar is fixed w-64.
+- [Rent & meds history sources](rent-and-meds-history-sources.md) — rent = parse #rent-payments channel into bot_rent_payment_events (msg-id idempotent); meds = existing bot_balance_history ledger; both key on discord_id.
 - [Character wallet endpoint scope](character-wallet-endpoint-scope.md) — /characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows; per-character history UI must also filter t.characterId===id.
 - [Wallet category bucket](character-wallet-endpoint-scope.md) — wallet_transactions.category (rent/cyberware/…) is derived from kind+memo via classifyWalletCategory, independent of load-bearing kind; APIs fallback-derive when null.

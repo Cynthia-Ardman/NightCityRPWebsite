@@ -3,7 +3,7 @@ import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/rea
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
-import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList } from "lucide-react";
+import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History } from "lucide-react";
 import { missionStatusClass, missionStatusLabel, missionTierClass, missionTierLabel } from "@/lib/missionStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -140,7 +140,6 @@ function Dashboard() {
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
         {statCards}
         <AttendCard />
-        <AccountHistoryCard />
         {(characters ?? []).map((c) => (
           <ShopOpenSection key={c.id} characterId={c.id} name={c.name} />
         ))}
@@ -796,61 +795,6 @@ function AttendCard() {
   );
 }
 
-// Account-level history card: the bot tracked cyberware upkeep and the cash
-// ledger PER DISCORD USER (not per character), so these two views are
-// account-wide and live in one player-level card rather than per-character.
-function AccountHistoryCard() {
-  const [cyberOpen, setCyberOpen] = useState(false);
-  const [financeOpen, setFinanceOpen] = useState(false);
-  return (
-    <div className="border border-nc-cyan/40 bg-nc-cyan/5 p-4 space-y-3 h-full flex flex-col">
-      <div>
-        <div className="font-display tracking-widest text-nc-cyan text-sm">ACCOUNT HISTORY</div>
-        <div className="text-xs text-muted-foreground mt-1">
-          Your bot-era cyberware upkeep and full cash ledger.
-        </div>
-      </div>
-      <div className="flex flex-col gap-2 mt-auto">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setCyberOpen(true)}
-          className="rounded-none border-nc-cyan/40 text-nc-cyan hover:bg-nc-cyan/10 font-display tracking-widest text-xs"
-          data-testid="button-cyberware-history"
-        >
-          CYBERWARE HISTORY
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setFinanceOpen(true)}
-          className="rounded-none border-nc-yellow/40 text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-xs"
-          data-testid="button-financial-history"
-        >
-          FINANCIAL HISTORY
-        </Button>
-      </div>
-      <ActivityHistoryDialog
-        open={cyberOpen}
-        onOpenChange={setCyberOpen}
-        title="CYBERWARE HISTORY"
-        url="/api/me/cyberware-history"
-        queryKey={["cyberware-history"]}
-        accent="border-nc-cyan/60"
-      />
-      <ActivityHistoryDialog
-        open={financeOpen}
-        onOpenChange={setFinanceOpen}
-        title="FINANCIAL HISTORY"
-        url="/api/me/financial-history"
-        queryKey={["financial-history"]}
-        accent="border-nc-yellow/60"
-        showAmount
-      />
-    </div>
-  );
-}
-
 // Single per-PLAYER Leave of Absence control. LOA is stored per character
 // server-side (it drives rent-billing skips), so toggling this fans the change
 // out across every one of the player's characters at once: ON puts them all on
@@ -1051,12 +995,41 @@ function formatDueDate(iso: string): string {
 
 function UpcomingBillsCard() {
   const { data, isLoading } = useGetUpcomingBills();
+  // Account-level history dialogs (the legacy bot tracked rent + cyberware meds
+  // PER DISCORD USER, not per character). Rent comes from the parsed
+  // #rent-payments channel (a full year); meds + the full ledger come from the
+  // imported bot balance history.
+  const [rentOpen, setRentOpen] = useState(false);
+  const [medsOpen, setMedsOpen] = useState(false);
+  const [financeOpen, setFinanceOpen] = useState(false);
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-2xl font-display font-bold text-foreground flex items-center gap-2" data-testid="text-bills-title">
           <Receipt className="w-5 h-5 text-nc-yellow" /> UPCOMING_BILLS
         </h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setRentOpen(true)}
+            className="rounded-none border-nc-yellow/40 text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-xs h-8"
+            data-testid="button-rent-history"
+          >
+            <History className="w-3 h-3 mr-1" /> RENT HISTORY
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setFinanceOpen(true)}
+            className="rounded-none border-border text-muted-foreground hover:bg-muted/30 font-display tracking-widest text-xs h-8"
+            data-testid="button-financial-history"
+          >
+            <History className="w-3 h-3 mr-1" /> ALL FINANCES
+          </Button>
+        </div>
       </div>
       <Card className="rounded-none border-border bg-card/50">
         <CardContent className="p-4 space-y-4">
@@ -1109,6 +1082,19 @@ function UpcomingBillsCard() {
                 }))}
               />
 
+              <div className="flex justify-end -mt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMedsOpen(true)}
+                  className="rounded-none border-destructive/40 text-destructive hover:bg-destructive/10 font-display tracking-widest text-xs h-8"
+                  data-testid="button-meds-history"
+                >
+                  <History className="w-3 h-3 mr-1" /> MEDS HISTORY
+                </Button>
+              </div>
+
               {/* Always render so the checkup history, multiplier and band
                   breakdown stay visible even when the household isn't being
                   billed this week (e.g. just had a checkup, or no PC is
@@ -1144,6 +1130,34 @@ function UpcomingBillsCard() {
           )}
         </CardContent>
       </Card>
+
+      <ActivityHistoryDialog
+        open={rentOpen}
+        onOpenChange={setRentOpen}
+        title="RENT HISTORY"
+        url="/api/me/rent-history"
+        queryKey={["rent-history"]}
+        accent="border-nc-yellow/60"
+        showAmount
+      />
+      <ActivityHistoryDialog
+        open={medsOpen}
+        onOpenChange={setMedsOpen}
+        title="CYBERWARE MEDS HISTORY"
+        url="/api/me/cyberware-history"
+        queryKey={["cyberware-history"]}
+        accent="border-destructive/60"
+        showAmount
+      />
+      <ActivityHistoryDialog
+        open={financeOpen}
+        onOpenChange={setFinanceOpen}
+        title="ALL FINANCES"
+        url="/api/me/financial-history"
+        queryKey={["financial-history"]}
+        accent="border-nc-cyan/60"
+        showAmount
+      />
     </div>
   );
 }

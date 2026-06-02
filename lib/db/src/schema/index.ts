@@ -1171,6 +1171,28 @@ export const botBalanceHistory = pgTable("bot_balance_history", {
   tsIdx: index("bot_balance_history_ts_idx").on(t.ts),
 }));
 
+// Per-payment rent/bill events parsed from the legacy bot's #rent-payments
+// Discord channel. The bot posted one confirmation line per charge during each
+// monthly rent sweep (e.g. "✅ <@id> — Housing Rent paid: $2000"), going back a
+// full year — far deeper than bot_balance_history's snapshot. Keyed by Discord
+// message id so re-importing is idempotent. amount is the eddies charged
+// (stored positive). PER DISCORD USER (the bot tracked rent per account).
+export const botRentPaymentEvents = pgTable("bot_rent_payment_events", {
+  id: serial("id").primaryKey(),
+  messageId: text("message_id").notNull().unique(),
+  userId: text("user_id").notNull(),
+  ts: timestamp("ts", { withTimezone: true }).notNull(),
+  // baseline | housing_rent | business_rent | membership | trauma_team |
+  // cyberware_meds | other
+  kind: text("kind").notNull(),
+  label: text("label").notNull(),
+  amount: integer("amount").notNull().default(0),
+  week: integer("week"),
+}, (t) => ({
+  userIdx: index("bot_rent_payment_events_user_idx").on(t.userId),
+  tsIdx: index("bot_rent_payment_events_ts_idx").on(t.ts),
+}));
+
 // Cyberware "weeks since last checkup" counter. PER USER (not per character)
 // — that is just how the bot tracks it. Per-character cyberware ITEMS live
 // in botPlayerInventory.
