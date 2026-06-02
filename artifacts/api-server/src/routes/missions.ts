@@ -622,8 +622,13 @@ router.post("/missions/:id/pay-actors", requireAuth, async (req, res): Promise<v
     return;
   }
   if ("blocked" in result) {
-    // A completed mission is read-only for actor payments. Reopen it first.
-    res.status(409).json({ error: "This mission is marked completed. Reopen it before paying actors." });
+    // A completed or cancelled mission is read-only for actor payments.
+    res.status(409).json({
+      error:
+        result.blocked === "cancelled"
+          ? "This mission is cancelled. Cancelled missions cannot pay actors."
+          : "This mission is marked completed. Reopen it before paying actors.",
+    });
     return;
   }
   const detail = await getMissionDetail(id, viewerOf(req));

@@ -1471,13 +1471,17 @@ export async function payMissionActors(
   userIds: string[],
   amount: number,
   opts: { req?: Request; actorId?: string | null; actorName?: string | null },
-): Promise<PayActorsResult | null | { blocked: "completed" }> {
+): Promise<PayActorsResult | null | { blocked: "completed" | "cancelled" }> {
   const [mission] = await db.select().from(missions).where(eq(missions.id, missionId));
   if (!mission) return null;
   // Authoritative completion lock: a mission marked completed is read-only for
   // actor payments. Enforced here (not just at the route) so no caller — present
   // or future — can bypass it, and to shrink the route's check-then-act window.
   if (mission.completedAt) return { blocked: "completed" };
+  // A cancelled mission never pays out — mirror payMissionPlayers' refusal so
+  // actor payouts can't be issued on a called-off mission (cancelling only sets
+  // status='cancelled', it does NOT set completedAt, so the lock above misses it).
+  if (mission.status === "cancelled") return { blocked: "cancelled" };
   const ctx = await getMissionContext();
   const result: PayActorsResult = { paid: 0, simulated: 0, failed: 0, skipped: 0, live: ctx.live };
 
@@ -1543,12 +1547,13 @@ export async function payMissionActors(
     // the race gets nothing back and skips.
     //
     // The reservation is an INSERT ... SELECT gated on the mission still being
-    // open (completed_at IS NULL). This re-checks the completion lock ATOMICALLY
-    // with the reservation: if a concurrent setMissionCompleted committed before
+    // open (completed_at IS NULL AND status <> 'cancelled'). This re-checks BOTH
+    // the completion lock and the cancellation guard ATOMICALLY with the
+    // reservation: if a concurrent setMissionCompleted or cancel committed before
     // this statement runs, the subquery yields no row and nothing is reserved —
     // closing the check-then-act race between the top-of-function read and the
-    // payout. The completion guard runs inside the DB, so no lock is held across
-    // the external UnbelievaBoat call below.
+    // payout. The guards run inside the DB, so no lock is held across the
+    // external UnbelievaBoat call below.
     const reservedRes = await db.execute(sql`
       INSERT INTO mission_actor_payments
         (mission_id, mission_name, user_id, user_name, fixer_id, fixer_name,
@@ -1556,14 +1561,17 @@ export async function payMissionActors(
       SELECT ${missionId}, ${mission.title}, ${userId}, ${u?.username ?? null},
              ${payerId}, ${payerName}, ${mission.startAt}, ${amount}, 'manual',
              ${now}, ${now}, 'paid'
-      WHERE EXISTS (SELECT 1 FROM missions WHERE id = ${missionId} AND completed_at IS NULL)
+      WHERE EXISTS (
+        SELECT 1 FROM missions
+        WHERE id = ${missionId} AND completed_at IS NULL AND status <> 'cancelled'
+      )
       ON CONFLICT DO NOTHING
       RETURNING id
     `);
     const reserved = (reservedRes.rows ?? []) as Array<{ id: number }>;
     if (reserved.length === 0) {
       // Either the actor is already paid (conflict) or the mission was completed
-      // mid-flight. Both mean "no payout"; no money has moved.
+      // or cancelled mid-flight. Both mean "no payout"; no money has moved.
       result.skipped++;
       continue;
     }

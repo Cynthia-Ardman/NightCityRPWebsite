@@ -319,6 +319,24 @@ describe("Actor pay idempotency", () => {
     expect(paidRows).toHaveLength(1);
   });
 
+  it("never pays actors on a cancelled mission", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(50));
+    const actor = await createUser();
+    // Cancelling sets status='cancelled' but NOT completedAt, so the
+    // completion lock alone would miss it — the status guard must catch it.
+    const m = await seedMission({ status: "cancelled" });
+
+    const result = await payMissionActors(m.id, [actor.id], 50, {});
+    expect(result).toEqual({ blocked: "cancelled" });
+    expect(mockPatch).not.toHaveBeenCalled();
+    const rows = await db
+      .select()
+      .from(missionActorPayments)
+      .where(eq(missionActorPayments.missionId, m.id));
+    expect(rows).toHaveLength(0);
+  });
+
   it("concurrent actor pays credit the actor exactly once", async () => {
     await setLiveMode(true);
     mockPatch.mockResolvedValue(bal(50));
