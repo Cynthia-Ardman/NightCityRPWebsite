@@ -393,8 +393,10 @@ router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<vo
 });
 
 // POST /review/:type/:id/reopen — a reviewer sends a resolved (approved |
-// rejected) ticket back to pending for another vote. Votes are cleared. Refuses
-// when the effect was already applied. Dispatches to the per-queue handler.
+// rejected) or closed ticket back to pending for another vote. Votes are
+// cleared. Custom requests may reopen even when the effect was already applied:
+// appliedRef is preserved so the live effect stays intact and a later re-close
+// is idempotent. Dispatches to the per-queue handler.
 router.post("/review/:type/:id/reopen", requireAuth, async (req, res): Promise<void> => {
   const parsed = parseParams(req);
   if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
