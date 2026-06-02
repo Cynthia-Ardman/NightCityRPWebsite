@@ -15,7 +15,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
         <Link href="/" className="flex items-center gap-2" data-testid="link-brand-mobile">
-          <img src={ncrpLogo} alt="NCRP" className="h-8 w-8 object-contain" />
+          <img src={ncrpLogo} alt="NCRP" className="h-12 w-12 object-contain" />
           <span className="font-display font-bold text-lg text-nc-cyan glitch-hover">NCRP_PORTAL</span>
         </Link>
         <Sheet>
@@ -157,7 +157,7 @@ function SidebarContent() {
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-3" data-testid="link-brand-desktop">
-          <img src={ncrpLogo} alt="NCRP" className="h-10 w-10 object-contain shrink-0" />
+          <img src={ncrpLogo} alt="NCRP" className="h-16 w-16 object-contain shrink-0" />
           <div className="min-w-0">
             <h1 className="font-display font-bold text-2xl text-nc-cyan tracking-wider glitch-hover">NCRP</h1>
             <div className="text-xs text-muted-foreground font-mono mt-1">NIGHT_CITY_OS v2.1.4</div>

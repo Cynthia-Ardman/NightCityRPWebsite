@@ -113,7 +113,7 @@ export default function MyClinicDetail() {
   });
 
   const [empChar, setEmpChar] = useState<CharacterPickerValue>(null);
-  const [empRole, setEmpRole] = useState("doc");
+  const [empRole, setEmpRole] = useState("");
   const [empCommission, setEmpCommission] = useState(0);
   const [stockName, setStockName] = useState("");
   const [stockCategory, setStockCategory] = useState("");
@@ -131,6 +131,9 @@ export default function MyClinicDetail() {
   const [offerQty, setOfferQty] = useState(1);
   const { data: me, viewAs } = useEffectiveMe();
   const canManageCatalog = !!me && (me.isFixer || me.isAdmin);
+  // "Add from catalog" is an admin-only convenience for seeding stock from the
+  // master catalog; fixers/owners use the custom-stock + buy-stock flows instead.
+  const isAdmin = !!me && me.isAdmin;
 
   // When an admin previews the app as a lower-privilege role, the management
   // view must hide just like it would for that role. Send them to the public
@@ -176,10 +179,10 @@ export default function MyClinicDetail() {
       />
 
       <Card className="rounded-none border-border bg-card/50">
-        <CardHeader><CardTitle className="font-display tracking-widest">DOCS</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="font-display tracking-widest">EMPLOYEES</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {data.employees.map((e) => (
-            <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 py-2 font-mono text-sm" data-testid={`row-doc-${e.id}`}>
+            <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 py-2 font-mono text-sm" data-testid={`row-employee-${e.id}`}>
               <span>{e.name} <span className="text-nc-magenta uppercase ml-2">{e.role}</span></span>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground text-xs uppercase">Commission</span>
@@ -193,7 +196,7 @@ export default function MyClinicDetail() {
                     if (pct !== e.commissionPct) updateEmp.mutate({ id: rid, employeeId: e.id, data: { commissionPct: pct } });
                   }}
                   className="w-20 h-8"
-                  data-testid={`input-doc-commission-${e.id}`}
+                  data-testid={`input-employee-commission-${e.id}`}
                 />
                 <span className="text-muted-foreground text-xs">%</span>
                 <Button size="icon" variant="ghost" onClick={() => removeEmp.mutate({ id: rid, employeeId: e.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
@@ -201,8 +204,8 @@ export default function MyClinicDetail() {
             </div>
           ))}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-3">
-            <div className="md:col-span-5"><CharacterPicker value={empChar} onChange={setEmpChar} testId="input-add-doc-id" /></div>
-            <Input className="md:col-span-3" placeholder="Role" value={empRole} onChange={(e) => setEmpRole(e.target.value)} data-testid="input-add-doc-role" />
+            <div className="md:col-span-5"><CharacterPicker value={empChar} onChange={setEmpChar} testId="input-add-employee-id" /></div>
+            <Input className="md:col-span-3" placeholder="Role" value={empRole} onChange={(e) => setEmpRole(e.target.value)} data-testid="input-add-employee-role" />
             <Input
               className="md:col-span-2"
               type="number"
@@ -211,7 +214,7 @@ export default function MyClinicDetail() {
               placeholder="Comm %"
               value={empCommission || ""}
               onChange={(e) => setEmpCommission(Number(e.target.value))}
-              data-testid="input-add-doc-commission"
+              data-testid="input-add-employee-commission"
             />
             <Button
               disabled={!empChar?.id}
@@ -222,7 +225,7 @@ export default function MyClinicDetail() {
                 setEmpCommission(0);
               }}
               className="md:col-span-2 rounded-none bg-nc-magenta text-background font-display"
-              data-testid="button-add-doc"
+              data-testid="button-add-employee"
             >
               <Plus className="w-4 h-4" />
             </Button>
@@ -281,10 +284,11 @@ export default function MyClinicDetail() {
             </div>
           ))}
           <div className="pt-3 space-y-2">
-            {canManageCatalog && (
+            {isAdmin && (
               <div className="flex justify-end">
                 <CatalogPicker
                   kind="cyberware"
+                  triggerLabel="ADD FROM CATALOG (ADMIN)"
                   triggerClassName="rounded-none font-display border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background"
                   onPick={(item) => {
                     setStockName(item.name);

@@ -21,7 +21,7 @@ function BrandedLoader({ label }: { label: string }) {
       <img
         src={ncrpLogo}
         alt="NCRP"
-        className="h-16 w-16 object-contain animate-pulse drop-shadow-[0_0_12px_rgba(0,255,255,0.4)]"
+        className="h-48 w-48 md:h-64 md:w-64 object-contain animate-pulse drop-shadow-[0_0_30px_rgba(0,255,255,0.5)]"
         data-testid="img-loader-logo"
       />
       <div className="text-nc-cyan animate-pulse font-display text-2xl tracking-widest">{label}</div>
