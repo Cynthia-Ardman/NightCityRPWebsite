@@ -463,35 +463,79 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
 
 // Account-level cyberware MEDS history for the signed-in player. The bot
 // charged cyberware meds PER DISCORD USER (not per character), so this is an
-// account-wide view. Sourced from the imported bot ledger (bot_balance_history)
-// filtered to "Cyberware meds week N" deductions — that ledger carries the real
-// amount the player paid each week, which the per-run sweep table does not.
-// Each entry surfaces the week label + amount paid. Read-only — powers the
-// "MEDS HISTORY" dialog.
+// account-wide view. Same merge strategy as rent (two complementary sources):
+//   - bot_balance_history ledger: the authoritative recent source (~2026-05
+//     onward) carrying the real weekly amount the player paid.
+//   - #rent-payments channel (bot_rent_payment_events): the handful of older
+//     confirmed "Deducted $N ... cyberware meds (week N)" lines that predate the
+//     ledger. NOTE: most of the gap year has no recoverable confirmed meds
+//     charges — the bot only posted estimates "collected separately by staff",
+//     not confirmations, so there is little older data to surface.
+// Channel rows strictly before this user's first ledger meds charge are merged
+// in to avoid double-counting the overlap. Each entry surfaces the week label +
+// amount paid. Read-only — powers the "MEDS HISTORY" dialog.
 router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void> => {
   const discordId = req.user!.discordId;
-  const rows = await db
-    .select()
-    .from(botBalanceHistory)
-    .where(
-      and(
-        eq(botBalanceHistory.userId, discordId),
-        sql`${botBalanceHistory.reason} ILIKE 'Cyberware meds%'`,
-      ),
-    )
-    .orderBy(desc(botBalanceHistory.ts))
-    .limit(500);
 
-  const entries = rows.map((r) => {
+  const [ledgerRows, channelRows] = await Promise.all([
+    db
+      .select()
+      .from(botBalanceHistory)
+      .where(
+        and(
+          eq(botBalanceHistory.userId, discordId),
+          sql`${botBalanceHistory.reason} ILIKE 'Cyberware meds%'`,
+        ),
+      )
+      .orderBy(desc(botBalanceHistory.ts))
+      .limit(500),
+    db
+      .select()
+      .from(botRentPaymentEvents)
+      .where(
+        and(
+          eq(botRentPaymentEvents.userId, discordId),
+          eq(botRentPaymentEvents.kind, "cyberware_meds"),
+        ),
+      )
+      .orderBy(desc(botRentPaymentEvents.ts))
+      .limit(500),
+  ]);
+
+  // Boundary = this user's earliest ledger meds charge; channel rows at/after it
+  // are superseded by the ledger and dropped to avoid double-counting.
+  const boundary = ledgerRows.length
+    ? Math.min(...ledgerRows.map((r) => new Date(r.ts).getTime()))
+    : Infinity;
+
+  const ledgerEntries = ledgerRows.map((r) => {
     const at = new Date(r.ts);
     return {
       source: "bot" as const,
       date: at.toISOString().slice(0, 10),
       at: at.toISOString(),
+      // Ledger deltas are already negative for debits.
       amount: (r.cashDelta ?? 0) + (r.bankDelta ?? 0),
       label: r.reason ?? "Cyberware meds",
     };
   });
+
+  const channelEntries = channelRows
+    .filter((r) => new Date(r.ts).getTime() < boundary)
+    .map((r) => {
+      const at = new Date(r.ts);
+      return {
+        source: "bot" as const,
+        date: at.toISOString().slice(0, 10),
+        at: at.toISOString(),
+        amount: -(r.amount ?? 0),
+        label: r.label,
+      };
+    });
+
+  const entries = [...ledgerEntries, ...channelEntries]
+    .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))
+    .slice(0, 500);
 
   res.json({
     totalCount: entries.length,

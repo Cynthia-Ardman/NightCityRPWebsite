@@ -39,12 +39,18 @@ already negative; channel amounts are negated. Sort desc, limit 500.
   `trauma team subscription`. `ledgerRentLabel()` normalizes these to friendly
   labels ("flat monthly fee" → "Baseline living cost", etc.).
 
-# Cyberware meds history → bot_balance_history ledger (NOT the channel)
-**Why:** the channel only has ~16 cyberware confirmations, but the
-`bot_balance_history` ledger has ~190 real `Cyberware meds week N` deductions WITH
-amounts. The ledger is far better coverage, so it is authoritative for meds.
-- Endpoint reads `bot_balance_history WHERE reason ILIKE 'Cyberware meds%'`.
+# Cyberware meds history → SAME merge (ledger primary + older channel)
+**Why:** the ledger (`bot_balance_history` reason ILIKE 'Cyberware meds%') is the
+authoritative recent source (~191 rows, 2026-05 onward) WITH real weekly amounts.
+The channel adds only ~17 older confirmed deductions (mostly week-1 June 2025).
+Most of the gap year has NO recoverable confirmed meds charges — the bot posted
+only `💸 Estimated Due` estimates ("collected separately by staff — not included
+in total"), which are NOT real deductions. So meds history is shallow by nature.
+- `/me/cyberware-history` uses the SAME boundary merge as rent: ledger rows +
+  channel `kind='cyberware_meds'` rows STRICTLY BEFORE this user's earliest ledger
+  meds ts. Don't expect a full year of meds — the data doesn't exist.
 
-**How to apply:** rent debits are returned NEGATIVE so the shared
-`ActivityHistoryDialog` (showAmount) renders them red/outflow. Don't confuse the
-two sources — rent = new channel-parsed table, meds = existing ledger.
+**How to apply:** both rent AND meds history use the same ledger+channel boundary
+merge; debits are returned NEGATIVE so the shared `ActivityHistoryDialog`
+(showAmount) renders them red/outflow. ALL FINANCES (`/me/financial-history`) is
+the raw ledger dump (all reasons, ~2026-05 onward).
