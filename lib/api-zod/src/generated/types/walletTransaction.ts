@@ -25,6 +25,15 @@ export interface WalletTransaction {
   kind: string;
   /** @nullable */
   memo?: string | null;
+  /**
+     * Coarse display/reporting bucket derived from kind+memo: rent,
+  cyberware, mission, business, membership, fee, purchase, transfer,
+  other. Independent of `kind` (which stays load-bearing for billing).
+  Always populated in responses (derived on the fly if not stored).
+
+     * @nullable
+     */
+  category?: string | null;
   /** @nullable */
   counterpartyName?: string | null;
   /** @nullable */

@@ -4566,6 +4566,13 @@ components:
             ripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).
             Treat as an open vocabulary.
         memo: { type: ["string", "null"] }
+        category:
+          type: ["string", "null"]
+          description: |
+            Coarse display/reporting bucket derived from kind+memo: rent,
+            cyberware, mission, business, membership, fee, purchase, transfer,
+            other. Independent of `kind` (which stays load-bearing for billing).
+            Always populated in responses (derived on the fly if not stored).
         counterpartyName: { type: ["string", "null"] }
         counterpartyCharacterId: { type: ["integer", "null"] }
         counterpartyCharacterName: { type: ["string", "null"] }

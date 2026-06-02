@@ -16,6 +16,7 @@ import {
   shopOpens,
   stores,
   ripperdocs,
+  classifyWalletCategory,
   type Character,
 } from "@workspace/db";
 import { gte } from "drizzle-orm";
@@ -814,7 +815,14 @@ router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res):
     )
     .orderBy(desc(walletTransactions.createdAt))
     .limit(100);
-  res.json(rows);
+  // Guarantee `category` is populated even for rows written before the backfill
+  // or by paths that don't set it (derive from kind+memo on the fly).
+  res.json(
+    rows.map((r) => ({
+      ...r,
+      category: r.category ?? classifyWalletCategory(r.kind, r.memo),
+    })),
+  );
 });
 
 router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Promise<void> => {

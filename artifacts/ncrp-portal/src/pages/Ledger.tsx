@@ -22,6 +22,14 @@ function humanizeKind(kind: string): string {
   return kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// The Type column prefers the coarse `category` (rent, cyberware, mission, …)
+// which is meaningful for legacy rows whose kind is the generic 'historical'.
+// Falls back to the humanized kind when no category is present.
+function typeLabel(t: WalletTransaction): string {
+  if (t.category) return humanizeKind(t.category);
+  return humanizeKind(t.kind);
+}
+
 // Whether a transaction has anything to show in the Details column: a memo, a
 // named counterparty, or a counterparty venue. When none are present we render a
 // placeholder dash instead of an empty cell.
@@ -170,7 +178,7 @@ export default function Ledger() {
                             <span className="text-muted-foreground/70">Account</span>
                           )}
                         </td>
-                        <td className="p-3">{humanizeKind(t.kind)}</td>
+                        <td className="p-3">{typeLabel(t)}</td>
                         <td className="p-3 text-muted-foreground">
                           {hasDetails(t) ? (
                             <div className="flex flex-col gap-0.5">

@@ -245,6 +245,12 @@ export const walletTransactions = pgTable("wallet_transactions", {
   amount: integer("amount").notNull(),
   kind: text("kind").notNull(),
   memo: text("memo"),
+  // Coarse display/reporting bucket (rent, cyberware, mission, business,
+  // membership, fee, purchase, transfer, other), derived from kind+memo via
+  // classifyWalletCategory. Independent of `kind`, which stays load-bearing for
+  // billing logic. Backfilled for historical rows; live rows fall back to a
+  // derived value in the API if null. See walletCategory.ts.
+  category: text("category"),
   // ---- Economy ledger extension ----
   // Where this entry originated. One of: website | ub | reconciliation |
   // mission | store | ripperdoc | commission | admin. Drives reporting and

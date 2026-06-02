@@ -8,6 +8,7 @@ import {
   useTransferInventoryItem,
   useGetCharacterHousing,
   useVacateHousing,
+  useGetWalletTransactions,
   getGetCharacterHousingQueryKey,
   getGetWalletTransactionsQueryKey,
   getGetMyWalletQueryKey,
@@ -316,6 +317,87 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
   );
 }
 
+// Shows this character's wallet history filtered to a single coarse `category`
+// (e.g. rent or cyberware). Legacy bot payments were imported as kind=
+// 'historical' with their real type only in the memo; the API derives/stores a
+// `category` so we can pull rent / cyberware payment runs onto the right tab.
+// Account-level (multi-character) rows aren't linked to a character, so they
+// won't appear here — only payments attributable to this PC.
+function CategoryPaymentHistory({
+  characterId,
+  category,
+  title,
+  emptyLabel,
+}: {
+  characterId: number;
+  category: string;
+  title: string;
+  emptyLabel: string;
+}) {
+  const { data: txns, isLoading } = useGetWalletTransactions(characterId);
+  // The endpoint also returns account-level rows (characterId null) for the
+  // owner, so scope strictly to rows attributed to THIS character. Multi-
+  // character players' legacy rows stay account-level and never surface here.
+  const rows = (txns ?? []).filter(
+    (t) => t.category === category && t.characterId === characterId,
+  );
+
+  return (
+    <Card
+      className="rounded-none border-border bg-card/50"
+      data-testid={`card-payments-${category}`}
+    >
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-yellow flex items-center gap-2">
+          <History className="w-4 h-4" /> {title} ({rows.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="font-mono text-muted-foreground animate-pulse">Loading history...</div>
+        ) : rows.length === 0 ? (
+          <p
+            className="font-mono text-muted-foreground italic"
+            data-testid={`empty-payments-${category}`}
+          >
+            {emptyLabel}
+          </p>
+        ) : (
+          <ul className="divide-y divide-border/40 font-mono text-sm">
+            {rows.map((t) => {
+              const credit = t.amount >= 0;
+              return (
+                <li
+                  key={t.id}
+                  className="flex items-start justify-between gap-3 py-2"
+                  data-testid={`row-payment-${t.id}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-muted-foreground text-xs whitespace-nowrap">
+                      {new Date(t.createdAt).toLocaleDateString()}
+                    </div>
+                    {t.memo ? (
+                      <div className="text-foreground/90 break-words [overflow-wrap:anywhere]">
+                        {t.memo}
+                      </div>
+                    ) : null}
+                  </div>
+                  <span
+                    className={`whitespace-nowrap font-bold ${credit ? "text-nc-green" : "text-nc-magenta"}`}
+                  >
+                    {credit ? "+" : "−"}
+                    {Math.abs(t.amount).toLocaleString()} €$
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function CyberwareTab({ characterId }: { characterId: number }) {
   const { data: char, isLoading: charLoading } = useGetCharacter(characterId);
   const { data: items, isLoading: itemsLoading } = useGetCharacterInventory(characterId);
@@ -512,6 +594,13 @@ function CyberwareTab({ characterId }: { characterId: number }) {
           )}
         </CardContent>
       </Card>
+
+      <CategoryPaymentHistory
+        characterId={characterId}
+        category="cyberware"
+        title="CYBERWARE PAYMENTS"
+        emptyLabel="No cyberware payments on record for this character."
+      />
     </div>
   );
 }
@@ -909,6 +998,7 @@ function HousingCard({ characterId }: { characterId: number }) {
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetCharacterHousingQueryKey(characterId) });
   const vacate = useVacateHousing({ mutation: { onSuccess: invalidate } });
   return (
+    <div className="space-y-6">
     <Card className="rounded-none border-border bg-card/50" data-testid="card-housing">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="font-display tracking-widest text-nc-cyan flex items-center gap-2">
@@ -984,6 +1074,14 @@ function HousingCard({ characterId }: { characterId: number }) {
         )}
       </CardContent>
     </Card>
+
+      <CategoryPaymentHistory
+        characterId={characterId}
+        category="rent"
+        title="RENT HISTORY"
+        emptyLabel="No rent payments on record for this character."
+      />
+    </div>
   );
 }
 

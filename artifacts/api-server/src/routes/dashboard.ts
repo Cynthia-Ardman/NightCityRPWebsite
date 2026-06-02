@@ -16,6 +16,7 @@ import {
   botCyberwareWeeklyRuns,
   stores,
   ripperdocs,
+  classifyWalletCategory,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
@@ -444,6 +445,7 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
             : null;
       return {
         ...r,
+        category: r.category ?? classifyWalletCategory(r.kind, r.memo),
         characterName: r.characterId != null ? myCharNameById.get(r.characterId) ?? null : null,
         counterpartyCharacterName:
           r.counterpartyCharacterId != null
