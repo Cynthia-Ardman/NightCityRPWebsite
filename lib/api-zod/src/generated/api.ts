@@ -718,6 +718,22 @@ export const UpdateGunResponse = zod.object({
 })).describe('The updated weapon plus the list of fields that actually changed in\nthis edit (used for audit\/UX context).\n')
 
 
+/**
+ * Fixer/admin endpoint. Permanently removes a weapon catalog entry. This
+only deletes the registry template; weapons already owned by characters
+are separate inventory rows and are not affected. The deletion is
+audit-logged.
+
+ */
+export const DeleteGunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteGunResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
 export const ListCyberwareResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -788,6 +804,22 @@ export const UpdateCyberwareResponse = zod.object({
 })).describe('The updated cyberware plus the list of fields that actually changed in\nthis edit (used for audit\/UX context).\n')
 
 
+/**
+ * Fixer/admin endpoint. Permanently removes a cyberware catalog entry.
+This only deletes the registry template; cyberware already installed on
+characters are separate inventory rows and are not affected. The
+deletion is audit-logged.
+
+ */
+export const DeleteCyberwareParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteCyberwareResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
 export const ListRentListingsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -855,6 +887,21 @@ export const UpdateRentListingResponse = zod.object({
   "occupantCharacterId": zod.number().optional().describe('Staff-only — the character currently occupying this listing.'),
   "occupantCharacterName": zod.string().optional().describe('Staff-only — name of the occupying character.'),
   "housingId": zod.number().optional().describe('Staff-only — the housing (lease) row id, used to remove the occupant.')
+})
+
+
+/**
+ * Fixer/admin endpoint. Permanently removes a property catalog listing.
+Blocked with 409 while the property is occupied (has an active lease);
+the tenant must be moved out first. The deletion is audit-logged.
+
+ */
+export const DeleteRentListingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteRentListingResponse = zod.object({
+  "ok": zod.boolean()
 })
 
 
@@ -6099,6 +6146,23 @@ export const ListTagOptionsResponse = zod.array(ListTagOptionsResponseItem)
  * @summary Create a new global tag option (FIXER/ADMIN).
  */
 export const CreateTagOptionBody = zod.object({
+  "name": zod.string()
+})
+
+
+/**
+ * @summary Rename a global tag option (FIXER/ADMIN). The new name is also propagated to every character that already has the old tag applied.
+ */
+export const UpdateTagOptionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateTagOptionBody = zod.object({
+  "name": zod.string()
+})
+
+export const UpdateTagOptionResponse = zod.object({
+  "id": zod.number(),
   "name": zod.string()
 })
 

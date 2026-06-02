@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, ilike, isNull, isNotNull, desc, asc, sql, arrayOverlaps, inArray } from "drizzle-orm";
+import { eq, ne, and, or, ilike, isNull, isNotNull, desc, asc, sql, arrayOverlaps, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -984,6 +984,45 @@ router.patch(
     res.json({ ...updated, changed: Object.keys(after) });
   },
 );
+
+// Permanently delete a weapon catalog entry. Fixer/admin only. This removes the
+// registry template only — weapons already owned by characters live in
+// inventory_items (separate rows, no FK to the catalog) and are untouched.
+router.delete(
+  "/catalog/guns/:id",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [cur] = await db.select().from(catalogGuns).where(eq(catalogGuns.id, id));
+    if (!cur) {
+      res.status(404).json({ error: "Gun not found" });
+      return;
+    }
+    const { ip, ua } = auditMeta(req);
+    await db.transaction(async (tx) => {
+      await tx.delete(catalogGuns).where(eq(catalogGuns.id, id));
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "gun_delete",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_gun",
+        targetId: String(id),
+        message: `Deleted weapon "${cur.name}"`,
+        beforeJson: cur as never,
+        afterJson: null,
+      });
+    });
+    res.json({ ok: true });
+  },
+);
+
 router.get("/catalog/cyberware", async (_req, res): Promise<void> => {
   res.json(await db.select().from(catalogCyberware));
 });
@@ -1134,6 +1173,45 @@ router.patch(
     res.json({ ...updated, changed: Object.keys(after) });
   },
 );
+
+// Permanently delete a cyberware catalog entry. Fixer/admin only. Removes the
+// registry template only — cyberware already installed on characters live in
+// inventory_items (separate rows, no FK to the catalog) and are untouched.
+router.delete(
+  "/catalog/cyberware/:id",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [cur] = await db.select().from(catalogCyberware).where(eq(catalogCyberware.id, id));
+    if (!cur) {
+      res.status(404).json({ error: "Cyberware not found" });
+      return;
+    }
+    const { ip, ua } = auditMeta(req);
+    await db.transaction(async (tx) => {
+      await tx.delete(catalogCyberware).where(eq(catalogCyberware.id, id));
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "cyberware_delete",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_cyberware",
+        targetId: String(id),
+        message: `Deleted cyberware "${cur.name}"`,
+        beforeJson: cur as never,
+        afterJson: null,
+      });
+    });
+    res.json({ ok: true });
+  },
+);
+
 router.get("/catalog/rent", async (req, res): Promise<void> => {
   // Mark listings that already have an active lease so the UI can
   // disable the LEASE button instead of letting players submit a
@@ -1281,6 +1359,75 @@ router.patch(
   },
 );
 
+// Permanently delete a property catalog listing. Fixer/admin only. Blocked with
+// 409 while the listing is occupied (an active lease points at it via
+// housing.listingId) — the tenant must be moved out first so we never silently
+// evict a player or orphan their lease. Audit-logged.
+router.delete(
+  "/catalog/rent/:id",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const { ip, ua } = auditMeta(req);
+    // Lock the listing row FOR UPDATE, then re-check occupancy and delete while
+    // we hold the lock — the same serialization /housing/lease uses. Without
+    // this, a lease created between an outside occupancy check and the delete
+    // would leave an orphaned housing.listing_id (no FK backs that column).
+    let notFound = false;
+    let occupantName: string | null = null;
+    await db.transaction(async (tx) => {
+      const [cur] = await tx
+        .select()
+        .from(catalogRent)
+        .where(eq(catalogRent.id, id))
+        .for("update");
+      if (!cur) {
+        notFound = true;
+        return;
+      }
+      const [occupant] = await tx
+        .select({ characterName: characters.name })
+        .from(housing)
+        .innerJoin(characters, eq(characters.id, housing.characterId))
+        .where(eq(housing.listingId, id))
+        .limit(1);
+      if (occupant) {
+        occupantName = occupant.characterName;
+        return;
+      }
+      await tx.delete(catalogRent).where(eq(catalogRent.id, id));
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "rent_delete",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "catalog_rent",
+        targetId: String(id),
+        message: `Deleted listing "${cur.name}"`,
+        beforeJson: cur as never,
+        afterJson: null,
+      });
+    });
+    if (notFound) {
+      res.status(404).json({ error: "Listing not found" });
+      return;
+    }
+    if (occupantName) {
+      res.status(409).json({
+        error: `This property is occupied by ${occupantName}. Move the tenant out before deleting it.`,
+      });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
+
 // Create a new property (housing/business) catalog listing. Fixer/admin only.
 // `kind` selects residential (player self-lease) vs business (request-only).
 // A freshly created listing has no lease, so it is always returned occupied:false
@@ -1391,6 +1538,100 @@ router.post("/directory/tag-options", staffOnly, async (req, res): Promise<void>
     return t;
   });
   res.status(201).json({ id: created.id, name: created.name });
+});
+
+// Rename a global tag option. The tag name is denormalized onto every character
+// that has it applied (characters.appliedTags / manualTags store the literal
+// string), so a rename here must rewrite those arrays too or the option drifts
+// away from the tags already on characters. All done in one transaction.
+router.patch("/directory/tag-options/:id", staffOnly, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = TagOptionCreateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+    return;
+  }
+  const name = normalizeTag(parsed.data.name);
+  const { ip, ua } = auditMeta(req);
+  // Lock the option row FOR UPDATE, then re-read the old name, re-run the
+  // case-insensitive uniqueness check, and propagate — all inside the same
+  // transaction so a concurrent rename/create can't slip past the CI check
+  // (the DB unique index on name is case-sensitive only) or make us propagate
+  // a stale old name onto characters' denormalized tag arrays.
+  let notFound = false;
+  let noChange = false;
+  let dupe = false;
+  const updated = await db.transaction(async (tx) => {
+    const [cur] = await tx
+      .select()
+      .from(characterTagOptions)
+      .where(eq(characterTagOptions.id, id))
+      .for("update");
+    if (!cur) {
+      notFound = true;
+      return null;
+    }
+    if (name === cur.name) {
+      noChange = true;
+      return null;
+    }
+    const [other] = await tx
+      .select({ id: characterTagOptions.id })
+      .from(characterTagOptions)
+      .where(and(ilike(characterTagOptions.name, name), ne(characterTagOptions.id, id)));
+    if (other) {
+      dupe = true;
+      return null;
+    }
+    const [t] = await tx
+      .update(characterTagOptions)
+      .set({ name })
+      .where(eq(characterTagOptions.id, id))
+      .returning();
+    // Propagate the rename to characters that already carry the old tag, in
+    // both the importer-owned appliedTags and staff-owned manualTags arrays.
+    await tx.execute(sql`
+      UPDATE characters
+         SET applied_tags = array_replace(applied_tags, ${cur.name}, ${name})
+       WHERE ${cur.name} = ANY(applied_tags)
+    `);
+    await tx.execute(sql`
+      UPDATE characters
+         SET manual_tags = array_replace(manual_tags, ${cur.name}, ${name})
+       WHERE ${cur.name} = ANY(manual_tags)
+    `);
+    await tx.insert(auditLog).values({
+      category: "character",
+      action: "tag_option_rename",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "tag_option",
+      targetId: String(id),
+      message: `Renamed tag option "${cur.name}" → "${name}"`,
+      beforeJson: { name: cur.name } as never,
+      afterJson: { name } as never,
+    });
+    return t;
+  });
+  if (notFound) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (noChange) {
+    res.status(400).json({ error: "No change" });
+    return;
+  }
+  if (dupe) {
+    res.status(409).json({ error: "A tag with that name already exists" });
+    return;
+  }
+  res.json({ id: updated!.id, name: updated!.name });
 });
 
 router.delete("/directory/tag-options/:id", staffOnly, async (req, res): Promise<void> => {

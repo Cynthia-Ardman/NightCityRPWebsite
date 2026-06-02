@@ -78,6 +78,9 @@ import type {
   CyberwareRemoveInput,
   DashboardSummary,
   DeactivateCharacter200,
+  DeleteCyberware200,
+  DeleteGun200,
+  DeleteRentListing200,
   DeleteTagOption200,
   DiceRollInput,
   DiceRollResult,
@@ -2601,6 +2604,77 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getUpdateGunMutationOptions(options));
     }
 
+export const getDeleteGunUrl = (id: number,) => {
+
+
+
+
+  return `/api/catalog/guns/${id}`
+}
+
+/**
+ * Fixer/admin endpoint. Permanently removes a weapon catalog entry. This
+only deletes the registry template; weapons already owned by characters
+are separate inventory rows and are not affected. The deletion is
+audit-logged.
+
+ */
+export const deleteGun = async (id: number, options?: RequestInit): Promise<DeleteGun200> => {
+
+  return customFetch<DeleteGun200>(getDeleteGunUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteGunMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGun>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteGun>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteGun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGun>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteGun(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteGunMutationResult = NonNullable<Awaited<ReturnType<typeof deleteGun>>>
+
+    export type DeleteGunMutationError = ErrorType<void>
+
+    export const useDeleteGun = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGun>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteGun>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteGunMutationOptions(options));
+    }
+
 export const getListCyberwareUrl = () => {
 
 
@@ -2812,6 +2886,77 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getUpdateCyberwareMutationOptions(options));
+    }
+
+export const getDeleteCyberwareUrl = (id: number,) => {
+
+
+
+
+  return `/api/catalog/cyberware/${id}`
+}
+
+/**
+ * Fixer/admin endpoint. Permanently removes a cyberware catalog entry.
+This only deletes the registry template; cyberware already installed on
+characters are separate inventory rows and are not affected. The
+deletion is audit-logged.
+
+ */
+export const deleteCyberware = async (id: number, options?: RequestInit): Promise<DeleteCyberware200> => {
+
+  return customFetch<DeleteCyberware200>(getDeleteCyberwareUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteCyberwareMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCyberware>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCyberware>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteCyberware'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCyberware>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCyberware(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCyberwareMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCyberware>>>
+
+    export type DeleteCyberwareMutationError = ErrorType<void>
+
+    export const useDeleteCyberware = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCyberware>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCyberware>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCyberwareMutationOptions(options));
     }
 
 export const getListRentListingsUrl = () => {
@@ -3027,6 +3172,76 @@ export const useUpdateRentListing = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateRentListingMutationOptions(options));
+    }
+
+export const getDeleteRentListingUrl = (id: number,) => {
+
+
+
+
+  return `/api/catalog/rent/${id}`
+}
+
+/**
+ * Fixer/admin endpoint. Permanently removes a property catalog listing.
+Blocked with 409 while the property is occupied (has an active lease);
+the tenant must be moved out first. The deletion is audit-logged.
+
+ */
+export const deleteRentListing = async (id: number, options?: RequestInit): Promise<DeleteRentListing200> => {
+
+  return customFetch<DeleteRentListing200>(getDeleteRentListingUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteRentListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRentListing>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteRentListing>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteRentListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRentListing>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteRentListing(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteRentListingMutationResult = NonNullable<Awaited<ReturnType<typeof deleteRentListing>>>
+
+    export type DeleteRentListingMutationError = ErrorType<void>
+
+    export const useDeleteRentListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRentListing>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteRentListing>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteRentListingMutationOptions(options));
     }
 
 export const getListLifestyleTiersUrl = () => {
@@ -12847,6 +13062,78 @@ export const useCreateTagOption = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateTagOptionMutationOptions(options));
+    }
+
+export const getUpdateTagOptionUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/tag-options/${id}`
+}
+
+/**
+ * @summary Rename a global tag option (FIXER/ADMIN). The new name is also propagated to every character that already has the old tag applied.
+ */
+export const updateTagOption = async (id: number,
+    tagOptionInput: TagOptionInput, options?: RequestInit): Promise<TagOption> => {
+
+  return customFetch<TagOption>(getUpdateTagOptionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      tagOptionInput,)
+  }
+);}
+
+
+
+
+export const getUpdateTagOptionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionInput>}, TContext> => {
+
+const mutationKey = ['updateTagOption'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTagOption>>, {id: number;data: BodyType<TagOptionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateTagOption(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTagOptionMutationResult = NonNullable<Awaited<ReturnType<typeof updateTagOption>>>
+    export type UpdateTagOptionMutationBody = BodyType<TagOptionInput>
+    export type UpdateTagOptionMutationError = ErrorType<void>
+
+    /**
+ * @summary Rename a global tag option (FIXER/ADMIN). The new name is also propagated to every character that already has the old tag applied.
+ */
+export const useUpdateTagOption = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTagOption>>,
+        TError,
+        {id: number;data: BodyType<TagOptionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateTagOptionMutationOptions(options));
     }
 
 export const getDeleteTagOptionUrl = (id: number,) => {

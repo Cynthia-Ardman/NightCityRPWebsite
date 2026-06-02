@@ -9,6 +9,7 @@ import {
   useListMyHousingRequests,
   useListLifestyleTiers,
   useUpdateRentListing,
+  useDeleteRentListing,
   useGetListingHistory,
   useAdminListCharacters,
   getAdminListCharactersQueryKey,
@@ -557,6 +558,7 @@ function PropertyHistoryDialog({
   const [editRent, setEditRent] = useState(String(listing.monthlyRent));
   const [editDescription, setEditDescription] = useState(listing.description ?? "");
   const updateListing = useUpdateRentListing();
+  const deleteListing = useDeleteRentListing();
 
   // Character picker source (admin-only endpoint). Only fetched when the
   // assign panel is actually available.
@@ -734,6 +736,44 @@ function PropertyHistoryDialog({
                 </Button>
               </form>
             )}
+            <div className="border-t border-border/50 pt-3">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={deleteListing.isPending}
+                className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display text-xs"
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `Delete "${listing.name}" from the property catalog? This cannot be undone.`,
+                    )
+                  )
+                    return;
+                  deleteListing.mutate(
+                    { id: listing.id },
+                    {
+                      onSuccess: () => {
+                        void qc.invalidateQueries({ queryKey: getListRentListingsQueryKey() });
+                        toast({ title: "Listing deleted" });
+                        onClose();
+                      },
+                      onError: (err) => {
+                        // The API returns 409 with an explanatory message when
+                        // the property is still occupied; surface that directly.
+                        const msg =
+                          (err as { response?: { data?: { error?: string } } } | null)?.response
+                            ?.data?.error ?? "Could not delete listing";
+                        toast({ title: msg, variant: "destructive" });
+                      },
+                    },
+                  );
+                }}
+                data-testid="history-button-delete"
+              >
+                {deleteListing.isPending ? "DELETING..." : "DELETE LISTING"}
+              </Button>
+            </div>
           </section>
         )}
 

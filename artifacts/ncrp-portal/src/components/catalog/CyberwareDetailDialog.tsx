@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUpdateCyberware, getListCyberwareQueryKey } from "@workspace/api-client-react";
+import { useUpdateCyberware, useDeleteCyberware, getListCyberwareQueryKey } from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -133,7 +133,28 @@ export default function CyberwareDetailDialog({
     },
   });
 
+  const del = useDeleteCyberware({
+    mutation: {
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: getListCyberwareQueryKey() });
+        toast({ title: "Cyberware deleted" });
+        onOpenChange(false);
+      },
+      onError: () => toast({ title: "Could not delete the cyberware.", variant: "destructive" }),
+    },
+  });
+
   if (!current) return null;
+
+  const remove = () => {
+    if (
+      !window.confirm(
+        `Delete "${current.name}" from the cyberware catalog? This cannot be undone. Cyberware already installed on characters is not affected.`,
+      )
+    )
+      return;
+    del.mutate({ id: current.id });
+  };
 
   const save = () => {
     if (!form) return;
@@ -255,50 +276,63 @@ export default function CyberwareDetailDialog({
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-border mt-2">
-          {editing ? (
-            <>
-              <Button
-                variant="ghost"
-                className="rounded-none"
-                onClick={() => {
-                  setEditing(false);
-                  setForm(formFromCyber(current));
-                }}
-                data-testid="button-cyberware-cancel-edit"
-              >
-                Cancel
-              </Button>
-              <Button
-                className="rounded-none"
-                disabled={update.isPending}
-                onClick={save}
-                data-testid="button-cyberware-save"
-              >
-                {update.isPending ? "Saving…" : "Save changes"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                className="rounded-none"
-                onClick={() => onOpenChange(false)}
-                data-testid="button-cyberware-close"
-              >
-                Close
-              </Button>
-              {isStaff && (
+        <div className="flex items-center gap-2 pt-4 border-t border-border mt-2">
+          {!editing && isStaff && (
+            <Button
+              variant="ghost"
+              className="rounded-none text-nc-magenta hover:text-nc-magenta hover:bg-nc-magenta/10"
+              disabled={del.isPending}
+              onClick={remove}
+              data-testid="button-cyberware-delete"
+            >
+              {del.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          )}
+          <div className="flex justify-end gap-2 ml-auto">
+            {editing ? (
+              <>
+                <Button
+                  variant="ghost"
+                  className="rounded-none"
+                  onClick={() => {
+                    setEditing(false);
+                    setForm(formFromCyber(current));
+                  }}
+                  data-testid="button-cyberware-cancel-edit"
+                >
+                  Cancel
+                </Button>
                 <Button
                   className="rounded-none"
-                  onClick={() => setEditing(true)}
-                  data-testid="button-cyberware-edit"
+                  disabled={update.isPending}
+                  onClick={save}
+                  data-testid="button-cyberware-save"
                 >
-                  Edit
+                  {update.isPending ? "Saving…" : "Save changes"}
                 </Button>
-              )}
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  className="rounded-none"
+                  onClick={() => onOpenChange(false)}
+                  data-testid="button-cyberware-close"
+                >
+                  Close
+                </Button>
+                {isStaff && (
+                  <Button
+                    className="rounded-none"
+                    onClick={() => setEditing(true)}
+                    data-testid="button-cyberware-edit"
+                  >
+                    Edit
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

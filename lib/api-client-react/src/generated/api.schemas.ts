@@ -4253,6 +4253,18 @@ export type ReactivateCharacter200 = {
   archived: boolean;
 };
 
+export type DeleteGun200 = {
+  ok: boolean;
+};
+
+export type DeleteCyberware200 = {
+  ok: boolean;
+};
+
+export type DeleteRentListing200 = {
+  ok: boolean;
+};
+
 export type ListHousingRequestsParams = {
 status?: ListHousingRequestsStatus;
 };

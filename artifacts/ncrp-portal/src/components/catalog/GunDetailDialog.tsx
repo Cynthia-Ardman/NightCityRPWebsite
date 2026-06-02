@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUpdateGun, getListGunsQueryKey } from "@workspace/api-client-react";
+import { useUpdateGun, useDeleteGun, getListGunsQueryKey } from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -78,7 +78,28 @@ export default function GunDetailDialog({
     },
   });
 
+  const del = useDeleteGun({
+    mutation: {
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: getListGunsQueryKey() });
+        toast({ title: "Weapon deleted" });
+        onOpenChange(false);
+      },
+      onError: () => toast({ title: "Could not delete the weapon.", variant: "destructive" }),
+    },
+  });
+
   if (!current) return null;
+
+  const remove = () => {
+    if (
+      !window.confirm(
+        `Delete "${current.name}" from the weapon catalog? This cannot be undone. Weapons already owned by characters are not affected.`,
+      )
+    )
+      return;
+    del.mutate({ id: current.id });
+  };
 
   const save = () => {
     if (!form) return;
@@ -155,50 +176,63 @@ export default function GunDetailDialog({
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-border mt-2">
-          {editing ? (
-            <>
-              <Button
-                variant="ghost"
-                className="rounded-none"
-                onClick={() => {
-                  setEditing(false);
-                  setForm(formFromGun(current));
-                }}
-                data-testid="button-gun-cancel-edit"
-              >
-                Cancel
-              </Button>
-              <Button
-                className="rounded-none"
-                disabled={update.isPending}
-                onClick={save}
-                data-testid="button-gun-save"
-              >
-                {update.isPending ? "Saving…" : "Save changes"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                className="rounded-none"
-                onClick={() => onOpenChange(false)}
-                data-testid="button-gun-close"
-              >
-                Close
-              </Button>
-              {isStaff && (
+        <div className="flex items-center gap-2 pt-4 border-t border-border mt-2">
+          {!editing && isStaff && (
+            <Button
+              variant="ghost"
+              className="rounded-none text-nc-magenta hover:text-nc-magenta hover:bg-nc-magenta/10"
+              disabled={del.isPending}
+              onClick={remove}
+              data-testid="button-gun-delete"
+            >
+              {del.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          )}
+          <div className="flex justify-end gap-2 ml-auto">
+            {editing ? (
+              <>
+                <Button
+                  variant="ghost"
+                  className="rounded-none"
+                  onClick={() => {
+                    setEditing(false);
+                    setForm(formFromGun(current));
+                  }}
+                  data-testid="button-gun-cancel-edit"
+                >
+                  Cancel
+                </Button>
                 <Button
                   className="rounded-none"
-                  onClick={() => setEditing(true)}
-                  data-testid="button-gun-edit"
+                  disabled={update.isPending}
+                  onClick={save}
+                  data-testid="button-gun-save"
                 >
-                  Edit
+                  {update.isPending ? "Saving…" : "Save changes"}
                 </Button>
-              )}
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  className="rounded-none"
+                  onClick={() => onOpenChange(false)}
+                  data-testid="button-gun-close"
+                >
+                  Close
+                </Button>
+                {isStaff && (
+                  <Button
+                    className="rounded-none"
+                    onClick={() => setEditing(true)}
+                    data-testid="button-gun-edit"
+                  >
+                    Edit
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

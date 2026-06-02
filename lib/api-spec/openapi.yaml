@@ -515,6 +515,26 @@ paths:
               schema: { $ref: "#/components/schemas/CatalogGunUpdateResult" }
         "400": { description: Invalid payload or no changes }
         "404": { description: Gun not found }
+    delete:
+      operationId: deleteGun
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Permanently removes a weapon catalog entry. This
+        only deletes the registry template; weapons already owned by characters
+        are separate inventory rows and are not affected. The deletion is
+        audit-logged.
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "403": { description: Forbidden }
+        "404": { description: Gun not found }
   /catalog/cyberware:
     get:
       operationId: listCyberware
@@ -567,6 +587,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CatalogCyberwareUpdateResult" }
         "400": { description: Invalid payload or no changes }
+        "404": { description: Cyberware not found }
+    delete:
+      operationId: deleteCyberware
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Permanently removes a cyberware catalog entry.
+        This only deletes the registry template; cyberware already installed on
+        characters are separate inventory rows and are not affected. The
+        deletion is audit-logged.
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "403": { description: Forbidden }
         "404": { description: Cyberware not found }
   /catalog/rent:
     get:
@@ -621,6 +661,26 @@ paths:
         "400": { description: Invalid payload or no changes }
         "403": { description: Forbidden }
         "404": { description: Not found }
+    delete:
+      operationId: deleteRentListing
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Permanently removes a property catalog listing.
+        Blocked with 409 while the property is occupied (has an active lease);
+        the tenant must be moved out first. The deletion is audit-logged.
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+        "409": { description: Property is occupied; vacate the tenant first }
   /catalog/lifestyle:
     get:
       operationId: listLifestyleTiers
@@ -2782,6 +2842,25 @@ paths:
   /directory/tag-options/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateTagOption
+      tags: [directory]
+      summary: "Rename a global tag option (FIXER/ADMIN). The new name is also propagated to every character that already has the old tag applied."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TagOptionInput" }
+      responses:
+        "200":
+          description: Updated tag option
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TagOption" }
+        "400": { description: Invalid payload or no change }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+        "409": { description: A tag with that name already exists }
     delete:
       operationId: deleteTagOption
       tags: [directory]
