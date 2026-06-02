@@ -1,0 +1,479 @@
+# Website UI / Store / Lore / Admin Fixes Addendum
+
+## 1. Logo Size Updates
+
+### Upper Left Logo
+
+Make the circular logo in the upper-left corner larger.
+
+**Acceptance criteria**
+
+* Logo is visibly larger in the main layout/sidebar/header.
+* Logo remains clean and not distorted.
+* Larger logo does not break navigation layout.
+
+---
+
+### Loading Screen Logo
+
+Make the circular logo significantly larger on loading screens.
+
+The logo should take up a substantial section of the loading screen/page.
+
+**Acceptance criteria**
+
+* Loading screen logo is much larger and visually prominent.
+* Logo remains centered or positioned cleanly.
+* Logo does not appear blurry, stretched, or cropped incorrectly.
+* Loading screen still works on desktop and mobile/tablet sizes.
+
+---
+
+# 2. SideWare / Cyberware Store Page Updates
+
+## 2.1 Rename Docs to Employees
+
+On SideWare/Cyberware store pages, owners currently have a way to add “docs” or employees.
+
+Rename **Docs** to **Employees**.
+
+**Employee add/search UI should include**
+
+* Search by character/player name
+* Role
+* Commission percentage
+
+**Acceptance criteria**
+
+* UI says Employees, not Docs.
+* Employee search works by character/player name.
+* Role field remains available.
+* Commission percentage remains available.
+* Commission percentage can be set to `0`.
+
+---
+
+## 2.2 SideWare Stock Buttons
+
+Under SideWare Stock, the following buttons are good and should remain:
+
+* Request Custom Stock
+* Remove SideWare
+* Buy Stock
+
+**Acceptance criteria**
+
+* These buttons remain available to authorized store users.
+* Existing behavior remains intact unless otherwise specified.
+
+---
+
+## 2.3 Add From Catalog Is Admin Only
+
+The **Add From Catalog** button should be admin-only.
+
+It should be labeled clearly as admin-only.
+
+**Suggested label**
+
+`Add From Catalog (Admin)`
+
+**Acceptance criteria**
+
+* Only admins can see/use Add From Catalog.
+* Non-admins cannot access this action directly.
+* Button label clearly indicates admin-only access.
+* Unauthorized direct route/API access is blocked.
+
+---
+
+## 2.4 Offer SideWare to Owner Is Admin Only
+
+The **Offer SideWare to Owner** function is admin-only and should remain admin-only.
+
+**Acceptance criteria**
+
+* Only admins can see/use Offer SideWare to Owner.
+* Unauthorized users cannot access it directly.
+* Existing behavior remains intact.
+
+---
+
+## 2.5 Admin Add Cyberware / SideWare Stock Form
+
+When admins add cyberware/SideWare stock, they should be able to enter all required cyberware information.
+
+The admin add form should include:
+
+* Name
+* Description
+* Cyber category
+* Slot
+* CWP
+* Price
+* Any other required cyberware catalog fields
+
+**Acceptance criteria**
+
+* Admin can manually add a cyberware/SideWare stock item.
+* Description field is available.
+* Cyber category field is available.
+* Required fields are validated.
+* Added stock appears correctly in the store inventory.
+* Action is audit logged.
+
+---
+
+# 3. Regular Store Page Updates
+
+## 3.1 Match Store Tools to Ripperdoc/SideWare Flow
+
+Regular stores should have a similar owner/employee management and stock management flow.
+
+**Acceptance criteria**
+
+* Store pages are functionally consistent with Ripperdoc/SideWare pages where appropriate.
+* Owners/employees can view inventory, transaction history, and stock tools.
+* Admin-only tools are clearly labeled.
+
+---
+
+## 3.2 Add From Catalog Is Admin Only
+
+For regular stores, **Add From Catalog** should also be admin-only.
+
+**Suggested label**
+
+`Add From Catalog (Admin)`
+
+**Acceptance criteria**
+
+* Only admins can see/use Add From Catalog.
+* Button is labeled admin-only.
+* Unauthorized direct route/API access is blocked.
+
+---
+
+## 3.3 Add Stock Manually
+
+Regular stores need an admin tool to add custom stock manually, not only from a catalog.
+
+This is needed because stores are not only gun stores. They may sell many different kinds of items.
+
+### Add Manually form should include
+
+* Item name
+* Item type/category
+* Description
+* Quantity
+* Price/value if applicable
+* Any other useful metadata
+
+**Acceptance criteria**
+
+* Admins can manually add custom stock to a store.
+* Manually added items are not restricted to gun catalog items.
+* Custom stock appears in store inventory.
+* Custom stock can later be sold or removed.
+* Action is audit logged.
+
+---
+
+# 4. Lore Directory Image and Sorting Fixes
+
+## 4.1 Lore Images Not Displaying
+
+When editing lore entries, there is a button to add images, but those images are not showing:
+
+* On the main Lore page
+* In the body/detail page when clicking into a lore entry
+
+**Expected behavior**
+
+* Uploaded/attached lore images should display on the main Lore directory page where appropriate.
+* Uploaded/attached lore images should display inside the lore entry detail page.
+
+**Acceptance criteria**
+
+* Lore images uploaded through Edit are saved correctly.
+* Lore images display on lore cards/list entries if appropriate.
+* Lore images display on lore detail pages.
+* Missing images use a safe fallback or simply omit image space cleanly.
+* Image display works for public and fixer-only views without exposing restricted images incorrectly.
+
+---
+
+## 4.2 Lore Directory Sorting
+
+Add sorting options to the Lore directory.
+
+**Sort options**
+
+* Alphabetical
+* Recently Updated
+
+**Acceptance criteria**
+
+* Users can sort lore entries alphabetically.
+* Users can sort lore entries by recently updated.
+* Recently updated uses the lore entry’s actual updated timestamp.
+* Sorting works alongside category filters/search.
+
+---
+
+# 5. Cyberware Catalog Field Cleanup
+
+When clicking on a cyberware item, remove fields that NCRP does not use.
+
+## 5.1 Remove Wholesale Field
+
+Remove the **Wholesale** field from cyberware item detail views.
+
+**Acceptance criteria**
+
+* Cyberware details no longer show Wholesale.
+* Removing the field does not break backend pricing logic if it exists internally.
+
+---
+
+## 5.2 Install Cost Label
+
+Current install cost shows only a dash.
+
+Replace this with:
+
+`Ripperdoc determined`
+
+**Acceptance criteria**
+
+* Install cost no longer shows as a bare dash.
+* Install cost displays `Ripperdoc determined`.
+* This appears consistently on cyberware detail views.
+
+---
+
+## 5.3 Remove Humanity Loss Field
+
+Remove **Humanity Loss** from cyberware item detail views because NCRP does not use humanity loss.
+
+**Acceptance criteria**
+
+* Cyberware details no longer show Humanity Loss.
+* Character creation and cyberware logic do not ask players for Humanity Loss.
+* Existing data removal/hiding does not break cyberware records.
+
+---
+
+# 6. Ripperdoc Store Image Display Fix
+
+When clicking into a Ripperdoc store, the uploaded image displays correctly above the store name.
+
+However, on the main Ripperdoc page where all Ripperdoc stores are listed, the image does not display.
+
+**Expected behavior**
+
+* Ripperdoc store image should appear on the main Ripperdoc list/card page.
+* The same image should appear when clicking into the individual Ripperdoc store.
+
+**Acceptance criteria**
+
+* Ripperdoc list/card entries show the uploaded store image.
+* Ripperdoc detail page continues showing the uploaded image.
+* Missing image uses fallback behavior.
+* Images are sized consistently and do not break card layout.
+
+---
+
+# 7. Property / Business Lease Editing
+
+## 7.1 Add Edit Button to Property Detail View
+
+When clicking on a property, there should be an Edit button that allows authorized staff to change property/business information.
+
+Currently, the only visible admin action is assigning the property to another person.
+
+**Editable fields should include**
+
+* Property/business name
+* Price per month
+* Tier per month
+* Business name
+* Description
+* Owner/lease holder
+* Any other existing property metadata
+
+**Acceptance criteria**
+
+* Property detail page has an Edit button for authorized users.
+* Authorized users can edit property/business information.
+* Edits save correctly.
+* Edits are audit logged.
+
+---
+
+## 7.2 Business Lease Name Updates
+
+When someone applies for a business lease and is approved, the current business name should be updated/replaced as needed.
+
+If a player already has a business and wants the name changed, they can contact staff, and staff should be able to edit it.
+
+**Acceptance criteria**
+
+* Approved business lease requests can update the business name.
+* Staff can edit business names after approval.
+* Property/business display updates everywhere relevant.
+* Changes are audit logged.
+
+---
+
+## 7.3 Fixer/Admin Assign Property
+
+The **Admin Assign** function should also be available to fixers.
+
+Fixers should be able to assign a property to somebody else.
+
+**Acceptance criteria**
+
+* Fixers can assign properties to users/characters where appropriate.
+* Admins retain assignment ability.
+* Assignment changes are logged.
+* Unauthorized users cannot assign properties.
+
+---
+
+# 8. Gun Catalog Field Cleanup
+
+When clicking on a gun/weapon, remove fields NCRP does not need.
+
+## Remove These Fields
+
+* Damage
+* Mag Size
+* Wholesale
+
+**Acceptance criteria**
+
+* Gun detail view no longer shows Damage.
+* Gun detail view no longer shows Mag Size.
+* Gun detail view no longer shows Wholesale.
+* Removing/hiding these fields does not break weapon records or pricing logic.
+
+---
+
+# 9. Fixer Hub Layout Improvements
+
+## 9.1 Move Top Buttons Into Main Page Content
+
+The Fixer Hub currently looks bare, with many buttons squished at the top.
+
+Move those buttons into the main section of the page as larger cards/buttons with explanations.
+
+**Each Fixer Hub card/button should include**
+
+* Feature name
+* Short description of what it does
+* Where it goes / what it manages
+* Clear call-to-action button
+
+**Acceptance criteria**
+
+* Fixer Hub no longer looks like a blank page with buttons jammed at the top.
+* Buttons are presented as useful feature cards.
+* Each card explains what the feature is for.
+* Layout is easier to scan and use.
+
+---
+
+## 9.2 Integrate Item Trace Into Fixer Hub
+
+There is currently an **Item Trace** button/link on the left-hand side navigation.
+
+This should be integrated into the Fixer Hub as another card/button instead of being a separate left-nav item.
+
+**Acceptance criteria**
+
+* Item Trace no longer needs its own left navigation item.
+* Item Trace appears as a card/button in Fixer Hub.
+* Item Trace card explains what the tool does.
+* Existing Item Trace functionality still works.
+
+---
+
+# 10. Pending Requests Page Updates
+
+## 10.1 Add Request Category Tabs
+
+The Pending Requests section will be used heavily, so closed/completed items should not all display on the same main page.
+
+Add tabs/categories.
+
+### Tabs should include
+
+* Miscellaneous Requests
+* Character Edits
+* New Characters
+* Lore
+* Completed Requests
+* Denied Requests
+
+**Acceptance criteria**
+
+* Pending Requests are separated into clear tabs.
+* Completed requests are not mixed into active pending work.
+* Denied requests are separately viewable.
+* Staff can find active requests quickly.
+
+---
+
+## 10.2 Rename Resolve to Approve
+
+The current **Resolve** action should be renamed to **Approve** where it means approving a request.
+
+**Acceptance criteria**
+
+* Approval buttons/actions say Approve, not Resolve.
+* Wording is clearer for staff.
+* Existing approval behavior still works.
+
+---
+
+## 10.3 Archived Request Behavior
+
+For archived/closed requests, the current UI shows **View and Respond**.
+
+If a request is archived/closed entirely, the only available action should be:
+
+`Reopen`
+
+Once reopened, staff can respond, send messages, approve, deny, or otherwise continue working on it.
+
+**Acceptance criteria**
+
+* Archived/closed requests only show Reopen as the active action.
+* View-only reading may still be allowed, but responding is disabled while archived.
+* Reopened requests regain normal response/action tools.
+* Reopen action is logged.
+
+---
+
+# 11. System Admin Wallets Tab Crash
+
+The System Admin > Wallets tab crashes when clicked.
+
+Current error:
+
+`useFormField should be used within <FormField>`
+
+**Expected behavior**
+
+* Wallets tab loads without crashing.
+* Form field components should be wrapped correctly.
+* If wallet data is missing/malformed, show a safe empty/error state instead of crashing.
+
+**Acceptance criteria**
+
+* Wallets tab no longer crashes.
+* `useFormField should be used within <FormField>` error is fixed.
+* Wallet data displays correctly or shows a safe empty state.
+* Errors are logged for debugging.
+* Wallet actions still respect Disabled/Test/Enabled processing modes.
