@@ -756,7 +756,7 @@ function EconomyTab() {
   );
 }
 
-function WalletTab() {
+export function WalletTab() {
   const adjustWallet = useAdminAdjustWallet();
   const { toast } = useToast();
   const [target, setTarget] = useState<CharacterPickerValue>(null);
