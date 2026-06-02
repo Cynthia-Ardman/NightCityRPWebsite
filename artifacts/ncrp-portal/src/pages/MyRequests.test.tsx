@@ -26,6 +26,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useListPendingEdits: () => ({ data: edits, isLoading: false }),
   useDecideStockCostRequest: () => ({ mutate: vi.fn(), isPending: false }),
   useDecideEmployeeInvite: () => ({ mutate: vi.fn(), isPending: false }),
+  useDecideMissionParticipation: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateCustomRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useResubmitCustomRequest: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useGetMyUnseen: () => ({ data: { request: [], edit: [], sheet: [], total: 0 }, isLoading: false }),

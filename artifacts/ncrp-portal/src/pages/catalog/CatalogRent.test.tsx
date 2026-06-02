@@ -58,6 +58,13 @@ vi.mock("@workspace/api-client-react", () => ({
   useListMyHousingRequests: () => ({ data: [] }),
   useListLifestyleTiers: () => ({ data: [] }),
   useUpdateRentListing: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  useListDistricts: () => ({ data: [], isLoading: false }),
+  useCreateDistrict: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  useCreateRentListing: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRentListing: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  useListPublicCharacters: () => ({ data: h.adminCharacters, isFetching: false }),
+  getListDistrictsQueryKey: () => ["districts"],
+  getListPublicCharactersQueryKey: () => ["public-characters"],
   useGetListingHistory: () => ({ data: h.history, isLoading: false }),
   useAdminListCharacters: () => ({ data: h.adminCharacters }),
   getAdminListCharactersQueryKey: () => ["admin-characters"],
@@ -173,9 +180,9 @@ describe("CatalogRent — admin assign happy path", () => {
     await user.click(screen.getByTestId(`row-rent-${LISTING.id}`));
     const panel = await screen.findByTestId("history-admin-panel");
 
-    // Pick a character from the (Radix) select, then assign.
-    await user.click(within(panel).getByTestId("history-select-character"));
-    await user.click(await screen.findByText(/V — Player One/));
+    // Search the typeahead, pick a character, then assign.
+    await user.type(within(panel).getByTestId("history-select-character"), "V");
+    await user.click(await within(panel).findByTestId("history-select-character-option-99"));
     await user.click(within(panel).getByTestId("history-button-assign"));
 
     await waitFor(() => expect(h.leaseMutate).toHaveBeenCalledTimes(1));
