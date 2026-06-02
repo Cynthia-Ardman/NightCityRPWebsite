@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Syringe, Search } from "lucide-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Redirect } from "wouter";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const LEVELS = ["none", "medium", "high", "extreme"] as const;
 type Level = typeof LEVELS[number];
@@ -116,6 +117,7 @@ export default function RipperdocConsole() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-3">
+            <ErrorBoundary>
             <Input
               placeholder="Search by character name..."
               value={search}
@@ -155,6 +157,7 @@ export default function RipperdocConsole() {
                 );
               })}
             </div>
+            </ErrorBoundary>
           </CardContent>
         </Card>
 
@@ -165,6 +168,7 @@ export default function RipperdocConsole() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
+            <ErrorBoundary>
             {!selected ? (
               <div className="text-sm font-mono text-muted-foreground">
                 SELECT_PATIENT_FROM_LEFT.
@@ -239,6 +243,7 @@ export default function RipperdocConsole() {
                 )}
               </>
             )}
+            </ErrorBoundary>
           </CardContent>
         </Card>
       </div>
