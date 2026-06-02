@@ -501,43 +501,103 @@ router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void>
   });
 });
 
-// Account-level RENT history for the signed-in player, parsed from the legacy
-// bot's #rent-payments Discord channel (bot_rent_payment_events) — one row per
-// charge confirmation, going back a full year. Covers baseline living cost,
-// housing rent, business rent and memberships (all the recurring rent-style
-// bills). Keyed by Discord id, so account-wide. Amounts are returned signed
-// negative (money charged) so the dialog renders them as outflows. Read-only —
-// powers the "RENT HISTORY" dialog.
+// Map a legacy ledger rent reason to a friendly label. The ledger uses
+// "flat monthly fee" for what the channel calls "Baseline living cost".
+function ledgerRentLabel(reason: string): string {
+  const r = reason.toLowerCase();
+  if (r.includes("flat monthly fee")) return "Baseline living cost";
+  if (r.includes("housing rent")) return "Housing Rent";
+  if (r.includes("business rent")) return "Business Rent";
+  if (r.includes("xanadu gold membership")) return "Xanadu Gold membership";
+  if (r.includes("trauma team subscription")) return "Trauma Team";
+  return reason;
+}
+
+// Account-level RENT history for the signed-in player. The bot charged rent
+// PER DISCORD USER (not per character), so this is account-wide. Two
+// complementary legacy sources, merged so neither double-counts a charge:
+//   - bot_balance_history ledger: authoritative + fully itemized (it is the
+//     only source for Trauma Team subscription and the cleanest for the most
+//     recent month), but its coverage only starts ~2026-05.
+//   - #rent-payments channel (bot_rent_payment_events): a full year of itemized
+//     "paid: $N" confirmations that predate the ledger, but missing some bill
+//     types (e.g. Trauma Team) and with patchy baseline/membership coverage.
+// We use the ledger for the window it covers and the channel for everything
+// strictly BEFORE this user's first ledger rent charge. Amounts are returned
+// signed negative (money charged) so the dialog renders them as outflows.
+// Read-only — powers the "RENT HISTORY" dialog.
 router.get("/me/rent-history", requireAuth, async (req, res): Promise<void> => {
   const discordId = req.user!.discordId;
-  const rows = await db
-    .select()
-    .from(botRentPaymentEvents)
-    .where(
-      and(
-        eq(botRentPaymentEvents.userId, discordId),
-        inArray(botRentPaymentEvents.kind, [
-          "baseline",
-          "housing_rent",
-          "business_rent",
-          "membership",
-          "trauma_team",
-        ]),
-      ),
-    )
-    .orderBy(desc(botRentPaymentEvents.ts))
-    .limit(500);
 
-  const entries = rows.map((r) => {
+  // Rent-style ledger reasons (excludes cyberware meds — that has its own view).
+  const RENT_REASON_RE =
+    "(flat monthly fee|housing rent|business rent|xanadu gold membership|trauma team subscription)";
+
+  const [channelRows, ledgerRows] = await Promise.all([
+    db
+      .select()
+      .from(botRentPaymentEvents)
+      .where(
+        and(
+          eq(botRentPaymentEvents.userId, discordId),
+          inArray(botRentPaymentEvents.kind, [
+            "baseline",
+            "housing_rent",
+            "business_rent",
+            "membership",
+            "trauma_team",
+          ]),
+        ),
+      )
+      .orderBy(desc(botRentPaymentEvents.ts))
+      .limit(500),
+    db
+      .select()
+      .from(botBalanceHistory)
+      .where(
+        and(
+          eq(botBalanceHistory.userId, discordId),
+          sql`${botBalanceHistory.reason} ~* ${RENT_REASON_RE}`,
+        ),
+      )
+      .orderBy(desc(botBalanceHistory.ts))
+      .limit(500),
+  ]);
+
+  // Boundary = this user's earliest ledger rent charge. Channel rows at or after
+  // it are superseded by the (richer) ledger and dropped to avoid double-counting.
+  const boundary = ledgerRows.length
+    ? Math.min(...ledgerRows.map((r) => new Date(r.ts).getTime()))
+    : Infinity;
+
+  const ledgerEntries = ledgerRows.map((r) => {
     const at = new Date(r.ts);
     return {
       source: "bot" as const,
       date: at.toISOString().slice(0, 10),
       at: at.toISOString(),
-      amount: -(r.amount ?? 0),
-      label: r.label,
+      // Ledger deltas are already negative for debits.
+      amount: (r.cashDelta ?? 0) + (r.bankDelta ?? 0),
+      label: ledgerRentLabel(r.reason ?? "Rent"),
     };
   });
+
+  const channelEntries = channelRows
+    .filter((r) => new Date(r.ts).getTime() < boundary)
+    .map((r) => {
+      const at = new Date(r.ts);
+      return {
+        source: "bot" as const,
+        date: at.toISOString().slice(0, 10),
+        at: at.toISOString(),
+        amount: -(r.amount ?? 0),
+        label: r.label,
+      };
+    });
+
+  const entries = [...ledgerEntries, ...channelEntries]
+    .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))
+    .slice(0, 500);
 
   res.json({
     totalCount: entries.length,

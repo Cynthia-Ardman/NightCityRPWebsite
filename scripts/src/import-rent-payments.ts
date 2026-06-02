@@ -87,8 +87,11 @@ function kindForPaidLabel(label: string): string {
 
 // "✅ <@id> — <Label> paid: $N"  (em dash — or hyphen -, optional ! in mention)
 const PAID_RE = /^✅\s*<@!?(\d+)>\s*[—-]\s*(.+?)\s+paid:\s*\$([\d,]+)/u;
-// "✅ Deducted $N for cyberware meds from <@id> (week N)."
-const CYBER_RE = /^✅\s*Deducted\s*\$([\d,]+)\s+for cyberware meds from\s*<@!?(\d+)>\s*\(week\s*(\d+)\)/iu;
+// Cyberware meds deduction — the bot used two interchangeable phrasings:
+//   "✅ Deducted $N for cyberware meds from <@id> (week N)."
+//   "✅ Deducted $N from <@id> for cyberware meds (week N)."
+const CYBER_RE =
+  /^✅\s*Deducted\s*\$([\d,]+)\s+(?:for cyberware meds from\s*<@!?(\d+)>|from\s*<@!?(\d+)>\s+for cyberware meds)\s*\(week\s*(\d+)\)/iu;
 
 function parseMessage(m: Msg): ParsedEvent | null {
   if (!m.author.bot) return null;
@@ -112,7 +115,8 @@ function parseMessage(m: Msg): ParsedEvent | null {
 
   const cyber = CYBER_RE.exec(content);
   if (cyber) {
-    const [, amt, userId, week] = cyber;
+    const [, amt, userIdA, userIdB, week] = cyber;
+    const userId = userIdA ?? userIdB;
     return {
       messageId: m.id,
       userId,
