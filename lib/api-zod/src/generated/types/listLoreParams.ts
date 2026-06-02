@@ -6,8 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ListLoreCategory } from './listLoreCategory';
+import type { ListLoreSort } from './listLoreSort';
 
 export type ListLoreParams = {
 category?: ListLoreCategory;
 q?: string;
+/**
+ * Sort order. 'recent' (default) = newest-updated first; 'alpha' = A→Z by name.
+ */
+sort?: ListLoreSort;
 };

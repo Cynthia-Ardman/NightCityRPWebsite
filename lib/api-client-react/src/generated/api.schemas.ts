@@ -4493,6 +4493,10 @@ export const ListMyCustomRequestsType = {
 export type ListLoreParams = {
 category?: ListLoreCategory;
 q?: string;
+/**
+ * Sort order. 'recent' (default) = newest-updated first; 'alpha' = A→Z by name.
+ */
+sort?: ListLoreSort;
 };
 
 export type ListLoreCategory = typeof ListLoreCategory[keyof typeof ListLoreCategory];
@@ -4503,6 +4507,14 @@ export const ListLoreCategory = {
   gang: 'gang',
   faction: 'faction',
   misc: 'misc',
+} as const;
+
+export type ListLoreSort = typeof ListLoreSort[keyof typeof ListLoreSort];
+
+
+export const ListLoreSort = {
+  recent: 'recent',
+  alpha: 'alpha',
 } as const;
 
 export type ListLoreEditsParams = {

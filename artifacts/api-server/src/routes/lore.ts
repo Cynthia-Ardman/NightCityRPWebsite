@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -181,11 +181,14 @@ router.get("/directory/lore", requireAuth, async (req, res): Promise<void> => {
     );
   }
   const where = clauses.length ? and(...clauses) : undefined;
+  // Sort: "alpha" = A→Z by name, "recent" (default) = newest-updated first.
+  const sort = req.query.sort === "alpha" ? "alpha" : "recent";
+  const orderBy = sort === "alpha" ? asc(loreEntries.name) : desc(loreEntries.updatedAt);
   const rows = (await db
     .select()
     .from(loreEntries)
     .where(where)
-    .orderBy(desc(loreEntries.updatedAt))) as LoreEntry[];
+    .orderBy(orderBy)) as LoreEntry[];
   res.json(rows.map(shapeSummary));
 });
 

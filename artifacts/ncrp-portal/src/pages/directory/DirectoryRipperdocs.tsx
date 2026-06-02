@@ -21,7 +21,22 @@ export default function DirectoryRipperdocs() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.map((r) => (
               <Link key={r.id} href={`/directory/ripperdocs/${r.id}`}>
-                <Card className="rounded-none border-border bg-card/50 hover:border-nc-magenta transition-all cursor-pointer h-full" data-testid={`card-ripperdoc-${r.id}`}>
+                <Card className="rounded-none border-border bg-card/50 hover:border-nc-magenta transition-all cursor-pointer h-full overflow-hidden flex flex-col" data-testid={`card-ripperdoc-${r.id}`}>
+                  {r.bannerUrl ? (
+                    <div className="w-full h-32 overflow-hidden border-b border-border bg-black/30">
+                      <img
+                        src={r.bannerUrl}
+                        alt={`${r.name} banner`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        data-testid={`img-ripperdoc-${r.id}`}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full h-32 flex items-center justify-center border-b border-border bg-card/30" data-testid={`img-ripperdoc-fallback-${r.id}`}>
+                      <Syringe className="w-10 h-10 text-muted-foreground opacity-30" />
+                    </div>
+                  )}
                   <CardHeader>
                     <CardTitle className="font-display text-xl">{r.name}</CardTitle>
                     <CardDescription className="font-mono text-xs">{r.location ?? "—"}</CardDescription>

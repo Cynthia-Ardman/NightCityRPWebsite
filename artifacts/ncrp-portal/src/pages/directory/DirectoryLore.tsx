@@ -7,8 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Plus, Lock, Download } from "lucide-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
+
+type LoreSort = "recent" | "alpha";
 
 const CATEGORY_LABEL: Record<string, string> = {
   corporation: "CORPORATIONS",
@@ -29,10 +32,12 @@ export default function DirectoryLore() {
   const isAdmin = !!me?.isAdmin;
   const [tab, setTab] = useState<"all" | LoreEntrySummaryCategory>("all");
   const [q, setQ] = useState("");
+  const [sort, setSort] = useState<LoreSort>("recent");
 
   const { data, isLoading } = useListLore({
     ...(tab === "all" ? {} : { category: tab }),
     ...(q.trim() ? { q: q.trim() } : {}),
+    sort,
   });
 
   return (
@@ -80,13 +85,24 @@ export default function DirectoryLore() {
             ))}
           </TabsList>
         </Tabs>
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search lore..."
-          className="rounded-none font-mono md:max-w-xs"
-          data-testid="input-lore-search"
-        />
+        <div className="flex items-center gap-3">
+          <Select value={sort} onValueChange={(v) => setSort(v as LoreSort)}>
+            <SelectTrigger className="rounded-none font-mono text-xs md:w-48" data-testid="select-lore-sort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">Recently Updated</SelectItem>
+              <SelectItem value="alpha">Alphabetical</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search lore..."
+            className="rounded-none font-mono md:max-w-xs"
+            data-testid="input-lore-search"
+          />
+        </div>
       </div>
 
       {isLoading ? (

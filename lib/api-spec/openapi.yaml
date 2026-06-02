@@ -3270,6 +3270,11 @@ paths:
           name: q
           required: false
           schema: { type: string }
+        - in: query
+          name: sort
+          required: false
+          description: "Sort order. 'recent' (default) = newest-updated first; 'alpha' = A→Z by name."
+          schema: { type: string, enum: [recent, alpha], default: recent }
       responses:
         "200":
           description: Lore entries

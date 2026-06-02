@@ -6929,9 +6929,12 @@ export const DecideEmployeeInviteResponse = zod.object({
 /**
  * @summary Public list of lore entries (no fixer-only bodies).
  */
+export const listLoreQuerySortDefault = `recent`;
+
 export const ListLoreQueryParams = zod.object({
   "category": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
-  "q": zod.coerce.string().optional()
+  "q": zod.coerce.string().optional(),
+  "sort": zod.enum(['recent', 'alpha']).default(listLoreQuerySortDefault).describe('Sort order. \'recent\' (default) = newest-updated first; \'alpha\' = A→Z by name.')
 })
 
 export const ListLoreResponseItem = zod.object({
