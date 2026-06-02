@@ -1032,7 +1032,7 @@ function TerminalCard({
                 className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
                 data-testid={`button-open-terminal-${item.kind}-${item.id}`}
               >
-                OPEN
+                VIEW
               </Button>
             </Link>
           ) : null}
