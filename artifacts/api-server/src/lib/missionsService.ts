@@ -495,9 +495,11 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
   // (players, non-owning fixers) only gets their own application echoed back.
   const managesApplications = ownsMissionApplications(viewer, m.fixerId);
   const applications = managesApplications ? await listApplicationViews(missionId) : [];
-  const myApplication = managesApplications
-    ? null
-    : (await listApplicationViews(missionId, viewer.id))[0] ?? null;
+  // Always echo the viewer's OWN application back, even to managers — staff who
+  // also play need to see their pending/accepted status and use the apply form
+  // on missions they don't run. (The full applicant pool stays manager-gated via
+  // `applications` above.)
+  const myApplication = (await listApplicationViews(missionId, viewer.id))[0] ?? null;
 
   // Resolve the display name of whoever marked the mission completed (audit
   // surface for the read-only lock); only looked up when actually completed.
@@ -1793,7 +1795,12 @@ export async function getStandaloneActorPayouts() {
       byEvent.set(key, agg);
     }
     agg.actorCount++;
-    if (r.paymentStatus === "paid") agg.totalPaid += r.amount;
+    // Sum every actor's fee for the batch total — not just rows that finished as
+    // "paid". Test-mode payouts land as "simulated" (and any retry can be
+    // "failed"), so a paid-only sum showed €$0 in the collapsed header while the
+    // expanded per-actor rows listed real amounts. The header total now matches
+    // the sum of the amounts shown when expanded.
+    agg.totalPaid += r.amount;
     if (!agg.fixerName && r.fixerName) agg.fixerName = r.fixerName;
     agg.actors.push({
       id: r.id,

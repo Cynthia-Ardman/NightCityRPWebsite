@@ -358,8 +358,10 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
         </Card>
       )}
 
-      {/* Apply (players only, posted missions) */}
-      {!data.canManage && <ApplySection data={data} />}
+      {/* Apply — available to anyone, including staff who also play. ApplySection
+          self-hides unless the mission is open or the viewer already has an
+          application, so it only appears where applying actually makes sense. */}
+      <ApplySection data={data} />
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
