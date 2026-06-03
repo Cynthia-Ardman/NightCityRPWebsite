@@ -209,7 +209,36 @@ const MENTION_RE = /<@!?(\d+)>/g;
 const CHANNEL_MENTION_RE = /<#(\d+)>/g;
 const ROLE_MENTION_RE = /<@&(\d+)>/g;
 const CUSTOM_EMOJI_RE = /<a?:(\w+):\d+>/g;
-const TIMESTAMP_RE = /<t:(\d+)(?::[tTdDfFR])?>/g;
+const TIMESTAMP_RE = /<t:(\d+)(?::([tTdDfFR]))?>/g;
+
+// Discord channel deep-links that appear in the imported text. The negative
+// lookbehind skips URLs already used as a markdown link destination `](url)` or
+// wrapped in an autolink `<url>`, so we never corrupt existing link syntax.
+const DISCORD_DEEPLINK_RE =
+  /(?<![<(])https?:\/\/(?:discord\.com|discordapp\.com)\/channels\/(\d+)\/(\d+)(?:\/\d+)?/g;
+
+// Map of Discord channel id -> portal path for content that now lives on the
+// website. Mentions/links to these channels are rewritten to point at the
+// portal; channels not listed here keep their original Discord link.
+const CHANNEL_LINK_MAP: Record<string, string> = {
+  // Guidebook sections (anchors on the /guidebook browse page)
+  "1386132844258267156": "/guidebook#getting_started", // getting-started-with-ncrp
+  "1354586004601835700": "/guidebook#faq", // faq
+  "1386137184486293644": "/guidebook#npc_acting", // npc-acting
+  "1348654324124880926": "/guidebook#schedule", // schedule
+  "1349207148659478538": "/guidebook#rules", // rp-rules
+  "1349482890051981462": "/guidebook#rules", // avatar-restrictions
+  "1351049157875339274": "/guidebook#setup", // link-vrc-and-discord
+  "1351682248453259264": "/guidebook#setup", // discord-invite-link
+  "1349139640128376913": "/guidebook#setup", // vrc-group-link
+  "1384036684760616980": "/guidebook#systems", // detailed-systems-explanation
+  // Other portal areas
+  "1384441172180729981": "/directory/lore", // lore
+  "1348603380821528626": "/characters", // character-creation
+  "1379934118799736884": "/directory/stores", // business-creation
+  "1379934227499454616": "/catalog/rent", // request-lease-or-rental
+  "1384033835280240640": "/guidebook#systems", // systems-explanation
+};
 
 async function resolveChannelName(
   channelId: string,
@@ -230,10 +259,22 @@ async function resolveChannelName(
   return name;
 }
 
-// Turn Discord-flavoured text into clean Markdown: resolve user/channel
-// mentions to names, drop role mentions, render custom emoji as :name:, and
-// render unix timestamps as readable UTC dates. Standard Discord markdown
-// (bold/italic/lists/quotes/links/code) already renders fine.
+// Escape characters that are special inside a Markdown link label so a Discord
+// display/channel name can never break out of `[label](url)` syntax (e.g. a `]`
+// in a name closing the link early and injecting a different destination).
+function escapeMdLabel(s: string): string {
+  return s.replace(/([\\[\]()<>])/g, "\\$1");
+}
+
+// Turn Discord-flavoured text into clean Markdown:
+//   - user mentions  -> [@name](https://discord.com/users/<id>) (opens profile)
+//   - channel deep-links / mentions -> portal links when the content has moved
+//     to the website (CHANNEL_LINK_MAP), otherwise the original Discord link/name
+//   - role mentions  -> dropped (no public role display)
+//   - custom emoji   -> :name:
+//   - unix timestamps -> a `[t=secs:fmt]` token the client renders in the
+//     viewer's local timezone (see remarkDiscordTime on the frontend)
+// Standard Discord markdown (bold/italic/lists/quotes/links/code) already renders.
 async function cleanContent(
   text: string,
   userCache: Map<string, string | null>,
@@ -241,7 +282,7 @@ async function cleanContent(
 ): Promise<string> {
   let out = text;
 
-  // User mentions.
+  // User mentions -> link to the person's Discord profile.
   const userIds = new Set<string>();
   for (const m of out.matchAll(MENTION_RE)) userIds.add(m[1]);
   for (const id of userIds) {
@@ -249,18 +290,34 @@ async function cleanContent(
     const u = await fetchDiscordUser(id);
     userCache.set(id, u ? u.globalName || u.username : null);
   }
-  out = out.replace(MENTION_RE, (full, id: string) => {
+  out = out.replace(MENTION_RE, (_full, id: string) => {
     const name = userCache.get(id);
-    return name ? `@${name}` : full;
+    return `[@${escapeMdLabel(name ?? "discord-user")}](https://discord.com/users/${id})`;
   });
 
-  // Channel mentions -> #name.
+  // Discord channel deep-links -> portal link when the content has moved here,
+  // otherwise a clean labelled link back to the Discord channel.
+  const deepIds = new Set<string>();
+  for (const m of out.matchAll(DISCORD_DEEPLINK_RE)) deepIds.add(m[2]);
+  for (const id of deepIds) await resolveChannelName(id, channelCache);
+  out = out.replace(DISCORD_DEEPLINK_RE, (_full, guild: string, channel: string) => {
+    const name = channelCache.get(channel);
+    const label = `#${escapeMdLabel(name ?? "channel")}`;
+    const target = CHANNEL_LINK_MAP[channel] ?? `https://discord.com/channels/${guild}/${channel}`;
+    return `[${label}](${target})`;
+  });
+
+  // Inline channel mentions -> portal link when mapped, else #name.
   const channelIds = new Set<string>();
   for (const m of out.matchAll(CHANNEL_MENTION_RE)) channelIds.add(m[1]);
   for (const id of channelIds) await resolveChannelName(id, channelCache);
   out = out.replace(CHANNEL_MENTION_RE, (full, id: string) => {
     const name = channelCache.get(id);
-    return name ? `#${name}` : full;
+    if (!name) return full;
+    const label = `#${escapeMdLabel(name)}`;
+    const mapped = CHANNEL_LINK_MAP[id];
+    if (mapped) return `[${label}](${mapped})`;
+    return DISCORD_GUILD_ID ? `[${label}](https://discord.com/channels/${DISCORD_GUILD_ID}/${id})` : label;
   });
 
   // Role mentions -> drop (no public role display).
@@ -269,10 +326,9 @@ async function cleanContent(
   // Custom emoji -> :name:
   out = out.replace(CUSTOM_EMOJI_RE, (_full, name: string) => `:${name}:`);
 
-  // Unix timestamps -> readable UTC.
-  out = out.replace(TIMESTAMP_RE, (_full, secs: string) => {
-    const d = new Date(Number(secs) * 1000);
-    return Number.isNaN(d.getTime()) ? _full : d.toUTCString();
+  // Unix timestamps -> a token rendered in the viewer's local timezone client-side.
+  out = out.replace(TIMESTAMP_RE, (_full, secs: string, fmt?: string) => {
+    return Number.isNaN(Number(secs)) ? _full : `[t=${secs}${fmt ? `:${fmt}` : ""}]`;
   });
 
   return out;
@@ -376,9 +432,14 @@ async function buildPage(
     for (const thread of threads) {
       const messages = await fetchChannelMessages(thread.id);
       const threadBlocks: string[] = [];
+      const normName = thread.name.replace(/[#*_~`\s]/g, "").toLowerCase();
       for (const msg of messages) {
         const block = await processMessage(msg, images, userCache, channelCache);
-        if (block) threadBlocks.push(block);
+        if (!block) continue;
+        // Skip a message that is just the thread title repeated (the heading
+        // below already covers it), so the page doesn't show the name twice.
+        if (block.replace(/[#*_~`\s]/g, "").toLowerCase() === normName) continue;
+        threadBlocks.push(block);
       }
       if (threadBlocks.length) {
         blocks.push(`## ${thread.name}`);
