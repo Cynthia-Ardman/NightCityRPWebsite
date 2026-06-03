@@ -38,6 +38,7 @@ export const GUIDEBOOK_SECTIONS: Array<{ key: string; label: string; description
   { key: "character_creation", label: "Character Creation Help", description: "Guidance and cross-links for building your character." },
   { key: "setup", label: "VRChat / Discord Setup", description: "Get VRChat and Discord linked and ready to play." },
   { key: "npc_acting", label: "NPC Acting", description: "Tips and expectations for playing NPCs." },
+  { key: "library", label: "Reference Library", description: "Guides and reference tables snapshotted from the community docs." },
 ];
 const SECTION_KEYS = GUIDEBOOK_SECTIONS.map((s) => s.key) as [string, ...string[]];
 const SECTION_ORDER = new Map(GUIDEBOOK_SECTIONS.map((s, i) => [s.key, i]));

@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Link } from "wouter";
 import remarkColor from "@/lib/remarkColor";
 import remarkDiscordTime from "@/lib/remarkDiscordTime";
@@ -67,7 +68,7 @@ export default function Markdown({ children, className }: { children?: string | 
   return (
     <div className={`${className ?? ""} break-words [overflow-wrap:anywhere]`}>
       <ReactMarkdown
-        remarkPlugins={[remarkDiscordTime, remarkColor]}
+        remarkPlugins={[remarkGfm, remarkDiscordTime, remarkColor]}
         components={{
           h1: ({ children }) => <h1 className="text-2xl font-display mt-4 mb-2 first:mt-0">{children}</h1>,
           h2: ({ children }) => <h2 className="text-xl font-display mt-4 mb-2 first:mt-0">{children}</h2>,

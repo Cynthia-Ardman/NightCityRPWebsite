@@ -241,36 +241,74 @@ const CHANNEL_LINK_MAP: Record<string, string> = {
   "1384033835280240640": "/guidebook#systems", // systems-explanation
 };
 
-// Some non-Discord links in the source content (Google Docs/Sheets) now have a
-// first-class portal equivalent. Keyed by the Google file id so the match is
-// resilient to query-string / trailing-path differences in how the link was
-// pasted. Listed ids are rewritten to the portal path; everything else is left
-// as-is (full Doc/Sheet -> page conversion is a separate effort).
-const URL_LINK_MAP: Record<string, string> = {
-  // "Master Cyberware List" spreadsheet -> on-site Cyberware catalog.
-  "1Uicc1mFBiWozgGhVnj2inVh1UbqeDZtiCfMX66kd9rc": "/catalog/cyberware",
+// Section bucket the converted Google Docs/Sheets pages live in. Only pages in
+// this section are valid link targets for buildDocLinkMap (so an unrelated page
+// that happens to carry a Google url in its sources can't hijack a mapping).
+export const LIBRARY_SECTION = "library";
+
+// A resolved Google-file-id -> portal-target lookup for a single import run.
+// `label` is used when turning a bare (non-markdown) Google url into a link.
+export type DocLinkTarget = { path: string; label: string };
+export type DocLinkMap = Map<string, DocLinkTarget>;
+
+// Static: Google file ids whose data the site already covers natively, so links
+// point at the existing page instead of duplicating it into a new page. Both the
+// "Master Cyberware List" and "NCRP: Cyberware pricing" sheets are the on-site
+// Cyberware catalog.
+const CATALOG_DOC_LINKS: Record<string, DocLinkTarget> = {
+  "1Uicc1mFBiWozgGhVnj2inVh1UbqeDZtiCfMX66kd9rc": { path: "/catalog/cyberware", label: "Cyberware catalog" },
+  "1Rj-poH7xE-nz1ZEAV43B9uoxhTGzaTH2FTUPvkBDN_0": { path: "/catalog/cyberware", label: "Cyberware catalog" },
 };
 
 // Matches a Google Docs/Sheets/etc. file id within a docs.google.com URL so we
-// can look it up in URL_LINK_MAP. e.g. https://docs.google.com/spreadsheets/d/<id>/edit
+// can look it up. e.g. https://docs.google.com/spreadsheets/d/<id>/edit
 const GOOGLE_DOC_ID_RE = /docs\.google\.com\/[a-z]+\/d\/([A-Za-z0-9_-]+)/i;
 
+// Build the Google-file-id -> portal-target map for an import run. Combines the
+// static already-covered catalog links with the converted Reference Library
+// pages. Those pages' numeric ids differ per environment, so we resolve them
+// from the DB at run time: a converted page records its origin Google url in
+// `sources`, which we key off to map the id -> /guidebook/<that page's id>.
+export async function buildDocLinkMap(): Promise<DocLinkMap> {
+  const map: DocLinkMap = new Map();
+  for (const [id, target] of Object.entries(CATALOG_DOC_LINKS)) map.set(id, target);
+
+  // Restrict to the Reference Library section and order by id so the result is
+  // deterministic; first library page wins if two ever share a Google file id.
+  const pages = await db
+    .select({ id: guidebookPages.id, title: guidebookPages.title, sources: guidebookPages.sources })
+    .from(guidebookPages)
+    .where(eq(guidebookPages.section, LIBRARY_SECTION))
+    .orderBy(guidebookPages.id);
+  for (const p of pages) {
+    const sources = Array.isArray(p.sources) ? (p.sources as GuidebookSourceRef[]) : [];
+    for (const s of sources) {
+      const m = typeof s?.url === "string" ? s.url.match(GOOGLE_DOC_ID_RE) : null;
+      // A static catalog mapping always wins; first library page wins ties.
+      if (m && !CATALOG_DOC_LINKS[m[1]] && !map.has(m[1])) {
+        map.set(m[1], { path: `/guidebook/${p.id}`, label: p.title });
+      }
+    }
+  }
+  return map;
+}
+
 // Rewrite the destination of any markdown link `[label](url)` (and bare
-// docs.google.com urls) whose Google file id is in URL_LINK_MAP to the portal
+// docs.google.com urls) whose Google file id is in `docLinks` to the portal
 // path, preserving the original label. Runs after channel rewriting.
-function rewriteMappedDocUrls(text: string): string {
+function rewriteMappedDocUrls(text: string, docLinks: DocLinkMap): string {
   // Markdown links first: keep the label, swap the destination.
   let out = text.replace(/\]\((https?:\/\/[^)]+)\)/g, (full, url: string) => {
     const m = url.match(GOOGLE_DOC_ID_RE);
-    const mapped = m ? URL_LINK_MAP[m[1]] : undefined;
-    return mapped ? `](${mapped})` : full;
+    const mapped = m ? docLinks.get(m[1]) : undefined;
+    return mapped ? `](${mapped.path})` : full;
   });
   // Bare (non-markdown) docs.google.com urls -> a labelled portal link.
   out = out.replace(
     /(?<![<([])https?:\/\/docs\.google\.com\/[a-z]+\/d\/([A-Za-z0-9_-]+)[^\s)]*/gi,
     (full, id: string) => {
-      const mapped = URL_LINK_MAP[id];
-      return mapped ? `[Cyberware catalog](${mapped})` : full;
+      const mapped = docLinks.get(id);
+      return mapped ? `[${mapped.label}](${mapped.path})` : full;
     },
   );
   return out;
@@ -315,6 +353,7 @@ async function cleanContent(
   text: string,
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
+  docLinks: DocLinkMap,
 ): Promise<string> {
   let out = text;
 
@@ -368,7 +407,7 @@ async function cleanContent(
   });
 
   // Google Docs/Sheets links that now have a portal equivalent.
-  out = rewriteMappedDocUrls(out);
+  out = rewriteMappedDocUrls(out, docLinks);
 
   return out;
 }
@@ -409,15 +448,16 @@ async function processMessage(
   images: string[],
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
+  docLinks: DocLinkMap,
 ): Promise<string> {
-  let block = await cleanContent(msg.content ?? "", userCache, channelCache);
+  let block = await cleanContent(msg.content ?? "", userCache, channelCache, docLinks);
 
   // Embed text (announcements sometimes live in embeds).
   for (const e of msg.embeds ?? []) {
     const parts: string[] = [];
     if (e.title) parts.push(`### ${e.title}`);
     if (e.description) {
-      parts.push(await cleanContent(e.description, userCache, channelCache));
+      parts.push(await cleanContent(e.description, userCache, channelCache, docLinks));
     }
     if (parts.length) block += (block ? "\n\n" : "") + parts.join("\n\n");
   }
@@ -459,6 +499,7 @@ async function buildPage(
   src: GuidebookSource,
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
+  docLinks: DocLinkMap,
 ): Promise<BuiltPage> {
   const images: string[] = [];
   const blocks: string[] = [];
@@ -473,7 +514,7 @@ async function buildPage(
       const threadBlocks: string[] = [];
       const normName = thread.name.replace(/[#*_~`\s]/g, "").toLowerCase();
       for (const msg of messages) {
-        const block = await processMessage(msg, images, userCache, channelCache);
+        const block = await processMessage(msg, images, userCache, channelCache, docLinks);
         if (!block) continue;
         // Skip a message that is just the thread title repeated (the heading
         // below already covers it), so the page doesn't show the name twice.
@@ -488,7 +529,7 @@ async function buildPage(
   } else {
     const messages = await fetchChannelMessages(src.channelId);
     for (const msg of messages) {
-      const block = await processMessage(msg, images, userCache, channelCache);
+      const block = await processMessage(msg, images, userCache, channelCache, docLinks);
       if (block) blocks.push(block);
     }
   }
@@ -550,6 +591,7 @@ export async function importGuidebookSource(
   actorId: string | null,
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
+  docLinks: DocLinkMap,
 ): Promise<GuidebookSourceResult> {
   const base: Omit<GuidebookSourceResult, "status" | "pageId" | "error"> = {
     channelId: src.channelId,
@@ -558,7 +600,7 @@ export async function importGuidebookSource(
     sourceLabel: src.sourceLabel,
   };
   try {
-    const built = await buildPage(src, userCache, channelCache);
+    const built = await buildPage(src, userCache, channelCache, docLinks);
     if (!built.body) {
       return { ...base, status: "error", pageId: null, error: "No content found in source channel" };
     }
@@ -665,9 +707,10 @@ export async function runGuidebookImport(actorId: string | null): Promise<Guideb
 
   const userCache = new Map<string, string | null>();
   const channelCache = new Map<string, string | null>();
+  const docLinks = await buildDocLinkMap();
   const sources: GuidebookSourceResult[] = [];
   for (const src of GUIDEBOOK_SOURCES) {
-    sources.push(await importGuidebookSource(src, actorId, userCache, channelCache));
+    sources.push(await importGuidebookSource(src, actorId, userCache, channelCache, docLinks));
   }
   return {
     created: sources.filter((s) => s.status === "created").length,
