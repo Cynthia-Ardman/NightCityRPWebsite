@@ -3935,7 +3935,9 @@ paths:
       description: >-
         Authoritative scoring. Invalid or losing paths are recorded as a failed
         attempt (still 200). Resubmitting a completed puzzle returns the recorded
-        outcome idempotently with rewardPaid=false (no double pay).
+        outcome idempotently (no double pay). `ln` is usually false on resubmit,
+        but MAY be true when this call settles a previously-unsettled reward (e.g.
+        an earlier payout leg failed and is now retried).
       requestBody:
         required: true
         content:
@@ -4094,7 +4096,7 @@ components:
         valid: { type: boolean, description: "True when the submitted path obeys the alternating row/column rules." }
         solvedCount: { type: integer }
         totalDaemons: { type: integer }
-        rewardPaid: { type: boolean, description: "True if a reward was paid out by this call (false on idempotent retry or no reward)." }
+        rewardPaid: { type: boolean, description: "True if a reward was paid out by this call. Usually false on idempotent retry or when there is no reward, but MAY be true on retry when this call settles a previously-unsettled reward leg." }
         rewardEddies: { type: integer }
         rewardItemName: { type: ["string", "null"] }
         message: { type: ["string", "null"] }
