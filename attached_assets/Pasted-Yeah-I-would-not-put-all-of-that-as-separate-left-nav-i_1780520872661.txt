@@ -1,0 +1,431 @@
+Yeah, I would **not** put all of that as separate left-nav items. That would turn the site into a junk drawer fast.
+
+The cleanest structure is:
+
+**Directory → Guidebook**
+
+Then inside **Guidebook**, have sections/cards like:
+
+* Getting Started
+* FAQ
+* Rules & Restrictions
+* Schedule & Events
+* Systems
+* Character Creation Help
+* VRChat / Discord Setup
+* NPC Acting
+
+That way “Directory” becomes the place for reference material, while “Personal” stays for stuff tied to the user’s account: dashboard, characters, ledger, requests, missions, etc.
+
+I’d call it **Guidebook** instead of “Info” or “FAQ” because it can contain onboarding, rules, systems, schedules, and reference docs without sounding too narrow.
+
+# Guidebook / Info Directory System Change List
+
+## 1. Add Guidebook Under Directory
+
+Add a new **Guidebook** section under the left-side **Directory** navigation.
+
+This should be the main home for NCRP reference material, onboarding information, rules, systems explanations, schedules, FAQ content, and setup guides.
+
+**Navigation placement**
+
+* Directory
+
+  * Lore
+  * Guidebook
+
+**Acceptance criteria**
+
+* Guidebook appears under Directory, not under Personal.
+* Personal navigation remains focused on account/user-specific tools.
+* Guidebook opens a browsable reference page.
+* Guidebook is easy to find without overcrowding the left navigation.
+
+---
+
+## 2. Guidebook Section Organization
+
+The Guidebook page should organize imported Discord info into clear sections/cards.
+
+### Recommended Guidebook categories
+
+1. Getting Started
+2. FAQ
+3. Rules & Restrictions
+4. Schedule & Events
+5. Systems
+6. Character Creation Help
+7. VRChat / Discord Setup
+8. NPC Acting
+
+**Acceptance criteria**
+
+* Guidebook content is grouped into clear categories.
+* Users do not need to hunt through many separate left-nav items.
+* Each section/card has a short description explaining what it contains.
+* Guidebook supports search if feasible.
+
+---
+
+## 3. Content to Import From Discord
+
+Pull the following Discord content into the Guidebook.
+
+### Discord source channels/posts
+
+* `getting-started-with-ncrp` — `1386132844258267156`
+* `faq` — `1354586004601835700`
+* `detailed-systems-explanation` — `1384036684760616980`
+* `schedule` — `1348654324124880926`
+* `rp-rules` — `1349207148659478538`
+* `vrc-group-link` — `1349139640128376913`
+* `discord-invite-link` — `1351682248453259264`
+* `avatar-restrictions` — `1349482890051981462`
+* `npc-acting` — `1386137184486293644`
+* `link-vrc-and-discord` — `1351049157875339274`
+
+**Acceptance criteria**
+
+* Website can import the listed Discord content.
+* Imported content is cleaned up and formatted for the website.
+* Source channel/post IDs are stored for future re-imports or syncs.
+* Import failures show clear admin-facing errors.
+* Imported content is editable after import.
+
+---
+
+## 4. Suggested Content Mapping
+
+### Getting Started
+
+Should include:
+
+* Getting Started with NCRP
+* Where to find announcements
+* Where to find incoming events
+* Where to find changelogs
+* How to begin participating
+* Basic onboarding flow
+
+**Source**
+
+* `getting-started-with-ncrp` — `1386132844258267156`
+
+---
+
+### FAQ
+
+Should include frequently asked questions about:
+
+* Creating characters
+* Joining RP
+* How missions work
+* How requests work
+* How the website and Discord connect
+* General server confusion points
+
+**Source**
+
+* `faq` — `1354586004601835700`
+
+---
+
+### Rules & Restrictions
+
+Should include:
+
+* RP rules
+* Avatar restrictions
+* Avatar stack caps
+* Behavior expectations
+* Character/content restrictions where applicable
+
+**Sources**
+
+* `rp-rules` — `1349207148659478538`
+* `avatar-restrictions` — `1349482890051981462`
+
+---
+
+### Schedule & Events
+
+Should include:
+
+* Server schedule
+* Main session timing
+* Social/event expectations
+* Where events are posted
+* How to stay up to date
+
+**Source**
+
+* `schedule` — `1348654324124880926`
+
+---
+
+### Systems
+
+Should include detailed explanations for NCRP systems, such as:
+
+* Housing system
+* Business system
+* Attendance system
+* Trauma Team system
+* Cyberware/CWP system
+* Cyberpsychosis/meds system
+* Economy basics
+* Missions/gigs
+* Requests/approvals
+
+**Source**
+
+* `detailed-systems-explanation` — `1384036684760616980`
+
+---
+
+### Character Creation Help
+
+Should include:
+
+* How to create a character
+* What players need before submitting
+* Links to FAQ/rules/avatar restrictions
+* CWP explanation if relevant
+* Character approval expectations
+
+**Sources**
+
+* FAQ
+* Getting Started
+* RP Rules
+* Avatar Restrictions
+* Detailed Systems Explanation
+
+---
+
+### VRChat / Discord Setup
+
+Should include:
+
+* VRC group link
+* Discord invite link
+* How to link VRChat and Discord
+* Any website account linking instructions
+
+**Sources**
+
+* `vrc-group-link` — `1349139640128376913`
+* `discord-invite-link` — `1351682248453259264`
+* `link-vrc-and-discord` — `1351049157875339274`
+
+---
+
+### NPC Acting
+
+Should include:
+
+* How NPC acting works
+* Expectations for NPC actors
+* How actors get involved
+* How actor payment works, if public
+* Where actor announcements happen
+
+**Source**
+
+* `npc-acting` — `1386137184486293644`
+
+---
+
+## 5. Link Guidebook During Character Creation
+
+When someone goes to create a new character, show helpful links to relevant Guidebook sections.
+
+### Suggested links
+
+* Getting Started
+* Character Creation Help
+* FAQ
+* RP Rules
+* Avatar Restrictions
+* Systems / CWP explanation
+* Link VRChat and Discord
+
+**Acceptance criteria**
+
+* Character creation page includes clear Guidebook links.
+* Links appear near the top of the form or in a help/sidebar area.
+* Links do not clutter the form.
+* Players can open the reference material without losing their character draft.
+
+---
+
+## 6. New User Guidebook Banner
+
+Show a banner at the top of the website for the first 5 logins.
+
+### Banner purpose
+
+Help new users find important onboarding material.
+
+### Banner should link to
+
+* Getting Started
+* FAQ
+* Character Creation Help
+* RP Rules
+* Avatar Restrictions
+* Link VRChat and Discord
+
+### Banner behavior
+
+* Show for the first 5 logins.
+* User can click through to Guidebook sections.
+* Optional: allow dismissing early.
+* After 5 logins, stop showing automatically.
+
+**Acceptance criteria**
+
+* New users see a helpful onboarding banner.
+* Banner appears for first 5 logins.
+* Banner links to Guidebook content.
+* Banner does not appear forever.
+* Dismissal/login count is tracked per user.
+
+---
+
+## 7. Guidebook Editing Permissions
+
+Guidebook content should be editable by authorized staff.
+
+### Admins
+
+Admins can edit and publish Guidebook content directly.
+
+### Fixers
+
+Fixers can submit edits, but those edits should require approval before going live.
+
+Fixer edits should go to Pending Requests.
+
+**Acceptance criteria**
+
+* Admins can edit Guidebook pages directly.
+* Fixer edits create pending approval requests.
+* Approved edits update the Guidebook.
+* Denied edits do not publish.
+* Guidebook edits are audit logged.
+
+---
+
+## 8. Pending Request Integration
+
+Fixer-submitted Guidebook edits should go into Pending Requests.
+
+Recommended tab:
+
+* Lore / Guidebook
+
+Or, if keeping them separate:
+
+* Lore
+* Guidebook
+
+**Pending request should show**
+
+* Page/section affected
+* Submitted by
+* Before/after changes
+* Submitter notes
+* Approve button
+* Deny button
+
+**Acceptance criteria**
+
+* Guidebook edits are reviewable before publishing.
+* Pending edit buttons are clearly labeled.
+* Approval publishes the change.
+* Denial rejects the change.
+* Actions are audit logged.
+
+---
+
+## 9. Guidebook Search
+
+Add search support for Guidebook content.
+
+Search should cover:
+
+* Page title
+* Section title
+* Body content
+* Keywords/tags
+* Source name
+
+**Acceptance criteria**
+
+* Users can search Guidebook content.
+* Search results show matching pages/sections.
+* Search does not expose staff-only content if staff-only Guidebook content is added later.
+
+---
+
+## 10. Formatting Requirements
+
+Imported Discord content should be cleaned up for website display.
+
+Formatting should support:
+
+* Headings
+* Paragraphs
+* Bullet lists
+* Links
+* Images, if present
+* Embedded references where feasible
+* Clean section cards
+
+**Acceptance criteria**
+
+* Imported content does not look like raw Discord copy/paste.
+* Links remain clickable.
+* Long pages are readable.
+* Content can be edited after import.
+
+---
+
+## 11. Sync / Re-Import Behavior
+
+Store the original Discord source ID for each imported Guidebook page.
+
+This allows future re-imports or manual refreshes.
+
+**Acceptance criteria**
+
+* Each imported page stores its source Discord ID.
+* Admins can see where imported content came from.
+* Re-importing can update existing pages instead of creating duplicates.
+* Re-import conflicts should require review before overwriting edited website content.
+
+---
+
+## 12. Audit Logging
+
+Audit log these actions:
+
+* Guidebook page imported
+* Guidebook page created
+* Guidebook page edited
+* Guidebook edit submitted
+* Guidebook edit approved
+* Guidebook edit denied
+* Guidebook page deleted
+* Guidebook page re-imported/refreshed
+* Guidebook source changed
+* New user banner dismissed, optional
+
+**Acceptance criteria**
+
+* Guidebook changes are traceable.
+* Import errors are logged.
+* Staff can see who changed what and when.
+
+I’d avoid naming the tab “FAQ” because it’s too narrow. **Guidebook** is broad enough to hold rules, setup, systems, and onboarding without making the nav feel bloated.
