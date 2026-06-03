@@ -25,6 +25,8 @@ export function emptyStats(): PracticeStats {
     easy: emptyDifficultyStats(),
     medium: emptyDifficultyStats(),
     hard: emptyDifficultyStats(),
+    very_hard: emptyDifficultyStats(),
+    nightmare: emptyDifficultyStats(),
   };
 }
 

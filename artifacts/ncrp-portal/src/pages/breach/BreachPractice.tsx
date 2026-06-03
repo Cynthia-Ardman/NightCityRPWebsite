@@ -26,6 +26,10 @@ const TIME_BY_DIFFICULTY: Record<PracticeDifficulty, number> = {
   easy: 90,
   medium: 60,
   hard: 45,
+  // Bigger 6x6 / 7x7 boards have longer solution paths, so they get more time
+  // on the bench to scan and execute the chain.
+  very_hard: 75,
+  nightmare: 90,
 };
 
 type Session = {

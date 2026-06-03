@@ -36,7 +36,14 @@ export type BreachPuzzleView = BreachPuzzle & {
 
 export type ServiceResult<T> = { status: number; body: T | { error: string } };
 
-const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard", "impossible"];
+const DIFFICULTIES: Difficulty[] = [
+  "easy",
+  "medium",
+  "hard",
+  "very_hard",
+  "nightmare",
+  "impossible",
+];
 
 function isStaff(user: User): boolean {
   return hasRole(user.roles, "ADMIN") || hasRole(user.roles, "FIXER");
@@ -143,7 +150,9 @@ function sanitizePuzzleInput(
   if (!daemons.every((d) => Array.isArray(d) && d.length > 0 && d.every((c) => typeof c === "string"))) {
     return null;
   }
-  if (typeof bufferSize !== "number" || !Number.isFinite(bufferSize) || bufferSize < 1 || bufferSize > 12) {
+  // Buffer is derived from the (longer) solution path, so the harder 6x6 / 7x7
+  // tiers legitimately produce larger buffers than the original 5x5 cap of 12.
+  if (typeof bufferSize !== "number" || !Number.isFinite(bufferSize) || bufferSize < 1 || bufferSize > 30) {
     return null;
   }
   return { grid: grid as string[][], daemons: daemons as string[][], bufferSize: Math.round(bufferSize) };
@@ -724,6 +733,8 @@ function emptyPracticeStats(): PracticeStatsView {
     easy: emptyPracticeDifficulty(),
     medium: emptyPracticeDifficulty(),
     hard: emptyPracticeDifficulty(),
+    very_hard: emptyPracticeDifficulty(),
+    nightmare: emptyPracticeDifficulty(),
   };
 }
 
@@ -898,7 +909,7 @@ export async function getPracticeLeaderboard(): Promise<ServiceResult<PracticeLe
       asc(breachPracticeStats.userId),
     );
 
-  const out: PracticeLeaderboardView = { easy: [], medium: [], hard: [] };
+  const out: PracticeLeaderboardView = { easy: [], medium: [], hard: [], very_hard: [], nightmare: [] };
   for (const row of rows) {
     if (!isPracticeDifficulty(row.difficulty)) continue;
     if (row.fastestClearMs === null) continue;

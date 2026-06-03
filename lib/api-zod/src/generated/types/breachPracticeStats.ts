@@ -14,4 +14,6 @@ export interface BreachPracticeStats {
   easy: BreachPracticeDifficultyStats;
   medium: BreachPracticeDifficultyStats;
   hard: BreachPracticeDifficultyStats;
+  very_hard: BreachPracticeDifficultyStats;
+  nightmare: BreachPracticeDifficultyStats;
 }

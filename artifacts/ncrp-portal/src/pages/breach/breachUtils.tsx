@@ -22,6 +22,8 @@ const DIFF_CLASS: Record<string, string> = {
   easy: "bg-nc-green text-background",
   medium: "bg-nc-yellow text-background",
   hard: "bg-nc-magenta text-background",
+  very_hard: "bg-orange-500 text-background",
+  nightmare: "bg-purple-600 text-white",
   impossible: "bg-destructive text-destructive-foreground",
 };
 

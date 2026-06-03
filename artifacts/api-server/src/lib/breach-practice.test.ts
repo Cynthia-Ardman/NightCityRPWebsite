@@ -108,7 +108,13 @@ describe("breach practice stats (opt-in account sync)", () => {
       fastestClearMs: 1234,
     });
     const stats = ok(await getPracticeStats(user));
-    expect(Object.keys(stats).sort()).toEqual(["easy", "hard", "medium"]);
+    expect(Object.keys(stats).sort()).toEqual([
+      "easy",
+      "hard",
+      "medium",
+      "nightmare",
+      "very_hard",
+    ]);
     expect((stats as Record<string, unknown>).impossible).toBeUndefined();
   });
 });

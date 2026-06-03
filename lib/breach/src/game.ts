@@ -9,14 +9,23 @@ import {
   type Pos,
   type Puzzle,
 } from "./puzzleGenerator";
-import { countSolutions } from "./bruteCounter";
+import { countSolutions, findFirstSolution } from "./bruteCounter";
 
-export type Difficulty = "easy" | "medium" | "hard" | "impossible";
+export type Difficulty =
+  | "easy"
+  | "medium"
+  | "hard"
+  | "very_hard"
+  | "nightmare"
+  | "impossible";
 
+// Ordered easiest → hardest, with the staff-only unsolvable "impossible" last.
 export const DIFFICULTIES: Difficulty[] = [
   "easy",
   "medium",
   "hard",
+  "very_hard",
+  "nightmare",
   "impossible",
 ];
 
@@ -24,13 +33,46 @@ export const DIFFICULTIES: Difficulty[] = [
 // "impossible" generates an intentionally unsolvable grid, which makes no sense
 // to practice or rank, so it is excluded here while remaining available to
 // staff for assigned puzzles.
-export type PracticeDifficulty = "easy" | "medium" | "hard";
+export type PracticeDifficulty = Exclude<Difficulty, "impossible">;
 
 export const PRACTICE_DIFFICULTIES: PracticeDifficulty[] = [
   "easy",
   "medium",
   "hard",
+  "very_hard",
+  "nightmare",
 ];
+
+// Per-tier generation profile. Difficulty is no longer purely a solution-count
+// bucket: each tier picks the board SHAPE (grid size, daemon count, sequence
+// length) up front, and `matches` only tunes how forgiving the solution-count
+// retry is. `countCap` bounds the brute-force counter during the retry loop so
+// generation stays fast on the larger 6x6 / 7x7 boards (we only need to know
+// whether the count lands in the band, not the exact total).
+export interface DifficultyProfile {
+  rows: number;
+  cols: number;
+  daemonCount: number;
+  // Upper bound on a single daemon's length (see generatePuzzle's maxLen).
+  maxLen: number;
+  // Whether a generated grid's solution count satisfies this tier.
+  matches: (count: number) => boolean;
+  // Short-circuit cap for the match-test counter (see countSolutions cap).
+  countCap: number;
+}
+
+export const DIFFICULTY_PROFILES: Record<Difficulty, DifficultyProfile> = {
+  // Existing 5x5 / 3-daemon tiers — bands unchanged from the original logic.
+  easy: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c > 5, countCap: 6 },
+  medium: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c >= 2 && c <= 5, countCap: 6 },
+  hard: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c === 1, countCap: 2 },
+  // New harder tiers: bigger boards, more daemons, longer sequences, aiming for
+  // a near-unique solution (allow up to 2 so the retry loop converges quickly).
+  very_hard: { rows: 6, cols: 6, daemonCount: 4, maxLen: 5, matches: (c) => c >= 1 && c <= 2, countCap: 3 },
+  nightmare: { rows: 7, cols: 7, daemonCount: 5, maxLen: 5, matches: (c) => c >= 1 && c <= 2, countCap: 3 },
+  // Intentionally unsolvable (scrambled), staff-only.
+  impossible: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c === 0, countCap: 0 },
+};
 
 const hexToNum = (h: string) => parseInt(h, 16);
 
@@ -48,25 +90,25 @@ export function countPuzzleSolutions(
   return countSolutions(pattern, matrix);
 }
 
+// Like countPuzzleSolutions but short-circuits once the count exceeds `cap`
+// (returning cap + 1). Used by the generation retry loop so counting stays
+// cheap on the larger 6x6 / 7x7 tiers.
+export function countPuzzleSolutionsCapped(
+  grid: string[][],
+  daemons: string[][],
+  cap: number,
+): number {
+  const matrix = grid.map((row) => row.map(hexToNum));
+  const pattern = combineDaemons(daemons).map(hexToNum);
+  return countSolutions(pattern, matrix, cap);
+}
+
 // Map a solution count to a human difficulty bucket (for display / labelling).
 export function difficultyFromCount(count: number): Difficulty {
   if (count === 0) return "impossible";
   if (count === 1) return "hard";
   if (count <= 5) return "medium";
   return "easy";
-}
-
-function matchesDifficulty(count: number, diff: Difficulty): boolean {
-  switch (diff) {
-    case "easy":
-      return count > 5;
-    case "medium":
-      return count >= 2 && count <= 5;
-    case "hard":
-      return count === 1;
-    case "impossible":
-      return count === 0;
-  }
 }
 
 function scrambleToImpossible(puzzle: Puzzle) {
@@ -94,32 +136,55 @@ export interface GeneratedPuzzle {
   solutionCount: number;
 }
 
-// Generate a puzzle whose solution count matches the requested difficulty,
-// retrying a bounded number of times before falling back to a best-effort grid.
+function generateForProfile(profile: DifficultyProfile, impossible: boolean): Puzzle {
+  const puzzle = generatePuzzle(
+    profile.rows,
+    profile.cols,
+    profile.daemonCount,
+    0,
+    profile.maxLen,
+  );
+  if (impossible) scrambleToImpossible(puzzle);
+  return puzzle;
+}
+
+// Generate a puzzle whose SHAPE and solution count match the requested tier,
+// retrying a bounded number of times before falling back. The match test uses
+// the capped counter (so it stays fast on the bigger 6x6 / 7x7 boards); the
+// returned solutionCount is the true (uncapped) count of the chosen grid. For
+// the solvable tiers the fallback prefers any grid that is at least solvable so
+// we never hand a player a 6x6 / 7x7 grid with no legal solution.
 export function generatePuzzleByDifficulty(
   diff: Difficulty,
   attempts = 60,
 ): GeneratedPuzzle {
+  const profile = DIFFICULTY_PROFILES[diff] ?? DIFFICULTY_PROFILES.medium;
+  const impossible = diff === "impossible";
+  let solvableFallback: Puzzle | null = null;
+
   for (let i = 0; i < attempts; i++) {
-    const puzzle = generatePuzzle();
-    if (diff === "impossible") {
-      scrambleToImpossible(puzzle);
-    }
-    const solutionCount = countPuzzleSolutions(puzzle.grid, puzzle.daemons);
-    if (matchesDifficulty(solutionCount, diff)) {
+    const puzzle = generateForProfile(profile, impossible);
+    const capped = countPuzzleSolutionsCapped(
+      puzzle.grid,
+      puzzle.daemons,
+      profile.countCap,
+    );
+    if (profile.matches(capped)) {
       return {
         grid: puzzle.grid,
         daemons: puzzle.daemons,
         bufferSize: puzzle.bufferSize,
-        solutionCount,
+        solutionCount: countPuzzleSolutions(puzzle.grid, puzzle.daemons),
       };
     }
+    if (!impossible && capped >= 1 && solvableFallback === null) {
+      solvableFallback = puzzle;
+    }
   }
-  // Fallback: best-effort puzzle (still valid, difficulty approximate).
-  const puzzle = generatePuzzle();
-  if (diff === "impossible") {
-    scrambleToImpossible(puzzle);
-  }
+
+  // Fallback: a solvable best-effort grid when possible (difficulty
+  // approximate), otherwise the last freshly generated grid.
+  const puzzle = solvableFallback ?? generateForProfile(profile, impossible);
   return {
     grid: puzzle.grid,
     daemons: puzzle.daemons,
@@ -209,8 +274,9 @@ export function scoreSelection(
 
 // Find ONE legal solution path (≤ bufferSize picks) that breaches every daemon,
 // or null when the grid is unsolvable. Used for the staff preview so a fixer can
-// see a worked solution before assigning. DFS over the movement rules, pruned by
-// the buffer cap; grids are small so this terminates quickly.
+// see a worked solution before assigning. Reuses the pattern-guided BFS that
+// defines `solutionCount` (the combined-daemon superstring), so it stays fast on
+// the larger 6x6 / 7x7 tiers — an exhaustive buffer-depth DFS blows up there.
 export function solvePuzzle(
   grid: string[][],
   daemons: string[][],
@@ -220,39 +286,15 @@ export function solvePuzzle(
   const cols = grid[0]?.length ?? 0;
   if (rows === 0 || cols === 0 || daemons.length === 0) return null;
 
-  const used = new Set<string>();
-  const path: Pos[] = [];
+  const matrix = grid.map((row) => row.map(hexToNum));
+  const pattern = combineDaemons(daemons).map(hexToNum);
+  const coords = findFirstSolution(pattern, matrix);
+  if (!coords) return null;
 
-  const dfs = (): Pos[] | null => {
-    const score = scoreSelection(grid, daemons, bufferSize, path);
-    if (score.valid && score.allSolved) return path.slice();
-    if (path.length >= bufferSize) return null;
-
-    const idx = path.length;
-    const candidates: Pos[] = [];
-    if (idx === 0) {
-      for (let c = 0; c < cols; c++) candidates.push({ r: 0, c });
-    } else {
-      const last = path[idx - 1];
-      const expectColumn = idx % 2 === 1;
-      if (expectColumn) {
-        for (let r = 0; r < rows; r++) candidates.push({ r, c: last.c });
-      } else {
-        for (let c = 0; c < cols; c++) candidates.push({ r: last.r, c });
-      }
-    }
-    for (const cell of candidates) {
-      const key = `${cell.r},${cell.c}`;
-      if (used.has(key)) continue;
-      used.add(key);
-      path.push(cell);
-      const found = dfs();
-      if (found) return found;
-      path.pop();
-      used.delete(key);
-    }
-    return null;
-  };
-
-  return dfs();
+  const path: Pos[] = coords.map(({ x, y }) => ({ r: y, c: x }));
+  // The combined-pattern path is the tightest solution; only return it when it
+  // actually fits the buffer and verifiably breaches every daemon.
+  if (path.length > bufferSize) return null;
+  const score = scoreSelection(grid, daemons, bufferSize, path);
+  return score.valid && score.allSolved ? path : null;
 }

@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { statusBadge, difficultyBadge, rewardSummary } from "./breachUtils";
 import { Cpu, Send, RefreshCw, Eye } from "lucide-react";
 
-const DIFFICULTIES: BreachPuzzleInputDifficulty[] = ["easy", "medium", "hard", "impossible"];
+const DIFFICULTIES: BreachPuzzleInputDifficulty[] = ["easy", "medium", "hard", "very_hard", "nightmare", "impossible"];
 
 // Status filter options for the breach log. "pending" groups the two
 // not-yet-resolved states (sent + in_progress) so staff can answer
@@ -337,7 +337,13 @@ export default function BreachHub() {
                             return (
                               <div
                                 key={c}
-                                className={`relative w-10 h-10 flex items-center justify-center font-mono text-sm border ${
+                                className={`relative flex items-center justify-center font-mono border ${
+                                  (preview.grid[0]?.length ?? 0) >= 7
+                                    ? "w-7 h-7 text-xs"
+                                    : (preview.grid[0]?.length ?? 0) === 6
+                                      ? "w-8 h-8 text-xs"
+                                      : "w-10 h-10 text-sm"
+                                } ${
                                   order
                                     ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10 font-bold"
                                     : "border-border/20 text-muted-foreground"

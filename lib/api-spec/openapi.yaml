@@ -4075,7 +4075,7 @@ components:
         assignedUserName: { type: ["string", "null"] }
         assignedCharacterId: { type: ["integer", "null"] }
         assignedCharacterName: { type: ["string", "null"] }
-        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        difficulty: { type: string, enum: [easy, medium, hard, very_hard, nightmare, impossible] }
         timeLimitSeconds: { type: integer }
         grid:
           type: array
@@ -4113,12 +4113,12 @@ components:
       type: object
       required: [difficulty]
       properties:
-        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        difficulty: { type: string, enum: [easy, medium, hard, very_hard, nightmare, impossible] }
     BreachPreview:
       type: object
       required: [difficulty, grid, daemons, bufferSize, solutionCount, solutionPath]
       properties:
-        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        difficulty: { type: string, enum: [easy, medium, hard, very_hard, nightmare, impossible] }
         grid:
           type: array
           description: "The code matrix as rows of hex byte strings."
@@ -4158,7 +4158,7 @@ components:
       required: [assignedCharacterId, difficulty, timeLimitSeconds]
       properties:
         assignedCharacterId: { type: integer, description: "The character to send the puzzle to; its owning player receives the DM." }
-        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        difficulty: { type: string, enum: [easy, medium, hard, very_hard, nightmare, impossible] }
         timeLimitSeconds: { type: integer, minimum: 10, maximum: 600 }
         rewardEddies: { type: integer, minimum: 0, description: "Eddies paid to the player on success. Defaults to 0." }
         rewardItemName: { type: ["string", "null"] }
@@ -4204,16 +4204,18 @@ components:
     BreachPracticeStats:
       type: object
       description: "Per-difficulty personal practice progress for the caller."
-      required: [easy, medium, hard]
+      required: [easy, medium, hard, very_hard, nightmare]
       properties:
         easy: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
         medium: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
         hard: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
+        very_hard: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
+        nightmare: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
     BreachPracticeRecordInput:
       type: object
       required: [difficulty, success]
       properties:
-        difficulty: { type: string, enum: [easy, medium, hard] }
+        difficulty: { type: string, enum: [easy, medium, hard, very_hard, nightmare] }
         success: { type: boolean }
         elapsedMs:
           type: ["integer", "null"]
@@ -4238,7 +4240,7 @@ components:
     BreachPracticeLeaderboard:
       type: object
       description: "Per-difficulty fastest-clear rankings (opted-in players only)."
-      required: [easy, medium, hard]
+      required: [easy, medium, hard, very_hard, nightmare]
       properties:
         easy:
           type: array
@@ -4247,6 +4249,12 @@ components:
           type: array
           items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
         hard:
+          type: array
+          items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
+        very_hard:
+          type: array
+          items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
+        nightmare:
           type: array
           items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
     ReviewComment:

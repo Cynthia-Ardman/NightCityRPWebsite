@@ -13,5 +13,7 @@ export const BreachPreviewDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
+  very_hard: 'very_hard',
+  nightmare: 'nightmare',
   impossible: 'impossible',
 } as const;

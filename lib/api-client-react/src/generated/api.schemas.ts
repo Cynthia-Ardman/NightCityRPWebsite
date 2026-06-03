@@ -19,6 +19,8 @@ export const BreachPuzzleDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
+  very_hard: 'very_hard',
+  nightmare: 'nightmare',
   impossible: 'impossible',
 } as const;
 
@@ -99,6 +101,8 @@ export const BreachPreviewInputDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
+  very_hard: 'very_hard',
+  nightmare: 'nightmare',
   impossible: 'impossible',
 } as const;
 
@@ -113,6 +117,8 @@ export const BreachPreviewDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
+  very_hard: 'very_hard',
+  nightmare: 'nightmare',
   impossible: 'impossible',
 } as const;
 
@@ -144,6 +150,8 @@ export const BreachPuzzleInputDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
+  very_hard: 'very_hard',
+  nightmare: 'nightmare',
   impossible: 'impossible',
 } as const;
 
@@ -222,6 +230,8 @@ export interface BreachPracticeStats {
   easy: BreachPracticeDifficultyStats;
   medium: BreachPracticeDifficultyStats;
   hard: BreachPracticeDifficultyStats;
+  very_hard: BreachPracticeDifficultyStats;
+  nightmare: BreachPracticeDifficultyStats;
 }
 
 export type BreachPracticeRecordInputDifficulty = typeof BreachPracticeRecordInputDifficulty[keyof typeof BreachPracticeRecordInputDifficulty];
@@ -231,6 +241,8 @@ export const BreachPracticeRecordInputDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
+  very_hard: 'very_hard',
+  nightmare: 'nightmare',
 } as const;
 
 export interface BreachPracticeRecordInput {
@@ -267,6 +279,8 @@ export interface BreachPracticeLeaderboard {
   easy: BreachLeaderboardEntry[];
   medium: BreachLeaderboardEntry[];
   hard: BreachLeaderboardEntry[];
+  very_hard: BreachLeaderboardEntry[];
+  nightmare: BreachLeaderboardEntry[];
 }
 
 export type ReviewCommentSubjectType = typeof ReviewCommentSubjectType[keyof typeof ReviewCommentSubjectType];

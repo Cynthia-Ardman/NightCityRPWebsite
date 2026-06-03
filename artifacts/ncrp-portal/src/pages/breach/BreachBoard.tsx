@@ -95,6 +95,15 @@ export default function BreachBoard({
   const rows = grid.length;
   const cols = grid[0]?.length ?? 0;
 
+  // The harder tiers use bigger boards (6x6 / 7x7); shrink the cells so the
+  // matrix still fits without horizontal scroll on smaller viewports.
+  const cellSizeClass =
+    cols >= 7
+      ? "h-9 w-9 sm:h-11 sm:w-11 text-sm sm:text-base"
+      : cols === 6
+        ? "h-10 w-10 sm:h-12 sm:w-12 text-base sm:text-lg"
+        : "h-12 w-12 sm:h-14 sm:w-14 text-lg";
+
   const [selection, setSelection] = useState<Pos[]>(initialSelection ?? []);
   const [ended, setEnded] = useState(readOnly);
   const [localOutcome, setLocalOutcome] = useState<BreachOutcome | null>(null);
@@ -269,7 +278,8 @@ export default function BreachBoard({
                       disabled={ended}
                       data-testid={`cell-${r}-${c}`}
                       className={[
-                        "relative h-12 w-12 sm:h-14 sm:w-14 font-mono text-lg border transition-colors",
+                        "relative font-mono border transition-colors",
+                        cellSizeClass,
                         isSelected
                           ? "border-nc-magenta bg-nc-magenta/20 text-nc-magenta"
                           : isLegal

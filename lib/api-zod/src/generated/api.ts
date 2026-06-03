@@ -7618,7 +7618,7 @@ export const ListBreachPuzzlesResponseItem = zod.object({
   "assignedUserName": zod.string().nullish(),
   "assignedCharacterId": zod.number().nullish(),
   "assignedCharacterName": zod.string().nullish(),
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible']),
   "timeLimitSeconds": zod.number(),
   "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
   "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
@@ -7659,7 +7659,7 @@ export const createBreachPuzzleBodyRewardEddiesMin = 0;
 
 export const CreateBreachPuzzleBody = zod.object({
   "assignedCharacterId": zod.number().describe('The character to send the puzzle to; its owning player receives the DM.'),
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible']),
   "timeLimitSeconds": zod.number().min(createBreachPuzzleBodyTimeLimitSecondsMin).max(createBreachPuzzleBodyTimeLimitSecondsMax),
   "rewardEddies": zod.number().min(createBreachPuzzleBodyRewardEddiesMin).optional().describe('Eddies paid to the player on success. Defaults to 0.'),
   "rewardItemName": zod.string().nullish(),
@@ -7680,11 +7680,11 @@ export const CreateBreachPuzzleBody = zod.object({
  * @summary Generate a puzzle with a worked solution for staff preview (not persisted).
  */
 export const PreviewBreachPuzzleBody = zod.object({
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible'])
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible'])
 })
 
 export const PreviewBreachPuzzleResponse = zod.object({
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible']),
   "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
   "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
   "bufferSize": zod.number(),
@@ -7707,7 +7707,7 @@ export const ListMyBreachPuzzlesResponseItem = zod.object({
   "assignedUserName": zod.string().nullish(),
   "assignedCharacterId": zod.number().nullish(),
   "assignedCharacterName": zod.string().nullish(),
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible']),
   "timeLimitSeconds": zod.number(),
   "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
   "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
@@ -7751,7 +7751,7 @@ export const GetBreachPuzzleResponse = zod.object({
   "assignedUserName": zod.string().nullish(),
   "assignedCharacterId": zod.number().nullish(),
   "assignedCharacterName": zod.string().nullish(),
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible']),
   "timeLimitSeconds": zod.number(),
   "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
   "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
@@ -7794,7 +7794,7 @@ export const StartBreachPuzzleResponse = zod.object({
   "assignedUserName": zod.string().nullish(),
   "assignedCharacterId": zod.number().nullish(),
   "assignedCharacterName": zod.string().nullish(),
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible']),
   "timeLimitSeconds": zod.number(),
   "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
   "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
@@ -7846,7 +7846,7 @@ export const SubmitBreachResultResponse = zod.object({
   "assignedUserName": zod.string().nullish(),
   "assignedCharacterId": zod.number().nullish(),
   "assignedCharacterName": zod.string().nullish(),
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible']),
   "timeLimitSeconds": zod.number(),
   "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
   "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
@@ -7898,7 +7898,7 @@ export const ListCharacterBreachPuzzlesResponseItem = zod.object({
   "assignedUserName": zod.string().nullish(),
   "assignedCharacterId": zod.number().nullish(),
   "assignedCharacterName": zod.string().nullish(),
-  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare', 'impossible']),
   "timeLimitSeconds": zod.number(),
   "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
   "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
@@ -7943,6 +7943,14 @@ export const getBreachPracticeStatsResponseHardAttemptsMin = 0;
 
 export const getBreachPracticeStatsResponseHardSolvesMin = 0;
 
+export const getBreachPracticeStatsResponseVeryHardAttemptsMin = 0;
+
+export const getBreachPracticeStatsResponseVeryHardSolvesMin = 0;
+
+export const getBreachPracticeStatsResponseNightmareAttemptsMin = 0;
+
+export const getBreachPracticeStatsResponseNightmareSolvesMin = 0;
+
 
 
 export const GetBreachPracticeStatsResponse = zod.object({
@@ -7959,6 +7967,16 @@ export const GetBreachPracticeStatsResponse = zod.object({
   "hard": zod.object({
   "attempts": zod.number().min(getBreachPracticeStatsResponseHardAttemptsMin),
   "solves": zod.number().min(getBreachPracticeStatsResponseHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "very_hard": zod.object({
+  "attempts": zod.number().min(getBreachPracticeStatsResponseVeryHardAttemptsMin),
+  "solves": zod.number().min(getBreachPracticeStatsResponseVeryHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "nightmare": zod.object({
+  "attempts": zod.number().min(getBreachPracticeStatsResponseNightmareAttemptsMin),
+  "solves": zod.number().min(getBreachPracticeStatsResponseNightmareSolvesMin),
   "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
 })
 }).describe('Per-difficulty personal practice progress for the caller.')
@@ -7979,6 +7997,14 @@ export const clearBreachPracticeStatsResponseHardAttemptsMin = 0;
 
 export const clearBreachPracticeStatsResponseHardSolvesMin = 0;
 
+export const clearBreachPracticeStatsResponseVeryHardAttemptsMin = 0;
+
+export const clearBreachPracticeStatsResponseVeryHardSolvesMin = 0;
+
+export const clearBreachPracticeStatsResponseNightmareAttemptsMin = 0;
+
+export const clearBreachPracticeStatsResponseNightmareSolvesMin = 0;
+
 
 
 export const ClearBreachPracticeStatsResponse = zod.object({
@@ -7995,6 +8021,16 @@ export const ClearBreachPracticeStatsResponse = zod.object({
   "hard": zod.object({
   "attempts": zod.number().min(clearBreachPracticeStatsResponseHardAttemptsMin),
   "solves": zod.number().min(clearBreachPracticeStatsResponseHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "very_hard": zod.object({
+  "attempts": zod.number().min(clearBreachPracticeStatsResponseVeryHardAttemptsMin),
+  "solves": zod.number().min(clearBreachPracticeStatsResponseVeryHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "nightmare": zod.object({
+  "attempts": zod.number().min(clearBreachPracticeStatsResponseNightmareAttemptsMin),
+  "solves": zod.number().min(clearBreachPracticeStatsResponseNightmareSolvesMin),
   "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
 })
 }).describe('Per-difficulty personal practice progress for the caller.')
@@ -8016,6 +8052,14 @@ export const getBreachPracticeLeaderboardResponseHardItemFastestClearMsMin = 0;
 
 export const getBreachPracticeLeaderboardResponseHardItemSolvesMin = 0;
 
+export const getBreachPracticeLeaderboardResponseVeryHardItemFastestClearMsMin = 0;
+
+export const getBreachPracticeLeaderboardResponseVeryHardItemSolvesMin = 0;
+
+export const getBreachPracticeLeaderboardResponseNightmareItemFastestClearMsMin = 0;
+
+export const getBreachPracticeLeaderboardResponseNightmareItemSolvesMin = 0;
+
 
 
 export const GetBreachPracticeLeaderboardResponse = zod.object({
@@ -8036,6 +8080,18 @@ export const GetBreachPracticeLeaderboardResponse = zod.object({
   "username": zod.string(),
   "fastestClearMs": zod.number().min(getBreachPracticeLeaderboardResponseHardItemFastestClearMsMin).describe('Best (smallest) clear time in ms for this difficulty.'),
   "solves": zod.number().min(getBreachPracticeLeaderboardResponseHardItemSolvesMin)
+})),
+  "very_hard": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "fastestClearMs": zod.number().min(getBreachPracticeLeaderboardResponseVeryHardItemFastestClearMsMin).describe('Best (smallest) clear time in ms for this difficulty.'),
+  "solves": zod.number().min(getBreachPracticeLeaderboardResponseVeryHardItemSolvesMin)
+})),
+  "nightmare": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "fastestClearMs": zod.number().min(getBreachPracticeLeaderboardResponseNightmareItemFastestClearMsMin).describe('Best (smallest) clear time in ms for this difficulty.'),
+  "solves": zod.number().min(getBreachPracticeLeaderboardResponseNightmareItemSolvesMin)
 }))
 }).describe('Per-difficulty fastest-clear rankings (opted-in players only).')
 
@@ -8048,7 +8104,7 @@ export const recordBreachPracticeAttemptBodyElapsedMsMin = 0;
 
 
 export const RecordBreachPracticeAttemptBody = zod.object({
-  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare']),
   "success": zod.boolean(),
   "elapsedMs": zod.number().min(recordBreachPracticeAttemptBodyElapsedMsMin).nullish().describe('Elapsed time of the run in ms. Only used (as the clear time) when success is true.')
 })
@@ -8064,6 +8120,14 @@ export const recordBreachPracticeAttemptResponseMediumSolvesMin = 0;
 export const recordBreachPracticeAttemptResponseHardAttemptsMin = 0;
 
 export const recordBreachPracticeAttemptResponseHardSolvesMin = 0;
+
+export const recordBreachPracticeAttemptResponseVeryHardAttemptsMin = 0;
+
+export const recordBreachPracticeAttemptResponseVeryHardSolvesMin = 0;
+
+export const recordBreachPracticeAttemptResponseNightmareAttemptsMin = 0;
+
+export const recordBreachPracticeAttemptResponseNightmareSolvesMin = 0;
 
 
 
@@ -8081,6 +8145,16 @@ export const RecordBreachPracticeAttemptResponse = zod.object({
   "hard": zod.object({
   "attempts": zod.number().min(recordBreachPracticeAttemptResponseHardAttemptsMin),
   "solves": zod.number().min(recordBreachPracticeAttemptResponseHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "very_hard": zod.object({
+  "attempts": zod.number().min(recordBreachPracticeAttemptResponseVeryHardAttemptsMin),
+  "solves": zod.number().min(recordBreachPracticeAttemptResponseVeryHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "nightmare": zod.object({
+  "attempts": zod.number().min(recordBreachPracticeAttemptResponseNightmareAttemptsMin),
+  "solves": zod.number().min(recordBreachPracticeAttemptResponseNightmareSolvesMin),
   "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
 })
 }).describe('Per-difficulty personal practice progress for the caller.')
@@ -8102,6 +8176,14 @@ export const mergeBreachPracticeStatsBodyStatsHardAttemptsMin = 0;
 
 export const mergeBreachPracticeStatsBodyStatsHardSolvesMin = 0;
 
+export const mergeBreachPracticeStatsBodyStatsVeryHardAttemptsMin = 0;
+
+export const mergeBreachPracticeStatsBodyStatsVeryHardSolvesMin = 0;
+
+export const mergeBreachPracticeStatsBodyStatsNightmareAttemptsMin = 0;
+
+export const mergeBreachPracticeStatsBodyStatsNightmareSolvesMin = 0;
+
 
 
 export const MergeBreachPracticeStatsBody = zod.object({
@@ -8120,6 +8202,16 @@ export const MergeBreachPracticeStatsBody = zod.object({
   "attempts": zod.number().min(mergeBreachPracticeStatsBodyStatsHardAttemptsMin),
   "solves": zod.number().min(mergeBreachPracticeStatsBodyStatsHardSolvesMin),
   "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "very_hard": zod.object({
+  "attempts": zod.number().min(mergeBreachPracticeStatsBodyStatsVeryHardAttemptsMin),
+  "solves": zod.number().min(mergeBreachPracticeStatsBodyStatsVeryHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "nightmare": zod.object({
+  "attempts": zod.number().min(mergeBreachPracticeStatsBodyStatsNightmareAttemptsMin),
+  "solves": zod.number().min(mergeBreachPracticeStatsBodyStatsNightmareSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
 })
 }).describe('Per-difficulty personal practice progress for the caller.')
 })
@@ -8135,6 +8227,14 @@ export const mergeBreachPracticeStatsResponseMediumSolvesMin = 0;
 export const mergeBreachPracticeStatsResponseHardAttemptsMin = 0;
 
 export const mergeBreachPracticeStatsResponseHardSolvesMin = 0;
+
+export const mergeBreachPracticeStatsResponseVeryHardAttemptsMin = 0;
+
+export const mergeBreachPracticeStatsResponseVeryHardSolvesMin = 0;
+
+export const mergeBreachPracticeStatsResponseNightmareAttemptsMin = 0;
+
+export const mergeBreachPracticeStatsResponseNightmareSolvesMin = 0;
 
 
 
@@ -8152,6 +8252,16 @@ export const MergeBreachPracticeStatsResponse = zod.object({
   "hard": zod.object({
   "attempts": zod.number().min(mergeBreachPracticeStatsResponseHardAttemptsMin),
   "solves": zod.number().min(mergeBreachPracticeStatsResponseHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "very_hard": zod.object({
+  "attempts": zod.number().min(mergeBreachPracticeStatsResponseVeryHardAttemptsMin),
+  "solves": zod.number().min(mergeBreachPracticeStatsResponseVeryHardSolvesMin),
+  "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
+}),
+  "nightmare": zod.object({
+  "attempts": zod.number().min(mergeBreachPracticeStatsResponseNightmareAttemptsMin),
+  "solves": zod.number().min(mergeBreachPracticeStatsResponseNightmareSolvesMin),
   "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
 })
 }).describe('Per-difficulty personal practice progress for the caller.')
