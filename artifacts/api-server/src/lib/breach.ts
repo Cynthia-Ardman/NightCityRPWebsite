@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   db,
   breachPuzzles,
@@ -340,21 +340,30 @@ export async function submitResult(
   const daemons = row.daemons as string[][];
   const totalDaemons = daemons.length;
 
-  // Already completed → return the recorded outcome (idempotent retry).
+  // Already completed → return the recorded outcome (idempotent retry). If this
+  // was a success whose reward never fully settled — e.g. a crash between the
+  // completion write and payout, or a partial payout — retry settlement here so
+  // the player eventually gets paid. payReward is idempotent and only stamps
+  // rewardPaidAt once everything has settled.
   if (row.completedAt) {
-    const view = await shape(row);
+    const { rewardPaid, rewardMessage } = await settleIfNeeded(row);
+    const [current] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
+    const settled = current ?? row;
+    const view = await shape(settled);
     return {
       status: 200,
       body: {
         puzzle: view,
-        success: row.status === "success",
+        success: settled.status === "success",
         valid: true,
-        solvedCount: row.solvedCount,
+        solvedCount: settled.solvedCount,
         totalDaemons,
-        rewardPaid: false,
-        rewardEddies: row.rewardEddies,
-        rewardItemName: row.rewardItemName,
-        message: "Puzzle already completed",
+        rewardPaid,
+        rewardEddies: settled.rewardEddies,
+        rewardItemName: settled.rewardItemName,
+        message: rewardMessage
+          ? `Reward settled: ${rewardMessage}`
+          : "Puzzle already completed",
       },
     };
   }
@@ -404,21 +413,28 @@ export async function submitResult(
     .returning();
 
   if (!updated) {
-    // Lost the race to a concurrent submit — return the recorded outcome.
+    // Lost the race to a concurrent submit — return the recorded outcome, but
+    // still retry reward settlement in case the winning request flipped
+    // completedAt and then failed to pay.
     const [current] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
-    const view = await shape(current ?? row);
+    const { rewardPaid, rewardMessage } = await settleIfNeeded(current ?? row);
+    const [after] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
+    const finalRow = after ?? current ?? row;
+    const view = await shape(finalRow);
     return {
       status: 200,
       body: {
         puzzle: view,
-        success: (current ?? row).status === "success",
+        success: finalRow.status === "success",
         valid: true,
-        solvedCount: (current ?? row).solvedCount,
+        solvedCount: finalRow.solvedCount,
         totalDaemons,
-        rewardPaid: false,
-        rewardEddies: (current ?? row).rewardEddies,
-        rewardItemName: (current ?? row).rewardItemName,
-        message: "Puzzle already completed",
+        rewardPaid,
+        rewardEddies: finalRow.rewardEddies,
+        rewardItemName: finalRow.rewardItemName,
+        message: rewardMessage
+          ? `Reward settled: ${rewardMessage}`
+          : "Puzzle already completed",
       },
     };
   }
@@ -454,20 +470,63 @@ export async function submitResult(
   };
 }
 
-// Pay the success reward exactly once. rewardPaidAt is the durable guard; the
-// wallet idempotency key is a second line of defense against double-pay.
+// Retry reward settlement for an already-completed puzzle when it was a success
+// that has not yet been fully paid. Used by the idempotent already-completed
+// reply paths so a crash (or a partial payout) between completion and payout
+// eventually settles on a later submit.
+async function settleIfNeeded(
+  p: BreachPuzzle,
+): Promise<{ rewardPaid: boolean; rewardMessage: string | null }> {
+  if (p.status === "success" && !p.rewardPaidAt) {
+    const paid = await payReward(p);
+    return { rewardPaid: paid.paid, rewardMessage: paid.message };
+  }
+  return { rewardPaid: false, rewardMessage: null };
+}
+
+// Discriminated result of the item-mint critical section so the caller can tell
+// a fresh mint (which must emit an inventory event) from a no-op (item already
+// minted by a prior attempt).
+type MintResult =
+  | { id: number; fresh: false }
+  | { id: number; fresh: true; instanceUuid: string; characterName: string; itemName: string };
+
+// Pay the success reward, eventually-exactly-once. Each reward part has its own
+// durable guard: eddies are idempotent on the wallet key, and the item mint is
+// guarded by rewardItemId under a row lock. rewardPaidAt is stamped ONLY once
+// every required part has settled — a partial payout leaves it NULL so a later
+// submit retries just the unsettled part (never re-paying what already landed).
 async function payReward(row: BreachPuzzle): Promise<{ paid: boolean; message: string | null }> {
   if (row.rewardPaidAt) return { paid: false, message: null };
 
   const [player] = await db.select().from(users).where(eq(users.id, row.assignedUserId));
   if (!player) return { paid: false, message: null };
 
-  let ledgerId: number | null = null;
-  let rewardItemId: number | null = null;
+  const assignedCharacterId = row.assignedCharacterId;
+  const rewardItemName = row.rewardItemName;
+  const needsEddies = row.rewardEddies > 0;
+  const needsItem = !!(rewardItemName && assignedCharacterId);
+
+  // No reward configured → stamp settled so a successful no-reward puzzle is not
+  // retried on every subsequent submit.
+  if (!needsEddies && !needsItem) {
+    await db
+      .update(breachPuzzles)
+      .set({ rewardPaidAt: new Date() })
+      .where(and(eq(breachPuzzles.id, row.id), isNull(breachPuzzles.rewardPaidAt)));
+    return { paid: false, message: null };
+  }
+
+  let ledgerId = row.rewardLedgerId ?? null;
+  let rewardItemId = row.rewardItemId ?? null;
+  let eddiesSettled = !needsEddies || ledgerId != null;
+  let itemSettled = !needsItem || rewardItemId != null;
   const parts: string[] = [];
 
-  // Eddies reward via the wallet (idempotent on the key).
-  if (row.rewardEddies > 0) {
+  // 1) Eddies — applyWalletDelta reserves a ledger row before the external UB
+  //    call and is idempotent on the key, so it is safe to call without a lock
+  //    and safe to retry.
+  if (needsEddies && !eddiesSettled) {
     const wallet = await applyWalletDelta({
       userId: player.id,
       discordId: player.discordId,
@@ -482,46 +541,89 @@ async function payReward(row: BreachPuzzle): Promise<{ paid: boolean; message: s
     });
     if (wallet.ok) {
       ledgerId = wallet.ledgerId ?? null;
+      eddiesSettled = true;
       parts.push(`${row.rewardEddies.toLocaleString()} eddies`);
     } else {
       logger.error({ puzzleId: row.id, err: wallet.error }, "breach reward eddies payout failed");
     }
   }
 
-  // Item reward → mint an inventory item on the assigned character.
-  if (row.rewardItemName && row.assignedCharacterId) {
-    const [character] = await db.select().from(characters).where(eq(characters.id, row.assignedCharacterId));
-    if (character) {
-      const [item] = await db
+  // 2) Item — minting is NOT idempotent, so claim the right to mint under a row
+  //    lock (re-checking rewardItemId inside the tx) before inserting. This
+  //    serializes concurrent retries so the item is granted exactly once.
+  if (needsItem && !itemSettled && rewardItemName && assignedCharacterId) {
+    const minted: MintResult | null = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(breachPuzzles)
+        .where(eq(breachPuzzles.id, row.id))
+        .for("update");
+      if (!locked) return null;
+      if (locked.rewardItemId) return { id: locked.rewardItemId, fresh: false };
+      const [character] = await tx
+        .select()
+        .from(characters)
+        .where(eq(characters.id, assignedCharacterId));
+      if (!character) return null;
+      const [item] = await tx
         .insert(inventoryItems)
         .values({
           characterId: character.id,
           ownerId: character.ownerId,
-          name: row.rewardItemName,
+          name: rewardItemName,
           category: row.rewardItemCategory,
           quantity: 1,
           notes: row.rewardNote ?? `Breach Protocol reward (puzzle #${row.id})`,
           acquiredAt: new Date(),
         })
         .returning();
-      rewardItemId = item.id;
-      parts.push(row.rewardItemName);
-      await recordInventoryEvent({
+      await tx
+        .update(breachPuzzles)
+        .set({ rewardItemId: item.id })
+        .where(eq(breachPuzzles.id, row.id));
+      return {
+        id: item.id,
+        fresh: true,
         instanceUuid: item.instanceUuid,
-        kind: "created",
-        actorId: row.createdBy,
-        toCharacterId: character.id,
-        toCharacterName: character.name,
+        characterName: character.name,
         itemName: item.name,
-        quantity: 1,
-        reason: `Breach Protocol reward (puzzle #${row.id})`,
-      });
+      };
+    });
+    if (minted) {
+      rewardItemId = minted.id;
+      itemSettled = true;
+      parts.push(rewardItemName);
+      if (minted.fresh) {
+        await recordInventoryEvent({
+          instanceUuid: minted.instanceUuid,
+          kind: "created",
+          actorId: row.createdBy,
+          toCharacterId: assignedCharacterId,
+          toCharacterName: minted.characterName,
+          itemName: minted.itemName,
+          quantity: 1,
+          reason: `Breach Protocol reward (puzzle #${row.id})`,
+        });
+      }
     }
   }
 
+  const fullySettled = eddiesSettled && itemSettled;
+
+  // Persist whatever settled (ledger/item ids). Only stamp rewardPaidAt once
+  // EVERY required part has settled; otherwise leave it NULL so a later submit
+  // retries the rest. Writes coalesce against the stored value so a lagging
+  // concurrent attempt can never null-out a column another attempt already
+  // populated (state only ever advances, never regresses).
   await db
     .update(breachPuzzles)
-    .set({ rewardPaidAt: new Date(), rewardLedgerId: ledgerId, rewardItemId })
+    .set({
+      rewardLedgerId: sql`coalesce(${breachPuzzles.rewardLedgerId}, ${ledgerId})`,
+      rewardItemId: sql`coalesce(${breachPuzzles.rewardItemId}, ${rewardItemId})`,
+      ...(fullySettled
+        ? { rewardPaidAt: sql`coalesce(${breachPuzzles.rewardPaidAt}, now())` }
+        : {}),
+    })
     .where(eq(breachPuzzles.id, row.id));
 
   return { paid: parts.length > 0, message: parts.length > 0 ? parts.join(" + ") : null };
