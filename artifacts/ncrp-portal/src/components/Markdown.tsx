@@ -2,6 +2,7 @@ import ReactMarkdown from "react-markdown";
 import { Link } from "wouter";
 import remarkColor from "@/lib/remarkColor";
 import remarkDiscordTime from "@/lib/remarkDiscordTime";
+import { toDiscordAppUrl, handleDiscordLinkClick } from "@/lib/discordDeepLink";
 
 // Render a unix-seconds moment in the viewer's local timezone, mirroring the
 // Discord <t:...> style letters (t/T/d/D/f/F/R). Used by the `time` element the
@@ -104,8 +105,16 @@ export default function Markdown({ children, className }: { children?: string | 
                 </Link>
               );
             }
+            // Discord channel/user links open the native app (browser fallback).
+            const isDiscordApp = toDiscordAppUrl(h) !== null;
             return (
-              <a href={h} target="_blank" rel="noreferrer" className="text-nc-cyan underline break-all">
+              <a
+                href={h}
+                target="_blank"
+                rel="noreferrer"
+                onClick={isDiscordApp ? (e) => handleDiscordLinkClick(e, h) : undefined}
+                className="text-nc-cyan underline break-all"
+              >
                 {children}
               </a>
             );

@@ -232,13 +232,49 @@ const CHANNEL_LINK_MAP: Record<string, string> = {
   "1351682248453259264": "/guidebook#setup", // discord-invite-link
   "1349139640128376913": "/guidebook#setup", // vrc-group-link
   "1384036684760616980": "/guidebook#systems", // detailed-systems-explanation
+  "1387192935308591256": "/guidebook#schedule", // event-announcements
   // Other portal areas
   "1384441172180729981": "/directory/lore", // lore
   "1348603380821528626": "/characters", // character-creation
-  "1379934118799736884": "/directory/stores", // business-creation
+  "1379934118799736884": "/catalog/rent", // business-creation -> Property section
   "1379934227499454616": "/catalog/rent", // request-lease-or-rental
   "1384033835280240640": "/guidebook#systems", // systems-explanation
 };
+
+// Some non-Discord links in the source content (Google Docs/Sheets) now have a
+// first-class portal equivalent. Keyed by the Google file id so the match is
+// resilient to query-string / trailing-path differences in how the link was
+// pasted. Listed ids are rewritten to the portal path; everything else is left
+// as-is (full Doc/Sheet -> page conversion is a separate effort).
+const URL_LINK_MAP: Record<string, string> = {
+  // "Master Cyberware List" spreadsheet -> on-site Cyberware catalog.
+  "1Uicc1mFBiWozgGhVnj2inVh1UbqeDZtiCfMX66kd9rc": "/catalog/cyberware",
+};
+
+// Matches a Google Docs/Sheets/etc. file id within a docs.google.com URL so we
+// can look it up in URL_LINK_MAP. e.g. https://docs.google.com/spreadsheets/d/<id>/edit
+const GOOGLE_DOC_ID_RE = /docs\.google\.com\/[a-z]+\/d\/([A-Za-z0-9_-]+)/i;
+
+// Rewrite the destination of any markdown link `[label](url)` (and bare
+// docs.google.com urls) whose Google file id is in URL_LINK_MAP to the portal
+// path, preserving the original label. Runs after channel rewriting.
+function rewriteMappedDocUrls(text: string): string {
+  // Markdown links first: keep the label, swap the destination.
+  let out = text.replace(/\]\((https?:\/\/[^)]+)\)/g, (full, url: string) => {
+    const m = url.match(GOOGLE_DOC_ID_RE);
+    const mapped = m ? URL_LINK_MAP[m[1]] : undefined;
+    return mapped ? `](${mapped})` : full;
+  });
+  // Bare (non-markdown) docs.google.com urls -> a labelled portal link.
+  out = out.replace(
+    /(?<![<([])https?:\/\/docs\.google\.com\/[a-z]+\/d\/([A-Za-z0-9_-]+)[^\s)]*/gi,
+    (full, id: string) => {
+      const mapped = URL_LINK_MAP[id];
+      return mapped ? `[Cyberware catalog](${mapped})` : full;
+    },
+  );
+  return out;
+}
 
 async function resolveChannelName(
   channelId: string,
@@ -330,6 +366,9 @@ async function cleanContent(
   out = out.replace(TIMESTAMP_RE, (_full, secs: string, fmt?: string) => {
     return Number.isNaN(Number(secs)) ? _full : `[t=${secs}${fmt ? `:${fmt}` : ""}]`;
   });
+
+  // Google Docs/Sheets links that now have a portal equivalent.
+  out = rewriteMappedDocUrls(out);
 
   return out;
 }

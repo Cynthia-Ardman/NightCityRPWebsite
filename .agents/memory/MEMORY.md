@@ -66,6 +66,8 @@
 - [Character wallet endpoint scope](character-wallet-endpoint-scope.md) — /characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows; per-character history UI must also filter t.characterId===id.
 - [Wallet category bucket](character-wallet-endpoint-scope.md) — wallet_transactions.category (rent/cyberware/…) is derived from kind+memo via classifyWalletCategory, independent of load-bearing kind; APIs fallback-derive when null.
 - [Breach Protocol minigame](breach-minigame.md) — exactly-once reward (atomic completedAt-IS-NULL); server anchors timer before any grid reveal, lists redact unstarted grids; /result 200-idempotent.
+- [Discord deep-link fallback](discord-deeplink-fallback.md) — open native app via discord://, fall back with window.location.assign (NOT window.open — popup-blocked outside the click gesture).
+- [Guidebook protected on-site edits](guidebook-content-rendering.md) — bespoke wording/page edits run as a script AFTER import (sets editedSinceImport so re-import stashes to pendingImport); never bake them into cleanContent.
 - [Guidebook content rendering](guidebook-content-rendering.md) — importer bakes mentions/channel links + `[t=secs:fmt]` tokens rendered client-side in local tz; shared with lore; re-import after cleanContent edits.
 - [Portal review queue wiring](portal-review-queue-wiring.md) — a new fixer-propose/admin-approve queue must wire 4 spots (PendingRequests tab+terminal/TerminalKind, AppLayout staffPending badge, App.tsx routes); seed edit forms via useEffect keyed on id.
 - [Guidebook importer & forum channels](guidebook-import-forum.md) — importer pulls GUIDEBOOK_SOURCES → guidebookPages; Discord forum (type 15) has no top-level msgs, must enumerate threads as ## sections.
