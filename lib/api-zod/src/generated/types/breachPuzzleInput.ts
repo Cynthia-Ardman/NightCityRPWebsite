@@ -33,6 +33,11 @@ export interface BreachPuzzleInput {
      * @nullable
      */
   contextLabel?: string | null;
+  /**
+     * Optional id of a real mission to link this breach to. When set, contextLabel is snapshotted from the mission title if not otherwise provided.
+     * @nullable
+     */
+  missionId?: number | null;
   /** Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one. */
   puzzle?: BreachPuzzlePayload | null;
 }

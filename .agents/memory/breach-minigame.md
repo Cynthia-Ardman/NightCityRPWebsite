@@ -47,6 +47,15 @@ players solve live; rewards paid on success.
   mirror the server's contiguous-subsequence daemon rule (scoreSelection); if you change scoring
   in `lib/breach/src/game.ts`, update the board's `containsContiguous`/success criterion too or
   practice + live live-feedback drift from the authoritative result.
+- **Mission link vs free-text context are intentionally redundant**: a breach can hard-link a
+  real mission (`breachPuzzles.missionId`, FK set-null on delete) OR carry only a free-text
+  `contextLabel`. When a mission is linked, createPuzzle SNAPSHOTS the mission title into
+  contextLabel (if no explicit label) so the breach log + DM still read well after a rename or
+  mission deletion; `shape()` separately resolves the LIVE `missionTitle` for display. Don't
+  "dedupe" these — contextLabel is the durable snapshot, missionTitle is the live join.
+  The mission detail page's attached-breaches panel reuses the staff-only list endpoint
+  (`GET /breach/puzzles?missionId=`, FIXER/ADMIN-gated) and only renders in the manager tab —
+  keep that endpoint staff-gated; it's the authz boundary for the panel.
 - **Live-submit status is on the RESPONSE, not the query**: after a successful /result submit,
   derive the overlay's expired/success/solvedCount from the returned `BreachResult.puzzle`
   (fresh status), NOT the pre-submit getPuzzle query — that cached row is still `sent`/`startedAt`

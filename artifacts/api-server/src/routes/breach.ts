@@ -17,7 +17,9 @@ const router: IRouter = Router();
 // Staff log of every generated puzzle.
 router.get("/breach/puzzles", requireAuth, requireAnyRole(["ADMIN", "FIXER"]), async (req, res): Promise<void> => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
-  const result = await listPuzzles(req.user!, status);
+  const missionIdRaw = typeof req.query.missionId === "string" ? parseInt(req.query.missionId, 10) : NaN;
+  const missionId = Number.isFinite(missionIdRaw) ? missionIdRaw : undefined;
+  const result = await listPuzzles(req.user!, status, missionId);
   res.status(result.status).json(result.body);
 });
 

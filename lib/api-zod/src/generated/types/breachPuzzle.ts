@@ -37,10 +37,20 @@ export interface BreachPuzzle {
   /** @nullable */
   rewardNote?: string | null;
   /**
-     * Optional mission / event / custom context this breach is tied to.
+     * Optional mission / event / custom context this breach is tied to (free text, or a snapshot of the linked mission's title).
      * @nullable
      */
   contextLabel?: string | null;
+  /**
+     * Optional hard link to a real mission; when set the breach appears on that mission's page.
+     * @nullable
+     */
+  missionId?: number | null;
+  /**
+     * Current title of the linked mission (null if unlinked or the mission was deleted).
+     * @nullable
+     */
+  missionTitle?: string | null;
   status: BreachPuzzleStatus;
   /** @nullable */
   startedAt?: Date | null;

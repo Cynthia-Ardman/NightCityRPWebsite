@@ -3,6 +3,7 @@ import {
   db,
   breachPuzzles,
   characters,
+  missions,
   users,
   inventoryItems,
   type BreachPuzzle,
@@ -27,6 +28,7 @@ import { logger } from "./logger";
 export type BreachPuzzleView = BreachPuzzle & {
   createdByName: string | null;
   assignedUserName: string | null;
+  missionTitle: string | null;
 };
 
 export type ServiceResult<T> = { status: number; body: T | { error: string } };
@@ -55,10 +57,19 @@ async function shape(row: BreachPuzzle): Promise<BreachPuzzleView> {
     .select({ username: users.username, globalName: users.globalName })
     .from(users)
     .where(eq(users.id, row.assignedUserId));
+  let missionTitle: string | null = null;
+  if (row.missionId != null) {
+    const [mission] = await db
+      .select({ title: missions.title })
+      .from(missions)
+      .where(eq(missions.id, row.missionId));
+    missionTitle = mission?.title ?? null;
+  }
   return {
     ...row,
     createdByName: creator?.globalName ?? creator?.username ?? null,
     assignedUserName: assignee?.globalName ?? assignee?.username ?? null,
+    missionTitle,
   };
 }
 
@@ -149,6 +160,7 @@ export async function createPuzzle(
     rewardItemCategory?: string | null;
     rewardNote?: string | null;
     contextLabel?: string | null;
+    missionId?: number | null;
     puzzle?: { grid?: unknown; daemons?: unknown; bufferSize?: unknown } | null;
   },
 ): Promise<ServiceResult<BreachPuzzleView>> {
@@ -174,6 +186,22 @@ export async function createPuzzle(
   }
   const [player] = await db.select().from(users).where(eq(users.id, character.ownerId));
   if (!player) return { status: 400, body: { error: "Character owner is not a registered player" } };
+
+  // Optional hard link to a real mission. Validate it exists and snapshot its
+  // title into contextLabel when the staff member didn't type their own label,
+  // so the breach log + DM still read well even if the mission is later renamed
+  // or deleted.
+  let missionId: number | null = null;
+  let contextLabel = input.contextLabel?.trim() ? input.contextLabel.trim() : null;
+  if (input.missionId != null) {
+    const [mission] = await db
+      .select({ id: missions.id, title: missions.title })
+      .from(missions)
+      .where(eq(missions.id, input.missionId));
+    if (!mission) return { status: 404, body: { error: "Mission not found" } };
+    missionId = mission.id;
+    if (!contextLabel) contextLabel = mission.title;
+  }
 
   // Use the previewed puzzle when provided (so staff assign exactly what they
   // saw); otherwise generate a fresh one at the requested difficulty.
@@ -206,7 +234,8 @@ export async function createPuzzle(
       rewardItemName: input.rewardItemName ?? null,
       rewardItemCategory: input.rewardItemCategory ?? null,
       rewardNote: input.rewardNote ?? null,
-      contextLabel: input.contextLabel?.trim() ? input.contextLabel.trim() : null,
+      contextLabel,
+      missionId,
       status: "sent",
     })
     .returning();
@@ -237,10 +266,22 @@ export async function createPuzzle(
   return { status: 201, body: await shape(row) };
 }
 
-export async function listPuzzles(staff: User, status?: string): Promise<ServiceResult<BreachPuzzleView[]>> {
+export async function listPuzzles(
+  staff: User,
+  status?: string,
+  missionId?: number,
+): Promise<ServiceResult<BreachPuzzleView[]>> {
   if (!isStaff(staff)) return { status: 403, body: { error: "Requires FIXER or ADMIN role" } };
-  const rows = status
-    ? await db.select().from(breachPuzzles).where(eq(breachPuzzles.status, status)).orderBy(desc(breachPuzzles.createdAt))
+  const filters = [
+    status ? eq(breachPuzzles.status, status) : undefined,
+    missionId != null ? eq(breachPuzzles.missionId, missionId) : undefined,
+  ].filter(Boolean);
+  const rows = filters.length
+    ? await db
+        .select()
+        .from(breachPuzzles)
+        .where(filters.length === 1 ? filters[0] : and(...filters))
+        .orderBy(desc(breachPuzzles.createdAt))
     : await db.select().from(breachPuzzles).orderBy(desc(breachPuzzles.createdAt));
   return { status: 200, body: await Promise.all(rows.map(shape)) };
 }

@@ -15,12 +15,15 @@ import {
   useWithdrawApplication,
   useReviewApplication,
   useListMyCharacters,
+  useListBreachPuzzles,
+  getListBreachPuzzlesQueryKey,
   getGetMissionQueryKey,
   type ArchiveUser,
   type MissionDetail as MissionDetailModel,
   type MissionAssignmentView,
   type MissionApplicationView,
 } from "@workspace/api-client-react";
+import { statusBadge as breachStatusBadge, difficultyBadge as breachDifficultyBadge } from "./breach/breachUtils";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +48,7 @@ import {
   X,
   Lock,
   Unlock,
+  Cpu,
 } from "lucide-react";
 import {
   missionStatusClass,
@@ -816,7 +820,56 @@ function FixerView({ data }: { data: MissionDetailModel }) {
       <WorkflowPanel data={data} />
 
       <ApplicationsPanel data={data} />
+
+      <BreachesPanel missionId={data.id} />
     </>
+  );
+}
+
+// Staff-only: Breach Protocol puzzles linked to this mission. The breach list
+// endpoint is FIXER/ADMIN-gated, so this only renders inside the manager tab.
+function BreachesPanel({ missionId }: { missionId: number }) {
+  const params = { missionId };
+  const { data: breaches } = useListBreachPuzzles(params, {
+    query: { queryKey: getListBreachPuzzlesQueryKey(params) },
+  });
+  const rows = breaches ?? [];
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground flex items-center gap-2">
+          <Cpu className="w-4 h-4 text-nc-magenta" /> Attached Breaches
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="font-mono text-xs text-muted-foreground">
+            No Breach Protocol puzzles linked to this mission yet. Link one from{" "}
+            <Link href="/breach" className="text-nc-cyan hover:underline">Breach Control</Link>.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-center gap-3 border border-border/40 bg-background/40 px-3 py-2 font-mono text-sm"
+                data-testid={`mission-breach-${b.id}`}
+              >
+                <span className="text-muted-foreground text-xs">#{b.id}</span>
+                <span className="text-foreground truncate">{b.assignedCharacterName ?? "—"}</span>
+                <span className="ml-auto flex items-center gap-2 shrink-0">
+                  {breachDifficultyBadge(b.difficulty)}
+                  {breachStatusBadge(b.status)}
+                  {(b.status === "success" || b.status === "failed") && (
+                    <span className="text-xs text-muted-foreground">{b.solvedCount}/{b.daemons.length}</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

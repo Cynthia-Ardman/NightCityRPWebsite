@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import MissionContextPicker, { type MissionContextValue } from "@/components/MissionContextPicker";
 import { useToast } from "@/hooks/use-toast";
 import { statusBadge, difficultyBadge, rewardSummary } from "./breachUtils";
 import { Cpu, Send, RefreshCw, Eye } from "lucide-react";
@@ -35,7 +36,7 @@ export default function BreachHub() {
   const [target, setTarget] = useState<CharacterPickerValue>(null);
   const [difficulty, setDifficulty] = useState<BreachPuzzleInputDifficulty>("medium");
   const [timeLimit, setTimeLimit] = useState<number>(60);
-  const [contextLabel, setContextLabel] = useState<string>("");
+  const [missionContext, setMissionContext] = useState<MissionContextValue>(null);
   const [logFilter, setLogFilter] = useState<string>("");
   const [rewardEddies, setRewardEddies] = useState<number>(0);
   const [rewardItemName, setRewardItemName] = useState<string>("");
@@ -98,7 +99,8 @@ export default function BreachHub() {
           assignedCharacterId: target.id,
           difficulty,
           timeLimitSeconds: timeLimit,
-          contextLabel: contextLabel.trim() || undefined,
+          contextLabel: missionContext?.label.trim() || undefined,
+          missionId: missionContext?.missionId ?? undefined,
           rewardEddies: rewardEddies > 0 ? rewardEddies : undefined,
           rewardItemName: rewardItemName.trim() || undefined,
           rewardItemCategory: rewardItemCategory.trim() || undefined,
@@ -117,7 +119,7 @@ export default function BreachHub() {
       });
       setPreview(null);
       setTarget(null);
-      setContextLabel("");
+      setMissionContext(null);
       setRewardEddies(0);
       setRewardItemName("");
       setRewardItemCategory("");
@@ -195,15 +197,14 @@ export default function BreachHub() {
 
             <div className="space-y-2">
               <Label className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Mission / Event / Context (optional)</Label>
-              <Input
-                value={contextLabel}
-                onChange={(e) => setContextLabel(e.target.value)}
-                placeholder="e.g. Op: Arasaka Heist, or a custom note"
-                className="rounded-none font-mono"
-                data-testid="input-context-label"
+              <MissionContextPicker
+                value={missionContext}
+                onChange={setMissionContext}
+                placeholder="Search a mission, or type any context..."
+                testId="picker-context"
               />
               <p className="font-mono text-[11px] text-muted-foreground">
-                Ties this breach to a mission, event, or any custom label for tracking. Shown in the breach log and the player's DM.
+                Search to link a real mission (it'll appear on that mission's page), or just type a custom label. Shown in the breach log and the player's DM.
               </p>
             </div>
 
@@ -413,8 +414,18 @@ export default function BreachHub() {
                             <div className="text-foreground">{p.assignedCharacterName ?? "—"}</div>
                             <div className="text-xs text-muted-foreground">{p.assignedUserName ?? p.assignedUserId}</div>
                           </td>
-                          <td className="py-2 pr-4 text-xs text-nc-cyan max-w-[160px] truncate" title={p.contextLabel ?? undefined}>
-                            {p.contextLabel ?? "—"}
+                          <td className="py-2 pr-4 text-xs max-w-[160px] truncate" title={p.missionTitle ?? p.contextLabel ?? undefined}>
+                            {p.missionId != null ? (
+                              <Link
+                                href={`/missions/${p.missionId}`}
+                                className="text-nc-cyan underline-offset-2 hover:underline"
+                                data-testid={`puzzle-mission-link-${p.id}`}
+                              >
+                                {p.missionTitle ?? p.contextLabel ?? `Mission #${p.missionId}`}
+                              </Link>
+                            ) : (
+                              <span className="text-nc-cyan">{p.contextLabel ?? "—"}</span>
+                            )}
                           </td>
                           <td className="py-2 pr-4">{difficultyBadge(p.difficulty)}</td>
                           <td className="py-2 pr-4">

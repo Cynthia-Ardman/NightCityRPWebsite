@@ -61,10 +61,20 @@ export interface BreachPuzzle {
   /** @nullable */
   rewardNote?: string | null;
   /**
-     * Optional mission / event / custom context this breach is tied to.
+     * Optional mission / event / custom context this breach is tied to (free text, or a snapshot of the linked mission's title).
      * @nullable
      */
   contextLabel?: string | null;
+  /**
+     * Optional hard link to a real mission; when set the breach appears on that mission's page.
+     * @nullable
+     */
+  missionId?: number | null;
+  /**
+     * Current title of the linked mission (null if unlinked or the mission was deleted).
+     * @nullable
+     */
+  missionTitle?: string | null;
   status: BreachPuzzleStatus;
   /** @nullable */
   startedAt?: string | null;
@@ -162,6 +172,11 @@ export interface BreachPuzzleInput {
      * @nullable
      */
   contextLabel?: string | null;
+  /**
+     * Optional id of a real mission to link this breach to. When set, contextLabel is snapshotted from the mission title if not otherwise provided.
+     * @nullable
+     */
+  missionId?: number | null;
   /** Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one. */
   puzzle?: BreachPuzzlePayload | null;
 }
@@ -4812,6 +4827,10 @@ export type ReopenReviewTicket200 = { [key: string]: unknown };
 
 export type ListBreachPuzzlesParams = {
 status?: ListBreachPuzzlesStatus;
+/**
+ * Only return breaches linked to this mission.
+ */
+missionId?: number;
 };
 
 export type ListBreachPuzzlesStatus = typeof ListBreachPuzzlesStatus[keyof typeof ListBreachPuzzlesStatus];

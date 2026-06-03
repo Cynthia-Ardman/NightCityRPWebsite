@@ -1490,8 +1490,13 @@ export const breachPuzzles = pgTable("breach_puzzles", {
   rewardItemCategory: text("reward_item_category"),
   rewardNote: text("reward_note"),
   // Optional free-text mission / event / custom context this puzzle is tied to
-  // (staff-only; surfaced in the breach log for tracking).
+  // (staff-only; surfaced in the breach log for tracking). When the staff member
+  // links a real mission, contextLabel holds a snapshot of its title.
   contextLabel: text("context_label"),
+  // Optional hard link to a real mission. When set, the breach shows up on that
+  // mission's detail page. Nullable + set-null on delete so the breach survives
+  // mission deletion (the contextLabel title snapshot still describes it).
+  missionId: integer("mission_id").references(() => missions.id, { onDelete: "set null" }),
   // Lifecycle: "sent" | "in_progress" | "success" | "failed" | "expired".
   status: text("status").notNull().default("sent"),
   // Server-authoritative timer anchor (set on the first start call).

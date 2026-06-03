@@ -9,4 +9,8 @@ import type { ListBreachPuzzlesStatus } from './listBreachPuzzlesStatus';
 
 export type ListBreachPuzzlesParams = {
 status?: ListBreachPuzzlesStatus;
+/**
+ * Only return breaches linked to this mission.
+ */
+missionId?: number;
 };

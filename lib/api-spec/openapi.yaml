@@ -3831,6 +3831,7 @@ paths:
       summary: Staff log of every generated Breach Protocol puzzle (newest first).
       parameters:
         - { in: query, name: status, schema: { type: string, enum: [sent, in_progress, success, failed, expired] } }
+        - { in: query, name: missionId, schema: { type: integer }, description: "Only return breaches linked to this mission." }
       responses:
         "200":
           description: Puzzles
@@ -4008,7 +4009,9 @@ components:
         rewardItemName: { type: ["string", "null"] }
         rewardItemCategory: { type: ["string", "null"] }
         rewardNote: { type: ["string", "null"] }
-        contextLabel: { type: ["string", "null"], description: "Optional mission / event / custom context this breach is tied to." }
+        contextLabel: { type: ["string", "null"], description: "Optional mission / event / custom context this breach is tied to (free text, or a snapshot of the linked mission's title)." }
+        missionId: { type: ["integer", "null"], description: "Optional hard link to a real mission; when set the breach appears on that mission's page." }
+        missionTitle: { type: ["string", "null"], description: "Current title of the linked mission (null if unlinked or the mission was deleted)." }
         status: { type: string, enum: [sent, in_progress, success, failed, expired] }
         startedAt: { type: ["string", "null"], format: date-time }
         completedAt: { type: ["string", "null"], format: date-time }
@@ -4076,6 +4079,7 @@ components:
         rewardItemCategory: { type: ["string", "null"] }
         rewardNote: { type: ["string", "null"] }
         contextLabel: { type: ["string", "null"], description: "Optional mission / event / custom context to tie this breach to (free text)." }
+        missionId: { type: ["integer", "null"], description: "Optional id of a real mission to link this breach to. When set, contextLabel is snapshotted from the mission title if not otherwise provided." }
         puzzle:
           description: "Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one."
           oneOf:
