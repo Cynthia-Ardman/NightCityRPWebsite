@@ -1,8 +1,8 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, Cpu } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -122,11 +122,16 @@ function SidebarContent() {
     { status: "pending" },
     { query: { enabled: !!user?.isAdmin, queryKey: getListLoreEditsQueryKey({ status: "pending" }) } },
   );
+  const { data: pendingGuidebook } = useListGuidebookEdits(
+    { status: "pending" },
+    { query: { enabled: !!user?.isAdmin, queryKey: getListGuidebookEditsQueryKey({ status: "pending" }) } },
+  );
   const staffPending =
     (unseen?.edits ?? 0) +
     (unseen?.requests ?? 0) +
     (unseen?.sheets ?? 0) +
-    (user?.isAdmin ? pendingLore?.length ?? 0 : 0);
+    (user?.isAdmin ? pendingLore?.length ?? 0 : 0) +
+    (user?.isAdmin ? pendingGuidebook?.length ?? 0 : 0);
   // Player-facing "My Requests" badge: how many of the player's OWN submissions
   // have unseen activity (a reviewer comment, a decision, or a close). Fetched
   // for every logged-in user, not just staff.
@@ -183,6 +188,8 @@ function SidebarContent() {
       )}
 
       <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-1">
+        <NavItem href="/guidebook" icon={BookMarked} label="Guidebook" />
+
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-4 uppercase tracking-widest">Personal</div>
         <NavItem href="/" icon={User} label="Dashboard" />
         <NavItem href="/characters" icon={Users} label="Characters" />

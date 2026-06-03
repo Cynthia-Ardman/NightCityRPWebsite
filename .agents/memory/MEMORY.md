@@ -66,3 +66,4 @@
 - [Character wallet endpoint scope](character-wallet-endpoint-scope.md) — /characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows; per-character history UI must also filter t.characterId===id.
 - [Wallet category bucket](character-wallet-endpoint-scope.md) — wallet_transactions.category (rent/cyberware/…) is derived from kind+memo via classifyWalletCategory, independent of load-bearing kind; APIs fallback-derive when null.
 - [Breach Protocol minigame](breach-minigame.md) — exactly-once reward (atomic completedAt-IS-NULL); server anchors timer before any grid reveal, lists redact unstarted grids; /result 200-idempotent.
+- [Portal review queue wiring](portal-review-queue-wiring.md) — a new fixer-propose/admin-approve queue must wire 4 spots (PendingRequests tab+terminal/TerminalKind, AppLayout staffPending badge, App.tsx routes); seed edit forms via useEffect keyed on id.

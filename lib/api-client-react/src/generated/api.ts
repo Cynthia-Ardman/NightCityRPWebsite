@@ -109,6 +109,16 @@ import type {
   FixerNpcUpdate,
   GetActorReportParams,
   GetCharacterPendingEdit200,
+  GuidebookBrowse,
+  GuidebookEditDecision,
+  GuidebookEditProposalInput,
+  GuidebookImportConflict,
+  GuidebookImportRunResult,
+  GuidebookPage,
+  GuidebookPageInput,
+  GuidebookPageUpdate,
+  GuidebookPendingEdit,
+  GuidebookSectionMeta,
   HealthStatus,
   HousingLease,
   HousingLeaseInput,
@@ -132,6 +142,8 @@ import type {
   ListArchiveUsersParams,
   ListBreachPuzzlesParams,
   ListCustomRequestsParams,
+  ListGuidebookEditsParams,
+  ListGuidebookParams,
   ListHousingRequestsParams,
   ListLoreEditsParams,
   ListLoreImportDraftsParams,
@@ -16777,6 +16789,1120 @@ export const useDiscardLoreImportDraft = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDiscardLoreImportDraftMutationOptions(options));
+    }
+
+export const getListGuidebookUrl = (params?: ListGuidebookParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/guidebook?${stringifiedParams}` : `/api/guidebook`
+}
+
+/**
+ * @summary Browse the Guidebook — pages grouped into fixed sections (any signed-in user).
+ */
+export const listGuidebook = async (params?: ListGuidebookParams, options?: RequestInit): Promise<GuidebookBrowse> => {
+
+  return customFetch<GuidebookBrowse>(getListGuidebookUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGuidebookQueryKey = (params?: ListGuidebookParams,) => {
+    return [
+    `/api/guidebook`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListGuidebookQueryOptions = <TData = Awaited<ReturnType<typeof listGuidebook>>, TError = ErrorType<unknown>>(params?: ListGuidebookParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuidebook>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGuidebookQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuidebook>>> = ({ signal }) => listGuidebook(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGuidebook>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGuidebookQueryResult = NonNullable<Awaited<ReturnType<typeof listGuidebook>>>
+export type ListGuidebookQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Browse the Guidebook — pages grouped into fixed sections (any signed-in user).
+ */
+
+export function useListGuidebook<TData = Awaited<ReturnType<typeof listGuidebook>>, TError = ErrorType<unknown>>(
+ params?: ListGuidebookParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuidebook>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGuidebookQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateGuidebookPageUrl = () => {
+
+
+
+
+  return `/api/guidebook`
+}
+
+/**
+ * @summary Create a Guidebook page (admin only — publishes directly).
+ */
+export const createGuidebookPage = async (guidebookPageInput: GuidebookPageInput, options?: RequestInit): Promise<GuidebookPage> => {
+
+  return customFetch<GuidebookPage>(getCreateGuidebookPageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      guidebookPageInput,)
+  }
+);}
+
+
+
+
+export const getCreateGuidebookPageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuidebookPage>>, TError,{data: BodyType<GuidebookPageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createGuidebookPage>>, TError,{data: BodyType<GuidebookPageInput>}, TContext> => {
+
+const mutationKey = ['createGuidebookPage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGuidebookPage>>, {data: BodyType<GuidebookPageInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createGuidebookPage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGuidebookPageMutationResult = NonNullable<Awaited<ReturnType<typeof createGuidebookPage>>>
+    export type CreateGuidebookPageMutationBody = BodyType<GuidebookPageInput>
+    export type CreateGuidebookPageMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a Guidebook page (admin only — publishes directly).
+ */
+export const useCreateGuidebookPage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuidebookPage>>, TError,{data: BodyType<GuidebookPageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createGuidebookPage>>,
+        TError,
+        {data: BodyType<GuidebookPageInput>},
+        TContext
+      > => {
+      return useMutation(getCreateGuidebookPageMutationOptions(options));
+    }
+
+export const getListGuidebookSectionsUrl = () => {
+
+
+
+
+  return `/api/guidebook/sections`
+}
+
+/**
+ * @summary The fixed section catalogue (key/label/description).
+ */
+export const listGuidebookSections = async ( options?: RequestInit): Promise<GuidebookSectionMeta[]> => {
+
+  return customFetch<GuidebookSectionMeta[]>(getListGuidebookSectionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGuidebookSectionsQueryKey = () => {
+    return [
+    `/api/guidebook/sections`
+    ] as const;
+    }
+
+
+export const getListGuidebookSectionsQueryOptions = <TData = Awaited<ReturnType<typeof listGuidebookSections>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuidebookSections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGuidebookSectionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuidebookSections>>> = ({ signal }) => listGuidebookSections({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGuidebookSections>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGuidebookSectionsQueryResult = NonNullable<Awaited<ReturnType<typeof listGuidebookSections>>>
+export type ListGuidebookSectionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The fixed section catalogue (key/label/description).
+ */
+
+export function useListGuidebookSections<TData = Awaited<ReturnType<typeof listGuidebookSections>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuidebookSections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGuidebookSectionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListGuidebookEditsUrl = (params?: ListGuidebookEditsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/guidebook/edits?${stringifiedParams}` : `/api/guidebook/edits`
+}
+
+/**
+ * @summary List proposed Guidebook edits awaiting decision (fixer/admin).
+ */
+export const listGuidebookEdits = async (params?: ListGuidebookEditsParams, options?: RequestInit): Promise<GuidebookPendingEdit[]> => {
+
+  return customFetch<GuidebookPendingEdit[]>(getListGuidebookEditsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGuidebookEditsQueryKey = (params?: ListGuidebookEditsParams,) => {
+    return [
+    `/api/guidebook/edits`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListGuidebookEditsQueryOptions = <TData = Awaited<ReturnType<typeof listGuidebookEdits>>, TError = ErrorType<void>>(params?: ListGuidebookEditsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuidebookEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGuidebookEditsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuidebookEdits>>> = ({ signal }) => listGuidebookEdits(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGuidebookEdits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGuidebookEditsQueryResult = NonNullable<Awaited<ReturnType<typeof listGuidebookEdits>>>
+export type ListGuidebookEditsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List proposed Guidebook edits awaiting decision (fixer/admin).
+ */
+
+export function useListGuidebookEdits<TData = Awaited<ReturnType<typeof listGuidebookEdits>>, TError = ErrorType<void>>(
+ params?: ListGuidebookEditsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuidebookEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGuidebookEditsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitGuidebookEditUrl = () => {
+
+
+
+
+  return `/api/guidebook/edits`
+}
+
+/**
+ * @summary Propose a Guidebook create/edit for admin approval (fixer/admin).
+ */
+export const submitGuidebookEdit = async (guidebookEditProposalInput: GuidebookEditProposalInput, options?: RequestInit): Promise<GuidebookPendingEdit> => {
+
+  return customFetch<GuidebookPendingEdit>(getSubmitGuidebookEditUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      guidebookEditProposalInput,)
+  }
+);}
+
+
+
+
+export const getSubmitGuidebookEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGuidebookEdit>>, TError,{data: BodyType<GuidebookEditProposalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitGuidebookEdit>>, TError,{data: BodyType<GuidebookEditProposalInput>}, TContext> => {
+
+const mutationKey = ['submitGuidebookEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitGuidebookEdit>>, {data: BodyType<GuidebookEditProposalInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitGuidebookEdit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitGuidebookEditMutationResult = NonNullable<Awaited<ReturnType<typeof submitGuidebookEdit>>>
+    export type SubmitGuidebookEditMutationBody = BodyType<GuidebookEditProposalInput>
+    export type SubmitGuidebookEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Propose a Guidebook create/edit for admin approval (fixer/admin).
+ */
+export const useSubmitGuidebookEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGuidebookEdit>>, TError,{data: BodyType<GuidebookEditProposalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitGuidebookEdit>>,
+        TError,
+        {data: BodyType<GuidebookEditProposalInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitGuidebookEditMutationOptions(options));
+    }
+
+export const getListMyGuidebookEditsUrl = () => {
+
+
+
+
+  return `/api/guidebook/edits/mine`
+}
+
+/**
+ * @summary The signed-in fixer's own Guidebook submissions across all statuses (fixer/admin).
+ */
+export const listMyGuidebookEdits = async ( options?: RequestInit): Promise<GuidebookPendingEdit[]> => {
+
+  return customFetch<GuidebookPendingEdit[]>(getListMyGuidebookEditsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyGuidebookEditsQueryKey = () => {
+    return [
+    `/api/guidebook/edits/mine`
+    ] as const;
+    }
+
+
+export const getListMyGuidebookEditsQueryOptions = <TData = Awaited<ReturnType<typeof listMyGuidebookEdits>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyGuidebookEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyGuidebookEditsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyGuidebookEdits>>> = ({ signal }) => listMyGuidebookEdits({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyGuidebookEdits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyGuidebookEditsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyGuidebookEdits>>>
+export type ListMyGuidebookEditsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The signed-in fixer's own Guidebook submissions across all statuses (fixer/admin).
+ */
+
+export function useListMyGuidebookEdits<TData = Awaited<ReturnType<typeof listMyGuidebookEdits>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyGuidebookEdits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyGuidebookEditsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getApproveGuidebookEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/guidebook/edits/${id}/approve`
+}
+
+/**
+ * @summary Approve a proposed Guidebook edit and apply it (admin only).
+ */
+export const approveGuidebookEdit = async (id: number,
+    guidebookEditDecision?: GuidebookEditDecision, options?: RequestInit): Promise<GuidebookPendingEdit> => {
+
+  return customFetch<GuidebookPendingEdit>(getApproveGuidebookEditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      guidebookEditDecision,)
+  }
+);}
+
+
+
+
+export const getApproveGuidebookEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveGuidebookEdit>>, TError,{id: number;data?: BodyType<GuidebookEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveGuidebookEdit>>, TError,{id: number;data?: BodyType<GuidebookEditDecision>}, TContext> => {
+
+const mutationKey = ['approveGuidebookEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveGuidebookEdit>>, {id: number;data?: BodyType<GuidebookEditDecision>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveGuidebookEdit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveGuidebookEditMutationResult = NonNullable<Awaited<ReturnType<typeof approveGuidebookEdit>>>
+    export type ApproveGuidebookEditMutationBody = BodyType<GuidebookEditDecision> | undefined
+    export type ApproveGuidebookEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a proposed Guidebook edit and apply it (admin only).
+ */
+export const useApproveGuidebookEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveGuidebookEdit>>, TError,{id: number;data?: BodyType<GuidebookEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveGuidebookEdit>>,
+        TError,
+        {id: number;data?: BodyType<GuidebookEditDecision>},
+        TContext
+      > => {
+      return useMutation(getApproveGuidebookEditMutationOptions(options));
+    }
+
+export const getRejectGuidebookEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/guidebook/edits/${id}/reject`
+}
+
+/**
+ * @summary Reject a proposed Guidebook edit (admin only).
+ */
+export const rejectGuidebookEdit = async (id: number,
+    guidebookEditDecision?: GuidebookEditDecision, options?: RequestInit): Promise<GuidebookPendingEdit> => {
+
+  return customFetch<GuidebookPendingEdit>(getRejectGuidebookEditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      guidebookEditDecision,)
+  }
+);}
+
+
+
+
+export const getRejectGuidebookEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectGuidebookEdit>>, TError,{id: number;data?: BodyType<GuidebookEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectGuidebookEdit>>, TError,{id: number;data?: BodyType<GuidebookEditDecision>}, TContext> => {
+
+const mutationKey = ['rejectGuidebookEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectGuidebookEdit>>, {id: number;data?: BodyType<GuidebookEditDecision>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectGuidebookEdit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectGuidebookEditMutationResult = NonNullable<Awaited<ReturnType<typeof rejectGuidebookEdit>>>
+    export type RejectGuidebookEditMutationBody = BodyType<GuidebookEditDecision> | undefined
+    export type RejectGuidebookEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Reject a proposed Guidebook edit (admin only).
+ */
+export const useRejectGuidebookEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectGuidebookEdit>>, TError,{id: number;data?: BodyType<GuidebookEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectGuidebookEdit>>,
+        TError,
+        {id: number;data?: BodyType<GuidebookEditDecision>},
+        TContext
+      > => {
+      return useMutation(getRejectGuidebookEditMutationOptions(options));
+    }
+
+export const getRunGuidebookImportUrl = () => {
+
+
+
+
+  return `/api/guidebook/import/run`
+}
+
+/**
+ * @summary Import the configured Discord source channels into Guidebook pages (admin only).
+ */
+export const runGuidebookImport = async ( options?: RequestInit): Promise<GuidebookImportRunResult> => {
+
+  return customFetch<GuidebookImportRunResult>(getRunGuidebookImportUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRunGuidebookImportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runGuidebookImport>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runGuidebookImport>>, TError,void, TContext> => {
+
+const mutationKey = ['runGuidebookImport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runGuidebookImport>>, void> = () => {
+
+
+          return  runGuidebookImport(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunGuidebookImportMutationResult = NonNullable<Awaited<ReturnType<typeof runGuidebookImport>>>
+
+    export type RunGuidebookImportMutationError = ErrorType<void>
+
+    /**
+ * @summary Import the configured Discord source channels into Guidebook pages (admin only).
+ */
+export const useRunGuidebookImport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runGuidebookImport>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runGuidebookImport>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunGuidebookImportMutationOptions(options));
+    }
+
+export const getListGuidebookImportReviewUrl = () => {
+
+
+
+
+  return `/api/guidebook/import/review`
+}
+
+/**
+ * @summary Pages with a stashed re-import conflict awaiting admin review (admin only).
+ */
+export const listGuidebookImportReview = async ( options?: RequestInit): Promise<GuidebookImportConflict[]> => {
+
+  return customFetch<GuidebookImportConflict[]>(getListGuidebookImportReviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGuidebookImportReviewQueryKey = () => {
+    return [
+    `/api/guidebook/import/review`
+    ] as const;
+    }
+
+
+export const getListGuidebookImportReviewQueryOptions = <TData = Awaited<ReturnType<typeof listGuidebookImportReview>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuidebookImportReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGuidebookImportReviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuidebookImportReview>>> = ({ signal }) => listGuidebookImportReview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGuidebookImportReview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGuidebookImportReviewQueryResult = NonNullable<Awaited<ReturnType<typeof listGuidebookImportReview>>>
+export type ListGuidebookImportReviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary Pages with a stashed re-import conflict awaiting admin review (admin only).
+ */
+
+export function useListGuidebookImportReview<TData = Awaited<ReturnType<typeof listGuidebookImportReview>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuidebookImportReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGuidebookImportReviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getApplyGuidebookImportConflictUrl = (id: number,) => {
+
+
+
+
+  return `/api/guidebook/import/review/${id}/apply`
+}
+
+/**
+ * @summary Apply a stashed re-import, overwriting the live page (admin only).
+ */
+export const applyGuidebookImportConflict = async (id: number, options?: RequestInit): Promise<GuidebookPage> => {
+
+  return customFetch<GuidebookPage>(getApplyGuidebookImportConflictUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getApplyGuidebookImportConflictMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyGuidebookImportConflict>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyGuidebookImportConflict>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['applyGuidebookImportConflict'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyGuidebookImportConflict>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  applyGuidebookImportConflict(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyGuidebookImportConflictMutationResult = NonNullable<Awaited<ReturnType<typeof applyGuidebookImportConflict>>>
+
+    export type ApplyGuidebookImportConflictMutationError = ErrorType<void>
+
+    /**
+ * @summary Apply a stashed re-import, overwriting the live page (admin only).
+ */
+export const useApplyGuidebookImportConflict = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyGuidebookImportConflict>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applyGuidebookImportConflict>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApplyGuidebookImportConflictMutationOptions(options));
+    }
+
+export const getDismissGuidebookImportConflictUrl = (id: number,) => {
+
+
+
+
+  return `/api/guidebook/import/review/${id}/dismiss`
+}
+
+/**
+ * @summary Dismiss a stashed re-import, keeping on-site edits (admin only).
+ */
+export const dismissGuidebookImportConflict = async (id: number, options?: RequestInit): Promise<GuidebookPage> => {
+
+  return customFetch<GuidebookPage>(getDismissGuidebookImportConflictUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getDismissGuidebookImportConflictMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissGuidebookImportConflict>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dismissGuidebookImportConflict>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['dismissGuidebookImportConflict'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dismissGuidebookImportConflict>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  dismissGuidebookImportConflict(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DismissGuidebookImportConflictMutationResult = NonNullable<Awaited<ReturnType<typeof dismissGuidebookImportConflict>>>
+
+    export type DismissGuidebookImportConflictMutationError = ErrorType<void>
+
+    /**
+ * @summary Dismiss a stashed re-import, keeping on-site edits (admin only).
+ */
+export const useDismissGuidebookImportConflict = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissGuidebookImportConflict>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dismissGuidebookImportConflict>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDismissGuidebookImportConflictMutationOptions(options));
+    }
+
+export const getGetGuidebookPageUrl = (id: number,) => {
+
+
+
+
+  return `/api/guidebook/${id}`
+}
+
+/**
+ * @summary Guidebook page detail (any signed-in user; staff-only fields gated).
+ */
+export const getGuidebookPage = async (id: number, options?: RequestInit): Promise<GuidebookPage> => {
+
+  return customFetch<GuidebookPage>(getGetGuidebookPageUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGuidebookPageQueryKey = (id: number,) => {
+    return [
+    `/api/guidebook/${id}`
+    ] as const;
+    }
+
+
+export const getGetGuidebookPageQueryOptions = <TData = Awaited<ReturnType<typeof getGuidebookPage>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGuidebookPage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGuidebookPageQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuidebookPage>>> = ({ signal }) => getGuidebookPage(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGuidebookPage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGuidebookPageQueryResult = NonNullable<Awaited<ReturnType<typeof getGuidebookPage>>>
+export type GetGuidebookPageQueryError = ErrorType<void>
+
+
+/**
+ * @summary Guidebook page detail (any signed-in user; staff-only fields gated).
+ */
+
+export function useGetGuidebookPage<TData = Awaited<ReturnType<typeof getGuidebookPage>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGuidebookPage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGuidebookPageQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateGuidebookPageUrl = (id: number,) => {
+
+
+
+
+  return `/api/guidebook/${id}`
+}
+
+/**
+ * @summary Edit a Guidebook page (admin only — publishes directly).
+ */
+export const updateGuidebookPage = async (id: number,
+    guidebookPageUpdate: GuidebookPageUpdate, options?: RequestInit): Promise<GuidebookPage> => {
+
+  return customFetch<GuidebookPage>(getUpdateGuidebookPageUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      guidebookPageUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateGuidebookPageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuidebookPage>>, TError,{id: number;data: BodyType<GuidebookPageUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGuidebookPage>>, TError,{id: number;data: BodyType<GuidebookPageUpdate>}, TContext> => {
+
+const mutationKey = ['updateGuidebookPage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGuidebookPage>>, {id: number;data: BodyType<GuidebookPageUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateGuidebookPage(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGuidebookPageMutationResult = NonNullable<Awaited<ReturnType<typeof updateGuidebookPage>>>
+    export type UpdateGuidebookPageMutationBody = BodyType<GuidebookPageUpdate>
+    export type UpdateGuidebookPageMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a Guidebook page (admin only — publishes directly).
+ */
+export const useUpdateGuidebookPage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuidebookPage>>, TError,{id: number;data: BodyType<GuidebookPageUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGuidebookPage>>,
+        TError,
+        {id: number;data: BodyType<GuidebookPageUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateGuidebookPageMutationOptions(options));
+    }
+
+export const getDeleteGuidebookPageUrl = (id: number,) => {
+
+
+
+
+  return `/api/guidebook/${id}`
+}
+
+/**
+ * @summary Delete a Guidebook page (admin only).
+ */
+export const deleteGuidebookPage = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteGuidebookPageUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteGuidebookPageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGuidebookPage>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteGuidebookPage>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteGuidebookPage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGuidebookPage>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteGuidebookPage(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteGuidebookPageMutationResult = NonNullable<Awaited<ReturnType<typeof deleteGuidebookPage>>>
+
+    export type DeleteGuidebookPageMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a Guidebook page (admin only).
+ */
+export const useDeleteGuidebookPage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGuidebookPage>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteGuidebookPage>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteGuidebookPageMutationOptions(options));
     }
 
 export const getListReviewCommentsUrl = (subjectType: 'edit' | 'request' | 'sheet',

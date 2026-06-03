@@ -604,6 +604,198 @@ export interface LoreImportRunResult {
   errors: string[];
 }
 
+export interface GuidebookSectionMeta {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface GuidebookSource {
+  label: string;
+  url: string;
+}
+
+export interface GuidebookPage {
+  id: number;
+  section: string;
+  title: string;
+  slug: string;
+  /** @nullable */
+  description?: string | null;
+  body: string;
+  images: string[];
+  sources: GuidebookSource[];
+  position: number;
+  /** @nullable */
+  sourceLabel?: string | null;
+  /** @nullable */
+  discordChannelId?: string | null;
+  /** @nullable */
+  importedAt?: string | null;
+  editedSinceImport?: boolean;
+  hasPendingImport?: boolean;
+  /** @nullable */
+  pendingImportAt?: string | null;
+  /** @nullable */
+  createdById?: string | null;
+  /** @nullable */
+  updatedById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GuidebookSection {
+  key: string;
+  label: string;
+  description: string;
+  pages: GuidebookPage[];
+}
+
+export interface GuidebookBrowse {
+  sections: GuidebookSection[];
+}
+
+export interface GuidebookPageInput {
+  section: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  body?: string;
+  images?: string[];
+  sources?: GuidebookSource[];
+  position?: number;
+}
+
+export interface GuidebookPageUpdate {
+  section?: string;
+  title?: string;
+  /** @nullable */
+  description?: string | null;
+  body?: string;
+  images?: string[];
+  sources?: GuidebookSource[];
+  position?: number;
+}
+
+export type GuidebookEditProposalInputKind = typeof GuidebookEditProposalInputKind[keyof typeof GuidebookEditProposalInputKind];
+
+
+export const GuidebookEditProposalInputKind = {
+  create: 'create',
+  edit: 'edit',
+} as const;
+
+export interface GuidebookEditProposalInput {
+  /** @nullable */
+  pageId?: number | null;
+  kind: GuidebookEditProposalInputKind;
+  diff: GuidebookPageUpdate;
+  /** @nullable */
+  updateNote?: string | null;
+}
+
+export type GuidebookPendingEditKind = typeof GuidebookPendingEditKind[keyof typeof GuidebookPendingEditKind];
+
+
+export const GuidebookPendingEditKind = {
+  create: 'create',
+  edit: 'edit',
+} as const;
+
+export type GuidebookPendingEditStatus = typeof GuidebookPendingEditStatus[keyof typeof GuidebookPendingEditStatus];
+
+
+export const GuidebookPendingEditStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface GuidebookPendingEdit {
+  id: number;
+  /** @nullable */
+  pageId?: number | null;
+  /** @nullable */
+  pageTitle?: string | null;
+  /** @nullable */
+  pageSection?: string | null;
+  kind: GuidebookPendingEditKind;
+  submittedBy: string;
+  /** @nullable */
+  submittedByName?: string | null;
+  proposedDiff: unknown;
+  beforeSnapshot?: unknown;
+  /** @nullable */
+  updateNote?: string | null;
+  status: GuidebookPendingEditStatus;
+  /** @nullable */
+  decidedById?: string | null;
+  /** @nullable */
+  decisionSummary?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  /** @nullable */
+  appliedPageId?: number | null;
+  createdAt: string;
+}
+
+export interface GuidebookEditDecision {
+  /** @nullable */
+  decisionSummary?: string | null;
+}
+
+export type GuidebookImportSourceResultStatus = typeof GuidebookImportSourceResultStatus[keyof typeof GuidebookImportSourceResultStatus];
+
+
+export const GuidebookImportSourceResultStatus = {
+  created: 'created',
+  updated: 'updated',
+  conflict: 'conflict',
+  unchanged: 'unchanged',
+  error: 'error',
+} as const;
+
+export interface GuidebookImportSourceResult {
+  channelId: string;
+  section: string;
+  title: string;
+  sourceLabel: string;
+  status: GuidebookImportSourceResultStatus;
+  /** @nullable */
+  pageId?: number | null;
+  /** @nullable */
+  error?: string | null;
+}
+
+export interface GuidebookImportRunResult {
+  created: number;
+  updated: number;
+  conflicts: number;
+  unchanged: number;
+  errors: number;
+  sources: GuidebookImportSourceResult[];
+}
+
+export interface GuidebookImportConflict {
+  id: number;
+  section: string;
+  title: string;
+  slug: string;
+  /** @nullable */
+  sourceLabel?: string | null;
+  /** @nullable */
+  discordChannelId?: string | null;
+  /** @nullable */
+  pendingImportAt?: string | null;
+  currentBody: string;
+  currentImages: string[];
+  incomingBody: string;
+  incomingImages: string[];
+  incomingSources: GuidebookSource[];
+  /** @nullable */
+  incomingSourceLabel?: string | null;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -4900,6 +5092,23 @@ export const ListLoreImportDraftsStatus = {
   pending: 'pending',
   approved: 'approved',
   discarded: 'discarded',
+} as const;
+
+export type ListGuidebookParams = {
+q?: string;
+};
+
+export type ListGuidebookEditsParams = {
+status?: ListGuidebookEditsStatus;
+};
+
+export type ListGuidebookEditsStatus = typeof ListGuidebookEditsStatus[keyof typeof ListGuidebookEditsStatus];
+
+
+export const ListGuidebookEditsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
 } as const;
 
 export type MarkReviewSeen200 = {

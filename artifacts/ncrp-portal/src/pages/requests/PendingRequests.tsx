@@ -10,6 +10,9 @@ import {
   useListLoreEdits,
   useApproveLoreEdit,
   useRejectLoreEdit,
+  useListGuidebookEdits,
+  useApproveGuidebookEdit,
+  useRejectGuidebookEdit,
   useGetReviewUnseenCounts,
   useGetReviewUnseenIds,
   getGetReviewUnseenIdsQueryKey,
@@ -17,9 +20,12 @@ import {
   getListPendingSheetsQueryKey,
   getListPendingEditsQueryKey,
   getListLoreEditsQueryKey,
+  getListGuidebookEditsQueryKey,
   type CustomRequest,
   type LorePendingEdit,
   type LoreEntryUpdate,
+  type GuidebookPendingEdit,
+  type GuidebookPageUpdate,
   type PendingEditSummary,
 } from "@workspace/api-client-react";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
@@ -45,7 +51,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, PackagePlus, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
@@ -804,6 +810,152 @@ function LoreEditsTab() {
   );
 }
 
+const GUIDEBOOK_FIELD_LABELS: Record<string, string> = {
+  section: "Section",
+  title: "Title",
+  description: "Description",
+  body: "Body",
+  images: "Images",
+  sources: "Sources",
+  position: "Position",
+};
+
+function GuidebookEditCard({ edit }: { edit: GuidebookPendingEdit }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [rejecting, setRejecting] = useState(false);
+  const [note, setNote] = useState("");
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListGuidebookEditsQueryKey() });
+
+  const approve = useApproveGuidebookEdit({
+    mutation: {
+      onSuccess: () => { invalidate(); toast({ title: "Guidebook change approved & published" }); },
+      onError: (err) => toast({ title: "Could not approve", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+    },
+  });
+  const reject = useRejectGuidebookEdit({
+    mutation: {
+      onSuccess: () => { invalidate(); setRejecting(false); setNote(""); toast({ title: "Guidebook change rejected" }); },
+      onError: (err) => toast({ title: "Could not reject", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+    },
+  });
+
+  const diff = (edit.proposedDiff ?? {}) as GuidebookPageUpdate;
+  const before = (edit.beforeSnapshot ?? {}) as Record<string, unknown>;
+  const changedKeys = Object.keys(diff).filter((k) => k in GUIDEBOOK_FIELD_LABELS);
+  const busy = approve.isPending || reject.isPending;
+
+  return (
+    <Card className="rounded-none border-border bg-card/50 flex flex-col" data-testid={`card-guidebook-edit-${edit.id}`}>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
+            <BookMarked className="w-3 h-3 mr-1" /> GUIDEBOOK {edit.kind.toUpperCase()}
+          </Badge>
+          <span className="text-xs font-mono text-muted-foreground">{new Date(edit.createdAt).toLocaleDateString()}</span>
+        </div>
+        <CardTitle className="text-lg font-display truncate mt-2">
+          {(diff.title as string) || edit.pageTitle || "New guidebook page"}
+        </CardTitle>
+        <CardDescription className="font-mono text-xs">by {edit.submittedByName || edit.submittedBy}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col flex-1 gap-4">
+        {edit.updateNote && (
+          <p className="font-mono text-xs text-muted-foreground border-l-2 border-nc-cyan pl-3" data-testid={`text-guidebook-edit-note-${edit.id}`}>
+            “{edit.updateNote}”
+          </p>
+        )}
+        <div className="space-y-2">
+          {changedKeys.length === 0 ? (
+            <p className="font-mono text-xs text-muted-foreground italic">No field changes.</p>
+          ) : (
+            changedKeys.map((k) => (
+              <div key={k} className="font-mono text-xs">
+                <div className="text-nc-cyan uppercase tracking-widest mb-0.5">{GUIDEBOOK_FIELD_LABELS[k]}</div>
+                {edit.kind === "edit" && (
+                  <div className="text-muted-foreground line-through whitespace-pre-wrap break-words">{fmtLoreValue(before[k])}</div>
+                )}
+                <div className="text-foreground whitespace-pre-wrap break-words">{fmtLoreValue((diff as Record<string, unknown>)[k])}</div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {rejecting ? (
+          <div className="mt-auto space-y-2 pt-3 border-t border-border/40">
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Reason (optional)"
+              className="rounded-none font-mono"
+              data-testid={`input-guidebook-reject-note-${edit.id}`}
+            />
+            <div className="flex gap-2">
+              <Button variant="ghost" className="rounded-none flex-1 font-display text-xs" onClick={() => setRejecting(false)}>CANCEL</Button>
+              <Button
+                variant="outline"
+                className="rounded-none flex-1 border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                disabled={busy}
+                onClick={() => reject.mutate({ id: edit.id, data: { decisionSummary: note.trim() || undefined } })}
+                data-testid={`button-confirm-reject-guidebook-${edit.id}`}
+              >
+                {reject.isPending ? "..." : "CONFIRM REJECT"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-auto flex gap-2 pt-3 border-t border-border/40">
+            <Button
+              className="rounded-none flex-1 bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+              disabled={busy}
+              onClick={() => approve.mutate({ id: edit.id })}
+              data-testid={`button-approve-guidebook-${edit.id}`}
+            >
+              {approve.isPending ? "PUBLISHING..." : "APPROVE & PUBLISH"}
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-none flex-1 border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+              disabled={busy}
+              onClick={() => setRejecting(true)}
+              data-testid={`button-reject-guidebook-${edit.id}`}
+            >
+              REJECT
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function GuidebookEditsTab() {
+  const { data, isLoading } = useListGuidebookEdits({ status: "pending" });
+  const edits = (data ?? []) as GuidebookPendingEdit[];
+
+  if (isLoading) {
+    return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
+  }
+  if (edits.length === 0) {
+    return (
+      <div className="py-20 text-center border border-dashed border-border bg-card/30">
+        <BookMarked className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+        <h3 className="text-xl font-display text-foreground mb-2">QUEUE EMPTY</h3>
+        <p className="text-muted-foreground font-mono text-sm">No guidebook changes await approval.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {edits.map((e) => (
+        <GuidebookEditCard key={e.id} edit={e} />
+      ))}
+    </div>
+  );
+}
+
 // ---- Cross-cutting Completed / Denied terminal tabs ----
 //
 // These two tabs aggregate the terminal items from all four queues (custom
@@ -818,7 +970,7 @@ function LoreEditsTab() {
 //                            approved item; rejected-then-closed is rare)
 //   lore has no closed state (approved=Completed, rejected=Denied).
 
-type TerminalKind = "request" | "edit" | "sheet" | "lore";
+type TerminalKind = "request" | "edit" | "sheet" | "lore" | "guidebook";
 type TerminalDecision = "completed" | "denied";
 
 interface TerminalItem {
@@ -895,12 +1047,21 @@ function useTerminalItems() {
     { status: "rejected" },
     { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "rejected" }) } },
   );
+  const guidebookApproved = useListGuidebookEdits(
+    { status: "approved" },
+    { query: { enabled: canLore, queryKey: getListGuidebookEditsQueryKey({ status: "approved" }) } },
+  );
+  const guidebookRejected = useListGuidebookEdits(
+    { status: "rejected" },
+    { query: { enabled: canLore, queryKey: getListGuidebookEditsQueryKey({ status: "rejected" }) } },
+  );
 
   const isLoading =
     reqResolved.isLoading || reqArchive.isLoading ||
     editResolved.isLoading || editArchive.isLoading ||
     sheetResolved.isLoading || sheetArchive.isLoading ||
-    loreApproved.isLoading || loreRejected.isLoading;
+    loreApproved.isLoading || loreRejected.isLoading ||
+    guidebookApproved.isLoading || guidebookRejected.isLoading;
 
   const completed: TerminalItem[] = [];
   const denied: TerminalItem[] = [];
@@ -997,6 +1158,27 @@ function useTerminalItems() {
   };
   for (const l of (loreApproved.data ?? []) as LorePendingEdit[]) completed.push(loreToItem(l, "completed"));
   for (const l of (loreRejected.data ?? []) as LorePendingEdit[]) denied.push(loreToItem(l, "denied"));
+
+  const guidebookToItem = (g: GuidebookPendingEdit, decision: TerminalDecision): TerminalItem => {
+    const diff = (g.proposedDiff ?? {}) as Record<string, unknown>;
+    return {
+      key: `guidebook-${g.id}`,
+      kind: "guidebook",
+      subjectType: null,
+      id: g.id,
+      title: (diff.title as string) || g.pageTitle || "Guidebook page",
+      subtitle: `by ${g.submittedByName || g.submittedBy}`,
+      date: g.decidedAt || g.createdAt,
+      status: decision === "completed" ? "approved" : "rejected",
+      note: g.decisionSummary ?? null,
+      archived: false,
+      detailHref: decision === "completed" && g.appliedPageId ? `/guidebook/${g.appliedPageId}` : undefined,
+      badgeLabel: "GUIDEBOOK",
+      Icon: BookMarked,
+    };
+  };
+  for (const g of (guidebookApproved.data ?? []) as GuidebookPendingEdit[]) completed.push(guidebookToItem(g, "completed"));
+  for (const g of (guidebookRejected.data ?? []) as GuidebookPendingEdit[]) denied.push(guidebookToItem(g, "denied"));
 
   const byDateDesc = (a: TerminalItem, b: TerminalItem) =>
     new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -1133,10 +1315,15 @@ export default function PendingRequests() {
     { status: "pending" },
     { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "pending" }) } },
   );
+  const { data: guidebookData } = useListGuidebookEdits(
+    { status: "pending" },
+    { query: { enabled: canLore, queryKey: getListGuidebookEditsQueryKey({ status: "pending" }) } },
+  );
   const miscCount = unseen?.requests ?? 0;
   const editsCount = unseen?.edits ?? 0;
   const sheetsCount = unseen?.sheets ?? 0;
   const loreCount = (loreData ?? []).length;
+  const guidebookCount = (guidebookData ?? []).length;
 
   // Default to the first tab the staffer can act on.
   const defaultTab = canMisc ? "misc" : "edits";
@@ -1173,6 +1360,11 @@ export default function PendingRequests() {
               LORE<TabCount n={loreCount} />
             </TabsTrigger>
           )}
+          {canLore && (
+            <TabsTrigger value="guidebook" className="rounded-none font-display tracking-widest" data-testid="tab-guidebook">
+              GUIDEBOOK<TabCount n={guidebookCount} />
+            </TabsTrigger>
+          )}
           {isReviewer && (
             <TabsTrigger value="completed" className="rounded-none font-display tracking-widest" data-testid="tab-completed">
               COMPLETED
@@ -1201,6 +1393,11 @@ export default function PendingRequests() {
         {canLore && (
           <TabsContent value="lore" className="mt-6">
             <ErrorBoundary><LoreEditsTab /></ErrorBoundary>
+          </TabsContent>
+        )}
+        {canLore && (
+          <TabsContent value="guidebook" className="mt-6">
+            <ErrorBoundary><GuidebookEditsTab /></ErrorBoundary>
           </TabsContent>
         )}
         {isReviewer && (

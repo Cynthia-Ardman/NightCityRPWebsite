@@ -7489,6 +7489,410 @@ export const DiscardLoreImportDraftResponse = zod.object({
 
 
 /**
+ * @summary Browse the Guidebook — pages grouped into fixed sections (any signed-in user).
+ */
+export const ListGuidebookQueryParams = zod.object({
+  "q": zod.coerce.string().optional()
+})
+
+export const ListGuidebookResponse = zod.object({
+  "sections": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "pages": zod.array(zod.object({
+  "id": zod.number(),
+  "section": zod.string(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "description": zod.string().nullish(),
+  "body": zod.string(),
+  "images": zod.array(zod.string()),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "position": zod.number(),
+  "sourceLabel": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "importedAt": zod.coerce.date().nullish(),
+  "editedSinceImport": zod.boolean().optional(),
+  "hasPendingImport": zod.boolean().optional(),
+  "pendingImportAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().nullish(),
+  "updatedById": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}))
+})
+
+
+/**
+ * @summary Create a Guidebook page (admin only — publishes directly).
+ */
+export const CreateGuidebookPageBody = zod.object({
+  "section": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "body": zod.string().optional(),
+  "images": zod.array(zod.string()).optional(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "position": zod.number().optional()
+})
+
+
+/**
+ * @summary The fixed section catalogue (key/label/description).
+ */
+export const ListGuidebookSectionsResponseItem = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string()
+})
+export const ListGuidebookSectionsResponse = zod.array(ListGuidebookSectionsResponseItem)
+
+
+/**
+ * @summary List proposed Guidebook edits awaiting decision (fixer/admin).
+ */
+export const listGuidebookEditsQueryStatusDefault = `pending`;
+
+export const ListGuidebookEditsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'rejected']).default(listGuidebookEditsQueryStatusDefault)
+})
+
+export const ListGuidebookEditsResponseItem = zod.object({
+  "id": zod.number(),
+  "pageId": zod.number().nullish(),
+  "pageTitle": zod.string().nullish(),
+  "pageSection": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedPageId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListGuidebookEditsResponse = zod.array(ListGuidebookEditsResponseItem)
+
+
+/**
+ * @summary Propose a Guidebook create/edit for admin approval (fixer/admin).
+ */
+export const SubmitGuidebookEditBody = zod.object({
+  "pageId": zod.number().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "diff": zod.object({
+  "section": zod.string().optional(),
+  "title": zod.string().optional(),
+  "description": zod.string().nullish(),
+  "body": zod.string().optional(),
+  "images": zod.array(zod.string()).optional(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "position": zod.number().optional()
+}),
+  "updateNote": zod.string().nullish()
+})
+
+
+/**
+ * @summary The signed-in fixer's own Guidebook submissions across all statuses (fixer/admin).
+ */
+export const ListMyGuidebookEditsResponseItem = zod.object({
+  "id": zod.number(),
+  "pageId": zod.number().nullish(),
+  "pageTitle": zod.string().nullish(),
+  "pageSection": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedPageId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyGuidebookEditsResponse = zod.array(ListMyGuidebookEditsResponseItem)
+
+
+/**
+ * @summary Approve a proposed Guidebook edit and apply it (admin only).
+ */
+export const ApproveGuidebookEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveGuidebookEditBody = zod.object({
+  "decisionSummary": zod.string().nullish()
+})
+
+export const ApproveGuidebookEditResponse = zod.object({
+  "id": zod.number(),
+  "pageId": zod.number().nullish(),
+  "pageTitle": zod.string().nullish(),
+  "pageSection": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedPageId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject a proposed Guidebook edit (admin only).
+ */
+export const RejectGuidebookEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectGuidebookEditBody = zod.object({
+  "decisionSummary": zod.string().nullish()
+})
+
+export const RejectGuidebookEditResponse = zod.object({
+  "id": zod.number(),
+  "pageId": zod.number().nullish(),
+  "pageTitle": zod.string().nullish(),
+  "pageSection": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedPageId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Import the configured Discord source channels into Guidebook pages (admin only).
+ */
+export const RunGuidebookImportResponse = zod.object({
+  "created": zod.number(),
+  "updated": zod.number(),
+  "conflicts": zod.number(),
+  "unchanged": zod.number(),
+  "errors": zod.number(),
+  "sources": zod.array(zod.object({
+  "channelId": zod.string(),
+  "section": zod.string(),
+  "title": zod.string(),
+  "sourceLabel": zod.string(),
+  "status": zod.enum(['created', 'updated', 'conflict', 'unchanged', 'error']),
+  "pageId": zod.number().nullish(),
+  "error": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Pages with a stashed re-import conflict awaiting admin review (admin only).
+ */
+export const ListGuidebookImportReviewResponseItem = zod.object({
+  "id": zod.number(),
+  "section": zod.string(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "sourceLabel": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "pendingImportAt": zod.coerce.date().nullish(),
+  "currentBody": zod.string(),
+  "currentImages": zod.array(zod.string()),
+  "incomingBody": zod.string(),
+  "incomingImages": zod.array(zod.string()),
+  "incomingSources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "incomingSourceLabel": zod.string().nullish()
+})
+export const ListGuidebookImportReviewResponse = zod.array(ListGuidebookImportReviewResponseItem)
+
+
+/**
+ * @summary Apply a stashed re-import, overwriting the live page (admin only).
+ */
+export const ApplyGuidebookImportConflictParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApplyGuidebookImportConflictResponse = zod.object({
+  "id": zod.number(),
+  "section": zod.string(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "description": zod.string().nullish(),
+  "body": zod.string(),
+  "images": zod.array(zod.string()),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "position": zod.number(),
+  "sourceLabel": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "importedAt": zod.coerce.date().nullish(),
+  "editedSinceImport": zod.boolean().optional(),
+  "hasPendingImport": zod.boolean().optional(),
+  "pendingImportAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().nullish(),
+  "updatedById": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Dismiss a stashed re-import, keeping on-site edits (admin only).
+ */
+export const DismissGuidebookImportConflictParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DismissGuidebookImportConflictResponse = zod.object({
+  "id": zod.number(),
+  "section": zod.string(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "description": zod.string().nullish(),
+  "body": zod.string(),
+  "images": zod.array(zod.string()),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "position": zod.number(),
+  "sourceLabel": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "importedAt": zod.coerce.date().nullish(),
+  "editedSinceImport": zod.boolean().optional(),
+  "hasPendingImport": zod.boolean().optional(),
+  "pendingImportAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().nullish(),
+  "updatedById": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Guidebook page detail (any signed-in user; staff-only fields gated).
+ */
+export const GetGuidebookPageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetGuidebookPageResponse = zod.object({
+  "id": zod.number(),
+  "section": zod.string(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "description": zod.string().nullish(),
+  "body": zod.string(),
+  "images": zod.array(zod.string()),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "position": zod.number(),
+  "sourceLabel": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "importedAt": zod.coerce.date().nullish(),
+  "editedSinceImport": zod.boolean().optional(),
+  "hasPendingImport": zod.boolean().optional(),
+  "pendingImportAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().nullish(),
+  "updatedById": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Edit a Guidebook page (admin only — publishes directly).
+ */
+export const UpdateGuidebookPageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateGuidebookPageBody = zod.object({
+  "section": zod.string().optional(),
+  "title": zod.string().optional(),
+  "description": zod.string().nullish(),
+  "body": zod.string().optional(),
+  "images": zod.array(zod.string()).optional(),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "position": zod.number().optional()
+})
+
+export const UpdateGuidebookPageResponse = zod.object({
+  "id": zod.number(),
+  "section": zod.string(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "description": zod.string().nullish(),
+  "body": zod.string(),
+  "images": zod.array(zod.string()),
+  "sources": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})),
+  "position": zod.number(),
+  "sourceLabel": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "importedAt": zod.coerce.date().nullish(),
+  "editedSinceImport": zod.boolean().optional(),
+  "hasPendingImport": zod.boolean().optional(),
+  "pendingImportAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().nullish(),
+  "updatedById": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a Guidebook page (admin only).
+ */
+export const DeleteGuidebookPageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * @summary The two-way comment thread on a review subject (character edit / custom request / sheet). Visible to the submitter and any reviewer. Comments never change the subject's status.
  */
 export const ListReviewCommentsParams = zod.object({

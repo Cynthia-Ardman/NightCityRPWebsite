@@ -40,6 +40,11 @@ import DirectoryLoreDetail from "@/pages/directory/DirectoryLoreDetail";
 import MyLoreSubmissions from "@/pages/directory/MyLoreSubmissions";
 import LoreEditor from "@/pages/directory/LoreEditor";
 import LoreImportReview from "@/pages/directory/LoreImportReview";
+import DirectoryGuidebook from "@/pages/guidebook/DirectoryGuidebook";
+import GuidebookPageDetail from "@/pages/guidebook/GuidebookPageDetail";
+import MyGuidebookSubmissions from "@/pages/guidebook/MyGuidebookSubmissions";
+import GuidebookEditor from "@/pages/guidebook/GuidebookEditor";
+import GuidebookImportReview from "@/pages/guidebook/GuidebookImportReview";
 import CatalogGuns from "@/pages/catalog/CatalogGuns";
 import CatalogCyberware from "@/pages/catalog/CatalogCyberware";
 import CatalogRent from "@/pages/catalog/CatalogRent";
@@ -185,6 +190,20 @@ function AppRoutes() {
             <StaffArchiveGuard><LoreEditor /></StaffArchiveGuard>
           </Route>
           <Route path="/directory/lore/:id" component={DirectoryLoreDetail} />
+          <Route path="/guidebook" component={DirectoryGuidebook} />
+          <Route path="/guidebook/mine">
+            <StaffArchiveGuard><MyGuidebookSubmissions /></StaffArchiveGuard>
+          </Route>
+          <Route path="/guidebook/new">
+            <StaffArchiveGuard><GuidebookEditor /></StaffArchiveGuard>
+          </Route>
+          <Route path="/guidebook/import">
+            <AdminGuard><GuidebookImportReview /></AdminGuard>
+          </Route>
+          <Route path="/guidebook/:id/edit">
+            <StaffArchiveGuard><GuidebookEditor /></StaffArchiveGuard>
+          </Route>
+          <Route path="/guidebook/:id" component={GuidebookPageDetail} />
           <Route path="/directory/characters/:id">
             <StaffArchiveGuard><DirectoryCharacterDetail /></StaffArchiveGuard>
           </Route>

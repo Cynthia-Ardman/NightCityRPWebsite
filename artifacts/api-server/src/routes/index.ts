@@ -18,6 +18,7 @@ import attendanceRouter from "./attendance";
 import requestsRouter from "./requests";
 import offersRouter from "./offers";
 import loreRouter from "./lore";
+import guidebookRouter from "./guidebook";
 import reviewRouter from "./review";
 import breachRouter from "./breach";
 
@@ -42,6 +43,7 @@ router.use(attendanceRouter);
 router.use(requestsRouter);
 router.use(offersRouter);
 router.use(loreRouter);
+router.use(guidebookRouter);
 router.use(reviewRouter);
 router.use(breachRouter);
 

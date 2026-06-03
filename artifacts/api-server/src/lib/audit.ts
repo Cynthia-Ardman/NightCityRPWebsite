@@ -16,7 +16,8 @@ export type AuditCategory =
   | "sheet"
   | "admin"
   | "mission"
-  | "lore";
+  | "lore"
+  | "guidebook";
 
 export interface RecordAuditInput {
   req?: Request;

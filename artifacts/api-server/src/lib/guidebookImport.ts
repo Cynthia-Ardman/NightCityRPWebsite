@@ -1,0 +1,487 @@
+import { eq } from "drizzle-orm";
+import { db, guidebookPages, type GuidebookPage } from "@workspace/db";
+import {
+  DISCORD_BOT_TOKEN,
+  DISCORD_GUILD_ID,
+  fetchDiscordUser,
+} from "./discord";
+import { ObjectStorageService } from "./objectStorage";
+import { logger } from "./logger";
+
+// ---------------------------------------------------------------------------
+// Guidebook importer
+// ---------------------------------------------------------------------------
+// Pulls a fixed set of announcement-style Discord channels (NOT forum threads)
+// by id, concatenates their messages chronologically, cleans Discord-flavoured
+// formatting into web Markdown (resolves user/channel mentions, custom emoji,
+// timestamps), re-hosts any Discord CDN images to object storage (CDN urls are
+// signed and expire after ~24h), and upserts the result DIRECTLY into the live
+// guidebook_pages table keyed by discordChannelId.
+//
+// Idempotent upsert per source:
+//   - no page for this channel        -> insert a new page          (created)
+//   - page exists, not edited on site -> overwrite body in place    (updated)
+//   - page exists, edited on site     -> stash in pendingImport for
+//                                        admin review, don't clobber (conflict)
+//   - page exists, content unchanged  -> no-op                       (unchanged)
+
+const API = "https://discord.com/api/v10";
+
+export interface GuidebookSource {
+  channelId: string;
+  section: string;
+  title: string;
+  /** Human-readable channel name, used for display + search. */
+  sourceLabel: string;
+  /** Ordering within the section. */
+  position: number;
+}
+
+// Channel/post id -> target section, per the task's content mapping. Character
+// Creation Help has no source channel (it is curated cross-links authored in
+// the app), so it is intentionally absent here.
+export const GUIDEBOOK_SOURCES: GuidebookSource[] = [
+  { channelId: "1386132844258267156", section: "getting_started", title: "Getting Started with NCRP", sourceLabel: "getting-started-with-ncrp", position: 0 },
+  { channelId: "1354586004601835700", section: "faq", title: "FAQ", sourceLabel: "faq", position: 0 },
+  { channelId: "1349207148659478538", section: "rules", title: "RP Rules", sourceLabel: "rp-rules", position: 0 },
+  { channelId: "1349482890051981462", section: "rules", title: "Avatar Restrictions", sourceLabel: "avatar-restrictions", position: 1 },
+  { channelId: "1348654324124880926", section: "schedule", title: "Schedule & Events", sourceLabel: "schedule", position: 0 },
+  { channelId: "1384036684760616980", section: "systems", title: "Detailed Systems Explanation", sourceLabel: "detailed-systems-explanation", position: 0 },
+  { channelId: "1349139640128376913", section: "setup", title: "VRChat Group Link", sourceLabel: "vrc-group-link", position: 0 },
+  { channelId: "1351682248453259264", section: "setup", title: "Discord Invite Link", sourceLabel: "discord-invite-link", position: 1 },
+  { channelId: "1351049157875339274", section: "setup", title: "Link VRChat & Discord", sourceLabel: "link-vrc-and-discord", position: 2 },
+  { channelId: "1386137184486293644", section: "npc_acting", title: "NPC Acting", sourceLabel: "npc-acting", position: 0 },
+];
+
+export interface GuidebookSourceRef {
+  label: string;
+  url: string;
+}
+
+export type GuidebookSourceStatus =
+  | "created"
+  | "updated"
+  | "conflict"
+  | "unchanged"
+  | "error";
+
+export interface GuidebookSourceResult {
+  channelId: string;
+  section: string;
+  title: string;
+  sourceLabel: string;
+  status: GuidebookSourceStatus;
+  pageId: number | null;
+  error: string | null;
+}
+
+export interface GuidebookImportRunResult {
+  created: number;
+  updated: number;
+  conflicts: number;
+  unchanged: number;
+  errors: number;
+  sources: GuidebookSourceResult[];
+}
+
+// --- low-level Discord helpers ---------------------------------------------
+
+async function botFetch(path: string): Promise<Response> {
+  return fetch(`${API}${path}`, {
+    headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+    signal: AbortSignal.timeout(15_000),
+  });
+}
+
+interface RawAttachment {
+  id: string;
+  filename: string;
+  content_type?: string | null;
+  size?: number;
+  url: string;
+}
+
+interface RawEmbed {
+  title?: string | null;
+  description?: string | null;
+  url?: string | null;
+  image?: { url?: string | null } | null;
+  thumbnail?: { url?: string | null } | null;
+}
+
+interface RawMessage {
+  id: string;
+  content: string;
+  attachments?: RawAttachment[];
+  embeds?: RawEmbed[];
+}
+
+// Fetch a channel's messages oldest-first (announcement channels keep the
+// reference content as one or more staff posts). Paginated to a sane cap.
+async function fetchChannelMessages(channelId: string): Promise<RawMessage[]> {
+  const collected: RawMessage[] = [];
+  let before: string | null = null;
+  for (let page = 0; page < 10; page++) {
+    const q = before ? `?limit=100&before=${before}` : `?limit=100`;
+    const res = await botFetch(`/channels/${channelId}/messages${q}`);
+    if (!res.ok) {
+      throw new Error(`Discord channel fetch failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+    }
+    const msgs = (await res.json()) as RawMessage[];
+    if (msgs.length === 0) break;
+    collected.push(...msgs);
+    if (msgs.length < 100) break;
+    before = msgs[msgs.length - 1].id;
+  }
+  // Discord returns newest-first; flip to chronological reading order.
+  collected.reverse();
+  return collected;
+}
+
+// --- cleaning ---------------------------------------------------------------
+
+const IMAGE_CDN_RE =
+  /https?:\/\/(?:cdn\.discordapp\.com|media\.discordapp\.net)\/[^\s)]+?\.(?:png|jpe?g|gif|webp)(?:\?[^\s)]*)?/gi;
+
+const MENTION_RE = /<@!?(\d+)>/g;
+const CHANNEL_MENTION_RE = /<#(\d+)>/g;
+const ROLE_MENTION_RE = /<@&(\d+)>/g;
+const CUSTOM_EMOJI_RE = /<a?:(\w+):\d+>/g;
+const TIMESTAMP_RE = /<t:(\d+)(?::[tTdDfFR])?>/g;
+
+async function resolveChannelName(
+  channelId: string,
+  cache: Map<string, string | null>,
+): Promise<string | null> {
+  if (cache.has(channelId)) return cache.get(channelId) ?? null;
+  let name: string | null = null;
+  try {
+    const res = await botFetch(`/channels/${channelId}`);
+    if (res.ok) {
+      const data = (await res.json()) as { name?: string };
+      name = data.name ?? null;
+    }
+  } catch (err) {
+    logger.warn({ err, channelId }, "resolveChannelName failed");
+  }
+  cache.set(channelId, name);
+  return name;
+}
+
+// Turn Discord-flavoured text into clean Markdown: resolve user/channel
+// mentions to names, drop role mentions, render custom emoji as :name:, and
+// render unix timestamps as readable UTC dates. Standard Discord markdown
+// (bold/italic/lists/quotes/links/code) already renders fine.
+async function cleanContent(
+  text: string,
+  userCache: Map<string, string | null>,
+  channelCache: Map<string, string | null>,
+): Promise<string> {
+  let out = text;
+
+  // User mentions.
+  const userIds = new Set<string>();
+  for (const m of out.matchAll(MENTION_RE)) userIds.add(m[1]);
+  for (const id of userIds) {
+    if (userCache.has(id)) continue;
+    const u = await fetchDiscordUser(id);
+    userCache.set(id, u ? u.globalName || u.username : null);
+  }
+  out = out.replace(MENTION_RE, (full, id: string) => {
+    const name = userCache.get(id);
+    return name ? `@${name}` : full;
+  });
+
+  // Channel mentions -> #name.
+  const channelIds = new Set<string>();
+  for (const m of out.matchAll(CHANNEL_MENTION_RE)) channelIds.add(m[1]);
+  for (const id of channelIds) await resolveChannelName(id, channelCache);
+  out = out.replace(CHANNEL_MENTION_RE, (full, id: string) => {
+    const name = channelCache.get(id);
+    return name ? `#${name}` : full;
+  });
+
+  // Role mentions -> drop (no public role display).
+  out = out.replace(ROLE_MENTION_RE, "");
+
+  // Custom emoji -> :name:
+  out = out.replace(CUSTOM_EMOJI_RE, (_full, name: string) => `:${name}:`);
+
+  // Unix timestamps -> readable UTC.
+  out = out.replace(TIMESTAMP_RE, (_full, secs: string) => {
+    const d = new Date(Number(secs) * 1000);
+    return Number.isNaN(d.getTime()) ? _full : d.toUTCString();
+  });
+
+  return out;
+}
+
+// --- image re-hosting -------------------------------------------------------
+
+const storage = new ObjectStorageService();
+
+// Fetch a Discord CDN image and re-host it to object storage, returning the
+// app-relative path (or null on failure so the import continues).
+async function rehostImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "image/png";
+    if (!ct.startsWith("image/")) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 12 * 1024 * 1024) return null;
+    return await storage.uploadBuffer(buf, ct);
+  } catch (err) {
+    logger.warn({ err, url }, "guidebook rehostImage failed");
+    return null;
+  }
+}
+
+// --- build a page payload from a source channel -----------------------------
+
+interface BuiltPage {
+  body: string;
+  images: string[];
+  sources: GuidebookSourceRef[];
+}
+
+async function buildPage(
+  src: GuidebookSource,
+  userCache: Map<string, string | null>,
+  channelCache: Map<string, string | null>,
+): Promise<BuiltPage> {
+  const messages = await fetchChannelMessages(src.channelId);
+  const images: string[] = [];
+  const blocks: string[] = [];
+
+  for (const msg of messages) {
+    let block = await cleanContent(msg.content ?? "", userCache, channelCache);
+
+    // Embed text (announcements sometimes live in embeds).
+    for (const e of msg.embeds ?? []) {
+      const parts: string[] = [];
+      if (e.title) parts.push(`### ${e.title}`);
+      if (e.description) {
+        parts.push(await cleanContent(e.description, userCache, channelCache));
+      }
+      if (parts.length) block += (block ? "\n\n" : "") + parts.join("\n\n");
+    }
+
+    // Re-host inline CDN image links embedded in the text.
+    const inlineUrls = new Set<string>();
+    for (const m of block.matchAll(IMAGE_CDN_RE)) inlineUrls.add(m[0]);
+    for (const url of inlineUrls) {
+      const hosted = await rehostImage(url);
+      if (hosted) {
+        images.push(hosted);
+        block = block.split(url).join(hosted);
+      }
+    }
+
+    // Re-host attachments + embed images, append as markdown images.
+    const attachUrls: string[] = [];
+    for (const a of msg.attachments ?? []) {
+      const ct = (a.content_type ?? "").toLowerCase();
+      if (ct.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.filename)) {
+        attachUrls.push(a.url);
+      }
+    }
+    for (const e of msg.embeds ?? []) {
+      if (e.image?.url) attachUrls.push(e.image.url);
+    }
+    for (const url of attachUrls) {
+      const hosted = await rehostImage(url);
+      if (hosted) {
+        images.push(hosted);
+        block += `${block ? "\n\n" : ""}![image](${hosted})`;
+      }
+    }
+
+    if (block.trim()) blocks.push(block.trim());
+  }
+
+  const body = blocks.join("\n\n").trim();
+  const sources: GuidebookSourceRef[] = [
+    {
+      label: `#${src.sourceLabel}`,
+      url: DISCORD_GUILD_ID
+        ? `https://discord.com/channels/${DISCORD_GUILD_ID}/${src.channelId}`
+        : `https://discord.com/channels/@me/${src.channelId}`,
+    },
+  ];
+  return { body, images, sources };
+}
+
+// --- slug -------------------------------------------------------------------
+
+function slugify(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "page"
+  );
+}
+
+async function uniqueSlug(base: string): Promise<string> {
+  const root = slugify(base);
+  let candidate = root;
+  for (let n = 2; n < 1000; n++) {
+    const [hit] = await db
+      .select({ id: guidebookPages.id })
+      .from(guidebookPages)
+      .where(eq(guidebookPages.slug, candidate))
+      .limit(1);
+    if (!hit) return candidate;
+    candidate = `${root}-${n}`;
+  }
+  return `${root}-${Date.now()}`;
+}
+
+function sameContent(page: GuidebookPage, built: BuiltPage): boolean {
+  const a = JSON.stringify((page.images ?? []) as unknown[]);
+  const b = JSON.stringify(built.images);
+  return page.body === built.body && a === b;
+}
+
+// --- run --------------------------------------------------------------------
+
+/**
+ * Import a single source channel. Exposed so the route can report per-source
+ * outcomes. `actorId` is recorded as the created/updated author.
+ */
+export async function importGuidebookSource(
+  src: GuidebookSource,
+  actorId: string | null,
+  userCache: Map<string, string | null>,
+  channelCache: Map<string, string | null>,
+): Promise<GuidebookSourceResult> {
+  const base: Omit<GuidebookSourceResult, "status" | "pageId" | "error"> = {
+    channelId: src.channelId,
+    section: src.section,
+    title: src.title,
+    sourceLabel: src.sourceLabel,
+  };
+  try {
+    const built = await buildPage(src, userCache, channelCache);
+    if (!built.body) {
+      return { ...base, status: "error", pageId: null, error: "No content found in source channel" };
+    }
+
+    const [existing] = await db
+      .select()
+      .from(guidebookPages)
+      .where(eq(guidebookPages.discordChannelId, src.channelId));
+
+    if (!existing) {
+      const slug = await uniqueSlug(src.title);
+      const [created] = await db
+        .insert(guidebookPages)
+        .values({
+          section: src.section,
+          title: src.title,
+          slug,
+          body: built.body,
+          images: built.images as never,
+          sources: built.sources as never,
+          position: src.position,
+          discordChannelId: src.channelId,
+          sourceLabel: src.sourceLabel,
+          importedAt: new Date(),
+          editedSinceImport: false,
+          createdById: actorId,
+          updatedById: actorId,
+        })
+        .returning();
+      return { ...base, status: "created", pageId: created.id, error: null };
+    }
+
+    if (sameContent(existing, built)) {
+      // Refresh the import marker + source label but skip a no-op rewrite.
+      await db
+        .update(guidebookPages)
+        .set({ importedAt: new Date(), sourceLabel: src.sourceLabel, sources: built.sources as never })
+        .where(eq(guidebookPages.id, existing.id));
+      return { ...base, status: "unchanged", pageId: existing.id, error: null };
+    }
+
+    if (existing.editedSinceImport) {
+      // Don't clobber on-site edits — stash for admin review.
+      await db
+        .update(guidebookPages)
+        .set({
+          pendingImport: {
+            body: built.body,
+            images: built.images,
+            sources: built.sources,
+            sourceLabel: src.sourceLabel,
+          } as never,
+          pendingImportAt: new Date(),
+        })
+        .where(eq(guidebookPages.id, existing.id));
+      return { ...base, status: "conflict", pageId: existing.id, error: null };
+    }
+
+    // Safe to overwrite the body in place.
+    await db
+      .update(guidebookPages)
+      .set({
+        body: built.body,
+        images: built.images as never,
+        sources: built.sources as never,
+        sourceLabel: src.sourceLabel,
+        importedAt: new Date(),
+        editedSinceImport: false,
+        updatedById: actorId,
+        updatedAt: new Date(),
+      })
+      .where(eq(guidebookPages.id, existing.id));
+    return { ...base, status: "updated", pageId: existing.id, error: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn({ err, channelId: src.channelId }, "importGuidebookSource failed");
+    return { ...base, status: "error", pageId: null, error: msg };
+  }
+}
+
+/**
+ * Run the full Guidebook import across every configured source. Admin-triggered
+ * (no cron). Each source is independent — one failure doesn't abort the rest.
+ */
+export async function runGuidebookImport(actorId: string | null): Promise<GuidebookImportRunResult> {
+  if (!DISCORD_BOT_TOKEN) {
+    return {
+      created: 0,
+      updated: 0,
+      conflicts: 0,
+      unchanged: 0,
+      errors: GUIDEBOOK_SOURCES.length,
+      sources: GUIDEBOOK_SOURCES.map((s) => ({
+        channelId: s.channelId,
+        section: s.section,
+        title: s.title,
+        sourceLabel: s.sourceLabel,
+        status: "error" as const,
+        pageId: null,
+        error: "Discord bot token not configured",
+      })),
+    };
+  }
+
+  const userCache = new Map<string, string | null>();
+  const channelCache = new Map<string, string | null>();
+  const sources: GuidebookSourceResult[] = [];
+  for (const src of GUIDEBOOK_SOURCES) {
+    sources.push(await importGuidebookSource(src, actorId, userCache, channelCache));
+  }
+  return {
+    created: sources.filter((s) => s.status === "created").length,
+    updated: sources.filter((s) => s.status === "updated").length,
+    conflicts: sources.filter((s) => s.status === "conflict").length,
+    unchanged: sources.filter((s) => s.status === "unchanged").length,
+    errors: sources.filter((s) => s.status === "error").length,
+    sources,
+  };
+}

@@ -3691,6 +3691,243 @@ paths:
         "404": { description: Not found }
         "409": { description: Already decided }
 
+  /guidebook:
+    get:
+      operationId: listGuidebook
+      tags: [guidebook]
+      summary: Browse the Guidebook — pages grouped into fixed sections (any signed-in user).
+      parameters:
+        - in: query
+          name: q
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Sections with their pages
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookBrowse" }
+    post:
+      operationId: createGuidebookPage
+      tags: [guidebook]
+      summary: Create a Guidebook page (admin only — publishes directly).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GuidebookPageInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookPage" }
+        "400": { description: Invalid payload }
+        "403": { description: Admin only }
+  /guidebook/sections:
+    get:
+      operationId: listGuidebookSections
+      tags: [guidebook]
+      summary: The fixed section catalogue (key/label/description).
+      responses:
+        "200":
+          description: Sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GuidebookSectionMeta" }
+  /guidebook/edits:
+    get:
+      operationId: listGuidebookEdits
+      tags: [guidebook]
+      summary: List proposed Guidebook edits awaiting decision (fixer/admin).
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [pending, approved, rejected], default: pending }
+      responses:
+        "200":
+          description: Proposed edits
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GuidebookPendingEdit" }
+        "403": { description: Fixer or admin only }
+    post:
+      operationId: submitGuidebookEdit
+      tags: [guidebook]
+      summary: Propose a Guidebook create/edit for admin approval (fixer/admin).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GuidebookEditProposalInput" }
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookPendingEdit" }
+        "400": { description: Invalid payload }
+        "403": { description: Fixer or admin only }
+  /guidebook/edits/mine:
+    get:
+      operationId: listMyGuidebookEdits
+      tags: [guidebook]
+      summary: The signed-in fixer's own Guidebook submissions across all statuses (fixer/admin).
+      responses:
+        "200":
+          description: The caller's proposed edits
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GuidebookPendingEdit" }
+        "403": { description: Fixer or admin only }
+  /guidebook/edits/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approveGuidebookEdit
+      tags: [guidebook]
+      summary: Approve a proposed Guidebook edit and apply it (admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GuidebookEditDecision" }
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookPendingEdit" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+  /guidebook/edits/{id}/reject:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: rejectGuidebookEdit
+      tags: [guidebook]
+      summary: Reject a proposed Guidebook edit (admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GuidebookEditDecision" }
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookPendingEdit" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: Already reviewed }
+  /guidebook/import/run:
+    post:
+      operationId: runGuidebookImport
+      tags: [guidebook]
+      summary: Import the configured Discord source channels into Guidebook pages (admin only).
+      responses:
+        "200":
+          description: Import summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookImportRunResult" }
+        "403": { description: Admin only }
+        "500": { description: Import failed }
+  /guidebook/import/review:
+    get:
+      operationId: listGuidebookImportReview
+      tags: [guidebook]
+      summary: Pages with a stashed re-import conflict awaiting admin review (admin only).
+      responses:
+        "200":
+          description: Conflicts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GuidebookImportConflict" }
+        "403": { description: Admin only }
+  /guidebook/import/review/{id}/apply:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: applyGuidebookImportConflict
+      tags: [guidebook]
+      summary: Apply a stashed re-import, overwriting the live page (admin only).
+      responses:
+        "200":
+          description: Applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookPage" }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+        "409": { description: No pending import }
+  /guidebook/import/review/{id}/dismiss:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: dismissGuidebookImportConflict
+      tags: [guidebook]
+      summary: Dismiss a stashed re-import, keeping on-site edits (admin only).
+      responses:
+        "200":
+          description: Dismissed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookPage" }
+        "403": { description: Admin only }
+        "409": { description: No pending import }
+  /guidebook/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getGuidebookPage
+      tags: [guidebook]
+      summary: Guidebook page detail (any signed-in user; staff-only fields gated).
+      responses:
+        "200":
+          description: Page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookPage" }
+        "404": { description: Not found }
+    patch:
+      operationId: updateGuidebookPage
+      tags: [guidebook]
+      summary: Edit a Guidebook page (admin only — publishes directly).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GuidebookPageUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookPage" }
+        "400": { description: Invalid payload }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+    delete:
+      operationId: deleteGuidebookPage
+      tags: [guidebook]
+      summary: Delete a Guidebook page (admin only).
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Admin only }
+        "404": { description: Not found }
+
   /review/{subjectType}/{id}/comments:
     parameters:
       - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
@@ -4481,6 +4718,185 @@ components:
         errors:
           type: array
           items: { type: string }
+
+    GuidebookSectionMeta:
+      type: object
+      required: [key, label, description]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        description: { type: string }
+
+    GuidebookSource:
+      type: object
+      required: [label, url]
+      properties:
+        label: { type: string }
+        url: { type: string }
+
+    GuidebookPage:
+      type: object
+      required: [id, section, title, slug, body, images, sources, position, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        section: { type: string }
+        title: { type: string }
+        slug: { type: string }
+        description: { type: ["string", "null"] }
+        body: { type: string }
+        images:
+          type: array
+          items: { type: string }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/GuidebookSource" }
+        position: { type: integer }
+        sourceLabel: { type: ["string", "null"] }
+        # Staff-only fields (null/false for non-staff callers).
+        discordChannelId: { type: ["string", "null"] }
+        importedAt: { type: ["string", "null"], format: date-time }
+        editedSinceImport: { type: boolean }
+        hasPendingImport: { type: boolean }
+        pendingImportAt: { type: ["string", "null"], format: date-time }
+        createdById: { type: ["string", "null"] }
+        updatedById: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    GuidebookSection:
+      type: object
+      required: [key, label, description, pages]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        description: { type: string }
+        pages:
+          type: array
+          items: { $ref: "#/components/schemas/GuidebookPage" }
+
+    GuidebookBrowse:
+      type: object
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/GuidebookSection" }
+
+    GuidebookPageInput:
+      type: object
+      required: [section, title]
+      properties:
+        section: { type: string }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        body: { type: string }
+        images:
+          type: array
+          items: { type: string }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/GuidebookSource" }
+        position: { type: integer }
+
+    GuidebookPageUpdate:
+      type: object
+      properties:
+        section: { type: string }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        body: { type: string }
+        images:
+          type: array
+          items: { type: string }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/GuidebookSource" }
+        position: { type: integer }
+
+    GuidebookEditProposalInput:
+      type: object
+      required: [kind, diff]
+      properties:
+        pageId: { type: ["integer", "null"] }
+        kind: { type: string, enum: [create, edit] }
+        diff: { $ref: "#/components/schemas/GuidebookPageUpdate" }
+        updateNote: { type: ["string", "null"] }
+
+    GuidebookPendingEdit:
+      type: object
+      required: [id, kind, submittedBy, proposedDiff, status, createdAt]
+      properties:
+        id: { type: integer }
+        pageId: { type: ["integer", "null"] }
+        pageTitle: { type: ["string", "null"] }
+        pageSection: { type: ["string", "null"] }
+        kind: { type: string, enum: [create, edit] }
+        submittedBy: { type: string }
+        submittedByName: { type: ["string", "null"] }
+        proposedDiff: {}
+        beforeSnapshot: {}
+        updateNote: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, approved, rejected] }
+        decidedById: { type: ["string", "null"] }
+        decisionSummary: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"], format: date-time }
+        appliedPageId: { type: ["integer", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    GuidebookEditDecision:
+      type: object
+      properties:
+        decisionSummary: { type: ["string", "null"] }
+
+    GuidebookImportSourceResult:
+      type: object
+      required: [channelId, section, title, sourceLabel, status]
+      properties:
+        channelId: { type: string }
+        section: { type: string }
+        title: { type: string }
+        sourceLabel: { type: string }
+        status: { type: string, enum: [created, updated, conflict, unchanged, error] }
+        pageId: { type: ["integer", "null"] }
+        error: { type: ["string", "null"] }
+
+    GuidebookImportRunResult:
+      type: object
+      required: [created, updated, conflicts, unchanged, errors, sources]
+      properties:
+        created: { type: integer }
+        updated: { type: integer }
+        conflicts: { type: integer }
+        unchanged: { type: integer }
+        errors: { type: integer }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/GuidebookImportSourceResult" }
+
+    GuidebookImportConflict:
+      type: object
+      required: [id, section, title, slug, currentBody, currentImages, incomingBody, incomingImages, incomingSources]
+      properties:
+        id: { type: integer }
+        section: { type: string }
+        title: { type: string }
+        slug: { type: string }
+        sourceLabel: { type: ["string", "null"] }
+        discordChannelId: { type: ["string", "null"] }
+        pendingImportAt: { type: ["string", "null"], format: date-time }
+        currentBody: { type: string }
+        currentImages:
+          type: array
+          items: { type: string }
+        incomingBody: { type: string }
+        incomingImages:
+          type: array
+          items: { type: string }
+        incomingSources:
+          type: array
+          items: { $ref: "#/components/schemas/GuidebookSource" }
+        incomingSourceLabel: { type: ["string", "null"] }
+
     HealthStatus:
       type: object
       required: [status]

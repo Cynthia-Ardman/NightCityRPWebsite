@@ -1454,6 +1454,95 @@ export const loreImportDrafts = pgTable("lore_import_drafts", {
 export type LoreImportDraft = typeof loreImportDrafts.$inferSelect;
 
 // ---------------------------------------------------------------------------
+// GUIDEBOOK
+// ---------------------------------------------------------------------------
+// Browsable NCRP reference content (Getting Started, FAQ, Rules, Schedule,
+// Systems, Setup, NPC Acting, Character Creation Help) surfaced as its own
+// top-level nav entry. Each page carries a Markdown body rendered as clean web
+// content. Pages are grouped into fixed sections (see GUIDEBOOK_SECTIONS in the
+// route). Mirrors the Lore system: admins create/edit/publish directly; fixers
+// propose changes that an admin approves (see guidebookPendingEdits).
+//
+// Unlike Lore (which stages imports in a draft queue), the Guidebook importer
+// upserts DIRECTLY into live pages keyed by discordChannelId: a new source
+// inserts a page; re-importing a source whose page has NOT been edited on the
+// site overwrites it in place; re-importing a source whose page WAS edited
+// stashes the fresh content in pendingImport (rather than clobbering the manual
+// edit) for an admin to apply or dismiss in the import-review screen.
+export const guidebookPages = pgTable("guidebook_pages", {
+  id: serial("id").primaryKey(),
+  // Section bucket key (e.g. "getting_started" | "faq" | "rules" | ...).
+  section: text("section").notNull().default("misc"),
+  title: text("title").notNull(),
+  // URL-stable identifier; unique, derived from title on create.
+  slug: text("slug").notNull(),
+  // One-line blurb shown under the title.
+  description: text("description"),
+  // Markdown body — rendered as clean web content (headings, lists, links,
+  // inline images). Images are re-hosted to object storage at import time and
+  // embedded inline as markdown so CDN expiry can't break them.
+  body: text("body").notNull().default(""),
+  // Re-hosted image object-storage paths embedded in the body (kept for
+  // traceability / re-import). [string, ...].
+  images: jsonb("images").notNull().default(sql`'[]'::jsonb`),
+  // Display source references: [{ label, url }]. The originating Discord
+  // channel(s) the page was imported from.
+  sources: jsonb("sources").notNull().default(sql`'[]'::jsonb`),
+  // Ordering within the section.
+  position: integer("position").notNull().default(0),
+  // Originating Discord channel id — the idempotency key for re-import. Null
+  // for manually-authored pages (e.g. Character Creation Help). A unique index
+  // (Postgres treats NULLs as distinct) prevents duplicate pages per source.
+  discordChannelId: text("discord_channel_id"),
+  // Human-readable source name (e.g. the channel name) for search + admin view.
+  sourceLabel: text("source_label"),
+  importedAt: timestamp("imported_at", { withTimezone: true }),
+  // Flipped true on any admin/approved-fixer body edit; controls whether a
+  // re-import overwrites in place or stashes a conflict in pendingImport.
+  editedSinceImport: boolean("edited_since_import").notNull().default(false),
+  // Fresh imported content awaiting admin review when the page was edited after
+  // import: { title, description, body, images, sources, sourceLabel }.
+  pendingImport: jsonb("pending_import"),
+  pendingImportAt: timestamp("pending_import_at", { withTimezone: true }),
+  createdById: text("created_by_id").references(() => users.id),
+  updatedById: text("updated_by_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  slugIdx: uniqueIndex("guidebook_pages_slug_idx").on(t.slug),
+  sectionIdx: index("guidebook_pages_section_idx").on(t.section),
+  channelIdx: uniqueIndex("guidebook_pages_channel_idx").on(t.discordChannelId),
+}));
+export type GuidebookPage = typeof guidebookPages.$inferSelect;
+
+// Fixer-proposed Guidebook changes awaiting an admin decision. Surfaced in the
+// unified Pending Requests page (Guidebook tab). Single-admin approve/deny (no
+// voting), mirroring lorePendingEdits. A null pageId means a brand-new page is
+// proposed (full payload in proposedDiff); a set pageId is an edit.
+export const guidebookPendingEdits = pgTable("guidebook_pending_edits", {
+  id: serial("id").primaryKey(),
+  pageId: integer("page_id").references(() => guidebookPages.id, { onDelete: "cascade" }),
+  // "edit" | "create".
+  kind: text("kind").notNull().default("edit"),
+  submittedBy: text("submitted_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  proposedDiff: jsonb("proposed_diff").notNull(),
+  beforeSnapshot: jsonb("before_snapshot").notNull().default(sql`'{}'::jsonb`),
+  updateNote: text("update_note"),
+  status: text("status").notNull().default("pending"),
+  decidedById: text("decided_by_id").references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decisionSummary: text("decision_summary"),
+  // Set when an approved "create" materializes a new page, so an approval is
+  // never applied twice.
+  appliedPageId: integer("applied_page_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index("guidebook_pending_edits_status_idx").on(t.status),
+  pageIdx: index("guidebook_pending_edits_page_idx").on(t.pageId),
+}));
+export type GuidebookPendingEdit = typeof guidebookPendingEdits.$inferSelect;
+
+// ---------------------------------------------------------------------------
 // BREACH PROTOCOL (hacking minigame)
 // ---------------------------------------------------------------------------
 // A Fixer/Admin generates a timed Breach Protocol puzzle at a chosen difficulty
