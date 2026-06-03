@@ -36,6 +36,7 @@ export default function BreachHub() {
   const [difficulty, setDifficulty] = useState<BreachPuzzleInputDifficulty>("medium");
   const [timeLimit, setTimeLimit] = useState<number>(60);
   const [contextLabel, setContextLabel] = useState<string>("");
+  const [logFilter, setLogFilter] = useState<string>("");
   const [rewardEddies, setRewardEddies] = useState<number>(0);
   const [rewardItemName, setRewardItemName] = useState<string>("");
   const [rewardItemCategory, setRewardItemCategory] = useState<string>("");
@@ -55,6 +56,15 @@ export default function BreachHub() {
 
   const errMsg = (e: unknown) =>
     (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Request failed";
+
+  // Client-side filter of the breach log by context label. Matches the
+  // contextLabel substring (case-insensitive); an empty filter shows all rows.
+  const filteredPuzzles = useMemo(() => {
+    if (!puzzles) return puzzles;
+    const q = logFilter.trim().toLowerCase();
+    if (!q) return puzzles;
+    return puzzles.filter((p) => (p.contextLabel ?? "").toLowerCase().includes(q));
+  }, [puzzles, logFilter]);
 
   // Index map of solution path cells for highlighting in the preview grid.
   const solutionOrder = useMemo(() => {
@@ -352,22 +362,35 @@ export default function BreachHub() {
 
           {/* Puzzle log */}
           <Card className="rounded-none border-border bg-card/50">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="font-display tracking-widest text-nc-cyan">BREACH LOG</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-none font-mono"
-                onClick={() => qc.invalidateQueries({ queryKey: getListBreachPuzzlesQueryKey() })}
-              >
-                <RefreshCw className="w-3 h-3 mr-1" /> REFRESH
-              </Button>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={logFilter}
+                  onChange={(e) => setLogFilter(e.target.value)}
+                  placeholder="Filter by mission / event / context..."
+                  className="rounded-none font-mono h-8 w-full sm:w-64"
+                  data-testid="input-log-filter"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-none font-mono shrink-0"
+                  onClick={() => qc.invalidateQueries({ queryKey: getListBreachPuzzlesQueryKey() })}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" /> REFRESH
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {puzzlesLoading ? (
                 <div className="py-8 text-center font-mono text-muted-foreground animate-pulse">Loading...</div>
               ) : !puzzles || puzzles.length === 0 ? (
                 <div className="py-8 text-center font-mono text-muted-foreground italic">No breaches sent yet.</div>
+              ) : !filteredPuzzles || filteredPuzzles.length === 0 ? (
+                <div className="py-8 text-center font-mono text-muted-foreground italic" data-testid="text-no-filter-matches">
+                  No breaches match "{logFilter.trim()}".
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -383,7 +406,7 @@ export default function BreachHub() {
                       </tr>
                     </thead>
                     <tbody className="font-mono">
-                      {puzzles.map((p) => (
+                      {filteredPuzzles.map((p) => (
                         <tr key={p.id} className="border-b border-border/20" data-testid={`puzzle-row-${p.id}`}>
                           <td className="py-2 pr-4 text-muted-foreground">{p.id}</td>
                           <td className="py-2 pr-4">
