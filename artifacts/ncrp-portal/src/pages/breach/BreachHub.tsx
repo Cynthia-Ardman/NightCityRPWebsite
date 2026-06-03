@@ -35,6 +35,7 @@ export default function BreachHub() {
   const [target, setTarget] = useState<CharacterPickerValue>(null);
   const [difficulty, setDifficulty] = useState<BreachPuzzleInputDifficulty>("medium");
   const [timeLimit, setTimeLimit] = useState<number>(60);
+  const [contextLabel, setContextLabel] = useState<string>("");
   const [rewardEddies, setRewardEddies] = useState<number>(0);
   const [rewardItemName, setRewardItemName] = useState<string>("");
   const [rewardItemCategory, setRewardItemCategory] = useState<string>("");
@@ -87,6 +88,7 @@ export default function BreachHub() {
           assignedCharacterId: target.id,
           difficulty,
           timeLimitSeconds: timeLimit,
+          contextLabel: contextLabel.trim() || undefined,
           rewardEddies: rewardEddies > 0 ? rewardEddies : undefined,
           rewardItemName: rewardItemName.trim() || undefined,
           rewardItemCategory: rewardItemCategory.trim() || undefined,
@@ -105,6 +107,7 @@ export default function BreachHub() {
       });
       setPreview(null);
       setTarget(null);
+      setContextLabel("");
       setRewardEddies(0);
       setRewardItemName("");
       setRewardItemCategory("");
@@ -178,6 +181,20 @@ export default function BreachHub() {
                   data-testid="input-timelimit"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Mission / Event / Context (optional)</Label>
+              <Input
+                value={contextLabel}
+                onChange={(e) => setContextLabel(e.target.value)}
+                placeholder="e.g. Op: Arasaka Heist, or a custom note"
+                className="rounded-none font-mono"
+                data-testid="input-context-label"
+              />
+              <p className="font-mono text-[11px] text-muted-foreground">
+                Ties this breach to a mission, event, or any custom label for tracking. Shown in the breach log and the player's DM.
+              </p>
             </div>
 
             <div className="border-t border-border/40 pt-4 space-y-4">
@@ -358,6 +375,7 @@ export default function BreachHub() {
                       <tr className="font-mono text-xs uppercase tracking-widest text-muted-foreground border-b border-border/40">
                         <th className="text-left py-2 pr-4">#</th>
                         <th className="text-left py-2 pr-4">Target</th>
+                        <th className="text-left py-2 pr-4">Context</th>
                         <th className="text-left py-2 pr-4">Diff</th>
                         <th className="text-left py-2 pr-4">Status</th>
                         <th className="text-left py-2 pr-4">Reward</th>
@@ -371,6 +389,9 @@ export default function BreachHub() {
                           <td className="py-2 pr-4">
                             <div className="text-foreground">{p.assignedCharacterName ?? "—"}</div>
                             <div className="text-xs text-muted-foreground">{p.assignedUserName ?? p.assignedUserId}</div>
+                          </td>
+                          <td className="py-2 pr-4 text-xs text-nc-cyan max-w-[160px] truncate" title={p.contextLabel ?? undefined}>
+                            {p.contextLabel ?? "—"}
                           </td>
                           <td className="py-2 pr-4">{difficultyBadge(p.difficulty)}</td>
                           <td className="py-2 pr-4">

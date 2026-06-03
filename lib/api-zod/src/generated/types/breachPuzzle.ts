@@ -36,6 +36,11 @@ export interface BreachPuzzle {
   rewardItemCategory?: string | null;
   /** @nullable */
   rewardNote?: string | null;
+  /**
+     * Optional mission / event / custom context this breach is tied to.
+     * @nullable
+     */
+  contextLabel?: string | null;
   status: BreachPuzzleStatus;
   /** @nullable */
   startedAt?: Date | null;

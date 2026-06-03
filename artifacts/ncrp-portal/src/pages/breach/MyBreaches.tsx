@@ -3,7 +3,7 @@ import { useListMyBreachPuzzles } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { statusBadge, difficultyBadge, rewardSummary } from "./breachUtils";
-import { Cpu, Play } from "lucide-react";
+import { Cpu, Play, Dumbbell } from "lucide-react";
 
 export default function MyBreaches() {
   const { data: puzzles, isLoading } = useListMyBreachPuzzles();
@@ -13,13 +13,24 @@ export default function MyBreaches() {
 
   return (
     <div className="max-w-5xl mx-auto pb-12 space-y-8">
-      <div>
-        <h1 className="text-4xl font-display font-bold text-foreground flex items-center gap-3">
-          <Cpu className="w-8 h-8 text-nc-magenta" /> MY BREACHES
-        </h1>
-        <p className="font-mono text-sm text-muted-foreground mt-1">
-          Breach Protocol puzzles assigned to your characters. Solve them before the timer runs out to claim rewards.
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-4xl font-display font-bold text-foreground flex items-center gap-3">
+            <Cpu className="w-8 h-8 text-nc-magenta" /> MY BREACHES
+          </h1>
+          <p className="font-mono text-sm text-muted-foreground mt-1">
+            Breach Protocol puzzles assigned to your characters. Solve them before the timer runs out to claim rewards.
+          </p>
+        </div>
+        <Link href="/breach/practice">
+          <Button
+            variant="outline"
+            className="rounded-none font-display border-nc-cyan/50 text-nc-cyan hover:bg-nc-cyan/10"
+            data-testid="button-practice"
+          >
+            <Dumbbell className="w-4 h-4 mr-1" /> PRACTICE
+          </Button>
+        </Link>
       </div>
 
       {isLoading ? (

@@ -60,6 +60,11 @@ export interface BreachPuzzle {
   rewardItemCategory?: string | null;
   /** @nullable */
   rewardNote?: string | null;
+  /**
+     * Optional mission / event / custom context this breach is tied to.
+     * @nullable
+     */
+  contextLabel?: string | null;
   status: BreachPuzzleStatus;
   /** @nullable */
   startedAt?: string | null;
@@ -152,6 +157,11 @@ export interface BreachPuzzleInput {
   rewardItemCategory?: string | null;
   /** @nullable */
   rewardNote?: string | null;
+  /**
+     * Optional mission / event / custom context to tie this breach to (free text).
+     * @nullable
+     */
+  contextLabel?: string | null;
   /** Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one. */
   puzzle?: BreachPuzzlePayload | null;
 }
@@ -169,7 +179,7 @@ export interface BreachResult {
   valid: boolean;
   solvedCount: number;
   totalDaemons: number;
-  /** True if a reward was paid out by this call (false on idempotent retry or no reward). */
+  /** True if a reward was paid out by this call. Usually false on idempotent retry or when there is no reward, but MAY be true on retry when this call settles a previously-unsettled reward leg. */
   rewardPaid: boolean;
   rewardEddies?: number;
   /** @nullable */

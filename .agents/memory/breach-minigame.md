@@ -41,3 +41,14 @@ players solve live; rewards paid on success.
   completed puzzle is 200 idempotent. No 400/409 on result. rewardPaid is usually false on
   resubmit, but CAN be true when a resubmit settles a previously-unsettled success (see the
   reward-settlement invariant) — never assume resubmit always returns rewardPaid=false.
+- **Shared board + local scoring parity**: the interactive matrix/buffer/daemons/timer/result
+  overlay live in a reusable `BreachBoard.tsx` consumed by BOTH assigned play (BreachPlay) and
+  the unrecorded `BreachPractice` page. The board computes its own outcome client-side and must
+  mirror the server's contiguous-subsequence daemon rule (scoreSelection); if you change scoring
+  in `lib/breach/src/game.ts`, update the board's `containsContiguous`/success criterion too or
+  practice + live live-feedback drift from the authoritative result.
+- **Live-submit status is on the RESPONSE, not the query**: after a successful /result submit,
+  derive the overlay's expired/success/solvedCount from the returned `BreachResult.puzzle`
+  (fresh status), NOT the pre-submit getPuzzle query — that cached row is still `sent`/`startedAt`
+  and reports a timeout as a generic failure. **Why:** caused a regression where timed-out runs
+  showed "BREACH FAILED" instead of "TIME UP" until a refetch landed.

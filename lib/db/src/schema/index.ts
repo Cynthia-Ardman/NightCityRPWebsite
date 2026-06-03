@@ -1489,6 +1489,9 @@ export const breachPuzzles = pgTable("breach_puzzles", {
   rewardItemName: text("reward_item_name"),
   rewardItemCategory: text("reward_item_category"),
   rewardNote: text("reward_note"),
+  // Optional free-text mission / event / custom context this puzzle is tied to
+  // (staff-only; surfaced in the breach log for tracking).
+  contextLabel: text("context_label"),
   // Lifecycle: "sent" | "in_progress" | "success" | "failed" | "expired".
   status: text("status").notNull().default("sent"),
   // Server-authoritative timer anchor (set on the first start call).

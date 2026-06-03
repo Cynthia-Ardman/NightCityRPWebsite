@@ -15,7 +15,7 @@ export interface BreachResult {
   valid: boolean;
   solvedCount: number;
   totalDaemons: number;
-  /** True if a reward was paid out by this call (false on idempotent retry or no reward). */
+  /** True if a reward was paid out by this call. Usually false on idempotent retry or when there is no reward, but MAY be true on retry when this call settles a previously-unsettled reward leg. */
   rewardPaid: boolean;
   rewardEddies?: number;
   /** @nullable */

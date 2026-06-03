@@ -4008,6 +4008,7 @@ components:
         rewardItemName: { type: ["string", "null"] }
         rewardItemCategory: { type: ["string", "null"] }
         rewardNote: { type: ["string", "null"] }
+        contextLabel: { type: ["string", "null"], description: "Optional mission / event / custom context this breach is tied to." }
         status: { type: string, enum: [sent, in_progress, success, failed, expired] }
         startedAt: { type: ["string", "null"], format: date-time }
         completedAt: { type: ["string", "null"], format: date-time }
@@ -4074,6 +4075,7 @@ components:
         rewardItemName: { type: ["string", "null"] }
         rewardItemCategory: { type: ["string", "null"] }
         rewardNote: { type: ["string", "null"] }
+        contextLabel: { type: ["string", "null"], description: "Optional mission / event / custom context to tie this breach to (free text)." }
         puzzle:
           description: "Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one."
           oneOf:

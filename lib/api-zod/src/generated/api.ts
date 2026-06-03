@@ -7627,6 +7627,7 @@ export const ListBreachPuzzlesResponseItem = zod.object({
   "rewardItemName": zod.string().nullish(),
   "rewardItemCategory": zod.string().nullish(),
   "rewardNote": zod.string().nullish(),
+  "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to.'),
   "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
@@ -7661,6 +7662,7 @@ export const CreateBreachPuzzleBody = zod.object({
   "rewardItemName": zod.string().nullish(),
   "rewardItemCategory": zod.string().nullish(),
   "rewardNote": zod.string().nullish(),
+  "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context to tie this breach to (free text).'),
   "puzzle": zod.union([zod.object({
   "grid": zod.array(zod.array(zod.string())),
   "daemons": zod.array(zod.array(zod.string())),
@@ -7711,6 +7713,7 @@ export const ListMyBreachPuzzlesResponseItem = zod.object({
   "rewardItemName": zod.string().nullish(),
   "rewardItemCategory": zod.string().nullish(),
   "rewardNote": zod.string().nullish(),
+  "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to.'),
   "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
@@ -7752,6 +7755,7 @@ export const GetBreachPuzzleResponse = zod.object({
   "rewardItemName": zod.string().nullish(),
   "rewardItemCategory": zod.string().nullish(),
   "rewardNote": zod.string().nullish(),
+  "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to.'),
   "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
@@ -7792,6 +7796,7 @@ export const StartBreachPuzzleResponse = zod.object({
   "rewardItemName": zod.string().nullish(),
   "rewardItemCategory": zod.string().nullish(),
   "rewardNote": zod.string().nullish(),
+  "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to.'),
   "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
@@ -7808,7 +7813,7 @@ export const StartBreachPuzzleResponse = zod.object({
 
 
 /**
- * Authoritative scoring. Invalid or losing paths are recorded as a failed attempt (still 200). Resubmitting a completed puzzle returns the recorded outcome idempotently with rewardPaid=false (no double pay).
+ * Authoritative scoring. Invalid or losing paths are recorded as a failed attempt (still 200). Resubmitting a completed puzzle returns the recorded outcome idempotently (no double pay). `ln` is usually false on resubmit, but MAY be true when this call settles a previously-unsettled reward (e.g. an earlier payout leg failed and is now retried).
  * @summary Submit the final selected path; server scores it, pays any reward once, and notifies staff.
  */
 export const SubmitBreachResultParams = zod.object({
@@ -7841,6 +7846,7 @@ export const SubmitBreachResultResponse = zod.object({
   "rewardItemName": zod.string().nullish(),
   "rewardItemCategory": zod.string().nullish(),
   "rewardNote": zod.string().nullish(),
+  "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to.'),
   "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
@@ -7858,7 +7864,7 @@ export const SubmitBreachResultResponse = zod.object({
   "valid": zod.boolean().describe('True when the submitted path obeys the alternating row\/column rules.'),
   "solvedCount": zod.number(),
   "totalDaemons": zod.number(),
-  "rewardPaid": zod.boolean().describe('True if a reward was paid out by this call (false on idempotent retry or no reward).'),
+  "rewardPaid": zod.boolean().describe('True if a reward was paid out by this call. Usually false on idempotent retry or when there is no reward, but MAY be true on retry when this call settles a previously-unsettled reward leg.'),
   "rewardEddies": zod.number().optional(),
   "rewardItemName": zod.string().nullish(),
   "message": zod.string().nullish()
@@ -7890,6 +7896,7 @@ export const ListCharacterBreachPuzzlesResponseItem = zod.object({
   "rewardItemName": zod.string().nullish(),
   "rewardItemCategory": zod.string().nullish(),
   "rewardNote": zod.string().nullish(),
+  "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to.'),
   "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),

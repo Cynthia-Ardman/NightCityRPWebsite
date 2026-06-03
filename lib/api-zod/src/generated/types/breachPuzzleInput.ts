@@ -28,6 +28,11 @@ export interface BreachPuzzleInput {
   rewardItemCategory?: string | null;
   /** @nullable */
   rewardNote?: string | null;
+  /**
+     * Optional mission / event / custom context to tie this breach to (free text).
+     * @nullable
+     */
+  contextLabel?: string | null;
   /** Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one. */
   puzzle?: BreachPuzzlePayload | null;
 }

@@ -25,6 +25,7 @@ import MyRequests from "@/pages/MyRequests";
 import MyOffers from "@/pages/MyOffers";
 import BreachHub from "@/pages/breach/BreachHub";
 import BreachPlay from "@/pages/breach/BreachPlay";
+import BreachPractice from "@/pages/breach/BreachPractice";
 import MyBreaches from "@/pages/breach/MyBreaches";
 import Ledger from "@/pages/Ledger";
 import { Redirect } from "wouter";
@@ -154,6 +155,7 @@ function AppRoutes() {
           <Route path="/requests/mine" component={MyRequests} />
           <Route path="/offers/mine" component={MyOffers} />
           <Route path="/breach/mine" component={MyBreaches} />
+          <Route path="/breach/practice" component={BreachPractice} />
           <Route path="/breach/play/:id" component={BreachPlay} />
           <Route path="/breach">
             <StaffBreachGuard><BreachHub /></StaffBreachGuard>

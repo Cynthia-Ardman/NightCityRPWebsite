@@ -17840,7 +17840,7 @@ export const getSubmitBreachResultUrl = (id: number,) => {
 }
 
 /**
- * Authoritative scoring. Invalid or losing paths are recorded as a failed attempt (still 200). Resubmitting a completed puzzle returns the recorded outcome idempotently with rewardPaid=false (no double pay).
+ * Authoritative scoring. Invalid or losing paths are recorded as a failed attempt (still 200). Resubmitting a completed puzzle returns the recorded outcome idempotently (no double pay). `ln` is usually false on resubmit, but MAY be true when this call settles a previously-unsettled reward (e.g. an earlier payout leg failed and is now retried).
  * @summary Submit the final selected path; server scores it, pays any reward once, and notifies staff.
  */
 export const submitBreachResult = async (id: number,

@@ -148,6 +148,7 @@ export async function createPuzzle(
     rewardItemName?: string | null;
     rewardItemCategory?: string | null;
     rewardNote?: string | null;
+    contextLabel?: string | null;
     puzzle?: { grid?: unknown; daemons?: unknown; bufferSize?: unknown } | null;
   },
 ): Promise<ServiceResult<BreachPuzzleView>> {
@@ -205,6 +206,7 @@ export async function createPuzzle(
       rewardItemName: input.rewardItemName ?? null,
       rewardItemCategory: input.rewardItemCategory ?? null,
       rewardNote: input.rewardNote ?? null,
+      contextLabel: input.contextLabel?.trim() ? input.contextLabel.trim() : null,
       status: "sent",
     })
     .returning();
@@ -217,10 +219,11 @@ export async function createPuzzle(
         input.rewardItemName ? `**${input.rewardItemName}**` : null,
       ].filter(Boolean).join(" + ")}`
     : "";
+  const contextLine = row.contextLabel ? `\nContext: **${row.contextLabel}**` : "";
   const dm = await sendDirectMessage(
     player.discordId,
     `**Breach Protocol** — incoming ICE for **${character.name}**.\n` +
-      `Difficulty: **${difficulty}** · Time limit: **${timeLimitSeconds}s**.${rewardLine}\n` +
+      `Difficulty: **${difficulty}** · Time limit: **${timeLimitSeconds}s**.${contextLine}${rewardLine}\n` +
       `Jack in: ${link}`,
   );
   if (dm) {
