@@ -156,6 +156,35 @@ export default function BreachPractice() {
         </CardContent>
       </Card>
 
+      {session && (
+        <BreachBoard
+          key={session.nonce}
+          grid={session.puzzle.grid}
+          daemons={session.puzzle.daemons}
+          bufferSize={session.puzzle.bufferSize}
+          timeLimitSeconds={session.timeLimitSeconds}
+          startAt={session.startAt}
+          onFinish={handleFinish}
+          heading={
+            <>
+              <h2 className="text-2xl font-display font-bold text-foreground">PRACTICE RUN</h2>
+              {difficultyBadge(session.difficulty)}
+            </>
+          }
+          resultFooter={
+            outcome ? (
+              <Button
+                onClick={() => start(session.difficulty)}
+                className="rounded-none font-display bg-nc-magenta text-background hover:bg-nc-magenta/80"
+                data-testid="button-replay-practice"
+              >
+                <RefreshCw className="w-4 h-4 mr-1" /> PLAY AGAIN
+              </Button>
+            ) : null
+          }
+        />
+      )}
+
       <Card className="rounded-none border-border bg-card/50" data-testid="practice-stats">
         <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
           <CardTitle className="font-display tracking-widest text-nc-cyan text-sm flex items-center gap-2">
@@ -315,35 +344,6 @@ export default function BreachPractice() {
           )}
         </CardContent>
       </Card>
-
-      {session && (
-        <BreachBoard
-          key={session.nonce}
-          grid={session.puzzle.grid}
-          daemons={session.puzzle.daemons}
-          bufferSize={session.puzzle.bufferSize}
-          timeLimitSeconds={session.timeLimitSeconds}
-          startAt={session.startAt}
-          onFinish={handleFinish}
-          heading={
-            <>
-              <h2 className="text-2xl font-display font-bold text-foreground">PRACTICE RUN</h2>
-              {difficultyBadge(session.difficulty)}
-            </>
-          }
-          resultFooter={
-            outcome ? (
-              <Button
-                onClick={() => start(session.difficulty)}
-                className="rounded-none font-display bg-nc-magenta text-background hover:bg-nc-magenta/80"
-                data-testid="button-replay-practice"
-              >
-                <RefreshCw className="w-4 h-4 mr-1" /> PLAY AGAIN
-              </Button>
-            ) : null
-          }
-        />
-      )}
     </div>
   );
 }
