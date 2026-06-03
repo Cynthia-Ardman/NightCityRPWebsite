@@ -823,6 +823,10 @@ export interface Me {
   isStoreOwner: boolean;
   /** @nullable */
   activeCharacterId?: number | null;
+  /** Number of times this user has logged in via Discord. Drives the first-run onboarding banner. */
+  loginCount?: number;
+  /** True once the user has dismissed the onboarding banner; it then never re-appears. */
+  onboardingBannerDismissed?: boolean;
   /** Linked VRChat profile for this Discord user, or null if none registered. */
   vrchat?: VrchatLinkSummary | null;
 }
@@ -4721,6 +4725,10 @@ export interface AuditLogRow {
 export type DiscordCallbackParams = {
 code?: string;
 state?: string;
+};
+
+export type DismissOnboarding200 = {
+  ok: boolean;
 };
 
 export type UpdateCharacter409 = {

@@ -97,6 +97,7 @@ import type {
   DiceRollInput,
   DiceRollResult,
   DiscordCallbackParams,
+  DismissOnboarding200,
   EconomyOutOfSyncList,
   EconomyRetryResult,
   Employee,
@@ -553,6 +554,76 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getLogoutMutationOptions(options));
+    }
+
+export const getDismissOnboardingUrl = () => {
+
+
+
+
+  return `/api/auth/onboarding/dismiss`
+}
+
+/**
+ * @summary Dismiss the first-run onboarding banner for the current user
+ */
+export const dismissOnboarding = async ( options?: RequestInit): Promise<DismissOnboarding200> => {
+
+  return customFetch<DismissOnboarding200>(getDismissOnboardingUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getDismissOnboardingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissOnboarding>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dismissOnboarding>>, TError,void, TContext> => {
+
+const mutationKey = ['dismissOnboarding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dismissOnboarding>>, void> = () => {
+
+
+          return  dismissOnboarding(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DismissOnboardingMutationResult = NonNullable<Awaited<ReturnType<typeof dismissOnboarding>>>
+
+    export type DismissOnboardingMutationError = ErrorType<void>
+
+    /**
+ * @summary Dismiss the first-run onboarding banner for the current user
+ */
+export const useDismissOnboarding = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissOnboarding>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dismissOnboarding>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDismissOnboardingMutationOptions(options));
     }
 
 export const getGetMeUrl = () => {

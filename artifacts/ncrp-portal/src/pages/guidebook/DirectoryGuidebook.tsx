@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useListGuidebook, type GuidebookPage } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,6 +30,17 @@ export default function DirectoryGuidebook() {
     () => (data?.sections ?? []).reduce((n, s) => n + s.pages.length, 0),
     [data],
   );
+
+  // Deep-link support: when arriving at /guidebook#<section-key> (e.g. from the
+  // onboarding banner or the new-character help links), scroll the matching
+  // section into view once the content has loaded.
+  useEffect(() => {
+    if (isLoading) return;
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash) return;
+    const el = document.getElementById(`guidebook-section-${hash}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [isLoading, sections]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -82,7 +93,7 @@ export default function DirectoryGuidebook() {
       ) : (
         <div className="space-y-8">
           {sections.map((s) => (
-            <section key={s.key} data-testid={`section-guidebook-${s.key}`}>
+            <section key={s.key} id={`guidebook-section-${s.key}`} className="scroll-mt-20" data-testid={`section-guidebook-${s.key}`}>
               <div className="border-l-2 border-nc-cyan pl-4 mb-4">
                 <h2 className="font-display text-2xl tracking-widest text-foreground">{s.label.toUpperCase()}</h2>
                 {s.description && <p className="font-mono text-xs text-muted-foreground mt-1">{s.description}</p>}

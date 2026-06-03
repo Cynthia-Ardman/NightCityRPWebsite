@@ -1,8 +1,11 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu } from "lucide-react";
+import { useAuthMe } from "@/hooks/useAuthMe";
+import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -40,6 +43,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <TestEnvBanner />
         <TopBar />
         <ViewAsBanner />
+        <OnboardingBanner />
         <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
           {children}
         </main>
@@ -272,6 +276,75 @@ function TestEnvBanner() {
     >
       ⚠ TEST ENVIRONMENT — this is a sandbox copy of live data. Nothing you do
       here touches the real server, economy, or Discord.
+    </div>
+  );
+}
+
+// First-run onboarding banner. Shown to a newly-joined player for their first
+// few logins, pointing at the most important Guidebook sections. Disappears
+// automatically once the login count passes the threshold, or immediately when
+// the player dismisses it. Uses the REAL identity (useAuthMe), not the
+// admin "View as" override, since onboarding state is per real account.
+const ONBOARDING_LOGIN_THRESHOLD = 5;
+
+function OnboardingBanner() {
+  const qc = useQueryClient();
+  const { data: user } = useAuthMe();
+  const dismiss = useDismissOnboarding();
+
+  if (!user) return null;
+  const count = user.loginCount ?? 0;
+  if (user.onboardingBannerDismissed || count > ONBOARDING_LOGIN_THRESHOLD) return null;
+
+  function onDismiss() {
+    // Optimistically hide, then persist. Re-fetch /auth/me so the flag sticks.
+    qc.setQueryData(getGetMeQueryKey(), (prev: any) =>
+      prev ? { ...prev, onboardingBannerDismissed: true } : prev,
+    );
+    dismiss.mutate(undefined, {
+      onSettled: () => qc.invalidateQueries({ queryKey: getGetMeQueryKey() }),
+    });
+  }
+
+  return (
+    <div
+      className="w-full bg-nc-cyan/10 border-b border-nc-cyan/40 px-4 md:px-8 py-3"
+      data-testid="banner-onboarding"
+    >
+      <div className="flex items-start gap-3">
+        <BookMarked className="h-5 w-5 text-nc-cyan shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="font-display tracking-widest uppercase text-sm text-nc-cyan">
+            New to Night City?
+          </div>
+          <p className="font-mono text-xs text-muted-foreground mt-1">
+            Start with the Guidebook — here are the essentials:
+          </p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {ONBOARDING_BANNER_LINKS.map((l) => (
+              <Link
+                key={l.key}
+                href={guidebookSectionHref(l.key)}
+                className="border border-nc-cyan/50 bg-nc-cyan/5 px-3 py-1 font-mono text-xs text-nc-cyan hover:bg-nc-cyan/20 transition-colors"
+                data-testid={`link-onboarding-${l.key}`}
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onDismiss}
+          disabled={dismiss.isPending}
+          className="shrink-0 text-muted-foreground hover:text-nc-cyan h-7 w-7 rounded-none"
+          aria-label="Dismiss onboarding banner"
+          data-testid="button-onboarding-dismiss"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

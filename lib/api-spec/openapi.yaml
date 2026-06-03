@@ -65,6 +65,22 @@ paths:
       tags: [auth]
       responses:
         "204": { description: Logged out }
+  /auth/onboarding/dismiss:
+    post:
+      operationId: dismissOnboarding
+      tags: [auth]
+      summary: Dismiss the first-run onboarding banner for the current user
+      responses:
+        "200":
+          description: Banner dismissed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "401": { description: Not logged in }
   /auth/me:
     get:
       operationId: getMe
@@ -4922,6 +4938,12 @@ components:
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
         activeCharacterId: { type: ["integer", "null"] }
+        loginCount:
+          type: integer
+          description: "Number of times this user has logged in via Discord. Drives the first-run onboarding banner."
+        onboardingBannerDismissed:
+          type: boolean
+          description: "True once the user has dismissed the onboarding banner; it then never re-appears."
         vrchat:
           oneOf:
             - { $ref: "#/components/schemas/VrchatLinkSummary" }

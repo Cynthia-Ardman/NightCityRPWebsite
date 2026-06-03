@@ -58,6 +58,7 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
           tokenExpiresAt: expiresAt,
           rolesSyncedAt: new Date(),
           lastSeenAt: new Date(),
+          loginCount: sql`${users.loginCount} + 1`,
         })
         .where(eq(users.id, id));
     } else {
@@ -72,6 +73,7 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
         refreshToken: token.refresh_token,
         tokenExpiresAt: expiresAt,
         rolesSyncedAt: new Date(),
+        loginCount: 1,
       });
     }
     // Back-fill ownership for any imported characters whose legacy Discord
@@ -199,6 +201,27 @@ router.post("/auth/test-login", async (req, res): Promise<void> => {
   res.json({ ok: true, id: u.id });
 });
 
+// Dismiss the first-run onboarding banner for the current user. Idempotent —
+// once dismissed the banner never returns regardless of the login count.
+router.post("/auth/onboarding/dismiss", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  await db
+    .update(users)
+    .set({ onboardingBannerDismissed: true })
+    .where(eq(users.id, u.id));
+  void recordAudit({
+    req,
+    category: "auth",
+    action: "onboarding_dismiss",
+    actorId: u.id,
+    actorName: u.username,
+    targetType: "user",
+    targetId: u.id,
+    message: `${u.username} dismissed the onboarding banner`,
+  });
+  res.json({ ok: true });
+});
+
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   const u = req.user!;
   const [link] = await db
@@ -213,6 +236,8 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     avatarUrl: u.avatarUrl,
     roles: u.roles,
     activeCharacterId: u.activeCharacterId,
+    loginCount: u.loginCount,
+    onboardingBannerDismissed: u.onboardingBannerDismissed,
     isAdmin: hasRole(u.roles, "ADMIN"),
     isFixer: hasRole(u.roles, "FIXER"),
     isArchivist: hasRole(u.roles, "ARCHIVIST"),

@@ -26,6 +26,14 @@ export const DiscordCallbackQueryParams = zod.object({
 
 
 /**
+ * @summary Dismiss the first-run onboarding banner for the current user
+ */
+export const DismissOnboardingResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary Current session user
  */
 export const GetMeResponse = zod.object({
@@ -42,6 +50,8 @@ export const GetMeResponse = zod.object({
   "isRipperdoc": zod.boolean(),
   "isStoreOwner": zod.boolean(),
   "activeCharacterId": zod.number().nullish(),
+  "loginCount": zod.number().optional().describe('Number of times this user has logged in via Discord. Drives the first-run onboarding banner.'),
+  "onboardingBannerDismissed": zod.boolean().optional().describe('True once the user has dismissed the onboarding banner; it then never re-appears.'),
   "vrchat": zod.union([zod.object({
   "vrchatUserId": zod.string(),
   "vrchatUsername": zod.string(),

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useSubmitSheet,
@@ -19,8 +19,9 @@ import MarkdownEditor from "@/components/MarkdownEditor";
 import ImageEditor from "@/components/ImageEditor";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, BookMarked, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CHARACTER_CREATION_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
 
 interface CW {
   slot: string;
@@ -422,6 +423,34 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           )}
         </div>
       </div>
+
+      {/* Guidebook help: references a player building a character may need.
+          Links open the Guidebook in a new tab so the in-progress (auto-saved)
+          draft is never lost. */}
+      <Card className="rounded-none border-nc-cyan/40 bg-nc-cyan/5" data-testid="card-guidebook-help">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-display tracking-widest text-nc-cyan text-base flex items-center gap-2">
+            <BookMarked className="w-4 h-4" /> NEED HELP? CHECK THE GUIDEBOOK
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {CHARACTER_CREATION_LINKS.map((l) => (
+              <Link
+                key={l.key}
+                href={guidebookSectionHref(l.key)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 border border-nc-cyan/50 bg-background px-3 py-1.5 font-mono text-xs text-nc-cyan hover:bg-nc-cyan/15 transition-colors"
+                data-testid={`link-help-${l.key}`}
+              >
+                {l.label}
+                <ExternalLink className="w-3 h-3 opacity-70" />
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {initialSheet?.status === "changes_requested" && initialSheet && (
         <Card className="rounded-none border-nc-yellow bg-card/50">

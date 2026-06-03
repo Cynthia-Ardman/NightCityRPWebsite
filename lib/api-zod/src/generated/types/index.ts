@@ -139,6 +139,7 @@ export * from './deleteTagOption200';
 export * from './diceRollInput';
 export * from './diceRollResult';
 export * from './discordCallbackParams';
+export * from './dismissOnboarding200';
 export * from './economyOutOfSyncEntry';
 export * from './economyOutOfSyncList';
 export * from './economyOutOfSyncListMode';

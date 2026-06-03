@@ -30,6 +30,15 @@ export const users = pgTable(
     activeCharacterId: integer("active_character_id"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow(),
     rolesSyncedAt: timestamp("roles_synced_at", { withTimezone: true }),
+    // ---- Onboarding ----
+    // Incremented on every Discord OAuth login. Drives the first-run onboarding
+    // banner, which shows only while the count is within the first few logins.
+    loginCount: integer("login_count").notNull().default(0),
+    // Set when the user dismisses the onboarding banner early, so it never
+    // re-appears regardless of the login count.
+    onboardingBannerDismissed: boolean("onboarding_banner_dismissed")
+      .notNull()
+      .default(false),
     // ---- Economy: website-authoritative player wallet (synced to UnbelievaBoat) ----
     // The website's own balance for this player, in eddies. Every website-side
     // money change goes through the sync wrapper which updates this AND UB. UB
