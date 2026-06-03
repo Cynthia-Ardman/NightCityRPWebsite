@@ -23,6 +23,9 @@ import PendingEditDetail from "@/pages/pending-edits/PendingEditDetail";
 import PendingRequests from "@/pages/requests/PendingRequests";
 import MyRequests from "@/pages/MyRequests";
 import MyOffers from "@/pages/MyOffers";
+import BreachHub from "@/pages/breach/BreachHub";
+import BreachPlay from "@/pages/breach/BreachPlay";
+import MyBreaches from "@/pages/breach/MyBreaches";
 import Ledger from "@/pages/Ledger";
 import { Redirect } from "wouter";
 import DirectoryStores from "@/pages/directory/DirectoryStores";
@@ -107,6 +110,16 @@ function StaffRequestsGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Breach Control is the Fixer/Admin surface for generating and sending Breach
+// Protocol puzzles. The create/list endpoints are staff-gated server-side, but
+// guard the route too so a plain player typing the URL bounces home.
+function StaffBreachGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useAuthMe();
+  if (isLoading) return null;
+  if (!user || !(user.isFixer || user.isAdmin)) return <Redirect to="/" />;
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   const { isLoading } = useAuthMe();
 
@@ -140,6 +153,11 @@ function AppRoutes() {
           <Route path="/pending-edits/:id" component={PendingEditDetail} />
           <Route path="/requests/mine" component={MyRequests} />
           <Route path="/offers/mine" component={MyOffers} />
+          <Route path="/breach/mine" component={MyBreaches} />
+          <Route path="/breach/play/:id" component={BreachPlay} />
+          <Route path="/breach">
+            <StaffBreachGuard><BreachHub /></StaffBreachGuard>
+          </Route>
           <Route path="/requests">
             <StaffRequestsGuard><PendingRequests /></StaffRequestsGuard>
           </Route>

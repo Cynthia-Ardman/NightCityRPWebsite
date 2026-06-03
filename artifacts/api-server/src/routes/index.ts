@@ -19,6 +19,7 @@ import requestsRouter from "./requests";
 import offersRouter from "./offers";
 import loreRouter from "./lore";
 import reviewRouter from "./review";
+import breachRouter from "./breach";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(requestsRouter);
 router.use(offersRouter);
 router.use(loreRouter);
 router.use(reviewRouter);
+router.use(breachRouter);
 
 export default router;

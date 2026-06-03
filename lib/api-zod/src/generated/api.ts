@@ -7602,3 +7602,281 @@ export const ReopenReviewTicketParams = zod.object({
 export const ReopenReviewTicketResponse = zod.record(zod.string(), zod.unknown())
 
 
+/**
+ * @summary Staff log of every generated Breach Protocol puzzle (newest first).
+ */
+export const ListBreachPuzzlesQueryParams = zod.object({
+  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']).optional()
+})
+
+export const ListBreachPuzzlesResponseItem = zod.object({
+  "id": zod.number(),
+  "createdBy": zod.string(),
+  "createdByName": zod.string().nullish(),
+  "assignedUserId": zod.string(),
+  "assignedUserName": zod.string().nullish(),
+  "assignedCharacterId": zod.number().nullish(),
+  "assignedCharacterName": zod.string().nullish(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "timeLimitSeconds": zod.number(),
+  "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
+  "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
+  "bufferSize": zod.number(),
+  "solutionCount": zod.number(),
+  "rewardEddies": zod.number(),
+  "rewardItemName": zod.string().nullish(),
+  "rewardItemCategory": zod.string().nullish(),
+  "rewardNote": zod.string().nullish(),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "selection": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).nullish(),
+  "solvedCount": zod.number(),
+  "timeTakenSeconds": zod.number().nullish(),
+  "rewardPaidAt": zod.coerce.date().nullish(),
+  "dmSentAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListBreachPuzzlesResponse = zod.array(ListBreachPuzzlesResponseItem)
+
+
+/**
+ * @summary Generate a timed puzzle at a difficulty, assign it to a character's player, and DM a play link.
+ */
+export const createBreachPuzzleBodyTimeLimitSecondsMin = 10;
+export const createBreachPuzzleBodyTimeLimitSecondsMax = 600;
+
+export const createBreachPuzzleBodyRewardEddiesMin = 0;
+
+
+
+export const CreateBreachPuzzleBody = zod.object({
+  "assignedCharacterId": zod.number().describe('The character to send the puzzle to; its owning player receives the DM.'),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "timeLimitSeconds": zod.number().min(createBreachPuzzleBodyTimeLimitSecondsMin).max(createBreachPuzzleBodyTimeLimitSecondsMax),
+  "rewardEddies": zod.number().min(createBreachPuzzleBodyRewardEddiesMin).optional().describe('Eddies paid to the player on success. Defaults to 0.'),
+  "rewardItemName": zod.string().nullish(),
+  "rewardItemCategory": zod.string().nullish(),
+  "rewardNote": zod.string().nullish()
+})
+
+
+/**
+ * @summary The caller's own Breach Protocol puzzles (assigned to them), newest first.
+ */
+export const ListMyBreachPuzzlesResponseItem = zod.object({
+  "id": zod.number(),
+  "createdBy": zod.string(),
+  "createdByName": zod.string().nullish(),
+  "assignedUserId": zod.string(),
+  "assignedUserName": zod.string().nullish(),
+  "assignedCharacterId": zod.number().nullish(),
+  "assignedCharacterName": zod.string().nullish(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "timeLimitSeconds": zod.number(),
+  "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
+  "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
+  "bufferSize": zod.number(),
+  "solutionCount": zod.number(),
+  "rewardEddies": zod.number(),
+  "rewardItemName": zod.string().nullish(),
+  "rewardItemCategory": zod.string().nullish(),
+  "rewardNote": zod.string().nullish(),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "selection": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).nullish(),
+  "solvedCount": zod.number(),
+  "timeTakenSeconds": zod.number().nullish(),
+  "rewardPaidAt": zod.coerce.date().nullish(),
+  "dmSentAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyBreachPuzzlesResponse = zod.array(ListMyBreachPuzzlesResponseItem)
+
+
+/**
+ * @summary A single puzzle (the assigned player or staff).
+ */
+export const GetBreachPuzzleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBreachPuzzleResponse = zod.object({
+  "id": zod.number(),
+  "createdBy": zod.string(),
+  "createdByName": zod.string().nullish(),
+  "assignedUserId": zod.string(),
+  "assignedUserName": zod.string().nullish(),
+  "assignedCharacterId": zod.number().nullish(),
+  "assignedCharacterName": zod.string().nullish(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "timeLimitSeconds": zod.number(),
+  "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
+  "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
+  "bufferSize": zod.number(),
+  "solutionCount": zod.number(),
+  "rewardEddies": zod.number(),
+  "rewardItemName": zod.string().nullish(),
+  "rewardItemCategory": zod.string().nullish(),
+  "rewardNote": zod.string().nullish(),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "selection": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).nullish(),
+  "solvedCount": zod.number(),
+  "timeTakenSeconds": zod.number().nullish(),
+  "rewardPaidAt": zod.coerce.date().nullish(),
+  "dmSentAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Start the server-authoritative timer for this puzzle (assigned player; idempotent).
+ */
+export const StartBreachPuzzleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const StartBreachPuzzleResponse = zod.object({
+  "id": zod.number(),
+  "createdBy": zod.string(),
+  "createdByName": zod.string().nullish(),
+  "assignedUserId": zod.string(),
+  "assignedUserName": zod.string().nullish(),
+  "assignedCharacterId": zod.number().nullish(),
+  "assignedCharacterName": zod.string().nullish(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "timeLimitSeconds": zod.number(),
+  "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
+  "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
+  "bufferSize": zod.number(),
+  "solutionCount": zod.number(),
+  "rewardEddies": zod.number(),
+  "rewardItemName": zod.string().nullish(),
+  "rewardItemCategory": zod.string().nullish(),
+  "rewardNote": zod.string().nullish(),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "selection": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).nullish(),
+  "solvedCount": zod.number(),
+  "timeTakenSeconds": zod.number().nullish(),
+  "rewardPaidAt": zod.coerce.date().nullish(),
+  "dmSentAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Authoritative scoring. Invalid or losing paths are recorded as a failed attempt (still 200). Resubmitting a completed puzzle returns the recorded outcome idempotently with rewardPaid=false (no double pay).
+ * @summary Submit the final selected path; server scores it, pays any reward once, and notifies staff.
+ */
+export const SubmitBreachResultParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitBreachResultBody = zod.object({
+  "selection": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).describe('The player\'s final selected path through the matrix.')
+})
+
+export const SubmitBreachResultResponse = zod.object({
+  "puzzle": zod.object({
+  "id": zod.number(),
+  "createdBy": zod.string(),
+  "createdByName": zod.string().nullish(),
+  "assignedUserId": zod.string(),
+  "assignedUserName": zod.string().nullish(),
+  "assignedCharacterId": zod.number().nullish(),
+  "assignedCharacterName": zod.string().nullish(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "timeLimitSeconds": zod.number(),
+  "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
+  "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
+  "bufferSize": zod.number(),
+  "solutionCount": zod.number(),
+  "rewardEddies": zod.number(),
+  "rewardItemName": zod.string().nullish(),
+  "rewardItemCategory": zod.string().nullish(),
+  "rewardNote": zod.string().nullish(),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "selection": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).nullish(),
+  "solvedCount": zod.number(),
+  "timeTakenSeconds": zod.number().nullish(),
+  "rewardPaidAt": zod.coerce.date().nullish(),
+  "dmSentAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),
+  "success": zod.boolean().describe('True when every daemon was breached within the buffer.'),
+  "valid": zod.boolean().describe('True when the submitted path obeys the alternating row\/column rules.'),
+  "solvedCount": zod.number(),
+  "totalDaemons": zod.number(),
+  "rewardPaid": zod.boolean().describe('True if a reward was paid out by this call (false on idempotent retry or no reward).'),
+  "rewardEddies": zod.number().optional(),
+  "rewardItemName": zod.string().nullish(),
+  "message": zod.string().nullish()
+})
+
+
+/**
+ * @summary Breach Protocol history for a single character (owner or staff), newest first.
+ */
+export const ListCharacterBreachPuzzlesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListCharacterBreachPuzzlesResponseItem = zod.object({
+  "id": zod.number(),
+  "createdBy": zod.string(),
+  "createdByName": zod.string().nullish(),
+  "assignedUserId": zod.string(),
+  "assignedUserName": zod.string().nullish(),
+  "assignedCharacterId": zod.number().nullish(),
+  "assignedCharacterName": zod.string().nullish(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "timeLimitSeconds": zod.number(),
+  "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
+  "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
+  "bufferSize": zod.number(),
+  "solutionCount": zod.number(),
+  "rewardEddies": zod.number(),
+  "rewardItemName": zod.string().nullish(),
+  "rewardItemCategory": zod.string().nullish(),
+  "rewardNote": zod.string().nullish(),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "selection": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).nullish(),
+  "solvedCount": zod.number(),
+  "timeTakenSeconds": zod.number().nullish(),
+  "rewardPaidAt": zod.coerce.date().nullish(),
+  "dmSentAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCharacterBreachPuzzlesResponse = zod.array(ListCharacterBreachPuzzlesResponseItem)
+
+

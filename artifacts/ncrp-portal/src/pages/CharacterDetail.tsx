@@ -16,6 +16,7 @@ import {
   useGetCharacterPendingEdit,
   getGetCharacterQueryKey,
   useListMyMissions,
+  useListCharacterBreachPuzzles,
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -145,6 +146,9 @@ export default function CharacterDetail() {
           <TabsTrigger value="missions" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-missions">
             <Briefcase className="w-4 h-4 mr-2 hidden sm:inline" /> Missions
           </TabsTrigger>
+          <TabsTrigger value="breach" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-breach">
+            <Cpu className="w-4 h-4 mr-2 hidden sm:inline" /> Breach
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-8">
@@ -170,9 +174,82 @@ export default function CharacterDetail() {
           <TabsContent value="missions" className="outline-none focus:ring-0">
             <MissionsTab characterId={char.id} />
           </TabsContent>
+
+          <TabsContent value="breach" className="outline-none focus:ring-0">
+            <BreachTab characterId={char.id} />
+          </TabsContent>
         </div>
       </Tabs>
     </div>
+  );
+}
+
+function BreachTab({ characterId }: { characterId: number }) {
+  const { data, isLoading } = useListCharacterBreachPuzzles(characterId);
+  const rows = data ?? [];
+
+  const statusClass: Record<string, string> = {
+    success: "text-nc-green",
+    failed: "text-destructive",
+    expired: "text-muted-foreground",
+    in_progress: "text-nc-yellow",
+    sent: "text-nc-cyan",
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="rounded-none border-border bg-card/50">
+        <CardContent className="py-8 font-mono text-muted-foreground text-center animate-pulse">Loading...</CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-cyan flex items-center gap-2">
+          <Cpu className="w-5 h-5" /> BREACH HISTORY
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <div className="py-6 font-mono text-muted-foreground italic text-center">No breach protocols assigned to this character.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="font-mono text-xs uppercase tracking-widest text-muted-foreground border-b border-border/40">
+                  <th className="text-left py-2 pr-4">#</th>
+                  <th className="text-left py-2 pr-4">Difficulty</th>
+                  <th className="text-left py-2 pr-4">Status</th>
+                  <th className="text-left py-2 pr-4">Daemons</th>
+                  <th className="text-left py-2 pr-4">Reward</th>
+                  <th className="text-left py-2 pr-4">When</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {rows.map((p) => (
+                  <tr key={p.id} className="border-b border-border/20" data-testid={`char-breach-${p.id}`}>
+                    <td className="py-2 pr-4 text-muted-foreground">{p.id}</td>
+                    <td className="py-2 pr-4 uppercase">{p.difficulty}</td>
+                    <td className={`py-2 pr-4 uppercase ${statusClass[p.status] ?? "text-foreground"}`}>{p.status.replace("_", " ")}</td>
+                    <td className="py-2 pr-4 text-muted-foreground">{p.solvedCount}/{p.daemons.length}</td>
+                    <td className="py-2 pr-4 text-nc-yellow">
+                      {p.rewardPaidAt
+                        ? [p.rewardEddies > 0 ? `€$${p.rewardEddies.toLocaleString()}` : null, p.rewardItemName].filter(Boolean).join(" + ") || "—"
+                        : "—"}
+                    </td>
+                    <td className="py-2 pr-4 text-xs text-muted-foreground">
+                      {new Date(p.completedAt ?? p.createdAt).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

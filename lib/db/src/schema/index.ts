@@ -1452,3 +1452,63 @@ export const loreImportDrafts = pgTable("lore_import_drafts", {
     .where(sql`status = 'pending'`),
 }));
 export type LoreImportDraft = typeof loreImportDrafts.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// BREACH PROTOCOL (hacking minigame)
+// ---------------------------------------------------------------------------
+// A Fixer/Admin generates a timed Breach Protocol puzzle at a chosen difficulty
+// and assigns it to a single player+character. The puzzle definition, its
+// assignment, and the player's one-shot attempt all live in this single row:
+// the puzzle is generated for exactly one assignee and is solved at most once.
+// On a successful solve the row carries an optional reward (eddies and/or a
+// single item) that is paid out exactly once (rewardPaidAt guards idempotency).
+export const breachPuzzles = pgTable("breach_puzzles", {
+  id: serial("id").primaryKey(),
+  // Staff member (fixer/admin) who generated + sent the puzzle.
+  createdBy: text("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // The player the puzzle was sent to (the only account allowed to play/submit).
+  assignedUserId: text("assigned_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // The character context (for per-character history). Nullable so the row
+  // survives a character deletion; the player history still works via user id.
+  assignedCharacterId: integer("assigned_character_id").references(() => characters.id, { onDelete: "set null" }),
+  // Display snapshot so history survives renames / deletions.
+  assignedCharacterName: text("assigned_character_name"),
+  // "easy" | "medium" | "hard" | "impossible".
+  difficulty: text("difficulty").notNull(),
+  timeLimitSeconds: integer("time_limit_seconds").notNull(),
+  // The generated code matrix (string[][] of hex bytes) and daemon sequences
+  // (string[][]). The "answer" is embedded in the grid itself — there is no
+  // separate solution to hide, the challenge is finding a legal path.
+  grid: jsonb("grid").notNull(),
+  daemons: jsonb("daemons").notNull(),
+  bufferSize: integer("buffer_size").notNull(),
+  // Number of distinct legal solutions (0 => impossible by design).
+  solutionCount: integer("solution_count").notNull(),
+  // Optional reward paid on success.
+  rewardEddies: integer("reward_eddies").notNull().default(0),
+  rewardItemName: text("reward_item_name"),
+  rewardItemCategory: text("reward_item_category"),
+  rewardNote: text("reward_note"),
+  // Lifecycle: "sent" | "in_progress" | "success" | "failed" | "expired".
+  status: text("status").notNull().default("sent"),
+  // Server-authoritative timer anchor (set on the first start call).
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  // The player's final selected path (Pos[]) and how many daemons it breached.
+  selection: jsonb("selection"),
+  solvedCount: integer("solved_count").notNull().default(0),
+  timeTakenSeconds: integer("time_taken_seconds"),
+  // Idempotency guard + linkage for the reward payout.
+  rewardPaidAt: timestamp("reward_paid_at", { withTimezone: true }),
+  rewardLedgerId: integer("reward_ledger_id"),
+  rewardItemId: integer("reward_item_id"),
+  // When the assignment DM was successfully delivered (null => DM failed/pending).
+  dmSentAt: timestamp("dm_sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  assignedUserIdx: index("breach_puzzles_assigned_user_idx").on(t.assignedUserId),
+  assignedCharIdx: index("breach_puzzles_assigned_char_idx").on(t.assignedCharacterId),
+  statusIdx: index("breach_puzzles_status_idx").on(t.status),
+  createdByIdx: index("breach_puzzles_created_by_idx").on(t.createdBy),
+}));
+export type BreachPuzzle = typeof breachPuzzles.$inferSelect;

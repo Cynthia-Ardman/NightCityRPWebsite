@@ -5,6 +5,132 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+export interface BreachPos {
+  /** Row index in the code matrix (0-based). */
+  r: number;
+  /** Column index in the code matrix (0-based). */
+  c: number;
+}
+
+export type BreachPuzzleDifficulty = typeof BreachPuzzleDifficulty[keyof typeof BreachPuzzleDifficulty];
+
+
+export const BreachPuzzleDifficulty = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+  impossible: 'impossible',
+} as const;
+
+export type BreachPuzzleStatus = typeof BreachPuzzleStatus[keyof typeof BreachPuzzleStatus];
+
+
+export const BreachPuzzleStatus = {
+  sent: 'sent',
+  in_progress: 'in_progress',
+  success: 'success',
+  failed: 'failed',
+  expired: 'expired',
+} as const;
+
+export interface BreachPuzzle {
+  id: number;
+  createdBy: string;
+  /** @nullable */
+  createdByName?: string | null;
+  assignedUserId: string;
+  /** @nullable */
+  assignedUserName?: string | null;
+  /** @nullable */
+  assignedCharacterId?: number | null;
+  /** @nullable */
+  assignedCharacterName?: string | null;
+  difficulty: BreachPuzzleDifficulty;
+  timeLimitSeconds: number;
+  /** The code matrix as rows of hex byte strings. */
+  grid: string[][];
+  /** Each daemon is a sequence of hex byte strings to breach. */
+  daemons: string[][];
+  bufferSize: number;
+  solutionCount: number;
+  rewardEddies: number;
+  /** @nullable */
+  rewardItemName?: string | null;
+  /** @nullable */
+  rewardItemCategory?: string | null;
+  /** @nullable */
+  rewardNote?: string | null;
+  status: BreachPuzzleStatus;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  selection?: BreachPos[] | null;
+  solvedCount: number;
+  /** @nullable */
+  timeTakenSeconds?: number | null;
+  /** @nullable */
+  rewardPaidAt?: string | null;
+  /** @nullable */
+  dmSentAt?: string | null;
+  createdAt: string;
+}
+
+export type BreachPuzzleInputDifficulty = typeof BreachPuzzleInputDifficulty[keyof typeof BreachPuzzleInputDifficulty];
+
+
+export const BreachPuzzleInputDifficulty = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+  impossible: 'impossible',
+} as const;
+
+export interface BreachPuzzleInput {
+  /** The character to send the puzzle to; its owning player receives the DM. */
+  assignedCharacterId: number;
+  difficulty: BreachPuzzleInputDifficulty;
+  /**
+     * @minimum 10
+     * @maximum 600
+     */
+  timeLimitSeconds: number;
+  /**
+     * Eddies paid to the player on success. Defaults to 0.
+     * @minimum 0
+     */
+  rewardEddies?: number;
+  /** @nullable */
+  rewardItemName?: string | null;
+  /** @nullable */
+  rewardItemCategory?: string | null;
+  /** @nullable */
+  rewardNote?: string | null;
+}
+
+export interface BreachResultInput {
+  /** The player's final selected path through the matrix. */
+  selection: BreachPos[];
+}
+
+export interface BreachResult {
+  puzzle: BreachPuzzle;
+  /** True when every daemon was breached within the buffer. */
+  success: boolean;
+  /** True when the submitted path obeys the alternating row/column rules. */
+  valid: boolean;
+  solvedCount: number;
+  totalDaemons: number;
+  /** True if a reward was paid out by this call (false on idempotent retry or no reward). */
+  rewardPaid: boolean;
+  rewardEddies?: number;
+  /** @nullable */
+  rewardItemName?: string | null;
+  /** @nullable */
+  message?: string | null;
+}
+
 export type ReviewCommentSubjectType = typeof ReviewCommentSubjectType[keyof typeof ReviewCommentSubjectType];
 
 
@@ -4626,4 +4752,19 @@ export type MarkReviewSeen200 = {
 export type CloseReviewTicket200 = { [key: string]: unknown };
 
 export type ReopenReviewTicket200 = { [key: string]: unknown };
+
+export type ListBreachPuzzlesParams = {
+status?: ListBreachPuzzlesStatus;
+};
+
+export type ListBreachPuzzlesStatus = typeof ListBreachPuzzlesStatus[keyof typeof ListBreachPuzzlesStatus];
+
+
+export const ListBreachPuzzlesStatus = {
+  sent: 'sent',
+  in_progress: 'in_progress',
+  success: 'success',
+  failed: 'failed',
+  expired: 'expired',
+} as const;
 

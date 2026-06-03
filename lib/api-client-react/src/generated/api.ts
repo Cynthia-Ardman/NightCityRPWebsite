@@ -42,6 +42,10 @@ import type {
   AuditLogRow,
   BotConfigEntry,
   BotConfigUpdate,
+  BreachPuzzle,
+  BreachPuzzleInput,
+  BreachResult,
+  BreachResultInput,
   CancelPendingEdit200,
   CatalogCyberware,
   CatalogCyberwareInput,
@@ -120,6 +124,7 @@ import type {
   LifestyleTierPatch,
   ListArchiveCharactersParams,
   ListArchiveUsersParams,
+  ListBreachPuzzlesParams,
   ListCustomRequestsParams,
   ListHousingRequestsParams,
   ListLoreEditsParams,
@@ -17372,4 +17377,533 @@ export const useReopenReviewTicket = <TError = ErrorType<void>,
       > => {
       return useMutation(getReopenReviewTicketMutationOptions(options));
     }
+
+export const getListBreachPuzzlesUrl = (params?: ListBreachPuzzlesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/breach/puzzles?${stringifiedParams}` : `/api/breach/puzzles`
+}
+
+/**
+ * @summary Staff log of every generated Breach Protocol puzzle (newest first).
+ */
+export const listBreachPuzzles = async (params?: ListBreachPuzzlesParams, options?: RequestInit): Promise<BreachPuzzle[]> => {
+
+  return customFetch<BreachPuzzle[]>(getListBreachPuzzlesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBreachPuzzlesQueryKey = (params?: ListBreachPuzzlesParams,) => {
+    return [
+    `/api/breach/puzzles`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBreachPuzzlesQueryOptions = <TData = Awaited<ReturnType<typeof listBreachPuzzles>>, TError = ErrorType<void>>(params?: ListBreachPuzzlesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBreachPuzzles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBreachPuzzlesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBreachPuzzles>>> = ({ signal }) => listBreachPuzzles(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBreachPuzzles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBreachPuzzlesQueryResult = NonNullable<Awaited<ReturnType<typeof listBreachPuzzles>>>
+export type ListBreachPuzzlesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Staff log of every generated Breach Protocol puzzle (newest first).
+ */
+
+export function useListBreachPuzzles<TData = Awaited<ReturnType<typeof listBreachPuzzles>>, TError = ErrorType<void>>(
+ params?: ListBreachPuzzlesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBreachPuzzles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBreachPuzzlesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateBreachPuzzleUrl = () => {
+
+
+
+
+  return `/api/breach/puzzles`
+}
+
+/**
+ * @summary Generate a timed puzzle at a difficulty, assign it to a character's player, and DM a play link.
+ */
+export const createBreachPuzzle = async (breachPuzzleInput: BreachPuzzleInput, options?: RequestInit): Promise<BreachPuzzle> => {
+
+  return customFetch<BreachPuzzle>(getCreateBreachPuzzleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      breachPuzzleInput,)
+  }
+);}
+
+
+
+
+export const getCreateBreachPuzzleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBreachPuzzle>>, TError,{data: BodyType<BreachPuzzleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBreachPuzzle>>, TError,{data: BodyType<BreachPuzzleInput>}, TContext> => {
+
+const mutationKey = ['createBreachPuzzle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBreachPuzzle>>, {data: BodyType<BreachPuzzleInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBreachPuzzle(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBreachPuzzleMutationResult = NonNullable<Awaited<ReturnType<typeof createBreachPuzzle>>>
+    export type CreateBreachPuzzleMutationBody = BodyType<BreachPuzzleInput>
+    export type CreateBreachPuzzleMutationError = ErrorType<void>
+
+    /**
+ * @summary Generate a timed puzzle at a difficulty, assign it to a character's player, and DM a play link.
+ */
+export const useCreateBreachPuzzle = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBreachPuzzle>>, TError,{data: BodyType<BreachPuzzleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBreachPuzzle>>,
+        TError,
+        {data: BodyType<BreachPuzzleInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBreachPuzzleMutationOptions(options));
+    }
+
+export const getListMyBreachPuzzlesUrl = () => {
+
+
+
+
+  return `/api/breach/mine`
+}
+
+/**
+ * @summary The caller's own Breach Protocol puzzles (assigned to them), newest first.
+ */
+export const listMyBreachPuzzles = async ( options?: RequestInit): Promise<BreachPuzzle[]> => {
+
+  return customFetch<BreachPuzzle[]>(getListMyBreachPuzzlesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyBreachPuzzlesQueryKey = () => {
+    return [
+    `/api/breach/mine`
+    ] as const;
+    }
+
+
+export const getListMyBreachPuzzlesQueryOptions = <TData = Awaited<ReturnType<typeof listMyBreachPuzzles>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyBreachPuzzles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyBreachPuzzlesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyBreachPuzzles>>> = ({ signal }) => listMyBreachPuzzles({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyBreachPuzzles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyBreachPuzzlesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyBreachPuzzles>>>
+export type ListMyBreachPuzzlesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The caller's own Breach Protocol puzzles (assigned to them), newest first.
+ */
+
+export function useListMyBreachPuzzles<TData = Awaited<ReturnType<typeof listMyBreachPuzzles>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyBreachPuzzles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyBreachPuzzlesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetBreachPuzzleUrl = (id: number,) => {
+
+
+
+
+  return `/api/breach/puzzles/${id}`
+}
+
+/**
+ * @summary A single puzzle (the assigned player or staff).
+ */
+export const getBreachPuzzle = async (id: number, options?: RequestInit): Promise<BreachPuzzle> => {
+
+  return customFetch<BreachPuzzle>(getGetBreachPuzzleUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBreachPuzzleQueryKey = (id: number,) => {
+    return [
+    `/api/breach/puzzles/${id}`
+    ] as const;
+    }
+
+
+export const getGetBreachPuzzleQueryOptions = <TData = Awaited<ReturnType<typeof getBreachPuzzle>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPuzzle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBreachPuzzleQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBreachPuzzle>>> = ({ signal }) => getBreachPuzzle(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBreachPuzzle>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBreachPuzzleQueryResult = NonNullable<Awaited<ReturnType<typeof getBreachPuzzle>>>
+export type GetBreachPuzzleQueryError = ErrorType<void>
+
+
+/**
+ * @summary A single puzzle (the assigned player or staff).
+ */
+
+export function useGetBreachPuzzle<TData = Awaited<ReturnType<typeof getBreachPuzzle>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPuzzle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBreachPuzzleQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getStartBreachPuzzleUrl = (id: number,) => {
+
+
+
+
+  return `/api/breach/puzzles/${id}/start`
+}
+
+/**
+ * @summary Start the server-authoritative timer for this puzzle (assigned player; idempotent).
+ */
+export const startBreachPuzzle = async (id: number, options?: RequestInit): Promise<BreachPuzzle> => {
+
+  return customFetch<BreachPuzzle>(getStartBreachPuzzleUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getStartBreachPuzzleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startBreachPuzzle>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startBreachPuzzle>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['startBreachPuzzle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startBreachPuzzle>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  startBreachPuzzle(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartBreachPuzzleMutationResult = NonNullable<Awaited<ReturnType<typeof startBreachPuzzle>>>
+
+    export type StartBreachPuzzleMutationError = ErrorType<void>
+
+    /**
+ * @summary Start the server-authoritative timer for this puzzle (assigned player; idempotent).
+ */
+export const useStartBreachPuzzle = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startBreachPuzzle>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startBreachPuzzle>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getStartBreachPuzzleMutationOptions(options));
+    }
+
+export const getSubmitBreachResultUrl = (id: number,) => {
+
+
+
+
+  return `/api/breach/puzzles/${id}/result`
+}
+
+/**
+ * Authoritative scoring. Invalid or losing paths are recorded as a failed attempt (still 200). Resubmitting a completed puzzle returns the recorded outcome idempotently with rewardPaid=false (no double pay).
+ * @summary Submit the final selected path; server scores it, pays any reward once, and notifies staff.
+ */
+export const submitBreachResult = async (id: number,
+    breachResultInput: BreachResultInput, options?: RequestInit): Promise<BreachResult> => {
+
+  return customFetch<BreachResult>(getSubmitBreachResultUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      breachResultInput,)
+  }
+);}
+
+
+
+
+export const getSubmitBreachResultMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitBreachResult>>, TError,{id: number;data: BodyType<BreachResultInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitBreachResult>>, TError,{id: number;data: BodyType<BreachResultInput>}, TContext> => {
+
+const mutationKey = ['submitBreachResult'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitBreachResult>>, {id: number;data: BodyType<BreachResultInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  submitBreachResult(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitBreachResultMutationResult = NonNullable<Awaited<ReturnType<typeof submitBreachResult>>>
+    export type SubmitBreachResultMutationBody = BodyType<BreachResultInput>
+    export type SubmitBreachResultMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit the final selected path; server scores it, pays any reward once, and notifies staff.
+ */
+export const useSubmitBreachResult = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitBreachResult>>, TError,{id: number;data: BodyType<BreachResultInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitBreachResult>>,
+        TError,
+        {id: number;data: BodyType<BreachResultInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitBreachResultMutationOptions(options));
+    }
+
+export const getListCharacterBreachPuzzlesUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/breach`
+}
+
+/**
+ * @summary Breach Protocol history for a single character (owner or staff), newest first.
+ */
+export const listCharacterBreachPuzzles = async (id: number, options?: RequestInit): Promise<BreachPuzzle[]> => {
+
+  return customFetch<BreachPuzzle[]>(getListCharacterBreachPuzzlesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCharacterBreachPuzzlesQueryKey = (id: number,) => {
+    return [
+    `/api/characters/${id}/breach`
+    ] as const;
+    }
+
+
+export const getListCharacterBreachPuzzlesQueryOptions = <TData = Awaited<ReturnType<typeof listCharacterBreachPuzzles>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCharacterBreachPuzzles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCharacterBreachPuzzlesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCharacterBreachPuzzles>>> = ({ signal }) => listCharacterBreachPuzzles(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCharacterBreachPuzzles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCharacterBreachPuzzlesQueryResult = NonNullable<Awaited<ReturnType<typeof listCharacterBreachPuzzles>>>
+export type ListCharacterBreachPuzzlesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Breach Protocol history for a single character (owner or staff), newest first.
+ */
+
+export function useListCharacterBreachPuzzles<TData = Awaited<ReturnType<typeof listCharacterBreachPuzzles>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCharacterBreachPuzzles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCharacterBreachPuzzlesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 

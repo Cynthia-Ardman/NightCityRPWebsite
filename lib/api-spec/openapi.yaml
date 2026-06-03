@@ -3823,9 +3823,209 @@ paths:
         "403": { description: Reviewers only }
         "404": { description: Not found }
         "409": { description: Ticket cannot be reopened (wrong state or effect already applied) }
+  # ---------------- BREACH PROTOCOL (hacking minigame) ----------------
+  /breach/puzzles:
+    get:
+      operationId: listBreachPuzzles
+      tags: [breach]
+      summary: Staff log of every generated Breach Protocol puzzle (newest first).
+      parameters:
+        - { in: query, name: status, schema: { type: string, enum: [sent, in_progress, success, failed, expired] } }
+      responses:
+        "200":
+          description: Puzzles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BreachPuzzle" }
+        "403": { description: Requires FIXER or ADMIN role }
+    post:
+      operationId: createBreachPuzzle
+      tags: [breach]
+      summary: Generate a timed puzzle at a difficulty, assign it to a character's player, and DM a play link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BreachPuzzleInput" }
+      responses:
+        "201":
+          description: Created and sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPuzzle" }
+        "400": { description: Invalid input (e.g. character has no linked player) }
+        "403": { description: Requires FIXER or ADMIN role }
+        "404": { description: Character not found }
+  /breach/mine:
+    get:
+      operationId: listMyBreachPuzzles
+      tags: [breach]
+      summary: The caller's own Breach Protocol puzzles (assigned to them), newest first.
+      responses:
+        "200":
+          description: Puzzles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BreachPuzzle" }
+  /breach/puzzles/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getBreachPuzzle
+      tags: [breach]
+      summary: A single puzzle (the assigned player or staff).
+      responses:
+        "200":
+          description: Puzzle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPuzzle" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+  /breach/puzzles/{id}/start:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: startBreachPuzzle
+      tags: [breach]
+      summary: Start the server-authoritative timer for this puzzle (assigned player; idempotent).
+      responses:
+        "200":
+          description: Started (returns the puzzle with startedAt set)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPuzzle" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+        "409": { description: Puzzle already completed }
+  /breach/puzzles/{id}/result:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: submitBreachResult
+      tags: [breach]
+      summary: Submit the final selected path; server scores it, pays any reward once, and notifies staff.
+      description: >-
+        Authoritative scoring. Invalid or losing paths are recorded as a failed
+        attempt (still 200). Resubmitting a completed puzzle returns the recorded
+        outcome idempotently with rewardPaid=false (no double pay).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BreachResultInput" }
+      responses:
+        "200":
+          description: Scored, or idempotent replay of an already-completed puzzle.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachResult" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+  /characters/{id}/breach:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listCharacterBreachPuzzles
+      tags: [breach]
+      summary: Breach Protocol history for a single character (owner or staff), newest first.
+      responses:
+        "200":
+          description: Puzzles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BreachPuzzle" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
 
 components:
   schemas:
+    BreachPos:
+      type: object
+      required: [r, c]
+      properties:
+        r: { type: integer, description: "Row index in the code matrix (0-based)." }
+        c: { type: integer, description: "Column index in the code matrix (0-based)." }
+    BreachPuzzle:
+      type: object
+      required: [id, createdBy, assignedUserId, difficulty, timeLimitSeconds, grid, daemons, bufferSize, solutionCount, rewardEddies, status, solvedCount, createdAt]
+      properties:
+        id: { type: integer }
+        createdBy: { type: string }
+        createdByName: { type: ["string", "null"] }
+        assignedUserId: { type: string }
+        assignedUserName: { type: ["string", "null"] }
+        assignedCharacterId: { type: ["integer", "null"] }
+        assignedCharacterName: { type: ["string", "null"] }
+        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        timeLimitSeconds: { type: integer }
+        grid:
+          type: array
+          description: "The code matrix as rows of hex byte strings."
+          items:
+            type: array
+            items: { type: string }
+        daemons:
+          type: array
+          description: "Each daemon is a sequence of hex byte strings to breach."
+          items:
+            type: array
+            items: { type: string }
+        bufferSize: { type: integer }
+        solutionCount: { type: integer }
+        rewardEddies: { type: integer }
+        rewardItemName: { type: ["string", "null"] }
+        rewardItemCategory: { type: ["string", "null"] }
+        rewardNote: { type: ["string", "null"] }
+        status: { type: string, enum: [sent, in_progress, success, failed, expired] }
+        startedAt: { type: ["string", "null"], format: date-time }
+        completedAt: { type: ["string", "null"], format: date-time }
+        selection:
+          type: ["array", "null"]
+          items: { $ref: "#/components/schemas/BreachPos" }
+        solvedCount: { type: integer }
+        timeTakenSeconds: { type: ["integer", "null"] }
+        rewardPaidAt: { type: ["string", "null"], format: date-time }
+        dmSentAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+    BreachPuzzleInput:
+      type: object
+      required: [assignedCharacterId, difficulty, timeLimitSeconds]
+      properties:
+        assignedCharacterId: { type: integer, description: "The character to send the puzzle to; its owning player receives the DM." }
+        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        timeLimitSeconds: { type: integer, minimum: 10, maximum: 600 }
+        rewardEddies: { type: integer, minimum: 0, description: "Eddies paid to the player on success. Defaults to 0." }
+        rewardItemName: { type: ["string", "null"] }
+        rewardItemCategory: { type: ["string", "null"] }
+        rewardNote: { type: ["string", "null"] }
+    BreachResultInput:
+      type: object
+      required: [selection]
+      properties:
+        selection:
+          type: array
+          description: "The player's final selected path through the matrix."
+          items: { $ref: "#/components/schemas/BreachPos" }
+    BreachResult:
+      type: object
+      required: [puzzle, success, solvedCount, totalDaemons, valid, rewardPaid]
+      properties:
+        puzzle: { $ref: "#/components/schemas/BreachPuzzle" }
+        success: { type: boolean, description: "True when every daemon was breached within the buffer." }
+        valid: { type: boolean, description: "True when the submitted path obeys the alternating row/column rules." }
+        solvedCount: { type: integer }
+        totalDaemons: { type: integer }
+        rewardPaid: { type: boolean, description: "True if a reward was paid out by this call (false on idempotent retry or no reward)." }
+        rewardEddies: { type: integer }
+        rewardItemName: { type: ["string", "null"] }
+        message: { type: ["string", "null"] }
     ReviewComment:
       type: object
       required: [id, subjectType, subjectId, authorId, body, createdAt]
