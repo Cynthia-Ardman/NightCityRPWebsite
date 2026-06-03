@@ -748,33 +748,29 @@ function AttendCard() {
     : "";
   return (
     <div className="border border-nc-yellow/40 bg-nc-yellow/5 p-4 space-y-3 h-full">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-display tracking-widest text-nc-yellow text-sm">WEEKLY ATTENDANCE</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            WEEK_OF {weekLabel} · €${data.payout.toLocaleString()}
-          </div>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Button
-            type="button"
-            disabled={disabled}
-            onClick={() => claim.mutate()}
-            className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest disabled:opacity-50"
-            data-testid="button-attend-claim"
-          >
-            {buttonLabel}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setHistoryOpen(true)}
-            className="rounded-none border-nc-yellow/40 text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-xs"
-            data-testid="button-attend-history"
-          >
-            ATTENDANCE HISTORY
-          </Button>
-        </div>
+      <div className="font-display tracking-widest text-nc-yellow text-sm">WEEKLY ATTENDANCE</div>
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          disabled={disabled}
+          onClick={() => claim.mutate()}
+          className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest disabled:opacity-50"
+          data-testid="button-attend-claim"
+        >
+          {buttonLabel}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setHistoryOpen(true)}
+          className="rounded-none border-nc-yellow/40 text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-xs"
+          data-testid="button-attend-history"
+        >
+          ATTENDANCE HISTORY
+        </Button>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        WEEK_OF {weekLabel} · €${data.payout.toLocaleString()}
       </div>
       {!windowOpen && !data.claimed && (
         <div className="text-xs font-mono text-nc-yellow" data-testid="text-attend-next-window">
@@ -925,41 +921,37 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
 
   return (
     <div className="border border-nc-magenta/40 bg-nc-magenta/5 p-4 space-y-3 h-full">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="font-display tracking-widest text-nc-magenta text-sm">
-            {name ? `SHOP — ${name.toUpperCase()}` : "SHOP STATUS"}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {shopDesc}
-          </div>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Button
-            type="button"
-            disabled={disabled}
-            onClick={() => open.mutate()}
-            className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest disabled:opacity-50"
-            data-testid={`button-open-shop-today-${characterId}`}
-          >
-            {data.openedToday
-              ? "OPENED TODAY ✓"
-              : open.isPending
-                ? "OPENING..."
-                : !windowOpen
-                  ? "SESSION CLOSED"
-                  : "OPEN SHOP TODAY"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setHistoryOpen(true)}
-            className="rounded-none border-nc-magenta/40 text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest text-xs"
-            data-testid={`button-open-shop-history-${characterId}`}
-          >
-            OPEN SHOP HISTORY
-          </Button>
-        </div>
+      <div className="font-display tracking-widest text-nc-magenta text-sm">
+        {name ? `SHOP — ${name.toUpperCase()}` : "SHOP STATUS"}
+      </div>
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          disabled={disabled}
+          onClick={() => open.mutate()}
+          className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest disabled:opacity-50"
+          data-testid={`button-open-shop-today-${characterId}`}
+        >
+          {data.openedToday
+            ? "OPENED TODAY ✓"
+            : open.isPending
+              ? "OPENING..."
+              : !windowOpen
+                ? "SESSION CLOSED"
+                : "OPEN SHOP TODAY"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setHistoryOpen(true)}
+          className="rounded-none border-nc-magenta/40 text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest text-xs"
+          data-testid={`button-open-shop-history-${characterId}`}
+        >
+          OPEN SHOP HISTORY
+        </Button>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        {shopDesc}
       </div>
       {!windowOpen && !data.openedToday && (
         <div className="text-xs font-mono text-nc-yellow">
