@@ -1,4 +1,4 @@
-import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListCustomRequests, getListCustomRequestsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
@@ -82,11 +82,17 @@ function Dashboard() {
   // request is only fired for staff and each card is hidden when its queue is
   // empty.
   const isStaff = Boolean(user?.isAdmin || user?.isFixer || user?.isCsApprover);
-  const { data: pendingReqs } = useListCustomRequests(
-    { status: "pending" },
-    { query: { enabled: isStaff, queryKey: getListCustomRequestsQueryKey({ status: "pending" }) } },
-  );
-  const pendingRequestCount = pendingReqs?.length ?? 0;
+  // Count the ACTIONABLE staff review queue (unseen-by-me misc requests),
+  // matching the sidebar "Pending Requests" badge. The raw pending list would
+  // include the viewer's OWN submissions and already-seen items, so the
+  // dashboard could read "1 pending request" with nothing for the viewer to
+  // act on when they click through. unseen.requests excludes own submissions
+  // (server-side) so the number always corresponds to a reviewable ticket on
+  // the misc tab.
+  const { data: reviewUnseen } = useGetReviewUnseenCounts({
+    query: { enabled: isStaff, queryKey: getGetReviewUnseenCountsQueryKey() },
+  });
+  const pendingRequestCount = reviewUnseen?.requests ?? 0;
 
   if (summaryLoading || charsLoading) {
     return <BrandedLoader label="SYNCING_DASHBOARD..." />;
