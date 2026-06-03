@@ -29,6 +29,20 @@ import { Cpu, Send, RefreshCw, Eye } from "lucide-react";
 
 const DIFFICULTIES: BreachPuzzleInputDifficulty[] = ["easy", "medium", "hard", "impossible"];
 
+// Status filter options for the breach log. "pending" groups the two
+// not-yet-resolved states (sent + in_progress) so staff can answer
+// "which breaches are still outstanding?" in one click.
+type LogStatusFilter = "all" | "pending" | "success" | "failed" | "expired";
+const STATUS_FILTERS: { value: LogStatusFilter; label: string }[] = [
+  { value: "all", label: "ALL STATUSES" },
+  { value: "pending", label: "PENDING" },
+  { value: "success", label: "SUCCESS" },
+  { value: "failed", label: "FAILED" },
+  { value: "expired", label: "EXPIRED" },
+];
+
+type LogDifficultyFilter = "all" | BreachPuzzleInputDifficulty;
+
 export default function BreachHub() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -38,6 +52,8 @@ export default function BreachHub() {
   const [timeLimit, setTimeLimit] = useState<number>(60);
   const [missionContext, setMissionContext] = useState<MissionContextValue>(null);
   const [logFilter, setLogFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<LogStatusFilter>("all");
+  const [difficultyFilter, setDifficultyFilter] = useState<LogDifficultyFilter>("all");
   const [rewardEddies, setRewardEddies] = useState<number>(0);
   const [rewardItemName, setRewardItemName] = useState<string>("");
   const [rewardItemCategory, setRewardItemCategory] = useState<string>("");
@@ -58,14 +74,26 @@ export default function BreachHub() {
   const errMsg = (e: unknown) =>
     (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Request failed";
 
-  // Client-side filter of the breach log by context label. Matches the
-  // contextLabel substring (case-insensitive); an empty filter shows all rows.
+  // Client-side filter of the breach log, combining a free-text context match
+  // with status and difficulty dropdowns. All filters are AND-combined; any
+  // filter left at its default ("" / "all") is a no-op.
   const filteredPuzzles = useMemo(() => {
     if (!puzzles) return puzzles;
     const q = logFilter.trim().toLowerCase();
-    if (!q) return puzzles;
-    return puzzles.filter((p) => (p.contextLabel ?? "").toLowerCase().includes(q));
-  }, [puzzles, logFilter]);
+    return puzzles.filter((p) => {
+      if (q && !(p.contextLabel ?? "").toLowerCase().includes(q)) return false;
+      if (statusFilter !== "all") {
+        const isPending = p.status === "sent" || p.status === "in_progress";
+        if (statusFilter === "pending" ? !isPending : p.status !== statusFilter) return false;
+      }
+      if (difficultyFilter !== "all" && p.difficulty !== difficultyFilter) return false;
+      return true;
+    });
+  }, [puzzles, logFilter, statusFilter, difficultyFilter]);
+
+  // Whether any breach-log filter is active, used to pick the empty-state copy.
+  const anyFilterActive =
+    logFilter.trim() !== "" || statusFilter !== "all" || difficultyFilter !== "all";
 
   // Index map of solution path cells for highlighting in the preview grid.
   const solutionOrder = useMemo(() => {
@@ -365,7 +393,7 @@ export default function BreachHub() {
           <Card className="rounded-none border-border bg-card/50">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="font-display tracking-widest text-nc-cyan">BREACH LOG</CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Input
                   value={logFilter}
                   onChange={(e) => setLogFilter(e.target.value)}
@@ -373,6 +401,27 @@ export default function BreachHub() {
                   className="rounded-none font-mono h-8 w-full sm:w-64"
                   data-testid="input-log-filter"
                 />
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as LogStatusFilter)}>
+                  <SelectTrigger className="rounded-none font-mono h-8 w-full sm:w-40" data-testid="select-log-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    {STATUS_FILTERS.map((s) => (
+                      <SelectItem key={s.value} value={s.value} className="font-mono">{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={difficultyFilter} onValueChange={(v) => setDifficultyFilter(v as LogDifficultyFilter)}>
+                  <SelectTrigger className="rounded-none font-mono h-8 w-full sm:w-40" data-testid="select-log-difficulty">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="all" className="font-mono">ALL DIFFICULTIES</SelectItem>
+                    {DIFFICULTIES.map((d) => (
+                      <SelectItem key={d} value={d} className="font-mono">{d.toUpperCase()}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   variant="outline"
                   size="sm"
@@ -390,7 +439,9 @@ export default function BreachHub() {
                 <div className="py-8 text-center font-mono text-muted-foreground italic">No breaches sent yet.</div>
               ) : !filteredPuzzles || filteredPuzzles.length === 0 ? (
                 <div className="py-8 text-center font-mono text-muted-foreground italic" data-testid="text-no-filter-matches">
-                  No breaches match "{logFilter.trim()}".
+                  {anyFilterActive
+                    ? "No breaches match the current filters."
+                    : "No breaches sent yet."}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
