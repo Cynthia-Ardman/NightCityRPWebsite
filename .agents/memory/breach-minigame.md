@@ -56,6 +56,14 @@ players solve live; rewards paid on success.
   The mission detail page's attached-breaches panel reuses the staff-only list endpoint
   (`GET /breach/puzzles?missionId=`, FIXER/ADMIN-gated) and only renders in the manager tab —
   keep that endpoint staff-gated; it's the authz boundary for the panel.
+- **Practice stats sync is opt-in, personal-only, and NEVER touches the economy/authoritative flow**:
+  the practice page stays "not recorded". Optional account sync lives in its own `breachPracticeStats`
+  table (PK `(userId, difficulty)`), service fns + routes under `/breach/practice/*` in breach.ts /
+  routes/breach.ts. A per-browser localStorage flag (`ncrp-breach-practice-sync-v1`) drives the opt-in
+  (`usePracticeStats.ts`); only shown when logged in. **Merge (first-sync) is one-shot**: it SUMS
+  attempts/solves and keeps the smaller fastestClear, then the client CLEARS its local snapshot so a
+  later re-enable can't double-count the same history. Don't add rewards/leaderboards/cross-user
+  visibility here — that breaks the "not recorded" contract.
 - **Live-submit status is on the RESPONSE, not the query**: after a successful /result submit,
   derive the overlay's expired/success/solvedCount from the returned `BreachResult.puzzle`
   (fresh status), NOT the pre-submit getPuzzle query — that cached row is still `sent`/`startedAt`

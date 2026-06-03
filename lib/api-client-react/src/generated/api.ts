@@ -42,6 +42,9 @@ import type {
   AuditLogRow,
   BotConfigEntry,
   BotConfigUpdate,
+  BreachPracticeMergeInput,
+  BreachPracticeRecordInput,
+  BreachPracticeStats,
   BreachPreview,
   BreachPreviewInput,
   BreachPuzzle,
@@ -17980,4 +17983,295 @@ export function useListCharacterBreachPuzzles<TData = Awaited<ReturnType<typeof 
 
 
 
+
+export const getGetBreachPracticeStatsUrl = () => {
+
+
+
+
+  return `/api/breach/practice/stats`
+}
+
+/**
+ * Personal practice progress (attempts / solves / fastest clear per difficulty) mirrored to the logged-in player's account so it follows them across devices. This is intentionally separate from the server-authoritative assigned-puzzle flow: no economy, no rewards, no leaderboards, not visible to anyone else.
+ * @summary The caller's own opt-in, account-synced practice stats.
+ */
+export const getBreachPracticeStats = async ( options?: RequestInit): Promise<BreachPracticeStats> => {
+
+  return customFetch<BreachPracticeStats>(getGetBreachPracticeStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBreachPracticeStatsQueryKey = () => {
+    return [
+    `/api/breach/practice/stats`
+    ] as const;
+    }
+
+
+export const getGetBreachPracticeStatsQueryOptions = <TData = Awaited<ReturnType<typeof getBreachPracticeStats>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBreachPracticeStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBreachPracticeStats>>> = ({ signal }) => getBreachPracticeStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBreachPracticeStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getBreachPracticeStats>>>
+export type GetBreachPracticeStatsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The caller's own opt-in, account-synced practice stats.
+ */
+
+export function useGetBreachPracticeStats<TData = Awaited<ReturnType<typeof getBreachPracticeStats>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBreachPracticeStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getClearBreachPracticeStatsUrl = () => {
+
+
+
+
+  return `/api/breach/practice/stats`
+}
+
+/**
+ * @summary Reset the caller's account-synced practice stats.
+ */
+export const clearBreachPracticeStats = async ( options?: RequestInit): Promise<BreachPracticeStats> => {
+
+  return customFetch<BreachPracticeStats>(getClearBreachPracticeStatsUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getClearBreachPracticeStatsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearBreachPracticeStats>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clearBreachPracticeStats>>, TError,void, TContext> => {
+
+const mutationKey = ['clearBreachPracticeStats'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clearBreachPracticeStats>>, void> = () => {
+
+
+          return  clearBreachPracticeStats(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClearBreachPracticeStatsMutationResult = NonNullable<Awaited<ReturnType<typeof clearBreachPracticeStats>>>
+
+    export type ClearBreachPracticeStatsMutationError = ErrorType<void>
+
+    /**
+ * @summary Reset the caller's account-synced practice stats.
+ */
+export const useClearBreachPracticeStats = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearBreachPracticeStats>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof clearBreachPracticeStats>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getClearBreachPracticeStatsMutationOptions(options));
+    }
+
+export const getRecordBreachPracticeAttemptUrl = () => {
+
+
+
+
+  return `/api/breach/practice/record`
+}
+
+/**
+ * @summary Record one practice attempt against the caller's account.
+ */
+export const recordBreachPracticeAttempt = async (breachPracticeRecordInput: BreachPracticeRecordInput, options?: RequestInit): Promise<BreachPracticeStats> => {
+
+  return customFetch<BreachPracticeStats>(getRecordBreachPracticeAttemptUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      breachPracticeRecordInput,)
+  }
+);}
+
+
+
+
+export const getRecordBreachPracticeAttemptMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordBreachPracticeAttempt>>, TError,{data: BodyType<BreachPracticeRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordBreachPracticeAttempt>>, TError,{data: BodyType<BreachPracticeRecordInput>}, TContext> => {
+
+const mutationKey = ['recordBreachPracticeAttempt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordBreachPracticeAttempt>>, {data: BodyType<BreachPracticeRecordInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordBreachPracticeAttempt(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordBreachPracticeAttemptMutationResult = NonNullable<Awaited<ReturnType<typeof recordBreachPracticeAttempt>>>
+    export type RecordBreachPracticeAttemptMutationBody = BodyType<BreachPracticeRecordInput>
+    export type RecordBreachPracticeAttemptMutationError = ErrorType<void>
+
+    /**
+ * @summary Record one practice attempt against the caller's account.
+ */
+export const useRecordBreachPracticeAttempt = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordBreachPracticeAttempt>>, TError,{data: BodyType<BreachPracticeRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordBreachPracticeAttempt>>,
+        TError,
+        {data: BodyType<BreachPracticeRecordInput>},
+        TContext
+      > => {
+      return useMutation(getRecordBreachPracticeAttemptMutationOptions(options));
+    }
+
+export const getMergeBreachPracticeStatsUrl = () => {
+
+
+
+
+  return `/api/breach/practice/merge`
+}
+
+/**
+ * Folds local stats into the account, summing attempts/solves and keeping the better (smaller) fastest clear per difficulty. The client clears its local snapshot after a successful merge so the same history is not re-added on a later sync.
+ * @summary First-sync merge of the browser's local-only practice stats into the account.
+ */
+export const mergeBreachPracticeStats = async (breachPracticeMergeInput: BreachPracticeMergeInput, options?: RequestInit): Promise<BreachPracticeStats> => {
+
+  return customFetch<BreachPracticeStats>(getMergeBreachPracticeStatsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      breachPracticeMergeInput,)
+  }
+);}
+
+
+
+
+export const getMergeBreachPracticeStatsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeBreachPracticeStats>>, TError,{data: BodyType<BreachPracticeMergeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mergeBreachPracticeStats>>, TError,{data: BodyType<BreachPracticeMergeInput>}, TContext> => {
+
+const mutationKey = ['mergeBreachPracticeStats'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mergeBreachPracticeStats>>, {data: BodyType<BreachPracticeMergeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mergeBreachPracticeStats(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MergeBreachPracticeStatsMutationResult = NonNullable<Awaited<ReturnType<typeof mergeBreachPracticeStats>>>
+    export type MergeBreachPracticeStatsMutationBody = BodyType<BreachPracticeMergeInput>
+    export type MergeBreachPracticeStatsMutationError = ErrorType<void>
+
+    /**
+ * @summary First-sync merge of the browser's local-only practice stats into the account.
+ */
+export const useMergeBreachPracticeStats = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeBreachPracticeStats>>, TError,{data: BodyType<BreachPracticeMergeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mergeBreachPracticeStats>>,
+        TError,
+        {data: BodyType<BreachPracticeMergeInput>},
+        TContext
+      > => {
+      return useMutation(getMergeBreachPracticeStatsMutationOptions(options));
+    }
 

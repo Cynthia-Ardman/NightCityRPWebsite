@@ -203,6 +203,53 @@ export interface BreachResult {
   message?: string | null;
 }
 
+export interface BreachPracticeDifficultyStats {
+  /** @minimum 0 */
+  attempts: number;
+  /** @minimum 0 */
+  solves: number;
+  /**
+     * Best (smallest) clear time in ms; null until first solve.
+     * @nullable
+     */
+  fastestClearMs: number | null;
+}
+
+/**
+ * Per-difficulty personal practice progress for the caller.
+ */
+export interface BreachPracticeStats {
+  easy: BreachPracticeDifficultyStats;
+  medium: BreachPracticeDifficultyStats;
+  hard: BreachPracticeDifficultyStats;
+  impossible: BreachPracticeDifficultyStats;
+}
+
+export type BreachPracticeRecordInputDifficulty = typeof BreachPracticeRecordInputDifficulty[keyof typeof BreachPracticeRecordInputDifficulty];
+
+
+export const BreachPracticeRecordInputDifficulty = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+  impossible: 'impossible',
+} as const;
+
+export interface BreachPracticeRecordInput {
+  difficulty: BreachPracticeRecordInputDifficulty;
+  success: boolean;
+  /**
+     * Elapsed time of the run in ms. Only used (as the clear time) when success is true.
+     * @minimum 0
+     * @nullable
+     */
+  elapsedMs?: number | null;
+}
+
+export interface BreachPracticeMergeInput {
+  stats: BreachPracticeStats;
+}
+
 export type ReviewCommentSubjectType = typeof ReviewCommentSubjectType[keyof typeof ReviewCommentSubjectType];
 
 

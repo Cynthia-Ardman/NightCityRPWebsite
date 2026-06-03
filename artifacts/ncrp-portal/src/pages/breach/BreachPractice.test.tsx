@@ -1,11 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+// Logged-out viewer: the practice page must keep its local-only experience and
+// not show the opt-in account-sync UI. Mocking useAuthMe to return no user keeps
+// usePracticeStats in local mode (the synced stats query stays disabled, so no
+// network is attempted).
+vi.mock("@/hooks/useAuthMe", () => ({
+  useAuthMe: () => ({ data: undefined, isLoading: false, isError: false }),
+}));
+
 import BreachPractice from "./BreachPractice";
 
 // The practice page is deliberately 100% client-side: it generates puzzles
 // locally, keeps stats in localStorage, and must NEVER call the backend (no
 // result recording, no reward payout). These tests pin that contract: generate
 // -> play to a result (via the timer) -> replay, and assert no network at all.
+
+function renderWithClient(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 describe("BreachPractice", () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
@@ -26,12 +41,15 @@ describe("BreachPractice", () => {
   });
 
   it("generates a puzzle, plays to a result, and replays — with no backend calls", async () => {
-    render(<BreachPractice />);
+    renderWithClient(<BreachPractice />);
 
     // Page shell: heading, the "not recorded" promise, and the local stats card.
     expect(screen.getByText("BREACH PRACTICE")).toBeInTheDocument();
     expect(screen.getByText(/not recorded/i)).toBeInTheDocument();
     expect(screen.getByTestId("practice-stats")).toBeInTheDocument();
+
+    // Logged out: the opt-in account-sync toggle must not appear.
+    expect(screen.queryByTestId("switch-practice-sync")).not.toBeInTheDocument();
 
     // No board until the player generates one.
     expect(screen.queryByTestId("cell-0-0")).not.toBeInTheDocument();

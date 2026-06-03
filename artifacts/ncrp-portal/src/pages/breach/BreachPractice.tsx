@@ -7,17 +7,13 @@ import {
 } from "@workspace/breach";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
 import BreachBoard, { type Pos, type BreachOutcome } from "./BreachBoard";
 import { difficultyBadge } from "./breachUtils";
-import { Cpu, ArrowLeft, RefreshCw, BarChart3, Trash2 } from "lucide-react";
-import {
-  loadStats,
-  recordAttempt,
-  clearStats,
-  formatClearTime,
-  winRate,
-  type PracticeStats,
-} from "./breachPracticeStats";
+import { Cpu, ArrowLeft, RefreshCw, BarChart3, Trash2, Cloud, Loader2 } from "lucide-react";
+import { formatClearTime, winRate } from "./breachPracticeStats";
+import { usePracticeStats } from "./usePracticeStats";
 
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard", "impossible"];
 
@@ -42,7 +38,17 @@ export default function BreachPractice() {
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [session, setSession] = useState<Session | null>(null);
   const [outcome, setOutcome] = useState<BreachOutcome | null>(null);
-  const [stats, setStats] = useState<PracticeStats>(() => loadStats());
+  const { toast } = useToast();
+  const {
+    stats,
+    canSync,
+    synced,
+    syncBusy,
+    recordAttempt,
+    resetStats,
+    enableSync,
+    disableSync,
+  } = usePracticeStats();
 
   const start = (diff: Difficulty) => {
     const puzzle = generatePuzzleByDifficulty(diff);
@@ -65,11 +71,31 @@ export default function BreachPractice() {
       Date.now() - session.startAt,
       session.timeLimitSeconds * 1000,
     );
-    setStats(recordAttempt(session.difficulty, result.success, elapsedMs));
+    recordAttempt(session.difficulty, result.success, elapsedMs);
   };
 
-  const handleResetStats = () => {
-    setStats(clearStats());
+  const handleSyncToggle = async (next: boolean) => {
+    if (next) {
+      try {
+        await enableSync();
+        toast({
+          title: "Practice sync on",
+          description: "Your practice stats now follow you across devices.",
+        });
+      } catch {
+        toast({
+          title: "Couldn't turn on sync",
+          description: "Something went wrong saving your stats. Try again.",
+          variant: "destructive",
+        });
+      }
+    } else {
+      disableSync();
+      toast({
+        title: "Practice sync off",
+        description: "Your account stats are kept, but this browser is back to local-only.",
+      });
+    }
   };
 
   const hasAnyStats = DIFFICULTIES.some((d) => stats[d].attempts > 0);
@@ -134,7 +160,7 @@ export default function BreachPractice() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleResetStats}
+              onClick={resetStats}
               data-testid="button-reset-stats"
               className="rounded-none font-mono text-xs text-muted-foreground hover:text-destructive"
             >
@@ -143,8 +169,43 @@ export default function BreachPractice() {
           )}
         </CardHeader>
         <CardContent>
+          {canSync && (
+            <div
+              className="flex items-start justify-between gap-3 mb-4 border border-border/40 bg-background/40 px-3 py-2"
+              data-testid="practice-sync-toggle-row"
+            >
+              <label
+                htmlFor="practice-sync"
+                className="font-mono text-xs text-muted-foreground flex items-start gap-2 cursor-pointer"
+              >
+                {syncBusy ? (
+                  <Loader2 className="w-4 h-4 mt-0.5 shrink-0 text-nc-cyan animate-spin" />
+                ) : (
+                  <Cloud
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${synced ? "text-nc-cyan" : "text-muted-foreground"}`}
+                  />
+                )}
+                <span>
+                  <span className="text-foreground uppercase tracking-widest">Sync to my account</span>
+                  <br />
+                  Save these stats to your account so they follow you across devices.
+                </span>
+              </label>
+              <Switch
+                id="practice-sync"
+                checked={synced}
+                disabled={syncBusy}
+                onCheckedChange={handleSyncToggle}
+                data-testid="switch-practice-sync"
+              />
+            </div>
+          )}
           <p className="font-mono text-xs text-muted-foreground mb-4">
-            Saved only in this browser — never sent to the server. Clearing your browser data resets it.
+            {synced
+              ? "Synced to your account — these stats follow you across devices. Nothing is shared with anyone else and there are no rewards."
+              : canSync
+                ? "Saved only in this browser. Turn on sync above to keep them on your account across devices."
+                : "Saved only in this browser — never sent to the server. Clearing your browser data resets it."}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full font-mono text-sm">

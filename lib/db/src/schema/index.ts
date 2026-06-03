@@ -1520,3 +1520,27 @@ export const breachPuzzles = pgTable("breach_puzzles", {
   createdByIdx: index("breach_puzzles_created_by_idx").on(t.createdBy),
 }));
 export type BreachPuzzle = typeof breachPuzzles.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// BREACH PRACTICE STATS (opt-in, account-synced)
+// ---------------------------------------------------------------------------
+// The Breach *practice* page is deliberately "not recorded" — no economy, no
+// rewards, no staff visibility. By default practice progress lives only in the
+// player's browser localStorage. A logged-in player may OPT IN to mirror their
+// own personal practice stats (attempts / solves / fastest clear) to their
+// account so the numbers follow them across devices. One row per
+// (user, difficulty). This table is purely personal: it is NEVER joined into
+// leaderboards, the economy, or the server-authoritative breachPuzzles flow.
+export const breachPracticeStats = pgTable("breach_practice_stats", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // "easy" | "medium" | "hard" | "impossible".
+  difficulty: text("difficulty").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  solves: integer("solves").notNull().default(0),
+  // Best (smallest) clear time in ms; null until the player solves one.
+  fastestClearMs: integer("fastest_clear_ms"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.difficulty] }),
+}));
+export type BreachPracticeStat = typeof breachPracticeStats.$inferSelect;

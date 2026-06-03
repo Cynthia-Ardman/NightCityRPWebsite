@@ -10,6 +10,10 @@ import {
   getPuzzle,
   startPuzzle,
   submitResult,
+  getPracticeStats,
+  recordPracticeAttempt,
+  mergePracticeStats,
+  clearPracticeStats,
 } from "../lib/breach";
 
 const router: IRouter = Router();
@@ -63,6 +67,37 @@ router.post("/breach/puzzles/:id/result", requireAuth, async (req, res): Promise
 // Per-character history (owner or staff).
 router.get("/characters/:id/breach", requireAuth, async (req, res): Promise<void> => {
   const result = await listCharacterPuzzles(req.user!, parseInt(String(req.params.id), 10));
+  res.status(result.status).json(result.body);
+});
+
+// --- Practice stats (opt-in, personal-only; no economy/rewards/leaderboard) ---
+
+// The caller's own account-synced practice stats.
+router.get("/breach/practice/stats", requireAuth, async (req, res): Promise<void> => {
+  const result = await getPracticeStats(req.user!);
+  res.status(result.status).json(result.body);
+});
+
+// Record one practice attempt against the caller's account.
+router.post("/breach/practice/record", requireAuth, async (req, res): Promise<void> => {
+  const result = await recordPracticeAttempt(
+    req.user!,
+    req.body?.difficulty,
+    req.body?.success === true,
+    req.body?.elapsedMs,
+  );
+  res.status(result.status).json(result.body);
+});
+
+// First-sync merge of the browser's local-only stats into the account.
+router.post("/breach/practice/merge", requireAuth, async (req, res): Promise<void> => {
+  const result = await mergePracticeStats(req.user!, req.body?.stats);
+  res.status(result.status).json(result.body);
+});
+
+// Reset the caller's account-synced practice stats.
+router.delete("/breach/practice/stats", requireAuth, async (req, res): Promise<void> => {
+  const result = await clearPracticeStats(req.user!);
   res.status(result.status).json(result.body);
 });
 

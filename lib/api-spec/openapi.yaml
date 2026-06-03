@@ -3969,6 +3969,75 @@ paths:
                 items: { $ref: "#/components/schemas/BreachPuzzle" }
         "403": { description: Forbidden }
         "404": { description: Not found }
+  /breach/practice/stats:
+    get:
+      operationId: getBreachPracticeStats
+      tags: [breach]
+      summary: The caller's own opt-in, account-synced practice stats.
+      description: >-
+        Personal practice progress (attempts / solves / fastest clear per
+        difficulty) mirrored to the logged-in player's account so it follows
+        them across devices. This is intentionally separate from the
+        server-authoritative assigned-puzzle flow: no economy, no rewards, no
+        leaderboards, not visible to anyone else.
+      responses:
+        "200":
+          description: Practice stats
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPracticeStats" }
+        "401": { description: Authentication required }
+    delete:
+      operationId: clearBreachPracticeStats
+      tags: [breach]
+      summary: Reset the caller's account-synced practice stats.
+      responses:
+        "200":
+          description: Stats after reset (all zeroed)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPracticeStats" }
+        "401": { description: Authentication required }
+  /breach/practice/record:
+    post:
+      operationId: recordBreachPracticeAttempt
+      tags: [breach]
+      summary: Record one practice attempt against the caller's account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BreachPracticeRecordInput" }
+      responses:
+        "200":
+          description: Updated practice stats
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPracticeStats" }
+        "400": { description: Invalid difficulty }
+        "401": { description: Authentication required }
+  /breach/practice/merge:
+    post:
+      operationId: mergeBreachPracticeStats
+      tags: [breach]
+      summary: First-sync merge of the browser's local-only practice stats into the account.
+      description: >-
+        Folds local stats into the account, summing attempts/solves and keeping
+        the better (smaller) fastest clear per difficulty. The client clears its
+        local snapshot after a successful merge so the same history is not
+        re-added on a later sync.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BreachPracticeMergeInput" }
+      responses:
+        "200":
+          description: Merged practice stats
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPracticeStats" }
+        "401": { description: Authentication required }
 
 components:
   schemas:
@@ -4106,6 +4175,39 @@ components:
         rewardEddies: { type: integer }
         rewardItemName: { type: ["string", "null"] }
         message: { type: ["string", "null"] }
+    BreachPracticeDifficultyStats:
+      type: object
+      required: [attempts, solves, fastestClearMs]
+      properties:
+        attempts: { type: integer, minimum: 0 }
+        solves: { type: integer, minimum: 0 }
+        fastestClearMs:
+          type: ["integer", "null"]
+          description: "Best (smallest) clear time in ms; null until first solve."
+    BreachPracticeStats:
+      type: object
+      description: "Per-difficulty personal practice progress for the caller."
+      required: [easy, medium, hard, impossible]
+      properties:
+        easy: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
+        medium: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
+        hard: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
+        impossible: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
+    BreachPracticeRecordInput:
+      type: object
+      required: [difficulty, success]
+      properties:
+        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        success: { type: boolean }
+        elapsedMs:
+          type: ["integer", "null"]
+          minimum: 0
+          description: "Elapsed time of the run in ms. Only used (as the clear time) when success is true."
+    BreachPracticeMergeInput:
+      type: object
+      required: [stats]
+      properties:
+        stats: { $ref: "#/components/schemas/BreachPracticeStats" }
     ReviewComment:
       type: object
       required: [id, subjectType, subjectId, authorId, body, createdAt]

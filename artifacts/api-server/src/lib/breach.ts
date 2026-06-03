@@ -2,6 +2,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   db,
   breachPuzzles,
+  breachPracticeStats,
   characters,
   missions,
   users,
@@ -693,4 +694,162 @@ async function notifyStaff(row: BreachPuzzle, success: boolean, expired: boolean
       logger.error({ puzzleId: row.id, err }, "breach staff channel notify failed");
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// PRACTICE STATS (opt-in, account-synced, personal-only)
+// ---------------------------------------------------------------------------
+// These mirror the local-only practice progress kept in the browser. They are
+// NEVER part of the economy, rewards, leaderboards, or the assigned-puzzle
+// flow. The practice page stays "not recorded"; this only lets a player carry
+// THEIR OWN attempts/solves/fastest-clear across their devices.
+
+export type PracticeDifficultyStats = {
+  attempts: number;
+  solves: number;
+  fastestClearMs: number | null;
+};
+
+export type PracticeStatsView = Record<Difficulty, PracticeDifficultyStats>;
+
+function emptyPracticeDifficulty(): PracticeDifficultyStats {
+  return { attempts: 0, solves: 0, fastestClearMs: null };
+}
+
+function emptyPracticeStats(): PracticeStatsView {
+  return {
+    easy: emptyPracticeDifficulty(),
+    medium: emptyPracticeDifficulty(),
+    hard: emptyPracticeDifficulty(),
+    impossible: emptyPracticeDifficulty(),
+  };
+}
+
+function isValidDifficulty(raw: unknown): raw is Difficulty {
+  return typeof raw === "string" && (DIFFICULTIES as string[]).includes(raw);
+}
+
+// Coerce an arbitrary client-supplied difficulty stat blob into a safe shape.
+function sanitizePracticeDifficulty(raw: unknown): PracticeDifficultyStats {
+  const base = emptyPracticeDifficulty();
+  if (!raw || typeof raw !== "object") return base;
+  const r = raw as Record<string, unknown>;
+  const attempts = typeof r.attempts === "number" && Number.isFinite(r.attempts) ? Math.max(0, Math.floor(r.attempts)) : 0;
+  const solves = typeof r.solves === "number" && Number.isFinite(r.solves) ? Math.max(0, Math.floor(r.solves)) : 0;
+  base.attempts = attempts;
+  base.solves = Math.min(solves, attempts);
+  if (typeof r.fastestClearMs === "number" && Number.isFinite(r.fastestClearMs) && r.fastestClearMs >= 0) {
+    base.fastestClearMs = Math.floor(r.fastestClearMs);
+  }
+  return base;
+}
+
+async function readPracticeStats(userId: string): Promise<PracticeStatsView> {
+  const rows = await db
+    .select()
+    .from(breachPracticeStats)
+    .where(eq(breachPracticeStats.userId, userId));
+  const out = emptyPracticeStats();
+  for (const row of rows) {
+    if (isValidDifficulty(row.difficulty)) {
+      out[row.difficulty] = {
+        attempts: row.attempts,
+        solves: row.solves,
+        fastestClearMs: row.fastestClearMs,
+      };
+    }
+  }
+  return out;
+}
+
+export async function getPracticeStats(user: User): Promise<ServiceResult<PracticeStatsView>> {
+  return { status: 200, body: await readPracticeStats(user.id) };
+}
+
+// Record a single practice attempt against the user's account. Atomic upsert:
+// attempts += 1, solves += (success ? 1 : 0), fastest = min(existing, elapsed).
+export async function recordPracticeAttempt(
+  user: User,
+  rawDifficulty: unknown,
+  success: boolean,
+  rawElapsedMs: unknown,
+): Promise<ServiceResult<PracticeStatsView>> {
+  if (!isValidDifficulty(rawDifficulty)) {
+    return { status: 400, body: { error: "Invalid difficulty" } };
+  }
+  const difficulty = rawDifficulty;
+  const won = success === true;
+  const elapsedMs =
+    typeof rawElapsedMs === "number" && Number.isFinite(rawElapsedMs) && rawElapsedMs >= 0
+      ? Math.floor(rawElapsedMs)
+      : null;
+  // Only a winning attempt contributes a clear time.
+  const clearMs = won ? elapsedMs : null;
+  await db
+    .insert(breachPracticeStats)
+    .values({
+      userId: user.id,
+      difficulty,
+      attempts: 1,
+      solves: won ? 1 : 0,
+      fastestClearMs: clearMs,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [breachPracticeStats.userId, breachPracticeStats.difficulty],
+      set: {
+        attempts: sql`${breachPracticeStats.attempts} + 1`,
+        solves: sql`${breachPracticeStats.solves} + ${won ? 1 : 0}`,
+        // Keep the smaller (better) of the existing best and this clear time.
+        fastestClearMs:
+          clearMs === null
+            ? sql`${breachPracticeStats.fastestClearMs}`
+            : sql`LEAST(COALESCE(${breachPracticeStats.fastestClearMs}, ${clearMs}), ${clearMs})`,
+        updatedAt: new Date(),
+      },
+    });
+  return { status: 200, body: await readPracticeStats(user.id) };
+}
+
+// First-sync merge: fold the browser's local-only stats into the account,
+// summing attempts/solves and keeping the better (smaller) fastest clear.
+// Idempotency is the caller's responsibility (the client clears its local
+// snapshot after a successful merge so the same history is not re-added).
+export async function mergePracticeStats(
+  user: User,
+  rawStats: unknown,
+): Promise<ServiceResult<PracticeStatsView>> {
+  const incoming = (rawStats && typeof rawStats === "object" ? rawStats : {}) as Record<string, unknown>;
+  for (const difficulty of DIFFICULTIES) {
+    const local = sanitizePracticeDifficulty(incoming[difficulty]);
+    if (local.attempts === 0 && local.solves === 0 && local.fastestClearMs === null) continue;
+    await db
+      .insert(breachPracticeStats)
+      .values({
+        userId: user.id,
+        difficulty,
+        attempts: local.attempts,
+        solves: local.solves,
+        fastestClearMs: local.fastestClearMs,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [breachPracticeStats.userId, breachPracticeStats.difficulty],
+        set: {
+          attempts: sql`${breachPracticeStats.attempts} + ${local.attempts}`,
+          solves: sql`${breachPracticeStats.solves} + ${local.solves}`,
+          fastestClearMs:
+            local.fastestClearMs === null
+              ? sql`${breachPracticeStats.fastestClearMs}`
+              : sql`LEAST(COALESCE(${breachPracticeStats.fastestClearMs}, ${local.fastestClearMs}), ${local.fastestClearMs})`,
+          updatedAt: new Date(),
+        },
+      });
+  }
+  return { status: 200, body: await readPracticeStats(user.id) };
+}
+
+export async function clearPracticeStats(user: User): Promise<ServiceResult<PracticeStatsView>> {
+  await db.delete(breachPracticeStats).where(eq(breachPracticeStats.userId, user.id));
+  return { status: 200, body: emptyPracticeStats() };
 }
