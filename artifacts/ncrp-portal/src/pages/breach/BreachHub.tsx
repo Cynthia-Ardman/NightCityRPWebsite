@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListArchiveCharacters,
   useCreateBreachPuzzle,
   usePreviewBreachPuzzle,
   useListBreachPuzzles,
@@ -22,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import { useToast } from "@/hooks/use-toast";
 import { statusBadge, difficultyBadge, rewardSummary } from "./breachUtils";
 import { Cpu, Send, RefreshCw, Eye } from "lucide-react";
@@ -32,7 +32,7 @@ export default function BreachHub() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const [characterId, setCharacterId] = useState<string>("");
+  const [target, setTarget] = useState<CharacterPickerValue>(null);
   const [difficulty, setDifficulty] = useState<BreachPuzzleInputDifficulty>("medium");
   const [timeLimit, setTimeLimit] = useState<number>(60);
   const [rewardEddies, setRewardEddies] = useState<number>(0);
@@ -44,16 +44,9 @@ export default function BreachHub() {
   // sending so they can see a worked solution.
   const [preview, setPreview] = useState<BreachPreview | null>(null);
 
-  const { data: characters, isLoading: charsLoading } = useListArchiveCharacters({ scope: "all" });
   const { data: puzzles, isLoading: puzzlesLoading } = useListBreachPuzzles();
   const previewMut = usePreviewBreachPuzzle();
   const createMut = useCreateBreachPuzzle();
-
-  // Only claimed characters have an owner to DM the play link to.
-  const claimable = useMemo(
-    () => (characters ?? []).filter((c) => c.claimed && c.ownerId && !c.archived),
-    [characters],
-  );
 
   const errMsg = (e: unknown) =>
     (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Request failed";
@@ -76,8 +69,8 @@ export default function BreachHub() {
 
   const assign = async () => {
     if (!preview) return;
-    if (!characterId) {
-      toast({ title: "Pick a character", description: "Select who receives this breach.", variant: "destructive" });
+    if (!target) {
+      toast({ title: "Pick a character", description: "Search for who receives this breach.", variant: "destructive" });
       return;
     }
     if (timeLimit < 10 || timeLimit > 600) {
@@ -87,7 +80,7 @@ export default function BreachHub() {
     try {
       const puzzle = await createMut.mutateAsync({
         data: {
-          assignedCharacterId: Number(characterId),
+          assignedCharacterId: target.id,
           difficulty,
           timeLimitSeconds: timeLimit,
           rewardEddies: rewardEddies > 0 ? rewardEddies : undefined,
@@ -107,6 +100,7 @@ export default function BreachHub() {
         description: `Puzzle #${puzzle.id} sent to ${puzzle.assignedCharacterName ?? "player"}${puzzle.dmSentAt ? " — DM delivered." : " — DM could not be delivered."}`,
       });
       setPreview(null);
+      setTarget(null);
       setRewardEddies(0);
       setRewardItemName("");
       setRewardItemCategory("");
@@ -136,21 +130,16 @@ export default function BreachHub() {
           <CardContent className="space-y-5">
             <div className="space-y-2">
               <Label className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Target Character</Label>
-              <Select value={characterId} onValueChange={setCharacterId}>
-                <SelectTrigger className="rounded-none font-mono" data-testid="select-character">
-                  <SelectValue placeholder={charsLoading ? "Loading..." : "Select a claimed character"} />
-                </SelectTrigger>
-                <SelectContent className="rounded-none max-h-72">
-                  {claimable.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)} className="font-mono">
-                      {c.name} {c.ownerName ? `— ${c.ownerName}` : ""}
-                    </SelectItem>
-                  ))}
-                  {!charsLoading && claimable.length === 0 && (
-                    <div className="px-3 py-2 font-mono text-xs text-muted-foreground">No claimed characters found.</div>
-                  )}
-                </SelectContent>
-              </Select>
+              <CharacterPicker
+                value={target}
+                onChange={setTarget}
+                scope="all"
+                placeholder="Search by character or player name..."
+                testId="picker-character"
+              />
+              <p className="font-mono text-[11px] text-muted-foreground">
+                The play link is DM'd to the character's linked player.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
