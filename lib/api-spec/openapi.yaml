@@ -4228,15 +4228,22 @@ components:
         stats: { $ref: "#/components/schemas/BreachPracticeStats" }
     BreachLeaderboardEntry:
       type: object
-      required: [userId, username, fastestClearMs, solves]
+      description: "A single ranked practice clear run. A player can hold several slots."
+      required: [id, userId, username, clearMs, achievedAt]
       properties:
+        id:
+          type: integer
+          description: "Unique id of this clear run (stable list key)."
         userId: { type: string }
         username: { type: string }
-        fastestClearMs:
+        clearMs:
           type: integer
           minimum: 0
-          description: "Best (smallest) clear time in ms for this difficulty."
-        solves: { type: integer, minimum: 0 }
+          description: "Clear time of this individual run in ms."
+        achievedAt:
+          type: string
+          format: date-time
+          description: "When this run was recorded."
     BreachPracticeLeaderboard:
       type: object
       description: "Per-difficulty fastest-clear rankings (opted-in players only)."

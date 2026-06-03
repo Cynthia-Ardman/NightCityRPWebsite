@@ -1545,3 +1545,22 @@ export const breachPracticeStats = pgTable("breach_practice_stats", {
   pk: primaryKey({ columns: [t.userId, t.difficulty] }),
 }));
 export type BreachPracticeStat = typeof breachPracticeStats.$inferSelect;
+
+// One row per successful practice clear. Unlike breachPracticeStats (which keeps
+// a single best-time aggregate per user/difficulty), this records every winning
+// run so the leaderboard can rank INDIVIDUAL run times — a single player can
+// therefore occupy several (or all) of the top slots in a difficulty. Stays out
+// of the economy/rewards; purely a friendly fastest-time ranking.
+export const breachPracticeClears = pgTable("breach_practice_clears", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // "easy" | "medium" | "hard" | "very_hard" | "nightmare".
+  difficulty: text("difficulty").notNull(),
+  // Clear time of this single run in ms (always present — only wins are stored).
+  clearMs: integer("clear_ms").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  rankIdx: index("bpc_rank_idx").on(t.difficulty, t.clearMs, t.createdAt),
+  userIdx: index("bpc_user_idx").on(t.userId),
+}));
+export type BreachPracticeClear = typeof breachPracticeClears.$inferSelect;

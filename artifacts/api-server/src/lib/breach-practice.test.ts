@@ -125,7 +125,7 @@ function board(result: { status: number; body: unknown }): PracticeLeaderboardVi
 }
 
 describe("breach practice leaderboard", () => {
-  it("ranks fastest clears per difficulty and excludes non-solvers", async () => {
+  it("ranks individual clear runs per difficulty and excludes non-solvers", async () => {
     const fast = await createUser({ username: "fast_runner" });
     const slow = await createUser({ username: "slow_runner" });
     const failer = await createUser({ username: "never_solved" });
@@ -136,23 +136,74 @@ describe("breach practice leaderboard", () => {
 
     const lb = board(await getPracticeLeaderboard());
     expect(lb.hard.map((e) => e.username)).toEqual(["fast_runner", "slow_runner"]);
-    expect(lb.hard[0].fastestClearMs).toBe(2000);
-    // A user who never cleared has no fastest time and is not ranked.
+    expect(lb.hard[0].clearMs).toBe(2000);
+    expect(lb.hard[1].clearMs).toBe(5000);
+    // A run that was never solved is not recorded and never ranks.
     expect(lb.hard.some((e) => e.username === "never_solved")).toBe(false);
     // Other difficulties stay empty when nobody has a clear there.
     expect(lb.easy).toEqual([]);
   });
 
-  it("breaks ties on equal time by more solves", async () => {
-    const grinder = await createUser({ username: "grinder" });
-    const oneshot = await createUser({ username: "oneshot" });
-    // Both share the same fastest clear time.
-    await recordPracticeAttempt(grinder, "medium", true, 3000);
-    await recordPracticeAttempt(grinder, "medium", true, 3500);
-    await recordPracticeAttempt(oneshot, "medium", true, 3000);
+  it("lets one player hold multiple slots, ordered by run time", async () => {
+    const ace = await createUser({ username: "ace" });
+    await recordPracticeAttempt(ace, "hard", true, 3000);
+    await recordPracticeAttempt(ace, "hard", true, 1000);
+    await recordPracticeAttempt(ace, "hard", true, 2000);
 
     const lb = board(await getPracticeLeaderboard());
-    const tied = lb.medium.filter((e) => e.fastestClearMs === 3000);
-    expect(tied.map((e) => e.username)).toEqual(["grinder", "oneshot"]);
+    // Every winning run gets its own slot — no per-user dedup.
+    expect(lb.hard).toHaveLength(3);
+    expect(lb.hard.every((e) => e.username === "ace")).toBe(true);
+    expect(lb.hard.map((e) => e.clearMs)).toEqual([1000, 2000, 3000]);
+    // Ids are unique so the UI has a stable key even with repeated users.
+    expect(new Set(lb.hard.map((e) => e.id)).size).toBe(3);
+  });
+
+  it("breaks equal-time ties by earliest achieved", async () => {
+    const first = await createUser({ username: "first_in" });
+    const second = await createUser({ username: "second_in" });
+    // Same time; the run recorded earlier should rank ahead.
+    await recordPracticeAttempt(first, "medium", true, 3000);
+    await recordPracticeAttempt(second, "medium", true, 3000);
+
+    const lb = board(await getPracticeLeaderboard());
+    const tied = lb.medium.filter((e) => e.clearMs === 3000);
+    expect(tied.map((e) => e.username)).toEqual(["first_in", "second_in"]);
+  });
+
+  it("caps each difficulty at the top 10 runs", async () => {
+    const grinder = await createUser({ username: "grinder" });
+    // 12 distinct clear times; only the 10 fastest should appear.
+    for (let i = 1; i <= 12; i++) {
+      await recordPracticeAttempt(grinder, "easy", true, i * 1000);
+    }
+    const lb = board(await getPracticeLeaderboard());
+    expect(lb.easy).toHaveLength(10);
+    expect(lb.easy[0].clearMs).toBe(1000);
+    expect(lb.easy[9].clearMs).toBe(10000);
+    // The two slowest runs are dropped.
+    expect(lb.easy.some((e) => e.clearMs > 10000)).toBe(false);
+  });
+
+  it("does not duplicate the seeded run when the same snapshot is merged again", async () => {
+    const resyncer = await createUser({ username: "resyncer" });
+    const snapshot = { hard: { attempts: 3, solves: 2, fastestClearMs: 2500 } };
+    await mergePracticeStats(resyncer, snapshot);
+    await mergePracticeStats(resyncer, snapshot); // replay (retry / stale local copy)
+
+    const lb = board(await getPracticeLeaderboard());
+    const mine = lb.hard.filter((e) => e.username === "resyncer");
+    expect(mine).toHaveLength(1);
+    expect(mine[0].clearMs).toBe(2500);
+  });
+
+  it("reset empties the player's leaderboard runs", async () => {
+    const quitter = await createUser({ username: "quitter" });
+    await recordPracticeAttempt(quitter, "medium", true, 2000);
+    await recordPracticeAttempt(quitter, "medium", true, 4000);
+    expect(board(await getPracticeLeaderboard()).medium).toHaveLength(2);
+
+    await clearPracticeStats(quitter);
+    expect(board(await getPracticeLeaderboard()).medium).toEqual([]);
   });
 });

@@ -6,14 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * A single ranked practice clear run. A player can hold several slots.
+ */
 export interface BreachLeaderboardEntry {
+  /** Unique id of this clear run (stable list key). */
+  id: number;
   userId: string;
   username: string;
   /**
-     * Best (smallest) clear time in ms for this difficulty.
+     * Clear time of this individual run in ms.
      * @minimum 0
      */
-  fastestClearMs: number;
-  /** @minimum 0 */
-  solves: number;
+  clearMs: number;
+  /** When this run was recorded. */
+  achievedAt: Date;
 }

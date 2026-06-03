@@ -64,18 +64,25 @@ players solve live; rewards paid on success.
   attempts/solves and keeps the smaller fastestClear, then the client CLEARS its local snapshot so a
   later re-enable can't double-count the same history. **Never add rewards or tie practice into the
   economy/authoritative flow** — that breaks the "not recorded" contract.
-- **Practice leaderboard = the ONE allowed cross-user surface of practice stats**: `getPracticeLeaderboard`
-  (`GET /breach/practice/leaderboard`, requireAuth) innerJoins `breachPracticeStats`→users, filters
-  fastestClearMs NOT NULL, orders `asc(fastestClearMs), desc(solves), asc(userId)`, buckets top-10 per
-  difficulty; username = `globalName ?? username`. Only ACCOUNT-SYNCED players have rows, so opting into
-  sync IS opting onto the leaderboard — the sync copy in BreachPractice.tsx must say so. `disableSync` is a
-  frontend-only flag (preserves cross-device history); the path that actually leaves the leaderboard is
-  Reset (`clearPracticeStats` / DELETE /breach/practice/stats). It exposes only display name + fastest
-  time/solves; still no rewards and no economy linkage.
+- **Practice leaderboard ranks INDIVIDUAL runs, not per-player bests — two-table design**: there are TWO
+  practice tables. `breachPracticeStats` (PK `(userId,difficulty)`) is the AGGREGATE for the personal stats
+  card (attempts/solves/fastestClearMs). `breachPracticeClears` (serial id, userId, difficulty, clearMs
+  notNull, createdAt) holds ONE ROW PER WINNING RUN and is what the LEADERBOARD reads. `getPracticeLeaderboard`
+  (`GET /breach/practice/leaderboard`, requireAuth) innerJoins `breachPracticeClears`→users, orders
+  `asc(clearMs), asc(createdAt), asc(id)`, buckets top-10/difficulty with NO per-user dedup — so one player
+  can hold multiple/all slots. `LeaderboardEntry = {id,userId,username,clearMs,achievedAt}` (id is the run id =
+  stable React key since userId repeats; self-highlight by userId). `recordPracticeAttempt` writes BOTH (a
+  clear row only when win+clearMs!=null). **Reset and merge MUST touch BOTH tables**: `clearPracticeStats`
+  deletes stats AND clears (else a reset leaves the player on the board); `mergePracticeStats` seeds ONE clear
+  row per difficulty from the local best, guarded by an exists-check on (userId,difficulty,clearMs) so a replay
+  doesn't duplicate slots. Backfill from legacy bests: `scripts/src/backfill-practice-clears.ts` (idempotent via
+  NOT EXISTS on user+difficulty+clear_ms; supports IMPORT_TARGET=live) — run once on prod after deploy. Only
+  ACCOUNT-SYNCED players have clear rows; still no rewards/economy. **Why:** users asked one fast player to be
+  able to occupy several top spots, which a per-player-best aggregate can't express.
 - **Difficulty is split: practice/leaderboard ⊂ staff**: `lib/breach/src/game.ts` exports the FULL
   `Difficulty`/`DIFFICULTIES` (incl. `impossible`) for STAFF puzzle assignment (BreachHub, createPuzzle,
-  difficultyBadge), and a narrower `PracticeDifficulty`/`PRACTICE_DIFFICULTIES` = easy|medium|hard for the
-  practice page + practice leaderboard. The practice service keys (`PracticeStatsView`/`PracticeLeaderboardView`),
+  difficultyBadge), and a narrower `PracticeDifficulty`/`PRACTICE_DIFFICULTIES` = easy|medium|hard|very_hard|nightmare
+  (everything EXCEPT impossible) for the practice page + practice leaderboard. The practice service keys (`PracticeStatsView`/`PracticeLeaderboardView`),
   the `isPracticeDifficulty` guard, and the openapi practice schemas all use the narrow set. Legacy
   `breachPracticeStats` rows with `difficulty='impossible'` are silently filtered (guard skips them) — never
   indexed into response objects. **Why:** impossible was removed from practice only; widening either set must

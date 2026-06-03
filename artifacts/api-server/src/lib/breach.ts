@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, isNull, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   db,
   breachPuzzles,
   breachPracticeStats,
+  breachPracticeClears,
   characters,
   missions,
   users,
@@ -822,6 +823,11 @@ export async function recordPracticeAttempt(
         updatedAt: new Date(),
       },
     });
+  // Record this individual winning run so the leaderboard can rank per-run
+  // times (a player can hold multiple top slots). Failed runs contribute none.
+  if (clearMs !== null) {
+    await db.insert(breachPracticeClears).values({ userId: user.id, difficulty, clearMs });
+  }
   return { status: 200, body: await readPracticeStats(user.id) };
 }
 
@@ -859,67 +865,101 @@ export async function mergePracticeStats(
           updatedAt: new Date(),
         },
       });
+    // Seed one representative clear run from the browser's best time so the
+    // merging player keeps a leaderboard presence. We only have the local
+    // aggregate (not per-run history), so a single best-time row is the most
+    // we can faithfully reconstruct. Guard against duplicate slots if the same
+    // snapshot is merged again (retry, stale local copy, multi-device replay):
+    // only seed when no identical clear (same user/difficulty/time) exists yet.
+    if (local.fastestClearMs !== null) {
+      const existing = await db
+        .select({ id: breachPracticeClears.id })
+        .from(breachPracticeClears)
+        .where(
+          and(
+            eq(breachPracticeClears.userId, user.id),
+            eq(breachPracticeClears.difficulty, difficulty),
+            eq(breachPracticeClears.clearMs, local.fastestClearMs),
+          ),
+        )
+        .limit(1);
+      if (existing.length === 0) {
+        await db
+          .insert(breachPracticeClears)
+          .values({ userId: user.id, difficulty, clearMs: local.fastestClearMs });
+      }
+    }
   }
   return { status: 200, body: await readPracticeStats(user.id) };
 }
 
 export async function clearPracticeStats(user: User): Promise<ServiceResult<PracticeStatsView>> {
   await db.delete(breachPracticeStats).where(eq(breachPracticeStats.userId, user.id));
+  // Also drop the player's individual clear runs so a reset truly empties their
+  // leaderboard presence (the aggregate alone is not what the board reads).
+  await db.delete(breachPracticeClears).where(eq(breachPracticeClears.userId, user.id));
   return { status: 200, body: emptyPracticeStats() };
 }
 
 // ---------------------------------------------------------------------------
 // PRACTICE LEADERBOARD (opt-in visibility)
 // ---------------------------------------------------------------------------
-// A per-difficulty ranking of fastest practice clear times, by username. Only
-// players who opted into account sync have rows in breach_practice_stats, so the
-// leaderboard naturally includes only those who chose to save their stats — it
-// is the player's own opt-in that puts them on the board. Still no economy or
-// rewards; this is purely a friendly fastest-time ranking.
+// A per-difficulty ranking of the fastest INDIVIDUAL practice clear runs, by
+// username. Each successful run is a separate row, so one player can hold several
+// (or all) of the top slots in a difficulty. Only players who opted into account
+// sync have clear rows, so the board naturally includes only those who chose to
+// save their progress. Still no economy or rewards — purely a friendly ranking.
 
 export type LeaderboardEntry = {
+  // Unique id of the run — stable React key (a userId can repeat across slots).
+  id: number;
   userId: string;
   username: string;
-  fastestClearMs: number;
-  solves: number;
+  clearMs: number;
+  achievedAt: string;
 };
 
 export type PracticeLeaderboardView = Record<PracticeDifficulty, LeaderboardEntry[]>;
 
 const LEADERBOARD_LIMIT = 10;
 
+function emptyLeaderboard(): PracticeLeaderboardView {
+  return { easy: [], medium: [], hard: [], very_hard: [], nightmare: [] };
+}
+
 export async function getPracticeLeaderboard(): Promise<ServiceResult<PracticeLeaderboardView>> {
-  // Globally sorted by fastest clear; bucket per difficulty keeps ascending order.
+  // Globally sorted by clear time; bucket per difficulty keeps ascending order.
   const rows = await db
     .select({
-      userId: breachPracticeStats.userId,
-      difficulty: breachPracticeStats.difficulty,
-      fastestClearMs: breachPracticeStats.fastestClearMs,
-      solves: breachPracticeStats.solves,
+      id: breachPracticeClears.id,
+      userId: breachPracticeClears.userId,
+      difficulty: breachPracticeClears.difficulty,
+      clearMs: breachPracticeClears.clearMs,
+      createdAt: breachPracticeClears.createdAt,
       username: users.username,
       globalName: users.globalName,
     })
-    .from(breachPracticeStats)
-    .innerJoin(users, eq(users.id, breachPracticeStats.userId))
-    .where(isNotNull(breachPracticeStats.fastestClearMs))
-    // Deterministic ranking: fastest first, then more solves, then stable by id.
+    .from(breachPracticeClears)
+    .innerJoin(users, eq(users.id, breachPracticeClears.userId))
+    // Deterministic ranking: fastest run first, then earliest achieved, then
+    // stable by id. No per-user dedup — every run competes on its own.
     .orderBy(
-      asc(breachPracticeStats.fastestClearMs),
-      desc(breachPracticeStats.solves),
-      asc(breachPracticeStats.userId),
+      asc(breachPracticeClears.clearMs),
+      asc(breachPracticeClears.createdAt),
+      asc(breachPracticeClears.id),
     );
 
-  const out: PracticeLeaderboardView = { easy: [], medium: [], hard: [], very_hard: [], nightmare: [] };
+  const out = emptyLeaderboard();
   for (const row of rows) {
     if (!isPracticeDifficulty(row.difficulty)) continue;
-    if (row.fastestClearMs === null) continue;
     const bucket = out[row.difficulty];
     if (bucket.length >= LEADERBOARD_LIMIT) continue;
     bucket.push({
+      id: row.id,
       userId: row.userId,
       username: row.globalName ?? row.username,
-      fastestClearMs: row.fastestClearMs,
-      solves: row.solves,
+      clearMs: row.clearMs,
+      achievedAt: row.createdAt.toISOString(),
     });
   }
   return { status: 200, body: out };

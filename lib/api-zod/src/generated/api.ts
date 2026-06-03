@@ -8040,59 +8040,54 @@ export const ClearBreachPracticeStatsResponse = zod.object({
  * A per-difficulty ranking of the fastest practice clear times. Only players who opted into account sync appear, so a player's own opt-in is what puts them on the board. No economy or rewards — a friendly fastest-time ranking only.
  * @summary Fastest practice clear times per difficulty, by username.
  */
-export const getBreachPracticeLeaderboardResponseEasyItemFastestClearMsMin = 0;
+export const getBreachPracticeLeaderboardResponseEasyItemClearMsMin = 0;
 
-export const getBreachPracticeLeaderboardResponseEasyItemSolvesMin = 0;
+export const getBreachPracticeLeaderboardResponseMediumItemClearMsMin = 0;
 
-export const getBreachPracticeLeaderboardResponseMediumItemFastestClearMsMin = 0;
+export const getBreachPracticeLeaderboardResponseHardItemClearMsMin = 0;
 
-export const getBreachPracticeLeaderboardResponseMediumItemSolvesMin = 0;
+export const getBreachPracticeLeaderboardResponseVeryHardItemClearMsMin = 0;
 
-export const getBreachPracticeLeaderboardResponseHardItemFastestClearMsMin = 0;
-
-export const getBreachPracticeLeaderboardResponseHardItemSolvesMin = 0;
-
-export const getBreachPracticeLeaderboardResponseVeryHardItemFastestClearMsMin = 0;
-
-export const getBreachPracticeLeaderboardResponseVeryHardItemSolvesMin = 0;
-
-export const getBreachPracticeLeaderboardResponseNightmareItemFastestClearMsMin = 0;
-
-export const getBreachPracticeLeaderboardResponseNightmareItemSolvesMin = 0;
+export const getBreachPracticeLeaderboardResponseNightmareItemClearMsMin = 0;
 
 
 
 export const GetBreachPracticeLeaderboardResponse = zod.object({
   "easy": zod.array(zod.object({
+  "id": zod.number().describe('Unique id of this clear run (stable list key).'),
   "userId": zod.string(),
   "username": zod.string(),
-  "fastestClearMs": zod.number().min(getBreachPracticeLeaderboardResponseEasyItemFastestClearMsMin).describe('Best (smallest) clear time in ms for this difficulty.'),
-  "solves": zod.number().min(getBreachPracticeLeaderboardResponseEasyItemSolvesMin)
-})),
+  "clearMs": zod.number().min(getBreachPracticeLeaderboardResponseEasyItemClearMsMin).describe('Clear time of this individual run in ms.'),
+  "achievedAt": zod.coerce.date().describe('When this run was recorded.')
+}).describe('A single ranked practice clear run. A player can hold several slots.')),
   "medium": zod.array(zod.object({
+  "id": zod.number().describe('Unique id of this clear run (stable list key).'),
   "userId": zod.string(),
   "username": zod.string(),
-  "fastestClearMs": zod.number().min(getBreachPracticeLeaderboardResponseMediumItemFastestClearMsMin).describe('Best (smallest) clear time in ms for this difficulty.'),
-  "solves": zod.number().min(getBreachPracticeLeaderboardResponseMediumItemSolvesMin)
-})),
+  "clearMs": zod.number().min(getBreachPracticeLeaderboardResponseMediumItemClearMsMin).describe('Clear time of this individual run in ms.'),
+  "achievedAt": zod.coerce.date().describe('When this run was recorded.')
+}).describe('A single ranked practice clear run. A player can hold several slots.')),
   "hard": zod.array(zod.object({
+  "id": zod.number().describe('Unique id of this clear run (stable list key).'),
   "userId": zod.string(),
   "username": zod.string(),
-  "fastestClearMs": zod.number().min(getBreachPracticeLeaderboardResponseHardItemFastestClearMsMin).describe('Best (smallest) clear time in ms for this difficulty.'),
-  "solves": zod.number().min(getBreachPracticeLeaderboardResponseHardItemSolvesMin)
-})),
+  "clearMs": zod.number().min(getBreachPracticeLeaderboardResponseHardItemClearMsMin).describe('Clear time of this individual run in ms.'),
+  "achievedAt": zod.coerce.date().describe('When this run was recorded.')
+}).describe('A single ranked practice clear run. A player can hold several slots.')),
   "very_hard": zod.array(zod.object({
+  "id": zod.number().describe('Unique id of this clear run (stable list key).'),
   "userId": zod.string(),
   "username": zod.string(),
-  "fastestClearMs": zod.number().min(getBreachPracticeLeaderboardResponseVeryHardItemFastestClearMsMin).describe('Best (smallest) clear time in ms for this difficulty.'),
-  "solves": zod.number().min(getBreachPracticeLeaderboardResponseVeryHardItemSolvesMin)
-})),
+  "clearMs": zod.number().min(getBreachPracticeLeaderboardResponseVeryHardItemClearMsMin).describe('Clear time of this individual run in ms.'),
+  "achievedAt": zod.coerce.date().describe('When this run was recorded.')
+}).describe('A single ranked practice clear run. A player can hold several slots.')),
   "nightmare": zod.array(zod.object({
+  "id": zod.number().describe('Unique id of this clear run (stable list key).'),
   "userId": zod.string(),
   "username": zod.string(),
-  "fastestClearMs": zod.number().min(getBreachPracticeLeaderboardResponseNightmareItemFastestClearMsMin).describe('Best (smallest) clear time in ms for this difficulty.'),
-  "solves": zod.number().min(getBreachPracticeLeaderboardResponseNightmareItemSolvesMin)
-}))
+  "clearMs": zod.number().min(getBreachPracticeLeaderboardResponseNightmareItemClearMsMin).describe('Clear time of this individual run in ms.'),
+  "achievedAt": zod.coerce.date().describe('When this run was recorded.')
+}).describe('A single ranked practice clear run. A player can hold several slots.'))
 }).describe('Per-difficulty fastest-clear rankings (opted-in players only).')
 
 

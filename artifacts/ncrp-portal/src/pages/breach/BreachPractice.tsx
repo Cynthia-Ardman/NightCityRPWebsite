@@ -291,7 +291,8 @@ export default function BreachPractice() {
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="font-mono text-xs text-muted-foreground">
-            Fastest practice clear times by username. Only players who turned on account sync appear here.
+            Fastest individual practice runs by username — a single runner can hold several spots.
+            Only players who turned on account sync appear here.
           </p>
           {leaderboardLoading ? (
             <div className="py-6 text-center font-mono text-muted-foreground animate-pulse">Loading...</div>
@@ -321,7 +322,7 @@ export default function BreachPractice() {
                           const isMe = !!myId && entry.userId === myId;
                           return (
                             <tr
-                              key={entry.userId}
+                              key={entry.id}
                               className={[
                                 "border-b border-border/20",
                                 isMe ? "bg-nc-cyan/10" : "",
@@ -334,7 +335,7 @@ export default function BreachPractice() {
                                 {isMe && <span className="ml-2 text-xs text-nc-cyan">(you)</span>}
                               </td>
                               <td className="py-1.5 pl-4 text-right text-nc-yellow">
-                                {formatClearTime(entry.fastestClearMs)}
+                                {formatClearTime(entry.clearMs)}
                               </td>
                             </tr>
                           );
