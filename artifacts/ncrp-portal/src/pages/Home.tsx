@@ -732,15 +732,27 @@ function AttendCard() {
     : claim.isPending
       ? "CLAIMING..."
       : !windowOpen
-        ? "WINDOW CLOSED"
+        ? "SESSION CLOSED"
         : "CLAIM";
+  // Short month/day label (e.g. "Jun 1") so the header meta stays one short
+  // line and doesn't wrap/squish against the buttons like the raw ISO date did.
+  // Build the Date from y/m/d parts to avoid a UTC->local day shift.
+  const weekLabel = data.weekStart
+    ? (() => {
+        const [y, m, d] = data.weekStart.split("T")[0].split("-").map(Number);
+        const dt = new Date(y, m - 1, d);
+        return Number.isNaN(dt.getTime())
+          ? data.weekStart
+          : dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      })()
+    : "";
   return (
     <div className="border border-nc-yellow/40 bg-nc-yellow/5 p-4 space-y-3 h-full">
       <div className="flex items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="font-display tracking-widest text-nc-yellow text-sm">WEEKLY ATTENDANCE</div>
           <div className="text-xs text-muted-foreground mt-1">
-            WEEK_OF {data.weekStart} · €${data.payout.toLocaleString()}
+            WEEK_OF {weekLabel} · €${data.payout.toLocaleString()}
           </div>
         </div>
         <div className="flex flex-col gap-2">
