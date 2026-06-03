@@ -4002,19 +4002,19 @@ paths:
     get:
       operationId: getBreachPracticeLeaderboard
       tags: [breach]
-      summary: Fastest practice clear times per difficulty, by username.
+      summary: Fastest individual practice clear runs per difficulty.
       description: >-
-        A per-difficulty ranking of the fastest practice clear times. Only
-        players who opted into account sync appear, so a player's own opt-in is
-        what puts them on the board. No economy or rewards — a friendly
-        fastest-time ranking only.
+        A per-difficulty ranking of the fastest individual practice clear runs.
+        Every successful run competes on its own, so one player can hold several
+        slots. Only players who opted into account sync appear. Public: no
+        login required. No economy or rewards — a friendly fastest-time ranking
+        only.
       responses:
         "200":
           description: Leaderboard
           content:
             application/json:
               schema: { $ref: "#/components/schemas/BreachPracticeLeaderboard" }
-        "401": { description: Authentication required }
   /breach/practice/record:
     post:
       operationId: recordBreachPracticeAttempt

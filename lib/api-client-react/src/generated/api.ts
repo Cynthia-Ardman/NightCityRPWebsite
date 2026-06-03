@@ -18142,8 +18142,8 @@ export const getGetBreachPracticeLeaderboardUrl = () => {
 }
 
 /**
- * A per-difficulty ranking of the fastest practice clear times. Only players who opted into account sync appear, so a player's own opt-in is what puts them on the board. No economy or rewards — a friendly fastest-time ranking only.
- * @summary Fastest practice clear times per difficulty, by username.
+ * A per-difficulty ranking of the fastest individual practice clear runs. Every successful run competes on its own, so one player can hold several slots. Only players who opted into account sync appear. Public: no login required. No economy or rewards — a friendly fastest-time ranking only.
+ * @summary Fastest individual practice clear runs per difficulty.
  */
 export const getBreachPracticeLeaderboard = async ( options?: RequestInit): Promise<BreachPracticeLeaderboard> => {
 
@@ -18167,7 +18167,7 @@ export const getGetBreachPracticeLeaderboardQueryKey = () => {
     }
 
 
-export const getGetBreachPracticeLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetBreachPracticeLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -18186,14 +18186,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetBreachPracticeLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>>
-export type GetBreachPracticeLeaderboardQueryError = ErrorType<void>
+export type GetBreachPracticeLeaderboardQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Fastest practice clear times per difficulty, by username.
+ * @summary Fastest individual practice clear runs per difficulty.
  */
 
-export function useGetBreachPracticeLeaderboard<TData = Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError = ErrorType<void>>(
+export function useGetBreachPracticeLeaderboard<TData = Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError = ErrorType<unknown>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {

@@ -103,7 +103,8 @@ router.delete("/breach/practice/stats", requireAuth, async (req, res): Promise<v
 });
 
 // Fastest practice clear times per difficulty, by username (opted-in players).
-router.get("/breach/practice/leaderboard", requireAuth, async (_req, res): Promise<void> => {
+// Public: the leaderboard is a read-only cross-user surface, viewable without login.
+router.get("/breach/practice/leaderboard", async (_req, res): Promise<void> => {
   const result = await getPracticeLeaderboard();
   res.status(result.status).json(result.body);
 });

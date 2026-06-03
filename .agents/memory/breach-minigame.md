@@ -68,7 +68,8 @@ players solve live; rewards paid on success.
   practice tables. `breachPracticeStats` (PK `(userId,difficulty)`) is the AGGREGATE for the personal stats
   card (attempts/solves/fastestClearMs). `breachPracticeClears` (serial id, userId, difficulty, clearMs
   notNull, createdAt) holds ONE ROW PER WINNING RUN and is what the LEADERBOARD reads. `getPracticeLeaderboard`
-  (`GET /breach/practice/leaderboard`, requireAuth) innerJoins `breachPracticeClears`→users, orders
+  (`GET /breach/practice/leaderboard`, PUBLIC — no requireAuth, by product choice so logged-out visitors see it;
+  all other /breach/practice/* routes stay requireAuth) innerJoins `breachPracticeClears`→users, orders
   `asc(clearMs), asc(createdAt), asc(id)`, buckets top-10/difficulty with NO per-user dedup — so one player
   can hold multiple/all slots. `LeaderboardEntry = {id,userId,username,clearMs,achievedAt}` (id is the run id =
   stable React key since userId repeats; self-highlight by userId). `recordPracticeAttempt` writes BOTH (a

@@ -8037,8 +8037,8 @@ export const ClearBreachPracticeStatsResponse = zod.object({
 
 
 /**
- * A per-difficulty ranking of the fastest practice clear times. Only players who opted into account sync appear, so a player's own opt-in is what puts them on the board. No economy or rewards — a friendly fastest-time ranking only.
- * @summary Fastest practice clear times per difficulty, by username.
+ * A per-difficulty ranking of the fastest individual practice clear runs. Every successful run competes on its own, so one player can hold several slots. Only players who opted into account sync appear. Public: no login required. No economy or rewards — a friendly fastest-time ranking only.
+ * @summary Fastest individual practice clear runs per difficulty.
  */
 export const getBreachPracticeLeaderboardResponseEasyItemClearMsMin = 0;
 
