@@ -44,7 +44,11 @@ export default function BreachHub() {
   // sending so they can see a worked solution.
   const [preview, setPreview] = useState<BreachPreview | null>(null);
 
-  const { data: puzzles, isLoading: puzzlesLoading } = useListBreachPuzzles();
+  // Poll the staff log so pass/fail status appears moments after a player
+  // finishes, without a manual refresh.
+  const { data: puzzles, isLoading: puzzlesLoading } = useListBreachPuzzles(undefined, {
+    query: { queryKey: getListBreachPuzzlesQueryKey(), refetchInterval: 10_000 },
+  });
   const previewMut = usePreviewBreachPuzzle();
   const createMut = useCreateBreachPuzzle();
 

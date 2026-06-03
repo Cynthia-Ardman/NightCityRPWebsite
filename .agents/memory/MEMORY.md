@@ -65,4 +65,4 @@
 - [Rent & meds history sources](rent-and-meds-history-sources.md) — rent = #rent-payments channel; meds full year = bot's operator-DM sweep logs (our token IS the bot, reads own DMs); both → bot_rent_payment_events, merged with the recent bot_balance_history ledger.
 - [Character wallet endpoint scope](character-wallet-endpoint-scope.md) — /characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows; per-character history UI must also filter t.characterId===id.
 - [Wallet category bucket](character-wallet-endpoint-scope.md) — wallet_transactions.category (rent/cyberware/…) is derived from kind+memo via classifyWalletCategory, independent of load-bearing kind; APIs fallback-derive when null.
-- [Breach Protocol minigame](breach-minigame.md) — exactly-once reward via atomic completedAt-IS-NULL UPDATE (item insert not idempotent); server anchors timer before any grid reveal, list endpoints redact unstarted grids; /result 200-idempotent.
+- [Breach Protocol minigame](breach-minigame.md) — exactly-once reward (atomic completedAt-IS-NULL); server anchors timer before any grid reveal, lists redact unstarted grids; /result 200-idempotent.
