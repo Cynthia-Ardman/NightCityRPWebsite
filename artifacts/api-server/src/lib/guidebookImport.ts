@@ -138,6 +138,68 @@ async function fetchChannelMessages(channelId: string): Promise<RawMessage[]> {
   return collected;
 }
 
+// Discord channel type 15 = GUILD_FORUM. Forum channels hold no top-level
+// messages; their content lives in threads (forum posts), one per topic.
+const FORUM_CHANNEL_TYPE = 15;
+
+async function fetchChannelType(channelId: string): Promise<number | null> {
+  try {
+    const res = await botFetch(`/channels/${channelId}`);
+    if (!res.ok) return null;
+    const json = (await res.json()) as { type?: number };
+    return typeof json.type === "number" ? json.type : null;
+  } catch (err) {
+    logger.warn({ err, channelId }, "fetchChannelType failed");
+    return null;
+  }
+}
+
+interface ForumThread {
+  id: string;
+  name: string;
+}
+
+// List a forum channel's threads (active + archived public), deduped and
+// ordered oldest-first by snowflake id so the imported page reads top-to-bottom.
+async function fetchForumThreads(channelId: string): Promise<ForumThread[]> {
+  const byId = new Map<string, ForumThread>();
+
+  if (DISCORD_GUILD_ID) {
+    const res = await botFetch(`/guilds/${DISCORD_GUILD_ID}/threads/active`);
+    if (!res.ok) {
+      throw new Error(
+        `Discord active-threads fetch failed (${res.status}): ${(await res.text()).slice(0, 200)}`,
+      );
+    }
+    const data = (await res.json()) as { threads?: Array<{ id: string; name: string; parent_id?: string }> };
+    for (const t of data.threads ?? []) {
+      if (t.parent_id === channelId) byId.set(t.id, { id: t.id, name: t.name });
+    }
+  }
+
+  let before: string | null = null;
+  for (let page = 0; page < 10; page++) {
+    const q = before ? `?limit=100&before=${encodeURIComponent(before)}` : `?limit=100`;
+    const res = await botFetch(`/channels/${channelId}/threads/archived/public${q}`);
+    if (!res.ok) {
+      throw new Error(
+        `Discord archived-threads fetch failed (${res.status}): ${(await res.text()).slice(0, 200)}`,
+      );
+    }
+    const data = (await res.json()) as {
+      threads?: Array<{ id: string; name: string; thread_metadata?: { archive_timestamp?: string } }>;
+      has_more?: boolean;
+    };
+    const threads = data.threads ?? [];
+    for (const t of threads) byId.set(t.id, { id: t.id, name: t.name });
+    const last = threads[threads.length - 1];
+    if (!data.has_more || threads.length === 0 || !last?.thread_metadata?.archive_timestamp) break;
+    before = last.thread_metadata.archive_timestamp;
+  }
+
+  return [...byId.values()].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0));
+}
+
 // --- cleaning ---------------------------------------------------------------
 
 const IMAGE_CDN_RE =
@@ -245,59 +307,90 @@ interface BuiltPage {
   sources: GuidebookSourceRef[];
 }
 
+// Turn one Discord message into a clean Markdown block, re-hosting any inline
+// or attached images into `images`. Returns "" when the message has no content.
+async function processMessage(
+  msg: RawMessage,
+  images: string[],
+  userCache: Map<string, string | null>,
+  channelCache: Map<string, string | null>,
+): Promise<string> {
+  let block = await cleanContent(msg.content ?? "", userCache, channelCache);
+
+  // Embed text (announcements sometimes live in embeds).
+  for (const e of msg.embeds ?? []) {
+    const parts: string[] = [];
+    if (e.title) parts.push(`### ${e.title}`);
+    if (e.description) {
+      parts.push(await cleanContent(e.description, userCache, channelCache));
+    }
+    if (parts.length) block += (block ? "\n\n" : "") + parts.join("\n\n");
+  }
+
+  // Re-host inline CDN image links embedded in the text.
+  const inlineUrls = new Set<string>();
+  for (const m of block.matchAll(IMAGE_CDN_RE)) inlineUrls.add(m[0]);
+  for (const url of inlineUrls) {
+    const hosted = await rehostImage(url);
+    if (hosted) {
+      images.push(hosted);
+      block = block.split(url).join(hosted);
+    }
+  }
+
+  // Re-host attachments + embed images, append as markdown images.
+  const attachUrls: string[] = [];
+  for (const a of msg.attachments ?? []) {
+    const ct = (a.content_type ?? "").toLowerCase();
+    if (ct.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.filename)) {
+      attachUrls.push(a.url);
+    }
+  }
+  for (const e of msg.embeds ?? []) {
+    if (e.image?.url) attachUrls.push(e.image.url);
+  }
+  for (const url of attachUrls) {
+    const hosted = await rehostImage(url);
+    if (hosted) {
+      images.push(hosted);
+      block += `${block ? "\n\n" : ""}![image](${hosted})`;
+    }
+  }
+
+  return block.trim();
+}
+
 async function buildPage(
   src: GuidebookSource,
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
 ): Promise<BuiltPage> {
-  const messages = await fetchChannelMessages(src.channelId);
   const images: string[] = [];
   const blocks: string[] = [];
 
-  for (const msg of messages) {
-    let block = await cleanContent(msg.content ?? "", userCache, channelCache);
-
-    // Embed text (announcements sometimes live in embeds).
-    for (const e of msg.embeds ?? []) {
-      const parts: string[] = [];
-      if (e.title) parts.push(`### ${e.title}`);
-      if (e.description) {
-        parts.push(await cleanContent(e.description, userCache, channelCache));
+  const channelType = await fetchChannelType(src.channelId);
+  if (channelType === FORUM_CHANNEL_TYPE) {
+    // Forum channel: content lives in threads (one post per topic). Each thread
+    // becomes a "## <thread name>" section followed by its messages in order.
+    const threads = await fetchForumThreads(src.channelId);
+    for (const thread of threads) {
+      const messages = await fetchChannelMessages(thread.id);
+      const threadBlocks: string[] = [];
+      for (const msg of messages) {
+        const block = await processMessage(msg, images, userCache, channelCache);
+        if (block) threadBlocks.push(block);
       }
-      if (parts.length) block += (block ? "\n\n" : "") + parts.join("\n\n");
-    }
-
-    // Re-host inline CDN image links embedded in the text.
-    const inlineUrls = new Set<string>();
-    for (const m of block.matchAll(IMAGE_CDN_RE)) inlineUrls.add(m[0]);
-    for (const url of inlineUrls) {
-      const hosted = await rehostImage(url);
-      if (hosted) {
-        images.push(hosted);
-        block = block.split(url).join(hosted);
+      if (threadBlocks.length) {
+        blocks.push(`## ${thread.name}`);
+        blocks.push(...threadBlocks);
       }
     }
-
-    // Re-host attachments + embed images, append as markdown images.
-    const attachUrls: string[] = [];
-    for (const a of msg.attachments ?? []) {
-      const ct = (a.content_type ?? "").toLowerCase();
-      if (ct.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.filename)) {
-        attachUrls.push(a.url);
-      }
+  } else {
+    const messages = await fetchChannelMessages(src.channelId);
+    for (const msg of messages) {
+      const block = await processMessage(msg, images, userCache, channelCache);
+      if (block) blocks.push(block);
     }
-    for (const e of msg.embeds ?? []) {
-      if (e.image?.url) attachUrls.push(e.image.url);
-    }
-    for (const url of attachUrls) {
-      const hosted = await rehostImage(url);
-      if (hosted) {
-        images.push(hosted);
-        block += `${block ? "\n\n" : ""}![image](${hosted})`;
-      }
-    }
-
-    if (block.trim()) blocks.push(block.trim());
   }
 
   const body = blocks.join("\n\n").trim();
