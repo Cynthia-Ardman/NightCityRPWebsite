@@ -42,6 +42,8 @@ import type {
   AuditLogRow,
   BotConfigEntry,
   BotConfigUpdate,
+  BreachPreview,
+  BreachPreviewInput,
   BreachPuzzle,
   BreachPuzzleInput,
   BreachResult,
@@ -17531,6 +17533,78 @@ export const useCreateBreachPuzzle = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateBreachPuzzleMutationOptions(options));
+    }
+
+export const getPreviewBreachPuzzleUrl = () => {
+
+
+
+
+  return `/api/breach/puzzles/preview`
+}
+
+/**
+ * Staff-only. Generates a puzzle at the requested difficulty and returns it along with one worked solution path so a fixer can preview before assigning. Nothing is saved; pass the returned grid/daemons/bufferSize back to POST /breach/puzzles to assign exactly what was previewed.
+ * @summary Generate a puzzle with a worked solution for staff preview (not persisted).
+ */
+export const previewBreachPuzzle = async (breachPreviewInput: BreachPreviewInput, options?: RequestInit): Promise<BreachPreview> => {
+
+  return customFetch<BreachPreview>(getPreviewBreachPuzzleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      breachPreviewInput,)
+  }
+);}
+
+
+
+
+export const getPreviewBreachPuzzleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewBreachPuzzle>>, TError,{data: BodyType<BreachPreviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewBreachPuzzle>>, TError,{data: BodyType<BreachPreviewInput>}, TContext> => {
+
+const mutationKey = ['previewBreachPuzzle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewBreachPuzzle>>, {data: BodyType<BreachPreviewInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewBreachPuzzle(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewBreachPuzzleMutationResult = NonNullable<Awaited<ReturnType<typeof previewBreachPuzzle>>>
+    export type PreviewBreachPuzzleMutationBody = BodyType<BreachPreviewInput>
+    export type PreviewBreachPuzzleMutationError = ErrorType<void>
+
+    /**
+ * @summary Generate a puzzle with a worked solution for staff preview (not persisted).
+ */
+export const usePreviewBreachPuzzle = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewBreachPuzzle>>, TError,{data: BodyType<BreachPreviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof previewBreachPuzzle>>,
+        TError,
+        {data: BodyType<BreachPreviewInput>},
+        TContext
+      > => {
+      return useMutation(getPreviewBreachPuzzleMutationOptions(options));
     }
 
 export const getListMyBreachPuzzlesUrl = () => {

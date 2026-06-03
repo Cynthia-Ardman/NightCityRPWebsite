@@ -7660,7 +7660,33 @@ export const CreateBreachPuzzleBody = zod.object({
   "rewardEddies": zod.number().min(createBreachPuzzleBodyRewardEddiesMin).optional().describe('Eddies paid to the player on success. Defaults to 0.'),
   "rewardItemName": zod.string().nullish(),
   "rewardItemCategory": zod.string().nullish(),
-  "rewardNote": zod.string().nullish()
+  "rewardNote": zod.string().nullish(),
+  "puzzle": zod.union([zod.object({
+  "grid": zod.array(zod.array(zod.string())),
+  "daemons": zod.array(zod.array(zod.string())),
+  "bufferSize": zod.number()
+}).describe('A previewed puzzle to assign verbatim (from previewBreachPuzzle).'),zod.null()]).optional().describe('Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one.')
+})
+
+
+/**
+ * Staff-only. Generates a puzzle at the requested difficulty and returns it along with one worked solution path so a fixer can preview before assigning. Nothing is saved; pass the returned grid/daemons/bufferSize back to POST /breach/puzzles to assign exactly what was previewed.
+ * @summary Generate a puzzle with a worked solution for staff preview (not persisted).
+ */
+export const PreviewBreachPuzzleBody = zod.object({
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible'])
+})
+
+export const PreviewBreachPuzzleResponse = zod.object({
+  "difficulty": zod.enum(['easy', 'medium', 'hard', 'impossible']),
+  "grid": zod.array(zod.array(zod.string())).describe('The code matrix as rows of hex byte strings.'),
+  "daemons": zod.array(zod.array(zod.string())).describe('Each daemon is a sequence of hex byte strings to breach.'),
+  "bufferSize": zod.number(),
+  "solutionCount": zod.number(),
+  "solutionPath": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).describe('One worked solution path (empty when the grid is unsolvable, e.g. impossible).')
 })
 
 

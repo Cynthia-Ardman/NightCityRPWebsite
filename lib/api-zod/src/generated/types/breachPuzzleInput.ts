@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BreachPuzzleInputDifficulty } from './breachPuzzleInputDifficulty';
+import type { BreachPuzzlePayload } from './breachPuzzlePayload';
 
 export interface BreachPuzzleInput {
   /** The character to send the puzzle to; its owning player receives the DM. */
@@ -27,4 +28,6 @@ export interface BreachPuzzleInput {
   rewardItemCategory?: string | null;
   /** @nullable */
   rewardNote?: string | null;
+  /** Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one. */
+  puzzle?: BreachPuzzlePayload | null;
 }

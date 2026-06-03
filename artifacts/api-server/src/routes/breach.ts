@@ -3,6 +3,7 @@ import type { Pos } from "@workspace/breach";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import {
   createPuzzle,
+  previewPuzzle,
   listPuzzles,
   listMyPuzzles,
   listCharacterPuzzles,
@@ -20,7 +21,13 @@ router.get("/breach/puzzles", requireAuth, requireAnyRole(["ADMIN", "FIXER"]), a
   res.status(result.status).json(result.body);
 });
 
-// Staff: generate + assign + DM a puzzle.
+// Staff: generate a puzzle + worked solution for preview (not persisted).
+router.post("/breach/puzzles/preview", requireAuth, requireAnyRole(["ADMIN", "FIXER"]), async (req, res): Promise<void> => {
+  const result = previewPuzzle(req.user!, String(req.body?.difficulty ?? ""));
+  res.status(result.status).json(result.body);
+});
+
+// Staff: assign + DM a puzzle (optionally the previewed grid).
 router.post("/breach/puzzles", requireAuth, requireAnyRole(["ADMIN", "FIXER"]), async (req, res): Promise<void> => {
   const result = await createPuzzle(req.user!, req.body ?? {});
   res.status(result.status).json(result.body);

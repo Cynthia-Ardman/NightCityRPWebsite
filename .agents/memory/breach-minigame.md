@@ -19,7 +19,13 @@ players solve live; rewards paid on success.
   the idempotent recorded outcome. This (not payReward's own rewardPaidAt guard) is what
   stops concurrent submits double-minting inventory items, since item insert is not idempotent.
   **Why:** check-then-act on completedAt let two concurrent POSTs both pay.
-- **Timer authority**: client starts the server timer on play-page MOUNT (not first cell
-  click) so startedAt is persisted before any submit; time limit enforced via server startedAt.
+- **Timer authority is the grid-reveal point**: the server starts the clock (sets startedAt)
+  inside `getPuzzle` the first time the assigned player fetches the puzzle — that single
+  endpoint is the ONLY place the full grid+daemon sequences are revealed to a player. List
+  endpoints (`/breach/mine`, per-character) redact grid+daemon-sequences for non-completed
+  rows (keep daemon COUNT for "x/y" displays); staff see full. submitResult treats a null
+  startedAt as expired. **Why:** if any list leaked the grid before the clock started, a
+  player could solve offline untimed then start+submit instantly — defeating the timer.
+  Don't add grid/daemon contents to any player-facing endpoint other than getPuzzle.
 - **/result contract**: invalid/losing paths score as failed (still 200); resubmit of a
   completed puzzle is 200 idempotent with rewardPaid=false. No 400/409 on result.

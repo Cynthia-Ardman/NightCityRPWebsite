@@ -194,3 +194,53 @@ export function scoreSelection(
     allSolved: solvedDaemons.length === daemons.length && daemons.length > 0,
   };
 }
+
+// Find ONE legal solution path (≤ bufferSize picks) that breaches every daemon,
+// or null when the grid is unsolvable. Used for the staff preview so a fixer can
+// see a worked solution before assigning. DFS over the movement rules, pruned by
+// the buffer cap; grids are small so this terminates quickly.
+export function solvePuzzle(
+  grid: string[][],
+  daemons: string[][],
+  bufferSize: number,
+): Pos[] | null {
+  const rows = grid.length;
+  const cols = grid[0]?.length ?? 0;
+  if (rows === 0 || cols === 0 || daemons.length === 0) return null;
+
+  const used = new Set<string>();
+  const path: Pos[] = [];
+
+  const dfs = (): Pos[] | null => {
+    const score = scoreSelection(grid, daemons, bufferSize, path);
+    if (score.valid && score.allSolved) return path.slice();
+    if (path.length >= bufferSize) return null;
+
+    const idx = path.length;
+    const candidates: Pos[] = [];
+    if (idx === 0) {
+      for (let c = 0; c < cols; c++) candidates.push({ r: 0, c });
+    } else {
+      const last = path[idx - 1];
+      const expectColumn = idx % 2 === 1;
+      if (expectColumn) {
+        for (let r = 0; r < rows; r++) candidates.push({ r, c: last.c });
+      } else {
+        for (let c = 0; c < cols; c++) candidates.push({ r: last.r, c });
+      }
+    }
+    for (const cell of candidates) {
+      const key = `${cell.r},${cell.c}`;
+      if (used.has(key)) continue;
+      used.add(key);
+      path.push(cell);
+      const found = dfs();
+      if (found) return found;
+      path.pop();
+      used.delete(key);
+    }
+    return null;
+  };
+
+  return dfs();
+}

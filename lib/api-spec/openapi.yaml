@@ -3858,6 +3858,29 @@ paths:
         "400": { description: Invalid input (e.g. character has no linked player) }
         "403": { description: Requires FIXER or ADMIN role }
         "404": { description: Character not found }
+  /breach/puzzles/preview:
+    post:
+      operationId: previewBreachPuzzle
+      tags: [breach]
+      summary: Generate a puzzle with a worked solution for staff preview (not persisted).
+      description: >-
+        Staff-only. Generates a puzzle at the requested difficulty and returns it
+        along with one worked solution path so a fixer can preview before
+        assigning. Nothing is saved; pass the returned grid/daemons/bufferSize
+        back to POST /breach/puzzles to assign exactly what was previewed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BreachPreviewInput" }
+      responses:
+        "200":
+          description: Generated preview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPreview" }
+        "400": { description: Invalid difficulty }
+        "403": { description: Requires FIXER or ADMIN role }
   /breach/mine:
     get:
       operationId: listMyBreachPuzzles
@@ -3994,6 +4017,50 @@ components:
         rewardPaidAt: { type: ["string", "null"], format: date-time }
         dmSentAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+    BreachPreviewInput:
+      type: object
+      required: [difficulty]
+      properties:
+        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+    BreachPreview:
+      type: object
+      required: [difficulty, grid, daemons, bufferSize, solutionCount, solutionPath]
+      properties:
+        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        grid:
+          type: array
+          description: "The code matrix as rows of hex byte strings."
+          items:
+            type: array
+            items: { type: string }
+        daemons:
+          type: array
+          description: "Each daemon is a sequence of hex byte strings to breach."
+          items:
+            type: array
+            items: { type: string }
+        bufferSize: { type: integer }
+        solutionCount: { type: integer }
+        solutionPath:
+          type: array
+          description: "One worked solution path (empty when the grid is unsolvable, e.g. impossible)."
+          items: { $ref: "#/components/schemas/BreachPos" }
+    BreachPuzzlePayload:
+      type: object
+      required: [grid, daemons, bufferSize]
+      description: "A previewed puzzle to assign verbatim (from previewBreachPuzzle)."
+      properties:
+        grid:
+          type: array
+          items:
+            type: array
+            items: { type: string }
+        daemons:
+          type: array
+          items:
+            type: array
+            items: { type: string }
+        bufferSize: { type: integer }
     BreachPuzzleInput:
       type: object
       required: [assignedCharacterId, difficulty, timeLimitSeconds]
@@ -4005,6 +4072,11 @@ components:
         rewardItemName: { type: ["string", "null"] }
         rewardItemCategory: { type: ["string", "null"] }
         rewardNote: { type: ["string", "null"] }
+        puzzle:
+          description: "Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one."
+          oneOf:
+            - { $ref: "#/components/schemas/BreachPuzzlePayload" }
+            - { type: "null" }
     BreachResultInput:
       type: object
       required: [selection]

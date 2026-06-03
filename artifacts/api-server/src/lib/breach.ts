@@ -11,8 +11,10 @@ import {
 import {
   type Difficulty,
   type Pos,
+  countPuzzleSolutions,
   generatePuzzleByDifficulty,
   scoreSelection,
+  solvePuzzle,
 } from "@workspace/breach";
 import { hasRole, sendDirectMessage, postToChannel } from "./discord";
 import { applyWalletDelta } from "./economy";
@@ -60,8 +62,82 @@ async function shape(row: BreachPuzzle): Promise<BreachPuzzleView> {
   };
 }
 
-// Staff: generate a puzzle at a difficulty, assign it to a character's player,
-// persist it, and DM the player a play link.
+// Hide the puzzle contents (matrix + daemon sequences) on list responses until
+// the puzzle is completed. The grid is the only thing a player needs to solve
+// offline, so revealing it anywhere other than getPuzzle (which anchors the
+// server timer) would let a player read it from a list, solve untimed, then
+// start+submit instantly. We keep the daemon COUNT (length) for history "x/y"
+// displays but blank out each sequence, and blank the grid entirely.
+function redactUnstarted(view: BreachPuzzleView): BreachPuzzleView {
+  if (view.completedAt) return view;
+  const daemonCount = Array.isArray(view.daemons) ? view.daemons.length : 0;
+  return {
+    ...view,
+    grid: [],
+    daemons: Array.from({ length: daemonCount }, () => []),
+    selection: null,
+  };
+}
+
+export type BreachPreview = {
+  difficulty: Difficulty;
+  grid: string[][];
+  daemons: string[][];
+  bufferSize: number;
+  solutionCount: number;
+  solutionPath: Pos[];
+};
+
+// Staff: generate a puzzle at a difficulty and return it WITH a worked solution
+// path, without persisting anything. The fixer previews this, then calls
+// createPuzzle with the previewed grid to assign exactly what they saw.
+export function previewPuzzle(staff: User, difficulty: string): ServiceResult<BreachPreview> {
+  if (!isStaff(staff)) return { status: 403, body: { error: "Requires FIXER or ADMIN role" } };
+  const diff = difficulty as Difficulty;
+  if (!DIFFICULTIES.includes(diff)) {
+    return { status: 400, body: { error: "Invalid difficulty" } };
+  }
+  const puzzle = generatePuzzleByDifficulty(diff);
+  const solutionPath = solvePuzzle(puzzle.grid, puzzle.daemons, puzzle.bufferSize) ?? [];
+  return {
+    status: 200,
+    body: {
+      difficulty: diff,
+      grid: puzzle.grid,
+      daemons: puzzle.daemons,
+      bufferSize: puzzle.bufferSize,
+      solutionCount: puzzle.solutionCount,
+      solutionPath,
+    },
+  };
+}
+
+// Validate a previewed puzzle payload supplied by staff so createPuzzle assigns
+// exactly what was generated/previewed (defends against a malformed body).
+function sanitizePuzzleInput(
+  p: { grid?: unknown; daemons?: unknown; bufferSize?: unknown } | undefined,
+): { grid: string[][]; daemons: string[][]; bufferSize: number } | null {
+  if (!p) return null;
+  const grid = p.grid;
+  const daemons = p.daemons;
+  const bufferSize = p.bufferSize;
+  if (!Array.isArray(grid) || grid.length === 0) return null;
+  if (!grid.every((row) => Array.isArray(row) && row.length > 0 && row.every((c) => typeof c === "string"))) {
+    return null;
+  }
+  if (!Array.isArray(daemons) || daemons.length === 0) return null;
+  if (!daemons.every((d) => Array.isArray(d) && d.length > 0 && d.every((c) => typeof c === "string"))) {
+    return null;
+  }
+  if (typeof bufferSize !== "number" || !Number.isFinite(bufferSize) || bufferSize < 1 || bufferSize > 12) {
+    return null;
+  }
+  return { grid: grid as string[][], daemons: daemons as string[][], bufferSize: Math.round(bufferSize) };
+}
+
+// Staff: assign a puzzle to a character's player, persist it, and DM the player
+// a play link. If `puzzle` is supplied (from a preview), that exact grid is
+// assigned; otherwise a fresh puzzle is generated at the given difficulty.
 export async function createPuzzle(
   staff: User,
   input: {
@@ -72,6 +148,7 @@ export async function createPuzzle(
     rewardItemName?: string | null;
     rewardItemCategory?: string | null;
     rewardNote?: string | null;
+    puzzle?: { grid?: unknown; daemons?: unknown; bufferSize?: unknown } | null;
   },
 ): Promise<ServiceResult<BreachPuzzleView>> {
   if (!isStaff(staff)) return { status: 403, body: { error: "Requires FIXER or ADMIN role" } };
@@ -97,9 +174,19 @@ export async function createPuzzle(
   const [player] = await db.select().from(users).where(eq(users.id, character.ownerId));
   if (!player) return { status: 400, body: { error: "Character owner is not a registered player" } };
 
-  // Generate the puzzle; the generator also returns its authoritative solution
-  // count (the difficulty proof).
-  const puzzle = generatePuzzleByDifficulty(difficulty);
+  // Use the previewed puzzle when provided (so staff assign exactly what they
+  // saw); otherwise generate a fresh one at the requested difficulty.
+  let puzzle: { grid: string[][]; daemons: string[][]; bufferSize: number; solutionCount: number };
+  if (input.puzzle) {
+    const sanitized = sanitizePuzzleInput(input.puzzle);
+    if (!sanitized) return { status: 400, body: { error: "Invalid puzzle payload" } };
+    puzzle = {
+      ...sanitized,
+      solutionCount: countPuzzleSolutions(sanitized.grid, sanitized.daemons),
+    };
+  } else {
+    puzzle = generatePuzzleByDifficulty(difficulty);
+  }
 
   const [row] = await db
     .insert(breachPuzzles)
@@ -161,7 +248,8 @@ export async function listMyPuzzles(user: User): Promise<ServiceResult<BreachPuz
     .from(breachPuzzles)
     .where(eq(breachPuzzles.assignedUserId, user.id))
     .orderBy(desc(breachPuzzles.createdAt));
-  return { status: 200, body: await Promise.all(rows.map(shape)) };
+  const shaped = await Promise.all(rows.map(shape));
+  return { status: 200, body: shaped.map(redactUnstarted) };
 }
 
 export async function listCharacterPuzzles(user: User, characterId: number): Promise<ServiceResult<BreachPuzzleView[]>> {
@@ -175,7 +263,10 @@ export async function listCharacterPuzzles(user: User, characterId: number): Pro
     .from(breachPuzzles)
     .where(eq(breachPuzzles.assignedCharacterId, characterId))
     .orderBy(desc(breachPuzzles.createdAt));
-  return { status: 200, body: await Promise.all(rows.map(shape)) };
+  const shaped = await Promise.all(rows.map(shape));
+  // Staff may inspect full puzzle contents; the owner only sees redacted rows
+  // until each puzzle is completed (same anti-offline-solve rule as listMy).
+  return { status: 200, body: isStaff(user) ? shaped : shaped.map(redactUnstarted) };
 }
 
 export async function getPuzzle(user: User, id: number): Promise<ServiceResult<BreachPuzzleView>> {
@@ -183,6 +274,24 @@ export async function getPuzzle(user: User, id: number): Promise<ServiceResult<B
   if (!row) return { status: 404, body: { error: "Not found" } };
   if (!isStaff(user) && row.assignedUserId !== user.id) {
     return { status: 403, body: { error: "Forbidden" } };
+  }
+  // Server-authoritative timer anchor: the assigned player can only see the grid
+  // by fetching it, so we start the clock here (idempotently) the first time the
+  // player loads the puzzle. This closes the bypass where a client skips /start,
+  // solves offline, and posts /result. Staff viewing never starts the clock.
+  if (
+    row.assignedUserId === user.id &&
+    !row.completedAt &&
+    !row.startedAt
+  ) {
+    const [started] = await db
+      .update(breachPuzzles)
+      .set({ startedAt: new Date(), status: "in_progress" })
+      .where(and(eq(breachPuzzles.id, id), isNull(breachPuzzles.startedAt)))
+      .returning();
+    if (started) return { status: 200, body: await shape(started) };
+    const [fresh] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
+    return { status: 200, body: await shape(fresh ?? row) };
   }
   return { status: 200, body: await shape(row) };
 }
@@ -250,14 +359,19 @@ export async function submitResult(
     };
   }
 
-  // Time-limit enforcement: if the server clock says the window elapsed, the
-  // attempt is recorded as expired regardless of the submitted path.
+  // Time-limit enforcement: the timer is anchored server-side when the player
+  // first fetches the puzzle (getPuzzle). A submission with no startedAt means
+  // the client never legitimately opened the puzzle (e.g. a direct POST to
+  // bypass the clock) — record it as expired. Otherwise compare against the
+  // server clock.
   const now = new Date();
   let timeTakenSeconds: number | null = null;
   let expired = false;
   if (row.startedAt) {
     timeTakenSeconds = Math.round((now.getTime() - row.startedAt.getTime()) / 1000);
     if (timeTakenSeconds > row.timeLimitSeconds) expired = true;
+  } else {
+    expired = true;
   }
 
   const score = scoreSelection(grid, daemons, row.bufferSize, Array.isArray(selection) ? selection : []);

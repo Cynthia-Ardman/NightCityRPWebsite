@@ -77,6 +77,51 @@ export interface BreachPuzzle {
   createdAt: string;
 }
 
+export type BreachPreviewInputDifficulty = typeof BreachPreviewInputDifficulty[keyof typeof BreachPreviewInputDifficulty];
+
+
+export const BreachPreviewInputDifficulty = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+  impossible: 'impossible',
+} as const;
+
+export interface BreachPreviewInput {
+  difficulty: BreachPreviewInputDifficulty;
+}
+
+export type BreachPreviewDifficulty = typeof BreachPreviewDifficulty[keyof typeof BreachPreviewDifficulty];
+
+
+export const BreachPreviewDifficulty = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+  impossible: 'impossible',
+} as const;
+
+export interface BreachPreview {
+  difficulty: BreachPreviewDifficulty;
+  /** The code matrix as rows of hex byte strings. */
+  grid: string[][];
+  /** Each daemon is a sequence of hex byte strings to breach. */
+  daemons: string[][];
+  bufferSize: number;
+  solutionCount: number;
+  /** One worked solution path (empty when the grid is unsolvable, e.g. impossible). */
+  solutionPath: BreachPos[];
+}
+
+/**
+ * A previewed puzzle to assign verbatim (from previewBreachPuzzle).
+ */
+export interface BreachPuzzlePayload {
+  grid: string[][];
+  daemons: string[][];
+  bufferSize: number;
+}
+
 export type BreachPuzzleInputDifficulty = typeof BreachPuzzleInputDifficulty[keyof typeof BreachPuzzleInputDifficulty];
 
 
@@ -107,6 +152,8 @@ export interface BreachPuzzleInput {
   rewardItemCategory?: string | null;
   /** @nullable */
   rewardNote?: string | null;
+  /** Optional previewed puzzle to assign exactly as shown; omit to generate a fresh one. */
+  puzzle?: BreachPuzzlePayload | null;
 }
 
 export interface BreachResultInput {
