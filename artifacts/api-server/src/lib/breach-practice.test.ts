@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { db, breachPracticeStats } from "@workspace/db";
 
 import { createUser } from "../test/testDb";
 import {
@@ -21,7 +22,7 @@ describe("breach practice stats (opt-in account sync)", () => {
     const user = await createUser();
     const stats = ok(await getPracticeStats(user));
     expect(stats.easy).toEqual({ attempts: 0, solves: 0, fastestClearMs: null });
-    expect(stats.impossible).toEqual({ attempts: 0, solves: 0, fastestClearMs: null });
+    expect(stats.hard).toEqual({ attempts: 0, solves: 0, fastestClearMs: null });
   });
 
   it("records attempts and keeps the fastest clear", async () => {
@@ -94,6 +95,21 @@ describe("breach practice stats (opt-in account sync)", () => {
     await recordPracticeAttempt(a, "easy", true, 1000);
     const bStats = ok(await getPracticeStats(b));
     expect(bStats.easy.attempts).toBe(0);
+  });
+
+  it("ignores legacy 'impossible' rows in practice stats", async () => {
+    const user = await createUser();
+    // Seed a pre-removal row directly — practice no longer accepts this difficulty.
+    await db.insert(breachPracticeStats).values({
+      userId: user.id,
+      difficulty: "impossible",
+      attempts: 7,
+      solves: 4,
+      fastestClearMs: 1234,
+    });
+    const stats = ok(await getPracticeStats(user));
+    expect(Object.keys(stats).sort()).toEqual(["easy", "hard", "medium"]);
+    expect((stats as Record<string, unknown>).impossible).toBeUndefined();
   });
 });
 

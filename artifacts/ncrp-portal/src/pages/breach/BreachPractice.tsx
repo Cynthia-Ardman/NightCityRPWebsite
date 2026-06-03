@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import {
   generatePuzzleByDifficulty,
-  type Difficulty,
+  PRACTICE_DIFFICULTIES,
+  type PracticeDifficulty,
   type GeneratedPuzzle,
 } from "@workspace/breach";
 import { useGetBreachPracticeLeaderboard } from "@workspace/api-client-react";
@@ -17,27 +18,26 @@ import { Cpu, ArrowLeft, RefreshCw, BarChart3, Trash2, Cloud, Loader2, Trophy } 
 import { formatClearTime, winRate } from "./breachPracticeStats";
 import { usePracticeStats } from "./usePracticeStats";
 
-const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard", "impossible"];
+const DIFFICULTIES: PracticeDifficulty[] = PRACTICE_DIFFICULTIES;
 
 // Practice time limits mirror the spirit of the staff defaults but are purely
 // client-side — nothing here is recorded.
-const TIME_BY_DIFFICULTY: Record<Difficulty, number> = {
+const TIME_BY_DIFFICULTY: Record<PracticeDifficulty, number> = {
   easy: 90,
   medium: 60,
   hard: 45,
-  impossible: 30,
 };
 
 type Session = {
   puzzle: GeneratedPuzzle;
-  difficulty: Difficulty;
+  difficulty: PracticeDifficulty;
   timeLimitSeconds: number;
   startAt: number;
   nonce: number;
 };
 
 export default function BreachPractice() {
-  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [difficulty, setDifficulty] = useState<PracticeDifficulty>("medium");
   const [session, setSession] = useState<Session | null>(null);
   const [outcome, setOutcome] = useState<BreachOutcome | null>(null);
   const { toast } = useToast();
@@ -55,7 +55,7 @@ export default function BreachPractice() {
     disableSync,
   } = usePracticeStats();
 
-  const start = (diff: Difficulty) => {
+  const start = (diff: PracticeDifficulty) => {
     const puzzle = generatePuzzleByDifficulty(diff);
     setOutcome(null);
     setSession({

@@ -7,7 +7,7 @@ import {
   useClearBreachPracticeStats,
   getGetBreachPracticeStatsQueryKey,
 } from "@workspace/api-client-react";
-import type { Difficulty } from "@workspace/breach";
+import type { PracticeDifficulty } from "@workspace/breach";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import {
   loadStats,
@@ -48,7 +48,7 @@ export type UsePracticeStats = {
   synced: boolean;
   // True while the first-sync merge is in flight.
   syncBusy: boolean;
-  recordAttempt: (difficulty: Difficulty, success: boolean, elapsedMs: number) => void;
+  recordAttempt: (difficulty: PracticeDifficulty, success: boolean, elapsedMs: number) => void;
   resetStats: () => void;
   enableSync: () => Promise<void>;
   disableSync: () => void;
@@ -81,7 +81,7 @@ export function usePracticeStats(): UsePracticeStats {
     synced && statsQuery.data ? (statsQuery.data as PracticeStats) : localStats;
 
   const recordAttempt = useCallback(
-    (difficulty: Difficulty, success: boolean, elapsedMs: number) => {
+    (difficulty: PracticeDifficulty, success: boolean, elapsedMs: number) => {
       if (synced) {
         recordMut.mutate(
           { data: { difficulty, success, elapsedMs } },

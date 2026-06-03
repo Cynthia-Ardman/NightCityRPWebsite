@@ -1,4 +1,4 @@
-import type { Difficulty } from "@workspace/breach";
+import { PRACTICE_DIFFICULTIES, type PracticeDifficulty } from "@workspace/breach";
 
 // Local-only practice progress. This NEVER touches the server, the economy, or
 // any reward path — it lives purely in the player's browser so the practice
@@ -10,11 +10,11 @@ export type DifficultyStats = {
   fastestClearMs: number | null;
 };
 
-export type PracticeStats = Record<Difficulty, DifficultyStats>;
+export type PracticeStats = Record<PracticeDifficulty, DifficultyStats>;
 
 const STORAGE_KEY = "ncrp-breach-practice-stats-v1";
 
-const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard", "impossible"];
+const DIFFICULTIES: PracticeDifficulty[] = PRACTICE_DIFFICULTIES;
 
 function emptyDifficultyStats(): DifficultyStats {
   return { attempts: 0, solves: 0, fastestClearMs: null };
@@ -25,7 +25,6 @@ export function emptyStats(): PracticeStats {
     easy: emptyDifficultyStats(),
     medium: emptyDifficultyStats(),
     hard: emptyDifficultyStats(),
-    impossible: emptyDifficultyStats(),
   };
 }
 
@@ -73,7 +72,7 @@ function saveStats(stats: PracticeStats) {
 }
 
 export function recordAttempt(
-  difficulty: Difficulty,
+  difficulty: PracticeDifficulty,
   success: boolean,
   elapsedMs: number,
 ): PracticeStats {

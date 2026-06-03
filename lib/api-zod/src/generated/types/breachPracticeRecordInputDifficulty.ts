@@ -13,5 +13,4 @@ export const BreachPracticeRecordInputDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
-  impossible: 'impossible',
 } as const;

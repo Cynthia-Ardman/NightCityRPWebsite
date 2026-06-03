@@ -4204,17 +4204,16 @@ components:
     BreachPracticeStats:
       type: object
       description: "Per-difficulty personal practice progress for the caller."
-      required: [easy, medium, hard, impossible]
+      required: [easy, medium, hard]
       properties:
         easy: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
         medium: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
         hard: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
-        impossible: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
     BreachPracticeRecordInput:
       type: object
       required: [difficulty, success]
       properties:
-        difficulty: { type: string, enum: [easy, medium, hard, impossible] }
+        difficulty: { type: string, enum: [easy, medium, hard] }
         success: { type: boolean }
         elapsedMs:
           type: ["integer", "null"]
@@ -4239,7 +4238,7 @@ components:
     BreachPracticeLeaderboard:
       type: object
       description: "Per-difficulty fastest-clear rankings (opted-in players only)."
-      required: [easy, medium, hard, impossible]
+      required: [easy, medium, hard]
       properties:
         easy:
           type: array
@@ -4248,9 +4247,6 @@ components:
           type: array
           items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
         hard:
-          type: array
-          items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
-        impossible:
           type: array
           items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
     ReviewComment:

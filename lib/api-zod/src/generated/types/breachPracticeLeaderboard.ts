@@ -14,5 +14,4 @@ export interface BreachPracticeLeaderboard {
   easy: BreachLeaderboardEntry[];
   medium: BreachLeaderboardEntry[];
   hard: BreachLeaderboardEntry[];
-  impossible: BreachLeaderboardEntry[];
 }

@@ -222,7 +222,6 @@ export interface BreachPracticeStats {
   easy: BreachPracticeDifficultyStats;
   medium: BreachPracticeDifficultyStats;
   hard: BreachPracticeDifficultyStats;
-  impossible: BreachPracticeDifficultyStats;
 }
 
 export type BreachPracticeRecordInputDifficulty = typeof BreachPracticeRecordInputDifficulty[keyof typeof BreachPracticeRecordInputDifficulty];
@@ -232,7 +231,6 @@ export const BreachPracticeRecordInputDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
-  impossible: 'impossible',
 } as const;
 
 export interface BreachPracticeRecordInput {
@@ -269,7 +267,6 @@ export interface BreachPracticeLeaderboard {
   easy: BreachLeaderboardEntry[];
   medium: BreachLeaderboardEntry[];
   hard: BreachLeaderboardEntry[];
-  impossible: BreachLeaderboardEntry[];
 }
 
 export type ReviewCommentSubjectType = typeof ReviewCommentSubjectType[keyof typeof ReviewCommentSubjectType];

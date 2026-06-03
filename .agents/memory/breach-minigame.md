@@ -72,6 +72,14 @@ players solve live; rewards paid on success.
   frontend-only flag (preserves cross-device history); the path that actually leaves the leaderboard is
   Reset (`clearPracticeStats` / DELETE /breach/practice/stats). It exposes only display name + fastest
   time/solves; still no rewards and no economy linkage.
+- **Difficulty is split: practice/leaderboard ⊂ staff**: `lib/breach/src/game.ts` exports the FULL
+  `Difficulty`/`DIFFICULTIES` (incl. `impossible`) for STAFF puzzle assignment (BreachHub, createPuzzle,
+  difficultyBadge), and a narrower `PracticeDifficulty`/`PRACTICE_DIFFICULTIES` = easy|medium|hard for the
+  practice page + practice leaderboard. The practice service keys (`PracticeStatsView`/`PracticeLeaderboardView`),
+  the `isPracticeDifficulty` guard, and the openapi practice schemas all use the narrow set. Legacy
+  `breachPracticeStats` rows with `difficulty='impossible'` are silently filtered (guard skips them) — never
+  indexed into response objects. **Why:** impossible was removed from practice only; widening either set must
+  stay one-directional (staff ⊇ practice) or practice will accept a difficulty the leaderboard can't bucket.
 - **Live-submit status is on the RESPONSE, not the query**: after a successful /result submit,
   derive the overlay's expired/success/solvedCount from the returned `BreachResult.puzzle`
   (fresh status), NOT the pre-submit getPuzzle query — that cached row is still `sent`/`startedAt`

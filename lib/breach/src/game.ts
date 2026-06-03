@@ -20,6 +20,18 @@ export const DIFFICULTIES: Difficulty[] = [
   "impossible",
 ];
 
+// Difficulties offered on the (unrecorded) practice page and its leaderboard.
+// "impossible" generates an intentionally unsolvable grid, which makes no sense
+// to practice or rank, so it is excluded here while remaining available to
+// staff for assigned puzzles.
+export type PracticeDifficulty = "easy" | "medium" | "hard";
+
+export const PRACTICE_DIFFICULTIES: PracticeDifficulty[] = [
+  "easy",
+  "medium",
+  "hard",
+];
+
 const hexToNum = (h: string) => parseInt(h, 16);
 
 function randomHex() {

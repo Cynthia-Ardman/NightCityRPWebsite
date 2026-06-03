@@ -12,9 +12,11 @@ import {
 } from "@workspace/db";
 import {
   type Difficulty,
+  type PracticeDifficulty,
   type Pos,
   countPuzzleSolutions,
   generatePuzzleByDifficulty,
+  PRACTICE_DIFFICULTIES,
   scoreSelection,
   solvePuzzle,
 } from "@workspace/breach";
@@ -711,7 +713,7 @@ export type PracticeDifficultyStats = {
   fastestClearMs: number | null;
 };
 
-export type PracticeStatsView = Record<Difficulty, PracticeDifficultyStats>;
+export type PracticeStatsView = Record<PracticeDifficulty, PracticeDifficultyStats>;
 
 function emptyPracticeDifficulty(): PracticeDifficultyStats {
   return { attempts: 0, solves: 0, fastestClearMs: null };
@@ -722,12 +724,12 @@ function emptyPracticeStats(): PracticeStatsView {
     easy: emptyPracticeDifficulty(),
     medium: emptyPracticeDifficulty(),
     hard: emptyPracticeDifficulty(),
-    impossible: emptyPracticeDifficulty(),
   };
 }
 
-function isValidDifficulty(raw: unknown): raw is Difficulty {
-  return typeof raw === "string" && (DIFFICULTIES as string[]).includes(raw);
+// Practice + leaderboard only cover the playable difficulties (no "impossible").
+function isPracticeDifficulty(raw: unknown): raw is PracticeDifficulty {
+  return typeof raw === "string" && (PRACTICE_DIFFICULTIES as string[]).includes(raw);
 }
 
 // Coerce an arbitrary client-supplied difficulty stat blob into a safe shape.
@@ -752,7 +754,7 @@ async function readPracticeStats(userId: string): Promise<PracticeStatsView> {
     .where(eq(breachPracticeStats.userId, userId));
   const out = emptyPracticeStats();
   for (const row of rows) {
-    if (isValidDifficulty(row.difficulty)) {
+    if (isPracticeDifficulty(row.difficulty)) {
       out[row.difficulty] = {
         attempts: row.attempts,
         solves: row.solves,
@@ -775,7 +777,7 @@ export async function recordPracticeAttempt(
   success: boolean,
   rawElapsedMs: unknown,
 ): Promise<ServiceResult<PracticeStatsView>> {
-  if (!isValidDifficulty(rawDifficulty)) {
+  if (!isPracticeDifficulty(rawDifficulty)) {
     return { status: 400, body: { error: "Invalid difficulty" } };
   }
   const difficulty = rawDifficulty;
@@ -821,7 +823,7 @@ export async function mergePracticeStats(
   rawStats: unknown,
 ): Promise<ServiceResult<PracticeStatsView>> {
   const incoming = (rawStats && typeof rawStats === "object" ? rawStats : {}) as Record<string, unknown>;
-  for (const difficulty of DIFFICULTIES) {
+  for (const difficulty of PRACTICE_DIFFICULTIES) {
     const local = sanitizePracticeDifficulty(incoming[difficulty]);
     if (local.attempts === 0 && local.solves === 0 && local.fastestClearMs === null) continue;
     await db
@@ -871,7 +873,7 @@ export type LeaderboardEntry = {
   solves: number;
 };
 
-export type PracticeLeaderboardView = Record<Difficulty, LeaderboardEntry[]>;
+export type PracticeLeaderboardView = Record<PracticeDifficulty, LeaderboardEntry[]>;
 
 const LEADERBOARD_LIMIT = 10;
 
@@ -896,9 +898,9 @@ export async function getPracticeLeaderboard(): Promise<ServiceResult<PracticeLe
       asc(breachPracticeStats.userId),
     );
 
-  const out: PracticeLeaderboardView = { easy: [], medium: [], hard: [], impossible: [] };
+  const out: PracticeLeaderboardView = { easy: [], medium: [], hard: [] };
   for (const row of rows) {
-    if (!isValidDifficulty(row.difficulty)) continue;
+    if (!isPracticeDifficulty(row.difficulty)) continue;
     if (row.fastestClearMs === null) continue;
     const bucket = out[row.difficulty];
     if (bucket.length >= LEADERBOARD_LIMIT) continue;
