@@ -27,6 +27,8 @@ export interface MissionSummary {
   /** @nullable */
   imageUrl?: string | null;
   playerPay: number;
+  /** Eddies paid to each NPC sign-up confirmed as attended. */
+  npcPayAmount?: number;
   slots: number;
   /** @nullable */
   jobType?: MissionSummaryJobType;

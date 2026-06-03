@@ -16,6 +16,8 @@ export interface MissionUpdateInput {
   tier?: MissionUpdateInputTier;
   /** @minimum 0 */
   playerPay?: number;
+  /** @minimum 0 */
+  npcPayAmount?: number;
   /** @nullable */
   location?: string | null;
   /** @nullable */

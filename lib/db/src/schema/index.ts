@@ -734,6 +734,8 @@ export const missions = pgTable("missions", {
   tier: integer("tier").notNull().default(1),
   // Per-player mission pay (auto-paid after the mission window).
   playerPay: integer("player_pay").notNull().default(0),
+  // Per-NPC pay snapshotted onto a sign-up when a fixer confirms attendance.
+  npcPayAmount: integer("npc_pay_amount").notNull().default(0),
   location: text("location"),
   description: text("description"),
   // Optional custom image; null falls back to a default image at render time.
@@ -876,6 +878,35 @@ export const missionApplications = pgTable("mission_applications", {
   userIdx: index("mission_applications_user_idx").on(t.userId),
 }));
 export type MissionApplication = typeof missionApplications.$inferSelect;
+
+// Player NPC sign-ups (Task #185). A player signs up to act as an NPC on a
+// not-yet-completed mission; the mission's fixer later confirms whether they
+// actually attended (and pays them) or marks a no-show. A partial unique index
+// keeps at most one ACTIVE ('signed_up') sign-up per (mission, user); resolving
+// a sign-up to attended/no_show frees the slot so a re-signup is possible.
+export const missionNpcSignups = pgTable("mission_npc_signups", {
+  id: serial("id").primaryKey(),
+  missionId: integer("mission_id").notNull().references(() => missions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  characterId: integer("character_id").references(() => characters.id, { onDelete: "set null" }),
+  // signed_up | attended | no_show
+  state: text("state").notNull().default("signed_up"),
+  // Snapshotted from missions.npcPayAmount at the moment a fixer confirms.
+  payAmount: integer("pay_amount"),
+  // unpaid | processing | paid | failed | simulated
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  paymentError: text("payment_error"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => ({
+  oneActivePerUserIdx: uniqueIndex("mission_npc_signups_active_idx")
+    .on(t.missionId, t.userId)
+    .where(sql`state = 'signed_up'`),
+  missionIdx: index("mission_npc_signups_mission_idx").on(t.missionId),
+  userIdx: index("mission_npc_signups_user_idx").on(t.userId),
+}));
+export type MissionNpcSignup = typeof missionNpcSignups.$inferSelect;
 
 export const wholesalerItems = pgTable("wholesaler_items", {
   id: serial("id").primaryKey(),

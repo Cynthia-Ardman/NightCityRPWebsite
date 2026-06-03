@@ -12,6 +12,8 @@ import type { MissionDetailJobType } from './missionDetailJobType';
 import type { MissionDetailStatus } from './missionDetailStatus';
 import type { MissionDetailTier } from './missionDetailTier';
 import type { MissionDetailWorkflowState } from './missionDetailWorkflowState';
+import type { MissionNpcMySignupView } from './missionNpcMySignupView';
+import type { MissionNpcSignupView } from './missionNpcSignupView';
 
 export interface MissionDetail {
   id: number;
@@ -29,6 +31,8 @@ export interface MissionDetail {
   /** @nullable */
   imageUrl?: string | null;
   playerPay: number;
+  /** Eddies paid to each NPC sign-up confirmed as attended. */
+  npcPayAmount?: number;
   slots: number;
   /** @nullable */
   jobType?: MissionDetailJobType;
@@ -85,6 +89,12 @@ export interface MissionDetail {
   applications: MissionApplicationView[];
   /** The caller's own application (players only); null for managers or no application. */
   myApplication?: MissionApplicationView | null;
+  /** True when this mission is currently accepting NPC sign-ups. */
+  npcSignupOpen?: boolean;
+  /** The caller's own NPC sign-up (any state); null if none. */
+  mySignup?: MissionNpcMySignupView | null;
+  /** Full NPC sign-up roster (managers only; empty for players). */
+  npcSignups?: MissionNpcSignupView[];
   createdAt: Date;
   /** @nullable */
   updatedAt?: Date | null;

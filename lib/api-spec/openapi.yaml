@@ -1493,6 +1493,23 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ActingEntry" }
+  /missions/acting/{userId}:
+    get:
+      operationId: listActingForUser
+      tags: [missions]
+      summary: "A specific player's acting history (fixer/admin per-player lookup), newest first."
+      parameters:
+        - { in: path, name: userId, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActingEntry" }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
   /missions/conflicts:
     get:
       operationId: checkMissionConflicts
@@ -1820,6 +1837,65 @@ paths:
         "400": { description: Bad request }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
+  /missions/{id}/npc-signups:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: signUpAsNpc
+      tags: [missions]
+      summary: "Sign up to NPC on a not-yet-completed mission (optionally with one of your own characters)."
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NpcSignupInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+        "409": { description: Mission not accepting NPC sign-ups. }
+  /missions/{id}/npc-signups/me:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    delete:
+      operationId: withdrawNpcSignup
+      tags: [missions]
+      summary: "Withdraw your own active (not-yet-confirmed) NPC sign-up."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "404": { description: Not found. }
+  /missions/{id}/npc-signups/{signupId}/confirm:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: signupId, required: true, schema: { type: integer } }
+    post:
+      operationId: confirmNpcSignup
+      tags: [missions]
+      summary: "Confirm an NPC sign-up: attended (pays npcPayAmount) or no_show. Owning fixer/admin only."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmNpcSignupInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+        "409": { description: Mission cancelled. }
 
   /admin/audit:
     get:
@@ -6986,6 +7062,7 @@ components:
         descriptionPreview: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
         playerPay: { type: integer }
+        npcPayAmount: { type: integer, description: "Eddies paid to each NPC sign-up confirmed as attended." }
         slots: { type: integer }
         jobType: { type: ["string", "null"], enum: [combat, non_combat, mixed, null] }
         requestedSkills: { type: ["string", "null"] }
@@ -7032,7 +7109,7 @@ components:
         name: { type: ["string", "null"], description: "Mission or event name acted in." }
         actedAt: { type: string, format: date-time, description: "When the act happened." }
         amount: { type: integer, description: "Eddies paid for the act." }
-        source: { type: string, enum: [mission, event, legacy], description: "mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot." }
+        source: { type: string, enum: [mission, event, legacy, npc], description: "mission = tied to a scheduled mission; event = free-form payout; npc = NPC sign-up payout; legacy = imported from the old bot." }
         paymentStatus: { type: ["string", "null"], description: "paid/failed for modern rows; null for legacy." }
         fixerName: { type: ["string", "null"] }
 
@@ -7051,6 +7128,7 @@ components:
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
         playerPay: { type: integer }
+        npcPayAmount: { type: integer, description: "Eddies paid to each NPC sign-up confirmed as attended." }
         slots: { type: integer }
         jobType: { type: ["string", "null"], enum: [combat, non_combat, mixed, null] }
         requestedSkills: { type: ["string", "null"] }
@@ -7086,6 +7164,16 @@ components:
             - $ref: "#/components/schemas/MissionApplicationView"
             - type: "null"
           description: "The caller's own application (players only); null for managers or no application."
+        npcSignupOpen: { type: boolean, description: "True when this mission is currently accepting NPC sign-ups." }
+        mySignup:
+          oneOf:
+            - $ref: "#/components/schemas/MissionNpcMySignupView"
+            - type: "null"
+          description: "The caller's own NPC sign-up (any state); null if none."
+        npcSignups:
+          type: array
+          description: "Full NPC sign-up roster (managers only; empty for players)."
+          items: { $ref: "#/components/schemas/MissionNpcSignupView" }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: ["string", "null"], format: date-time }
 
@@ -7153,6 +7241,47 @@ components:
       properties:
         action: { type: string, enum: [accept, reject] }
 
+    NpcSignupInput:
+      type: object
+      properties:
+        characterId: { type: ["integer", "null"], description: "Optionally one of your own characters to NPC as." }
+
+    ConfirmNpcSignupInput:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [attended, no_show], description: "attended pays npcPayAmount; no_show resolves with no payout." }
+
+    MissionNpcMySignupView:
+      type: object
+      required: [id, state, paymentStatus]
+      properties:
+        id: { type: integer }
+        characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
+        state: { type: string, enum: [signed_up, attended, no_show] }
+        payAmount: { type: ["integer", "null"] }
+        paymentStatus: { type: string, enum: [unpaid, processing, paid, failed, simulated] }
+        paidAt: { type: ["string", "null"], format: date-time }
+
+    MissionNpcSignupView:
+      type: object
+      required: [id, userId, state, paymentStatus, createdAt]
+      properties:
+        id: { type: integer }
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        userAvatarUrl: { type: ["string", "null"] }
+        characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
+        characterPortraitUrl: { type: ["string", "null"] }
+        state: { type: string, enum: [signed_up, attended, no_show] }
+        payAmount: { type: ["integer", "null"] }
+        paymentStatus: { type: string, enum: [unpaid, processing, paid, failed, simulated] }
+        paymentError: { type: ["string", "null"] }
+        paidAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+
     MissionConflictCheck:
       type: object
       required: [checked, conflicts]
@@ -7187,6 +7316,7 @@ components:
         title: { type: string, minLength: 1 }
         tier: { type: integer, enum: [1, 2, 3, 4] }
         playerPay: { type: integer, minimum: 0, default: 0 }
+        npcPayAmount: { type: integer, minimum: 0, default: 0 }
         location: { type: string }
         description: { type: string }
         imageUrl: { type: string }
@@ -7210,6 +7340,7 @@ components:
         title: { type: string, minLength: 1 }
         tier: { type: integer, enum: [1, 2, 3, 4] }
         playerPay: { type: integer, minimum: 0 }
+        npcPayAmount: { type: integer, minimum: 0 }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }

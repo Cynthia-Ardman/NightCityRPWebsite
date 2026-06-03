@@ -4001,6 +4001,8 @@ export interface MissionSummary {
   /** @nullable */
   imageUrl?: string | null;
   playerPay: number;
+  /** Eddies paid to each NPC sign-up confirmed as attended. */
+  npcPayAmount?: number;
   slots: number;
   /** @nullable */
   jobType?: MissionSummaryJobType;
@@ -4038,7 +4040,7 @@ export interface MissionHistoryPage {
 }
 
 /**
- * mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot.
+ * mission = tied to a scheduled mission; event = free-form payout; npc = NPC sign-up payout; legacy = imported from the old bot.
  */
 export type ActingEntrySource = typeof ActingEntrySource[keyof typeof ActingEntrySource];
 
@@ -4047,6 +4049,7 @@ export const ActingEntrySource = {
   mission: 'mission',
   event: 'event',
   legacy: 'legacy',
+  npc: 'npc',
 } as const;
 
 export interface ActingEntry {
@@ -4061,7 +4064,7 @@ export interface ActingEntry {
   actedAt: string;
   /** Eddies paid for the act. */
   amount: number;
-  /** mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot. */
+  /** mission = tied to a scheduled mission; event = free-form payout; npc = NPC sign-up payout; legacy = imported from the old bot. */
   source: ActingEntrySource;
   /**
      * paid/failed for modern rows; null for legacy.
@@ -4155,6 +4158,84 @@ export interface MissionApplicationView {
   recencyWarning: boolean;
 }
 
+export type MissionNpcMySignupViewState = typeof MissionNpcMySignupViewState[keyof typeof MissionNpcMySignupViewState];
+
+
+export const MissionNpcMySignupViewState = {
+  signed_up: 'signed_up',
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
+export type MissionNpcMySignupViewPaymentStatus = typeof MissionNpcMySignupViewPaymentStatus[keyof typeof MissionNpcMySignupViewPaymentStatus];
+
+
+export const MissionNpcMySignupViewPaymentStatus = {
+  unpaid: 'unpaid',
+  processing: 'processing',
+  paid: 'paid',
+  failed: 'failed',
+  simulated: 'simulated',
+} as const;
+
+export interface MissionNpcMySignupView {
+  id: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  state: MissionNpcMySignupViewState;
+  /** @nullable */
+  payAmount?: number | null;
+  paymentStatus: MissionNpcMySignupViewPaymentStatus;
+  /** @nullable */
+  paidAt?: string | null;
+}
+
+export type MissionNpcSignupViewState = typeof MissionNpcSignupViewState[keyof typeof MissionNpcSignupViewState];
+
+
+export const MissionNpcSignupViewState = {
+  signed_up: 'signed_up',
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
+export type MissionNpcSignupViewPaymentStatus = typeof MissionNpcSignupViewPaymentStatus[keyof typeof MissionNpcSignupViewPaymentStatus];
+
+
+export const MissionNpcSignupViewPaymentStatus = {
+  unpaid: 'unpaid',
+  processing: 'processing',
+  paid: 'paid',
+  failed: 'failed',
+  simulated: 'simulated',
+} as const;
+
+export interface MissionNpcSignupView {
+  id: number;
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  /** @nullable */
+  userAvatarUrl?: string | null;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  characterPortraitUrl?: string | null;
+  state: MissionNpcSignupViewState;
+  /** @nullable */
+  payAmount?: number | null;
+  paymentStatus: MissionNpcSignupViewPaymentStatus;
+  /** @nullable */
+  paymentError?: string | null;
+  /** @nullable */
+  paidAt?: string | null;
+  createdAt: string;
+}
+
 export interface MissionDetail {
   id: number;
   title: string;
@@ -4171,6 +4252,8 @@ export interface MissionDetail {
   /** @nullable */
   imageUrl?: string | null;
   playerPay: number;
+  /** Eddies paid to each NPC sign-up confirmed as attended. */
+  npcPayAmount?: number;
   slots: number;
   /** @nullable */
   jobType?: MissionDetailJobType;
@@ -4227,6 +4310,12 @@ export interface MissionDetail {
   applications: MissionApplicationView[];
   /** The caller's own application (players only); null for managers or no application. */
   myApplication?: MissionApplicationView | null;
+  /** True when this mission is currently accepting NPC sign-ups. */
+  npcSignupOpen?: boolean;
+  /** The caller's own NPC sign-up (any state); null if none. */
+  mySignup?: MissionNpcMySignupView | null;
+  /** Full NPC sign-up roster (managers only; empty for players). */
+  npcSignups?: MissionNpcSignupView[];
   createdAt: string;
   /** @nullable */
   updatedAt?: string | null;
@@ -4314,6 +4403,30 @@ export interface ReviewApplicationInput {
   action: ReviewApplicationInputAction;
 }
 
+export interface NpcSignupInput {
+  /**
+     * Optionally one of your own characters to NPC as.
+     * @nullable
+     */
+  characterId?: number | null;
+}
+
+/**
+ * attended pays npcPayAmount; no_show resolves with no payout.
+ */
+export type ConfirmNpcSignupInputAction = typeof ConfirmNpcSignupInputAction[keyof typeof ConfirmNpcSignupInputAction];
+
+
+export const ConfirmNpcSignupInputAction = {
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
+export interface ConfirmNpcSignupInput {
+  /** attended pays npcPayAmount; no_show resolves with no payout. */
+  action: ConfirmNpcSignupInputAction;
+}
+
 export type MissionConflictCheckConflictsItem = {
   id: string;
   name: string;
@@ -4376,6 +4489,8 @@ export interface MissionCreateInput {
   tier: MissionCreateInputTier;
   /** @minimum 0 */
   playerPay?: number;
+  /** @minimum 0 */
+  npcPayAmount?: number;
   location?: string;
   description?: string;
   imageUrl?: string;
@@ -4436,6 +4551,8 @@ export interface MissionUpdateInput {
   tier?: MissionUpdateInputTier;
   /** @minimum 0 */
   playerPay?: number;
+  /** @minimum 0 */
+  npcPayAmount?: number;
   /** @nullable */
   location?: string | null;
   /** @nullable */

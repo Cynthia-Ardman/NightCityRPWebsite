@@ -179,6 +179,7 @@ type FormValues = {
   title: string;
   tier: MissionCreateInputTier;
   playerPay: number;
+  npcPayAmount: number;
   location: string;
   description: string;
   imageUrl: string;
@@ -198,6 +199,7 @@ const EMPTY: FormValues = {
   title: "",
   tier: 1,
   playerPay: 0,
+  npcPayAmount: 0,
   location: "",
   description: "",
   imageUrl: "",
@@ -229,6 +231,7 @@ function EditMissionForm({ missionId, onSaved }: { missionId: number; onSaved: (
     title: data.title,
     tier: data.tier,
     playerPay: data.playerPay,
+    npcPayAmount: data.npcPayAmount ?? 0,
     location: data.location ?? "",
     description: data.description ?? "",
     imageUrl: data.imageUrl ?? "",
@@ -368,6 +371,7 @@ function MissionForm({
       title: v.title.trim(),
       tier: v.tier,
       playerPay: v.playerPay,
+      npcPayAmount: v.npcPayAmount,
       location: v.location || undefined,
       description: v.description || undefined,
       imageUrl: v.imageUrl || undefined,
@@ -510,6 +514,17 @@ function MissionForm({
               onChange={(e) => set("playerPay", Number(e.target.value))}
               className="rounded-none"
               data-testid="input-mission-playerpay"
+            />
+          </div>
+          <div className="md:col-span-4">
+            <Label className="text-xs">NPC PAY €$ (per confirmed sign-up)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={v.npcPayAmount || ""}
+              onChange={(e) => set("npcPayAmount", Number(e.target.value))}
+              className="rounded-none"
+              data-testid="input-mission-npcpay"
             />
           </div>
 

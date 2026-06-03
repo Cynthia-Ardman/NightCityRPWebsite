@@ -19,7 +19,7 @@ export interface ActingEntry {
   actedAt: Date;
   /** Eddies paid for the act. */
   amount: number;
-  /** mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot. */
+  /** mission = tied to a scheduled mission; event = free-form payout; npc = NPC sign-up payout; legacy = imported from the old bot. */
   source: ActingEntrySource;
   /**
      * paid/failed for modern rows; null for legacy.

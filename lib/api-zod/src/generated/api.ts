@@ -2097,6 +2097,7 @@ export const ListMissionsResponseItem = zod.object({
   "descriptionPreview": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -2129,6 +2130,9 @@ export const ListMissionsResponse = zod.array(ListMissionsResponseItem)
 export const createMissionBodyPlayerPayDefault = 0;
 export const createMissionBodyPlayerPayMin = 0;
 
+export const createMissionBodyNpcPayAmountDefault = 0;
+export const createMissionBodyNpcPayAmountMin = 0;
+
 export const createMissionBodyDurationMinutesDefault = 120;
 
 export const createMissionBodySlotsDefault = 0;
@@ -2143,6 +2147,7 @@ export const CreateMissionBody = zod.object({
   "title": zod.string().min(1),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
   "playerPay": zod.number().min(createMissionBodyPlayerPayMin).default(createMissionBodyPlayerPayDefault),
+  "npcPayAmount": zod.number().min(createMissionBodyNpcPayAmountMin).default(createMissionBodyNpcPayAmountDefault),
   "location": zod.string().optional(),
   "description": zod.string().optional(),
   "imageUrl": zod.string().optional(),
@@ -2178,6 +2183,7 @@ export const ListMyMissionsResponseItem = zod.object({
   "descriptionPreview": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -2233,6 +2239,7 @@ export const ListOwnedMissionsResponseItem = zod.object({
   "descriptionPreview": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -2273,6 +2280,7 @@ export const ListCreatedMissionsResponseItem = zod.object({
   "descriptionPreview": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -2327,6 +2335,7 @@ export const ListMissionHistoryResponse = zod.object({
   "descriptionPreview": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -2382,11 +2391,30 @@ export const ListMyActingResponseItem = zod.object({
   "name": zod.string().nullish().describe('Mission or event name acted in.'),
   "actedAt": zod.coerce.date().describe('When the act happened.'),
   "amount": zod.number().describe('Eddies paid for the act.'),
-  "source": zod.enum(['mission', 'event', 'legacy']).describe('mission = tied to a scheduled mission; event = free-form payout; legacy = imported from the old bot.'),
+  "source": zod.enum(['mission', 'event', 'legacy', 'npc']).describe('mission = tied to a scheduled mission; event = free-form payout; npc = NPC sign-up payout; legacy = imported from the old bot.'),
   "paymentStatus": zod.string().nullish().describe('paid\/failed for modern rows; null for legacy.'),
   "fixerName": zod.string().nullish()
 })
 export const ListMyActingResponse = zod.array(ListMyActingResponseItem)
+
+
+/**
+ * @summary A specific player's acting history (fixer/admin per-player lookup), newest first.
+ */
+export const ListActingForUserParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const ListActingForUserResponseItem = zod.object({
+  "id": zod.string().describe('Stable synthetic id (e.g. act-12 \/ legacy-7).'),
+  "name": zod.string().nullish().describe('Mission or event name acted in.'),
+  "actedAt": zod.coerce.date().describe('When the act happened.'),
+  "amount": zod.number().describe('Eddies paid for the act.'),
+  "source": zod.enum(['mission', 'event', 'legacy', 'npc']).describe('mission = tied to a scheduled mission; event = free-form payout; npc = NPC sign-up payout; legacy = imported from the old bot.'),
+  "paymentStatus": zod.string().nullish().describe('paid\/failed for modern rows; null for legacy.'),
+  "fixerName": zod.string().nullish()
+})
+export const ListActingForUserResponse = zod.array(ListActingForUserResponseItem)
 
 
 /**
@@ -2523,6 +2551,7 @@ export const GetMissionResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -2608,6 +2637,31 @@ export const GetMissionResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -2623,6 +2677,8 @@ export const UpdateMissionParams = zod.object({
 
 export const updateMissionBodyPlayerPayMin = 0;
 
+export const updateMissionBodyNpcPayAmountMin = 0;
+
 
 export const updateMissionBodySlotsMin = 0;
 
@@ -2634,6 +2690,7 @@ export const UpdateMissionBody = zod.object({
   "title": zod.string().min(1).optional(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]).optional(),
   "playerPay": zod.number().min(updateMissionBodyPlayerPayMin).optional(),
+  "npcPayAmount": zod.number().min(updateMissionBodyNpcPayAmountMin).optional(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
@@ -2665,6 +2722,7 @@ export const UpdateMissionResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -2750,6 +2808,31 @@ export const UpdateMissionResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -2870,6 +2953,7 @@ export const PayMissionActorsResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -2955,6 +3039,31 @@ export const PayMissionActorsResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -2979,6 +3088,7 @@ export const CompleteMissionResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -3064,6 +3174,31 @@ export const CompleteMissionResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -3088,6 +3223,7 @@ export const UncompleteMissionResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -3173,6 +3309,31 @@ export const UncompleteMissionResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -3197,6 +3358,7 @@ export const SubmitMissionResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -3282,6 +3444,31 @@ export const SubmitMissionResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -3306,6 +3493,7 @@ export const ApproveMissionResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -3391,6 +3579,31 @@ export const ApproveMissionResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -3415,6 +3628,7 @@ export const PostMissionResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -3500,6 +3714,31 @@ export const PostMissionResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -3529,6 +3768,7 @@ export const ApplyToMissionResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -3614,6 +3854,31 @@ export const ApplyToMissionResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -3639,6 +3904,7 @@ export const WithdrawApplicationResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -3724,6 +3990,31 @@ export const WithdrawApplicationResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -3753,6 +4044,7 @@ export const ReviewApplicationResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
   "slots": zod.number(),
   "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
   "requestedSkills": zod.string().nullish(),
@@ -3838,6 +4130,445 @@ export const ReviewApplicationResponse = zod.object({
   "daysSinceLastMission": zod.number().nullish(),
   "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Sign up to NPC on a not-yet-completed mission (optionally with one of your own characters).
+ */
+export const SignUpAsNpcParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SignUpAsNpcBody = zod.object({
+  "characterId": zod.number().nullish().describe('Optionally one of your own characters to NPC as.')
+})
+
+export const SignUpAsNpcResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "completedAt": zod.coerce.date().nullish().describe('Set when manually marked completed; while set, actor payments are locked.'),
+  "completedBy": zod.string().nullish().describe('User id who marked the mission completed.'),
+  "completedByName": zod.string().nullish().describe('Display name of who marked the mission completed.'),
+  "canComplete": zod.boolean().describe('True if caller may mark this mission completed (owning fixer\/admin\/archivist, not already completed).'),
+  "canUncomplete": zod.boolean().describe('True if caller may reopen a completed mission (admin\/archivist only).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Withdraw your own active (not-yet-confirmed) NPC sign-up.
+ */
+export const WithdrawNpcSignupParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const WithdrawNpcSignupResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "completedAt": zod.coerce.date().nullish().describe('Set when manually marked completed; while set, actor payments are locked.'),
+  "completedBy": zod.string().nullish().describe('User id who marked the mission completed.'),
+  "completedByName": zod.string().nullish().describe('Display name of who marked the mission completed.'),
+  "canComplete": zod.boolean().describe('True if caller may mark this mission completed (owning fixer\/admin\/archivist, not already completed).'),
+  "canUncomplete": zod.boolean().describe('True if caller may reopen a completed mission (admin\/archivist only).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Confirm an NPC sign-up: attended (pays npcPayAmount) or no_show. Owning fixer/admin only.
+ */
+export const ConfirmNpcSignupParams = zod.object({
+  "id": zod.coerce.number(),
+  "signupId": zod.coerce.number()
+})
+
+export const ConfirmNpcSignupBody = zod.object({
+  "action": zod.enum(['attended', 'no_show']).describe('attended pays npcPayAmount; no_show resolves with no payout.')
+})
+
+export const ConfirmNpcSignupResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "completedAt": zod.coerce.date().nullish().describe('Set when manually marked completed; while set, actor payments are locked.'),
+  "completedBy": zod.string().nullish().describe('User id who marked the mission completed.'),
+  "completedByName": zod.string().nullish().describe('Display name of who marked the mission completed.'),
+  "canComplete": zod.boolean().describe('True if caller may mark this mission completed (owning fixer\/admin\/archivist, not already completed).'),
+  "canUncomplete": zod.boolean().describe('True if caller may reopen a completed mission (admin\/archivist only).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })

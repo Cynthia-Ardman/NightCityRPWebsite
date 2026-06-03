@@ -80,6 +80,7 @@ import type {
   CharacterUpdateNote,
   CheckMissionConflictsParams,
   CloseReviewTicket200,
+  ConfirmNpcSignupInput,
   CustomRequest,
   CustomRequestApproval,
   CustomRequestInput,
@@ -181,6 +182,7 @@ import type {
   MissionSummary,
   MissionUpdateInput,
   MyUnseen,
+  NpcSignupInput,
   OverridePendingEdit200,
   PayActorsInput,
   PendingEditDetail,
@@ -7068,6 +7070,83 @@ export function useListMyActing<TData = Awaited<ReturnType<typeof listMyActing>>
 
 
 
+export const getListActingForUserUrl = (userId: string,) => {
+
+
+
+
+  return `/api/missions/acting/${userId}`
+}
+
+/**
+ * @summary A specific player's acting history (fixer/admin per-player lookup), newest first.
+ */
+export const listActingForUser = async (userId: string, options?: RequestInit): Promise<ActingEntry[]> => {
+
+  return customFetch<ActingEntry[]>(getListActingForUserUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListActingForUserQueryKey = (userId: string,) => {
+    return [
+    `/api/missions/acting/${userId}`
+    ] as const;
+    }
+
+
+export const getListActingForUserQueryOptions = <TData = Awaited<ReturnType<typeof listActingForUser>>, TError = ErrorType<void>>(userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listActingForUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListActingForUserQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listActingForUser>>> = ({ signal }) => listActingForUser(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listActingForUser>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListActingForUserQueryResult = NonNullable<Awaited<ReturnType<typeof listActingForUser>>>
+export type ListActingForUserQueryError = ErrorType<void>
+
+
+/**
+ * @summary A specific player's acting history (fixer/admin per-player lookup), newest first.
+ */
+
+export function useListActingForUser<TData = Awaited<ReturnType<typeof listActingForUser>>, TError = ErrorType<void>>(
+ userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listActingForUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListActingForUserQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getCheckMissionConflictsUrl = (params: CheckMissionConflictsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -8557,6 +8636,222 @@ export const useReviewApplication = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReviewApplicationMutationOptions(options));
+    }
+
+export const getSignUpAsNpcUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/npc-signups`
+}
+
+/**
+ * @summary Sign up to NPC on a not-yet-completed mission (optionally with one of your own characters).
+ */
+export const signUpAsNpc = async (id: number,
+    npcSignupInput?: NpcSignupInput, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getSignUpAsNpcUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      npcSignupInput,)
+  }
+);}
+
+
+
+
+export const getSignUpAsNpcMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signUpAsNpc>>, TError,{id: number;data?: BodyType<NpcSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof signUpAsNpc>>, TError,{id: number;data?: BodyType<NpcSignupInput>}, TContext> => {
+
+const mutationKey = ['signUpAsNpc'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signUpAsNpc>>, {id: number;data?: BodyType<NpcSignupInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  signUpAsNpc(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SignUpAsNpcMutationResult = NonNullable<Awaited<ReturnType<typeof signUpAsNpc>>>
+    export type SignUpAsNpcMutationBody = BodyType<NpcSignupInput> | undefined
+    export type SignUpAsNpcMutationError = ErrorType<void>
+
+    /**
+ * @summary Sign up to NPC on a not-yet-completed mission (optionally with one of your own characters).
+ */
+export const useSignUpAsNpc = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signUpAsNpc>>, TError,{id: number;data?: BodyType<NpcSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof signUpAsNpc>>,
+        TError,
+        {id: number;data?: BodyType<NpcSignupInput>},
+        TContext
+      > => {
+      return useMutation(getSignUpAsNpcMutationOptions(options));
+    }
+
+export const getWithdrawNpcSignupUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/npc-signups/me`
+}
+
+/**
+ * @summary Withdraw your own active (not-yet-confirmed) NPC sign-up.
+ */
+export const withdrawNpcSignup = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getWithdrawNpcSignupUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getWithdrawNpcSignupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawNpcSignup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawNpcSignup>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['withdrawNpcSignup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawNpcSignup>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  withdrawNpcSignup(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawNpcSignupMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawNpcSignup>>>
+
+    export type WithdrawNpcSignupMutationError = ErrorType<void>
+
+    /**
+ * @summary Withdraw your own active (not-yet-confirmed) NPC sign-up.
+ */
+export const useWithdrawNpcSignup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawNpcSignup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawNpcSignup>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getWithdrawNpcSignupMutationOptions(options));
+    }
+
+export const getConfirmNpcSignupUrl = (id: number,
+    signupId: number,) => {
+
+
+
+
+  return `/api/missions/${id}/npc-signups/${signupId}/confirm`
+}
+
+/**
+ * @summary Confirm an NPC sign-up: attended (pays npcPayAmount) or no_show. Owning fixer/admin only.
+ */
+export const confirmNpcSignup = async (id: number,
+    signupId: number,
+    confirmNpcSignupInput: ConfirmNpcSignupInput, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getConfirmNpcSignupUrl(id,signupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      confirmNpcSignupInput,)
+  }
+);}
+
+
+
+
+export const getConfirmNpcSignupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmNpcSignup>>, TError,{id: number;signupId: number;data: BodyType<ConfirmNpcSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmNpcSignup>>, TError,{id: number;signupId: number;data: BodyType<ConfirmNpcSignupInput>}, TContext> => {
+
+const mutationKey = ['confirmNpcSignup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmNpcSignup>>, {id: number;signupId: number;data: BodyType<ConfirmNpcSignupInput>}> = (props) => {
+          const {id,signupId,data} = props ?? {};
+
+          return  confirmNpcSignup(id,signupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmNpcSignupMutationResult = NonNullable<Awaited<ReturnType<typeof confirmNpcSignup>>>
+    export type ConfirmNpcSignupMutationBody = BodyType<ConfirmNpcSignupInput>
+    export type ConfirmNpcSignupMutationError = ErrorType<void>
+
+    /**
+ * @summary Confirm an NPC sign-up: attended (pays npcPayAmount) or no_show. Owning fixer/admin only.
+ */
+export const useConfirmNpcSignup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmNpcSignup>>, TError,{id: number;signupId: number;data: BodyType<ConfirmNpcSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmNpcSignup>>,
+        TError,
+        {id: number;signupId: number;data: BodyType<ConfirmNpcSignupInput>},
+        TContext
+      > => {
+      return useMutation(getConfirmNpcSignupMutationOptions(options));
     }
 
 export const getAdminListAuditUrl = (params?: AdminListAuditParams,) => {

@@ -7,6 +7,7 @@ import {
   missionAssignments,
   missionActorPayments,
   missionApplications,
+  missionNpcSignups,
   botActorAttendance,
   characters,
   users,
@@ -200,6 +201,7 @@ function toSummary(m: MissionWithFixer, assignments: AssignmentJoin[], viewerId:
     descriptionPreview: preview(m.description),
     imageUrl: m.imageUrl,
     playerPay: m.playerPay,
+    npcPayAmount: m.npcPayAmount,
     slots: m.slots,
     jobType: m.jobType,
     requestedSkills: m.requestedSkills,
@@ -372,10 +374,20 @@ export type ActingEntry = {
  *    keyed by the user's Discord id.
  */
 export async function listMyActing(viewer: MissionViewer): Promise<ActingEntry[]> {
+  return listActingForUser(viewer.id);
+}
+
+/**
+ * The acting history for a SPECIFIC user (used by both the viewer's own "Acting"
+ * tab and a fixer's per-player acting lookup). Unions modern actor payouts —
+ * which now include NPC sign-up payouts, since confirming an NPC writes a
+ * mission_actor_payments row — with legacy bot acting records.
+ */
+export async function listActingForUser(userId: string): Promise<ActingEntry[]> {
   const [u] = await db
     .select({ discordId: users.discordId })
     .from(users)
-    .where(eq(users.id, viewer.id));
+    .where(eq(users.id, userId));
   const discordId = u?.discordId ?? null;
 
   const modern = await db
@@ -383,7 +395,7 @@ export async function listMyActing(viewer: MissionViewer): Promise<ActingEntry[]
     .from(missionActorPayments)
     .where(
       and(
-        eq(missionActorPayments.userId, viewer.id),
+        eq(missionActorPayments.userId, userId),
         ne(missionActorPayments.paymentStatus, "simulated"),
       ),
     );
@@ -490,6 +502,31 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     .where(eq(missionActorPayments.missionId, missionId))
     .orderBy(desc(missionActorPayments.createdAt));
 
+  // NPC sign-ups (Task #185): the full roster is manager-gated (like
+  // actorPayments); every viewer also gets their own sign-up echoed back so the
+  // player UI can show/withdraw it.
+  const npcRows = await db
+    .select({
+      id: missionNpcSignups.id,
+      userId: missionNpcSignups.userId,
+      userName: users.username,
+      userAvatarUrl: users.avatarUrl,
+      characterId: missionNpcSignups.characterId,
+      characterName: characters.name,
+      characterPortraitUrl: characters.portraitUrl,
+      state: missionNpcSignups.state,
+      payAmount: missionNpcSignups.payAmount,
+      paymentStatus: missionNpcSignups.paymentStatus,
+      paymentError: missionNpcSignups.paymentError,
+      paidAt: missionNpcSignups.paidAt,
+      createdAt: missionNpcSignups.createdAt,
+    })
+    .from(missionNpcSignups)
+    .leftJoin(users, eq(users.id, missionNpcSignups.userId))
+    .leftJoin(characters, eq(characters.id, missionNpcSignups.characterId))
+    .where(eq(missionNpcSignups.missionId, missionId))
+    .orderBy(missionNpcSignups.id);
+
   // Applications are private to the mission's OWNING fixer (or any admin) — a
   // different fixer must not see another fixer's applicant pool. Everyone else
   // (players, non-owning fixers) only gets their own application echoed back.
@@ -526,6 +563,7 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     description: m.description,
     imageUrl: m.imageUrl,
     playerPay: m.playerPay,
+    npcPayAmount: m.npcPayAmount,
     slots: m.slots,
     jobType: m.jobType,
     requestedSkills: m.requestedSkills,
@@ -581,6 +619,41 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
           paymentError: r.paymentError,
           fixerId: r.fixerId,
           fixerName: r.fixerName,
+          paidAt: iso(r.paidAt),
+          createdAt: r.createdAt.toISOString(),
+        }))
+      : [],
+    // Whether this mission is currently accepting NPC sign-ups.
+    npcSignupOpen: missionAcceptsNpcSignup(m),
+    // The viewer's own NPC sign-up (any state), echoed to everyone so the player
+    // UI can show/withdraw it.
+    mySignup: (() => {
+      const mine = npcRows.find((r) => r.userId === viewer.id);
+      if (!mine) return null;
+      return {
+        id: mine.id,
+        characterId: mine.characterId,
+        characterName: mine.characterName,
+        state: mine.state,
+        payAmount: mine.payAmount,
+        paymentStatus: mine.paymentStatus,
+        paidAt: iso(mine.paidAt),
+      };
+    })(),
+    // Full NPC roster — manager-gated like actorPayments.
+    npcSignups: canManage
+      ? npcRows.map((r) => ({
+          id: r.id,
+          userId: r.userId,
+          userName: r.userName,
+          userAvatarUrl: r.userAvatarUrl,
+          characterId: r.characterId,
+          characterName: r.characterName,
+          characterPortraitUrl: r.characterPortraitUrl,
+          state: r.state,
+          payAmount: r.payAmount,
+          paymentStatus: r.paymentStatus,
+          paymentError: r.paymentError,
           paidAt: iso(r.paidAt),
           createdAt: r.createdAt.toISOString(),
         }))
@@ -641,8 +714,8 @@ export async function setMissionCompleted(
     targetType: "mission",
     targetId: missionId,
     message: completed
-      ? "Mission marked completed (actor payments locked)"
-      : "Mission reopened (actor payments unlocked)",
+      ? "Mission marked completed"
+      : "Mission reopened",
   });
 
   return { ok: true };
@@ -965,6 +1038,281 @@ export async function reviewApplication(opts: {
   return { ok: true };
 }
 
+// ===========================================================================
+// NPC SIGN-UPS (Task #185) — players sign up to act as an NPC on a
+// not-yet-completed mission; the mission's fixer later confirms attendance
+// (which pays them) or marks a no-show.
+// ===========================================================================
+
+// A mission accepts NPC sign-ups only while it is publicly posted and has not
+// been completed or cancelled. Completion is BOTH the manual `completedAt` lock
+// and any of the completed_* lifecycle statuses.
+const NPC_SIGNUP_BLOCKED_STATUSES = [
+  "completed",
+  "completed_players_paid",
+  "completed_paid",
+  "cancelled",
+] as const;
+function missionAcceptsNpcSignup(m: {
+  workflowState: string;
+  status: string;
+  completedAt: Date | null;
+}): boolean {
+  return (
+    m.workflowState === "posted" &&
+    m.completedAt == null &&
+    !(NPC_SIGNUP_BLOCKED_STATUSES as readonly string[]).includes(m.status)
+  );
+}
+
+/** Player signs up to act as an NPC on a posted, not-yet-completed mission. */
+export async function signUpAsNpc(opts: {
+  missionId: number;
+  userId: string;
+  characterId?: number | null;
+}): Promise<ApplyResult> {
+  const [m] = await db.select().from(missions).where(eq(missions.id, opts.missionId));
+  if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  if (!missionAcceptsNpcSignup(m)) {
+    return { ok: false, error: "This mission is not accepting NPC sign-ups", httpStatus: 409 };
+  }
+  let characterId = opts.characterId ?? null;
+  if (characterId != null) {
+    const [char] = await db.select().from(characters).where(eq(characters.id, characterId));
+    if (!char) return { ok: false, error: "Character not found", httpStatus: 404 };
+    if (char.ownerId !== opts.userId) {
+      return { ok: false, error: "That character isn't yours", httpStatus: 403 };
+    }
+  }
+  // At most one ACTIVE (signed_up) row per (mission, user): the partial unique
+  // index + onConflictDoNothing makes a re-signup idempotent under races
+  // (pending-row-dedup). If they already have an active sign-up we only refresh
+  // its character choice.
+  const inserted = await db
+    .insert(missionNpcSignups)
+    .values({ missionId: opts.missionId, userId: opts.userId, characterId, state: "signed_up" })
+    .onConflictDoNothing({
+      target: [missionNpcSignups.missionId, missionNpcSignups.userId],
+      where: sql`state = 'signed_up'`,
+    })
+    .returning({ id: missionNpcSignups.id });
+  if (inserted.length === 0) {
+    await db
+      .update(missionNpcSignups)
+      .set({ characterId })
+      .where(
+        and(
+          eq(missionNpcSignups.missionId, opts.missionId),
+          eq(missionNpcSignups.userId, opts.userId),
+          eq(missionNpcSignups.state, "signed_up"),
+        ),
+      );
+  }
+  return { ok: true };
+}
+
+/** Player withdraws their own active (not-yet-confirmed) NPC sign-up. */
+export async function withdrawNpcSignup(opts: {
+  missionId: number;
+  userId: string;
+}): Promise<ApplyResult> {
+  const deleted = await db
+    .delete(missionNpcSignups)
+    .where(
+      and(
+        eq(missionNpcSignups.missionId, opts.missionId),
+        eq(missionNpcSignups.userId, opts.userId),
+        eq(missionNpcSignups.state, "signed_up"),
+      ),
+    )
+    .returning({ id: missionNpcSignups.id });
+  if (deleted.length === 0) {
+    return { ok: false, error: "No active NPC sign-up to withdraw", httpStatus: 404 };
+  }
+  return { ok: true };
+}
+
+/**
+ * Fixer confirms an NPC sign-up. action=attended marks the sign-up attended and
+ * pays the player the mission's npcPayAmount (recorded as a mission actor
+ * payment so it surfaces in reports + the player's Acting tab; idempotent via
+ * the (mission, user) PAID partial unique index). action=no_show marks the
+ * sign-up resolved with no payout. Cancelled missions refuse confirmation (the
+ * completion lock was removed in #185 — completed missions CAN still confirm).
+ */
+export async function confirmNpcSignup(opts: {
+  missionId: number;
+  signupId: number;
+  action: "attended" | "no_show";
+  viewer: MissionViewer;
+  req?: Request;
+}): Promise<{ ok: true } | { ok: false; error: string; httpStatus: number }> {
+  const [signup] = await db
+    .select()
+    .from(missionNpcSignups)
+    .where(eq(missionNpcSignups.id, opts.signupId));
+  if (!signup || signup.missionId !== opts.missionId) {
+    return { ok: false, error: "Sign-up not found", httpStatus: 404 };
+  }
+  const [mission] = await db.select().from(missions).where(eq(missions.id, opts.missionId));
+  if (!mission) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  // Only the mission's own fixer (or an admin) may confirm its sign-ups.
+  if (!ownsMissionApplications(opts.viewer, mission.fixerId)) {
+    return {
+      ok: false,
+      error: "Only the mission's fixer or an admin can confirm NPC sign-ups",
+      httpStatus: 403,
+    };
+  }
+  if (mission.status === "cancelled") {
+    return { ok: false, error: "This mission is cancelled. Cancelled missions cannot pay actors.", httpStatus: 409 };
+  }
+
+  if (opts.action === "no_show") {
+    await db
+      .update(missionNpcSignups)
+      .set({ state: "no_show", paymentStatus: "unpaid", payAmount: null, paymentError: null, paidAt: null })
+      .where(eq(missionNpcSignups.id, signup.id));
+    await recordAudit({
+      req: opts.req,
+      actorId: opts.viewer.id,
+      category: "mission",
+      action: "mission.npc_no_show",
+      targetType: "mission",
+      targetId: opts.missionId,
+      message: `Marked NPC sign-up ${signup.id} (user ${signup.userId}) as no-show`,
+    });
+    await applySecondPhaseStatus(opts.missionId);
+    return { ok: true };
+  }
+
+  // action === "attended": idempotent if already paid/simulated.
+  if (signup.state === "attended" && (signup.paymentStatus === "paid" || signup.paymentStatus === "simulated")) {
+    return { ok: true };
+  }
+
+  const ctx = await getMissionContext();
+  const amount = mission.npcPayAmount;
+  const now = new Date();
+  const [u] = await db
+    .select({ id: users.id, discordId: users.discordId, username: users.username })
+    .from(users)
+    .where(eq(users.id, signup.userId));
+
+  const payerId = opts.viewer.id;
+  let payerName: string | null = null;
+  {
+    const [payer] = await db
+      .select({ username: users.username, globalName: users.globalName })
+      .from(users)
+      .where(eq(users.id, payerId));
+    payerName = payer?.globalName ?? payer?.username ?? null;
+  }
+
+  const actorBase = {
+    missionId: opts.missionId,
+    missionName: mission.title,
+    userId: signup.userId,
+    userName: u?.username ?? null,
+    fixerId: payerId,
+    fixerName: payerName,
+    missionDate: mission.startAt,
+    amount,
+    source: "manual" as const,
+    attendanceCreditedAt: now,
+    paidAt: now,
+  };
+
+  const setSignup = (over: Partial<typeof missionNpcSignups.$inferInsert>) =>
+    db
+      .update(missionNpcSignups)
+      .set({ state: "attended", payAmount: amount, ...over })
+      .where(eq(missionNpcSignups.id, signup.id));
+
+  if (!ctx.live) {
+    await db.insert(missionActorPayments).values({ ...actorBase, paymentStatus: "simulated" });
+    await setSignup({ paymentStatus: "simulated", paymentError: null, paidAt: now });
+  } else {
+    // Reserve the unique (mission, actor) PAID slot up-front, gated on the
+    // mission not being cancelled (mirrors payMissionActors). The completion
+    // lock is gone, so completedAt is NOT checked.
+    const reservedRes = await db.execute(sql`
+      INSERT INTO mission_actor_payments
+        (mission_id, mission_name, user_id, user_name, fixer_id, fixer_name,
+         mission_date, amount, source, attendance_credited_at, paid_at, payment_status)
+      SELECT ${opts.missionId}, ${mission.title}, ${signup.userId}, ${u?.username ?? null},
+             ${payerId}, ${payerName}, ${mission.startAt}, ${amount}, 'manual',
+             ${now}, ${now}, 'paid'
+      WHERE EXISTS (
+        SELECT 1 FROM missions WHERE id = ${opts.missionId} AND status <> 'cancelled'
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `);
+    const reserved = (reservedRes.rows ?? []) as Array<{ id: number }>;
+    if (reserved.length === 0) {
+      // The actor is already paid for this mission (a prior actor/NPC payout) —
+      // treat the sign-up as settled rather than double-paying.
+      await setSignup({ paymentStatus: "paid", paymentError: null, paidAt: now });
+    } else {
+      const reservedId = reserved[0].id;
+      if (!u?.discordId) {
+        await db
+          .update(missionActorPayments)
+          .set({ paymentStatus: "failed", paymentError: "No Discord id for actor", paidAt: null })
+          .where(eq(missionActorPayments.id, reservedId));
+        await setSignup({ paymentStatus: "failed", paymentError: "No Discord id for actor", paidAt: null });
+      } else {
+        const balance =
+          amount > 0
+            ? await patchBalance(u.discordId, { cash: amount, reason: `NPC pay: ${mission.title}` })
+            : { cash: 0, bank: 0, total: 0, source: "local" as const };
+        if (balance == null) {
+          await db
+            .update(missionActorPayments)
+            .set({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null })
+            .where(eq(missionActorPayments.id, reservedId));
+          await setSignup({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null });
+        } else {
+          await setSignup({ paymentStatus: "paid", paymentError: null, paidAt: now });
+          if (u.username || u.discordId) {
+            await postToChannel(
+              ctx.npcSpendingChannelId,
+              `**NPC payout** — ${mission.title} (#${mission.id})\n<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`,
+            ).catch((err) => logger.warn({ err, missionId: opts.missionId }, "npc payout post failed"));
+          }
+        }
+      }
+    }
+  }
+
+  await recordAudit({
+    req: opts.req,
+    actorId: opts.viewer.id,
+    category: "mission",
+    action: "mission.npc_confirm",
+    targetType: "mission",
+    targetId: opts.missionId,
+    message: `${ctx.live ? "LIVE" : "TEST"} confirmed NPC sign-up ${signup.id} (user ${signup.userId}) attended — pay ${amount}`,
+  });
+
+  await applySecondPhaseStatus(opts.missionId);
+  return { ok: true };
+}
+
+// Re-evaluate completed_players_paid → completed_paid after an NPC sign-up was
+// actioned. Only advances when players are already fully paid and no sign-up is
+// still outstanding.
+async function applySecondPhaseStatus(missionId: number): Promise<void> {
+  const [m] = await db.select({ status: missions.status }).from(missions).where(eq(missions.id, missionId));
+  if (!m) return;
+  const npc = await getNpcSettlement(missionId);
+  const newStatus = statusAfterSecondPhase(m.status, npc.outstanding);
+  if (newStatus !== m.status) {
+    await db.update(missions).set({ status: newStatus }).where(eq(missions.id, missionId));
+  }
+}
+
 /**
  * Notify an applicant via Discord DM that their mission application was accepted
  * or rejected. Fail-safe: respects the missions Test/Live gate (Test mode only
@@ -1265,23 +1613,66 @@ export async function syncMissionDiscordEvent(
 // PAYMENTS
 // ===========================================================================
 
-function advanceAfterPlayersPaid(status: string, actorsPaid: boolean): string {
-  // Players just got paid. If actors were already paid (actors-first ordering),
-  // the mission is fully settled → completed_paid; otherwise it's players-paid.
-  if (
+// A status that the payment lifecycle is allowed to advance. `cancelled` (and
+// any unknown value) is left untouched.
+function isAdvanceableStatus(status: string): boolean {
+  return (
     status === "open" ||
     status === "pending" ||
     status === "completed" ||
-    status === "completed_players_paid"
-  ) {
-    return actorsPaid ? "completed_paid" : "completed_players_paid";
-  }
-  return status;
+    status === "completed_players_paid" ||
+    status === "completed_paid"
+  );
 }
 
-function advanceAfterActorsPaid(status: string): string {
-  // Actors paid while players already done → fully paid.
-  if (status === "completed_players_paid") return "completed_paid";
+// Second-phase settlement (Task #185). `completed_paid` requires ALL assigned
+// players paid AND every NPC sign-up actioned on (no outstanding sign-ups).
+// A no-NPC, no-actor mission can never satisfy the "second phase" so it rests at
+// `completed_players_paid` (matching the pre-#185 behaviour where a mission with
+// no actor payouts never reached completed_paid). `secondPhaseSettled` is true
+// once at least one actor payout OR one resolved NPC sign-up exists.
+type NpcSettlement = { outstanding: boolean; anyResolved: boolean };
+
+// An NPC sign-up is "resolved" once a fixer has actioned it: a no_show, or an
+// attended sign-up whose pay settled (paid/simulated). A signed_up row, or an
+// attended row still owing money, is outstanding.
+function isNpcSignupResolved(s: { state: string; paymentStatus: string }): boolean {
+  if (s.state === "no_show") return true;
+  if (s.state === "attended") return s.paymentStatus === "paid" || s.paymentStatus === "simulated";
+  return false;
+}
+
+async function getNpcSettlement(missionId: number): Promise<NpcSettlement> {
+  const rows = await db
+    .select({ state: missionNpcSignups.state, paymentStatus: missionNpcSignups.paymentStatus })
+    .from(missionNpcSignups)
+    .where(eq(missionNpcSignups.missionId, missionId));
+  let outstanding = false;
+  let anyResolved = false;
+  for (const r of rows) {
+    if (isNpcSignupResolved(r)) anyResolved = true;
+    else outstanding = true;
+  }
+  return { outstanding, anyResolved };
+}
+
+// After players are fully paid, pick the resting status given the second-phase
+// state. Reaches completed_paid only when nothing is outstanding AND a real
+// second-phase action exists; otherwise completed_players_paid.
+function statusAfterPlayersPaid(
+  status: string,
+  secondPhaseSettled: boolean,
+  npcOutstanding: boolean,
+): string {
+  if (!isAdvanceableStatus(status)) return status;
+  return secondPhaseSettled && !npcOutstanding ? "completed_paid" : "completed_players_paid";
+}
+
+// A second-phase action (actor pay / NPC confirm) just happened. Only advance a
+// mission whose players are already paid (completed_players_paid → completed_paid)
+// and only when no NPC sign-up is still outstanding.
+function statusAfterSecondPhase(status: string, npcOutstanding: boolean): string {
+  if (status === "completed_players_paid" && !npcOutstanding) return "completed_paid";
   return status;
 }
 
@@ -1433,8 +1824,14 @@ export async function payMissionPlayers(
       ),
     )
     .limit(1);
-  const actorsPaid = actorsSettled.length > 0;
-  const newStatus = allResolved ? advanceAfterPlayersPaid(mission.status, actorsPaid) : mission.status;
+  // Second phase is settled if any actor payout exists OR any NPC sign-up has
+  // been resolved by a fixer. An outstanding NPC sign-up holds the mission at
+  // completed_players_paid until it's actioned.
+  const npc = await getNpcSettlement(missionId);
+  const secondPhaseSettled = actorsSettled.length > 0 || npc.anyResolved;
+  const newStatus = allResolved
+    ? statusAfterPlayersPaid(mission.status, secondPhaseSettled, npc.outstanding)
+    : mission.status;
   await db
     .update(missions)
     .set({ status: newStatus, autoPayProcessedAt: mission.autoPayProcessedAt ?? now })
@@ -1473,16 +1870,13 @@ export async function payMissionActors(
   userIds: string[],
   amount: number,
   opts: { req?: Request; actorId?: string | null; actorName?: string | null },
-): Promise<PayActorsResult | null | { blocked: "completed" | "cancelled" }> {
+): Promise<PayActorsResult | null | { blocked: "cancelled" }> {
   const [mission] = await db.select().from(missions).where(eq(missions.id, missionId));
   if (!mission) return null;
-  // Authoritative completion lock: a mission marked completed is read-only for
-  // actor payments. Enforced here (not just at the route) so no caller — present
-  // or future — can bypass it, and to shrink the route's check-then-act window.
-  if (mission.completedAt) return { blocked: "completed" };
-  // A cancelled mission never pays out — mirror payMissionPlayers' refusal so
-  // actor payouts can't be issued on a called-off mission (cancelling only sets
-  // status='cancelled', it does NOT set completedAt, so the lock above misses it).
+  // Task #185 removed the completion lock: fixers may pay actors at any time,
+  // including after a mission is marked completed. The ONLY refusal is a
+  // cancelled mission — a called-off mission never pays out (mirrors
+  // payMissionPlayers). Cancelling sets status='cancelled' (not completedAt).
   if (mission.status === "cancelled") return { blocked: "cancelled" };
   const ctx = await getMissionContext();
   const result: PayActorsResult = { paid: 0, simulated: 0, failed: 0, skipped: 0, live: ctx.live };
@@ -1548,14 +1942,14 @@ export async function payMissionActors(
     // The partial unique index covers payment_status='paid' rows; the loser of
     // the race gets nothing back and skips.
     //
-    // The reservation is an INSERT ... SELECT gated on the mission still being
-    // open (completed_at IS NULL AND status <> 'cancelled'). This re-checks BOTH
-    // the completion lock and the cancellation guard ATOMICALLY with the
-    // reservation: if a concurrent setMissionCompleted or cancel committed before
-    // this statement runs, the subquery yields no row and nothing is reserved —
-    // closing the check-then-act race between the top-of-function read and the
-    // payout. The guards run inside the DB, so no lock is held across the
-    // external UnbelievaBoat call below.
+    // The reservation is an INSERT ... SELECT gated on the mission still NOT
+    // being cancelled. This re-checks the cancellation guard ATOMICALLY with the
+    // reservation: if a concurrent cancel committed before this statement runs,
+    // the subquery yields no row and nothing is reserved — closing the
+    // check-then-act race between the top-of-function read and the payout. (The
+    // completion lock was removed in Task #185, so completedAt is NOT checked.)
+    // The guard runs inside the DB, so no lock is held across the external
+    // UnbelievaBoat call below.
     const reservedRes = await db.execute(sql`
       INSERT INTO mission_actor_payments
         (mission_id, mission_name, user_id, user_name, fixer_id, fixer_name,
@@ -1565,15 +1959,15 @@ export async function payMissionActors(
              ${now}, ${now}, 'paid'
       WHERE EXISTS (
         SELECT 1 FROM missions
-        WHERE id = ${missionId} AND completed_at IS NULL AND status <> 'cancelled'
+        WHERE id = ${missionId} AND status <> 'cancelled'
       )
       ON CONFLICT DO NOTHING
       RETURNING id
     `);
     const reserved = (reservedRes.rows ?? []) as Array<{ id: number }>;
     if (reserved.length === 0) {
-      // Either the actor is already paid (conflict) or the mission was completed
-      // or cancelled mid-flight. Both mean "no payout"; no money has moved.
+      // Either the actor is already paid (conflict) or the mission was cancelled
+      // mid-flight. Both mean "no payout"; no money has moved.
       result.skipped++;
       continue;
     }
@@ -1611,7 +2005,10 @@ export async function payMissionActors(
   }
 
   if (result.paid > 0 || result.simulated > 0) {
-    const newStatus = advanceAfterActorsPaid(mission.status);
+    // Advance completed_players_paid → completed_paid only when no NPC sign-up
+    // is still outstanding (Task #185).
+    const npc = await getNpcSettlement(missionId);
+    const newStatus = statusAfterSecondPhase(mission.status, npc.outstanding);
     if (newStatus !== mission.status) {
       await db.update(missions).set({ status: newStatus }).where(eq(missions.id, missionId));
     }

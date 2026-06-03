@@ -14,6 +14,11 @@ import {
   useApplyToMission,
   useWithdrawApplication,
   useReviewApplication,
+  useSignUpAsNpc,
+  useWithdrawNpcSignup,
+  useConfirmNpcSignup,
+  useListActingForUser,
+  getListActingForUserQueryKey,
   useListMyCharacters,
   useListBreachPuzzles,
   getListBreachPuzzlesQueryKey,
@@ -22,6 +27,8 @@ import {
   type MissionDetail as MissionDetailModel,
   type MissionAssignmentView,
   type MissionApplicationView,
+  type MissionNpcSignupView,
+  type ActingEntry,
 } from "@workspace/api-client-react";
 import { statusBadge as breachStatusBadge, difficultyBadge as breachDifficultyBadge } from "./breach/breachUtils";
 import { useAuthMe } from "@/hooks/useAuthMe";
@@ -367,6 +374,11 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
           application, so it only appears where applying actually makes sense. */}
       <ApplySection data={data} />
 
+      {/* NPC sign-up — players can volunteer to act as an NPC on missions that
+          aren't completed yet. Self-hides unless sign-ups are open or the viewer
+          already signed up. */}
+      <NpcSignupSection data={data} />
+
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
           <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">Fixer</CardTitle>
@@ -528,6 +540,130 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
         {applyErr && <div className="text-destructive text-xs" data-testid="text-apply-error">{applyErr}</div>}
       </CardContent>
     </Card>
+  );
+}
+
+function NpcSignupSection({ data }: { data: MissionDetailModel }) {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
+  const chars = useListMyCharacters();
+  const signUp = useSignUpAsNpc({ mutation: { onSuccess: invalidate } });
+  const withdraw = useWithdrawNpcSignup({ mutation: { onSuccess: invalidate } });
+
+  const [characterId, setCharacterId] = useState<number | "">("");
+
+  const mine = data.mySignup;
+  const err = errOf(signUp.error) ?? errOf(withdraw.error);
+
+  // Echo an existing sign-up back to the player so they see whether the fixer
+  // confirmed attendance (and got paid) or marked them a no-show.
+  if (mine) {
+    const resolved = mine.state === "attended" || mine.state === "no_show";
+    return (
+      <Card className="rounded-none border-border bg-card/50" data-testid="block-my-npc-signup">
+        <CardHeader>
+          <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+            Your NPC Sign-up
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 font-mono text-sm">
+          <div className="flex items-center gap-2">
+            <NpcStateBadge state={mine.state} />
+            {mine.characterName && <span className="text-foreground">{mine.characterName}</span>}
+          </div>
+          {mine.state === "attended" && (
+            <div className="flex items-center gap-2" data-testid="text-npc-signup-paid">
+              <PaymentBadge status={mine.paymentStatus} amount={mine.payAmount} error={null} />
+            </div>
+          )}
+          {mine.state === "no_show" && (
+            <p className="text-muted-foreground" data-testid="text-npc-signup-noshow">
+              The fixer marked this sign-up as a no-show — no payout for this one.
+            </p>
+          )}
+          {!resolved && data.npcSignupOpen && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={withdraw.isPending}
+              onClick={() => withdraw.mutate({ id: data.id })}
+              className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+              data-testid="button-withdraw-npc"
+            >
+              {withdraw.isPending ? "WITHDRAWING..." : "WITHDRAW SIGN-UP"}
+            </Button>
+          )}
+          {err && <div className="text-destructive text-xs" data-testid="text-npc-signup-error">{err}</div>}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No active sign-up: only offer the form when sign-ups are open.
+  if (!data.npcSignupOpen) return null;
+
+  return (
+    <Card className="rounded-none border-border bg-nc-magenta/5 border-nc-magenta/40" data-testid="block-npc-signup">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-nc-magenta">
+          Sign Up as an NPC
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <p className="text-muted-foreground text-xs">
+          Volunteer to play an NPC on this job. The fixer confirms attendance afterwards
+          {(data.npcPayAmount ?? 0) > 0 ? ` and pays ${(data.npcPayAmount ?? 0).toLocaleString()} €$.` : "."}
+        </p>
+        <div>
+          <Label className="text-xs">CHARACTER (optional)</Label>
+          <select
+            value={characterId}
+            onChange={(e) => setCharacterId(e.target.value ? Number(e.target.value) : "")}
+            className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+            data-testid="select-npc-character"
+          >
+            <option value="">NPC as no specific character…</option>
+            {(chars.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button
+          type="button"
+          disabled={signUp.isPending}
+          onClick={() =>
+            signUp.mutate(
+              { id: data.id, data: { characterId: characterId === "" ? null : Number(characterId) } },
+              { onSuccess: () => setCharacterId("") },
+            )
+          }
+          className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
+          data-testid="button-signup-npc"
+        >
+          {signUp.isPending ? "SIGNING UP..." : "SIGN UP AS NPC"}
+        </Button>
+        {err && <div className="text-destructive text-xs" data-testid="text-npc-signup-error">{err}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function NpcStateBadge({ state }: { state: MissionNpcSignupView["state"] }) {
+  const cls =
+    state === "attended"
+      ? "border-green-500 text-green-400 bg-green-500/10"
+      : state === "no_show"
+        ? "border-destructive text-destructive bg-destructive/10"
+        : "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
+  const label =
+    state === "attended" ? "Attended" : state === "no_show" ? "No-show" : "Signed up";
+  return (
+    <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
+      {label}
+    </Badge>
   );
 }
 
@@ -821,8 +957,145 @@ function FixerView({ data }: { data: MissionDetailModel }) {
 
       <ApplicationsPanel data={data} />
 
+      <PlayerActingLookup />
+
       <BreachesPanel missionId={data.id} />
     </>
+  );
+}
+
+// Staff-only: look up any player's full acting history (mission + NPC + event +
+// legacy payouts) to gauge how often they've been used as an NPC/actor.
+function PlayerActingLookup() {
+  const [search, setSearch] = useState("");
+  const [picked, setPicked] = useState<ArchiveUser | null>(null);
+
+  const searchParams = { q: search || undefined };
+  const { data: results, isFetching: searching } = useSearchMissionActors(searchParams, {
+    query: {
+      queryKey: getSearchMissionActorsQueryKey(searchParams),
+      enabled: search.trim().length > 0 && !picked,
+    },
+  });
+
+  const { data: acting, isFetching: loadingActing } = useListActingForUser(picked?.id ?? "", {
+    query: {
+      queryKey: getListActingForUserQueryKey(picked?.id ?? ""),
+      enabled: !!picked,
+    },
+  });
+
+  const rows = acting ?? [];
+  const total = rows
+    .filter((r) => r.paymentStatus !== "failed")
+    .reduce((sum, r) => sum + r.amount, 0);
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          Player Acting Lookup
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <p className="text-muted-foreground text-xs">
+          Search any player to review their full acting / NPC history before signing them up again.
+        </p>
+        {picked ? (
+          <div className="flex items-center justify-between border border-border/60 px-3 py-2">
+            <span className="text-foreground">{picked.globalName ?? picked.username}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setPicked(null);
+                setSearch("");
+              }}
+              className="text-muted-foreground hover:text-foreground"
+              data-testid="button-clear-acting-lookup"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="name…"
+                className="rounded-none pl-8"
+                data-testid="input-acting-lookup-search"
+              />
+            </div>
+            {search.trim().length > 0 && (
+              <div className="border border-border/60 divide-y divide-border/40 max-h-56 overflow-y-auto">
+                {searching && <div className="px-3 py-2 text-muted-foreground text-xs">Searching…</div>}
+                {!searching && (results?.length ?? 0) === 0 && (
+                  <div className="px-3 py-2 text-muted-foreground text-xs">No users found.</div>
+                )}
+                {results?.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => setPicked(u)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/40"
+                    data-testid={`acting-lookup-result-${u.id}`}
+                  >
+                    <span className="text-foreground">{u.globalName ?? u.username}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {picked && (
+          <div className="space-y-2" data-testid="acting-lookup-results">
+            {loadingActing ? (
+              <div className="text-muted-foreground text-xs">Loading acting history…</div>
+            ) : rows.length === 0 ? (
+              <p className="text-muted-foreground text-xs" data-testid="text-acting-lookup-empty">
+                No acting history for this player yet.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {rows.length} act{rows.length === 1 ? "" : "s"}
+                  </span>
+                  <span className="text-nc-cyan">{total.toLocaleString()} €$ total</span>
+                </div>
+                <ul className="divide-y divide-border/40">
+                  {rows.map((r) => (
+                    <li
+                      key={r.id}
+                      className="flex items-center justify-between gap-2 py-2"
+                      data-testid={`acting-lookup-row-${r.id}`}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-foreground truncate">{r.name ?? "Untitled act"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(r.actedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <span className="text-muted-foreground text-[10px] uppercase">{r.source}</span>
+                        <span
+                          className={r.paymentStatus === "failed" ? "text-destructive" : "text-nc-cyan"}
+                        >
+                          {r.amount.toLocaleString()} €$
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -908,7 +1181,9 @@ function ActorsView({ data }: { data: MissionDetailModel }) {
   const someAlreadyPaid = selectedActors.some((u) => paidActorIds.has(u.id));
 
   const payActorsErr = errOf(payActors.error);
-  const locked = !!data.completedAt;
+  // Actor/NPC pay is allowed any time the mission is live — including after it's
+  // marked completed. Only a cancelled mission refuses further payouts.
+  const locked = data.status === "cancelled";
 
   return (
     <>
@@ -929,8 +1204,7 @@ function ActorsView({ data }: { data: MissionDetailModel }) {
               data-testid="text-actor-pay-locked"
             >
               <Lock className="w-3.5 h-3.5 shrink-0" />
-              This mission is marked completed — actor payments are locked. An admin or archivist can reopen it to pay
-              more actors.
+              This mission is cancelled — actor and NPC payments are locked.
             </div>
           )}
 
@@ -1079,6 +1353,103 @@ function ActorsView({ data }: { data: MissionDetailModel }) {
           )}
         </CardContent>
       </Card>
+
+      <NpcRoster data={data} locked={locked} />
     </>
+  );
+}
+
+function NpcRoster({ data, locked }: { data: MissionDetailModel; locked: boolean }) {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
+  const confirm = useConfirmNpcSignup({ mutation: { onSuccess: invalidate } });
+  const confirmErr = errOf(confirm.error);
+
+  const signups = data.npcSignups ?? [];
+  const outstanding = signups.filter((s) => s.state === "signed_up").length;
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          NPC Sign-ups ({signups.length})
+          {outstanding > 0 && (
+            <span className="ml-2 text-nc-yellow normal-case tracking-normal">
+              {outstanding} awaiting confirmation
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <p className="text-muted-foreground text-xs">
+          Players who volunteered to NPC this job. Confirm attendance to pay{" "}
+          {(data.npcPayAmount ?? 0) > 0 ? `${(data.npcPayAmount ?? 0).toLocaleString()} €$` : "the NPC fee"}, or mark a no-show.
+        </p>
+        {signups.length === 0 ? (
+          <p className="text-muted-foreground text-xs" data-testid="text-no-npc-signups">
+            No NPC sign-ups yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border/40">
+            {signups.map((s) => (
+              <li key={s.id} className="flex items-center gap-3 py-3" data-testid={`row-npc-signup-${s.id}`}>
+                <Avatar className="border border-nc-magenta/30 rounded-none w-10 h-10">
+                  <AvatarImage src={s.characterPortraitUrl ?? s.userAvatarUrl ?? undefined} />
+                  <AvatarFallback className="bg-background text-nc-magenta rounded-none font-display text-xs">
+                    {(s.characterName ?? s.userName ?? "??").substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="font-display text-foreground">
+                    {s.characterName ?? s.userName ?? s.userId}
+                  </div>
+                  {s.characterName && s.userName && (
+                    <div className="text-xs font-mono text-muted-foreground">{s.userName}</div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {s.state === "signed_up" ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={locked || confirm.isPending}
+                        onClick={() =>
+                          confirm.mutate({ id: data.id, signupId: s.id, data: { action: "attended" } })
+                        }
+                        className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                        data-testid={`button-npc-attended-${s.id}`}
+                      >
+                        ATTENDED
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={locked || confirm.isPending}
+                        onClick={() =>
+                          confirm.mutate({ id: data.id, signupId: s.id, data: { action: "no_show" } })
+                        }
+                        className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+                        data-testid={`button-npc-noshow-${s.id}`}
+                      >
+                        NO-SHOW
+                      </Button>
+                    </>
+                  ) : s.state === "attended" ? (
+                    <PaymentBadge status={s.paymentStatus} amount={s.payAmount} error={s.paymentError} />
+                  ) : (
+                    <NpcStateBadge state={s.state} />
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {confirmErr && (
+          <div className="text-destructive text-xs" data-testid="text-confirm-npc-error">{confirmErr}</div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

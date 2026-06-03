@@ -587,6 +587,7 @@ const ACTING_SOURCE_LABEL: Record<ActingEntry["source"], string> = {
   mission: "Mission",
   event: "Event",
   legacy: "Legacy",
+  npc: "NPC",
 };
 
 function ActingCard({ r }: { r: ActingEntry }) {

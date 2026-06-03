@@ -22,6 +22,10 @@ import {
   listMissionHistory,
   listMyApplications,
   listMyActing,
+  listActingForUser,
+  signUpAsNpc,
+  withdrawNpcSignup,
+  confirmNpcSignup,
   getMissionDetail,
   payMissionActors,
   setMissionCompleted,
@@ -296,6 +300,7 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
       title,
       tier,
       playerPay: Number.isFinite(Number(b.playerPay)) ? Math.max(0, Math.trunc(Number(b.playerPay))) : 0,
+      npcPayAmount: Number.isFinite(Number(b.npcPayAmount)) ? Math.max(0, Math.trunc(Number(b.npcPayAmount))) : 0,
       location: typeof b.location === "string" ? b.location : null,
       description: typeof b.description === "string" ? b.description : null,
       imageUrl: typeof b.imageUrl === "string" && b.imageUrl ? b.imageUrl : null,
@@ -393,6 +398,21 @@ router.get("/missions/my-applications", requireAuth, async (req, res): Promise<v
 // unioning modern actor payouts with legacy bot acting records. Own rows only.
 router.get("/missions/acting", requireAuth, async (req, res): Promise<void> => {
   res.json(await listMyActing(viewerOf(req)));
+});
+
+// Fixer/admin per-player acting lookup — the acting history for a specific
+// player (Task #185), so a fixer can see how often someone has NPC'd.
+router.get("/missions/acting/:userId", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const userId = String(req.params.userId);
+  if (!userId) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(await listActingForUser(userId));
 });
 
 // Fail-safe Discord scheduling-conflict check for the create/reschedule form.
@@ -607,6 +627,7 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
     set.tier = tier;
   }
   if (b.playerPay !== undefined) set.playerPay = Math.max(0, Math.trunc(Number(b.playerPay) || 0));
+  if (b.npcPayAmount !== undefined) set.npcPayAmount = Math.max(0, Math.trunc(Number(b.npcPayAmount) || 0));
   if (b.location !== undefined) set.location = typeof b.location === "string" ? b.location : null;
   if (b.description !== undefined) set.description = typeof b.description === "string" ? b.description : null;
   if (b.imageUrl !== undefined) set.imageUrl = typeof b.imageUrl === "string" && b.imageUrl ? b.imageUrl : null;
@@ -719,12 +740,10 @@ router.post("/missions/:id/pay-actors", requireAuth, async (req, res): Promise<v
     return;
   }
   if ("blocked" in result) {
-    // A completed or cancelled mission is read-only for actor payments.
+    // Only a cancelled mission is read-only for actor payments — fixers may pay
+    // actors on a mission at any point in its lifecycle otherwise (Task #185).
     res.status(409).json({
-      error:
-        result.blocked === "cancelled"
-          ? "This mission is cancelled. Cancelled missions cannot pay actors."
-          : "This mission is marked completed. Reopen it before paying actors.",
+      error: "This mission is cancelled. Cancelled missions cannot pay actors.",
     });
     return;
   }
@@ -872,6 +891,69 @@ router.post("/missions/:id/applications/:appId/review", requireAuth, async (req,
   const result = await reviewApplication({
     missionId: id,
     applicationId: appId,
+    action,
+    viewer: viewerOf(req),
+    req,
+  });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// ---------------- NPC SIGN-UPS (Task #185) ----------------
+// Player signs up to NPC on a not-yet-completed mission (optionally with one of
+// their own characters). Idempotent.
+router.post("/missions/:id/npc-signups", requireAuth, async (req, res): Promise<void> => {
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const b = req.body ?? {};
+  let characterId: number | null = null;
+  if (b.characterId !== undefined && b.characterId !== null) {
+    characterId = Number(b.characterId);
+    if (!Number.isInteger(characterId)) {
+      res.status(400).json({ error: "characterId must be an integer" });
+      return;
+    }
+  }
+  const result = await signUpAsNpc({ missionId: id, userId: req.user!.id, characterId });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Player withdraws their own active (not-yet-confirmed) NPC sign-up.
+router.delete("/missions/:id/npc-signups/me", requireAuth, async (req, res): Promise<void> => {
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const result = await withdrawNpcSignup({ missionId: id, userId: req.user!.id });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Fixer/admin confirms an NPC sign-up: attended (pays) or no_show.
+router.post("/missions/:id/npc-signups/:signupId/confirm", requireAuth, async (req, res): Promise<void> => {
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const signupId = parseInt(String(req.params.signupId), 10);
+  if (!Number.isInteger(signupId)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const action = req.body?.action;
+  if (action !== "attended" && action !== "no_show") {
+    res.status(400).json({ error: "action must be 'attended' or 'no_show'" });
+    return;
+  }
+  const result = await confirmNpcSignup({
+    missionId: id,
+    signupId,
     action,
     viewer: viewerOf(req),
     req,

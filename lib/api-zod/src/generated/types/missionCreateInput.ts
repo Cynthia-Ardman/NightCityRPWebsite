@@ -16,6 +16,8 @@ export interface MissionCreateInput {
   tier: MissionCreateInputTier;
   /** @minimum 0 */
   playerPay?: number;
+  /** @minimum 0 */
+  npcPayAmount?: number;
   location?: string;
   description?: string;
   imageUrl?: string;

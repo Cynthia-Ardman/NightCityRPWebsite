@@ -28,6 +28,7 @@ import {
   missionAssignments,
   missionActorPayments,
   missionApplications,
+  missionNpcSignups,
   botConfig,
 } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
@@ -43,6 +44,9 @@ import {
   setMissionCompleted,
   runMissionAutoPay,
   runMissionNpcAnnouncements,
+  signUpAsNpc,
+  confirmNpcSignup,
+  listActingForUser,
 } from "../lib/missionsService";
 import { MISSION_CONFIG_KEYS } from "../lib/missionsConfig";
 import { LIVE_MODE_KEYS } from "../lib/liveMode";
@@ -117,6 +121,7 @@ async function seedMission(opts: Partial<typeof missions.$inferInsert> = {}) {
       // createdAt normally defaults to now(); allow tests to pin it so we can
       // force startAt/createdAt ties and exercise the id-descending tiebreaker.
       ...(opts.createdAt !== undefined ? { createdAt: opts.createdAt } : {}),
+      ...(opts.npcPayAmount !== undefined ? { npcPayAmount: opts.npcPayAmount } : {}),
     })
     .returning();
   return m;
@@ -489,7 +494,10 @@ describe("Mission completion lock", () => {
     expect(mockPatch.mock.calls.length).toBe(paidRows.length);
   });
 
-  it("paying actors on a completed mission is blocked (409) and credits no money", async () => {
+  it("paying actors on a completed mission now SUCCEEDS (lock removed in #185)", async () => {
+    // #185 removed the completion lock on actor payments: a fixer may pay actors
+    // at any point in a mission's lifecycle (a session can run long after the
+    // mission is marked completed). Only cancelled missions refuse.
     await setLiveMode(true);
     mockPatch.mockResolvedValue(bal(50));
     const admin = await createUser({ roles: ["admin"] });
@@ -501,19 +509,199 @@ describe("Mission completion lock", () => {
       .post(`/api/missions/${m.id}/pay-actors`)
       .set("x-test-user", admin.id)
       .send({ userIds: [actor.id], amount: 50 });
+    expect(res.status).toBe(200);
+    expect(mockPatch).toHaveBeenCalledTimes(1);
+    const rows = await db.select().from(missionActorPayments).where(eq(missionActorPayments.missionId, m.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].paymentStatus).toBe("paid");
+  });
+
+  it("paying actors on a CANCELLED mission is blocked (409) and credits no money", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(50));
+    const admin = await createUser({ roles: ["admin"] });
+    const actor = await createUser();
+    const m = await seedMission({ fixerId: admin.id, status: "cancelled" });
+
+    const res = await request(app)
+      .post(`/api/missions/${m.id}/pay-actors`)
+      .set("x-test-user", admin.id)
+      .send({ userIds: [actor.id], amount: 50 });
     expect(res.status).toBe(409);
     expect(mockPatch).not.toHaveBeenCalled();
     const rows = await db.select().from(missionActorPayments).where(eq(missionActorPayments.missionId, m.id));
     expect(rows).toHaveLength(0);
+  });
+});
 
-    // Reopening the mission unlocks actor payments again.
-    await request(app).post(`/api/missions/${m.id}/uncomplete`).set("x-test-user", admin.id);
-    const ok = await request(app)
-      .post(`/api/missions/${m.id}/pay-actors`)
-      .set("x-test-user", admin.id)
-      .send({ userIds: [actor.id], amount: 50 });
-    expect(ok.status).toBe(200);
+// ===========================================================================
+// NPC SIGN-UPS (Task #185) — players sign up, fixers confirm + pay.
+// ===========================================================================
+describe("NPC sign-ups", () => {
+  it("a player can sign up, see mySignup, and withdraw", async () => {
+    const player = await createUser();
+    const m = await seedMission({ status: "open", workflowState: "posted", npcPayAmount: 75 });
+
+    const signUp = await request(app)
+      .post(`/api/missions/${m.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(signUp.status).toBe(200);
+    expect(signUp.body.mySignup).not.toBeNull();
+    expect(signUp.body.mySignup.state).toBe("signed_up");
+    // Players never see the full roster.
+    expect(signUp.body.npcSignups).toEqual([]);
+
+    const withdraw = await request(app)
+      .delete(`/api/missions/${m.id}/npc-signups/me`)
+      .set("x-test-user", player.id);
+    expect(withdraw.status).toBe(200);
+    expect(withdraw.body.mySignup).toBeNull();
+  });
+
+  it("signing up twice is idempotent (one active row)", async () => {
+    const player = await createUser();
+    const m = await seedMission({ status: "open", workflowState: "posted" });
+    await signUpAsNpc({ missionId: m.id, userId: player.id });
+    await signUpAsNpc({ missionId: m.id, userId: player.id });
+    const rows = await db
+      .select()
+      .from(missionNpcSignups)
+      .where(eq(missionNpcSignups.missionId, m.id));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("a fixer confirming attended pays the player npcPayAmount exactly once", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(75));
+    const admin = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const m = await seedMission({ fixerId: admin.id, status: "open", workflowState: "posted", npcPayAmount: 75 });
+    await signUpAsNpc({ missionId: m.id, userId: player.id });
+    const [signup] = await db
+      .select()
+      .from(missionNpcSignups)
+      .where(eq(missionNpcSignups.missionId, m.id));
+
+    const r1 = await confirmNpcSignup({
+      missionId: m.id,
+      signupId: signup.id,
+      action: "attended",
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+    });
+    expect(r1.ok).toBe(true);
+    // Idempotent: confirming again does NOT pay twice.
+    const r2 = await confirmNpcSignup({
+      missionId: m.id,
+      signupId: signup.id,
+      action: "attended",
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+    });
+    expect(r2.ok).toBe(true);
     expect(mockPatch).toHaveBeenCalledTimes(1);
+
+    const payments = await db
+      .select()
+      .from(missionActorPayments)
+      .where(eq(missionActorPayments.missionId, m.id));
+    expect(payments).toHaveLength(1);
+    expect(payments[0].amount).toBe(75);
+    expect(payments[0].paymentStatus).toBe("paid");
+
+    const [row] = await db
+      .select()
+      .from(missionNpcSignups)
+      .where(eq(missionNpcSignups.id, signup.id));
+    expect(row.state).toBe("attended");
+    expect(row.paymentStatus).toBe("paid");
+  });
+
+  it("no_show resolves the sign-up with no payout", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(0));
+    const admin = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const m = await seedMission({ fixerId: admin.id, status: "open", workflowState: "posted", npcPayAmount: 75 });
+    await signUpAsNpc({ missionId: m.id, userId: player.id });
+    const [signup] = await db
+      .select()
+      .from(missionNpcSignups)
+      .where(eq(missionNpcSignups.missionId, m.id));
+
+    const r = await confirmNpcSignup({
+      missionId: m.id,
+      signupId: signup.id,
+      action: "no_show",
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+    });
+    expect(r.ok).toBe(true);
+    expect(mockPatch).not.toHaveBeenCalled();
+    const payments = await db
+      .select()
+      .from(missionActorPayments)
+      .where(eq(missionActorPayments.missionId, m.id));
+    expect(payments).toHaveLength(0);
+    const [row] = await db
+      .select()
+      .from(missionNpcSignups)
+      .where(eq(missionNpcSignups.id, signup.id));
+    expect(row.state).toBe("no_show");
+  });
+
+  it("a confirmed NPC payout surfaces in the player's Acting history", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(75));
+    const admin = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const m = await seedMission({ fixerId: admin.id, status: "open", workflowState: "posted", npcPayAmount: 75 });
+    await signUpAsNpc({ missionId: m.id, userId: player.id });
+    const [signup] = await db
+      .select()
+      .from(missionNpcSignups)
+      .where(eq(missionNpcSignups.missionId, m.id));
+    await confirmNpcSignup({
+      missionId: m.id,
+      signupId: signup.id,
+      action: "attended",
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+    });
+
+    const acting = await listActingForUser(player.id);
+    expect(acting.length).toBeGreaterThanOrEqual(1);
+    expect(acting.some((a) => a.amount === 75)).toBe(true);
+  });
+
+  it("confirming an NPC on a cancelled mission is refused (409) with no payout", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(75));
+    const admin = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const m = await seedMission({ fixerId: admin.id, status: "open", workflowState: "posted", npcPayAmount: 75 });
+    await signUpAsNpc({ missionId: m.id, userId: player.id });
+    const [signup] = await db
+      .select()
+      .from(missionNpcSignups)
+      .where(eq(missionNpcSignups.missionId, m.id));
+    await db.update(missions).set({ status: "cancelled" }).where(eq(missions.id, m.id));
+
+    const r = await confirmNpcSignup({
+      missionId: m.id,
+      signupId: signup.id,
+      action: "attended",
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.httpStatus).toBe(409);
+    expect(mockPatch).not.toHaveBeenCalled();
+  });
+
+  it("the per-player acting lookup is fixer/admin-gated", async () => {
+    const player = await createUser();
+    const other = await createUser();
+    const res = await request(app)
+      .get(`/api/missions/acting/${other.id}`)
+      .set("x-test-user", player.id);
+    expect(res.status).toBe(403);
   });
 });
 
