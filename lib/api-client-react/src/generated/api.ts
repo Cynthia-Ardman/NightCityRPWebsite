@@ -42,6 +42,7 @@ import type {
   AuditLogRow,
   BotConfigEntry,
   BotConfigUpdate,
+  BreachPracticeLeaderboard,
   BreachPracticeMergeInput,
   BreachPracticeRecordInput,
   BreachPracticeStats,
@@ -18131,6 +18132,84 @@ export const useClearBreachPracticeStats = <TError = ErrorType<void>,
       > => {
       return useMutation(getClearBreachPracticeStatsMutationOptions(options));
     }
+
+export const getGetBreachPracticeLeaderboardUrl = () => {
+
+
+
+
+  return `/api/breach/practice/leaderboard`
+}
+
+/**
+ * A per-difficulty ranking of the fastest practice clear times. Only players who opted into account sync appear, so a player's own opt-in is what puts them on the board. No economy or rewards — a friendly fastest-time ranking only.
+ * @summary Fastest practice clear times per difficulty, by username.
+ */
+export const getBreachPracticeLeaderboard = async ( options?: RequestInit): Promise<BreachPracticeLeaderboard> => {
+
+  return customFetch<BreachPracticeLeaderboard>(getGetBreachPracticeLeaderboardUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBreachPracticeLeaderboardQueryKey = () => {
+    return [
+    `/api/breach/practice/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetBreachPracticeLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBreachPracticeLeaderboardQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>> = ({ signal }) => getBreachPracticeLeaderboard({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBreachPracticeLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>>
+export type GetBreachPracticeLeaderboardQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fastest practice clear times per difficulty, by username.
+ */
+
+export function useGetBreachPracticeLeaderboard<TData = Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreachPracticeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBreachPracticeLeaderboardQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getRecordBreachPracticeAttemptUrl = () => {
 

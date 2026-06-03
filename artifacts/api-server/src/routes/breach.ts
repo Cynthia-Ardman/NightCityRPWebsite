@@ -14,6 +14,7 @@ import {
   recordPracticeAttempt,
   mergePracticeStats,
   clearPracticeStats,
+  getPracticeLeaderboard,
 } from "../lib/breach";
 
 const router: IRouter = Router();
@@ -98,6 +99,12 @@ router.post("/breach/practice/merge", requireAuth, async (req, res): Promise<voi
 // Reset the caller's account-synced practice stats.
 router.delete("/breach/practice/stats", requireAuth, async (req, res): Promise<void> => {
   const result = await clearPracticeStats(req.user!);
+  res.status(result.status).json(result.body);
+});
+
+// Fastest practice clear times per difficulty, by username (opted-in players).
+router.get("/breach/practice/leaderboard", requireAuth, async (_req, res): Promise<void> => {
+  const result = await getPracticeLeaderboard();
   res.status(result.status).json(result.body);
 });
 

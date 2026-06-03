@@ -6,7 +6,9 @@ import {
   recordPracticeAttempt,
   mergePracticeStats,
   clearPracticeStats,
+  getPracticeLeaderboard,
   type PracticeStatsView,
+  type PracticeLeaderboardView,
 } from "./breach";
 
 function ok(result: { status: number; body: unknown }): PracticeStatsView {
@@ -92,5 +94,43 @@ describe("breach practice stats (opt-in account sync)", () => {
     await recordPracticeAttempt(a, "easy", true, 1000);
     const bStats = ok(await getPracticeStats(b));
     expect(bStats.easy.attempts).toBe(0);
+  });
+});
+
+function board(result: { status: number; body: unknown }): PracticeLeaderboardView {
+  expect(result.status).toBe(200);
+  return result.body as PracticeLeaderboardView;
+}
+
+describe("breach practice leaderboard", () => {
+  it("ranks fastest clears per difficulty and excludes non-solvers", async () => {
+    const fast = await createUser({ username: "fast_runner" });
+    const slow = await createUser({ username: "slow_runner" });
+    const failer = await createUser({ username: "never_solved" });
+
+    await recordPracticeAttempt(fast, "hard", true, 2000);
+    await recordPracticeAttempt(slow, "hard", true, 5000);
+    await recordPracticeAttempt(failer, "hard", false, 9999); // no clear time
+
+    const lb = board(await getPracticeLeaderboard());
+    expect(lb.hard.map((e) => e.username)).toEqual(["fast_runner", "slow_runner"]);
+    expect(lb.hard[0].fastestClearMs).toBe(2000);
+    // A user who never cleared has no fastest time and is not ranked.
+    expect(lb.hard.some((e) => e.username === "never_solved")).toBe(false);
+    // Other difficulties stay empty when nobody has a clear there.
+    expect(lb.easy).toEqual([]);
+  });
+
+  it("breaks ties on equal time by more solves", async () => {
+    const grinder = await createUser({ username: "grinder" });
+    const oneshot = await createUser({ username: "oneshot" });
+    // Both share the same fastest clear time.
+    await recordPracticeAttempt(grinder, "medium", true, 3000);
+    await recordPracticeAttempt(grinder, "medium", true, 3500);
+    await recordPracticeAttempt(oneshot, "medium", true, 3000);
+
+    const lb = board(await getPracticeLeaderboard());
+    const tied = lb.medium.filter((e) => e.fastestClearMs === 3000);
+    expect(tied.map((e) => e.username)).toEqual(["grinder", "oneshot"]);
   });
 });

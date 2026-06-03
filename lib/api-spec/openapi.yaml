@@ -3998,6 +3998,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/BreachPracticeStats" }
         "401": { description: Authentication required }
+  /breach/practice/leaderboard:
+    get:
+      operationId: getBreachPracticeLeaderboard
+      tags: [breach]
+      summary: Fastest practice clear times per difficulty, by username.
+      description: >-
+        A per-difficulty ranking of the fastest practice clear times. Only
+        players who opted into account sync appear, so a player's own opt-in is
+        what puts them on the board. No economy or rewards — a friendly
+        fastest-time ranking only.
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BreachPracticeLeaderboard" }
+        "401": { description: Authentication required }
   /breach/practice/record:
     post:
       operationId: recordBreachPracticeAttempt
@@ -4208,6 +4225,34 @@ components:
       required: [stats]
       properties:
         stats: { $ref: "#/components/schemas/BreachPracticeStats" }
+    BreachLeaderboardEntry:
+      type: object
+      required: [userId, username, fastestClearMs, solves]
+      properties:
+        userId: { type: string }
+        username: { type: string }
+        fastestClearMs:
+          type: integer
+          minimum: 0
+          description: "Best (smallest) clear time in ms for this difficulty."
+        solves: { type: integer, minimum: 0 }
+    BreachPracticeLeaderboard:
+      type: object
+      description: "Per-difficulty fastest-clear rankings (opted-in players only)."
+      required: [easy, medium, hard, impossible]
+      properties:
+        easy:
+          type: array
+          items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
+        medium:
+          type: array
+          items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
+        hard:
+          type: array
+          items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
+        impossible:
+          type: array
+          items: { $ref: "#/components/schemas/BreachLeaderboardEntry" }
     ReviewComment:
       type: object
       required: [id, subjectType, subjectId, authorId, body, createdAt]

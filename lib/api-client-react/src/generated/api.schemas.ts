@@ -250,6 +250,28 @@ export interface BreachPracticeMergeInput {
   stats: BreachPracticeStats;
 }
 
+export interface BreachLeaderboardEntry {
+  userId: string;
+  username: string;
+  /**
+     * Best (smallest) clear time in ms for this difficulty.
+     * @minimum 0
+     */
+  fastestClearMs: number;
+  /** @minimum 0 */
+  solves: number;
+}
+
+/**
+ * Per-difficulty fastest-clear rankings (opted-in players only).
+ */
+export interface BreachPracticeLeaderboard {
+  easy: BreachLeaderboardEntry[];
+  medium: BreachLeaderboardEntry[];
+  hard: BreachLeaderboardEntry[];
+  impossible: BreachLeaderboardEntry[];
+}
+
 export type ReviewCommentSubjectType = typeof ReviewCommentSubjectType[keyof typeof ReviewCommentSubjectType];
 
 

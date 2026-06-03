@@ -5,13 +5,15 @@ import {
   type Difficulty,
   type GeneratedPuzzle,
 } from "@workspace/breach";
+import { useGetBreachPracticeLeaderboard } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import BreachBoard, { type Pos, type BreachOutcome } from "./BreachBoard";
 import { difficultyBadge } from "./breachUtils";
-import { Cpu, ArrowLeft, RefreshCw, BarChart3, Trash2, Cloud, Loader2 } from "lucide-react";
+import { Cpu, ArrowLeft, RefreshCw, BarChart3, Trash2, Cloud, Loader2, Trophy } from "lucide-react";
 import { formatClearTime, winRate } from "./breachPracticeStats";
 import { usePracticeStats } from "./usePracticeStats";
 
@@ -39,6 +41,9 @@ export default function BreachPractice() {
   const [session, setSession] = useState<Session | null>(null);
   const [outcome, setOutcome] = useState<BreachOutcome | null>(null);
   const { toast } = useToast();
+  const me = useAuthMe();
+  const myId = me.data?.id;
+  const { data: leaderboard, isLoading: leaderboardLoading } = useGetBreachPracticeLeaderboard();
   const {
     stats,
     canSync,
@@ -202,9 +207,9 @@ export default function BreachPractice() {
           )}
           <p className="font-mono text-xs text-muted-foreground mb-4">
             {synced
-              ? "Synced to your account — these stats follow you across devices. Nothing is shared with anyone else and there are no rewards."
+              ? "Synced to your account — these stats follow you across devices. Your fastest clear times appear on the leaderboard below by username. No rewards."
               : canSync
-                ? "Saved only in this browser. Turn on sync above to keep them on your account across devices."
+                ? "Saved only in this browser. Turn on sync above to keep them on your account across devices and join the leaderboard below."
                 : "Saved only in this browser — never sent to the server. Clearing your browser data resets it."}
           </p>
           <div className="overflow-x-auto">
@@ -242,6 +247,72 @@ export default function BreachPractice() {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50" data-testid="practice-leaderboard">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-display tracking-widest text-nc-yellow text-sm flex items-center gap-2">
+            <Trophy className="w-4 h-4" /> LEADERBOARD — FASTEST CLEARS
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="font-mono text-xs text-muted-foreground">
+            Fastest practice clear times by username. Only players who turned on account sync appear here.
+          </p>
+          {leaderboardLoading ? (
+            <div className="py-6 text-center font-mono text-muted-foreground animate-pulse">Loading...</div>
+          ) : (
+            DIFFICULTIES.map((d) => {
+              const entries = leaderboard?.[d] ?? [];
+              return (
+                <div key={d} data-testid={`leaderboard-${d}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {difficultyBadge(d)}
+                  </div>
+                  {entries.length === 0 ? (
+                    <div className="py-3 text-center font-mono text-xs text-muted-foreground italic border border-border/20">
+                      No ranked times yet.
+                    </div>
+                  ) : (
+                    <table className="w-full font-mono text-sm">
+                      <thead>
+                        <tr className="text-left text-muted-foreground border-b border-border/40">
+                          <th className="py-1 pr-4 font-normal uppercase tracking-widest text-xs w-12">#</th>
+                          <th className="py-1 px-4 font-normal uppercase tracking-widest text-xs">Runner</th>
+                          <th className="py-1 pl-4 font-normal uppercase tracking-widest text-xs text-right">Fastest Clear</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {entries.map((entry, i) => {
+                          const isMe = !!myId && entry.userId === myId;
+                          return (
+                            <tr
+                              key={entry.userId}
+                              className={[
+                                "border-b border-border/20",
+                                isMe ? "bg-nc-cyan/10" : "",
+                              ].join(" ")}
+                              data-testid={`leaderboard-${d}-row-${i}`}
+                            >
+                              <td className="py-1.5 pr-4 text-muted-foreground">{i + 1}</td>
+                              <td className="py-1.5 px-4 text-foreground">
+                                {entry.username}
+                                {isMe && <span className="ml-2 text-xs text-nc-cyan">(you)</span>}
+                              </td>
+                              <td className="py-1.5 pl-4 text-right text-nc-yellow">
+                                {formatClearTime(entry.fastestClearMs)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
+            })
+          )}
         </CardContent>
       </Card>
 

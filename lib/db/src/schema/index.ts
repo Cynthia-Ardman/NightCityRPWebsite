@@ -1529,8 +1529,9 @@ export type BreachPuzzle = typeof breachPuzzles.$inferSelect;
 // player's browser localStorage. A logged-in player may OPT IN to mirror their
 // own personal practice stats (attempts / solves / fastest clear) to their
 // account so the numbers follow them across devices. One row per
-// (user, difficulty). This table is purely personal: it is NEVER joined into
-// leaderboards, the economy, or the server-authoritative breachPuzzles flow.
+// (user, difficulty). Opting into sync also opts the player into the practice
+// fastest-clear leaderboard (by username). This table stays out of the economy,
+// rewards, and the server-authoritative breachPuzzles flow.
 export const breachPracticeStats = pgTable("breach_practice_stats", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   // "easy" | "medium" | "hard" | "impossible".
