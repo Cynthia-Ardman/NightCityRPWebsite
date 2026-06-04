@@ -1522,7 +1522,40 @@ router.post(
 // per-character picker then "adds" existing options to a character (writing
 // into characters.manualTags via the archive edit path). Any authenticated
 // user may LIST options (the picker needs them); only staff create/delete.
-router.get("/directory/tag-options", requireAuth, async (_req, res): Promise<void> => {
+router.get("/directory/tag-options", requireAuth, async (req, res): Promise<void> => {
+  // The registry historically only held tags staff explicitly "created", but
+  // the Discord importer writes straight into characters.appliedTags and staff
+  // add manualTags via the archive edit path — so the registry sat empty while
+  // hundreds of tags were already in use, and "Manage Tags" read "No tags yet".
+  // Backfill the registry from the UNION of in-use tags (idempotent) so it
+  // reflects reality. Gated to staff so a regular member loading the picker
+  // never triggers writes; this endpoint's only consumers are staff dialogs.
+  const isStaff = hasRole(req.user!.roles, "ADMIN") || hasRole(req.user!.roles, "FIXER");
+  if (isStaff) {
+    const [existing, tagRows] = await Promise.all([
+      db.select({ name: characterTagOptions.name }).from(characterTagOptions),
+      db
+        .select({ applied: characters.appliedTags, manual: characters.manualTags })
+        .from(characters),
+    ]);
+    const known = new Set(existing.map((r) => r.name.trim().toLowerCase()));
+    const toAdd = new Map<string, string>(); // lowercase key -> display name
+    for (const row of tagRows) {
+      for (const raw of [...(row.applied ?? []), ...(row.manual ?? [])]) {
+        const norm = normalizeTag(raw);
+        if (!norm) continue;
+        const key = norm.toLowerCase();
+        if (known.has(key) || toAdd.has(key)) continue;
+        toAdd.set(key, norm);
+      }
+    }
+    if (toAdd.size > 0) {
+      await db
+        .insert(characterTagOptions)
+        .values(Array.from(toAdd.values()).map((name) => ({ name, createdById: null })))
+        .onConflictDoNothing();
+    }
+  }
   const rows = await db
     .select()
     .from(characterTagOptions)

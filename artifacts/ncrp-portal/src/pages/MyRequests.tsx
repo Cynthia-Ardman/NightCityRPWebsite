@@ -20,7 +20,7 @@ import {
   type PendingEditSummary,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
-import { statusBucket, BUCKET_LABEL, type LifecycleBucket } from "@/lib/reviewLifecycle";
+import { statusBucket, BUCKET_LABEL } from "@/lib/reviewLifecycle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,9 +319,14 @@ export default function MyRequests() {
   }, [custom, housing, sheets, edits, me]);
 
   const visible = category === "All" ? rows : rows.filter((r) => r.category === category);
+  // The player view collapses to two sections: Active (needs action) and
+  // Resolved (decided). The shared lifecycle still distinguishes "archive"
+  // (closed) for staff, so fold it into Resolved here.
   const buckets = useMemo(() => {
-    const b: Record<LifecycleBucket, HistoryRow[]> = { active: [], resolved: [], archive: [] };
-    for (const r of visible) b[statusBucket(r.status)].push(r);
+    const b: Record<"active" | "resolved", HistoryRow[]> = { active: [], resolved: [] };
+    for (const r of visible) {
+      (statusBucket(r.status) === "active" ? b.active : b.resolved).push(r);
+    }
     return b;
   }, [visible]);
   const isLoading = loadingCustom || loadingHousing || loadingSheets || loadingEdits;
@@ -329,7 +334,8 @@ export default function MyRequests() {
   const renderRow = (r: HistoryRow) => (
     <Fragment key={r.key}>
       <tr
-        className="border-b border-border/30 hover:bg-card/80 align-top"
+        className="border-b border-border/30 hover:bg-card/80 align-top cursor-pointer"
+        onClick={() => setDiscussing((cur) => (cur === r.key ? null : r.key))}
         data-testid={`row-my-request-${r.key}`}
       >
         <td className={`p-3 font-bold whitespace-nowrap ${categoryColor(r.category)}`}>
@@ -376,7 +382,7 @@ export default function MyRequests() {
         <td className="p-3 text-muted-foreground whitespace-nowrap">
           {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : "—"}
         </td>
-        <td className="p-3">
+        <td className="p-3" onClick={(e) => e.stopPropagation()}>
           <RequestStatusBadge status={r.status} />
           {r.status === "changes_requested" && r.customId != null && r.customType !== "stock_cost" ? (
             <div className="flex gap-2 mt-2">
@@ -490,42 +496,46 @@ export default function MyRequests() {
               </Button>
             </div>
           ) : null}
-          {r.subjectType && r.subjectId != null ? (
-            <div className="mt-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
-                onClick={() => setDiscussing((cur) => (cur === r.key ? null : r.key))}
-                data-testid={`button-discuss-${r.key}`}
-              >
-                <MessageSquare className="w-3 h-3 mr-1" /> DETAILS
-                {discussing === r.key ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
-              </Button>
-            </div>
-          ) : null}
+          <div className="mt-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
+              onClick={() => setDiscussing((cur) => (cur === r.key ? null : r.key))}
+              data-testid={`button-discuss-${r.key}`}
+            >
+              <MessageSquare className="w-3 h-3 mr-1" /> DETAILS
+              {discussing === r.key ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+            </Button>
+          </div>
         </td>
       </tr>
-      {r.subjectType && r.subjectId != null && discussing === r.key ? (
+      {discussing === r.key ? (
         <tr className="border-b border-border/30" data-testid={`row-discuss-${r.key}`}>
           <td colSpan={6} className="p-3 bg-card/40">
             <div className="space-y-3">
-              {r.description || (r.customType && FIXER_VOTED_TYPES.has(r.customType) && r.approveCount != null) ? (
-                <div
-                  className="font-mono text-xs text-muted-foreground space-y-1 border border-border/40 bg-background/40 p-3"
-                  data-testid={`details-${r.key}`}
-                >
-                  {r.description ? <p className="whitespace-pre-wrap text-foreground">{r.description}</p> : null}
-                  {r.customType && FIXER_VOTED_TYPES.has(r.customType) && r.approveCount != null ? (
-                    <div>
-                      Votes: <span className="text-nc-green">{r.approveCount}</span>/{r.voteThreshold ?? "?"} approve ·{" "}
-                      <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
-                    </div>
-                  ) : null}
-                </div>
+              <div
+                className="font-mono text-xs text-muted-foreground space-y-1 border border-border/40 bg-background/40 p-3"
+                data-testid={`details-${r.key}`}
+              >
+                <div><span className="text-nc-cyan">CHARACTER:</span> {r.characterName}</div>
+                <div><span className="text-nc-cyan">SUBMITTED:</span> {new Date(r.createdAt).toLocaleString()}</div>
+                {r.reviewedAt ? (
+                  <div><span className="text-nc-cyan">DECIDED:</span> {new Date(r.reviewedAt).toLocaleString()}</div>
+                ) : null}
+                {r.description ? <p className="whitespace-pre-wrap text-foreground pt-1">{r.description}</p> : null}
+                {r.reviewerNote ? <p className="italic pt-1">Staff note: "{r.reviewerNote}"</p> : null}
+                {r.customType && FIXER_VOTED_TYPES.has(r.customType) && r.approveCount != null ? (
+                  <div>
+                    Votes: <span className="text-nc-green">{r.approveCount}</span>/{r.voteThreshold ?? "?"} approve ·{" "}
+                    <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
+                  </div>
+                ) : null}
+              </div>
+              {r.subjectType && r.subjectId != null ? (
+                <ReviewCommentThread subjectType={r.subjectType} subjectId={r.subjectId} markSeenOnMount />
               ) : null}
-              <ReviewCommentThread subjectType={r.subjectType} subjectId={r.subjectId} markSeenOnMount />
             </div>
           </td>
         </tr>
@@ -533,7 +543,7 @@ export default function MyRequests() {
     </Fragment>
   );
 
-  const renderSection = (bucket: LifecycleBucket) => {
+  const renderSection = (bucket: "active" | "resolved") => {
     const sectionRows = buckets[bucket];
     return (
       <Card className="rounded-none border-border bg-card/50" key={bucket}>
@@ -620,7 +630,7 @@ export default function MyRequests() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {(["active", "resolved", "archive"] as const).map((b) => renderSection(b))}
+          {(["active", "resolved"] as const).map((b) => renderSection(b))}
         </div>
       )}
 

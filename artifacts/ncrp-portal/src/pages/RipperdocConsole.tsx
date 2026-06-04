@@ -26,6 +26,8 @@ interface DirectoryChar {
   checkupStreak?: number | null;
   lastCheckupAt?: string | null;
   archived?: boolean | null;
+  ownerName?: string | null;
+  legacyDiscordUsername?: string | null;
 }
 
 // Standalone ripperdoc workstation. Gated to users with the RIPPERDOC
@@ -61,11 +63,32 @@ export default function RipperdocConsole() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return allChars.slice(0, 30);
+    if (!q) return allChars.slice(0, 50);
+    // Match the character's street name OR the player behind it (current
+    // owner username or the legacy Discord handle from import), so a doc can
+    // pull up every character a given player runs.
     return allChars
-      .filter((c) => c.name.toLowerCase().includes(q))
-      .slice(0, 30);
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (c.ownerName ?? "").toLowerCase().includes(q) ||
+          (c.legacyDiscordUsername ?? "").toLowerCase().includes(q),
+      )
+      .slice(0, 50);
   }, [allChars, search]);
+
+  // Group the results by player so searching a player surfaces all of their
+  // characters together under one header.
+  const grouped = useMemo(() => {
+    const map = new Map<string, DirectoryChar[]>();
+    for (const c of filtered) {
+      const player = c.ownerName?.trim() || c.legacyDiscordUsername?.trim() || "Unclaimed";
+      const list = map.get(player) ?? [];
+      list.push(c);
+      map.set(player, list);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
 
   const selected = selectedId ? allChars.find((c) => c.id === selectedId) : null;
 
@@ -119,43 +142,55 @@ export default function RipperdocConsole() {
           <CardContent className="p-4 space-y-3">
             <ErrorBoundary>
             <Input
-              placeholder="Search by character name..."
+              placeholder="Search by player or character name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="rounded-none font-mono"
               data-testid="input-ripperdoc-search"
             />
-            <div className="max-h-80 overflow-y-auto border border-border/60 divide-y divide-border/40">
+            <div className="max-h-80 overflow-y-auto border border-border/60">
               {charsLoading && (
                 <div className="p-3 text-xs font-mono text-muted-foreground">SCANNING DIRECTORY...</div>
               )}
               {!charsLoading && filtered.length === 0 && (
                 <div className="p-3 text-xs font-mono text-muted-foreground">NO_MATCHES.</div>
               )}
-              {filtered.map((c) => {
-                const active = selectedId === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedId(c.id);
-                      setLevel((c.cyberwareLevel as Level) ?? "");
-                      setFeedback(null);
-                      setError(null);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-sm font-mono flex items-center justify-between gap-2 transition-colors ${
-                      active ? "bg-nc-cyan/15 text-nc-cyan" : "hover:bg-card text-foreground"
-                    }`}
-                    data-testid={`row-ripperdoc-char-${c.id}`}
+              {grouped.map(([player, chars]) => (
+                <div key={player} className="border-b border-border/40 last:border-b-0">
+                  <div
+                    className="px-3 py-1.5 text-[10px] font-display tracking-widest uppercase text-nc-magenta bg-card/60 sticky top-0"
+                    data-testid={`group-ripperdoc-player-${player}`}
                   >
-                    <span className="truncate">{c.name}</span>
-                    <span className="text-xs text-muted-foreground uppercase">
-                      {c.cyberwareLevel ?? "none"}
-                    </span>
-                  </button>
-                );
-              })}
+                    {player}
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {chars.map((c) => {
+                      const active = selectedId === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedId(c.id);
+                            setLevel((c.cyberwareLevel as Level) ?? "");
+                            setFeedback(null);
+                            setError(null);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm font-mono flex items-center justify-between gap-2 transition-colors ${
+                            active ? "bg-nc-cyan/15 text-nc-cyan" : "hover:bg-card text-foreground"
+                          }`}
+                          data-testid={`row-ripperdoc-char-${c.id}`}
+                        >
+                          <span className="truncate">{c.name}</span>
+                          <span className="text-xs text-muted-foreground uppercase">
+                            {c.cyberwareLevel ?? "none"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
             </ErrorBoundary>
           </CardContent>

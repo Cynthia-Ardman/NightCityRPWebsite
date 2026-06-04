@@ -110,7 +110,7 @@ export default function DirectoryLore() {
       ) : !data?.length ? (
         <Empty />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {data.map((e) => (
             <Link key={e.id} href={`/directory/lore/${e.id}`}>
               <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full flex flex-col" data-testid={`card-lore-${e.id}`}>

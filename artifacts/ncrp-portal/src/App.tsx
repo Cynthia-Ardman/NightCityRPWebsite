@@ -13,7 +13,6 @@ import CharactersList from "@/pages/CharactersList";
 import CharacterDetail from "@/pages/CharacterDetail";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminUserDetail from "@/pages/admin/AdminUserDetail";
-import AdminLifestyle from "@/pages/admin/AdminLifestyle";
 import DiceRoller from "@/pages/DiceRoller";
 import NewSheet from "@/pages/sheets/NewSheet";
 import SheetDetail from "@/pages/sheets/SheetDetail";
@@ -54,7 +53,6 @@ import MyClinics from "@/pages/clinics/MyClinics";
 import MyClinicDetail from "@/pages/clinics/MyClinicDetail";
 import RipperdocConsole from "@/pages/RipperdocConsole";
 import FixerHub from "@/pages/fixer/FixerHub";
-import FixerNpcDetail from "@/pages/fixer/FixerNpcDetail";
 import FixerMissions from "@/pages/fixer/FixerMissions";
 import FixerReports from "@/pages/fixer/FixerReports";
 import PayActors from "@/pages/fixer/PayActors";
@@ -238,7 +236,6 @@ function AppRoutes() {
           <Route path="/fixer/players">
             <FixerGuard><FixerPlayerLookup /></FixerGuard>
           </Route>
-          <Route path="/fixer/npcs/:id" component={FixerNpcDetail} />
           <Route path="/items/:uuid" component={InventoryItemDetail} />
           <Route path="/settings" component={Settings} />
           <Route path="/dice" component={DiceRoller} />
@@ -251,7 +248,6 @@ function AppRoutes() {
           </Route>
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/users/:userId" component={AdminUserDetail} />
-          <Route path="/admin/lifestyle" component={AdminLifestyle} />
           <Route component={NotFound} />
         </Switch>
         </ErrorBoundary>

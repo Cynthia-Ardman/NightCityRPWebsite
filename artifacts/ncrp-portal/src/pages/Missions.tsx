@@ -494,12 +494,45 @@ function MissionCardList({
   );
 }
 
+// The player's applications split into ACTIVE (still awaiting a fixer decision)
+// and HISTORY (decided: accepted / rejected / withdrawn). Once an application is
+// accepted it leaves the active list and moves to history — the upcoming mission
+// itself still surfaces in the "Accepted" tab, so nothing is lost.
 function MyApplicationsList({ rows }: { rows: MissionApplicationListItem[] }) {
+  const active = rows.filter((a) => a.status === "pending");
+  const past = rows.filter((a) => a.status !== "pending");
   return (
-    <div className="space-y-4">
-      {rows.map((a) => (
-        <MyApplicationCard key={a.id} a={a} />
-      ))}
+    <div className="space-y-8">
+      <section className="space-y-4">
+        <h3 className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          Active ({active.length})
+        </h3>
+        {active.length === 0 ? (
+          <p
+            className="font-mono text-sm text-muted-foreground italic"
+            data-testid="text-applications-active-empty"
+          >
+            No applications awaiting a decision.
+          </p>
+        ) : (
+          active.map((a) => <MyApplicationCard key={a.id} a={a} />)
+        )}
+      </section>
+      <section className="space-y-4">
+        <h3 className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          History ({past.length})
+        </h3>
+        {past.length === 0 ? (
+          <p
+            className="font-mono text-sm text-muted-foreground italic"
+            data-testid="text-applications-history-empty"
+          >
+            No past applications yet.
+          </p>
+        ) : (
+          past.map((a) => <MyApplicationCard key={a.id} a={a} />)
+        )}
+      </section>
     </div>
   );
 }

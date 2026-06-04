@@ -21,29 +21,43 @@ import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+// NPCs now live in the `characters` table with kind='npc' (created via the full
+// character-sheet flow at /sheets/new?type=NPC). The standalone fixer_npcs table
+// is legacy and empty, which is why this section read blank. Both endpoints now
+// project NPC characters into the same response shape the hub already expects.
+const npcSelect = {
+  id: characters.id,
+  name: characters.name,
+  archetype: characters.archetype,
+  description: characters.background,
+  portraitUrl: characters.portraitUrl,
+  createdAt: characters.createdAt,
+  fixerName: users.username,
+  fixerAvatarUrl: users.avatarUrl,
+};
+
+function toNpc<T extends Record<string, unknown>>(r: T): T & { district: string | null; contact: string | null } {
+  return { ...r, district: null, contact: null };
+}
+
 router.get("/fixer/npcs/mine", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {
-  const rows = await db.select().from(fixerNpcs).where(eq(fixerNpcs.fixerId, req.user!.id)).orderBy(desc(fixerNpcs.createdAt));
-  res.json(rows);
+  const rows = await db
+    .select(npcSelect)
+    .from(characters)
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .where(and(eq(characters.kind, "npc"), eq(characters.ownerId, req.user!.id), eq(characters.archived, false)))
+    .orderBy(desc(characters.createdAt));
+  res.json(rows.map(toNpc));
 });
 
 router.get("/fixer/npcs", requireAuth, requireRole("FIXER"), async (_req, res): Promise<void> => {
   const rows = await db
-    .select({
-      id: fixerNpcs.id,
-      name: fixerNpcs.name,
-      archetype: fixerNpcs.archetype,
-      district: fixerNpcs.district,
-      description: fixerNpcs.description,
-      portraitUrl: fixerNpcs.portraitUrl,
-      contact: fixerNpcs.contact,
-      createdAt: fixerNpcs.createdAt,
-      fixerName: users.username,
-      fixerAvatarUrl: users.avatarUrl,
-    })
-    .from(fixerNpcs)
-    .leftJoin(users, eq(users.id, fixerNpcs.fixerId))
-    .orderBy(desc(fixerNpcs.createdAt));
-  res.json(rows);
+    .select(npcSelect)
+    .from(characters)
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .where(and(eq(characters.kind, "npc"), eq(characters.archived, false)))
+    .orderBy(desc(characters.createdAt));
+  res.json(rows.map(toNpc));
 });
 
 router.post("/fixer/npcs", requireAuth, requireRole("FIXER"), async (req, res): Promise<void> => {

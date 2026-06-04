@@ -7,7 +7,6 @@ import {
   useVacateHousing,
   useSubmitCustomRequest,
   useListMyHousingRequests,
-  useListLifestyleTiers,
   useUpdateRentListing,
   useDeleteRentListing,
   useGetListingHistory,
@@ -501,7 +500,6 @@ export default function CatalogRent() {
       )}
 
       <MyHousingRequests />
-      <LifestyleComparison />
       {leaseTarget && isBusinessListing(leaseTarget) ? (
         <BusinessLeaseDialog
           listing={leaseTarget}
@@ -1042,49 +1040,6 @@ function MyHousingRequests() {
             </li>
           ))}
         </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-function LifestyleComparison() {
-  const { data: tiers, isLoading } = useListLifestyleTiers();
-  const active = (tiers ?? []).filter((t) => !t.archived);
-  return (
-    <Card className="rounded-none border-border bg-card/50" data-testid="card-lifestyle-catalog">
-      <CardHeader>
-        <CardTitle className="font-display tracking-widest text-nc-cyan">LIFESTYLE TIERS</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="font-mono text-xs text-muted-foreground mb-3">
-          A monthly cost-of-living surcharge debited on the 1st of each month alongside rent. Pick a tier on each character's profile.
-        </p>
-        {isLoading ? (
-          <div className="text-nc-cyan font-mono animate-pulse">LOADING...</div>
-        ) : active.length === 0 ? (
-          <div className="font-mono text-muted-foreground italic text-sm">No lifestyle tiers configured.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full font-mono text-sm min-w-[500px]">
-              <thead className="border-b border-border bg-card">
-                <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
-                  <th className="text-left p-2">Tier</th>
-                  <th className="text-left p-2">Description</th>
-                  <th className="text-right p-2">Cost/mo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {active.map((t) => (
-                  <tr key={t.id} className="border-b border-border/30" data-testid={`row-lifestyle-${t.id}`}>
-                    <td className="p-2 font-bold">{t.name}</td>
-                    <td className="p-2 text-muted-foreground">{t.description ?? "—"}</td>
-                    <td className="p-2 text-right text-nc-yellow">€${t.monthlyCost.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

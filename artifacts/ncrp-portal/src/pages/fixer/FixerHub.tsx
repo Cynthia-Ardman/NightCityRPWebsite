@@ -163,7 +163,7 @@ function NpcGrid({ items, kind }: { items: Array<{ id: number; name: string; arc
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
       {items.map((n) => (
-        <Link key={n.id} href={`/fixer/npcs/${n.id}`}>
+        <Link key={n.id} href={`/characters/${n.id}`}>
           <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan cursor-pointer h-full" data-testid={`card-npc-${kind}-${n.id}`}>
             <CardHeader>
               <CardTitle className="font-display">{n.name}</CardTitle>

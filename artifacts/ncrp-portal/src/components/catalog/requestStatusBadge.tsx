@@ -24,6 +24,18 @@ export function RequestStatusBadge({ status }: { status: string }) {
           <MessageSquareWarning className="w-3 h-3 mr-1" /> CHANGES REQ
         </Badge>
       );
+    case "closed":
+      return (
+        <Badge variant="outline" className="border-muted-foreground text-muted-foreground rounded-none font-mono text-[10px]">
+          <CheckCircle2 className="w-3 h-3 mr-1" /> CLOSED
+        </Badge>
+      );
+    case "cancelled":
+      return (
+        <Badge variant="outline" className="border-muted-foreground text-muted-foreground rounded-none font-mono text-[10px]">
+          <XCircle className="w-3 h-3 mr-1" /> CANCELLED
+        </Badge>
+      );
     default:
       return (
         <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-[10px]">

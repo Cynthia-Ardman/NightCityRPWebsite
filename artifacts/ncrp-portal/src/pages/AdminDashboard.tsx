@@ -47,14 +47,6 @@ export default function AdminDashboard() {
         <p className="text-muted-foreground font-mono mt-2">God mode enabled. Proceed with caution.</p>
       </div>
 
-      {(
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/lifestyle" className="px-4 py-2 border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background font-display text-xs tracking-widest" data-testid="link-admin-lifestyle">
-            LIFESTYLE TIERS →
-          </Link>
-        </div>
-      )}
-
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-2 md:grid-cols-8 max-w-6xl w-full">
           <TabsTrigger value="users" className="rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3" data-testid="tab-users">Users</TabsTrigger>
@@ -1017,7 +1009,7 @@ const MISSION_AUTOPAY_KEY = "mission_autopay_enabled";
 // LiveModeState.systems shape returned by GET /admin/live-mode.
 const LIVE_MODE_SYSTEMS: Array<{ key: "missions" | "housing" | "cyberware" | "evictions"; label: string; desc: string }> = [
   { key: "missions", label: "Missions", desc: "Discord scheduled events, banking/NPC channel posts, mission payouts." },
-  { key: "housing", label: "Housing & Lifestyle Billing", desc: "Monthly rent + lifestyle debits (monthly_rent job)." },
+  { key: "housing", label: "Housing Billing", desc: "Monthly rent + personal fees (monthly_rent job)." },
   { key: "cyberware", label: "Cyberware Humanity", desc: "Weekly cyberpsychosis med charges (cyberware_humanity job)." },
   { key: "evictions", label: "Evictions", desc: "Delinquent lease sweeps + eviction notices (eviction_sweep job)." },
 ];
@@ -1243,8 +1235,8 @@ export function JobsTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <AutobillSwitch
             configKey={HOUSING_AUTOBILL_KEY}
-            label="Housing + Lifestyle Autobill"
-            description="Gates the monthly_rent cron (housing rent + monthly lifestyle costs). 04:00 UTC on the 1st."
+            label="Housing Autobill"
+            description="Gates the monthly_rent cron (housing rent + monthly personal fees). 04:00 UTC on the 1st."
             rows={flagRows}
             pending={setFlag.isPending}
             onToggle={(next) => setFlag.mutate({ key: HOUSING_AUTOBILL_KEY, data: { value: next } })}

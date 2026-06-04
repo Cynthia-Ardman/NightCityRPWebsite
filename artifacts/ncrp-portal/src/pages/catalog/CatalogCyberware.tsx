@@ -78,19 +78,30 @@ export default function CatalogCyberware() {
     return out;
   }, [rows]);
 
-  const filtered = rows.filter((c) => {
-    for (const { key } of FILTER_COLUMNS) {
-      const want = filters[key as string];
-      if (want && want !== ALL && c[key] !== want) return false;
-    }
-    if (!q) return true;
-    const needle = q.toLowerCase();
-    return (
-      c.name.toLowerCase().includes(needle) ||
-      c.slot.toLowerCase().includes(needle) ||
-      (c.description ?? "").toLowerCase().includes(needle)
-    );
-  });
+  const filtered = rows
+    .filter((c) => {
+      for (const { key } of FILTER_COLUMNS) {
+        const want = filters[key as string];
+        if (want && want !== ALL && c[key] !== want) return false;
+      }
+      if (!q) return true;
+      const needle = q.toLowerCase();
+      return (
+        c.name.toLowerCase().includes(needle) ||
+        c.slot.toLowerCase().includes(needle) ||
+        (c.description ?? "").toLowerCase().includes(needle)
+      );
+    })
+    // Group strictly by slot: the API returns rows in insertion order, so
+    // same-slot pieces added at different times would otherwise scatter (and
+    // case/whitespace differences split a slot into separate islands). Sort on
+    // a normalized slot key, then name, so every slot is one contiguous block.
+    .sort((a, b) => {
+      const sa = a.slot.trim().toLowerCase().replace(/\s+/g, " ");
+      const sb = b.slot.trim().toLowerCase().replace(/\s+/g, " ");
+      if (sa !== sb) return sa.localeCompare(sb);
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-12 px-2">
