@@ -12,12 +12,16 @@ import { useAuthMe } from "@/hooks/useAuthMe";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Briefcase, PartyPopper } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { expandOccurrences } from "@/lib/eventRecurrence";
 
 type CalKind = "mission" | "event";
 
 // The viewer's personal signup status for an item: confirmed as a player
 // (accepted application / assigned character), signed up as an NPC, or neither.
 type SignupStatus = "player" | "npc" | null;
+
+type CalFilter = "all" | "mission" | "event";
+type CalView = "month" | "week";
 
 interface CalItem {
   kind: CalKind;
@@ -27,12 +31,28 @@ interface CalItem {
   href: string;
   subtype: string; // tier label or event type
   myStatus: SignupStatus;
+  // Distinguishes individual occurrences of a recurring event so each renders
+  // with a stable, unique key.
+  occMs: number;
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function startOfWeek(d: Date): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() - r.getDay()); // Sunday-start to match the grid columns
+  r.setHours(0, 0, 0, 0);
+  return r;
+}
+
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
 }
 
 function dayKey(d: Date): string {
@@ -44,10 +64,15 @@ function sameDay(a: Date, b: Date): boolean {
 }
 
 const EVENT_TYPE_LABEL: Record<string, string> = {
-  session: "Session",
   social: "Social",
+  session: "Main Session",
+  mission: "Mission",
   other: "Event",
 };
+
+// How many chips a month cell shows before collapsing into "+N more". Kept low
+// so a busy day doesn't blow out the row height; the overflow jumps to week view.
+const MONTH_CHIP_CAP = 3;
 
 export default function DirectoryCalendar() {
   const { data: me } = useAuthMe();
@@ -60,50 +85,88 @@ export default function DirectoryCalendar() {
     query: { queryKey: getListEventsQueryKey() },
   });
 
+  const [view, setView] = useState<CalView>("month");
+  const [filter, setFilter] = useState<CalFilter>("all");
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
 
-  // Build a flat list of calendar items from both sources. Missions and events
-  // are filtered to those with a real start time; cancelled missions are hidden
-  // (the events endpoint already excludes cancelled events server-side).
+  // Grid cells: a 6-week (42-cell) block for month view, or a single 7-day row
+  // for week view. Both start on a Sunday so the weekday header lines up.
+  const cells = useMemo(() => {
+    if (view === "week") {
+      const start = startOfWeek(cursor);
+      return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+    }
+    const first = startOfMonth(cursor);
+    const gridStart = addDays(first, -first.getDay());
+    return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  }, [cursor, view]);
+
+  // Visible window for recurrence expansion: first cell 00:00 → last cell 23:59.
+  const rangeStart = useMemo(() => {
+    const d = new Date(cells[0]);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [cells]);
+  const rangeEnd = useMemo(() => {
+    const d = new Date(cells[cells.length - 1]);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, [cells]);
+
+  // Build a flat list of calendar items from both sources, expanding recurring
+  // events into every occurrence inside the visible window. Missions and
+  // single events contribute one occurrence; cancelled missions are hidden (the
+  // events endpoint already excludes cancelled events server-side). The filter
+  // narrows to missions-only or events-only.
   const items = useMemo<CalItem[]>(() => {
     const out: CalItem[] = [];
-    for (const m of (missionsQ.data ?? []) as MissionSummary[]) {
-      if (!m.startAt) continue;
-      if (m.status === "cancelled") continue;
-      const start = new Date(m.startAt);
-      if (Number.isNaN(start.getTime())) continue;
-      // Player = accepted application (or an assigned character); NPC = an active
-      // NPC signup. Player wins when both are somehow present.
-      const isPlayer = m.myApplication?.status === "accepted" || m.myCharacterId != null;
-      const isNpc = m.mySignup?.state === "signed_up";
-      out.push({
-        kind: "mission",
-        id: m.id,
-        title: m.title,
-        start,
-        href: `/missions/${m.id}`,
-        subtype: `Tier ${m.tier}`,
-        myStatus: isPlayer ? "player" : isNpc ? "npc" : null,
-      });
+    if (filter !== "event") {
+      for (const m of (missionsQ.data ?? []) as MissionSummary[]) {
+        if (!m.startAt) continue;
+        if (m.status === "cancelled") continue;
+        const start = new Date(m.startAt);
+        if (Number.isNaN(start.getTime())) continue;
+        if (start < rangeStart || start > rangeEnd) continue;
+        // Player = accepted application (or an assigned character); NPC = an
+        // active NPC signup. Player wins when both are somehow present.
+        const isPlayer = m.myApplication?.status === "accepted" || m.myCharacterId != null;
+        const isNpc = m.mySignup?.state === "signed_up";
+        out.push({
+          kind: "mission",
+          id: m.id,
+          title: m.title,
+          start,
+          href: `/missions/${m.id}`,
+          subtype: `Tier ${m.tier}`,
+          myStatus: isPlayer ? "player" : isNpc ? "npc" : null,
+          occMs: start.getTime(),
+        });
+      }
     }
-    for (const e of (eventsQ.data ?? []) as EventView[]) {
-      const start = new Date(e.startAt);
-      if (Number.isNaN(start.getTime())) continue;
-      // Events only have NPC signups; the list returns mySignup only for an
-      // active signup, so its presence makes the viewer an NPC.
-      const isNpc = e.mySignup != null;
-      out.push({
-        kind: "event",
-        id: e.id,
-        title: e.title,
-        start,
-        href: `/events/${e.id}`,
-        subtype: EVENT_TYPE_LABEL[e.eventType] ?? "Event",
-        myStatus: isNpc ? "npc" : null,
-      });
+    if (filter !== "mission") {
+      for (const e of (eventsQ.data ?? []) as EventView[]) {
+        const base = new Date(e.startAt);
+        if (Number.isNaN(base.getTime())) continue;
+        // Events only have NPC signups; the list returns mySignup only for an
+        // active signup, so its presence makes the viewer an NPC.
+        const isNpc = e.mySignup != null;
+        const occs = expandOccurrences(base, e.recurrence ?? null, rangeStart, rangeEnd);
+        for (const occ of occs) {
+          out.push({
+            kind: "event",
+            id: e.id,
+            title: e.title,
+            start: occ,
+            href: `/events/${e.id}`,
+            subtype: EVENT_TYPE_LABEL[e.eventType] ?? "Event",
+            myStatus: isNpc ? "npc" : null,
+            occMs: occ.getTime(),
+          });
+        }
+      }
     }
     return out;
-  }, [missionsQ.data, eventsQ.data]);
+  }, [missionsQ.data, eventsQ.data, filter, rangeStart, rangeEnd]);
 
   // Bucket items by local-day key for O(1) lookup while rendering the grid.
   const byDay = useMemo(() => {
@@ -120,23 +183,33 @@ export default function DirectoryCalendar() {
     return map;
   }, [items]);
 
-  // Compute the 6-week grid (42 cells) that covers the visible month, padded by
-  // leading/trailing days from adjacent months so each week is a full row.
-  const cells = useMemo(() => {
-    const first = startOfMonth(cursor);
-    const gridStart = new Date(first);
-    gridStart.setDate(first.getDate() - first.getDay());
-    const out: Date[] = [];
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(gridStart);
-      d.setDate(gridStart.getDate() + i);
-      out.push(d);
-    }
-    return out;
-  }, [cursor]);
-
   const today = new Date();
-  const monthLabel = cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const label =
+    view === "week"
+      ? `${cells[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${cells[6].toLocaleDateString(
+          undefined,
+          { month: "short", day: "numeric", year: "numeric" },
+        )}`
+      : cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  const goPrev = () =>
+    setCursor((c) => (view === "week" ? addDays(c, -7) : new Date(c.getFullYear(), c.getMonth() - 1, 1)));
+  const goNext = () =>
+    setCursor((c) => (view === "week" ? addDays(c, 7) : new Date(c.getFullYear(), c.getMonth() + 1, 1)));
+  const goToday = () => setCursor(view === "week" ? startOfWeek(new Date()) : startOfMonth(new Date()));
+
+  // Switching view keeps the focused period sensible: month→start of that month,
+  // week→start of the week containing the cursor.
+  const switchView = (next: CalView) => {
+    if (next === view) return;
+    setCursor((c) => (next === "week" ? startOfWeek(c) : startOfMonth(c)));
+    setView(next);
+  };
+
+  const jumpToWeekOf = (d: Date) => {
+    setCursor(startOfWeek(d));
+    setView("week");
+  };
 
   const loading = missionsQ.isLoading || eventsQ.isLoading;
 
@@ -151,16 +224,42 @@ export default function DirectoryCalendar() {
             Every scheduled mission and event in Night City, shown in your local time.
           </p>
         </div>
-        {isStaff && (
-          <Link href="/fixer/events">
-            <Button
-              className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
-              data-testid="button-create-event"
-            >
-              <Plus className="w-4 h-4 mr-1" /> CREATE EVENT
-            </Button>
-          </Link>
-        )}
+
+        {/* Controls sit to the left of CREATE EVENT: a type filter and the
+            month/week view toggle. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Segmented
+            ariaLabel="Filter calendar"
+            value={filter}
+            onChange={(v) => setFilter(v as CalFilter)}
+            options={[
+              { value: "all", label: "All" },
+              { value: "mission", label: "Missions" },
+              { value: "event", label: "Events" },
+            ]}
+            testIdPrefix="filter"
+          />
+          <Segmented
+            ariaLabel="Calendar view"
+            value={view}
+            onChange={(v) => switchView(v as CalView)}
+            options={[
+              { value: "month", label: "Month" },
+              { value: "week", label: "Week" },
+            ]}
+            testIdPrefix="view"
+          />
+          {isStaff && (
+            <Link href="/fixer/events">
+              <Button
+                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                data-testid="button-create-event"
+              >
+                <Plus className="w-4 h-4 mr-1" /> CREATE EVENT
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3 border border-border bg-card/40 p-3">
@@ -169,21 +268,21 @@ export default function DirectoryCalendar() {
           variant="outline"
           size="sm"
           className="rounded-none font-display tracking-widest"
-          onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
-          data-testid="button-prev-month"
+          onClick={goPrev}
+          data-testid="button-prev-period"
         >
           <ChevronLeft className="w-4 h-4" />
         </Button>
         <div className="flex items-center gap-3">
-          <span className="font-display text-xl tracking-widest text-foreground" data-testid="text-month-label">
-            {monthLabel.toUpperCase()}
+          <span className="font-display text-xl tracking-widest text-foreground" data-testid="text-period-label">
+            {label.toUpperCase()}
           </span>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="rounded-none font-mono text-xs text-nc-cyan"
-            onClick={() => setCursor(startOfMonth(new Date()))}
+            onClick={goToday}
             data-testid="button-today"
           >
             TODAY
@@ -194,8 +293,8 @@ export default function DirectoryCalendar() {
           variant="outline"
           size="sm"
           className="rounded-none font-display tracking-widest"
-          onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
-          data-testid="button-next-month"
+          onClick={goNext}
+          data-testid="button-next-period"
         >
           <ChevronRight className="w-4 h-4" />
         </Button>
@@ -239,13 +338,20 @@ export default function DirectoryCalendar() {
             </div>
             <div className="grid grid-cols-7">
               {cells.map((d, i) => {
-                const inMonth = d.getMonth() === cursor.getMonth();
+                const inMonth = view === "week" || d.getMonth() === cursor.getMonth();
                 const isToday = sameDay(d, today);
                 const dayItems = byDay.get(dayKey(d)) ?? [];
+                // Density: crowded days use smaller chips so the cell doesn't
+                // explode. Week view has whole-row height, so it shows all items
+                // (scrolling if needed); month view caps and offers "+N more".
+                const dense = dayItems.length >= 3;
+                const capped = view === "month" && dayItems.length > MONTH_CHIP_CAP;
+                const visible = capped ? dayItems.slice(0, MONTH_CHIP_CAP) : dayItems;
+                const hidden = dayItems.length - visible.length;
                 return (
                   <div
                     key={i}
-                    className={`min-h-[7rem] border-b border-r border-border/50 p-1.5 flex flex-col gap-1 ${
+                    className={`${view === "week" ? "min-h-[20rem]" : "min-h-[7rem]"} border-b border-r border-border/50 p-1.5 flex flex-col gap-1 ${
                       inMonth ? "" : "bg-background/40"
                     } ${(i + 1) % 7 === 0 ? "border-r-0" : ""}`}
                     data-testid={`cell-day-${dayKey(d)}`}
@@ -262,11 +368,24 @@ export default function DirectoryCalendar() {
                       >
                         {d.getDate()}
                       </span>
+                      {dayItems.length > 0 && (
+                        <span className="font-mono text-[9px] text-muted-foreground">{dayItems.length}</span>
+                      )}
                     </div>
-                    <div className="flex flex-col gap-1">
-                      {dayItems.map((it) => (
-                        <CalChip key={`${it.kind}-${it.id}`} item={it} />
+                    <div className={`flex flex-col gap-1 ${view === "week" ? "overflow-y-auto" : ""}`}>
+                      {visible.map((it) => (
+                        <CalChip key={`${it.kind}-${it.id}-${it.occMs}`} item={it} dense={dense} />
                       ))}
+                      {hidden > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => jumpToWeekOf(d)}
+                          className="text-left font-mono text-[9px] text-nc-cyan hover:text-nc-cyan/80 px-1"
+                          data-testid={`more-${dayKey(d)}`}
+                        >
+                          +{hidden} more
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -279,27 +398,66 @@ export default function DirectoryCalendar() {
   );
 }
 
-function CalChip({ item }: { item: CalItem }) {
+function Segmented({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+  testIdPrefix,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+  testIdPrefix: string;
+}) {
+  return (
+    <div className="inline-flex border border-border bg-card/40" role="group" aria-label={ariaLabel}>
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            aria-pressed={active}
+            className={`px-3 py-1.5 font-display text-xs tracking-widest transition-colors ${
+              active
+                ? "bg-nc-cyan text-background"
+                : "text-muted-foreground hover:text-nc-cyan hover:bg-nc-cyan/10"
+            }`}
+            data-testid={`button-${testIdPrefix}-${o.value}`}
+          >
+            {o.label.toUpperCase()}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CalChip({ item, dense }: { item: CalItem; dense?: boolean }) {
   const time = item.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   const isMission = item.kind === "mission";
   const cls = isMission
     ? "bg-nc-magenta/20 border-nc-magenta/50 hover:bg-nc-magenta/30 text-nc-magenta"
     : "bg-nc-cyan/20 border-nc-cyan/50 hover:bg-nc-cyan/30 text-nc-cyan";
   const Icon = isMission ? Briefcase : PartyPopper;
-  const statusLabel = item.myStatus === "player" ? "Signed up as player" : item.myStatus === "npc" ? "Signed up as NPC" : null;
+  const statusLabel =
+    item.myStatus === "player" ? "Signed up as player" : item.myStatus === "npc" ? "Signed up as NPC" : null;
   return (
     <Link
       href={item.href}
-      className={`block border rounded-none px-1.5 py-1 transition-colors ${cls}`}
+      className={`block border rounded-none transition-colors ${cls} ${dense ? "px-1 py-0.5" : "px-1.5 py-1"}`}
       data-testid={`chip-${item.kind}-${item.id}`}
       title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
     >
-      <div className="flex items-center gap-1 font-mono text-[10px] leading-tight">
-        <Icon className="w-3 h-3 shrink-0" />
+      <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[8px]" : "text-[10px]"}`}>
+        <Icon className={`shrink-0 ${dense ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
         <span className="opacity-70">{time}</span>
         {item.myStatus && (
           <span
-            className={`ml-auto shrink-0 px-1 text-[8px] font-display tracking-wider border ${
+            className={`ml-auto shrink-0 px-1 font-display tracking-wider border ${dense ? "text-[7px]" : "text-[8px]"} ${
               item.myStatus === "player"
                 ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
                 : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
@@ -310,7 +468,11 @@ function CalChip({ item }: { item: CalItem }) {
           </span>
         )}
       </div>
-      <div className="font-mono text-[11px] leading-tight text-foreground truncate">{item.title}</div>
+      <div
+        className={`font-mono leading-tight text-foreground truncate ${dense ? "text-[9px]" : "text-[11px]"}`}
+      >
+        {item.title}
+      </div>
     </Link>
   );
 }

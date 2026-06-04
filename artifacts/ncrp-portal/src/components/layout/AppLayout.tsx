@@ -219,11 +219,11 @@ function SidebarContent() {
         <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} />
         <NavItem href="/offers/mine" icon={ShoppingBag} label="Pending Approvals" badge={pendingOffers} />
         <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" />
-        <NavItem href="/missions" icon={Briefcase} label="Missions" />
-        <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
 
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Directory</div>
+        <NavItem href="/missions" icon={Briefcase} label="Missions" />
+        <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" />
         {/* Character Archive lists rosters of every sheet. Sheet bodies
             (background, etc.) are owner/staff-only — see directory.ts — so
             clicking a row a non-owner doesn't own will 403 unless they're

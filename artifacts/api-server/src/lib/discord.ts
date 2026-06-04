@@ -744,6 +744,41 @@ export interface GuildScheduledEvent {
   status: number;
   /** 1=stage, 2=voice, 3=external. */
   entityType: number;
+  /** Normalised recurrence (null = single occurrence). */
+  recurrence: DiscordRecurrence | null;
+}
+
+/**
+ * Normalised subset of Discord's recurrence_rule. frequency: 0=yearly,
+ * 1=monthly, 2=weekly, 3=daily. byWeekday uses Discord's 0=Mon..6=Sun. An
+ * open-ended series leaves both count and until null.
+ */
+export interface DiscordRecurrence {
+  frequency: number;
+  interval: number;
+  byWeekday: number[] | null;
+  count: number | null;
+  until: string | null;
+}
+
+/** Raw Discord recurrence_rule shape (only the fields we consume). */
+interface RawRecurrenceRule {
+  frequency?: number | null;
+  interval?: number | null;
+  by_weekday?: number[] | null;
+  count?: number | null;
+  end?: string | null;
+}
+
+function parseRecurrence(raw: RawRecurrenceRule | null | undefined): DiscordRecurrence | null {
+  if (!raw || typeof raw.frequency !== "number") return null;
+  return {
+    frequency: raw.frequency,
+    interval: typeof raw.interval === "number" && raw.interval > 0 ? raw.interval : 1,
+    byWeekday: Array.isArray(raw.by_weekday) && raw.by_weekday.length ? raw.by_weekday : null,
+    count: typeof raw.count === "number" && raw.count > 0 ? raw.count : null,
+    until: raw.end ?? null,
+  };
 }
 
 export type ListScheduledEventsResult =
@@ -780,6 +815,7 @@ export async function listGuildScheduledEvents(): Promise<ListScheduledEventsRes
       image?: string | null;
       status?: number;
       entity_type?: number;
+      recurrence_rule?: RawRecurrenceRule | null;
     }>;
     return {
       ok: true,
@@ -794,6 +830,7 @@ export async function listGuildScheduledEvents(): Promise<ListScheduledEventsRes
         image: e.image ?? null,
         status: e.status ?? 1,
         entityType: e.entity_type ?? DISCORD_ENTITY_TYPE_EXTERNAL,
+        recurrence: parseRecurrence(e.recurrence_rule),
       })),
     };
   } catch (err) {

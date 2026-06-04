@@ -908,6 +908,18 @@ export const missionNpcSignups = pgTable("mission_npc_signups", {
 }));
 export type MissionNpcSignup = typeof missionNpcSignups.$inferSelect;
 
+// Normalised subset of Discord's recurrence_rule, stored on an event row and
+// expanded client-side onto the calendar. frequency: 0=yearly, 1=monthly,
+// 2=weekly, 3=daily. byWeekday uses Discord's 0=Mon..6=Sun. An open-ended
+// series leaves both count and until null.
+export interface EventRecurrenceRule {
+  frequency: number;
+  interval: number;
+  byWeekday: number[] | null;
+  count: number | null;
+  until: string | null;
+}
+
 // Non-mission events (regular sessions, social lobbies, etc.). Distinct from
 // `missions`: events carry no money/payment lifecycle — they're a calendar
 // item plus an optional "actors needed" call. A website event optionally owns
@@ -944,6 +956,11 @@ export const events = pgTable("events", {
   discordSyncedHash: text("discord_synced_hash"),
   // When this row was last reconciled with its Discord scheduled event.
   discordSyncedAt: timestamp("discord_synced_at", { withTimezone: true }),
+  // Normalised Discord recurrence rule (null = single occurrence). Mirrors the
+  // subset of Discord's recurrence_rule we expand client-side onto the calendar:
+  // frequency (0=Y,1=M,2=W,3=D), interval, optional weekday set (0=Mon..6=Sun),
+  // and an optional end via count or until.
+  recurrenceRule: jsonb("recurrence_rule").$type<EventRecurrenceRule>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({

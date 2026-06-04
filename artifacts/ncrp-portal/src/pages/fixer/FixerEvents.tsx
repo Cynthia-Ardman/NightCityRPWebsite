@@ -38,14 +38,16 @@ function toLocalInputValue(iso: string | null | undefined): string {
 }
 
 const EVENT_TYPE_OPTIONS: { value: EventCreateInputEventType; label: string }[] = [
-  { value: "session", label: "Session" },
   { value: "social", label: "Social" },
+  { value: "session", label: "Main Session" },
+  { value: "mission", label: "Mission" },
   { value: "other", label: "Other" },
 ];
 
 const EVENT_TYPE_LABEL: Record<string, string> = {
-  session: "Session",
   social: "Social",
+  session: "Main Session",
+  mission: "Mission",
   other: "Other",
 };
 

@@ -7456,13 +7456,28 @@ components:
         note: { type: ["string", "null"] }
         createdAt: { type: ["string", "null"], format: date-time }
 
+    EventRecurrence:
+      type: object
+      required: [frequency, interval]
+      description: "Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun."
+      properties:
+        frequency: { type: integer }
+        interval: { type: integer }
+        byWeekday:
+          oneOf:
+            - type: array
+              items: { type: integer }
+            - type: "null"
+        count: { type: ["integer", "null"] }
+        until: { type: ["string", "null"], format: date-time }
+
     EventView:
       type: object
       required: [id, title, eventType, startAt, endAt, status, needsNpcs, hasDiscordEvent, signupCount, canManage]
       properties:
         id: { type: integer }
         title: { type: string }
-        eventType: { type: string, enum: [session, social, other] }
+        eventType: { type: string, enum: [session, social, mission, other] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
@@ -7482,6 +7497,11 @@ components:
             - type: "null"
           description: "The caller's own active NPC sign-up; null if none."
         canManage: { type: boolean, description: "True if caller is fixer/admin (sees Edit + roster)." }
+        recurrence:
+          oneOf:
+            - $ref: "#/components/schemas/EventRecurrence"
+            - type: "null"
+          description: "Recurrence rule (null = single occurrence); expanded onto the calendar client-side."
         signups:
           type: array
           description: "Full NPC sign-up roster (managers only, detail view only)."
@@ -7492,7 +7512,7 @@ components:
       required: [title, startAt, endAt]
       properties:
         title: { type: string, minLength: 1 }
-        eventType: { type: string, enum: [session, social, other], default: social }
+        eventType: { type: string, enum: [session, social, mission, other], default: social }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
@@ -7505,7 +7525,7 @@ components:
       type: object
       properties:
         title: { type: string, minLength: 1 }
-        eventType: { type: string, enum: [session, social, other] }
+        eventType: { type: string, enum: [session, social, mission, other] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }

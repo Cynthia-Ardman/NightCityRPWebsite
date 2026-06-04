@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EventRecurrence } from './eventRecurrence';
 import type { EventSignupView } from './eventSignupView';
 import type { EventViewEventType } from './eventViewEventType';
 import type { EventViewStatus } from './eventViewStatus';
@@ -42,6 +43,8 @@ export interface EventView {
   mySignup?: EventSignupView | null;
   /** True if caller is fixer/admin (sees Edit + roster). */
   canManage: boolean;
+  /** Recurrence rule (null = single occurrence); expanded onto the calendar client-side. */
+  recurrence?: EventRecurrence | null;
   /** Full NPC sign-up roster (managers only, detail view only). */
   signups?: EventSignupView[];
 }

@@ -12,5 +12,6 @@ export type EventViewEventType = typeof EventViewEventType[keyof typeof EventVie
 export const EventViewEventType = {
   session: 'session',
   social: 'social',
+  mission: 'mission',
   other: 'other',
 } as const;

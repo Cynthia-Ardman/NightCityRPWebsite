@@ -8,12 +8,14 @@ import {
   users,
   characters,
   type Event,
+  type EventRecurrenceRule,
 } from "@workspace/db";
 import {
   createGuildScheduledEvent,
   modifyGuildScheduledEvent,
   deleteGuildScheduledEvent,
   listGuildScheduledEvents,
+  fetchDiscordUser,
   type GuildScheduledEvent,
 } from "./discord";
 import { getMissionContext } from "./missionsConfig";
@@ -33,7 +35,7 @@ export interface EventViewer {
   isAdmin: boolean;
 }
 
-export const EVENT_TYPES = ["session", "social", "other"] as const;
+export const EVENT_TYPES = ["session", "social", "mission", "other"] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 export function isEventType(v: unknown): v is EventType {
   return typeof v === "string" && (EVENT_TYPES as readonly string[]).includes(v);
@@ -68,6 +70,9 @@ export interface EventView {
   signupCount: number;
   mySignup: EventSignupView | null;
   canManage: boolean;
+  // Normalised recurrence (null = single occurrence). Expanded onto the
+  // calendar client-side so a weekly Discord event shows on every occurrence.
+  recurrence: EventRecurrenceRule | null;
   // Only populated on the detail view for managers.
   signups?: EventSignupView[];
 }
@@ -121,6 +126,24 @@ function eventContentHash(c: EventContent): string {
     Math.floor(c.endAt.getTime() / 1000),
   ];
   return createHash("sha256").update(JSON.stringify(norm)).digest("hex");
+}
+
+// Structural equality for a normalised recurrence (order-independent on the
+// weekday set). Lets the reconcile loop skip a no-op UPDATE when nothing changed.
+function recurrenceEqual(
+  a: EventRecurrenceRule | null | undefined,
+  b: EventRecurrenceRule | null | undefined,
+): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const wd = (x: number[] | null) => (x ? [...x].sort((m, n) => m - n).join(",") : "");
+  return (
+    a.frequency === b.frequency &&
+    a.interval === b.interval &&
+    a.count === b.count &&
+    a.until === b.until &&
+    wd(a.byWeekday) === wd(b.byWeekday)
+  );
 }
 
 // Discord external events always carry an end time; defend against a missing
@@ -200,13 +223,27 @@ async function applyEventSync(id: number, fallback: Event, sync: EventSyncResult
 }
 
 // Reuse the mission conflict check (both share the same Discord guild events).
+// The conflict scan compares against Discord scheduled events by their snowflake
+// id, but callers pass our DB event id (e.g. editing event #12). Resolve the DB
+// id to its linked discordEventId first so an event isn't flagged as conflicting
+// with ITSELF. An unsynced row (no discordEventId) resolves to null and simply
+// excludes nothing.
 export async function checkEventConflict(opts: {
   startAt: Date;
   endAt: Date;
   excludeEventId?: string | null;
 }) {
   const durationMinutes = Math.max(1, Math.round((opts.endAt.getTime() - opts.startAt.getTime()) / 60_000));
-  return checkDiscordEventConflict({ startAt: opts.startAt, durationMinutes, excludeEventId: opts.excludeEventId });
+  let excludeDiscordId: string | null = null;
+  const dbId = opts.excludeEventId != null ? parseInt(opts.excludeEventId, 10) : NaN;
+  if (Number.isInteger(dbId)) {
+    const [row] = await db
+      .select({ discordEventId: events.discordEventId })
+      .from(events)
+      .where(eq(events.id, dbId));
+    excludeDiscordId = row?.discordEventId ?? null;
+  }
+  return checkDiscordEventConflict({ startAt: opts.startAt, durationMinutes, excludeEventId: excludeDiscordId });
 }
 
 // ---------------------------------------------------------------------------
@@ -274,23 +311,38 @@ function toView(
     signupCount: signups.length,
     mySignup,
     canManage: viewer.isManager,
+    recurrence: e.recurrenceRule ?? null,
     ...(includeSignups && viewer.isManager ? { signups } : {}),
   };
 }
 
 export async function listEvents(viewer: EventViewer, opts?: { limit?: number }): Promise<EventView[]> {
   const limit = Math.min(1000, opts?.limit ?? 500);
-  const rows = await db
-    .select({
-      e: events,
-      createdGlobalName: users.globalName,
-      createdUsername: users.username,
-    })
+  const select = {
+    e: events,
+    createdGlobalName: users.globalName,
+    createdUsername: users.username,
+  };
+  const baseRows = await db
+    .select(select)
     .from(events)
     .leftJoin(users, eq(users.id, events.createdById))
     .where(ne(events.status, "cancelled"))
     .orderBy(desc(events.startAt))
     .limit(limit);
+  // Recurring series can have an old anchor `startAt`, so the desc-ordered limit
+  // above could drop them before the calendar ever expands their occurrences.
+  // Always fetch every active recurring row and merge (dedup by id) so the
+  // client can expand them into the visible window.
+  const recurringRows = await db
+    .select(select)
+    .from(events)
+    .leftJoin(users, eq(users.id, events.createdById))
+    .where(and(ne(events.status, "cancelled"), isNotNull(events.recurrenceRule)));
+  const byId = new Map<number, (typeof baseRows)[number]>();
+  for (const r of baseRows) byId.set(r.e.id, r);
+  for (const r of recurringRows) byId.set(r.e.id, r);
+  const rows = [...byId.values()].sort((a, b) => new Date(b.e.startAt).getTime() - new Date(a.e.startAt).getTime());
   const signupsByEvent = await loadSignupViews(rows.map((r) => r.e.id));
   return rows.map((r) =>
     toView(
@@ -300,6 +352,42 @@ export async function listEvents(viewer: EventViewer, opts?: { limit?: number })
       false,
     ),
   );
+}
+
+// Discord stores mentions in descriptions as raw tokens (`<@123>` / `<@!123>`).
+// Resolve them to readable @names for the website detail view. We try our own
+// users table first (no network), then the Discord API (cached) as a fallback.
+// Fail-safe: any unresolved id is left as a bare `@<id>` rather than the raw
+// token so the UI never shows the angle-bracket noise. We DO NOT rewrite the
+// stored description — resolving at read time keeps the Discord content hash
+// (used by the reconcile sync) stable.
+const MENTION_RE = /<@!?(\d+)>/g;
+const mentionNameCache = new Map<string, string>();
+
+async function resolveMentions(text: string | null): Promise<string | null> {
+  if (!text) return text;
+  const ids = [...new Set([...text.matchAll(MENTION_RE)].map((m) => m[1]))];
+  if (ids.length === 0) return text;
+
+  const unknown = ids.filter((id) => !mentionNameCache.has(id));
+  if (unknown.length) {
+    const rows = await db
+      .select({ discordId: users.discordId, globalName: users.globalName, username: users.username })
+      .from(users)
+      .where(inArray(users.discordId, unknown));
+    for (const r of rows) {
+      const name = userDisplayName({ globalName: r.globalName, username: r.username });
+      if (name) mentionNameCache.set(r.discordId, name);
+    }
+    const stillUnknown = unknown.filter((id) => !mentionNameCache.has(id));
+    for (const id of stillUnknown) {
+      const profile = await fetchDiscordUser(id);
+      const name = profile ? profile.globalName || profile.username : null;
+      if (name) mentionNameCache.set(id, name);
+    }
+  }
+
+  return text.replace(MENTION_RE, (_full, id: string) => `@${mentionNameCache.get(id) ?? id}`);
 }
 
 export async function getEventDetail(id: number, viewer: EventViewer): Promise<EventView | null> {
@@ -314,12 +402,14 @@ export async function getEventDetail(id: number, viewer: EventViewer): Promise<E
     .where(eq(events.id, id));
   if (!row) return null;
   const signupsByEvent = await loadSignupViews([id]);
-  return toView(
+  const view = toView(
     { ...row.e, createdByName: userDisplayName({ globalName: row.createdGlobalName, username: row.createdUsername }) },
     viewer,
     signupsByEvent.get(id) ?? [],
     true,
   );
+  view.description = await resolveMentions(view.description);
+  return view;
 }
 
 // ---------------------------------------------------------------------------
@@ -490,6 +580,17 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
       continue;
     }
 
+    // Recurrence isn't part of the content hash (it never round-trips to Discord
+    // from us), so backfill it independently on every run for active linked rows
+    // — this is what lets an existing weekly event start expanding on the
+    // calendar without waiting for an unrelated title/time edit.
+    if (!recurrenceEqual(row.recurrenceRule, d.recurrence)) {
+      await db
+        .update(events)
+        .set({ recurrenceRule: d.recurrence ?? null })
+        .where(eq(events.id, row.id));
+    }
+
     const discordHash = eventContentHash(discordEventContent(d));
     const websiteHash = eventContentHash(row);
     const synced = row.discordSyncedHash;
@@ -569,6 +670,7 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
         discordEventId: d.id,
         discordSyncedHash: eventContentHash(c),
         discordSyncedAt: new Date(),
+        recurrenceRule: d.recurrence ?? null,
       })
       // Idempotent: if a concurrent run (or the synchronous create path) already
       // linked this Discord id, skip rather than create a duplicate row.

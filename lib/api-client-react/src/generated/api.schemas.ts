@@ -4465,12 +4465,26 @@ export interface EventSignupView {
   createdAt: string | null;
 }
 
+/**
+ * Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.
+ */
+export interface EventRecurrence {
+  frequency: number;
+  interval: number;
+  byWeekday?: number[] | null;
+  /** @nullable */
+  count?: number | null;
+  /** @nullable */
+  until?: string | null;
+}
+
 export type EventViewEventType = typeof EventViewEventType[keyof typeof EventViewEventType];
 
 
 export const EventViewEventType = {
   session: 'session',
   social: 'social',
+  mission: 'mission',
   other: 'other',
 } as const;
 
@@ -4515,6 +4529,8 @@ export interface EventView {
   mySignup?: EventSignupView | null;
   /** True if caller is fixer/admin (sees Edit + roster). */
   canManage: boolean;
+  /** Recurrence rule (null = single occurrence); expanded onto the calendar client-side. */
+  recurrence?: EventRecurrence | null;
   /** Full NPC sign-up roster (managers only, detail view only). */
   signups?: EventSignupView[];
 }
@@ -4525,6 +4541,7 @@ export type EventCreateInputEventType = typeof EventCreateInputEventType[keyof t
 export const EventCreateInputEventType = {
   session: 'session',
   social: 'social',
+  mission: 'mission',
   other: 'other',
 } as const;
 
@@ -4551,6 +4568,7 @@ export type EventUpdateInputEventType = typeof EventUpdateInputEventType[keyof t
 export const EventUpdateInputEventType = {
   session: 'session',
   social: 'social',
+  mission: 'mission',
   other: 'other',
 } as const;
 

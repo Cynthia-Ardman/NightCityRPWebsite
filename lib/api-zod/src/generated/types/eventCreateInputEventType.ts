@@ -12,5 +12,6 @@ export type EventCreateInputEventType = typeof EventCreateInputEventType[keyof t
 export const EventCreateInputEventType = {
   session: 'session',
   social: 'social',
+  mission: 'mission',
   other: 'other',
 } as const;

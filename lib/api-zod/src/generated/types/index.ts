@@ -157,6 +157,7 @@ export * from './employeePatch';
 export * from './eventCreateInput';
 export * from './eventCreateInputEventType';
 export * from './eventNpcSignupInput';
+export * from './eventRecurrence';
 export * from './eventSignupView';
 export * from './eventUpdateInput';
 export * from './eventUpdateInputEventType';

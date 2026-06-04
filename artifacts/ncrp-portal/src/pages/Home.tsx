@@ -1,9 +1,10 @@
-import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListMissions, useListEvents, getListMissionsQueryKey, getListEventsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary, type EventView } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
-import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History } from "lucide-react";
+import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper } from "lucide-react";
+import { expandOccurrences } from "@/lib/eventRecurrence";
 import { missionStatusClass, missionStatusLabel, missionTierClass, missionTierLabel } from "@/lib/missionStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -206,6 +207,8 @@ function Dashboard() {
           </Card>
 
           <MyVenuesSection />
+          <MyEventsCard />
+          <TodaysScheduleCard />
         </div>
 
         <div className="lg:col-span-2 space-y-6 lg:order-2">
@@ -260,6 +263,211 @@ function MyVenuesSection() {
               </Link>
             ))}
           </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// A single upcoming/today calendar entry the dashboard cards render. Recurring
+// events contribute one row per relevant occurrence.
+interface DashCalItem {
+  kind: "mission" | "event";
+  id: number;
+  title: string;
+  start: Date;
+  href: string;
+  subtype: string;
+  myStatus: "player" | "npc" | null;
+}
+
+const EVENT_TYPE_LABEL_DASH: Record<string, string> = {
+  social: "Social",
+  session: "Main Session",
+  mission: "Mission",
+  other: "Event",
+};
+
+function DashCalRow({ item }: { item: DashCalItem }) {
+  const isMission = item.kind === "mission";
+  const Icon = isMission ? Briefcase : PartyPopper;
+  const color = isMission ? "text-nc-magenta" : "text-nc-cyan";
+  const hover = isMission ? "hover:bg-nc-magenta/5" : "hover:bg-nc-cyan/5";
+  const time = item.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const day = item.start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return (
+    <Link href={item.href}>
+      <div
+        className={`p-3 flex items-center gap-3 ${hover} cursor-pointer group`}
+        data-testid={`row-dashboard-${item.kind}-${item.id}`}
+      >
+        <Icon className={`w-4 h-4 ${color} shrink-0`} />
+        <div className="min-w-0 flex-1">
+          <div className="font-display text-sm truncate group-hover:text-nc-cyan transition-colors">{item.title}</div>
+          <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">
+            {day} · {time} · {item.subtype}
+          </div>
+        </div>
+        {item.myStatus && (
+          <span
+            className={`shrink-0 px-1 text-[8px] font-display tracking-wider border ${
+              item.myStatus === "player"
+                ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
+                : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
+            }`}
+          >
+            {item.myStatus === "player" ? "PLAYER" : "NPC"}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+// "My Events" rail card: upcoming missions/events the signed-in user is
+// committed to (accepted player or active NPC signup), soonest first. Recurring
+// events resolve to their next occurrence. Hidden when the user has none.
+function MyEventsCard() {
+  const { data: missions } = useListMissions(undefined, {
+    query: { queryKey: getListMissionsQueryKey() },
+  });
+  const { data: events } = useListEvents(undefined, {
+    query: { queryKey: getListEventsQueryKey() },
+  });
+
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+  const items: DashCalItem[] = [];
+
+  for (const m of (missions ?? []) as MissionSummary[]) {
+    if (!m.startAt || m.status === "cancelled") continue;
+    const start = new Date(m.startAt);
+    if (Number.isNaN(start.getTime()) || start < now) continue;
+    const isPlayer = m.myApplication?.status === "accepted" || m.myCharacterId != null;
+    const isNpc = m.mySignup?.state === "signed_up";
+    if (!isPlayer && !isNpc) continue;
+    items.push({
+      kind: "mission",
+      id: m.id,
+      title: m.title,
+      start,
+      href: `/missions/${m.id}`,
+      subtype: `Tier ${m.tier}`,
+      myStatus: isPlayer ? "player" : "npc",
+    });
+  }
+  for (const e of (events ?? []) as EventView[]) {
+    if (e.mySignup == null) continue;
+    const base = new Date(e.startAt);
+    if (Number.isNaN(base.getTime())) continue;
+    const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
+    if (!occ) continue;
+    items.push({
+      kind: "event",
+      id: e.id,
+      title: e.title,
+      start: occ,
+      href: `/events/${e.id}`,
+      subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event",
+      myStatus: "npc",
+    });
+  }
+
+  if (items.length === 0) return null;
+  items.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const shown = items.slice(0, 6);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-display font-bold text-foreground" data-testid="text-my-events-title">
+          MY_EVENTS
+        </h2>
+      </div>
+      <Card className="rounded-none border-border bg-card/50">
+        <CardContent className="p-0">
+          <div className="divide-y divide-border/50">
+            {shown.map((it) => (
+              <DashCalRow key={`${it.kind}-${it.id}-${it.start.getTime()}`} item={it} />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// "Today's Schedule" rail card: every mission and event occurrence happening
+// today, in the viewer's local time, regardless of signup. Always shown so the
+// user has an at-a-glance "what's on tonight" view.
+function TodaysScheduleCard() {
+  const { data: missions } = useListMissions(undefined, {
+    query: { queryKey: getListMissionsQueryKey() },
+  });
+  const { data: events } = useListEvents(undefined, {
+    query: { queryKey: getListEventsQueryKey() },
+  });
+
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const items: DashCalItem[] = [];
+
+  for (const m of (missions ?? []) as MissionSummary[]) {
+    if (!m.startAt || m.status === "cancelled") continue;
+    const start = new Date(m.startAt);
+    if (Number.isNaN(start.getTime()) || start < dayStart || start > dayEnd) continue;
+    const isPlayer = m.myApplication?.status === "accepted" || m.myCharacterId != null;
+    const isNpc = m.mySignup?.state === "signed_up";
+    items.push({
+      kind: "mission",
+      id: m.id,
+      title: m.title,
+      start,
+      href: `/missions/${m.id}`,
+      subtype: `Tier ${m.tier}`,
+      myStatus: isPlayer ? "player" : isNpc ? "npc" : null,
+    });
+  }
+  for (const e of (events ?? []) as EventView[]) {
+    const base = new Date(e.startAt);
+    if (Number.isNaN(base.getTime())) continue;
+    const isNpc = e.mySignup != null;
+    for (const occ of expandOccurrences(base, e.recurrence ?? null, dayStart, dayEnd)) {
+      items.push({
+        kind: "event",
+        id: e.id,
+        title: e.title,
+        start: occ,
+        href: `/events/${e.id}`,
+        subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event",
+        myStatus: isNpc ? "npc" : null,
+      });
+    }
+  }
+
+  items.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-display font-bold text-foreground" data-testid="text-todays-schedule-title">
+          TODAYS_SCHEDULE
+        </h2>
+      </div>
+      <Card className="rounded-none border-border bg-card/50">
+        <CardContent className="p-0">
+          {items.length === 0 ? (
+            <div className="p-4 flex items-center gap-2 text-xs font-mono text-muted-foreground">
+              <CalendarDays className="w-4 h-4 shrink-0" /> Nothing scheduled today.
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {items.map((it) => (
+                <DashCalRow key={`${it.kind}-${it.id}-${it.start.getTime()}`} item={it} />
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

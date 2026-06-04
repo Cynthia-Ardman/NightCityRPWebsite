@@ -4729,7 +4729,7 @@ export const ListEventsQueryParams = zod.object({
 export const ListEventsResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
-  "eventType": zod.enum(['session', 'social', 'other']),
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
@@ -4753,6 +4753,13 @@ export const ListEventsResponseItem = zod.object({
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "recurrence": zod.union([zod.object({
+  "frequency": zod.number(),
+  "interval": zod.number(),
+  "byWeekday": zod.union([zod.array(zod.number()),zod.null()]).optional(),
+  "count": zod.number().nullish(),
+  "until": zod.coerce.date().nullish()
+}).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -4775,7 +4782,7 @@ export const createEventBodyNeedsNpcsDefault = false;
 
 export const CreateEventBody = zod.object({
   "title": zod.string().min(1),
-  "eventType": zod.enum(['session', 'social', 'other']).default(createEventBodyEventTypeDefault),
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']).default(createEventBodyEventTypeDefault),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
@@ -4817,7 +4824,7 @@ export const GetEventParams = zod.object({
 export const GetEventResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
-  "eventType": zod.enum(['session', 'social', 'other']),
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
@@ -4841,6 +4848,13 @@ export const GetEventResponse = zod.object({
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "recurrence": zod.union([zod.object({
+  "frequency": zod.number(),
+  "interval": zod.number(),
+  "byWeekday": zod.union([zod.array(zod.number()),zod.null()]).optional(),
+  "count": zod.number().nullish(),
+  "until": zod.coerce.date().nullish()
+}).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -4865,7 +4879,7 @@ export const UpdateEventParams = zod.object({
 
 export const UpdateEventBody = zod.object({
   "title": zod.string().min(1).optional(),
-  "eventType": zod.enum(['session', 'social', 'other']).optional(),
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']).optional(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
@@ -4878,7 +4892,7 @@ export const UpdateEventBody = zod.object({
 export const UpdateEventResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
-  "eventType": zod.enum(['session', 'social', 'other']),
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
@@ -4902,6 +4916,13 @@ export const UpdateEventResponse = zod.object({
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "recurrence": zod.union([zod.object({
+  "frequency": zod.number(),
+  "interval": zod.number(),
+  "byWeekday": zod.union([zod.array(zod.number()),zod.null()]).optional(),
+  "count": zod.number().nullish(),
+  "until": zod.coerce.date().nullish()
+}).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -4941,7 +4962,7 @@ export const SignUpAsEventNpcBody = zod.object({
 export const SignUpAsEventNpcResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
-  "eventType": zod.enum(['session', 'social', 'other']),
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
@@ -4965,6 +4986,13 @@ export const SignUpAsEventNpcResponse = zod.object({
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "recurrence": zod.union([zod.object({
+  "frequency": zod.number(),
+  "interval": zod.number(),
+  "byWeekday": zod.union([zod.array(zod.number()),zod.null()]).optional(),
+  "count": zod.number().nullish(),
+  "until": zod.coerce.date().nullish()
+}).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -4987,7 +5015,7 @@ export const WithdrawEventNpcSignupParams = zod.object({
 export const WithdrawEventNpcSignupResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
-  "eventType": zod.enum(['session', 'social', 'other']),
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
@@ -5011,6 +5039,13 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "recurrence": zod.union([zod.object({
+  "frequency": zod.number(),
+  "interval": zod.number(),
+  "byWeekday": zod.union([zod.array(zod.number()),zod.null()]).optional(),
+  "count": zod.number().nullish(),
+  "until": zod.coerce.date().nullish()
+}).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
