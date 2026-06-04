@@ -14,6 +14,7 @@ import { useViewAs, useEffectiveMe, type ViewAsRole } from "@/contexts/ViewAsCon
 
 const ROLE_OPTIONS: { value: ViewAsRole; label: string }[] = [
   { value: "player", label: "Player" },
+  { value: "new_user", label: "New User" },
   { value: "ripperdoc", label: "Ripperdoc" },
   { value: "fixer", label: "Fixer" },
 ];

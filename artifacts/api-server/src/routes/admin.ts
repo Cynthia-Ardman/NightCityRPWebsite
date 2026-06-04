@@ -15,7 +15,7 @@ import {
 import { isNull, or, ilike, count } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole, fetchThreadOpMessage, imageAttachmentsOf, type ThreadAttachment } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, type ThreadAttachment } from "../lib/discord";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
@@ -60,6 +60,60 @@ router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
       rolesSyncedAt: u.rolesSyncedAt,
     })),
   );
+});
+
+// Read-only scan that reconciles who holds the self-service Discord "NPC" role
+// against the portal's user accounts. Powers the admin "NPC Role Scan" card so
+// staff can confirm the "Become an NPC" CTA hides for everyone who already has
+// the role. Never mutates Discord or the DB.
+router.get("/admin/npc-scan", adminOnly, async (_req, res): Promise<void> => {
+  const scan = await listGuildMembersWithRole(NPC_ROLE_ID);
+  if (scan === null) {
+    res.status(502).json({
+      determined: false,
+      error: "Could not reach Discord to scan guild members. Try again shortly.",
+    });
+    return;
+  }
+  const { holders, truncated } = scan;
+  const holderIds = new Set(holders.map((h) => h.id));
+  const rows = await db.select().from(users);
+  const websiteDiscordIds = new Set(rows.map((u) => u.discordId));
+
+  const websiteNpcUsers = rows
+    .filter((u) => holderIds.has(u.discordId))
+    .map((u) => ({
+      id: u.id,
+      discordId: u.discordId,
+      username: u.username,
+      globalName: u.globalName,
+      avatarUrl: u.avatarUrl,
+    }))
+    .sort((a, b) =>
+      (a.globalName ?? a.username).localeCompare(b.globalName ?? b.username),
+    );
+
+  // NPC-role holders in Discord with no portal account (informational only).
+  const guildOnlyUsers = holders
+    .filter((h) => !websiteDiscordIds.has(h.id))
+    .map((h) => ({
+      discordId: h.id,
+      username: h.username,
+      globalName: h.globalName,
+      avatarUrl: h.avatarUrl,
+    }));
+
+  res.json({
+    determined: true,
+    truncated,
+    scannedAt: new Date().toISOString(),
+    roleId: NPC_ROLE_ID,
+    guildNpcCount: holders.length,
+    websiteNpcCount: websiteNpcUsers.length,
+    websiteNpcUsers,
+    guildOnlyCount: guildOnlyUsers.length,
+    guildOnlyUsers,
+  });
 });
 
 router.get("/admin/users/:userId", adminOnly, async (req, res): Promise<void> => {

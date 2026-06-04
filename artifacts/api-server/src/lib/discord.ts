@@ -278,6 +278,91 @@ export async function addGuildMemberRole(
   }
 }
 
+export type GuildMemberLite = {
+  id: string;
+  username: string;
+  globalName: string | null;
+  avatarUrl: string | null;
+};
+
+/**
+ * List every guild member that currently holds `roleId`, using the bot token.
+ *
+ * Paginates the privileged guild-members endpoint
+ * (`GET /guilds/{guild}/members?limit=1000&after=<cursor>`) — this requires the
+ * "Server Members Intent" to be enabled for the bot. Read-only: it never
+ * mutates Discord, so it is safe in every environment (no externalWritesAllowed
+ * gate). Returns:
+ *   - GuildMemberLite[] of holders on success (possibly empty),
+ *   - null              when the scan could not be performed (missing config or
+ *                       an upstream/network error) so callers can distinguish
+ *                       "nobody has the role" from "couldn't determine".
+ */
+export async function listGuildMembersWithRole(
+  roleId: string,
+): Promise<{ holders: GuildMemberLite[]; truncated: boolean } | null> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) return null;
+  const holders: GuildMemberLite[] = [];
+  let after = "0";
+  // Hard cap of 50 pages (50k members) as a safety valve against an
+  // unexpected pagination loop. `truncated` is set if we stop because of the
+  // cap (a full page on the final iteration), so callers can warn that the
+  // result may be an undercount instead of trusting it silently.
+  const MAX_PAGES = 50;
+  let truncated = false;
+  try {
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const res = await fetch(
+        `${API}/guilds/${DISCORD_GUILD_ID}/members?limit=1000&after=${after}`,
+        {
+          headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      if (!res.ok) {
+        logger.warn(
+          { status: res.status, body: await res.text() },
+          "listGuildMembersWithRole failed",
+        );
+        return null;
+      }
+      const members = (await res.json()) as Array<{
+        user?: { id: string; username: string; global_name: string | null; avatar: string | null };
+        roles?: string[];
+      }>;
+      if (members.length === 0) break;
+      for (const m of members) {
+        if (!m.user) continue;
+        if (m.roles?.includes(roleId)) {
+          holders.push({
+            id: m.user.id,
+            username: m.user.username,
+            globalName: m.user.global_name ?? null,
+            avatarUrl: avatarUrl(m.user.id, m.user.avatar),
+          });
+        }
+      }
+      if (members.length < 1000) break;
+      const last = members[members.length - 1].user;
+      if (!last) break;
+      after = last.id;
+      // A full page on the final allowed iteration means more members likely
+      // remain unscanned.
+      if (page === MAX_PAGES - 1) truncated = true;
+    }
+    if (truncated) {
+      logger.warn(
+        { roleId, scanned: holders.length },
+        "listGuildMembersWithRole hit page cap; result may be truncated",
+      );
+    }
+    return { holders, truncated };
+  } catch (err) {
+    logger.error({ err, roleId }, "listGuildMembersWithRole error");
+    return null;
+  }
+}
+
 export function avatarUrl(discordId: string, hash: string | null | undefined): string | null {
   if (!hash) return null;
   return `https://cdn.discordapp.com/avatars/${discordId}/${hash}.png`;

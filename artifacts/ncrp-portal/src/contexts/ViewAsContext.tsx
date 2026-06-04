@@ -7,7 +7,7 @@ import { useAuthMe } from "@/hooks/useAuthMe";
 // the frontend reads to gate navigation and staff controls. The backend still
 // enforces the user's true roles, so no override can grant or perform a
 // privileged action. Not persisted (resets on reload), by design.
-export type ViewAsRole = "player" | "ripperdoc" | "fixer";
+export type ViewAsRole = "player" | "ripperdoc" | "fixer" | "new_user";
 
 type ViewAsContextValue = {
   viewAs: ViewAsRole | null;
@@ -42,7 +42,10 @@ function downgrade(me: Me, role: ViewAsRole): Me {
   };
   if (role === "ripperdoc") base.isRipperdoc = true;
   if (role === "fixer") base.isFixer = true;
-  // "player" keeps everything off.
+  // "player" and "new_user" keep every staff flag off. The "new_user" preview
+  // additionally surfaces the first-run onboarding banner — that is driven by
+  // the OnboardingBanner component reading the active View-as role, not here,
+  // since onboarding state (loginCount / dismissed) lives on the real account.
   return base;
 }
 

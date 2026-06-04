@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
-import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
 import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, X } from "lucide-react";
@@ -308,13 +308,30 @@ const ONBOARDING_LOGIN_THRESHOLD = 5;
 function OnboardingBanner() {
   const qc = useQueryClient();
   const { data: user } = useAuthMe();
+  const { realIsAdmin } = useEffectiveMe();
+  const { viewAs, setViewAs } = useViewAs();
   const dismiss = useDismissOnboarding();
+
+  // When an admin previews the app as a brand-new user, force the first-run
+  // banner on regardless of the admin's real login count / dismissed flag, so
+  // the preview actually reflects what a new player sees.
+  const isNewUserPreview = realIsAdmin && viewAs === "new_user";
 
   if (!user) return null;
   const count = user.loginCount ?? 0;
-  if (user.onboardingBannerDismissed || count > ONBOARDING_LOGIN_THRESHOLD) return null;
+  if (
+    !isNewUserPreview &&
+    (user.onboardingBannerDismissed || count > ONBOARDING_LOGIN_THRESHOLD)
+  )
+    return null;
 
   function onDismiss() {
+    // In a "View as: New User" preview the X just exits the preview — never
+    // persist a dismissal against the real admin's account.
+    if (isNewUserPreview) {
+      setViewAs(null);
+      return;
+    }
     // Optimistically hide, then persist. Re-fetch /auth/me so the flag sticks.
     qc.setQueryData(getGetMeQueryKey(), (prev: any) =>
       prev ? { ...prev, onboardingBannerDismissed: true } : prev,
