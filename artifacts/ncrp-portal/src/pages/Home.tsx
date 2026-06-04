@@ -218,7 +218,6 @@ function Dashboard() {
         </div>
 
         <div className="lg:col-span-2 space-y-6 lg:order-2">
-          <PendingMissionsCard />
           <UpcomingBillsCard />
           <SystemLogsCard />
         </div>
@@ -815,7 +814,7 @@ function NpcsNeededCard() {
   const quickNpc = useQuickNpcSignup();
 
   const now = new Date();
-  const horizon = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000); // 60 days
+  const horizon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // next 7 days
   const items: NpcNeedItem[] = [];
 
   for (const m of (missions ?? []) as MissionSummary[]) {
@@ -824,7 +823,7 @@ function NpcsNeededCard() {
     const isNpc = m.mySignup?.state === "signed_up";
     if (isPlayer || isNpc) continue;
     const start = new Date(m.startAt);
-    if (Number.isNaN(start.getTime()) || start < now) continue;
+    if (Number.isNaN(start.getTime()) || start < now || start > horizon) continue;
     items.push({ kind: "mission", id: m.id, title: m.title, start, href: `/missions/${m.id}`, subtype: `Tier ${m.tier}` });
   }
   for (const e of (events ?? []) as EventView[]) {
@@ -964,72 +963,6 @@ function NextMissionBanner() {
         </CardContent>
       </Card>
     </Link>
-  );
-}
-
-// Shows the signed-in player the missions they're assigned to that haven't
-// wrapped yet (open / pending). Dates render in the viewer's local time. Once a
-// mission is completed/cancelled/paid it drops out of this list automatically.
-function PendingMissionsCard() {
-  const { data: missions, isLoading } = useListMyMissions();
-  const pending = (missions ?? []).filter(
-    (m: MissionSummary) => m.status === "open" || m.status === "pending",
-  );
-
-  if (isLoading || pending.length === 0) return null;
-
-  const fmtWhen = (iso: string | null | undefined): string => {
-    if (!iso) return "Not scheduled";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "Not scheduled";
-    return `${d.toLocaleDateString()} ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
-  };
-
-  return (
-    <Card className="rounded-none border-border bg-card/50">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="font-display tracking-widest flex items-center gap-2 text-foreground">
-          <Briefcase className="w-4 h-4 text-nc-magenta" /> PENDING_MISSIONS
-        </CardTitle>
-        <Button asChild variant="outline" size="sm" className="border-nc-magenta text-nc-magenta rounded-none hover:bg-nc-magenta/10 h-7 px-2 text-xs">
-          <Link href="/missions">VIEW_ALL</Link>
-        </Button>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="divide-y divide-border/50">
-          {pending.map((m: MissionSummary) => (
-            <Link key={m.id} href={`/missions/${m.id}`}>
-              <div className="p-3 hover:bg-nc-magenta/5 cursor-pointer group" data-testid={`row-dashboard-mission-${m.id}`}>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-display text-sm text-foreground group-hover:text-nc-magenta transition-colors">{m.title}</span>
-                  <Badge variant="outline" className={`rounded-none text-[10px] font-bold tracking-widest uppercase ${missionTierClass(m.tier)}`}>
-                    {missionTierLabel(m.tier)}
-                  </Badge>
-                  <Badge variant="outline" className={`rounded-none text-[10px] font-bold tracking-widest uppercase ${missionStatusClass(m.status)}`}>
-                    {missionStatusLabel(m.status)}
-                  </Badge>
-                </div>
-                <div className="mt-1 flex items-center gap-4 text-[10px] font-mono text-muted-foreground uppercase">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {fmtWhen(m.startAt)}
-                  </span>
-                  {m.location && (
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> {m.location}
-                    </span>
-                  )}
-                  {m.myCharacterName && (
-                    <span className="flex items-center gap-1 text-nc-cyan">
-                      <Users className="w-3 h-3" /> {m.myCharacterName}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
