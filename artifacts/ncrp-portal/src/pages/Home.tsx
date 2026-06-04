@@ -193,12 +193,19 @@ function Dashboard() {
                         <div className="min-w-0 flex-1">
                           <div className="font-display text-sm truncate group-hover:text-nc-cyan transition-colors">{char.name}</div>
                           <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">
-                            {char.kind} · {char.archetype || 'UNKNOWN'}
+                            {char.archetype || 'UNKNOWN'}
                           </div>
                         </div>
-                        <div className="text-[10px] font-mono shrink-0 flex flex-col items-end gap-0.5">
-                          {char.approved && <span className="text-nc-cyan">APPROVED</span>}
-                        </div>
+                        <span
+                          className={`shrink-0 px-1.5 py-0.5 text-[9px] font-display tracking-wider uppercase border ${
+                            char.kind === 'pc'
+                              ? 'bg-nc-green/20 border-nc-green/60 text-nc-green'
+                              : 'bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow'
+                          }`}
+                          data-testid={`badge-char-kind-${char.id}`}
+                        >
+                          {char.kind}
+                        </span>
                       </div>
                     </Link>
                   ))}
@@ -308,7 +315,6 @@ function MyVenuesSection() {
                   <Store className="w-4 h-4 text-nc-cyan shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="font-display text-sm truncate group-hover:text-nc-cyan transition-colors">{s.name}</div>
-                    <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">Storefront</div>
                   </div>
                 </div>
               </Link>
@@ -319,7 +325,6 @@ function MyVenuesSection() {
                   <Syringe className="w-4 h-4 text-nc-magenta shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="font-display text-sm truncate group-hover:text-nc-magenta transition-colors">{c.name}</div>
-                    <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">Ripperdoc Clinic</div>
                   </div>
                 </div>
               </Link>
@@ -366,8 +371,9 @@ function DashCalRow({ item }: { item: DashCalItem }) {
         <Icon className={`w-4 h-4 ${color} shrink-0`} />
         <div className="min-w-0 flex-1">
           <div className="font-display text-sm truncate group-hover:text-nc-cyan transition-colors">{item.title}</div>
-          <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">
-            {day} · {time} · {item.subtype}
+          <div className="text-sm font-mono text-foreground/90 tabular-nums truncate mt-0.5">
+            {day} · {time}
+            <span className="text-[10px] text-muted-foreground uppercase"> · {item.subtype}</span>
           </div>
         </div>
         {item.myStatus && (
@@ -924,7 +930,7 @@ function NextMissionBanner() {
   })} · ${start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
 
   return (
-    <Link href={`/missions/${next.id}`}>
+    <Link href={`/missions/${next.id}`} className="block">
       <Card
         className="rounded-none border-nc-magenta/50 bg-gradient-to-r from-nc-magenta/15 via-nc-magenta/5 to-transparent hover:border-nc-magenta cursor-pointer group shadow-[0_0_20px_rgba(255,0,255,0.15)]"
         data-testid="card-next-mission"
