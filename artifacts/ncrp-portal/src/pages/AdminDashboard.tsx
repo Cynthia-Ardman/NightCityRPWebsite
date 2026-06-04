@@ -639,7 +639,6 @@ export function UsersTab() {
                 <TableHead className="font-display text-nc-cyan">Discord User</TableHead>
                 <TableHead className="font-display text-nc-cyan">Discord ID</TableHead>
                 <TableHead className="font-display text-nc-cyan">Roles</TableHead>
-                <TableHead className="font-display text-nc-cyan text-right">Characters</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="font-mono text-sm">
@@ -676,13 +675,12 @@ export function UsersTab() {
                       {npcDiscordIds?.has(u.discordId) && <Badge variant="outline" className="border-purple-400 text-purple-400 rounded-none text-[10px] px-1 py-0" data-testid={`badge-npc-${u.id}`}>NPC</Badge>}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground">{u.characterCount || 0}</TableCell>
                 </TableRow>
                 );
               })}
               {!users?.length && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground h-24">NO DATA</TableCell>
+                  <TableCell colSpan={3} className="text-center text-muted-foreground h-24">NO DATA</TableCell>
                 </TableRow>
               )}
             </TableBody>

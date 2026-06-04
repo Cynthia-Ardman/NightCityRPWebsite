@@ -69,6 +69,7 @@ import FixerEvents from "@/pages/fixer/FixerEvents";
 import LoginError from "@/pages/LoginError";
 import LogoutError from "@/pages/LogoutError";
 import Settings from "@/pages/Settings";
+import VerificationRequired from "@/pages/VerificationRequired";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -131,7 +132,7 @@ function StaffBreachGuard({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { isLoading } = useAuthMe();
+  const { data: user, isLoading } = useAuthMe();
 
   if (isLoading) {
     return (
@@ -142,6 +143,16 @@ function AppRoutes() {
         </div>
       </div>
     );
+  }
+
+  // Age-verification gate. A signed-in member who lacks the Verified 18+ Discord
+  // role is locked to a single screen (the VRChat↔Discord linking guidebook page
+  // + a link to the help channel) — no AppLayout, no sidebar, no other routes.
+  // The backend mirrors this gate, so even direct API calls are blocked. Logged-
+  // out visitors (no user) fall through to the normal shell, where Home handles
+  // the login prompt.
+  if (user && !user.verified18) {
+    return <VerificationRequired />;
   }
 
   return (

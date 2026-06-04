@@ -207,9 +207,23 @@ function EventDetailView({ data }: { data: EventView }) {
         </CardHeader>
         <CardContent className="font-mono text-sm">
           {data.createdByName ? (
-            <span className="text-foreground" data-testid="text-event-organizer">
-              {data.createdByName}
-            </span>
+            data.createdById ? (
+              // users.id IS the organizer's Discord snowflake, so link straight
+              // to their Discord profile (same pattern as guidebook author links).
+              <a
+                href={`https://discord.com/users/${data.createdById}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-nc-cyan hover:underline"
+                data-testid="link-event-organizer"
+              >
+                {data.createdByName}
+              </a>
+            ) : (
+              <span className="text-foreground" data-testid="text-event-organizer">
+                {data.createdByName}
+              </span>
+            )
           ) : (
             <span className="text-muted-foreground italic">Unknown</span>
           )}

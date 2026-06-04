@@ -1,7 +1,7 @@
 import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, lifestyleTiers, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
-import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, VERIFIED_18_ROLE_ID, postToChannel } from "./discord";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
@@ -266,8 +266,17 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       for (const u of allUsers) {
         try {
           const roles = await fetchGuildMemberRolesViaBot(u.discordId);
-          if (roles.length) {
-            await db.update(users).set({ roles, rolesSyncedAt: new Date() }).where(eq(users.id, u.id));
+          // Recompute the 18+ gate flag from raw role ids so removing the
+          // Verified-18 role in Discord actually revokes portal access on the
+          // next sweep. Only touch verified18 when the fetch succeeds (non-null)
+          // so a transient Discord failure never silently clears the gate.
+          const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+          const verified18 = roleIds === null ? u.verified18 : roleIds.includes(VERIFIED_18_ROLE_ID);
+          if (roles.length || roleIds !== null) {
+            await db
+              .update(users)
+              .set({ ...(roles.length ? { roles } : {}), verified18, rolesSyncedAt: new Date() })
+              .where(eq(users.id, u.id));
             affected++;
           }
         } catch (err) {

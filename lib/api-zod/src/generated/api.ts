@@ -51,6 +51,7 @@ export const GetMeResponse = zod.object({
   "globalName": zod.string().nullish(),
   "avatarUrl": zod.string().nullable(),
   "roles": zod.array(zod.string()),
+  "verified18": zod.boolean().optional().describe('True when the member holds the guild\'s Verified 18+ Discord role. When false, the portal is age-gated to the VRChat↔Discord linking guidebook page plus a link to the help channel.'),
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean(),
   "isArchivist": zod.boolean(),

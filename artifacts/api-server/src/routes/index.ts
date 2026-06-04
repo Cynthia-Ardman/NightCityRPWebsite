@@ -23,10 +23,25 @@ import reviewRouter from "./review";
 import breachRouter from "./breach";
 import eventsRouter from "./events";
 
+import { requireVerified } from "../middlewares/auth";
+
 const router: IRouter = Router();
 
+// --- Always-open routers (must work for age-unverified users) --------------
+// These are mounted BEFORE the age-verification gate so a member who lacks the
+// guild "Verified 18+" role can still: check their session/identity (auth),
+// read the VRChat↔Discord linking guidebook page (guidebook), and load the
+// images that page references (storage). Everything else is gated below.
 router.use(healthRouter);
 router.use(authRouter);
+router.use(guidebookRouter);
+router.use(storageRouter);
+
+// --- Age-verification gate -------------------------------------------------
+// Signed-in members without the Verified 18+ role get a 403 from here on.
+router.use(requireVerified);
+
+// --- Gated routers (full portal) -------------------------------------------
 router.use(charactersRouter);
 router.use(directoryRouter);
 router.use(storesRouter);
@@ -37,14 +52,12 @@ router.use(pendingEditsRouter);
 router.use(diceRouter);
 router.use(adminRouter);
 router.use(dashboardRouter);
-router.use(storageRouter);
 router.use(housingRouter);
 router.use(lifestyleRouter);
 router.use(attendanceRouter);
 router.use(requestsRouter);
 router.use(offersRouter);
 router.use(loreRouter);
-router.use(guidebookRouter);
 router.use(reviewRouter);
 router.use(breachRouter);
 router.use(eventsRouter);

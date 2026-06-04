@@ -27,6 +27,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
+// Age-verification gate. Applied (in routes/index.ts) AFTER the always-open
+// routers (health, auth, guidebook, storage) and BEFORE every data router, so a
+// signed-in member who lacks the guild "Verified 18+" role cannot reach any
+// gated endpoint. Unauthenticated requests fall through so the downstream
+// requireAuth returns the usual 401. Verified members pass straight through.
+export function requireVerified(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    next();
+    return;
+  }
+  if (req.user.verified18) {
+    next();
+    return;
+  }
+  res.status(403).json({ error: "verification_required" });
+}
+
 export function requireRole(group: keyof typeof ROLE_NAMES) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {

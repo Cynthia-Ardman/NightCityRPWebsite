@@ -37,10 +37,12 @@ function toLocalInputValue(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// "mission" is intentionally NOT offered here — mission-style events live in the
+// Missions system, not the events calendar. The label map below still resolves
+// any legacy mission-typed rows for display.
 const EVENT_TYPE_OPTIONS: { value: EventCreateInputEventType; label: string }[] = [
   { value: "social", label: "Social" },
   { value: "session", label: "Main Session" },
-  { value: "mission", label: "Mission" },
   { value: "other", label: "Other" },
 ];
 

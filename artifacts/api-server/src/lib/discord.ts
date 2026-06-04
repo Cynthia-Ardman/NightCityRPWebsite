@@ -41,6 +41,14 @@ export const ROLE_NAMES = {
   STORE_OWNER: ["store owner", "shop owner"],
 };
 
+/**
+ * Discord role id for the guild's "Verified 18+" role. Checked by exact id (not
+ * name) so a rename can't silently disable the age gate. A member who holds this
+ * role gets full portal access; everyone else is age-gated to the VRChat↔Discord
+ * linking guidebook page + a link to the help channel.
+ */
+export const VERIFIED_18_ROLE_ID = "1351048862323834952";
+
 export function getRedirectUri(): string {
   // Only honor PUBLIC_BASE_URL in actual deployments (REPLIT_DEPLOYMENT=1).
   // In the dev workspace we always use the live workspace domain so Discord
@@ -140,21 +148,35 @@ export async function fetchUser(accessToken: string) {
 }
 
 export async function fetchGuildMemberRoles(accessToken: string, discordUserId: string): Promise<string[]> {
-  if (!DISCORD_GUILD_ID) return [];
+  return (await fetchGuildMemberRolesDetailed(accessToken, discordUserId)).names;
+}
+
+/**
+ * Fetch a guild member (via the user's OAuth token) and return BOTH the
+ * resolved role names AND the raw role ids in a single request. Login uses the
+ * names for the `roles` array and the raw ids for exact-id checks like the
+ * Verified 18+ gate — without paying for a second member fetch.
+ */
+export async function fetchGuildMemberRolesDetailed(
+  accessToken: string,
+  _discordUserId: string,
+): Promise<{ names: string[]; ids: string[] }> {
+  if (!DISCORD_GUILD_ID) return { names: [], ids: [] };
   try {
     const memberRes = await fetch(`${API}/users/@me/guilds/${DISCORD_GUILD_ID}/member`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (memberRes.status === 404) return [];
+    if (memberRes.status === 404) return { names: [], ids: [] };
     if (!memberRes.ok) {
       logger.warn({ status: memberRes.status }, "Failed to fetch guild member via user token");
-      return [];
+      return { names: [], ids: [] };
     }
     const member = (await memberRes.json()) as { roles: string[] };
-    return await resolveRoleNames(member.roles);
+    const ids = member.roles ?? [];
+    return { names: await resolveRoleNames(ids), ids };
   } catch (err) {
     logger.error({ err }, "fetchGuildMemberRoles failed");
-    return [];
+    return { names: [], ids: [] };
   }
 }
 

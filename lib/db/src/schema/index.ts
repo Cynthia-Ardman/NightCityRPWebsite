@@ -30,6 +30,11 @@ export const users = pgTable(
     activeCharacterId: integer("active_character_id"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow(),
     rolesSyncedAt: timestamp("roles_synced_at", { withTimezone: true }),
+    // True when the member holds the guild's "Verified 18+" role. Computed from
+    // raw Discord role ids at login (and by the admin hydrate sweep). Drives the
+    // age-verification gate: users without it can only see the VRChat↔Discord
+    // linking guidebook page + a link to the help channel.
+    verified18: boolean("verified18").notNull().default(false),
     // ---- Onboarding ----
     // Incremented on every Discord OAuth login. Drives the first-run onboarding
     // banner, which shows only while the count is within the first few logins.

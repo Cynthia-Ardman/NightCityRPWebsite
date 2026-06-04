@@ -21,6 +21,35 @@ import {
 import { getMissionContext } from "./missionsConfig";
 import { checkDiscordEventConflict } from "./missionsService";
 import { logger } from "./logger";
+import { ObjectStorageService } from "./objectStorage";
+
+const storage = new ObjectStorageService();
+
+// Build the highest-quality CDN URL for a Discord scheduled-event banner. The
+// raw guild-events image is served at a low default resolution unless `?size`
+// is requested; 2048 is Discord's max and gives a crisp banner.
+export function guildEventImageUrl(discordEventId: string, image: string): string {
+  return `https://cdn.discordapp.com/guild-events/${discordEventId}/${image}.png?size=2048`;
+}
+
+// Fetch a Discord CDN banner and re-host it to object storage, returning the
+// app-relative path. Falls back to the original CDN URL on failure so an event
+// still has *some* image — but note signed CDN URLs can 401 after ~24h, so the
+// rehosted copy is strongly preferred (see memory: discord-cdn-url-expiry).
+export async function rehostEventImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "image/png";
+    if (!ct.startsWith("image/")) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 12 * 1024 * 1024) return null;
+    return await storage.uploadBuffer(buf, ct);
+  } catch (err) {
+    logger.warn({ err, url }, "rehostEventImage failed");
+    return null;
+  }
+}
 
 // ===========================================================================
 // EVENTS — non-mission calendar items (sessions, socials). Mirrors the mission
@@ -651,9 +680,15 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
     if (linkedIds.has(d.id) || missionIds.has(d.id)) continue;
     if (d.status === 3 || d.status === 4) continue; // skip completed / canceled
     const c = discordEventContent(d);
-    const imageUrl = d.image
-      ? `https://cdn.discordapp.com/guild-events/${d.id}/${d.image}.png`
-      : null;
+    // Re-host the banner at full resolution to object storage. The raw CDN URL
+    // is low-res (no ?size) and signed CDN URLs expire after ~24h, so we pull a
+    // 2048px copy and store it. Fall back to the high-res CDN URL if rehosting
+    // fails, so the event still has a (sharper) banner.
+    let imageUrl: string | null = null;
+    if (d.image) {
+      const cdnUrl = guildEventImageUrl(d.id, d.image);
+      imageUrl = (await rehostEventImage(cdnUrl)) ?? cdnUrl;
+    }
     const inserted = await db
       .insert(events)
       .values({

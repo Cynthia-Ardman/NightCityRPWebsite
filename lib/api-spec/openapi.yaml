@@ -5157,6 +5157,9 @@ components:
         roles:
           type: array
           items: { type: string }
+        verified18:
+          type: boolean
+          description: "True when the member holds the guild's Verified 18+ Discord role. When false, the portal is age-gated to the VRChat↔Discord linking guidebook page plus a link to the help channel."
         isAdmin: { type: boolean }
         isFixer: { type: boolean }
         isArchivist: { type: boolean }

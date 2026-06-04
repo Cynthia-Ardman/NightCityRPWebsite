@@ -7,7 +7,9 @@ import {
   exchangeCode,
   fetchUser,
   fetchGuildMemberRoles,
+  fetchGuildMemberRolesDetailed,
   fetchGuildMemberRoleIdsViaBot,
+  VERIFIED_18_ROLE_ID,
   addGuildMemberRole,
   removeGuildMemberRole,
   NPC_ROLE_ID,
@@ -46,7 +48,11 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
   try {
     const token = await exchangeCode(code);
     const discordUser = await fetchUser(token.access_token);
-    const roles = await fetchGuildMemberRoles(token.access_token, discordUser.id);
+    const { names: roles, ids: roleIds } = await fetchGuildMemberRolesDetailed(
+      token.access_token,
+      discordUser.id,
+    );
+    const verified18 = roleIds.includes(VERIFIED_18_ROLE_ID);
     const id = discordUser.id;
     const expiresAt = new Date(Date.now() + token.expires_in * 1000);
     const av = avatarUrl(discordUser.id, discordUser.avatar);
@@ -63,6 +69,7 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
           refreshToken: token.refresh_token,
           tokenExpiresAt: expiresAt,
           rolesSyncedAt: new Date(),
+          verified18,
           lastSeenAt: new Date(),
           loginCount: sql`${users.loginCount} + 1`,
         })
@@ -79,6 +86,7 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
         refreshToken: token.refresh_token,
         tokenExpiresAt: expiresAt,
         rolesSyncedAt: new Date(),
+        verified18,
         loginCount: 1,
       });
     }
@@ -241,6 +249,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     globalName: u.globalName,
     avatarUrl: u.avatarUrl,
     roles: u.roles,
+    verified18: u.verified18,
     activeCharacterId: u.activeCharacterId,
     loginCount: u.loginCount,
     onboardingBannerDismissed: u.onboardingBannerDismissed,

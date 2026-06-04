@@ -220,7 +220,6 @@ function SidebarContent() {
         <NavItem href="/offers/mine" icon={ShoppingBag} label="Pending Approvals" badge={pendingOffers} />
         <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
-        <NavItem href="/settings" icon={Settings} label="Settings" />
 
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Directory</div>
         <NavItem href="/missions" icon={Briefcase} label="Missions" />
@@ -260,6 +259,11 @@ function SidebarContent() {
           <NavItem href="/requests" icon={FileText} label="Pending Requests" badge={staffPending} />
         )}
         {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" />}
+
+        {/* Settings sits on its own at the very bottom, below every category. */}
+        <div className="mt-6">
+          <NavItem href="/settings" icon={Settings} label="Settings" />
+        </div>
       </div>
 
       <div className="p-4 border-t border-sidebar-border mt-auto">

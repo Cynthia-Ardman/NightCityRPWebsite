@@ -16,6 +16,8 @@ export interface Me {
   /** @nullable */
   avatarUrl: string | null;
   roles: string[];
+  /** True when the member holds the guild's Verified 18+ Discord role. When false, the portal is age-gated to the VRChat↔Discord linking guidebook page plus a link to the help channel. */
+  verified18?: boolean;
   isAdmin: boolean;
   isFixer: boolean;
   isArchivist: boolean;

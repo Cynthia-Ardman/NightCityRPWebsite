@@ -15,7 +15,7 @@ import {
 import { isNull, or, ilike, count } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchDiscordUser, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, type ThreadAttachment } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, type ThreadAttachment } from "../lib/discord";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
@@ -182,8 +182,17 @@ router.post("/admin/users/:userId/roles", adminOnly, async (req, res): Promise<v
     return;
   }
   const roles = await fetchGuildMemberRolesViaBot(u.discordId);
-  await db.update(users).set({ roles, rolesSyncedAt: new Date() }).where(eq(users.id, id));
-  res.json({ roles, rolesSyncedAt: new Date() });
+  // Re-derive the age-verification flag from the raw role ids in the same sweep
+  // so an admin re-syncing a member also refreshes their gate status. Only flip
+  // when the bot lookup succeeded (non-null) to avoid clearing it on an outage.
+  const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+  const verified18 =
+    roleIds === null ? u.verified18 : roleIds.includes(VERIFIED_18_ROLE_ID);
+  await db
+    .update(users)
+    .set({ roles, verified18, rolesSyncedAt: new Date() })
+    .where(eq(users.id, id));
+  res.json({ roles, verified18, rolesSyncedAt: new Date() });
 });
 
 router.get("/admin/characters", adminOrFixer, async (_req, res): Promise<void> => {
