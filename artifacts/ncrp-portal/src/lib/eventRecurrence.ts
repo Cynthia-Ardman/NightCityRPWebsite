@@ -4,7 +4,13 @@
 // shows on every occurrence rather than just its first.
 //
 // frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily.
-// byWeekday uses Discord's 0=Mon..6=Sun (JS getDay() is 0=Sun..6=Sat).
+// byWeekday uses Discord's 0=Mon..6=Sun, expressed in the event's UTC start
+// frame (it always matches the UTC weekday of `startAt`). We therefore never
+// place occurrences on an absolute weekday — that would land on the UTC day,
+// not the viewer's local day (e.g. Wed 6pm Pacific is stored as Thu 01:00 UTC,
+// so byWeekday says Thursday). Instead we step the base instant by whole weeks
+// and, for multi-weekday rules, by day-offsets relative to the base's own
+// weekday, so every occurrence keeps the base event's exact local day & time.
 export interface RecurrenceRule {
   frequency: number;
   interval: number;
@@ -15,23 +21,10 @@ export interface RecurrenceRule {
 
 const MAX_ITER = 5000;
 
-// Discord weekday (0=Mon..6=Sun) -> JS getDay (0=Sun..6=Sat).
+// Discord weekday (0=Mon..6=Sun) -> JS getUTCDay (0=Sun..6=Sat). byWeekday is in
+// the UTC frame, so we compare it against the base instant's UTC weekday.
 function toJsWeekday(wd: number): number {
   return (wd + 1) % 7;
-}
-
-function startOfWeekMon(d: Date): Date {
-  const r = new Date(d);
-  const offset = (r.getDay() + 6) % 7; // days since Monday
-  r.setDate(r.getDate() - offset);
-  r.setHours(0, 0, 0, 0);
-  return r;
-}
-
-function atTimeOf(base: Date, day: Date): Date {
-  const d = new Date(day);
-  d.setHours(base.getHours(), base.getMinutes(), base.getSeconds(), 0);
-  return d;
 }
 
 /**
@@ -69,21 +62,28 @@ export function expandOccurrences(
   };
 
   if (rule.frequency === 2) {
-    // WEEKLY — possibly on multiple weekdays, every `interval` weeks.
-    const weekdays = (rule.byWeekday && rule.byWeekday.length
-      ? rule.byWeekday.map(toJsWeekday)
-      : [baseStart.getDay()]
-    ).sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)); // Monday-first ordering
-    let week = startOfWeekMon(baseStart);
+    // WEEKLY — possibly on multiple weekdays, every `interval` weeks. We anchor
+    // on the base instant and only ever ADD whole days, so each occurrence keeps
+    // the base event's exact wall-clock day & time when rendered locally.
+    // byWeekday is in the UTC frame, so day-offsets are taken relative to the
+    // base's own UTC weekday (the base entry therefore always yields offset 0).
+    const baseUtcWd = baseStart.getUTCDay();
+    const offsets = Array.from(
+      new Set(
+        (rule.byWeekday && rule.byWeekday.length ? rule.byWeekday.map(toJsWeekday) : [baseUtcWd]).map(
+          (wd) => (wd - baseUtcWd + 7) % 7,
+        ),
+      ),
+    ).sort((a, b) => a - b);
     for (let i = 0; i < MAX_ITER; i++) {
-      if (week.getTime() > rangeEnd.getTime()) break;
-      for (const wd of weekdays) {
-        const day = new Date(week);
-        day.setDate(week.getDate() + ((wd + 6) % 7)); // offset from Monday
-        if (!consider(atTimeOf(baseStart, day))) return out;
+      const weekBase = new Date(baseStart);
+      weekBase.setDate(weekBase.getDate() + 7 * interval * i);
+      if (weekBase.getTime() > rangeEnd.getTime()) break;
+      for (const off of offsets) {
+        const occ = new Date(weekBase);
+        occ.setDate(occ.getDate() + off);
+        if (!consider(occ)) return out;
       }
-      week = new Date(week);
-      week.setDate(week.getDate() + 7 * interval);
     }
     return out;
   }
