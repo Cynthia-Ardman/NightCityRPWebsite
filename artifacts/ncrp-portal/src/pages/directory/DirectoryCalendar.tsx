@@ -505,9 +505,9 @@ function CalChip({
         className={`block ${dense ? "px-1 py-0.5" : "px-1.5 py-1"} ${canQuickNpc ? "pr-5" : ""}`}
         title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
       >
-        <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[8px]" : "text-[10px]"}`}>
+        <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[10px]" : "text-[11px]"}`}>
           <Icon className={`shrink-0 ${dense ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
-          <span className="opacity-70">{time}</span>
+          <span className="font-semibold tabular-nums tracking-tight text-foreground">{time}</span>
           {item.myStatus && (
             <span
               className={`ml-auto shrink-0 px-1 font-display tracking-wider border ${dense ? "text-[7px]" : "text-[8px]"} ${
