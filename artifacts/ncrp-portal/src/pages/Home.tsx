@@ -1377,6 +1377,21 @@ function formatDueDate(iso: string): string {
   return `in ${days} days (${dateStr})`;
 }
 
+// Formats a PAST date relative to now (e.g. a last-checkup timestamp). Uses
+// calendar-day differences in local time so "yesterday" flips at midnight, not
+// at the 24h mark. Do NOT use formatDueDate here — it clamps negatives to 0 and
+// mislabels every past date as "today".
+function formatPastDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const dateStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
+  if (days <= 0) return `today (${dateStr})`;
+  if (days === 1) return `yesterday (${dateStr})`;
+  return `${days} days ago (${dateStr})`;
+}
+
 function UpcomingBillsCard() {
   const { data, isLoading } = useGetUpcomingBills();
   // Account-level history dialogs (the legacy bot tracked rent + cyberware meds
@@ -1604,7 +1619,7 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
 
         <StatRow
           label="Last Checkup"
-          value={status.lastCheckupAt ? formatDueDate(status.lastCheckupAt) : "never"}
+          value={status.lastCheckupAt ? formatPastDate(status.lastCheckupAt) : "never"}
           tooltip={
             <>
               <p className="font-semibold text-nc-cyan">How checkups work</p>
@@ -1683,15 +1698,15 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
               {rows.map((b) => {
                 const billable = b.chromeCount >= 7;
                 return (
-                  <div key={b.characterId} className="flex justify-between items-baseline gap-3 text-xs">
+                  <div key={b.characterId} className="flex justify-between items-baseline gap-3 text-sm">
                     <span className={billable ? "text-foreground" : "text-muted-foreground"}>
                       {b.characterName}
                     </span>
                     <span className="flex items-baseline gap-2 whitespace-nowrap">
-                      <span className={billable ? "text-foreground font-semibold" : "text-muted-foreground"}>
+                      <span className={`tabular-nums ${billable ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
                         {b.chromeCount} CWP
                       </span>
-                      <span className={`text-[10px] uppercase tracking-wider ${bandColorClass(b.band)}`}>
+                      <span className={`text-[11px] font-semibold uppercase tracking-wider ${bandColorClass(b.band)}`}>
                         {bandLabel(b.band)}
                       </span>
                     </span>
