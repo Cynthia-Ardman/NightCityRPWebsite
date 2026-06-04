@@ -11,6 +11,11 @@ import {
   useSubmitMission,
   useApproveMission,
   usePostMission,
+  useApplyToMission,
+  useWithdrawApplication,
+  useSignUpAsNpc,
+  useWithdrawNpcSignup,
+  useListMyCharacters,
   listMissionHistory,
   getListMissionHistoryQueryKey,
   getListMissionsQueryKey,
@@ -26,6 +31,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Briefcase,
   CalendarDays,
@@ -753,23 +767,187 @@ function MissionCard({
           <PlayerLinks m={m} />
         </div>
 
-        {/* 9. Workflow actions (owned board) or Apply (open list) */}
+        {/* 9. Workflow actions (owned board) or inline apply/sign-up (open list) */}
         {showWorkflow && <WorkflowActions m={m} canApprove={!!canApprove} canManage={!!canManage} />}
-        {showApply && (
-          <div className="pt-1">
-            <Link href={`/missions/${m.id}`}>
-              <Button
-                size="sm"
-                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
-                data-testid={`button-apply-${m.id}`}
-              >
-                APPLY
-              </Button>
-            </Link>
-          </div>
-        )}
+        {showApply && <InlineMissionActions m={m} />}
       </CardContent>
     </Card>
+  );
+}
+
+function errOf(e: unknown): string | null {
+  const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
+  return r ?? (e ? "Request failed" : null);
+}
+
+// Inline apply / NPC sign-up controls on an Open-tab mission card. Lets a player
+// pick a character and apply (or withdraw), and one-click NPC sign-up (or
+// remove), all without leaving the missions list. Mirrors the detail page's
+// ApplySection / NpcSignupSection logic against the lighter list summary.
+function InlineMissionActions({ m }: { m: MissionSummary }) {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+  const chars = useListMyCharacters();
+  const apply = useApplyToMission({ mutation: { onSuccess: invalidate } });
+  const withdrawApp = useWithdrawApplication({ mutation: { onSuccess: invalidate } });
+  const signUp = useSignUpAsNpc({ mutation: { onSuccess: invalidate } });
+  const removeNpc = useWithdrawNpcSignup({ mutation: { onSuccess: invalidate } });
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [characterId, setCharacterId] = useState<number | "">("");
+
+  const appErr = errOf(apply.error) ?? errOf(withdrawApp.error);
+  const npcErr = errOf(signUp.error) ?? errOf(removeNpc.error);
+
+  const existing = m.myApplication && m.myApplication.status !== "withdrawn" ? m.myApplication : null;
+  const reviewed = existing?.status === "accepted" || existing?.status === "rejected";
+  const mySignup = m.mySignup;
+  const signupResolved = mySignup?.state === "attended" || mySignup?.state === "no_show";
+
+  return (
+    <div className="pt-1 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* --- Player-character application --- */}
+        {existing ? (
+          reviewed ? (
+            <span
+              className={`inline-flex items-center gap-2 font-display tracking-widest text-xs px-3 py-1 border rounded-none uppercase ${applicationStatusClass(
+                existing.status,
+              )}`}
+              data-testid={`status-application-${m.id}`}
+            >
+              {applicationStatusLabel(existing.status)}
+              {existing.characterName ? ` · ${existing.characterName}` : ""}
+            </span>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={withdrawApp.isPending}
+              onClick={() => withdrawApp.mutate({ id: m.id, appId: existing.id })}
+              className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+              data-testid={`button-withdraw-${m.id}`}
+            >
+              {withdrawApp.isPending ? "WITHDRAWING..." : "WITHDRAW APPLICATION"}
+            </Button>
+          )
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => setDialogOpen(true)}
+            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+            data-testid={`button-apply-${m.id}`}
+          >
+            APPLY AS PLAYER CHARACTER
+          </Button>
+        )}
+
+        {/* --- NPC sign-up --- */}
+        {mySignup ? (
+          signupResolved ? (
+            <span
+              className="inline-flex items-center gap-2 font-display tracking-widest text-xs px-3 py-1 border rounded-none uppercase border-muted-foreground text-muted-foreground"
+              data-testid={`status-npc-${m.id}`}
+            >
+              {mySignup.state === "attended" ? "NPC: Attended" : "NPC: No-show"}
+            </span>
+          ) : m.npcSignupOpen ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={removeNpc.isPending}
+              onClick={() => removeNpc.mutate({ id: m.id })}
+              className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest"
+              data-testid={`button-remove-npc-${m.id}`}
+            >
+              {removeNpc.isPending ? "REMOVING..." : "REMOVE NPC SIGN-UP"}
+            </Button>
+          ) : (
+            <span
+              className="inline-flex items-center gap-2 font-display tracking-widest text-xs px-3 py-1 border rounded-none uppercase border-nc-magenta/60 text-nc-magenta"
+              data-testid={`status-npc-${m.id}`}
+            >
+              NPC: Signed up
+            </span>
+          )
+        ) : (
+          m.npcSignupOpen && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={signUp.isPending}
+              onClick={() => signUp.mutate({ id: m.id, data: { characterId: null } })}
+              className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest"
+              data-testid={`button-signup-npc-${m.id}`}
+            >
+              {signUp.isPending ? "SIGNING UP..." : "SIGN UP AS NPC"}
+            </Button>
+          )
+        )}
+      </div>
+
+      {appErr && (
+        <div className="text-destructive text-xs" data-testid={`text-apply-error-${m.id}`}>
+          {appErr}
+        </div>
+      )}
+      {npcErr && (
+        <div className="text-destructive text-xs" data-testid={`text-npc-error-${m.id}`}>
+          {npcErr}
+        </div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="rounded-none border-border bg-background" data-testid={`dialog-apply-${m.id}`}>
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-nc-cyan uppercase">
+              Apply to {m.title}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Pick which of your characters is applying for this job.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 font-mono text-sm">
+            <Label className="text-xs">CHARACTER</Label>
+            <select
+              value={characterId}
+              onChange={(e) => setCharacterId(e.target.value ? Number(e.target.value) : "")}
+              className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+              data-testid={`select-apply-character-${m.id}`}
+            >
+              <option value="">Select a character…</option>
+              {(chars.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {appErr && <div className="text-destructive text-xs">{appErr}</div>}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              disabled={apply.isPending || characterId === ""}
+              onClick={() =>
+                apply.mutate(
+                  { id: m.id, data: { characterId: Number(characterId), comment: null } },
+                  {
+                    onSuccess: () => {
+                      setDialogOpen(false);
+                      setCharacterId("");
+                    },
+                  },
+                )
+              }
+              className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+              data-testid={`button-apply-submit-${m.id}`}
+            >
+              {apply.isPending ? "APPLYING..." : "APPLY"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

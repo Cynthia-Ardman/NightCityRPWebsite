@@ -3985,6 +3985,79 @@ export type MissionSummaryPlayersItem = {
   userId?: string | null;
 };
 
+export type MissionApplicationViewStatus = typeof MissionApplicationViewStatus[keyof typeof MissionApplicationViewStatus];
+
+
+export const MissionApplicationViewStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  withdrawn: 'withdrawn',
+  rejected: 'rejected',
+} as const;
+
+export interface MissionApplicationView {
+  id: number;
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  /** @nullable */
+  userAvatarUrl?: string | null;
+  characterId: number;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  characterPortraitUrl?: string | null;
+  /** @nullable */
+  comment?: string | null;
+  status: MissionApplicationViewStatus;
+  /** @nullable */
+  reviewedBy?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  createdAt: string;
+  attendanceCount: number;
+  /** @nullable */
+  lastAttendedAt?: string | null;
+  /** @nullable */
+  daysSinceLastMission?: number | null;
+  /** True if the character played a mission within the recency window. */
+  recencyWarning: boolean;
+}
+
+export type MissionNpcMySignupViewState = typeof MissionNpcMySignupViewState[keyof typeof MissionNpcMySignupViewState];
+
+
+export const MissionNpcMySignupViewState = {
+  signed_up: 'signed_up',
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
+export type MissionNpcMySignupViewPaymentStatus = typeof MissionNpcMySignupViewPaymentStatus[keyof typeof MissionNpcMySignupViewPaymentStatus];
+
+
+export const MissionNpcMySignupViewPaymentStatus = {
+  unpaid: 'unpaid',
+  processing: 'processing',
+  paid: 'paid',
+  failed: 'failed',
+  simulated: 'simulated',
+} as const;
+
+export interface MissionNpcMySignupView {
+  id: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  state: MissionNpcMySignupViewState;
+  /** @nullable */
+  payAmount?: number | null;
+  paymentStatus: MissionNpcMySignupViewPaymentStatus;
+  /** @nullable */
+  paidAt?: string | null;
+}
+
 export interface MissionSummary {
   id: number;
   title: string;
@@ -4028,6 +4101,12 @@ export interface MissionSummary {
   myCharacterName?: string | null;
   /** @nullable */
   myPaymentStatus?: string | null;
+  /** The caller's own application on this mission (null if none); powers the inline apply/withdraw button. */
+  myApplication?: MissionApplicationView | null;
+  /** True when this mission is currently accepting NPC sign-ups. */
+  npcSignupOpen?: boolean;
+  /** The caller's own NPC sign-up (any state); null if none. */
+  mySignup?: MissionNpcMySignupView | null;
   /** Assigned characters (deduped), each clickable. */
   players: MissionSummaryPlayersItem[];
   createdAt: string;
@@ -4118,79 +4197,6 @@ export const MissionDetailJobType = {
   non_combat: 'non_combat',
   mixed: 'mixed',
 } as const;
-
-export type MissionApplicationViewStatus = typeof MissionApplicationViewStatus[keyof typeof MissionApplicationViewStatus];
-
-
-export const MissionApplicationViewStatus = {
-  pending: 'pending',
-  accepted: 'accepted',
-  withdrawn: 'withdrawn',
-  rejected: 'rejected',
-} as const;
-
-export interface MissionApplicationView {
-  id: number;
-  userId: string;
-  /** @nullable */
-  userName?: string | null;
-  /** @nullable */
-  userAvatarUrl?: string | null;
-  characterId: number;
-  /** @nullable */
-  characterName?: string | null;
-  /** @nullable */
-  characterPortraitUrl?: string | null;
-  /** @nullable */
-  comment?: string | null;
-  status: MissionApplicationViewStatus;
-  /** @nullable */
-  reviewedBy?: string | null;
-  /** @nullable */
-  reviewedAt?: string | null;
-  createdAt: string;
-  attendanceCount: number;
-  /** @nullable */
-  lastAttendedAt?: string | null;
-  /** @nullable */
-  daysSinceLastMission?: number | null;
-  /** True if the character played a mission within the recency window. */
-  recencyWarning: boolean;
-}
-
-export type MissionNpcMySignupViewState = typeof MissionNpcMySignupViewState[keyof typeof MissionNpcMySignupViewState];
-
-
-export const MissionNpcMySignupViewState = {
-  signed_up: 'signed_up',
-  attended: 'attended',
-  no_show: 'no_show',
-} as const;
-
-export type MissionNpcMySignupViewPaymentStatus = typeof MissionNpcMySignupViewPaymentStatus[keyof typeof MissionNpcMySignupViewPaymentStatus];
-
-
-export const MissionNpcMySignupViewPaymentStatus = {
-  unpaid: 'unpaid',
-  processing: 'processing',
-  paid: 'paid',
-  failed: 'failed',
-  simulated: 'simulated',
-} as const;
-
-export interface MissionNpcMySignupView {
-  id: number;
-  /** @nullable */
-  characterId?: number | null;
-  /** @nullable */
-  characterName?: string | null;
-  state: MissionNpcMySignupViewState;
-  /** @nullable */
-  payAmount?: number | null;
-  paymentStatus: MissionNpcMySignupViewPaymentStatus;
-  /** @nullable */
-  paidAt?: string | null;
-}
 
 export type MissionNpcSignupViewState = typeof MissionNpcSignupViewState[keyof typeof MissionNpcSignupViewState];
 

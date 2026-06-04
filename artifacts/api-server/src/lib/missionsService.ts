@@ -179,7 +179,13 @@ async function loadMissions(
   return rows.map((r) => ({ ...r.mission, fixerName: r.fixerName, fixerAvatarUrl: r.fixerAvatarUrl }));
 }
 
-function toSummary(m: MissionWithFixer, assignments: AssignmentJoin[], viewerId: string) {
+function toSummary(
+  m: MissionWithFixer,
+  assignments: AssignmentJoin[],
+  viewerId: string,
+  myApplication: Awaited<ReturnType<typeof listApplicationViews>>[number] | null = null,
+  mySignup: ReturnType<typeof toMySignupView> | null = null,
+) {
   const players = assignments
     .filter((a) => a.characterId != null)
     .map((a) => ({
@@ -216,9 +222,125 @@ function toSummary(m: MissionWithFixer, assignments: AssignmentJoin[], viewerId:
     myCharacterId: mine?.characterId ?? null,
     myCharacterName: mine?.characterName ?? null,
     myPaymentStatus: mine?.paymentStatus ?? null,
+    myApplication,
+    npcSignupOpen: missionAcceptsNpcSignup(m),
+    mySignup,
     players,
     createdAt: m.createdAt.toISOString(),
   };
+}
+
+/** Shape one NPC sign-up row into the player-facing "my sign-up" view. */
+function toMySignupView(r: {
+  id: number;
+  characterId: number | null;
+  characterName: string | null;
+  state: string;
+  payAmount: number | null;
+  paymentStatus: string;
+  paidAt: Date | null;
+}) {
+  return {
+    id: r.id,
+    characterId: r.characterId,
+    characterName: r.characterName,
+    state: r.state,
+    payAmount: r.payAmount,
+    paymentStatus: r.paymentStatus,
+    paidAt: iso(r.paidAt),
+  };
+}
+
+/**
+ * Batch-load the viewer's OWN application for each of the given missions, keyed
+ * by mission id. Mirrors the per-mission `myApplication` the detail model
+ * computes so the Open-tab cards can render the inline apply/withdraw button.
+ */
+async function loadMyApplicationsForMissions(
+  missionIds: number[],
+  userId: string,
+): Promise<Map<number, Awaited<ReturnType<typeof listApplicationViews>>[number]>> {
+  const out = new Map<number, Awaited<ReturnType<typeof listApplicationViews>>[number]>();
+  if (missionIds.length === 0) return out;
+  const rows = await db
+    .select({
+      missionId: missionApplications.missionId,
+      id: missionApplications.id,
+      userId: missionApplications.userId,
+      userName: users.username,
+      userAvatarUrl: users.avatarUrl,
+      characterId: missionApplications.characterId,
+      characterName: characters.name,
+      characterPortraitUrl: characters.portraitUrl,
+      comment: missionApplications.comment,
+      status: missionApplications.status,
+      reviewedBy: missionApplications.reviewedBy,
+      reviewedAt: missionApplications.reviewedAt,
+      createdAt: missionApplications.createdAt,
+    })
+    .from(missionApplications)
+    .leftJoin(users, eq(users.id, missionApplications.userId))
+    .leftJoin(characters, eq(characters.id, missionApplications.characterId))
+    .where(and(inArray(missionApplications.missionId, missionIds), eq(missionApplications.userId, userId)))
+    .orderBy(missionApplications.createdAt);
+
+  const recency = await loadRecencyByCharacter(
+    rows.map((r) => r.characterId),
+    -1,
+  );
+  const now = Date.now();
+  for (const r of rows) {
+    const rec = recency.get(r.characterId);
+    const last = rec?.lastAttendedAt ?? null;
+    const daysSince = last ? Math.floor((now - last.getTime()) / 86_400_000) : null;
+    out.set(r.missionId, {
+      id: r.id,
+      userId: r.userId,
+      userName: r.userName,
+      userAvatarUrl: r.userAvatarUrl,
+      characterId: r.characterId,
+      characterName: r.characterName,
+      characterPortraitUrl: r.characterPortraitUrl,
+      comment: r.comment,
+      status: r.status,
+      reviewedBy: r.reviewedBy,
+      reviewedAt: iso(r.reviewedAt),
+      createdAt: r.createdAt.toISOString(),
+      attendanceCount: rec?.attendanceCount ?? 0,
+      lastAttendedAt: iso(last),
+      daysSinceLastMission: daysSince,
+      recencyWarning: daysSince != null && daysSince < RECENCY_WARNING_DAYS,
+    });
+  }
+  return out;
+}
+
+/** Batch-load the viewer's OWN NPC sign-up for each mission, keyed by mission id. */
+async function loadMySignupsForMissions(
+  missionIds: number[],
+  userId: string,
+): Promise<Map<number, ReturnType<typeof toMySignupView>>> {
+  const out = new Map<number, ReturnType<typeof toMySignupView>>();
+  if (missionIds.length === 0) return out;
+  const rows = await db
+    .select({
+      missionId: missionNpcSignups.missionId,
+      id: missionNpcSignups.id,
+      characterId: missionNpcSignups.characterId,
+      characterName: characters.name,
+      state: missionNpcSignups.state,
+      payAmount: missionNpcSignups.payAmount,
+      paymentStatus: missionNpcSignups.paymentStatus,
+      paidAt: missionNpcSignups.paidAt,
+    })
+    .from(missionNpcSignups)
+    .leftJoin(characters, eq(characters.id, missionNpcSignups.characterId))
+    .where(and(inArray(missionNpcSignups.missionId, missionIds), eq(missionNpcSignups.userId, userId)))
+    .orderBy(missionNpcSignups.id);
+  for (const r of rows) {
+    out.set(r.missionId, toMySignupView(r));
+  }
+  return out;
 }
 
 export async function listMissionSummaries(opts: {
@@ -233,8 +355,15 @@ export async function listMissionSummaries(opts: {
   if (!opts.viewer.isManager) filters.push(eq(missions.workflowState, "posted"));
   const where = filters.length ? and(...filters) : undefined;
   const rows = await loadMissions(where, opts.limit ?? 200);
-  const byMission = await loadAssignments(rows.map((r) => r.id));
-  return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], opts.viewer.id));
+  const ids = rows.map((r) => r.id);
+  const byMission = await loadAssignments(ids);
+  // Batch-load the viewer's own application + NPC sign-up per mission so the
+  // Open-tab cards can render inline apply/withdraw and sign-up/remove buttons.
+  const myApps = await loadMyApplicationsForMissions(ids, opts.viewer.id);
+  const mySignups = await loadMySignupsForMissions(ids, opts.viewer.id);
+  return rows.map((m) =>
+    toSummary(m, byMission.get(m.id) ?? [], opts.viewer.id, myApps.get(m.id) ?? null, mySignups.get(m.id) ?? null),
+  );
 }
 
 /**

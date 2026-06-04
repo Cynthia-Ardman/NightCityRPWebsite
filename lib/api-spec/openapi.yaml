@@ -7077,6 +7077,17 @@ components:
         myCharacterId: { type: ["integer", "null"] }
         myCharacterName: { type: ["string", "null"] }
         myPaymentStatus: { type: ["string", "null"] }
+        myApplication:
+          oneOf:
+            - $ref: "#/components/schemas/MissionApplicationView"
+            - type: "null"
+          description: "The caller's own application on this mission (null if none); powers the inline apply/withdraw button."
+        npcSignupOpen: { type: boolean, description: "True when this mission is currently accepting NPC sign-ups." }
+        mySignup:
+          oneOf:
+            - $ref: "#/components/schemas/MissionNpcMySignupView"
+            - type: "null"
+          description: "The caller's own NPC sign-up (any state); null if none."
         players:
           type: array
           description: "Assigned characters (deduped), each clickable."

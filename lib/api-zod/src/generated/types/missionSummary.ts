@@ -5,6 +5,8 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { MissionApplicationView } from './missionApplicationView';
+import type { MissionNpcMySignupView } from './missionNpcMySignupView';
 import type { MissionSummaryJobType } from './missionSummaryJobType';
 import type { MissionSummaryPlayersItem } from './missionSummaryPlayersItem';
 import type { MissionSummaryStatus } from './missionSummaryStatus';
@@ -54,6 +56,12 @@ export interface MissionSummary {
   myCharacterName?: string | null;
   /** @nullable */
   myPaymentStatus?: string | null;
+  /** The caller's own application on this mission (null if none); powers the inline apply/withdraw button. */
+  myApplication?: MissionApplicationView | null;
+  /** True when this mission is currently accepting NPC sign-ups. */
+  npcSignupOpen?: boolean;
+  /** The caller's own NPC sign-up (any state); null if none. */
+  mySignup?: MissionNpcMySignupView | null;
   /** Assigned characters (deduped), each clickable. */
   players: MissionSummaryPlayersItem[];
   createdAt: Date;
