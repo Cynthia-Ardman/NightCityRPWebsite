@@ -28,9 +28,17 @@ website-null and a Discord-"Night City" hash identically and don't churn forever
 Image is intentionally excluded (Discord gives an image hash, not our URL).
 
 ## Idempotency guards (added after architect review)
-- Partial unique index `events_discord_event_id_unq` on `discord_event_id WHERE NOT NULL`; import uses `onConflictDoNothing` so concurrent cron/manual runs or a race with the synchronous create path can't double-insert.
+- Partial unique index `events_discord_event_id_unq` on `discord_event_id WHERE NOT NULL`; import uses `onConflictDoNothing` so concurrent cron/manual runs or a race with the synchronous create path can't double-insert. The ON CONFLICT predicate MUST use `where:` (NOT `targetWhere:`, silently ignored → 42P10) — see drizzle-onconflict-partial-index.md.
 - Pull UPDATE is guarded `WHERE discord_synced_hash = <synced>` (non-null in the pull branch) so a concurrent website edit isn't clobbered.
 - True mirror: a Discord delete → cancel the row; a website-cancelled row whose Discord event still exists gets a delete-RETRY in reconcile (covers transient/Test-mode push failures), then nulls discordEventId.
 
-## Gating
-Rides the missions Test/Live switch via `liveSystemByJob["discord_event_sync"]="missions"` in jobs.ts — Test mode is a no-op even via manual /admin/jobs/run. Mission-owned discord ids (missions.discordEventId) are excluded from import/reconcile.
+## Gating — split by destination (NOT whole-job)
+`reconcileDiscordEvents(live: boolean)`. It is intentionally NOT in `liveSystemByJob`
+(that would no-op the entire job in Test mode and block importing the existing schedule).
+- **Website-side writes ALWAYS run** (Test and Live): import unmatched Discord events,
+  pull Discord-only edits, mirror a Discord delete → cancel the row. These touch only our
+  DB and are non-destructive to Discord.
+- **Discord-side mutations gate on `live`**: push a website edit up, delete a Discord event
+  for an on-site cancel. In Test they increment `result.deferred` and are left for the next
+  Live run. jobs.ts computes `live = await isSystemLive("missions")` (ANDs master) and passes it.
+Mission-owned discord ids (missions.discordEventId) are excluded from import/reconcile.

@@ -395,10 +395,17 @@ export async function cancelEvent(id: number): Promise<Event | null> {
 }
 
 // ---------------------------------------------------------------------------
-// Bidirectional reconcile (poll-based — there is no Discord gateway). Run from
-// the discord_event_sync cron, which is gated on the missions Test/Live switch
-// so it only mutates real data when missions are Live. Pure REST; safe to call
-// repeatedly. Returns counts for the job log; never throws.
+// Bidirectional reconcile (poll-based — there is no Discord gateway). Pure REST;
+// safe to call repeatedly. Returns counts for the job log; never throws.
+//
+// The `live` flag splits the work by destination:
+//  - Website-side writes (importing Discord events, pulling Discord edits down,
+//    cancelling a row whose Discord event disappeared) ALWAYS run — they only
+//    touch our own DB and are non-destructive to Discord, so admins can import
+//    the existing schedule without flipping the Live switch.
+//  - Discord-side mutations (pushing a website edit up, deleting a Discord event
+//    for a row cancelled on-site) run ONLY when `live` — same gate as the
+//    synchronous website→Discord push path (the missions Test/Live switch).
 //
 // Per cycle:
 //  1. For every event row already linked to a Discord event:
@@ -407,7 +414,7 @@ export async function cancelEvent(id: number): Promise<Event | null> {
 //     - Both present        → compare each side's content hash to the stored
 //       last-synced hash. Whichever side diverged is the one that changed since
 //       the last sync, so it wins ("most recent edit wins"). If only Discord
-//       changed we pull it down; otherwise we push the website's edit up.
+//       changed we pull it down; otherwise we push the website's edit up (live).
 //  2. Import any Discord event that isn't linked to an event row and isn't
 //     owned by a mission (skipping completed/cancelled ones).
 // ---------------------------------------------------------------------------
@@ -416,11 +423,13 @@ export interface ReconcileResult {
   pulled: number;
   pushed: number;
   cancelled: number;
+  /** Discord-side pushes/deletes skipped because the run was not Live. */
+  deferred: number;
   error: string | null;
 }
 
-export async function reconcileDiscordEvents(): Promise<ReconcileResult> {
-  const result: ReconcileResult = { imported: 0, pulled: 0, pushed: 0, cancelled: 0, error: null };
+export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileResult> {
+  const result: ReconcileResult = { imported: 0, pulled: 0, pushed: 0, cancelled: 0, deferred: 0, error: null };
   const list = await listGuildScheduledEvents();
   if (!list.ok) {
     result.error = list.error;
@@ -462,6 +471,12 @@ export async function reconcileDiscordEvents(): Promise<ReconcileResult> {
     // the mirror by tearing it down here. This also retries cases where the
     // synchronous cancel push failed transiently or happened while in Test mode.
     if (row.status === "cancelled") {
+      // Tearing down a real Discord event is a Discord mutation → Live only.
+      // In Test mode leave it for the next Live run.
+      if (!live) {
+        result.deferred++;
+        continue;
+      }
       const del = await deleteGuildScheduledEvent(d.id);
       if (del.ok) {
         await db
@@ -508,6 +523,11 @@ export async function reconcileDiscordEvents(): Promise<ReconcileResult> {
       // website's explicit edit back up. Both-changed is rare because website
       // edits push synchronously and stamp the hash; honouring the website here
       // keeps the operator's last on-site action authoritative.
+      // Pushing to Discord is a Discord mutation → Live only; defer in Test.
+      if (!live) {
+        result.deferred++;
+        continue;
+      }
       const sync = await syncEventDiscordEvent(row, true);
       await applyEventSync(row.id, row, sync);
       if (!sync.discordSyncError) result.pushed++;
@@ -552,12 +572,16 @@ export async function reconcileDiscordEvents(): Promise<ReconcileResult> {
       })
       // Idempotent: if a concurrent run (or the synchronous create path) already
       // linked this Discord id, skip rather than create a duplicate row.
-      .onConflictDoNothing({ target: events.discordEventId, targetWhere: isNotNull(events.discordEventId) })
+      // The unique index is PARTIAL (WHERE discord_event_id IS NOT NULL), so the
+      // ON CONFLICT must repeat that predicate to match it. For onConflictDoNothing
+      // the predicate option is `where` (NOT `targetWhere`, which is silently
+      // ignored here and yields a 42P10 "no matching constraint" error).
+      .onConflictDoNothing({ target: events.discordEventId, where: isNotNull(events.discordEventId) })
       .returning({ id: events.id });
     if (inserted.length) result.imported++;
   }
 
-  if (result.imported || result.pulled || result.pushed || result.cancelled) {
+  if (result.imported || result.pulled || result.pushed || result.cancelled || result.deferred) {
     logger.info(result, "reconcileDiscordEvents applied changes");
   }
   return result;

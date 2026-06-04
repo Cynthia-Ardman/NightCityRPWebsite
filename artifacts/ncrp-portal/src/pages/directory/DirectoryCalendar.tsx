@@ -15,6 +15,10 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 
 type CalKind = "mission" | "event";
 
+// The viewer's personal signup status for an item: confirmed as a player
+// (accepted application / assigned character), signed up as an NPC, or neither.
+type SignupStatus = "player" | "npc" | null;
+
 interface CalItem {
   kind: CalKind;
   id: number;
@@ -22,6 +26,7 @@ interface CalItem {
   start: Date;
   href: string;
   subtype: string; // tier label or event type
+  myStatus: SignupStatus;
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -67,6 +72,10 @@ export default function DirectoryCalendar() {
       if (m.status === "cancelled") continue;
       const start = new Date(m.startAt);
       if (Number.isNaN(start.getTime())) continue;
+      // Player = accepted application (or an assigned character); NPC = an active
+      // NPC signup. Player wins when both are somehow present.
+      const isPlayer = m.myApplication?.status === "accepted" || m.myCharacterId != null;
+      const isNpc = m.mySignup?.state === "signed_up";
       out.push({
         kind: "mission",
         id: m.id,
@@ -74,11 +83,15 @@ export default function DirectoryCalendar() {
         start,
         href: `/missions/${m.id}`,
         subtype: `Tier ${m.tier}`,
+        myStatus: isPlayer ? "player" : isNpc ? "npc" : null,
       });
     }
     for (const e of (eventsQ.data ?? []) as EventView[]) {
       const start = new Date(e.startAt);
       if (Number.isNaN(start.getTime())) continue;
+      // Events only have NPC signups; the list returns mySignup only for an
+      // active signup, so its presence makes the viewer an NPC.
+      const isNpc = e.mySignup != null;
       out.push({
         kind: "event",
         id: e.id,
@@ -86,6 +99,7 @@ export default function DirectoryCalendar() {
         start,
         href: `/events/${e.id}`,
         subtype: EVENT_TYPE_LABEL[e.eventType] ?? "Event",
+        myStatus: isNpc ? "npc" : null,
       });
     }
     return out;
@@ -194,6 +208,18 @@ export default function DirectoryCalendar() {
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 bg-nc-cyan/30 border border-nc-cyan/60" /> Event
         </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block px-1 text-[9px] font-display tracking-wider bg-nc-green/20 border border-nc-green/60 text-nc-green">
+            PLAYER
+          </span>{" "}
+          You're playing
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block px-1 text-[9px] font-display tracking-wider bg-nc-yellow/20 border border-nc-yellow/60 text-nc-yellow">
+            NPC
+          </span>{" "}
+          You're an NPC
+        </span>
       </div>
 
       {loading ? (
@@ -260,16 +286,29 @@ function CalChip({ item }: { item: CalItem }) {
     ? "bg-nc-magenta/20 border-nc-magenta/50 hover:bg-nc-magenta/30 text-nc-magenta"
     : "bg-nc-cyan/20 border-nc-cyan/50 hover:bg-nc-cyan/30 text-nc-cyan";
   const Icon = isMission ? Briefcase : PartyPopper;
+  const statusLabel = item.myStatus === "player" ? "Signed up as player" : item.myStatus === "npc" ? "Signed up as NPC" : null;
   return (
     <Link
       href={item.href}
       className={`block border rounded-none px-1.5 py-1 transition-colors ${cls}`}
       data-testid={`chip-${item.kind}-${item.id}`}
-      title={`${item.title} · ${item.subtype} · ${time}`}
+      title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
     >
       <div className="flex items-center gap-1 font-mono text-[10px] leading-tight">
         <Icon className="w-3 h-3 shrink-0" />
         <span className="opacity-70">{time}</span>
+        {item.myStatus && (
+          <span
+            className={`ml-auto shrink-0 px-1 text-[8px] font-display tracking-wider border ${
+              item.myStatus === "player"
+                ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
+                : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
+            }`}
+            data-testid={`chip-status-${item.kind}-${item.id}`}
+          >
+            {item.myStatus === "player" ? "PLAYER" : "NPC"}
+          </span>
+        )}
       </div>
       <div className="font-mono text-[11px] leading-tight text-foreground truncate">{item.title}</div>
     </Link>

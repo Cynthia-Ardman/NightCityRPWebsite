@@ -251,10 +251,11 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       monthly_rent: "housing",
       cyberware_humanity: "cyberware",
       eviction_sweep: "evictions",
-      // Events ride the missions Test/Live switch (same as the website→Discord
-      // push path), so the bidirectional reconcile only mutates real data once
-      // missions are Live.
-      discord_event_sync: "missions",
+      // discord_event_sync is intentionally NOT listed: its website-side writes
+      // (importing Discord events, pulling Discord edits, mirroring deletes) are
+      // non-destructive and must run in Test mode too, so admins can import the
+      // existing schedule without flipping Live. Only its Discord-side mutations
+      // are gated, via the `live` flag passed to reconcileDiscordEvents below.
     };
     const gatedSystem = liveSystemByJob[name];
     if (gatedSystem && !(await isSystemLive(gatedSystem))) {
@@ -896,13 +897,17 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       affected = r.changed + r.seeded;
       message = `economy reconcile (${r.mode}): scanned ${r.scanned}, changed ${r.changed}, seeded ${r.seeded}, ub-unavailable ${r.failed}${r.dryRun ? " [dry-run: no writes]" : ""}`;
     } else if (name === "discord_event_sync") {
-      // Bidirectional calendar ↔ Discord scheduled-event sync. Imports Discord
-      // events the website hasn't seen and reconciles edits/deletions in both
-      // directions. Gated above via liveSystemByJob ("missions"), so Test mode
-      // skips it entirely.
-      const r = await reconcileDiscordEvents();
+      // Bidirectional calendar ↔ Discord scheduled-event sync. Website-side
+      // writes (import/pull/mirror-cancel) always run; Discord-side mutations
+      // (push website edits up, delete a Discord event for an on-site cancel)
+      // only run when missions are Live. `live` ANDs the master switch.
+      const live = await isSystemLive("missions");
+      const r = await reconcileDiscordEvents(live);
       affected = r.imported + r.pulled + r.pushed + r.cancelled;
-      message = `discord events sync: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}${r.error ? `, error: ${r.error}` : ""}`;
+      const deferredNote = r.deferred
+        ? `, deferred ${r.deferred} Discord write(s) (Test mode — set master + missions Live to push)`
+        : "";
+      message = `discord events sync${live ? " [live]" : " [test: website only]"}: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}${deferredNote}${r.error ? `, error: ${r.error}` : ""}`;
     }
   } catch (err) {
     status = "failed";

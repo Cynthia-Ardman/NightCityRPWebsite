@@ -224,13 +224,13 @@ const CHANNEL_PORTAL_LINKS: Record<string, string> = {
   "1348603380821528626": "/characters", // character-creation
   "1379934118799736884": "/catalog/rent", // business-creation -> Property catalog
   "1379934227499454616": "/catalog/rent", // request-lease-or-rental
+  "1387192935308591256": "/directory/calendar", // event-announcements -> Calendar (Schedule page retired)
 };
 
 // Alias Discord channels that should point at an existing on-site guidebook
 // page, but whose own channel was not imported as its own page. Resolved to
 // /guidebook/<id> via the page slug at run time.
 const CHANNEL_PAGE_ALIASES: Record<string, string> = {
-  "1387192935308591256": "schedule-events", // event-announcements -> Schedule page
   "1384033835280240640": "detailed-systems-explanation", // systems-explanation alias
 };
 

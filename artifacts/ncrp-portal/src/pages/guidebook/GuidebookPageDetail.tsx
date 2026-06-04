@@ -1,4 +1,4 @@
-import { Link, useParams, useLocation } from "wouter";
+import { Link, useParams, useLocation, Redirect } from "wouter";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetGuidebookPage, useDeleteGuidebookPage, getListGuidebookQueryKey } from "@workspace/api-client-react";
@@ -46,6 +46,11 @@ export default function GuidebookPageDetail() {
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">GUIDEBOOK PAGE NOT FOUND</div>;
+
+  // The legacy "Schedule & Events" page is retired — its content now lives on the
+  // Calendar. Redirect any visit (direct URL, guidebook list, channel-mention
+  // link) regardless of the per-environment page id, keyed on the stable slug.
+  if (data.slug === "schedule-events") return <Redirect to="/directory/calendar" replace />;
 
   const sources = data.sources ?? [];
 
