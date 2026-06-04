@@ -2,6 +2,7 @@ import { db, users, jobRuns, characters, characterStatus, walletTransactions, ho
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, VERIFIED_18_ROLE_ID, postToChannel } from "./discord";
+import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
@@ -210,6 +211,10 @@ async function chargePersonalFeeWithReservation(opts: {
   kind: string;
   memo: string;
   reason: string;
+  /** Player-facing label for the charge DM. */
+  dmLabel: string;
+  /** Optional character name shown in the DM (null for per-player fees). */
+  characterName?: string | null;
   reserve: () => void;
   unreserve: () => void;
 }): Promise<boolean> {
@@ -230,6 +235,13 @@ async function chargePersonalFeeWithReservation(opts: {
     opts.unreserve();
     return false;
   }
+  void notifyAutoCharge({
+    discordId: opts.discordId,
+    amount: opts.cost,
+    label: opts.dmLabel,
+    characterName: opts.characterName,
+    newBalance: ub.cash,
+  });
   return true;
 }
 
@@ -499,6 +511,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             .set({ delinquentSince: null })
             .where(eq(housing.id, lease.id));
         }
+        void notifyAutoCharge({
+          discordId: owner.discordId,
+          amount: rent,
+          label: `${reasonLabel}: ${lease.address}`,
+          characterName: c.name,
+          newBalance: ub.cash,
+        });
         affected++;
       }
 
@@ -640,6 +659,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             kind: "baseline",
             memo: "Baseline living cost (monthly)",
             reason: `Baseline living cost`,
+            dmLabel: "Baseline living cost (monthly)",
             reserve: () => baselineBilledOwners.add(c.ownerId!),
             unreserve: () => baselineBilledOwners.delete(c.ownerId!),
           });
@@ -662,6 +682,8 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             kind: "trauma_team",
             memo: `Trauma Team ${tier} subscription`,
             reason: `Trauma Team ${tier} (${c.name})`,
+            dmLabel: `Trauma Team ${tier} subscription`,
+            characterName: c.name,
             reserve: () => markBilled(c.id, "trauma_team"),
             unreserve: () => unmarkBilled(c.id, "trauma_team"),
           });
@@ -682,6 +704,8 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             kind: "xanadu_gold",
             memo: "Xanadu Gold membership",
             reason: `Xanadu Gold (${c.name})`,
+            dmLabel: "Xanadu Gold membership",
+            characterName: c.name,
             reserve: () => markBilled(c.id, "xanadu_gold"),
             unreserve: () => unmarkBilled(c.id, "xanadu_gold"),
           });
@@ -808,6 +832,12 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           logger.warn({ ownerId }, "cyberware_humanity UB debit failed; rolled back local ledger reservation");
           continue;
         }
+        void notifyAutoCharge({
+          discordId: owner.discordId,
+          amount: proj.charge,
+          label: `Weekly cyberpsychosis meds (${proj.level})`,
+          newBalance: ub.cash,
+        });
         affected++;
       }
     } else if (name === "eviction_sweep") {

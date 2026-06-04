@@ -79,6 +79,7 @@
 - [Guidebook content rendering](guidebook-content-rendering.md) — importer bakes mentions/channel links + `[t=secs:fmt]` tokens rendered client-side in local tz; shared with lore; re-import after cleanContent edits.
 - [Portal review queue wiring](portal-review-queue-wiring.md) — a new fixer-propose/admin-approve queue must wire 4 spots (PendingRequests tab+terminal/TerminalKind, AppLayout staffPending badge, App.tsx routes); seed edit forms via useEffect keyed on id.
 - [Guidebook importer & forum channels](guidebook-import-forum.md) — importer pulls GUIDEBOOK_SOURCES → guidebookPages; Discord forum (type 15) has no top-level msgs, must enumerate threads as ## sections.
+- [Player wallet DM notifications](wallet-dm-notifications.md) — DM after patchBalance success only, fire-and-forget (`void`), never await; new charge types follow same rule; gating already correct, don't add env gates.
 - [Fixer NPCs are characters](fixer-npcs-are-characters.md) — NPCs = characters kind='npc' (view /characters/:id); legacy fixer_npcs table empty, its /fixer/npcs/:id detail+create+patch endpoints are orphaned dead code.
 - [Session events always need NPCs](session-npc-derivation.md) — needsNpcs is DERIVED (manual flag OR eventType==="session"); route all view/gate reads through eventNeedsNpcs(e), not the raw column.
 - [Main Sessions are discrete weekly rows](main-sessions-discrete.md) — sessions are one event row per Sunday (own discord id), NOT a recurrence_rule; extend coverage by creating rows (backfill-main-sessions.ts), not recurrence.

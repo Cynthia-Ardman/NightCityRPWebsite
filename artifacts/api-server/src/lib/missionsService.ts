@@ -24,6 +24,7 @@ import {
   deleteGuildScheduledEvent,
   listGuildScheduledEvents,
 } from "./discord";
+import { notifyMissionPayout } from "./notifications";
 import { getMissionContext, type MissionExternalContext } from "./missionsConfig";
 
 // ---------------------------------------------------------------------------
@@ -1913,6 +1914,12 @@ export async function payMissionPlayers(
         .where(eq(missionAssignments.id, a.id));
       result.paid++;
       paidLines.push(`<@${discordId}>${username ? ` (${username})` : ""}: +${amount.toLocaleString()} eddies`);
+      void notifyMissionPayout({
+        discordId,
+        amount,
+        missionTitle: mission.title,
+        newBalance: balance.cash,
+      });
     }
   }
 

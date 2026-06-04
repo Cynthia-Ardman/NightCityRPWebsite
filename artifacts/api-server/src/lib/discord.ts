@@ -898,6 +898,7 @@ export async function postToChannel(channelId: string, content: string, embeds?:
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ content, embeds }),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
     logger.warn({ status: res.status, body: await res.text() }, "Discord channel post failed");
@@ -929,6 +930,7 @@ export async function sendDirectMessage(userId: string, content: string): Promis
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ recipient_id: userId }),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!dmRes.ok) {
     logger.warn({ status: dmRes.status, body: await dmRes.text(), userId }, "Discord DM channel open failed");
