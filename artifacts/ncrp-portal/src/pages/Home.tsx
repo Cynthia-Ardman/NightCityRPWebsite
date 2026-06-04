@@ -181,7 +181,9 @@ function Dashboard() {
                 <div className="p-4 text-center text-muted-foreground font-mono text-xs">NO_CHARACTERS_FOUND.</div>
               ) : (
                 <div className="divide-y divide-border/50 max-h-[640px] overflow-y-auto">
-                  {characters.map(char => (
+                  {[...characters]
+                    .sort((a, b) => (a.kind === 'pc' ? 0 : 1) - (b.kind === 'pc' ? 0 : 1))
+                    .map(char => (
                     <Link key={char.id} href={`/characters/${char.id}`}>
                       <div className="p-2 flex items-center gap-3 hover:bg-nc-cyan/5 cursor-pointer group" data-testid={`row-dashboard-char-${char.id}`}>
                         <Avatar className="h-10 w-10 border border-border rounded-none group-hover:border-nc-cyan transition-colors shrink-0">
@@ -1469,27 +1471,28 @@ function UpcomingBillsCard() {
                 }))}
               />
 
-              <BillSection
-                icon={Syringe}
-                color="text-destructive"
-                title="CYBERPSYCHOSIS MEDS (WEEKLY)"
-                emptyHint={medsEmptyHint(data.cyberwareStatus)}
-                items={data.meds.map((m) => ({
-                  key: `meds-${m.anchorCharacterId ?? "player"}`,
-                  primary: `Household bill${m.anchorCharacterName ? ` · top: ${m.anchorCharacterName}` : ""}`,
-                  secondary: `${m.level} band · ${m.maxChromeCount} CWP · week ${m.weeksUnpaid}${m.multiplier > 1 ? ` · household x${m.multiplier}` : ""} · due ${formatDueDate(m.dueAt)}`,
-                  amount: m.amount,
-                  to: m.anchorCharacterId ? `/characters/${m.anchorCharacterId}` : undefined,
-                }))}
-              />
-
-              <div className="flex justify-end -mt-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <BillSection
+                    icon={Syringe}
+                    color="text-destructive"
+                    title="CYBERPSYCHOSIS MEDS (WEEKLY)"
+                    emptyHint={medsEmptyHint(data.cyberwareStatus)}
+                    items={data.meds.map((m) => ({
+                      key: `meds-${m.anchorCharacterId ?? "player"}`,
+                      primary: `Household bill${m.anchorCharacterName ? ` · top: ${m.anchorCharacterName}` : ""}`,
+                      secondary: `${m.level} band · ${m.maxChromeCount} CWP · week ${m.weeksUnpaid}${m.multiplier > 1 ? ` · household x${m.multiplier}` : ""} · due ${formatDueDate(m.dueAt)}`,
+                      amount: m.amount,
+                      to: m.anchorCharacterId ? `/characters/${m.anchorCharacterId}` : undefined,
+                    }))}
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setMedsOpen(true)}
-                  className="rounded-none border-destructive/40 text-destructive hover:bg-destructive/10 font-display tracking-widest text-xs h-8"
+                  className="rounded-none border-destructive/40 text-destructive hover:bg-destructive/10 font-display tracking-widest text-xs h-8 shrink-0"
                   data-testid="button-meds-history"
                 >
                   <History className="w-3 h-3 mr-1" /> MEDS HISTORY
