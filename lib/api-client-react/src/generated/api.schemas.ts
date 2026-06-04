@@ -4449,6 +4449,137 @@ export interface MissionConflictCheck {
   conflicts: MissionConflictCheckConflictsItem[];
 }
 
+export interface EventSignupView {
+  id: number;
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  createdAt: string | null;
+}
+
+export type EventViewEventType = typeof EventViewEventType[keyof typeof EventViewEventType];
+
+
+export const EventViewEventType = {
+  session: 'session',
+  social: 'social',
+  other: 'other',
+} as const;
+
+export type EventViewStatus = typeof EventViewStatus[keyof typeof EventViewStatus];
+
+
+export const EventViewStatus = {
+  scheduled: 'scheduled',
+  cancelled: 'cancelled',
+} as const;
+
+export interface EventView {
+  id: number;
+  title: string;
+  eventType: EventViewEventType;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startAt: string;
+  endAt: string;
+  status: EventViewStatus;
+  needsNpcs: boolean;
+  /** @nullable */
+  npcBlurb?: string | null;
+  /** @nullable */
+  createdById?: string | null;
+  /** @nullable */
+  createdByName?: string | null;
+  /** True when a Discord scheduled event is linked. */
+  hasDiscordEvent: boolean;
+  /**
+     * Last Discord sync error (managers only).
+     * @nullable
+     */
+  discordSyncError?: string | null;
+  /** Number of active NPC sign-ups. */
+  signupCount: number;
+  /** The caller's own active NPC sign-up; null if none. */
+  mySignup?: EventSignupView | null;
+  /** True if caller is fixer/admin (sees Edit + roster). */
+  canManage: boolean;
+  /** Full NPC sign-up roster (managers only, detail view only). */
+  signups?: EventSignupView[];
+}
+
+export type EventCreateInputEventType = typeof EventCreateInputEventType[keyof typeof EventCreateInputEventType];
+
+
+export const EventCreateInputEventType = {
+  session: 'session',
+  social: 'social',
+  other: 'other',
+} as const;
+
+export interface EventCreateInput {
+  /** @minLength 1 */
+  title: string;
+  eventType?: EventCreateInputEventType;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startAt: string;
+  endAt: string;
+  needsNpcs?: boolean;
+  /** @nullable */
+  npcBlurb?: string | null;
+}
+
+export type EventUpdateInputEventType = typeof EventUpdateInputEventType[keyof typeof EventUpdateInputEventType];
+
+
+export const EventUpdateInputEventType = {
+  session: 'session',
+  social: 'social',
+  other: 'other',
+} as const;
+
+export interface EventUpdateInput {
+  /** @minLength 1 */
+  title?: string;
+  eventType?: EventUpdateInputEventType;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startAt?: string;
+  endAt?: string;
+  needsNpcs?: boolean;
+  /** @nullable */
+  npcBlurb?: string | null;
+}
+
+export interface EventNpcSignupInput {
+  /**
+     * Optionally one of your own characters to NPC as.
+     * @nullable
+     */
+  characterId?: number | null;
+  /** @nullable */
+  note?: string | null;
+}
+
 /**
  * Assign a player to a mission. Provide either userId (the player) or characterId; when only characterId is given the server derives the owning player. Entries that resolve to no player are skipped.
  */
@@ -4928,6 +5059,23 @@ fixerId?: string;
 
 export type SearchMissionActorsParams = {
 q?: string;
+};
+
+export type ListEventsParams = {
+/**
+ * @maximum 1000
+ */
+limit?: number;
+};
+
+export type CheckEventConflictsParams = {
+startAt: string;
+endAt: string;
+excludeEventId?: string;
+};
+
+export type CancelEvent200 = {
+  ok: boolean;
 };
 
 export type AdminListAuditParams = {

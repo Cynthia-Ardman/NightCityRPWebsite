@@ -3,7 +3,7 @@ import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, type LucideIcon } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, type LucideIcon } from "lucide-react";
 
 type FixerTool = {
   href: string;
@@ -33,6 +33,15 @@ const FIXER_TOOLS: FixerTool[] = [
     description: "Create, track, and resolve missions — assign players, set rewards, and mark completion.",
     cta: "Open mission log",
     accent: "magenta",
+  },
+  {
+    href: "/fixer/events",
+    testId: "link-fixer-events",
+    icon: PartyPopper,
+    title: "Events",
+    description: "Schedule sessions, socials, and other non-mission events — they sync to Discord and show on the calendar.",
+    cta: "Manage events",
+    accent: "cyan",
   },
   {
     href: "/fixer/reports",

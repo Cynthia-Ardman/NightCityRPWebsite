@@ -63,6 +63,9 @@ import FixerPlayerLookup from "@/pages/fixer/FixerPlayerLookup";
 import InventoryItemDetail from "@/pages/InventoryItemDetail";
 import Missions from "@/pages/Missions";
 import MissionDetail from "@/pages/MissionDetail";
+import DirectoryCalendar from "@/pages/directory/DirectoryCalendar";
+import EventDetail from "@/pages/EventDetail";
+import FixerEvents from "@/pages/fixer/FixerEvents";
 import LoginError from "@/pages/LoginError";
 import LogoutError from "@/pages/LogoutError";
 
@@ -228,6 +231,11 @@ function AppRoutes() {
           <Route path="/dice" component={DiceRoller} />
           <Route path="/missions" component={Missions} />
           <Route path="/missions/:id" component={MissionDetail} />
+          <Route path="/directory/calendar" component={DirectoryCalendar} />
+          <Route path="/events/:id" component={EventDetail} />
+          <Route path="/fixer/events">
+            <FixerGuard><FixerEvents /></FixerGuard>
+          </Route>
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/users/:userId" component={AdminUserDetail} />
           <Route path="/admin/lifestyle" component={AdminLifestyle} />

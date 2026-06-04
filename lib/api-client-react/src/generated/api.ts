@@ -52,6 +52,7 @@ import type {
   BreachPuzzleInput,
   BreachResult,
   BreachResultInput,
+  CancelEvent200,
   CancelPendingEdit200,
   CatalogCyberware,
   CatalogCyberwareInput,
@@ -78,6 +79,7 @@ import type {
   CharacterStatusUpdate,
   CharacterUpdate,
   CharacterUpdateNote,
+  CheckEventConflictsParams,
   CheckMissionConflictsParams,
   CloseReviewTicket200,
   ConfirmNpcSignupInput,
@@ -106,6 +108,10 @@ import type {
   EmployeeInput,
   EmployeeInviteResult,
   EmployeePatch,
+  EventCreateInput,
+  EventNpcSignupInput,
+  EventUpdateInput,
+  EventView,
   FixerNpc,
   FixerNpcInput,
   FixerNpcUpdate,
@@ -144,6 +150,7 @@ import type {
   ListArchiveUsersParams,
   ListBreachPuzzlesParams,
   ListCustomRequestsParams,
+  ListEventsParams,
   ListGuidebookEditsParams,
   ListGuidebookParams,
   ListHousingRequestsParams,
@@ -8852,6 +8859,606 @@ export const useConfirmNpcSignup = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getConfirmNpcSignupMutationOptions(options));
+    }
+
+export const getListEventsUrl = (params?: ListEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/events?${stringifiedParams}` : `/api/events`
+}
+
+/**
+ * @summary List non-cancelled events (sessions/socials). All authenticated users.
+ */
+export const listEvents = async (params?: ListEventsParams, options?: RequestInit): Promise<EventView[]> => {
+
+  return customFetch<EventView[]>(getListEventsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEventsQueryKey = (params?: ListEventsParams,) => {
+    return [
+    `/api/events`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEventsQueryOptions = <TData = Awaited<ReturnType<typeof listEvents>>, TError = ErrorType<unknown>>(params?: ListEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEventsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEvents>>> = ({ signal }) => listEvents(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEventsQueryResult = NonNullable<Awaited<ReturnType<typeof listEvents>>>
+export type ListEventsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List non-cancelled events (sessions/socials). All authenticated users.
+ */
+
+export function useListEvents<TData = Awaited<ReturnType<typeof listEvents>>, TError = ErrorType<unknown>>(
+ params?: ListEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEventsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateEventUrl = () => {
+
+
+
+
+  return `/api/events`
+}
+
+/**
+ * @summary Create an event (fixer/admin). Auto-syncs a Discord scheduled event in Live mode.
+ */
+export const createEvent = async (eventCreateInput: EventCreateInput, options?: RequestInit): Promise<EventView> => {
+
+  return customFetch<EventView>(getCreateEventUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      eventCreateInput,)
+  }
+);}
+
+
+
+
+export const getCreateEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEvent>>, TError,{data: BodyType<EventCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEvent>>, TError,{data: BodyType<EventCreateInput>}, TContext> => {
+
+const mutationKey = ['createEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEvent>>, {data: BodyType<EventCreateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createEvent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEventMutationResult = NonNullable<Awaited<ReturnType<typeof createEvent>>>
+    export type CreateEventMutationBody = BodyType<EventCreateInput>
+    export type CreateEventMutationError = ErrorType<void>
+
+    /**
+ * @summary Create an event (fixer/admin). Auto-syncs a Discord scheduled event in Live mode.
+ */
+export const useCreateEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEvent>>, TError,{data: BodyType<EventCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEvent>>,
+        TError,
+        {data: BodyType<EventCreateInput>},
+        TContext
+      > => {
+      return useMutation(getCreateEventMutationOptions(options));
+    }
+
+export const getCheckEventConflictsUrl = (params: CheckEventConflictsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/events/conflicts?${stringifiedParams}` : `/api/events/conflicts`
+}
+
+/**
+ * @summary Surface overlapping Discord scheduled events so fixers avoid duplicates. Fixer/admin only.
+ */
+export const checkEventConflicts = async (params: CheckEventConflictsParams, options?: RequestInit): Promise<MissionConflictCheck> => {
+
+  return customFetch<MissionConflictCheck>(getCheckEventConflictsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCheckEventConflictsQueryKey = (params?: CheckEventConflictsParams,) => {
+    return [
+    `/api/events/conflicts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCheckEventConflictsQueryOptions = <TData = Awaited<ReturnType<typeof checkEventConflicts>>, TError = ErrorType<void>>(params: CheckEventConflictsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkEventConflicts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCheckEventConflictsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof checkEventConflicts>>> = ({ signal }) => checkEventConflicts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof checkEventConflicts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CheckEventConflictsQueryResult = NonNullable<Awaited<ReturnType<typeof checkEventConflicts>>>
+export type CheckEventConflictsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Surface overlapping Discord scheduled events so fixers avoid duplicates. Fixer/admin only.
+ */
+
+export function useCheckEventConflicts<TData = Awaited<ReturnType<typeof checkEventConflicts>>, TError = ErrorType<void>>(
+ params: CheckEventConflictsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkEventConflicts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCheckEventConflictsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetEventUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}`
+}
+
+/**
+ * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins.
+ */
+export const getEvent = async (id: number, options?: RequestInit): Promise<EventView> => {
+
+  return customFetch<EventView>(getGetEventUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEventQueryKey = (id: number,) => {
+    return [
+    `/api/events/${id}`
+    ] as const;
+    }
+
+
+export const getGetEventQueryOptions = <TData = Awaited<ReturnType<typeof getEvent>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEventQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEvent>>> = ({ signal }) => getEvent(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEvent>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEventQueryResult = NonNullable<Awaited<ReturnType<typeof getEvent>>>
+export type GetEventQueryError = ErrorType<void>
+
+
+/**
+ * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins.
+ */
+
+export function useGetEvent<TData = Awaited<ReturnType<typeof getEvent>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEventQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateEventUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}`
+}
+
+/**
+ * @summary Update an event (fixer/admin). Re-syncs the linked Discord scheduled event in Live mode.
+ */
+export const updateEvent = async (id: number,
+    eventUpdateInput: EventUpdateInput, options?: RequestInit): Promise<EventView> => {
+
+  return customFetch<EventView>(getUpdateEventUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      eventUpdateInput,)
+  }
+);}
+
+
+
+
+export const getUpdateEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEvent>>, TError,{id: number;data: BodyType<EventUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEvent>>, TError,{id: number;data: BodyType<EventUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEvent>>, {id: number;data: BodyType<EventUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateEvent(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEventMutationResult = NonNullable<Awaited<ReturnType<typeof updateEvent>>>
+    export type UpdateEventMutationBody = BodyType<EventUpdateInput>
+    export type UpdateEventMutationError = ErrorType<void>
+
+    /**
+ * @summary Update an event (fixer/admin). Re-syncs the linked Discord scheduled event in Live mode.
+ */
+export const useUpdateEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEvent>>, TError,{id: number;data: BodyType<EventUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEvent>>,
+        TError,
+        {id: number;data: BodyType<EventUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateEventMutationOptions(options));
+    }
+
+export const getCancelEventUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}`
+}
+
+/**
+ * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode.
+ */
+export const cancelEvent = async (id: number, options?: RequestInit): Promise<CancelEvent200> => {
+
+  return customFetch<CancelEvent200>(getCancelEventUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getCancelEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelEvent>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelEvent>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['cancelEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelEvent>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  cancelEvent(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelEventMutationResult = NonNullable<Awaited<ReturnType<typeof cancelEvent>>>
+
+    export type CancelEventMutationError = ErrorType<void>
+
+    /**
+ * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode.
+ */
+export const useCancelEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelEvent>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelEvent>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCancelEventMutationOptions(options));
+    }
+
+export const getSignUpAsEventNpcUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/npc-signups`
+}
+
+/**
+ * @summary Sign up to NPC on an event that needs NPCs (optionally with one of your own characters).
+ */
+export const signUpAsEventNpc = async (id: number,
+    eventNpcSignupInput?: EventNpcSignupInput, options?: RequestInit): Promise<EventView> => {
+
+  return customFetch<EventView>(getSignUpAsEventNpcUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      eventNpcSignupInput,)
+  }
+);}
+
+
+
+
+export const getSignUpAsEventNpcMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signUpAsEventNpc>>, TError,{id: number;data?: BodyType<EventNpcSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof signUpAsEventNpc>>, TError,{id: number;data?: BodyType<EventNpcSignupInput>}, TContext> => {
+
+const mutationKey = ['signUpAsEventNpc'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signUpAsEventNpc>>, {id: number;data?: BodyType<EventNpcSignupInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  signUpAsEventNpc(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SignUpAsEventNpcMutationResult = NonNullable<Awaited<ReturnType<typeof signUpAsEventNpc>>>
+    export type SignUpAsEventNpcMutationBody = BodyType<EventNpcSignupInput> | undefined
+    export type SignUpAsEventNpcMutationError = ErrorType<void>
+
+    /**
+ * @summary Sign up to NPC on an event that needs NPCs (optionally with one of your own characters).
+ */
+export const useSignUpAsEventNpc = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signUpAsEventNpc>>, TError,{id: number;data?: BodyType<EventNpcSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof signUpAsEventNpc>>,
+        TError,
+        {id: number;data?: BodyType<EventNpcSignupInput>},
+        TContext
+      > => {
+      return useMutation(getSignUpAsEventNpcMutationOptions(options));
+    }
+
+export const getWithdrawEventNpcSignupUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/npc-signups/me`
+}
+
+/**
+ * @summary Withdraw your own active NPC sign-up on an event.
+ */
+export const withdrawEventNpcSignup = async (id: number, options?: RequestInit): Promise<EventView> => {
+
+  return customFetch<EventView>(getWithdrawEventNpcSignupUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getWithdrawEventNpcSignupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['withdrawEventNpcSignup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  withdrawEventNpcSignup(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawEventNpcSignupMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawEventNpcSignup>>>
+
+    export type WithdrawEventNpcSignupMutationError = ErrorType<void>
+
+    /**
+ * @summary Withdraw your own active NPC sign-up on an event.
+ */
+export const useWithdrawEventNpcSignup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawEventNpcSignup>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getWithdrawEventNpcSignupMutationOptions(options));
     }
 
 export const getAdminListAuditUrl = (params?: AdminListAuditParams,) => {

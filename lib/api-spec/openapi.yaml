@@ -1897,6 +1897,140 @@ paths:
         "404": { description: Not found. }
         "409": { description: Mission cancelled. }
 
+  # ---------------- EVENTS (non-mission calendar items: sessions, socials) ----------------
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: "List non-cancelled events (sessions/socials). All authenticated users."
+      parameters:
+        - { in: query, name: limit, schema: { type: integer, default: 500, maximum: 1000 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EventView" }
+    post:
+      operationId: createEvent
+      tags: [events]
+      summary: "Create an event (fixer/admin). Auto-syncs a Discord scheduled event in Live mode."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventCreateInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventView" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+  /events/conflicts:
+    get:
+      operationId: checkEventConflicts
+      tags: [events]
+      summary: "Surface overlapping Discord scheduled events so fixers avoid duplicates. Fixer/admin only."
+      parameters:
+        - { in: query, name: startAt, required: true, schema: { type: string, format: date-time } }
+        - { in: query, name: endAt, required: true, schema: { type: string, format: date-time } }
+        - { in: query, name: excludeEventId, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionConflictCheck" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+  /events/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getEvent
+      tags: [events]
+      summary: "Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventView" }
+        "404": { description: Not found. }
+    patch:
+      operationId: updateEvent
+      tags: [events]
+      summary: "Update an event (fixer/admin). Re-syncs the linked Discord scheduled event in Live mode."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventUpdateInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventView" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+    delete:
+      operationId: cancelEvent
+      tags: [events]
+      summary: "Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+  /events/{id}/npc-signups:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: signUpAsEventNpc
+      tags: [events]
+      summary: "Sign up to NPC on an event that needs NPCs (optionally with one of your own characters)."
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventNpcSignupInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventView" }
+        "400": { description: Bad request }
+        "404": { description: Not found. }
+        "409": { description: Event not accepting NPC sign-ups. }
+  /events/{id}/npc-signups/me:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    delete:
+      operationId: withdrawEventNpcSignup
+      tags: [events]
+      summary: "Withdraw your own active NPC sign-up on an event."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventView" }
+        "404": { description: Not found. }
+
   /admin/audit:
     get:
       operationId: adminListAudit
@@ -7309,6 +7443,82 @@ components:
               name: { type: string }
               startAt: { type: string, format: date-time }
               endAt: { type: ["string", "null"], format: date-time }
+
+    EventSignupView:
+      type: object
+      required: [id, userId, createdAt]
+      properties:
+        id: { type: integer }
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+        characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
+        note: { type: ["string", "null"] }
+        createdAt: { type: ["string", "null"], format: date-time }
+
+    EventView:
+      type: object
+      required: [id, title, eventType, startAt, endAt, status, needsNpcs, hasDiscordEvent, signupCount, canManage]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        eventType: { type: string, enum: [session, social, other] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        status: { type: string, enum: [scheduled, cancelled] }
+        needsNpcs: { type: boolean }
+        npcBlurb: { type: ["string", "null"] }
+        createdById: { type: ["string", "null"] }
+        createdByName: { type: ["string", "null"] }
+        hasDiscordEvent: { type: boolean, description: "True when a Discord scheduled event is linked." }
+        discordSyncError: { type: ["string", "null"], description: "Last Discord sync error (managers only)." }
+        signupCount: { type: integer, description: "Number of active NPC sign-ups." }
+        mySignup:
+          oneOf:
+            - $ref: "#/components/schemas/EventSignupView"
+            - type: "null"
+          description: "The caller's own active NPC sign-up; null if none."
+        canManage: { type: boolean, description: "True if caller is fixer/admin (sees Edit + roster)." }
+        signups:
+          type: array
+          description: "Full NPC sign-up roster (managers only, detail view only)."
+          items: { $ref: "#/components/schemas/EventSignupView" }
+
+    EventCreateInput:
+      type: object
+      required: [title, startAt, endAt]
+      properties:
+        title: { type: string, minLength: 1 }
+        eventType: { type: string, enum: [session, social, other], default: social }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        needsNpcs: { type: boolean, default: false }
+        npcBlurb: { type: ["string", "null"] }
+
+    EventUpdateInput:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        eventType: { type: string, enum: [session, social, other] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        needsNpcs: { type: boolean }
+        npcBlurb: { type: ["string", "null"] }
+
+    EventNpcSignupInput:
+      type: object
+      properties:
+        characterId: { type: ["integer", "null"], description: "Optionally one of your own characters to NPC as." }
+        note: { type: ["string", "null"] }
 
     MissionAssignmentInput:
       type: object

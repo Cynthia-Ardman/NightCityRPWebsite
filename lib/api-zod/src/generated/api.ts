@@ -4715,6 +4715,315 @@ export const ConfirmNpcSignupResponse = zod.object({
 
 
 /**
+ * @summary List non-cancelled events (sessions/socials). All authenticated users.
+ */
+export const listEventsQueryLimitDefault = 500;
+export const listEventsQueryLimitMax = 1000;
+
+
+
+export const ListEventsQueryParams = zod.object({
+  "limit": zod.coerce.number().max(listEventsQueryLimitMax).default(listEventsQueryLimitDefault)
+})
+
+export const ListEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "eventType": zod.enum(['session', 'social', 'other']),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date(),
+  "status": zod.enum(['scheduled', 'cancelled']),
+  "needsNpcs": zod.boolean(),
+  "npcBlurb": zod.string().nullish(),
+  "createdById": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
+  "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+}),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "signups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})
+export const ListEventsResponse = zod.array(ListEventsResponseItem)
+
+
+/**
+ * @summary Create an event (fixer/admin). Auto-syncs a Discord scheduled event in Live mode.
+ */
+
+export const createEventBodyEventTypeDefault = `social`;
+export const createEventBodyNeedsNpcsDefault = false;
+
+export const CreateEventBody = zod.object({
+  "title": zod.string().min(1),
+  "eventType": zod.enum(['session', 'social', 'other']).default(createEventBodyEventTypeDefault),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date(),
+  "needsNpcs": zod.boolean().default(createEventBodyNeedsNpcsDefault),
+  "npcBlurb": zod.string().nullish()
+})
+
+
+/**
+ * @summary Surface overlapping Discord scheduled events so fixers avoid duplicates. Fixer/admin only.
+ */
+export const CheckEventConflictsQueryParams = zod.object({
+  "startAt": zod.date(),
+  "endAt": zod.date(),
+  "excludeEventId": zod.coerce.string().optional()
+})
+
+export const CheckEventConflictsResponse = zod.object({
+  "checked": zod.boolean().describe('False if Discord couldn\'t be reached (fail-safe; never blocks).'),
+  "error": zod.string().nullish(),
+  "conflicts": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
+ * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins.
+ */
+export const GetEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEventResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "eventType": zod.enum(['session', 'social', 'other']),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date(),
+  "status": zod.enum(['scheduled', 'cancelled']),
+  "needsNpcs": zod.boolean(),
+  "npcBlurb": zod.string().nullish(),
+  "createdById": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
+  "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+}),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "signups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})
+
+
+/**
+ * @summary Update an event (fixer/admin). Re-syncs the linked Discord scheduled event in Live mode.
+ */
+export const UpdateEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateEventBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "eventType": zod.enum(['session', 'social', 'other']).optional(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date().optional(),
+  "endAt": zod.coerce.date().optional(),
+  "needsNpcs": zod.boolean().optional(),
+  "npcBlurb": zod.string().nullish()
+})
+
+export const UpdateEventResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "eventType": zod.enum(['session', 'social', 'other']),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date(),
+  "status": zod.enum(['scheduled', 'cancelled']),
+  "needsNpcs": zod.boolean(),
+  "npcBlurb": zod.string().nullish(),
+  "createdById": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
+  "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+}),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "signups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})
+
+
+/**
+ * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode.
+ */
+export const CancelEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CancelEventResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Sign up to NPC on an event that needs NPCs (optionally with one of your own characters).
+ */
+export const SignUpAsEventNpcParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SignUpAsEventNpcBody = zod.object({
+  "characterId": zod.number().nullish().describe('Optionally one of your own characters to NPC as.'),
+  "note": zod.string().nullish()
+})
+
+export const SignUpAsEventNpcResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "eventType": zod.enum(['session', 'social', 'other']),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date(),
+  "status": zod.enum(['scheduled', 'cancelled']),
+  "needsNpcs": zod.boolean(),
+  "npcBlurb": zod.string().nullish(),
+  "createdById": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
+  "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+}),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "signups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})
+
+
+/**
+ * @summary Withdraw your own active NPC sign-up on an event.
+ */
+export const WithdrawEventNpcSignupParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const WithdrawEventNpcSignupResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "eventType": zod.enum(['session', 'social', 'other']),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date(),
+  "status": zod.enum(['scheduled', 'cancelled']),
+  "needsNpcs": zod.boolean(),
+  "npcBlurb": zod.string().nullish(),
+  "createdById": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
+  "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+}),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "signups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})
+
+
+/**
  * @summary Filtered audit feed (recent activity events).
  */
 export const adminListAuditQueryLimitDefault = 100;

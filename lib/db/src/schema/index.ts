@@ -908,6 +908,66 @@ export const missionNpcSignups = pgTable("mission_npc_signups", {
 }));
 export type MissionNpcSignup = typeof missionNpcSignups.$inferSelect;
 
+// Non-mission events (regular sessions, social lobbies, etc.). Distinct from
+// `missions`: events carry no money/payment lifecycle — they're a calendar
+// item plus an optional "actors needed" call. A website event optionally owns
+// a linked Discord scheduled-event (mirrors missions.discordEventId), kept in
+// sync by the events service (gated by the shared missions Test/Live switch).
+export const events = pgTable("events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  // Preset category: 'session' | 'social' | 'other'. Drives calendar styling.
+  eventType: text("event_type").notNull().default("social"),
+  location: text("location"),
+  description: text("description"),
+  // Optional banner image; null falls back to a default at render time.
+  imageUrl: text("image_url"),
+  // Event window (UTC). Both required — Discord scheduled events need a start
+  // AND end time.
+  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+  endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+  // scheduled | cancelled
+  status: text("status").notNull().default("scheduled"),
+  // Optional NPC call: when needsNpcs, players can apply to act as an NPC and
+  // npcBlurb describes what's needed.
+  needsNpcs: boolean("needs_npcs").notNull().default(false),
+  npcBlurb: text("npc_blurb"),
+  createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  // Linked Discord scheduled-event id (null if sync never succeeded / test mode).
+  discordEventId: text("discord_event_id"),
+  // Last Discord sync failure surfaced to staff (cleared on success).
+  discordSyncError: text("discord_sync_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => ({
+  startIdx: index("events_start_idx").on(t.startAt),
+  statusIdx: index("events_status_idx").on(t.status),
+  createdByIdx: index("events_created_by_idx").on(t.createdById),
+}));
+export type Event = typeof events.$inferSelect;
+
+// Player sign-ups to act as an NPC on an event that has needsNpcs set. A
+// partial unique index keeps at most one ACTIVE ('signed_up') sign-up per
+// (event, user); withdrawing frees the slot so a re-signup is possible.
+export const eventNpcSignups = pgTable("event_npc_signups", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  characterId: integer("character_id").references(() => characters.id, { onDelete: "set null" }),
+  note: text("note"),
+  // signed_up | withdrawn
+  state: text("state").notNull().default("signed_up"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => ({
+  oneActivePerUserIdx: uniqueIndex("event_npc_signups_active_idx")
+    .on(t.eventId, t.userId)
+    .where(sql`state = 'signed_up'`),
+  eventIdx: index("event_npc_signups_event_idx").on(t.eventId),
+  userIdx: index("event_npc_signups_user_idx").on(t.userId),
+}));
+export type EventNpcSignup = typeof eventNpcSignups.$inferSelect;
+
 export const wholesalerItems = pgTable("wholesaler_items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

@@ -21,6 +21,7 @@ import loreRouter from "./lore";
 import guidebookRouter from "./guidebook";
 import reviewRouter from "./review";
 import breachRouter from "./breach";
+import eventsRouter from "./events";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(loreRouter);
 router.use(guidebookRouter);
 router.use(reviewRouter);
 router.use(breachRouter);
+router.use(eventsRouter);
 
 export default router;
