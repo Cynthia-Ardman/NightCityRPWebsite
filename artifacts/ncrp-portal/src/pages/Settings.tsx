@@ -13,9 +13,12 @@ import {
   type NotificationRolesStatus,
 } from "@/hooks/useNotificationRoles";
 import { Bell, BellOff, LogOut, User } from "lucide-react";
+import { useListMyCharacters } from "@workspace/api-client-react";
+import { PlayerLoaControl } from "./Home";
 
 export default function Settings() {
   const { data: me } = useAuthMe();
+  const { data: characters } = useListMyCharacters();
 
   if (!me) {
     return (
@@ -37,6 +40,7 @@ export default function Settings() {
       </div>
 
       <NotificationsSection />
+      <PlayerLoaControl characters={characters ?? []} />
       <AccountSection />
     </div>
   );

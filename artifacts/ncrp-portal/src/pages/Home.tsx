@@ -144,8 +144,6 @@ function Dashboard() {
 
       <NotificationPrefsPrompt />
 
-      <PlayerLoaControl characters={characters ?? []} />
-
       <NextMissionBanner />
 
       <NpcSessionBanner />
