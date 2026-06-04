@@ -1702,9 +1702,14 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
                     <span className={billable ? "text-foreground" : "text-muted-foreground"}>
                       {b.characterName}
                     </span>
-                    <span className="flex items-baseline gap-2 whitespace-nowrap">
-                      <span className={`tabular-nums tracking-wide ${billable ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
-                        {b.chromeCount}&nbsp;CWP
+                    <span className="flex items-baseline gap-2.5 whitespace-nowrap">
+                      <span className="flex items-baseline gap-1">
+                        <span className={`tabular-nums text-sm ${billable ? "text-foreground font-bold" : "text-muted-foreground"}`}>
+                          {b.chromeCount}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                          CWP
+                        </span>
                       </span>
                       <span className={`text-[11px] font-semibold uppercase tracking-wider ${bandColorClass(b.band)}`}>
                         {bandLabel(b.band)}
