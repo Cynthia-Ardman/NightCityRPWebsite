@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
-import LifeStatusPill from "@/components/LifeStatusPill";
 
 export default function CharactersList() {
   const { data: characters, isLoading: charsLoading } = useListMyCharacters();
@@ -222,7 +221,6 @@ function CharacterSection({
                     </p>
                   )}
                   <div className="flex items-center justify-between text-xs font-mono mt-auto pt-3 border-t border-border/50">
-                    <LifeStatusPill status={char.lifeStatus ?? "active"} />
                     {char.approved ? (
                       <span className="flex items-center gap-1 text-nc-cyan">
                         <Shield className="w-3 h-3" /> APPROVED

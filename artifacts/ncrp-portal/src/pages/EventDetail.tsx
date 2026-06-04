@@ -6,14 +6,17 @@ import {
   useSignUpAsEventNpc,
   useWithdrawEventNpcSignup,
   useListMyCharacters,
+  useCreateActorPayout,
   getGetEventQueryKey,
   getListEventsQueryKey,
+  getGetActorPayoutsQueryKey,
   type EventView,
   type EventSignupView,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -197,7 +200,7 @@ function EventDetailView({ data }: { data: EventView }) {
 
       {/* Roster — managers only (mirrors the server, which only returns the full
           signups list to fixers/admins). */}
-      {data.canManage && <NpcRoster signups={data.signups ?? []} />}
+      {data.canManage && <NpcRoster event={data} signups={data.signups ?? []} />}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
@@ -361,7 +364,28 @@ function NpcSignupSection({ data }: { data: EventView }) {
   );
 }
 
-function NpcRoster({ signups }: { signups: EventSignupView[] }) {
+function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupView[] }) {
+  const qc = useQueryClient();
+  const pay = useCreateActorPayout({
+    mutation: { onSuccess: () => qc.invalidateQueries({ queryKey: getGetActorPayoutsQueryKey() }) },
+  });
+  const [amount, setAmount] = useState(0);
+
+  // One payout per distinct user, even if they signed up more than once.
+  const userIds = Array.from(new Set(signups.map((s) => s.userId).filter((x): x is string => !!x)));
+  const payErr = errOf(pay.error);
+  const canPay = userIds.length > 0 && amount > 0 && !pay.isPending;
+  const submitPay = () =>
+    pay.mutate({
+      data: {
+        eventName: event.title,
+        eventType: event.eventType,
+        eventDate: event.startAt,
+        userIds,
+        amount,
+      },
+    });
+
   return (
     <Card className="rounded-none border-border bg-card/50">
       <CardHeader>
@@ -386,6 +410,55 @@ function NpcRoster({ signups }: { signups: EventSignupView[] }) {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Pay everyone who signed up, in one click — no need to re-type names on
+            the Pay Actors page. Pays each distinct signup the same flat fee and
+            records it under ACTOR PAYMENTS on the reports page. */}
+        {userIds.length > 0 && (
+          <div className="mt-4 border-t border-border/40 pt-4 space-y-3" data-testid="block-pay-npcs">
+            <div className="font-display tracking-widest text-xs uppercase text-nc-magenta">
+              Pay these NPCs
+            </div>
+            <p className="font-mono text-xs text-muted-foreground">
+              Pay every signed-up NPC the same flat fee for this event ({userIds.length} actor
+              {userIds.length === 1 ? "" : "s"}). Re-paying the same event won't double up.
+            </p>
+            <div className="flex flex-wrap items-end gap-3 font-mono text-sm">
+              <div className="space-y-1">
+                <Label className="text-xs">FEE PER NPC €$</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={amount || ""}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                  className="rounded-none w-40"
+                  data-testid="input-npc-pay-amount"
+                />
+              </div>
+              <Button
+                type="button"
+                disabled={!canPay}
+                onClick={submitPay}
+                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                data-testid="button-pay-npcs"
+              >
+                {pay.isPending ? "PAYING..." : `PAY ${userIds.length} NPC${userIds.length === 1 ? "" : "S"}`}
+              </Button>
+              {pay.data && (
+                <span className="text-xs text-muted-foreground" data-testid="text-npc-pay-result">
+                  {pay.data.result.live
+                    ? `Paid ${pay.data.result.paid}, failed ${pay.data.result.failed}.`
+                    : `Simulated ${pay.data.result.simulated} (Test mode — no real payout).`}
+                </span>
+              )}
+            </div>
+            {payErr && (
+              <div className="text-destructive text-xs" data-testid="text-npc-pay-error">
+                {payErr}
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

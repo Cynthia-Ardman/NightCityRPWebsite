@@ -34,8 +34,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
-import { ClipboardList, RotateCcw, Pencil, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { ClipboardList, RotateCcw, Pencil, MessageSquare, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import ReviewCommentThread from "@/components/ReviewCommentThread";
+import PendingEditDiffInline from "@/components/PendingEditDiffInline";
 
 // One unified shape for everything a player has submitted, so custom
 // requests (property / gun / cyberware) and standard catalog leases can
@@ -533,6 +534,26 @@ export default function MyRequests() {
                   </div>
                 ) : null}
               </div>
+              {/* Character edits carry a before/after diff so the player can see
+                  exactly what their edit proposed without leaving this page. */}
+              {r.subjectType === "edit" && r.subjectId != null ? (
+                <div className="border border-border/40 bg-background/40 p-3">
+                  <div className="font-display text-[11px] tracking-widest text-nc-cyan mb-2">WHAT CHANGED</div>
+                  <PendingEditDiffInline editId={r.subjectId} />
+                </div>
+              ) : null}
+              {r.respondTo ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
+                  onClick={() => navigate(r.respondTo!)}
+                  data-testid={`button-view-full-${r.key}`}
+                >
+                  <ExternalLink className="w-3 h-3 mr-1" /> VIEW FULL DETAILS
+                </Button>
+              ) : null}
               {r.subjectType && r.subjectId != null ? (
                 <ReviewCommentThread subjectType={r.subjectType} subjectId={r.subjectId} markSeenOnMount />
               ) : null}

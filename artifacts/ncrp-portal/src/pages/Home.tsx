@@ -81,11 +81,11 @@ function Dashboard() {
   // We'll skip recent activity if the hook isn't fully implemented or we just use characters
 
   // Contextual stat cards: only surface what's relevant to *this* viewer.
-  // Total Eddies shows for everyone; the pending-review cards are staff-only
-  // (summary.pendingSheets is a GLOBAL queue count linking to the staff
-  // review page, and pending custom requests are staff-actioned too), so the
-  // request is only fired for staff and each card is hidden when its queue is
-  // empty.
+  // The pending-review cards are staff-only (summary.pendingSheets is a GLOBAL
+  // queue count linking to the staff review page, and pending custom requests
+  // are staff-actioned too), so the request is only fired for staff and each
+  // card is hidden when its queue is empty. (Total Eddies was removed here —
+  // it's already shown in the top-right header.)
   const isStaff = Boolean(user?.isAdmin || user?.isFixer || user?.isCsApprover);
   // Count the ACTIONABLE staff review queue (unseen-by-me misc requests),
   // matching the sidebar "Pending Requests" badge. The raw pending list would
@@ -105,7 +105,6 @@ function Dashboard() {
 
   const statCards = summary
     ? [
-        <StatCard key="eddies" icon={Wallet} label="Total Eddies" value={`€$${summary.totalEddies.toLocaleString()}`} color="yellow" href="/ledger" />,
         ...(isStaff && summary.pendingSheets > 0
           ? [<StatCard key="sheets" icon={FileText} label="Pending Sheets" value={summary.pendingSheets} color="red" href="/sheets/pending" />]
           : []),
@@ -148,12 +147,11 @@ function Dashboard() {
 
       <NpcSessionBanner />
 
-      {/* Contextual top row: the Total Eddies stat (+ staff-only queue cards),
-          the weekly attendance claim, and a per-character "open shop today"
-          button all share ONE responsive auto-fit grid. Every tile is
-          conditional, so they pack together and stretch to fill the row instead
-          of leaving the lone Total Eddies card stranded next to a giant empty
-          gap. Cards reflow onto new rows as more appear. */}
+      {/* Contextual top row: staff-only queue cards, the weekly attendance
+          claim, and a per-character "open shop today" button all share ONE
+          responsive auto-fit grid. Every tile is conditional, so they pack
+          together and stretch to fill the row. Cards reflow onto new rows as
+          more appear. */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
         {statCards}
         <AttendCard />
