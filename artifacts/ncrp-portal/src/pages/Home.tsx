@@ -1703,8 +1703,8 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
                       {b.characterName}
                     </span>
                     <span className="flex items-baseline gap-2 whitespace-nowrap">
-                      <span className={`tabular-nums ${billable ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
-                        {b.chromeCount} CWP
+                      <span className={`tabular-nums tracking-wide ${billable ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
+                        {b.chromeCount}&nbsp;CWP
                       </span>
                       <span className={`text-[11px] font-semibold uppercase tracking-wider ${bandColorClass(b.band)}`}>
                         {bandLabel(b.band)}
