@@ -937,12 +937,26 @@ export const events = pgTable("events", {
   discordEventId: text("discord_event_id"),
   // Last Discord sync failure surfaced to staff (cleared on success).
   discordSyncError: text("discord_sync_error"),
+  // Hash of the last reconciled Discord content (title/description/location/
+  // start/end). The reconcile cron compares each side's current hash to this to
+  // tell which side changed since the last sync ("most recent edit wins")
+  // without a Discord-side modified timestamp.
+  discordSyncedHash: text("discord_synced_hash"),
+  // When this row was last reconciled with its Discord scheduled event.
+  discordSyncedAt: timestamp("discord_synced_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({
   startIdx: index("events_start_idx").on(t.startAt),
   statusIdx: index("events_status_idx").on(t.status),
   createdByIdx: index("events_created_by_idx").on(t.createdById),
+  // At most one event row per linked Discord scheduled event. Partial (only
+  // non-null ids) so the many never-synced rows don't collide, and it lets the
+  // reconcile import use onConflictDoNothing to stay idempotent under
+  // concurrent cron/manual runs or a race with the synchronous create path.
+  discordEventIdUnq: uniqueIndex("events_discord_event_id_unq")
+    .on(t.discordEventId)
+    .where(sql`${t.discordEventId} is not null`),
 }));
 export type Event = typeof events.$inferSelect;
 

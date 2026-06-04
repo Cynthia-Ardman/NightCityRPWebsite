@@ -7627,7 +7627,7 @@ export const AdminAdjustWalletResponse = zod.object({
  * @summary Manually trigger a cron job
  */
 export const AdminRunJobBody = zod.object({
-  "job": zod.enum(['cyberware_humanity', 'monthly_rent', 'role_sync', 'eviction_sweep'])
+  "job": zod.enum(['cyberware_humanity', 'monthly_rent', 'role_sync', 'eviction_sweep', 'discord_event_sync'])
 })
 
 export const AdminRunJobResponse = zod.object({

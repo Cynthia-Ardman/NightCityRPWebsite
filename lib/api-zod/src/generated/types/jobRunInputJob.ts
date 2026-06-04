@@ -14,4 +14,5 @@ export const JobRunInputJob = {
   monthly_rent: 'monthly_rent',
   role_sync: 'role_sync',
   eviction_sweep: 'eviction_sweep',
+  discord_event_sync: 'discord_event_sync',
 } as const;

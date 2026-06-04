@@ -1,8 +1,10 @@
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import {
   db,
   events,
   eventNpcSignups,
+  missions,
   users,
   characters,
   type Event,
@@ -11,9 +13,12 @@ import {
   createGuildScheduledEvent,
   modifyGuildScheduledEvent,
   deleteGuildScheduledEvent,
+  listGuildScheduledEvents,
+  type GuildScheduledEvent,
 } from "./discord";
 import { getMissionContext } from "./missionsConfig";
 import { checkDiscordEventConflict } from "./missionsService";
+import { logger } from "./logger";
 
 // ===========================================================================
 // EVENTS — non-mission calendar items (sessions, socials). Mirrors the mission
@@ -87,13 +92,64 @@ function userDisplayName(u: { globalName: string | null; username: string | null
 }
 
 // ---------------------------------------------------------------------------
+// Content fingerprint of the fields we mirror to Discord (title, description,
+// location, start, end). The reconcile cron stores the last-synced hash on the
+// row, then compares both sides' current hash against it to tell which side
+// changed since the last sync — this is how "most recent edit wins" works
+// without a Discord-side modified timestamp. Image is intentionally excluded:
+// Discord exposes an image hash, not our URL, so they're not comparable.
+//
+// Normalisation MUST match buildEventBody in discord.ts: name/description/
+// location are trimmed + length-capped and a null/empty location collapses to
+// "Night City" (the default we push), so a website null and a Discord
+// "Night City" hash identically. Timestamps compare at second granularity.
+// ---------------------------------------------------------------------------
+interface EventContent {
+  title: string;
+  description: string | null;
+  location: string | null;
+  startAt: Date;
+  endAt: Date;
+}
+
+function eventContentHash(c: EventContent): string {
+  const norm = [
+    c.title.trim().slice(0, 100),
+    (c.description ?? "").trim().slice(0, 1000),
+    (c.location?.trim() || "Night City").slice(0, 100),
+    Math.floor(c.startAt.getTime() / 1000),
+    Math.floor(c.endAt.getTime() / 1000),
+  ];
+  return createHash("sha256").update(JSON.stringify(norm)).digest("hex");
+}
+
+// Discord external events always carry an end time; defend against a missing
+// one (non-external types) by assuming a 2h window so the row stays valid.
+function discordEventContent(d: GuildScheduledEvent): EventContent {
+  const startAt = new Date(d.scheduledStartTime);
+  const endAt = d.scheduledEndTime
+    ? new Date(d.scheduledEndTime)
+    : new Date(startAt.getTime() + 2 * 60 * 60_000);
+  return { title: d.name, description: d.description, location: d.location, startAt, endAt };
+}
+
+export interface EventSyncResult {
+  discordEventId: string | null;
+  discordSyncError: string | null;
+  // Only present when a push was attempted (i.e. live mode). undefined = leave
+  // the stored hash/timestamp untouched.
+  discordSyncedHash?: string | null;
+  discordSyncedAt?: Date | null;
+}
+
+// ---------------------------------------------------------------------------
 // Discord scheduled-event sync (gated by the shared missions Test/Live switch).
 // Never throws — failures are persisted to discordSyncError and returned.
 // ---------------------------------------------------------------------------
 export async function syncEventDiscordEvent(
   event: Event,
   live: boolean,
-): Promise<{ discordEventId: string | null; discordSyncError: string | null }> {
+): Promise<EventSyncResult> {
   if (!live) {
     return { discordEventId: event.discordEventId, discordSyncError: null };
   }
@@ -102,7 +158,7 @@ export async function syncEventDiscordEvent(
     if (!event.discordEventId) return { discordEventId: null, discordSyncError: null };
     const res = await deleteGuildScheduledEvent(event.discordEventId);
     return res.ok
-      ? { discordEventId: null, discordSyncError: null }
+      ? { discordEventId: null, discordSyncError: null, discordSyncedHash: null, discordSyncedAt: new Date() }
       : { discordEventId: event.discordEventId, discordSyncError: res.error };
   }
   const input = {
@@ -116,9 +172,31 @@ export async function syncEventDiscordEvent(
   const res = event.discordEventId
     ? await modifyGuildScheduledEvent(event.discordEventId, input)
     : await createGuildScheduledEvent(input);
-  if (res.ok) return { discordEventId: res.id, discordSyncError: null };
+  if (res.ok) {
+    return {
+      discordEventId: res.id,
+      discordSyncError: null,
+      // Record what we just pushed so the reconcile cron treats this as "in
+      // sync" until one side genuinely diverges.
+      discordSyncedHash: eventContentHash(event),
+      discordSyncedAt: new Date(),
+    };
+  }
   // Keep the old id on failure so a later retry can still modify it.
   return { discordEventId: event.discordEventId, discordSyncError: res.error };
+}
+
+// Persist a sync result onto a row. Always writes id + error (idempotent); only
+// touches the synced hash/timestamp when the sync actually attempted a push.
+async function applyEventSync(id: number, fallback: Event, sync: EventSyncResult): Promise<Event> {
+  const set: Partial<typeof events.$inferInsert> = {
+    discordEventId: sync.discordEventId,
+    discordSyncError: sync.discordSyncError,
+  };
+  if (sync.discordSyncedHash !== undefined) set.discordSyncedHash = sync.discordSyncedHash;
+  if (sync.discordSyncedAt !== undefined) set.discordSyncedAt = sync.discordSyncedAt;
+  const [updated] = await db.update(events).set(set).where(eq(events.id, id)).returning();
+  return updated ?? fallback;
 }
 
 // Reuse the mission conflict check (both share the same Discord guild events).
@@ -277,11 +355,7 @@ export async function createEvent(input: EventInput, createdById: string): Promi
     .returning();
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(created, ctx.live);
-  if (sync.discordEventId !== created.discordEventId || sync.discordSyncError !== created.discordSyncError) {
-    await db.update(events).set(sync).where(eq(events.id, created.id));
-    return { ...created, ...sync };
-  }
-  return created;
+  return applyEventSync(created.id, created, sync);
 }
 
 export async function updateEvent(id: number, patch: Partial<EventInput>): Promise<Event | null> {
@@ -304,11 +378,7 @@ export async function updateEvent(id: number, patch: Partial<EventInput>): Promi
     : [before];
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(updated, ctx.live);
-  if (sync.discordEventId !== updated.discordEventId || sync.discordSyncError !== updated.discordSyncError) {
-    await db.update(events).set(sync).where(eq(events.id, id));
-    return { ...updated, ...sync };
-  }
-  return updated;
+  return applyEventSync(id, updated, sync);
 }
 
 export async function cancelEvent(id: number): Promise<Event | null> {
@@ -321,11 +391,176 @@ export async function cancelEvent(id: number): Promise<Event | null> {
     .returning();
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(updated, ctx.live);
-  if (sync.discordEventId !== updated.discordEventId || sync.discordSyncError !== updated.discordSyncError) {
-    await db.update(events).set(sync).where(eq(events.id, id));
-    return { ...updated, ...sync };
+  return applyEventSync(id, updated, sync);
+}
+
+// ---------------------------------------------------------------------------
+// Bidirectional reconcile (poll-based — there is no Discord gateway). Run from
+// the discord_event_sync cron, which is gated on the missions Test/Live switch
+// so it only mutates real data when missions are Live. Pure REST; safe to call
+// repeatedly. Returns counts for the job log; never throws.
+//
+// Per cycle:
+//  1. For every event row already linked to a Discord event:
+//     - Discord event gone  → cancel the row too (true mirror of a Discord
+//       delete/cancel).
+//     - Both present        → compare each side's content hash to the stored
+//       last-synced hash. Whichever side diverged is the one that changed since
+//       the last sync, so it wins ("most recent edit wins"). If only Discord
+//       changed we pull it down; otherwise we push the website's edit up.
+//  2. Import any Discord event that isn't linked to an event row and isn't
+//     owned by a mission (skipping completed/cancelled ones).
+// ---------------------------------------------------------------------------
+export interface ReconcileResult {
+  imported: number;
+  pulled: number;
+  pushed: number;
+  cancelled: number;
+  error: string | null;
+}
+
+export async function reconcileDiscordEvents(): Promise<ReconcileResult> {
+  const result: ReconcileResult = { imported: 0, pulled: 0, pushed: 0, cancelled: 0, error: null };
+  const list = await listGuildScheduledEvents();
+  if (!list.ok) {
+    result.error = list.error;
+    logger.warn({ error: list.error }, "reconcileDiscordEvents: list failed");
+    return result;
   }
-  return updated;
+  const discordById = new Map(list.events.map((e) => [e.id, e]));
+
+  // Discord ids owned by a mission are off-limits — the mission system owns
+  // their lifecycle, so we never import or reconcile them here.
+  const missionRows = await db
+    .select({ discordEventId: missions.discordEventId })
+    .from(missions)
+    .where(isNotNull(missions.discordEventId));
+  const missionIds = new Set(
+    missionRows.map((r) => r.discordEventId).filter((x): x is string => !!x),
+  );
+
+  const rows = await db.select().from(events);
+  const linkedIds = new Set(rows.map((r) => r.discordEventId).filter((x): x is string => !!x));
+
+  // 1. Reconcile rows already linked to a Discord event.
+  for (const row of rows) {
+    if (!row.discordEventId) continue; // never-synced rows are owned by the create/edit path
+    if (missionIds.has(row.discordEventId)) continue; // defensive: leave mission-owned ids alone
+    const d = discordById.get(row.discordEventId);
+    if (!d) {
+      // Gone from Discord → true mirror: cancel here too (once).
+      if (row.status !== "cancelled") {
+        await db
+          .update(events)
+          .set({ status: "cancelled", discordSyncError: null })
+          .where(eq(events.id, row.id));
+        result.cancelled++;
+      }
+      continue;
+    }
+    // A row we cancelled on the website still has a live Discord event: finish
+    // the mirror by tearing it down here. This also retries cases where the
+    // synchronous cancel push failed transiently or happened while in Test mode.
+    if (row.status === "cancelled") {
+      const del = await deleteGuildScheduledEvent(d.id);
+      if (del.ok) {
+        await db
+          .update(events)
+          .set({ discordEventId: null, discordSyncError: null, discordSyncedAt: new Date() })
+          .where(eq(events.id, row.id));
+        result.cancelled++;
+      } else {
+        await db.update(events).set({ discordSyncError: del.error }).where(eq(events.id, row.id));
+      }
+      continue;
+    }
+
+    const discordHash = eventContentHash(discordEventContent(d));
+    const websiteHash = eventContentHash(row);
+    const synced = row.discordSyncedHash;
+    const discordChanged = discordHash !== synced;
+    const websiteChanged = websiteHash !== synced;
+    if (!discordChanged && !websiteChanged) continue;
+
+    if (discordChanged && !websiteChanged) {
+      // Only Discord moved → pull it into the website row. Guard on the stored
+      // hash (non-null in this branch, since websiteHash === synced) so a
+      // concurrent website edit that landed since we read `rows` isn't
+      // clobbered — if it changed the row, this UPDATE simply no-ops.
+      const c = discordEventContent(d);
+      const upd = await db
+        .update(events)
+        .set({
+          title: c.title,
+          description: c.description,
+          location: c.location,
+          startAt: c.startAt,
+          endAt: c.endAt,
+          discordSyncedHash: discordHash,
+          discordSyncedAt: new Date(),
+          discordSyncError: null,
+        })
+        .where(and(eq(events.id, row.id), eq(events.discordSyncedHash, synced as string)))
+        .returning({ id: events.id });
+      if (upd.length) result.pulled++;
+    } else {
+      // Website moved (and maybe Discord too). Most-recent-wins: push the
+      // website's explicit edit back up. Both-changed is rare because website
+      // edits push synchronously and stamp the hash; honouring the website here
+      // keeps the operator's last on-site action authoritative.
+      const sync = await syncEventDiscordEvent(row, true);
+      await applyEventSync(row.id, row, sync);
+      if (!sync.discordSyncError) result.pushed++;
+    }
+  }
+
+  // 2. Import Discord events with no event row and no owning mission.
+  const creatorIds = [
+    ...new Set(list.events.map((e) => e.creatorId).filter((x): x is string => !!x)),
+  ];
+  const creatorMap = new Map<string, string>(); // discordId -> users.id
+  if (creatorIds.length) {
+    const userRows = await db
+      .select({ id: users.id, discordId: users.discordId })
+      .from(users)
+      .where(inArray(users.discordId, creatorIds));
+    for (const u of userRows) creatorMap.set(u.discordId, u.id);
+  }
+  for (const d of list.events) {
+    if (linkedIds.has(d.id) || missionIds.has(d.id)) continue;
+    if (d.status === 3 || d.status === 4) continue; // skip completed / canceled
+    const c = discordEventContent(d);
+    const imageUrl = d.image
+      ? `https://cdn.discordapp.com/guild-events/${d.id}/${d.image}.png`
+      : null;
+    const inserted = await db
+      .insert(events)
+      .values({
+        title: c.title,
+        eventType: "social",
+        location: c.location,
+        description: c.description,
+        imageUrl,
+        startAt: c.startAt,
+        endAt: c.endAt,
+        status: "scheduled",
+        needsNpcs: false,
+        createdById: d.creatorId ? creatorMap.get(d.creatorId) ?? null : null,
+        discordEventId: d.id,
+        discordSyncedHash: eventContentHash(c),
+        discordSyncedAt: new Date(),
+      })
+      // Idempotent: if a concurrent run (or the synchronous create path) already
+      // linked this Discord id, skip rather than create a duplicate row.
+      .onConflictDoNothing({ target: events.discordEventId, targetWhere: isNotNull(events.discordEventId) })
+      .returning({ id: events.id });
+    if (inserted.length) result.imported++;
+  }
+
+  if (result.imported || result.pulled || result.pushed || result.cancelled) {
+    logger.info(result, "reconcileDiscordEvents applied changes");
+  }
+  return result;
 }
 
 export type SignupResult =

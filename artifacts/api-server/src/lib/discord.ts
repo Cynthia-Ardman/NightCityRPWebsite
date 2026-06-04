@@ -731,8 +731,19 @@ export async function deleteGuildScheduledEvent(eventId: string): Promise<Schedu
 export interface GuildScheduledEvent {
   id: string;
   name: string;
+  description: string | null;
+  /** entity_metadata.location for EXTERNAL events; null otherwise. */
+  location: string | null;
   scheduledStartTime: string;
   scheduledEndTime: string | null;
+  /** Discord user id of the event creator (null for older/bot-made events). */
+  creatorId: string | null;
+  /** Cover image hash (combine with id for the CDN url); null if none. */
+  image: string | null;
+  /** 1=scheduled, 2=active, 3=completed, 4=canceled. */
+  status: number;
+  /** 1=stage, 2=voice, 3=external. */
+  entityType: number;
 }
 
 export type ListScheduledEventsResult =
@@ -761,16 +772,28 @@ export async function listGuildScheduledEvents(): Promise<ListScheduledEventsRes
     const data = (await res.json()) as Array<{
       id: string;
       name: string;
+      description?: string | null;
       scheduled_start_time: string;
       scheduled_end_time: string | null;
+      entity_metadata?: { location?: string | null } | null;
+      creator_id?: string | null;
+      image?: string | null;
+      status?: number;
+      entity_type?: number;
     }>;
     return {
       ok: true,
       events: data.map((e) => ({
         id: e.id,
         name: e.name,
+        description: e.description ?? null,
+        location: e.entity_metadata?.location ?? null,
         scheduledStartTime: e.scheduled_start_time,
         scheduledEndTime: e.scheduled_end_time,
+        creatorId: e.creator_id ?? null,
+        image: e.image ?? null,
+        status: e.status ?? 1,
+        entityType: e.entity_type ?? DISCORD_ENTITY_TYPE_EXTERNAL,
       })),
     };
   } catch (err) {

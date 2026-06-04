@@ -7029,7 +7029,7 @@ components:
       type: object
       required: [job]
       properties:
-        job: { type: string, enum: [cyberware_humanity, monthly_rent, role_sync, eviction_sweep] }
+        job: { type: string, enum: [cyberware_humanity, monthly_rent, role_sync, eviction_sweep, discord_event_sync] }
 
     JobRunResult:
       type: object

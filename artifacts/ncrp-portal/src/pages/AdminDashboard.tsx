@@ -1219,7 +1219,7 @@ export function JobsTab() {
     },
   });
 
-  const handleRunJob = (jobId: "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep") => {
+  const handleRunJob = (jobId: "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "discord_event_sync") => {
     runJob.mutate({ data: { job: jobId } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getAdminListJobsQueryKey() });
@@ -1278,6 +1278,9 @@ export function JobsTab() {
           </Button>
           <Button onClick={() => handleRunJob("role_sync")} disabled={runJob.isPending} className="rounded-none font-display border border-nc-yellow text-nc-yellow hover:bg-nc-yellow hover:text-background" variant="outline" data-testid="btn-job-sync">
             Sync Roles
+          </Button>
+          <Button onClick={() => handleRunJob("discord_event_sync")} disabled={runJob.isPending} className="rounded-none font-display border border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background" variant="outline" data-testid="btn-job-event-sync">
+            Sync Events
           </Button>
         </div>
         

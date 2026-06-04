@@ -1,0 +1,36 @@
+---
+name: Discord scheduled-event ↔ calendar bidirectional sync
+description: How the events↔Discord poll-based reconcile decides direction and stays idempotent (no gateway exists).
+---
+
+# Discord event sync (poll-based, no gateway)
+
+There is NO Discord gateway/websocket listener in this codebase. All Discord
+sync is REST. Bidirectional events↔Discord sync is a poll cron
+(`discord_event_sync`, every 10 min) that calls `reconcileDiscordEvents()` in
+eventsService.ts.
+
+## Direction is decided by a stored content-hash, not a timestamp
+Discord's API exposes no "modified at" on scheduled events. So each event row
+stores `discordSyncedHash` (sha256 of title/description/effective-location/
+start-sec/end-sec) of the last reconciled state. Each cycle compares BOTH sides'
+current hash to the stored one: the side that differs is the side that changed.
+- only Discord changed → pull into the row
+- website changed (or BOTH) → push the website edit up
+**Why both-changed → website-wins (not true most-recent):** website edits push
+synchronously and re-stamp the hash, so genuine both-changed races are rare; we
+honour the operator's last on-site action. Do NOT call this "most recent wins"
+literally — it's website-authoritative on true conflict.
+
+## Hash normalisation MUST match buildEventBody (discord.ts)
+Null/empty location collapses to `"Night City"` (the default we push) so a
+website-null and a Discord-"Night City" hash identically and don't churn forever.
+Image is intentionally excluded (Discord gives an image hash, not our URL).
+
+## Idempotency guards (added after architect review)
+- Partial unique index `events_discord_event_id_unq` on `discord_event_id WHERE NOT NULL`; import uses `onConflictDoNothing` so concurrent cron/manual runs or a race with the synchronous create path can't double-insert.
+- Pull UPDATE is guarded `WHERE discord_synced_hash = <synced>` (non-null in the pull branch) so a concurrent website edit isn't clobbered.
+- True mirror: a Discord delete → cancel the row; a website-cancelled row whose Discord event still exists gets a delete-RETRY in reconcile (covers transient/Test-mode push failures), then nulls discordEventId.
+
+## Gating
+Rides the missions Test/Live switch via `liveSystemByJob["discord_event_sync"]="missions"` in jobs.ts — Test mode is a no-op even via manual /admin/jobs/run. Mission-owned discord ids (missions.discordEventId) are excluded from import/reconcile.

@@ -5,6 +5,7 @@ import { fetchGuildMemberRolesViaBot, postToChannel } from "./discord";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
+import { reconcileDiscordEvents } from "./eventsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode } from "./economy";
 
@@ -232,7 +233,7 @@ async function chargePersonalFeeWithReservation(opts: {
   return true;
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync";
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
   const [run] = await db.insert(jobRuns).values({ job: name, status: "running" }).returning();
@@ -250,6 +251,10 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       monthly_rent: "housing",
       cyberware_humanity: "cyberware",
       eviction_sweep: "evictions",
+      // Events ride the missions Test/Live switch (same as the website→Discord
+      // push path), so the bidirectional reconcile only mutates real data once
+      // missions are Live.
+      discord_event_sync: "missions",
     };
     const gatedSystem = liveSystemByJob[name];
     if (gatedSystem && !(await isSystemLive(gatedSystem))) {
@@ -890,6 +895,14 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       const r = await runEconomyReconcile();
       affected = r.changed + r.seeded;
       message = `economy reconcile (${r.mode}): scanned ${r.scanned}, changed ${r.changed}, seeded ${r.seeded}, ub-unavailable ${r.failed}${r.dryRun ? " [dry-run: no writes]" : ""}`;
+    } else if (name === "discord_event_sync") {
+      // Bidirectional calendar ↔ Discord scheduled-event sync. Imports Discord
+      // events the website hasn't seen and reconciles edits/deletions in both
+      // directions. Gated above via liveSystemByJob ("missions"), so Test mode
+      // skips it entirely.
+      const r = await reconcileDiscordEvents();
+      affected = r.imported + r.pulled + r.pushed + r.cancelled;
+      message = `discord events sync: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}${r.error ? `, error: ${r.error}` : ""}`;
     }
   } catch (err) {
     status = "failed";
@@ -959,6 +972,12 @@ export function startCron() {
         return;
       }
       runJob("economy_reconcile").catch((err) => logger.error({ err }, "economy_reconcile cron"));
+    });
+    // Bidirectional Discord scheduled-event ↔ calendar sync every 10 minutes.
+    // Imports new Discord events and reconciles edits/deletions both ways. Gated
+    // on the missions Test/Live switch inside runJob, so Test mode is a no-op.
+    cron.schedule("*/10 * * * *", () => {
+      runJob("discord_event_sync").catch((err) => logger.error({ err }, "discord_event_sync cron"));
     });
     logger.info("Cron jobs scheduled");
   });
