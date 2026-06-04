@@ -103,7 +103,7 @@ export default function CreateTagsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-none border-nc-cyan/40 bg-card max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-display tracking-widest text-nc-cyan">CREATE TAGS</DialogTitle>
+          <DialogTitle className="font-display tracking-widest text-nc-cyan">MANAGE TAGS</DialogTitle>
           <DialogDescription className="font-mono text-xs text-muted-foreground">
             Manage the shared list of tags. These become selectable when adding tags to a character.
           </DialogDescription>

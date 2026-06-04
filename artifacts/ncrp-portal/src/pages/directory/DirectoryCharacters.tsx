@@ -87,7 +87,7 @@ export default function DirectoryCharacters() {
           className="rounded-none font-display tracking-widest"
           data-testid="button-open-create-tags"
         >
-          <Plus className="h-4 w-4 mr-1" /> Create Tags
+          <Plus className="h-4 w-4 mr-1" /> Manage Tags
         </Button>
       </div>
 
