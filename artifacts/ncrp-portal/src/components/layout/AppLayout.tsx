@@ -131,12 +131,12 @@ function DiscordIcon({ className }: { className?: string }) {
 // opacity (not bright); the icon brightens on hover and the active row shows the
 // full tone on its icon and left border. "neutral" keeps utility rows uncolored.
 const NAV_TONES = {
-  cyan: { icon: "text-nc-cyan/60 group-hover:text-nc-cyan", iconActive: "text-nc-cyan", activeBorder: "border-nc-cyan", heading: "text-nc-cyan/70" },
-  green: { icon: "text-nc-green/60 group-hover:text-nc-green", iconActive: "text-nc-green", activeBorder: "border-nc-green", heading: "text-nc-green/70" },
-  yellow: { icon: "text-nc-yellow/60 group-hover:text-nc-yellow", iconActive: "text-nc-yellow", activeBorder: "border-nc-yellow", heading: "text-nc-yellow/70" },
-  magenta: { icon: "text-nc-magenta/60 group-hover:text-nc-magenta", iconActive: "text-nc-magenta", activeBorder: "border-nc-magenta", heading: "text-nc-magenta/70" },
-  orange: { icon: "text-nc-orange/60 group-hover:text-nc-orange", iconActive: "text-nc-orange", activeBorder: "border-nc-orange", heading: "text-nc-orange/70" },
-  neutral: { icon: "text-muted-foreground group-hover:text-foreground", iconActive: "text-foreground", activeBorder: "border-foreground/40", heading: "text-muted-foreground" },
+  cyan: { icon: "text-nc-cyan/60 group-hover:text-nc-cyan", iconActive: "text-nc-cyan", activeBorder: "border-nc-cyan", heading: "text-nc-cyan/70", hover: "hover:text-nc-cyan hover:border-nc-cyan/50 hover:bg-nc-cyan/5" },
+  green: { icon: "text-nc-green/60 group-hover:text-nc-green", iconActive: "text-nc-green", activeBorder: "border-nc-green", heading: "text-nc-green/70", hover: "hover:text-nc-green hover:border-nc-green/50 hover:bg-nc-green/5" },
+  yellow: { icon: "text-nc-yellow/60 group-hover:text-nc-yellow", iconActive: "text-nc-yellow", activeBorder: "border-nc-yellow", heading: "text-nc-yellow/70", hover: "hover:text-nc-yellow hover:border-nc-yellow/50 hover:bg-nc-yellow/5" },
+  magenta: { icon: "text-nc-magenta/60 group-hover:text-nc-magenta", iconActive: "text-nc-magenta", activeBorder: "border-nc-magenta", heading: "text-nc-magenta/70", hover: "hover:text-nc-magenta hover:border-nc-magenta/50 hover:bg-nc-magenta/5" },
+  orange: { icon: "text-nc-orange/60 group-hover:text-nc-orange", iconActive: "text-nc-orange", activeBorder: "border-nc-orange", heading: "text-nc-orange/70", hover: "hover:text-nc-orange hover:border-nc-orange/50 hover:bg-nc-orange/5" },
+  neutral: { icon: "text-muted-foreground group-hover:text-foreground", iconActive: "text-foreground", activeBorder: "border-foreground/40", heading: "text-muted-foreground", hover: "hover:text-foreground hover:border-foreground/30 hover:bg-foreground/5" },
 } as const;
 
 type NavTone = keyof typeof NAV_TONES;
@@ -181,7 +181,7 @@ function SidebarContent() {
     const t = NAV_TONES[tone];
 
     return (
-      <Link href={href} className={`group flex items-center gap-3 px-4 py-3 text-sm transition-colors border-l-2 ${isActive ? `bg-sidebar-accent text-sidebar-accent-foreground ${t.activeBorder}` : 'text-sidebar-foreground border-transparent hover:bg-sidebar-accent/50'}`}>
+      <Link href={href} className={`group flex items-center gap-3 px-4 py-3 text-sm transition-colors border-l-2 ${isActive ? `bg-sidebar-accent text-sidebar-accent-foreground ${t.activeBorder}` : `text-sidebar-foreground border-transparent ${t.hover}`}`}>
         <Icon className={`h-4 w-4 transition-colors ${isActive ? t.iconActive : t.icon}`} />
         <span className="font-display tracking-widest uppercase">{label}</span>
         {badge ? (
