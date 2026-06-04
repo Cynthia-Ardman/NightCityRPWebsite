@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -795,6 +796,7 @@ function InlineMissionActions({ m }: { m: MissionSummary }) {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [characterId, setCharacterId] = useState<number | "">("");
+  const [comment, setComment] = useState("");
 
   const appErr = errOf(apply.error) ?? errOf(withdrawApp.error);
   const npcErr = errOf(signUp.error) ?? errOf(removeNpc.error);
@@ -922,6 +924,15 @@ function InlineMissionActions({ m }: { m: MissionSummary }) {
                 </option>
               ))}
             </select>
+            <Label className="text-xs">COMMENT (optional)</Label>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              rows={2}
+              className="rounded-none"
+              placeholder="Why your character is a good fit…"
+              data-testid={`input-apply-comment-${m.id}`}
+            />
             {appErr && <div className="text-destructive text-xs">{appErr}</div>}
           </div>
           <DialogFooter>
@@ -930,11 +941,12 @@ function InlineMissionActions({ m }: { m: MissionSummary }) {
               disabled={apply.isPending || characterId === ""}
               onClick={() =>
                 apply.mutate(
-                  { id: m.id, data: { characterId: Number(characterId), comment: null } },
+                  { id: m.id, data: { characterId: Number(characterId), comment: comment || null } },
                   {
                     onSuccess: () => {
                       setDialogOpen(false);
                       setCharacterId("");
+                      setComment("");
                     },
                   },
                 )
