@@ -10,7 +10,8 @@ import {
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Briefcase, PartyPopper } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Briefcase, PartyPopper, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { expandOccurrences } from "@/lib/eventRecurrence";
 
@@ -30,6 +31,8 @@ interface CalItem {
   start: Date;
   href: string;
   subtype: string; // tier label or event type
+  // Raw event type (session/social/other) for colour coding; undefined for missions.
+  eventType?: string;
   myStatus: SignupStatus;
   // Distinguishes individual occurrences of a recurring event so each renders
   // with a stable, unique key.
@@ -159,6 +162,7 @@ export default function DirectoryCalendar() {
             start: occ,
             href: `/events/${e.id}`,
             subtype: EVENT_TYPE_LABEL[e.eventType] ?? "Event",
+            eventType: e.eventType,
             myStatus: isNpc ? "npc" : null,
             occMs: occ.getTime(),
           });
@@ -305,7 +309,10 @@ export default function DirectoryCalendar() {
           <span className="inline-block w-3 h-3 bg-nc-magenta/30 border border-nc-magenta/60" /> Mission
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 bg-nc-cyan/30 border border-nc-cyan/60" /> Event
+          <span className="inline-block w-3 h-3 bg-nc-cyan/30 border border-nc-cyan/60" /> Main Session
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 bg-nc-orange/30 border border-nc-orange/60" /> Social
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block px-1 text-[9px] font-display tracking-wider bg-nc-green/20 border border-nc-green/60 text-nc-green">
@@ -436,13 +443,26 @@ function Segmented({
   );
 }
 
+// Colour + icon per calendar item. Missions are magenta (Briefcase); events
+// split by type so Main Sessions (cyan, the headline weekly game) read distinctly
+// from Socials (orange) at a glance. Anything else falls back to cyan.
+function chipStyle(item: CalItem): { cls: string; Icon: LucideIcon } {
+  if (item.kind === "mission") {
+    return { cls: "bg-nc-magenta/20 border-nc-magenta/50 hover:bg-nc-magenta/30 text-nc-magenta", Icon: Briefcase };
+  }
+  switch (item.eventType) {
+    case "session":
+      return { cls: "bg-nc-cyan/20 border-nc-cyan/50 hover:bg-nc-cyan/30 text-nc-cyan", Icon: Users };
+    case "social":
+      return { cls: "bg-nc-orange/20 border-nc-orange/50 hover:bg-nc-orange/30 text-nc-orange", Icon: PartyPopper };
+    default:
+      return { cls: "bg-nc-cyan/20 border-nc-cyan/50 hover:bg-nc-cyan/30 text-nc-cyan", Icon: CalendarDays };
+  }
+}
+
 function CalChip({ item, dense }: { item: CalItem; dense?: boolean }) {
   const time = item.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  const isMission = item.kind === "mission";
-  const cls = isMission
-    ? "bg-nc-magenta/20 border-nc-magenta/50 hover:bg-nc-magenta/30 text-nc-magenta"
-    : "bg-nc-cyan/20 border-nc-cyan/50 hover:bg-nc-cyan/30 text-nc-cyan";
-  const Icon = isMission ? Briefcase : PartyPopper;
+  const { cls, Icon } = chipStyle(item);
   const statusLabel =
     item.myStatus === "player" ? "Signed up as player" : item.myStatus === "npc" ? "Signed up as NPC" : null;
   return (

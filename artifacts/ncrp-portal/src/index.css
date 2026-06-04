@@ -44,6 +44,7 @@
   --color-nc-magenta: hsl(var(--nc-magenta));
   --color-nc-yellow: hsl(var(--nc-yellow));
   --color-nc-green: hsl(var(--nc-green));
+  --color-nc-orange: hsl(var(--nc-orange));
 
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
@@ -83,6 +84,7 @@
   --nc-magenta: 320 100% 50%;
   --nc-yellow: 60 100% 50%;
   --nc-green: 145 90% 45%;
+  --nc-orange: 28 100% 55%;
 
   --border: 230 20% 15%;
   
