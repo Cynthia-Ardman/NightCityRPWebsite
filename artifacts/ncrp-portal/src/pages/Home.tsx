@@ -769,8 +769,8 @@ function NpcSessionBanner() {
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Users className="w-6 h-6 text-nc-yellow shrink-0" />
           <div className="min-w-0">
-            <div className="text-[10px] font-mono tracking-widest text-nc-yellow uppercase">
-              Main Session needs NPCs · {countdown}
+            <div className="text-[11px] font-mono tracking-wider text-nc-yellow uppercase">
+              Main Session needs NPCs · <span className="font-semibold tabular-nums text-foreground">{countdown}</span>
             </div>
             <Link href={`/events/${session.id}`}>
               <div
@@ -780,8 +780,8 @@ function NpcSessionBanner() {
                 {session.title}
               </div>
             </Link>
-            <div className="text-xs font-mono text-muted-foreground uppercase flex items-center gap-1 mt-0.5">
-              <Clock className="w-3 h-3" /> {whenStr}
+            <div className="text-sm font-mono text-foreground/80 uppercase flex items-center gap-1 mt-0.5">
+              <Clock className="w-3.5 h-3.5" /> <span className="font-semibold tabular-nums tracking-tight text-foreground">{whenStr}</span>
             </div>
           </div>
         </div>
@@ -937,17 +937,17 @@ function NextMissionBanner() {
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <Briefcase className="w-6 h-6 text-nc-magenta shrink-0" />
             <div className="min-w-0">
-              <div className="text-[10px] font-mono tracking-widest text-nc-magenta uppercase">
-                Next Mission · {countdown}
+              <div className="text-[11px] font-mono tracking-wider text-nc-magenta uppercase">
+                Next Mission · <span className="font-semibold tabular-nums text-foreground">{countdown}</span>
               </div>
               <div className="font-display text-lg md:text-xl text-foreground truncate group-hover:text-nc-magenta transition-colors" data-testid="text-next-mission-title">
                 {next.title}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground uppercase">
+          <div className="flex items-center gap-4 text-sm font-mono text-foreground/80 uppercase">
             <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" /> {whenStr}
+              <Clock className="w-3.5 h-3.5" /> <span className="font-semibold tabular-nums tracking-tight text-foreground">{whenStr}</span>
             </span>
             {next.location && (
               <span className="flex items-center gap-1">
