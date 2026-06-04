@@ -250,7 +250,7 @@ router.put("/admin/characters/:id/owner", adminOrFixer, async (req, res): Promis
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${req.user!.username} assigned ${c.name} to ${u.username}`,
   });
-  res.json({ ...updated, isActive: false });
+  res.json(updated);
 });
 
 router.delete("/admin/characters/:id/owner", adminOrFixer, async (req, res): Promise<void> => {
@@ -272,7 +272,7 @@ router.delete("/admin/characters/:id/owner", adminOrFixer, async (req, res): Pro
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${req.user!.username} cleared ownership of ${c.name}`,
   });
-  res.json({ ...updated, isActive: false });
+  res.json(updated);
 });
 
 // Ripperdoc checkup. Records a checkup, resets the missed-checkup streak
@@ -1645,7 +1645,6 @@ router.post(
       repoint.ripperdocs_owner = (await tx.update(ripperdocs).set({ ownerCharacterId: keepId }).where(eq(ripperdocs.ownerCharacterId, dropId)).returning({ id: ripperdocs.id })).length;
       repoint.character_sheets = (await tx.update(characterSheets).set({ characterId: keepId }).where(eq(characterSheets.characterId, dropId)).returning({ id: characterSheets.id })).length;
       repoint.dice_rolls = (await tx.update(diceRolls).set({ characterId: keepId }).where(eq(diceRolls.characterId, dropId)).returning({ id: diceRolls.id })).length;
-      repoint.users_active_character = (await tx.update(users).set({ activeCharacterId: keepId }).where(eq(users.activeCharacterId, dropId)).returning({ id: users.id })).length;
 
       // 3. Tables with a UNIQUE constraint on characterId: handle
       //    collisions explicitly so the txn doesn't 23505 mid-merge.

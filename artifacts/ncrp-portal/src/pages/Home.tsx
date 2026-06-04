@@ -197,10 +197,6 @@ function Dashboard() {
                           </div>
                         </div>
                         <div className="text-[10px] font-mono shrink-0 flex flex-col items-end gap-0.5">
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <span className={`w-1.5 h-1.5 rounded-full ${char.isActive ? 'bg-nc-cyan' : 'bg-muted'}`} />
-                            {char.isActive ? 'ACTIVE' : 'STANDBY'}
-                          </span>
                           {char.approved && <span className="text-nc-cyan">APPROVED</span>}
                         </div>
                       </div>

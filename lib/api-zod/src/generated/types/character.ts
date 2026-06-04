@@ -36,7 +36,6 @@ export interface Character {
   importedFromChannelName?: string | null;
   /** @nullable */
   discordChannelId?: string | null;
-  isActive?: boolean;
   approved?: boolean;
   archived: boolean;
   /** Headline character status shown on sheets. Editable by the owner via PATCH /characters/{id}. */

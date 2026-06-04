@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { eq } from "drizzle-orm";
-import { db, characters, users, characterUpdates, auditLog } from "@workspace/db";
+import { db, characters, characterUpdates, auditLog } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
 
@@ -36,14 +36,12 @@ describe("DELETE /characters/:id (admin-only permanent deletion)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("deletes the character, cascades related rows, clears active pointers, and audits", async () => {
+  it("deletes the character, cascades related rows, and audits", async () => {
     const admin = await createAdmin();
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id, name: "Doomed Merc" });
     // a related row that should cascade-delete
     await db.insert(characterUpdates).values({ characterId: char.id, authorId: owner.id, note: "log" });
-    // a user actively pointing at this character (plain column, must be nulled)
-    await db.update(users).set({ activeCharacterId: char.id }).where(eq(users.id, owner.id));
 
     const res = await request(app).delete(`/api/characters/${char.id}`).set("x-test-user", admin.id);
     expect(res.status).toBe(204);
@@ -53,9 +51,6 @@ describe("DELETE /characters/:id (admin-only permanent deletion)", () => {
 
     const updates = await db.select().from(characterUpdates).where(eq(characterUpdates.characterId, char.id));
     expect(updates).toHaveLength(0);
-
-    const [refreshedOwner] = await db.select().from(users).where(eq(users.id, owner.id));
-    expect(refreshedOwner.activeCharacterId).toBeNull();
 
     const audits = await db.select().from(auditLog).where(eq(auditLog.action, "deleted"));
     expect(audits.length).toBe(1);

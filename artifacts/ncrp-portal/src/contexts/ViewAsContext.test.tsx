@@ -29,7 +29,6 @@ function makeMe(over: Partial<Me> = {}): Me {
     isCsApprover: false,
     isRipperdoc: false,
     isStoreOwner: false,
-    activeCharacterId: null,
     ...over,
   };
 }

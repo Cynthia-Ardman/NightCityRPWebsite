@@ -250,7 +250,6 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     avatarUrl: u.avatarUrl,
     roles: u.roles,
     verified18: u.verified18,
-    activeCharacterId: u.activeCharacterId,
     loginCount: u.loginCount,
     onboardingBannerDismissed: u.onboardingBannerDismissed,
     notificationPromptDismissed: u.notificationPromptDismissed,

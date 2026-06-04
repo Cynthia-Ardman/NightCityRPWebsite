@@ -19,7 +19,7 @@ function uniq(prefix: string): string {
 }
 
 export async function createUser(
-  opts: { id?: string; username?: string; roles?: string[]; activeCharacterId?: number | null } = {},
+  opts: { id?: string; username?: string; roles?: string[] } = {},
 ) {
   const id = opts.id ?? uniq("user");
   const [u] = await db
@@ -29,7 +29,6 @@ export async function createUser(
       discordId: id,
       username: opts.username ?? `name_${id}`,
       roles: opts.roles ?? [],
-      activeCharacterId: opts.activeCharacterId ?? null,
     })
     .returning();
   return u;

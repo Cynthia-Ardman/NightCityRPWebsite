@@ -24,8 +24,6 @@ export interface Me {
   isCsApprover: boolean;
   isRipperdoc: boolean;
   isStoreOwner: boolean;
-  /** @nullable */
-  activeCharacterId?: number | null;
   /** Number of times this user has logged in via Discord. Drives the first-run onboarding banner. */
   loginCount?: number;
   /** True once the user has dismissed the onboarding banner; it then never re-appears. */

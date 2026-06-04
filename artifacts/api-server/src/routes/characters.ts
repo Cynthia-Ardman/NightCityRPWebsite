@@ -46,7 +46,7 @@ router.get("/characters", requireAuth, async (req, res): Promise<void> => {
     .from(characters)
     .where(eq(characters.ownerId, req.user!.id))
     .orderBy(desc(characters.createdAt));
-  res.json(rows.map((c) => ({ ...c, isActive: c.id === req.user!.activeCharacterId })));
+  res.json(rows);
 });
 
 router.post("/characters", requireAuth, async (req, res): Promise<void> => {
@@ -83,7 +83,7 @@ router.post("/characters", requireAuth, async (req, res): Promise<void> => {
     message: `Created character ${c.name}`,
     after: { name: c.name, kind: c.kind, archetype: c.archetype },
   });
-  res.status(201).json({ ...c, isActive: false });
+  res.status(201).json(c);
 });
 
 router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {
@@ -98,7 +98,7 @@ router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {
     const [t] = await db.select().from(lifestyleTiers).where(eq(lifestyleTiers.id, c.lifestyleTierId));
     lifestyleTier = t ?? null;
   }
-  res.json({ ...c, lifestyleTier, isActive: c.id === req.user!.activeCharacterId });
+  res.json({ ...c, lifestyleTier });
 });
 
 router.put("/characters/:id/lifestyle", requireAuth, async (req, res): Promise<void> => {
@@ -149,7 +149,7 @@ router.put("/characters/:id/lifestyle", requireAuth, async (req, res): Promise<v
       note: `Lifestyle changed: ${prevName} → ${nextName}`,
     });
   }
-  res.json({ ...u, lifestyleTier, isActive: u.id === req.user!.activeCharacterId });
+  res.json({ ...u, lifestyleTier });
 });
 
 const LIFE_STATUSES = ["active", "dead", "missing", "loa", "retired"] as const;
@@ -262,9 +262,6 @@ router.delete("/characters/:id", requireRole("ADMIN"), async (req, res): Promise
     res.status(404).json({ error: "Not found" });
     return;
   }
-  // active_character_id is a plain column (not a cascading FK), so clear any
-  // user still pointing at this character before deleting it.
-  await db.update(users).set({ activeCharacterId: null }).where(eq(users.activeCharacterId, id));
   await db.delete(characters).where(eq(characters.id, id));
   await recordAudit({
     req,
@@ -278,21 +275,6 @@ router.delete("/characters/:id", requireRole("ADMIN"), async (req, res): Promise
   res.sendStatus(204);
 });
 
-router.post("/characters/:id/activate", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const c = await loadOwnedChar(req.user!.id, id);
-  if (!c) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  if (c.archived) {
-    res.status(400).json({ error: "Cannot activate an archived character" });
-    return;
-  }
-  await db.update(users).set({ activeCharacterId: id }).where(eq(users.id, req.user!.id));
-  res.json({ success: true, activeCharacterId: id });
-});
-
 router.post("/characters/:id/deactivate", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const c = await loadOwnedChar(req.user!.id, id);
@@ -301,11 +283,6 @@ router.post("/characters/:id/deactivate", requireAuth, async (req, res): Promise
     return;
   }
   await db.update(characters).set({ archived: true, archivedAt: new Date() }).where(eq(characters.id, id));
-  // If this was the active character, clear it
-  const [u] = await db.select().from(users).where(eq(users.id, req.user!.id));
-  if (u?.activeCharacterId === id) {
-    await db.update(users).set({ activeCharacterId: null }).where(eq(users.id, req.user!.id));
-  }
   res.json({ success: true, archived: true });
 });
 

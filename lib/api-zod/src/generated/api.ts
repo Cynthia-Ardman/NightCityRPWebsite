@@ -58,7 +58,6 @@ export const GetMeResponse = zod.object({
   "isCsApprover": zod.boolean(),
   "isRipperdoc": zod.boolean(),
   "isStoreOwner": zod.boolean(),
-  "activeCharacterId": zod.number().nullish(),
   "loginCount": zod.number().optional().describe('Number of times this user has logged in via Discord. Drives the first-run onboarding banner.'),
   "onboardingBannerDismissed": zod.boolean().optional().describe('True once the user has dismissed the onboarding banner; it then never re-appears.'),
   "notificationPromptDismissed": zod.boolean().optional().describe('True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless.'),
@@ -92,7 +91,6 @@ export const ListMyCharactersResponseItem = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
@@ -153,7 +151,6 @@ export const GetCharacterResponse = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
@@ -236,14 +233,6 @@ export const ListCharacterUpdatesResponseItem = zod.object({
   "authorAvatarUrl": zod.string().nullish()
 })
 export const ListCharacterUpdatesResponse = zod.array(ListCharacterUpdatesResponseItem)
-
-
-/**
- * @summary Set this character as the user's currently active one
- */
-export const SetActiveCharacterParams = zod.object({
-  "id": zod.coerce.number()
-})
 
 
 /**
@@ -557,7 +546,6 @@ export const SetCharacterLifestyleResponse = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
@@ -7025,7 +7013,6 @@ export const AdminListUsersResponseItem = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
@@ -7088,7 +7075,6 @@ export const AdminGetUserResponse = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
@@ -7167,7 +7153,6 @@ export const AdminSyncUserRolesResponse = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
@@ -7240,7 +7225,6 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
@@ -7290,7 +7274,6 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
@@ -7438,7 +7421,6 @@ export const GetPublicCharacterResponse = zod.object({
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
-  "isActive": zod.boolean().optional(),
   "approved": zod.boolean().optional(),
   "archived": zod.boolean(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),

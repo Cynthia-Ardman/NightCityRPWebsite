@@ -823,8 +823,6 @@ export interface Me {
   isCsApprover: boolean;
   isRipperdoc: boolean;
   isStoreOwner: boolean;
-  /** @nullable */
-  activeCharacterId?: number | null;
   /** Number of times this user has logged in via Discord. Drives the first-run onboarding banner. */
   loginCount?: number;
   /** True once the user has dismissed the onboarding banner; it then never re-appears. */
@@ -926,7 +924,6 @@ export interface Character {
   importedFromChannelName?: string | null;
   /** @nullable */
   discordChannelId?: string | null;
-  isActive?: boolean;
   approved?: boolean;
   archived: boolean;
   /** Headline character status shown on sheets. Editable by the owner via PATCH /characters/{id}. */

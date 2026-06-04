@@ -201,17 +201,6 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CharacterUpdateNote" }
-  /characters/{id}/activate:
-    parameters:
-      - { in: path, name: id, required: true, schema: { type: integer } }
-    post:
-      operationId: setActiveCharacter
-      tags: [characters]
-      summary: Set this character as the user's currently active one
-      responses:
-        "204": { description: Activated }
-        "400": { description: Archived character cannot be activated }
-
   /characters/{id}/deactivate:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -5166,7 +5155,6 @@ components:
         isCsApprover: { type: boolean }
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
-        activeCharacterId: { type: ["integer", "null"] }
         loginCount:
           type: integer
           description: "Number of times this user has logged in via Discord. Drives the first-run onboarding banner."
@@ -5208,7 +5196,6 @@ components:
         importedFromThreadId: { type: ["string", "null"] }
         importedFromChannelName: { type: ["string", "null"] }
         discordChannelId: { type: ["string", "null"] }
-        isActive: { type: boolean }
         approved: { type: boolean }
         archived: { type: boolean }
         lifeStatus:

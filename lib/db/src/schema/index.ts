@@ -27,7 +27,6 @@ export const users = pgTable(
     accessToken: text("access_token"),
     refreshToken: text("refresh_token"),
     tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
-    activeCharacterId: integer("active_character_id"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow(),
     rolesSyncedAt: timestamp("roles_synced_at", { withTimezone: true }),
     // True when the member holds the guild's "Verified 18+" role. Computed from
