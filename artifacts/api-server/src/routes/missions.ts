@@ -561,6 +561,7 @@ router.post("/missions/actor-payouts", requireAuth, async (req, res): Promise<vo
   const eventType = typeof b.eventType === "string" && b.eventType.trim() ? b.eventType.trim() : null;
   const userIds = Array.isArray(b.userIds) ? b.userIds.filter((x: unknown): x is string => typeof x === "string" && !!x) : [];
   const amount = Math.trunc(Number(b.amount));
+  const eventId = Number.isInteger(Number(b.eventId)) && Number(b.eventId) > 0 ? Math.trunc(Number(b.eventId)) : null;
   let eventDate: Date | null = null;
   if (typeof b.eventDate === "string" && b.eventDate.trim()) {
     const parsed = new Date(b.eventDate);
@@ -579,7 +580,7 @@ router.post("/missions/actor-payouts", requireAuth, async (req, res): Promise<vo
     return;
   }
   const result = await payStandaloneActors(
-    { eventName, eventType, eventDate, userIds, amount },
+    { eventName, eventType, eventDate, eventId, userIds, amount },
     { req, actorId: viewerOf(req).id },
   );
   res.json({ result, payouts: await getStandaloneActorPayouts() });

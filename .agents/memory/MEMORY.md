@@ -39,6 +39,7 @@
 - [Request review approve/reject race](request-review-race.md) — both approve AND reject of a reviewable row must lock (FOR UPDATE) + re-check pending status, or reject clobbers an applied approve.
 - [Batch grouping by timestamp](batch-grouping-timestamp.md) — per-row INSERTs get distinct createdAt/now(); group a logical batch on a single JS timestamp written to every row, never the column default.
 - [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.
+- [Event actor payout pay-once](event-actor-payout-once.md) — event payouts need a SEPARATE partial unique index on (event_id,user_id); legacy eventId-null standalone path stays unguarded; getEventDetail.paidActorUserIds locks paid NPCs.
 - [Venue sale instant completion](venue-sale-instant-completion.md) — sales charge buyer on operator action via create→completeSaleOffer→delete-if-pending; keep row on needsReconcile; TEST mode returns dryRun 200 leaving pending.
 - [Financial decision authz](financial-decision-current-owner.md) — spend-on-approval AND owner-gated decisions (stock/employee) must re-load the resource and gate on its CURRENT ownerId, not the requestedById snapshotted at creation.
 - [Sheet approval materialization](sheet-approval-materialization.md) — approving a character_sheet must create+link a characters row (atomically); sheet.characterId is user-supplied, validate ownership before any write.

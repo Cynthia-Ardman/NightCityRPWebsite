@@ -5,6 +5,7 @@ import {
   events,
   eventNpcSignups,
   missions,
+  missionActorPayments,
   users,
   characters,
   type Event,
@@ -113,6 +114,9 @@ export interface EventView {
   recurrence: EventRecurrenceRule | null;
   // Only populated on the detail view for managers.
   signups?: EventSignupView[];
+  // userIds already paid as an actor for THIS event (managers, detail only).
+  // Used to lock already-paid NPCs in the roster so they can't be paid twice.
+  paidActorUserIds?: string[];
 }
 
 // Mission images are stored as app-relative paths (e.g. "/api/storage/...").
@@ -447,6 +451,13 @@ export async function getEventDetail(id: number, viewer: EventViewer): Promise<E
     true,
   );
   view.description = await resolveMentions(view.description);
+  if (viewer.isManager) {
+    const paidRows = await db
+      .select({ userId: missionActorPayments.userId })
+      .from(missionActorPayments)
+      .where(and(eq(missionActorPayments.eventId, id), eq(missionActorPayments.paymentStatus, "paid")));
+    view.paidActorUserIds = [...new Set(paidRows.map((r) => r.userId))];
+  }
   return view;
 }
 

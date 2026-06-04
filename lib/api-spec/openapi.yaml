@@ -7515,6 +7515,10 @@ components:
           type: array
           description: "Full NPC sign-up roster (managers only, detail view only)."
           items: { $ref: "#/components/schemas/EventSignupView" }
+        paidActorUserIds:
+          type: array
+          description: "userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster."
+          items: { type: string }
 
     EventCreateInput:
       type: object
@@ -7623,6 +7627,7 @@ components:
         eventName: { type: string, minLength: 1, description: "Free-form event label, e.g. \"Sunday Session\" or \"Open Social Lobby\"." }
         eventType: { type: ["string", "null"], description: "Preset category: session | social_lobby | other." }
         eventDate: { type: ["string", "null"], format: date-time, description: "Date the session/lobby took place; defaults to now." }
+        eventId: { type: ["integer", "null"], description: "Optional portal event id. When set, payouts are deduped per (eventId, userId) so an NPC can't be paid twice for the same event." }
         userIds: { type: array, items: { type: string }, minItems: 1 }
         amount: { type: integer, minimum: 0 }
 

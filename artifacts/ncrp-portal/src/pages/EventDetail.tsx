@@ -364,24 +364,63 @@ function NpcSignupSection({ data }: { data: EventView }) {
   );
 }
 
+// Attendance + pay-once roster. Each distinct signup gets an attendance
+// checkbox; the fixer checks who actually showed up, sets one flat fee, and pays
+// only the checked NPCs. The backend dedups per (eventId, userId) so an NPC can
+// only ever be paid ONCE for this event — already-paid NPCs are shown locked
+// with a PAID badge, and any NPC left unchecked stays payable later.
 function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupView[] }) {
   const qc = useQueryClient();
   const pay = useCreateActorPayout({
-    mutation: { onSuccess: () => qc.invalidateQueries({ queryKey: getGetActorPayoutsQueryKey() }) },
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetActorPayoutsQueryKey() });
+        // Refresh the event so paidActorUserIds (and thus the PAID locks) update.
+        qc.invalidateQueries({ queryKey: getGetEventQueryKey(event.id) });
+        setSelected(new Set());
+      },
+    },
   });
   const [amount, setAmount] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // One payout per distinct user, even if they signed up more than once.
-  const userIds = Array.from(new Set(signups.map((s) => s.userId).filter((x): x is string => !!x)));
+  const paidSet = new Set(event.paidActorUserIds ?? []);
+
+  // One row per distinct user, even if they signed up more than once. Track
+  // whether each is already paid so we can lock them.
+  const seen = new Set<string>();
+  const roster = signups
+    .filter((s) => {
+      if (!s.userId || seen.has(s.userId)) return false;
+      seen.add(s.userId);
+      return true;
+    })
+    .map((s) => ({ signup: s, userId: s.userId as string, paid: paidSet.has(s.userId as string) }));
+
+  const unpaid = roster.filter((r) => !r.paid);
+  const allUnpaidSelected = unpaid.length > 0 && unpaid.every((r) => selected.has(r.userId));
+
+  const toggle = (userId: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(userId) ? next.delete(userId) : next.add(userId);
+      return next;
+    });
+  const toggleAll = () =>
+    setSelected(allUnpaidSelected ? new Set() : new Set(unpaid.map((r) => r.userId)));
+
+  // Only pay checked NPCs who haven't already been paid for this event.
+  const payableIds = unpaid.filter((r) => selected.has(r.userId)).map((r) => r.userId);
   const payErr = errOf(pay.error);
-  const canPay = userIds.length > 0 && amount > 0 && !pay.isPending;
+  const canPay = payableIds.length > 0 && amount > 0 && !pay.isPending;
   const submitPay = () =>
     pay.mutate({
       data: {
         eventName: event.title,
         eventType: event.eventType,
         eventDate: event.startAt,
-        userIds,
+        eventId: event.id,
+        userIds: payableIds,
         amount,
       },
     });
@@ -394,35 +433,70 @@ function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupV
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {signups.length === 0 ? (
+        {roster.length === 0 ? (
           <p className="font-mono text-muted-foreground italic">No NPC sign-ups yet.</p>
         ) : (
-          <ul className="divide-y divide-border/40 font-mono text-sm">
-            {signups.map((s) => (
-              <li key={s.id} className="py-2 flex flex-col gap-0.5" data-testid={`row-signup-${s.id}`}>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-foreground">{s.userName ?? "(unknown)"}</span>
-                  {s.characterName && (
-                    <span className="text-nc-cyan text-xs">as {s.characterName}</span>
+          <>
+            {unpaid.length > 0 && (
+              <label
+                className="flex items-center gap-2 pb-2 mb-1 border-b border-border/40 font-mono text-xs text-muted-foreground cursor-pointer select-none"
+                data-testid="toggle-select-all-npcs"
+              >
+                <input
+                  type="checkbox"
+                  checked={allUnpaidSelected}
+                  onChange={toggleAll}
+                  className="h-4 w-4 accent-nc-cyan"
+                  data-testid="checkbox-select-all-npcs"
+                />
+                Mark all attended
+              </label>
+            )}
+            <ul className="divide-y divide-border/40 font-mono text-sm">
+              {roster.map(({ signup: s, userId, paid }) => (
+                <li key={s.id} className="py-2 flex items-start gap-3" data-testid={`row-signup-${s.id}`}>
+                  {paid ? (
+                    <span className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  ) : (
+                    <input
+                      type="checkbox"
+                      checked={selected.has(userId)}
+                      onChange={() => toggle(userId)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-nc-cyan cursor-pointer"
+                      data-testid={`checkbox-attended-${s.id}`}
+                      aria-label={`Mark ${s.userName ?? "NPC"} attended`}
+                    />
                   )}
-                </div>
-                {s.note && <p className="text-muted-foreground text-xs whitespace-pre-wrap">{s.note}</p>}
-              </li>
-            ))}
-          </ul>
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-foreground">{s.userName ?? "(unknown)"}</span>
+                      {s.characterName && <span className="text-nc-cyan text-xs">as {s.characterName}</span>}
+                      {paid && (
+                        <span
+                          className="px-1.5 py-0.5 text-[9px] font-display tracking-wider uppercase border bg-nc-green/20 border-nc-green/60 text-nc-green"
+                          data-testid={`badge-npc-paid-${s.id}`}
+                        >
+                          Paid
+                        </span>
+                      )}
+                    </div>
+                    {s.note && <p className="text-muted-foreground text-xs whitespace-pre-wrap">{s.note}</p>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
 
-        {/* Pay everyone who signed up, in one click — no need to re-type names on
-            the Pay Actors page. Pays each distinct signup the same flat fee and
-            records it under ACTOR PAYMENTS on the reports page. */}
-        {userIds.length > 0 && (
+        {/* Attendance checklist payout: check who showed up, set one flat fee,
+            pay only the checked + not-yet-paid NPCs. Each NPC can only be paid
+            once per event; unchecked NPCs stay payable later. */}
+        {unpaid.length > 0 && (
           <div className="mt-4 border-t border-border/40 pt-4 space-y-3" data-testid="block-pay-npcs">
-            <div className="font-display tracking-widest text-xs uppercase text-nc-magenta">
-              Pay these NPCs
-            </div>
+            <div className="font-display tracking-widest text-xs uppercase text-nc-magenta">Pay attending NPCs</div>
             <p className="font-mono text-xs text-muted-foreground">
-              Pay every signed-up NPC the same flat fee for this event ({userIds.length} actor
-              {userIds.length === 1 ? "" : "s"}). Re-paying the same event won't double up.
+              Check the NPCs who actually attended, set the flat fee, then pay. Each NPC can only be paid once for this
+              event — unchecked NPCs stay payable later, and already-paid NPCs are locked.
             </p>
             <div className="flex flex-wrap items-end gap-3 font-mono text-sm">
               <div className="space-y-1">
@@ -443,12 +517,12 @@ function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupV
                 className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
                 data-testid="button-pay-npcs"
               >
-                {pay.isPending ? "PAYING..." : `PAY ${userIds.length} NPC${userIds.length === 1 ? "" : "S"}`}
+                {pay.isPending ? "PAYING..." : `PAY ${payableIds.length} NPC${payableIds.length === 1 ? "" : "S"}`}
               </Button>
               {pay.data && (
                 <span className="text-xs text-muted-foreground" data-testid="text-npc-pay-result">
                   {pay.data.result.live
-                    ? `Paid ${pay.data.result.paid}, failed ${pay.data.result.failed}.`
+                    ? `Paid ${pay.data.result.paid}, failed ${pay.data.result.failed}${pay.data.result.skipped ? `, already paid ${pay.data.result.skipped}` : ""}.`
                     : `Simulated ${pay.data.result.simulated} (Test mode — no real payout).`}
                 </span>
               )}

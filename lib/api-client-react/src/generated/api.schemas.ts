@@ -4535,6 +4535,8 @@ export interface EventView {
   recurrence?: EventRecurrence | null;
   /** Full NPC sign-up roster (managers only, detail view only). */
   signups?: EventSignupView[];
+  /** userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster. */
+  paidActorUserIds?: string[];
 }
 
 export type EventCreateInputEventType = typeof EventCreateInputEventType[keyof typeof EventCreateInputEventType];
@@ -4763,6 +4765,11 @@ export interface StandaloneActorPayInput {
      * @nullable
      */
   eventDate?: string | null;
+  /**
+     * Optional portal event id. When set, payouts are deduped per (eventId, userId) so an NPC can't be paid twice for the same event.
+     * @nullable
+     */
+  eventId?: number | null;
   /** @minItems 1 */
   userIds: string[];
   /** @minimum 0 */

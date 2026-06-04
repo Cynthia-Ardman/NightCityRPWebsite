@@ -2170,7 +2170,7 @@ export async function payMissionActors(
  * legitimately acts at many sessions); we only de-dupe within a single request.
  */
 export async function payStandaloneActors(
-  input: { eventName: string; eventType?: string | null; eventDate?: Date | null; userIds: string[]; amount: number },
+  input: { eventName: string; eventType?: string | null; eventDate?: Date | null; eventId?: number | null; userIds: string[]; amount: number },
   opts: { req?: Request; actorId?: string | null; actorName?: string | null },
 ): Promise<PayActorsResult> {
   const ctx = await getMissionContext();
@@ -2207,6 +2207,7 @@ export async function payStandaloneActors(
     const u = userById.get(userId);
     const base = {
       missionId: null,
+      eventId: input.eventId ?? null,
       missionName: eventName,
       eventType: input.eventType ?? null,
       userId,
@@ -2226,10 +2227,29 @@ export async function payStandaloneActors(
       continue;
     }
 
-    const [inserted] = await db
-      .insert(missionActorPayments)
-      .values({ ...base, paymentStatus: "paid" })
-      .returning({ id: missionActorPayments.id });
+    // Event-bound payouts are deduped per (eventId, userId): if this actor was
+    // already paid for this event, onConflictDoNothing skips the insert and we
+    // count it as skipped rather than double-paying. Mission/legacy standalone
+    // payouts keep their existing no-guard behaviour.
+    const insertedRows = input.eventId != null
+      ? await db
+          .insert(missionActorPayments)
+          .values({ ...base, paymentStatus: "paid" })
+          .onConflictDoNothing({
+            target: [missionActorPayments.eventId, missionActorPayments.userId],
+            where: sql`payment_status = 'paid' and event_id is not null`,
+          })
+          .returning({ id: missionActorPayments.id })
+      : await db
+          .insert(missionActorPayments)
+          .values({ ...base, paymentStatus: "paid" })
+          .returning({ id: missionActorPayments.id });
+    const inserted = insertedRows[0];
+    if (!inserted) {
+      // Already paid for this event — skip silently.
+      result.skipped++;
+      continue;
+    }
 
     if (!u?.discordId) {
       await db

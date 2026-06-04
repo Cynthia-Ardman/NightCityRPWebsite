@@ -3013,6 +3013,7 @@ export const CreateActorPayoutBody = zod.object({
   "eventName": zod.string().min(1).describe('Free-form event label, e.g. \"Sunday Session\" or \"Open Social Lobby\".'),
   "eventType": zod.string().nullish().describe('Preset category: session | social_lobby | other.'),
   "eventDate": zod.coerce.date().nullish().describe('Date the session\/lobby took place; defaults to now.'),
+  "eventId": zod.number().nullish().describe('Optional portal event id. When set, payouts are deduped per (eventId, userId) so an NPC can\'t be paid twice for the same event.'),
   "userIds": zod.array(zod.string()).min(1),
   "amount": zod.number().min(createActorPayoutBodyAmountMin)
 })
@@ -4766,7 +4767,8 @@ export const ListEventsResponseItem = zod.object({
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
   "createdAt": zod.coerce.date().nullable()
-})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
 export const ListEventsResponse = zod.array(ListEventsResponseItem)
 
@@ -4861,7 +4863,8 @@ export const GetEventResponse = zod.object({
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
   "createdAt": zod.coerce.date().nullable()
-})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
 
 
@@ -4929,7 +4932,8 @@ export const UpdateEventResponse = zod.object({
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
   "createdAt": zod.coerce.date().nullable()
-})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
 
 
@@ -4999,7 +5003,8 @@ export const SignUpAsEventNpcResponse = zod.object({
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
   "createdAt": zod.coerce.date().nullable()
-})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
 
 
@@ -5052,7 +5057,8 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
   "createdAt": zod.coerce.date().nullable()
-})).optional().describe('Full NPC sign-up roster (managers only, detail view only).')
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
 
 

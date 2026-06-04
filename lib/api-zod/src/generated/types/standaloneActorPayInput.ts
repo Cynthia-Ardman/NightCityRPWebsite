@@ -22,6 +22,11 @@ export interface StandaloneActorPayInput {
      * @nullable
      */
   eventDate?: Date | null;
+  /**
+     * Optional portal event id. When set, payouts are deduped per (eventId, userId) so an NPC can't be paid twice for the same event.
+     * @nullable
+     */
+  eventId?: number | null;
   /** @minItems 1 */
   userIds: string[];
   /** @minimum 0 */

@@ -835,6 +835,10 @@ export const missionActorPayments = pgTable("mission_actor_payments", {
   // null the event label lives in missionName, the date in missionDate, and the
   // preset category in eventType.
   missionId: integer("mission_id").references(() => missions.id, { onDelete: "cascade" }),
+  // Optional link to a non-mission portal event. When set, actor payouts are
+  // deduped per (eventId, userId) so the same NPC can't be paid twice for one
+  // event (a no-show left unchecked can still be paid later).
+  eventId: integer("event_id").references(() => events.id, { onDelete: "set null" }),
   missionName: text("mission_name"),
   // Preset category for non-mission payouts: 'session' | 'social_lobby' |
   // 'other'. Null for mission-tied actor payments.
@@ -859,6 +863,11 @@ export const missionActorPayments = pgTable("mission_actor_payments", {
   onePaidPerActorIdx: uniqueIndex("mission_actor_paid_unique_idx")
     .on(t.missionId, t.userId)
     .where(sql`payment_status = 'paid'`),
+  // Pay-once guard for non-mission EVENT payouts: at most one paid row per
+  // (eventId, userId). Partial so it only applies to event-bound paid rows.
+  onePaidPerEventActorIdx: uniqueIndex("mission_actor_event_paid_unique_idx")
+    .on(t.eventId, t.userId)
+    .where(sql`payment_status = 'paid' and event_id is not null`),
   missionIdx: index("mission_actor_payments_mission_idx").on(t.missionId),
   userIdx: index("mission_actor_payments_user_idx").on(t.userId),
   fixerIdx: index("mission_actor_payments_fixer_idx").on(t.fixerId),

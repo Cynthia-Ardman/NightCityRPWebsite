@@ -441,7 +441,6 @@ function MyEventsCard() {
     });
   }
 
-  if (items.length === 0) return null;
   items.sort((a, b) => a.start.getTime() - b.start.getTime());
   const shown = items.slice(0, 6);
 
@@ -454,11 +453,18 @@ function MyEventsCard() {
       </div>
       <Card className="rounded-none border-border bg-card/50">
         <CardContent className="p-0">
-          <div className="divide-y divide-border/50">
-            {shown.map((it) => (
-              <DashCalRow key={`${it.kind}-${it.id}-${it.start.getTime()}`} item={it} />
-            ))}
-          </div>
+          {shown.length === 0 ? (
+            <p className="font-mono text-xs text-muted-foreground italic p-4" data-testid="text-my-events-empty">
+              You haven't signed up for any upcoming missions or events. Browse the{" "}
+              <Link href="/directory/calendar" className="text-nc-cyan hover:underline">calendar</Link> to join one.
+            </p>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {shown.map((it) => (
+                <DashCalRow key={`${it.kind}-${it.id}-${it.start.getTime()}`} item={it} />
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

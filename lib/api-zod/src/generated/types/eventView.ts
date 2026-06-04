@@ -47,4 +47,6 @@ export interface EventView {
   recurrence?: EventRecurrence | null;
   /** Full NPC sign-up roster (managers only, detail view only). */
   signups?: EventSignupView[];
+  /** userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster. */
+  paidActorUserIds?: string[];
 }
