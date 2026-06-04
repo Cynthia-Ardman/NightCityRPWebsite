@@ -146,6 +146,10 @@ function Dashboard() {
 
       <PlayerLoaControl characters={characters ?? []} />
 
+      <NextMissionBanner />
+
+      <NpcSessionBanner />
+
       {/* Contextual top row: the Total Eddies stat (+ staff-only queue cards),
           the weekly attendance claim, and a per-character "open shop today"
           button all share ONE responsive auto-fit grid. Every tile is
@@ -159,10 +163,6 @@ function Dashboard() {
           <ShopOpenSection key={c.id} characterId={c.id} name={c.name} />
         ))}
       </div>
-
-      <NextMissionBanner />
-
-      <NpcSessionBanner />
 
       {/* Layout flipped: characters live on /characters, so on the dashboard they
           collapse to a compact left-rail list. Bills / attendance / system logs
