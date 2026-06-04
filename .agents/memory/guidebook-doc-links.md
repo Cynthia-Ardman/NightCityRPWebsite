@@ -26,7 +26,17 @@ links. Lives in `guidebookImport.ts` + `scripts/apply-task188-pages.ts`.
 **Run order:** create/refresh library pages FIRST (apply-task188-pages.ts), then
 re-run import-guidebook.ts so the rewrite can resolve the now-existing ids.
 
-## Re-import vs editedSinceImport (Task #187 interplay)
+## Channel `<#id>` mention links
+Discord channel mentions resolve to a destination via `buildChannelLinkMap()`:
+- `CHANNEL_PORTAL_LINKS` is the **authoritative** static map of channels to
+  non-guidebook destinations (e.g. `/catalog/rent`, `/characters`). A DB
+  guidebook page that happens to carry the same `discordChannelId` must NOT
+  override these — guard the DB-derived loop with `!(channelId in CHANNEL_PORTAL_LINKS)`
+  or a stale/legacy page silently hijacks the link.
+- Otherwise a channel imported as its own page links to `/guidebook/<id>`, and
+  `CHANNEL_PAGE_ALIASES` maps alias channels to the page slug that carries them.
+
+## Re-import vs editedSinceImport interplay
 If a page is `editedSinceImport = true`, a re-import does NOT overwrite the live
 body — the rewritten content is stashed in `pendingImport` for admin review
 (POST `/guidebook/import/review/:id/apply`). So after re-import, FAQ/systems link

@@ -8,6 +8,7 @@ import {
   useDeleteSheet,
   useGetSheet,
   useListCyberware,
+  useListGuidebook,
   getListMySheetsQueryKey,
   getGetSheetQueryKey,
 } from "@workspace/api-client-react";
@@ -126,6 +127,17 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   // while it is still in review — no re-submit, just save changes.
   const isInReview = initialSheet?.status === "pending";
   const { data: catalog } = useListCyberware();
+
+  // Resolve the Avatar Restrictions guidebook page so we can link straight to it
+  // from the portrait/stats area. Falls back to the rules section if the page
+  // can't be found (e.g. it was renamed or not yet imported).
+  const { data: guidebook } = useListGuidebook();
+  const avatarRestrictionsHref = useMemo(() => {
+    const page = guidebook?.sections
+      .flatMap((s) => s.pages)
+      .find((p) => p.slug === "avatar-restrictions");
+    return page ? `/guidebook/${page.id}` : guidebookSectionHref("rules");
+  }, [guidebook]);
 
   // Distinct slot names from the cyberware catalog, plus a quick lookup set.
   const catalogSlots = useMemo(() => {
@@ -644,6 +656,20 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardContent className="space-y-6 font-mono">
           <p className="text-xs text-muted-foreground">
             A portrait and a stats screenshot are required to submit for review. Drafts can be saved without them.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Any avatar must meet{" "}
+            <Link
+              href={avatarRestrictionsHref}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-nc-cyan hover:underline"
+              data-testid="link-avatar-restrictions"
+            >
+              these requirements
+              <ExternalLink className="w-3 h-3 opacity-70" />
+            </Link>
+            .
           </p>
           <ImageEditor
             title="Portrait *"

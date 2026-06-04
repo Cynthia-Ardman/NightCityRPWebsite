@@ -25,6 +25,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useDeleteSheet: () => ({ mutateAsync: h.deleteMutateAsync, isPending: false }),
   useGetSheet: () => ({ data: h.state.getSheetData, isLoading: false }),
   useListCyberware: () => ({ data: [] }),
+  useListGuidebook: () => ({ data: { sections: [] } }),
   useGetMe: () => ({ data: h.state.me, isLoading: false }),
   getGetMeQueryKey: () => ["me"],
   getListMySheetsQueryKey: () => ["sheets", "mine"],
@@ -34,6 +35,9 @@ vi.mock("@workspace/api-client-react", () => ({
 vi.mock("wouter", () => ({
   useParams: () => (h.state.paramsId ? { id: h.state.paramsId } : {}),
   useLocation: () => ["/", h.setLocation],
+  Link: ({ href, children }: { href: string; children: React.ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 
 vi.mock("@tanstack/react-query", async (orig) => {

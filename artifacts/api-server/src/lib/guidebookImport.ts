@@ -217,29 +217,58 @@ const TIMESTAMP_RE = /<t:(\d+)(?::([tTdDfFR]))?>/g;
 const DISCORD_DEEPLINK_RE =
   /(?<![<(])https?:\/\/(?:discord\.com|discordapp\.com)\/channels\/(\d+)\/(\d+)(?:\/\d+)?/g;
 
-// Map of Discord channel id -> portal path for content that now lives on the
-// website. Mentions/links to these channels are rewritten to point at the
-// portal; channels not listed here keep their original Discord link.
-const CHANNEL_LINK_MAP: Record<string, string> = {
-  // Guidebook sections (anchors on the /guidebook browse page)
-  "1386132844258267156": "/guidebook#getting_started", // getting-started-with-ncrp
-  "1354586004601835700": "/guidebook#faq", // faq
-  "1386137184486293644": "/guidebook#npc_acting", // npc-acting
-  "1348654324124880926": "/guidebook#schedule", // schedule
-  "1349207148659478538": "/guidebook#rules", // rp-rules
-  "1349482890051981462": "/guidebook#rules", // avatar-restrictions
-  "1351049157875339274": "/guidebook#setup", // link-vrc-and-discord
-  "1351682248453259264": "/guidebook#setup", // discord-invite-link
-  "1349139640128376913": "/guidebook#setup", // vrc-group-link
-  "1384036684760616980": "/guidebook#systems", // detailed-systems-explanation
-  "1387192935308591256": "/guidebook#schedule", // event-announcements
-  // Other portal areas
+// Discord channels whose content now lives elsewhere on the portal (NOT as a
+// guidebook page). Links to these channels are rewritten to the portal area.
+const CHANNEL_PORTAL_LINKS: Record<string, string> = {
   "1384441172180729981": "/directory/lore", // lore
   "1348603380821528626": "/characters", // character-creation
-  "1379934118799736884": "/catalog/rent", // business-creation -> Property section
+  "1379934118799736884": "/catalog/rent", // business-creation -> Property catalog
   "1379934227499454616": "/catalog/rent", // request-lease-or-rental
-  "1384033835280240640": "/guidebook#systems", // systems-explanation
 };
+
+// Alias Discord channels that should point at an existing on-site guidebook
+// page, but whose own channel was not imported as its own page. Resolved to
+// /guidebook/<id> via the page slug at run time.
+const CHANNEL_PAGE_ALIASES: Record<string, string> = {
+  "1387192935308591256": "schedule-events", // event-announcements -> Schedule page
+  "1384033835280240640": "detailed-systems-explanation", // systems-explanation alias
+};
+
+// channelId -> portal path for the current import run. A Discord channel that
+// became its own guidebook page links straight to that page (/guidebook/<id>)
+// so readers open the page instead of landing on the browse page and scrolling.
+export type ChannelLinkMap = Map<string, string>;
+
+// Build the channel -> portal-path map. Combines the static non-guidebook
+// destinations with the converted guidebook pages, resolved from the DB so the
+// per-environment page ids are always correct.
+export async function buildChannelLinkMap(): Promise<ChannelLinkMap> {
+  const map: ChannelLinkMap = new Map(Object.entries(CHANNEL_PORTAL_LINKS));
+  const pages = await db
+    .select({
+      id: guidebookPages.id,
+      slug: guidebookPages.slug,
+      discordChannelId: guidebookPages.discordChannelId,
+    })
+    .from(guidebookPages)
+    .orderBy(guidebookPages.id);
+  const idBySlug = new Map<string, number>();
+  for (const p of pages) if (p.slug) idBySlug.set(p.slug, p.id);
+  // A channel imported as its own page links straight to that page — but never
+  // override a static non-guidebook destination (e.g. a stale page that still
+  // carries the lore/character-creation channel id must not hijack it).
+  for (const p of pages) {
+    if (p.discordChannelId && !(p.discordChannelId in CHANNEL_PORTAL_LINKS)) {
+      map.set(p.discordChannelId, `/guidebook/${p.id}`);
+    }
+  }
+  // Alias channels resolve to the page that carries their content.
+  for (const [channelId, slug] of Object.entries(CHANNEL_PAGE_ALIASES)) {
+    const pid = idBySlug.get(slug);
+    if (pid && !map.has(channelId)) map.set(channelId, `/guidebook/${pid}`);
+  }
+  return map;
+}
 
 // Section bucket the converted Google Docs/Sheets pages live in. Only pages in
 // this section are valid link targets for buildDocLinkMap (so an unrelated page
@@ -258,6 +287,9 @@ export type DocLinkMap = Map<string, DocLinkTarget>;
 const CATALOG_DOC_LINKS: Record<string, DocLinkTarget> = {
   "1Uicc1mFBiWozgGhVnj2inVh1UbqeDZtiCfMX66kd9rc": { path: "/catalog/cyberware", label: "Cyberware catalog" },
   "1Rj-poH7xE-nz1ZEAV43B9uoxhTGzaTH2FTUPvkBDN_0": { path: "/catalog/cyberware", label: "Cyberware catalog" },
+  // The Housing & Business Status sheet is covered by the on-site Property
+  // catalog, so links point there instead of a duplicate guidebook page.
+  "1Z9RfZfYWM0xASx-0wDbCwLlzX2G6DLxgW1bwO65EedA": { path: "/catalog/rent", label: "Property catalog" },
 };
 
 // Matches a Google Docs/Sheets/etc. file id within a docs.google.com URL so we
@@ -354,6 +386,7 @@ async function cleanContent(
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
   docLinks: DocLinkMap,
+  channelLinks: ChannelLinkMap,
 ): Promise<string> {
   let out = text;
 
@@ -378,7 +411,7 @@ async function cleanContent(
   out = out.replace(DISCORD_DEEPLINK_RE, (_full, guild: string, channel: string) => {
     const name = channelCache.get(channel);
     const label = `#${escapeMdLabel(name ?? "channel")}`;
-    const target = CHANNEL_LINK_MAP[channel] ?? `https://discord.com/channels/${guild}/${channel}`;
+    const target = channelLinks.get(channel) ?? `https://discord.com/channels/${guild}/${channel}`;
     return `[${label}](${target})`;
   });
 
@@ -390,7 +423,7 @@ async function cleanContent(
     const name = channelCache.get(id);
     if (!name) return full;
     const label = `#${escapeMdLabel(name)}`;
-    const mapped = CHANNEL_LINK_MAP[id];
+    const mapped = channelLinks.get(id);
     if (mapped) return `[${label}](${mapped})`;
     return DISCORD_GUILD_ID ? `[${label}](https://discord.com/channels/${DISCORD_GUILD_ID}/${id})` : label;
   });
@@ -449,15 +482,16 @@ async function processMessage(
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
   docLinks: DocLinkMap,
+  channelLinks: ChannelLinkMap,
 ): Promise<string> {
-  let block = await cleanContent(msg.content ?? "", userCache, channelCache, docLinks);
+  let block = await cleanContent(msg.content ?? "", userCache, channelCache, docLinks, channelLinks);
 
   // Embed text (announcements sometimes live in embeds).
   for (const e of msg.embeds ?? []) {
     const parts: string[] = [];
     if (e.title) parts.push(`### ${e.title}`);
     if (e.description) {
-      parts.push(await cleanContent(e.description, userCache, channelCache, docLinks));
+      parts.push(await cleanContent(e.description, userCache, channelCache, docLinks, channelLinks));
     }
     if (parts.length) block += (block ? "\n\n" : "") + parts.join("\n\n");
   }
@@ -500,6 +534,7 @@ async function buildPage(
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
   docLinks: DocLinkMap,
+  channelLinks: ChannelLinkMap,
 ): Promise<BuiltPage> {
   const images: string[] = [];
   const blocks: string[] = [];
@@ -514,7 +549,7 @@ async function buildPage(
       const threadBlocks: string[] = [];
       const normName = thread.name.replace(/[#*_~`\s]/g, "").toLowerCase();
       for (const msg of messages) {
-        const block = await processMessage(msg, images, userCache, channelCache, docLinks);
+        const block = await processMessage(msg, images, userCache, channelCache, docLinks, channelLinks);
         if (!block) continue;
         // Skip a message that is just the thread title repeated (the heading
         // below already covers it), so the page doesn't show the name twice.
@@ -529,7 +564,7 @@ async function buildPage(
   } else {
     const messages = await fetchChannelMessages(src.channelId);
     for (const msg of messages) {
-      const block = await processMessage(msg, images, userCache, channelCache, docLinks);
+      const block = await processMessage(msg, images, userCache, channelCache, docLinks, channelLinks);
       if (block) blocks.push(block);
     }
   }
@@ -592,6 +627,7 @@ export async function importGuidebookSource(
   userCache: Map<string, string | null>,
   channelCache: Map<string, string | null>,
   docLinks: DocLinkMap,
+  channelLinks: ChannelLinkMap,
 ): Promise<GuidebookSourceResult> {
   const base: Omit<GuidebookSourceResult, "status" | "pageId" | "error"> = {
     channelId: src.channelId,
@@ -600,7 +636,7 @@ export async function importGuidebookSource(
     sourceLabel: src.sourceLabel,
   };
   try {
-    const built = await buildPage(src, userCache, channelCache, docLinks);
+    const built = await buildPage(src, userCache, channelCache, docLinks, channelLinks);
     if (!built.body) {
       return { ...base, status: "error", pageId: null, error: "No content found in source channel" };
     }
@@ -708,9 +744,10 @@ export async function runGuidebookImport(actorId: string | null): Promise<Guideb
   const userCache = new Map<string, string | null>();
   const channelCache = new Map<string, string | null>();
   const docLinks = await buildDocLinkMap();
+  const channelLinks = await buildChannelLinkMap();
   const sources: GuidebookSourceResult[] = [];
   for (const src of GUIDEBOOK_SOURCES) {
-    sources.push(await importGuidebookSource(src, actorId, userCache, channelCache, docLinks));
+    sources.push(await importGuidebookSource(src, actorId, userCache, channelCache, docLinks, channelLinks));
   }
   return {
     created: sources.filter((s) => s.status === "created").length,

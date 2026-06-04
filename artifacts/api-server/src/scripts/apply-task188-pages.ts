@@ -76,16 +76,13 @@ const RESOURCES: Resource[] = [
     sourceLabel: "Character Concepts List",
     position: 1,
   },
-  {
-    slug: "housing-business-status",
-    title: "Housing & Business Status",
-    description: "Current ownership and occupancy snapshot for housing and businesses.",
-    kind: "sheet",
-    fileId: "1Z9RfZfYWM0xASx-0wDbCwLlzX2G6DLxgW1bwO65EedA",
-    sourceLabel: "Housing & Business Status",
-    position: 2,
-  },
 ];
+
+// Library pages that were converted earlier but are now covered natively
+// elsewhere on the site, so we remove the duplicate page. The Housing &
+// Business Status sheet is covered by the on-site Property catalog
+// (/catalog/rent), which the importer now links to instead.
+const REMOVED_SLUGS = ["housing-business-status"];
 
 function docExportUrl(id: string): string {
   return `https://docs.google.com/document/d/${id}/export?format=txt`;
@@ -288,6 +285,31 @@ async function main() {
 
   const before = await db.select({ n: sql<number>`count(*)::int` }).from(guidebookPages);
   console.log(`Existing pages before: ${before[0]?.n ?? 0}\n`);
+
+  // Remove library pages now covered natively elsewhere. Only delete pages that
+  // still live in the library section (an on-site move would change the section)
+  // and were not edited on-site, so we never destroy manual work.
+  for (const slug of REMOVED_SLUGS) {
+    const [page] = await db
+      .select({
+        id: guidebookPages.id,
+        section: guidebookPages.section,
+        editedSinceImport: guidebookPages.editedSinceImport,
+      })
+      .from(guidebookPages)
+      .where(eq(guidebookPages.slug, slug));
+    if (!page) continue;
+    if (page.section !== SECTION) {
+      console.error(`  [SKIP-DEL] ${slug} (page #${page.id}) — now in section "${page.section}", leaving it alone`);
+      continue;
+    }
+    if (page.editedSinceImport) {
+      console.error(`  [SKIP-DEL] ${slug} (page #${page.id}) — edited on-site, leaving it alone`);
+      continue;
+    }
+    await db.delete(guidebookPages).where(eq(guidebookPages.id, page.id));
+    console.log(`  [DELETED]  ${slug} (page #${page.id}) — covered by /catalog/rent`);
+  }
 
   for (const r of RESOURCES) {
     try {

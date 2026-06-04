@@ -79,6 +79,16 @@ function BrandFooter() {
         <span className="font-mono text-[11px] text-nc-cyan/70 normal-case tracking-normal">discord.gg/ncrp</span>
       </a>
       <a
+        href="https://vrchat.com/home/group/grp_667e7e40-7ea9-4142-a81e-5939c18c990f"
+        target="_blank"
+        rel="noreferrer"
+        className="group flex w-full sm:w-auto items-center justify-center gap-2.5 border border-nc-magenta bg-nc-magenta/10 px-5 py-3 font-display text-sm text-nc-magenta shadow-[0_0_18px_rgba(255,0,128,0.2)] transition-all hover:bg-nc-magenta/20 hover:shadow-[0_0_26px_rgba(255,0,128,0.4)]"
+        data-testid="link-footer-vrchat"
+      >
+        <VRChatIcon className="h-5 w-5 shrink-0" />
+        <span className="uppercase tracking-widest">Join the VRChat Group</span>
+      </a>
+      <a
         href="https://github.com/Cynthia-Ardman/NightCityRPWebsite"
         target="_blank"
         rel="noreferrer"
@@ -96,6 +106,14 @@ function GitHubIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
       <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.52 11.52 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  );
+}
+
+function VRChatIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M2.4 4.8A2.4 2.4 0 0 0 0 7.2v9.6a2.4 2.4 0 0 0 2.4 2.4h19.2a2.4 2.4 0 0 0 2.4-2.4V7.2a2.4 2.4 0 0 0-2.4-2.4H2.4zm2.05 3.06h2.06l1.2 4.49 1.2-4.49h1.64l1.2 4.49 1.2-4.49h2.06l-2.13 7.28h-1.94l-1.21-4.4-1.2 4.4H6.58L4.45 7.86zm12.86 0h3.06c1.3 0 2.18.8 2.18 2.04 0 .86-.43 1.5-1.16 1.8l1.3 3.44h-2.2l-1.06-3.06h-.06v3.06h-2.06V7.86h.06zm2 1.6v1.62h.74c.5 0 .8-.3.8-.81 0-.5-.3-.81-.8-.81h-.74z" />
     </svg>
   );
 }

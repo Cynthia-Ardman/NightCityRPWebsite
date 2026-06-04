@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import Markdown from "@/components/Markdown";
+import FaqAccordion from "@/components/FaqAccordion";
 import { Pencil, Trash2, ArrowLeft, ExternalLink, FileEdit } from "lucide-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
@@ -108,9 +109,13 @@ export default function GuidebookPageDetail() {
         <CardContent className="py-6">
           {data.body?.trim() ? (
             <div data-testid="text-guidebook-body">
-              <Markdown className="font-mono text-sm leading-relaxed text-foreground/90">
-                {data.body}
-              </Markdown>
+              {data.slug === "faq" ? (
+                <FaqAccordion body={data.body} />
+              ) : (
+                <Markdown className="font-mono text-sm leading-relaxed text-foreground/90">
+                  {data.body}
+                </Markdown>
+              )}
             </div>
           ) : (
             <span className="font-mono text-sm text-muted-foreground italic">No content recorded.</span>
