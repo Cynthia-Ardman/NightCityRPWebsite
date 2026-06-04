@@ -217,7 +217,7 @@ function SidebarContent() {
         <NavItem href="/characters" icon={Users} label="Characters" />
         <NavItem href="/ledger" icon={Receipt} label="Ledger" />
         <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} />
-        <NavItem href="/offers/mine" icon={ShoppingBag} label="Pending Approvals" badge={pendingOffers} />
+        <NavItem href="/offers/mine" icon={ShoppingBag} label="My Offers" badge={pendingOffers} />
         <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
 
@@ -237,13 +237,13 @@ function SidebarContent() {
         <NavItem href="/directory/ripperdocs" icon={Syringe} label="Ripperdocs" />
         <NavItem href="/directory/lore" icon={BookOpen} label="Lore" />
 
-        <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Catalogs</div>
+        <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Marketplace</div>
         <NavItem href="/catalog/guns" icon={Skull} label="Guns" />
         <NavItem href="/catalog/cyberware" icon={Syringe} label="Cyberware" />
         <NavItem href="/catalog/rent" icon={Store} label="Property" />
 
         {user && (user.isStoreOwner || user.isRipperdoc || user.isFixer || user.isCsApprover || user.isAdmin) && (
-          <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Authorized Access</div>
+          <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Management</div>
         )}
         
         {user?.isStoreOwner && <NavItem href="/stores" icon={Store} label="Manage Stores" />}
