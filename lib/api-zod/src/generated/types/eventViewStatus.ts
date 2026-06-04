@@ -12,4 +12,5 @@ export type EventViewStatus = typeof EventViewStatus[keyof typeof EventViewStatu
 export const EventViewStatus = {
   scheduled: 'scheduled',
   cancelled: 'cancelled',
+  completed: 'completed',
 } as const;

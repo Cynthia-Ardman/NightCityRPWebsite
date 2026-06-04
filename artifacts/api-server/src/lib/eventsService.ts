@@ -542,13 +542,15 @@ export interface ReconcileResult {
   pulled: number;
   pushed: number;
   cancelled: number;
+  /** Linked rows whose Discord event ended and was retained as history. */
+  completed: number;
   /** Discord-side pushes/deletes skipped because the run was not Live. */
   deferred: number;
   error: string | null;
 }
 
 export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileResult> {
-  const result: ReconcileResult = { imported: 0, pulled: 0, pushed: 0, cancelled: 0, deferred: 0, error: null };
+  const result: ReconcileResult = { imported: 0, pulled: 0, pushed: 0, cancelled: 0, completed: 0, deferred: 0, error: null };
   const list = await listGuildScheduledEvents();
   if (!list.ok) {
     result.error = list.error;
@@ -576,8 +578,33 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
     if (missionIds.has(row.discordEventId)) continue; // defensive: leave mission-owned ids alone
     const d = discordById.get(row.discordEventId);
     if (!d) {
-      // Gone from Discord → true mirror: cancel here too (once).
-      if (row.status !== "cancelled") {
+      // Gone from Discord. Discord automatically removes a scheduled event from
+      // the guild once it has ended, so a linked one-off row whose end time has
+      // already passed almost certainly *finished* rather than being deleted — we
+      // keep it as a historical record (status "completed") and unlink it so we
+      // stop reconciling a Discord event that no longer exists. Only a row whose
+      // end is still in the future is a genuine early delete/cancel on Discord's
+      // side, which we mirror as a cancellation (the original bidirectional
+      // behaviour). Recurring rows are excluded from the "completed" path: Discord
+      // keeps them in the list (rolling forward), so a disappeared recurring row
+      // means the whole series was deleted — mirror that as a cancellation rather
+      // than leaving a row that would keep expanding phantom future occurrences.
+      const endRef = row.endAt ?? row.startAt;
+      const ended = !row.recurrenceRule && endRef.getTime() <= Date.now();
+      if (ended) {
+        if (row.status === "scheduled") {
+          await db
+            .update(events)
+            .set({
+              status: "completed",
+              discordEventId: null,
+              discordSyncError: null,
+              discordSyncedAt: new Date(),
+            })
+            .where(eq(events.id, row.id));
+          result.completed++;
+        }
+      } else if (row.status !== "cancelled") {
         await db
           .update(events)
           .set({ status: "cancelled", discordSyncError: null })
@@ -718,7 +745,7 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
     if (inserted.length) result.imported++;
   }
 
-  if (result.imported || result.pulled || result.pushed || result.cancelled || result.deferred) {
+  if (result.imported || result.pulled || result.pushed || result.cancelled || result.completed || result.deferred) {
     logger.info(result, "reconcileDiscordEvents applied changes");
   }
   return result;

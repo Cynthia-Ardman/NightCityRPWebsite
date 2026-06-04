@@ -912,11 +912,11 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // only run when missions are Live. `live` ANDs the master switch.
       const live = await isSystemLive("missions");
       const r = await reconcileDiscordEvents(live);
-      affected = r.imported + r.pulled + r.pushed + r.cancelled;
+      affected = r.imported + r.pulled + r.pushed + r.cancelled + r.completed;
       const deferredNote = r.deferred
         ? `, deferred ${r.deferred} Discord write(s) (Test mode — set master + missions Live to push)`
         : "";
-      message = `discord events sync${live ? " [live]" : " [test: website only]"}: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}${deferredNote}${r.error ? `, error: ${r.error}` : ""}`;
+      message = `discord events sync${live ? " [live]" : " [test: website only]"}: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}, completed ${r.completed}${deferredNote}${r.error ? `, error: ${r.error}` : ""}`;
     }
   } catch (err) {
     status = "failed";

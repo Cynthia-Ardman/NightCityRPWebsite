@@ -32,6 +32,21 @@ Image is intentionally excluded (Discord gives an image hash, not our URL).
 - Pull UPDATE is guarded `WHERE discord_synced_hash = <synced>` (non-null in the pull branch) so a concurrent website edit isn't clobbered.
 - True mirror: a Discord delete → cancel the row; a website-cancelled row whose Discord event still exists gets a delete-RETRY in reconcile (covers transient/Test-mode push failures), then nulls discordEventId.
 
+## "Gone from Discord" is NOT always a delete — ended events must be retained
+Discord auto-removes a scheduled event from the guild once it ENDS. So in the `!d`
+(gone-from-Discord) branch, blindly cancelling loses all history (listEvents hides
+`status='cancelled'`). Disambiguate by end time:
+- **non-recurring AND `endAt ?? startAt` <= now** → it finished, not deleted → set
+  `status='completed'` + unlink `discordEventId=null` (so later cycles skip it via the
+  `if (!row.discordEventId) continue` guard — idempotent). `completed` rows stay visible
+  (listEvents only excludes `cancelled`); they're past-dated so never show as upcoming.
+- **end still in the future** → genuine early delete → cancel-mirror (original behaviour).
+- **recurring rows are EXCLUDED from the completed path**: Discord keeps recurring events
+  in the list rolling-forward, so a disappeared recurring row = whole series deleted →
+  cancel. A retained recurring row would expand phantom future occurrences on the calendar.
+`completed` is a third value in EventView.status enum (openapi.yaml: [scheduled, cancelled,
+completed]); ReconcileResult/jobs log carry a `completed` counter.
+
 ## Gating — split by destination (NOT whole-job)
 `reconcileDiscordEvents(live: boolean)`. It is intentionally NOT in `liveSystemByJob`
 (that would no-op the entire job in Test mode and block importing the existing schedule).
