@@ -522,7 +522,7 @@ function CalChip({
           )}
         </div>
         <div
-          className={`font-mono leading-tight text-foreground truncate ${dense ? "text-[9px]" : "text-[11px]"}`}
+          className={`font-mono leading-tight text-foreground break-words ${dense ? "text-[9px]" : "text-[11px]"}`}
         >
           {item.title}
         </div>
