@@ -45,29 +45,50 @@ export function handleDiscordLinkClick(
 
   e.preventDefault();
 
-  let appLikelyOpened = false;
-  const onHide = () => {
-    // If the page is hidden, the app grabbed focus — cancel the web fallback.
-    if (document.hidden) appLikelyOpened = true;
+  // When the app handler exists, the browser shows an "Open Discord?" prompt.
+  // That prompt blurs/hides this page, so a blur or visibility change means the
+  // OS/browser has taken over — DON'T yank the user back to the web while the
+  // prompt is still on screen (the old same-tab fallback did exactly that,
+  // navigating away before the user could click "Allow").
+  let handledByApp = false;
+  const markHandled = () => {
+    handledByApp = true;
   };
-  document.addEventListener("visibilitychange", onHide, { once: true });
+  const onVisibility = () => {
+    if (document.hidden) markHandled();
+  };
+  window.addEventListener("blur", markHandled, { once: true });
+  document.addEventListener("visibilitychange", onVisibility);
+  window.addEventListener("pagehide", markHandled, { once: true });
 
-  const fallback = window.setTimeout(() => {
-    document.removeEventListener("visibilitychange", onHide);
-    if (!appLikelyOpened) {
-      // Same-tab navigation — unlike window.open it is never popup-blocked, so
-      // the browser fallback always lands even though we're outside the click
-      // gesture here.
-      window.location.assign(webUrl);
-    }
-  }, 1200);
+  const cleanup = () => {
+    window.removeEventListener("blur", markHandled);
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener("pagehide", markHandled);
+  };
 
-  // Also clear the fallback if the page is hidden before the timer fires.
+  // Trigger the app via a hidden iframe rather than navigating this tab. An
+  // iframe pointed at an unknown scheme fails silently and never moves the
+  // current page, so the portal stays put and the prompt has time to breathe.
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  document.body.appendChild(iframe);
+  try {
+    iframe.src = appUrl;
+  } catch {
+    // Some browsers throw on disallowed-scheme iframe navigation; ignore and
+    // let the fallback handle it.
+  }
+
   window.setTimeout(() => {
-    if (appLikelyOpened) window.clearTimeout(fallback);
-  }, 1300);
-
-  // Trigger the app. Unknown-scheme navigation is ignored by browsers when no
-  // handler is registered, so the page stays put and the fallback runs.
-  window.location.href = appUrl;
+    iframe.remove();
+    cleanup();
+    if (handledByApp) return; // the app (or its prompt) took over — leave it be.
+    // No handler took the scheme (app not installed): open the web version in a
+    // NEW tab so the page the user was reading is never disturbed. If the
+    // browser blocks the programmatic popup, fall back to same-tab as a last
+    // resort so the link still goes somewhere.
+    const win = window.open(webUrl, "_blank", "noopener,noreferrer");
+    if (!win) window.location.assign(webUrl);
+  }, 2000);
 }
