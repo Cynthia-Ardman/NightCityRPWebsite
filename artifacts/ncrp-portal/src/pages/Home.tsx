@@ -3,8 +3,9 @@ import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/rea
 import { useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
-import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper } from "lucide-react";
+import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper, UserPlus } from "lucide-react";
 import { expandOccurrences } from "@/lib/eventRecurrence";
+import { useQuickNpcSignup } from "@/lib/useQuickNpcSignup";
 import { missionStatusClass, missionStatusLabel, missionTierClass, missionTierLabel } from "@/lib/missionStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -161,6 +162,8 @@ function Dashboard() {
 
       <NextMissionBanner />
 
+      <NpcSessionBanner />
+
       {/* Layout flipped: characters live on /characters, so on the dashboard they
           collapse to a compact left-rail list. Bills / attendance / system logs
           are the actual reason you visit the dashboard, so they get the wide
@@ -211,6 +214,7 @@ function Dashboard() {
           </Card>
 
           <MyVenuesSection />
+          <NpcsNeededCard />
           <MyEventsCard />
           <TodaysScheduleCard />
         </div>
@@ -724,6 +728,173 @@ interface AttendInfo {
   nextWindowOpensAt: string | null;
   windowHint: string;
   history: Array<{ weekStart: string; amount: number; claimedAt: string }>;
+}
+
+// Prominent top-of-dashboard banner for the soonest upcoming Main Session that
+// needs NPCs and that the viewer hasn't already signed up for. Main Sessions
+// always need NPCs (the server derives needsNpcs from eventType), so this keeps
+// the weekly call for volunteers in everyone's face. One-tap sign-up.
+function NpcSessionBanner() {
+  const { data: events } = useListEvents(undefined, { query: { queryKey: getListEventsQueryKey() } });
+  const quickNpc = useQuickNpcSignup();
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // two weeks out
+
+  let best: { id: number; title: string; start: Date } | null = null;
+  for (const e of (events ?? []) as EventView[]) {
+    if (e.eventType !== "session" || e.needsNpcs !== true || e.mySignup != null) continue;
+    const base = new Date(e.startAt);
+    if (Number.isNaN(base.getTime())) continue;
+    const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
+    if (!occ) continue;
+    if (!best || occ < best.start) best = { id: e.id, title: e.title, start: occ };
+  }
+  if (!best) return null;
+  const session = best;
+
+  const diffMs = session.start.getTime() - now.getTime();
+  const days = Math.floor(diffMs / 86_400_000);
+  const hours = Math.floor((diffMs % 86_400_000) / 3_600_000);
+  const countdown = days > 0 ? `in ${days}d ${hours}h` : hours > 0 ? `in ${hours}h` : "starting soon";
+  const whenStr = `${session.start.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  })} · ${session.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+  const signingUp = quickNpc.pendingKey === `event-${session.id}`;
+
+  return (
+    <Card
+      className="rounded-none border-nc-yellow/50 bg-gradient-to-r from-nc-yellow/15 via-nc-yellow/5 to-transparent shadow-[0_0_20px_rgba(255,255,0,0.12)]"
+      data-testid="card-npc-session-banner"
+    >
+      <CardContent className="p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Users className="w-6 h-6 text-nc-yellow shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[10px] font-mono tracking-widest text-nc-yellow uppercase">
+              Main Session needs NPCs · {countdown}
+            </div>
+            <Link href={`/events/${session.id}`}>
+              <div
+                className="font-display text-lg md:text-xl text-foreground truncate hover:text-nc-yellow transition-colors"
+                data-testid="text-npc-session-title"
+              >
+                {session.title}
+              </div>
+            </Link>
+            <div className="text-xs font-mono text-muted-foreground uppercase flex items-center gap-1 mt-0.5">
+              <Clock className="w-3 h-3" /> {whenStr}
+            </div>
+          </div>
+        </div>
+        <Button
+          disabled={signingUp}
+          onClick={() => quickNpc.signUp("event", session.id)}
+          className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest shrink-0"
+          data-testid="button-npc-session-signup"
+        >
+          {signingUp ? (
+            "SIGNING UP..."
+          ) : (
+            <>
+              <UserPlus className="w-4 h-4 mr-1" /> SIGN UP AS NPC
+            </>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Left-rail card listing every upcoming mission/event that wants NPCs and that
+// the viewer hasn't already joined (as player or NPC), soonest first, each with
+// a one-tap sign-up. Hidden entirely when there's nothing to volunteer for.
+type NpcNeedItem = { kind: "mission" | "event"; id: number; title: string; start: Date; href: string; subtype: string };
+function NpcsNeededCard() {
+  const { data: missions } = useListMissions(undefined, { query: { queryKey: getListMissionsQueryKey() } });
+  const { data: events } = useListEvents(undefined, { query: { queryKey: getListEventsQueryKey() } });
+  const quickNpc = useQuickNpcSignup();
+
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000); // 60 days
+  const items: NpcNeedItem[] = [];
+
+  for (const m of (missions ?? []) as MissionSummary[]) {
+    if (!m.startAt || m.status === "cancelled" || m.npcSignupOpen !== true) continue;
+    const isPlayer = m.myApplication?.status === "accepted" || m.myCharacterId != null;
+    const isNpc = m.mySignup?.state === "signed_up";
+    if (isPlayer || isNpc) continue;
+    const start = new Date(m.startAt);
+    if (Number.isNaN(start.getTime()) || start < now) continue;
+    items.push({ kind: "mission", id: m.id, title: m.title, start, href: `/missions/${m.id}`, subtype: `Tier ${m.tier}` });
+  }
+  for (const e of (events ?? []) as EventView[]) {
+    if (e.needsNpcs !== true || e.mySignup != null) continue;
+    const base = new Date(e.startAt);
+    if (Number.isNaN(base.getTime())) continue;
+    const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
+    if (!occ) continue;
+    items.push({ kind: "event", id: e.id, title: e.title, start: occ, href: `/events/${e.id}`, subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event" });
+  }
+
+  if (items.length === 0) return null;
+  items.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const shown = items.slice(0, 6);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Users className="w-4 h-4 text-nc-yellow" />
+        <h2 className="text-xl font-display font-bold text-foreground" data-testid="text-npcs-needed-title">
+          NPCS_NEEDED
+        </h2>
+      </div>
+      <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5">
+        <CardContent className="p-0">
+          <div className="divide-y divide-border/50">
+            {shown.map((it) => {
+              const signingUp = quickNpc.pendingKey === `${it.kind}-${it.id}`;
+              return (
+                <div
+                  key={`${it.kind}-${it.id}-${it.start.getTime()}`}
+                  className="p-2 flex items-center gap-2"
+                  data-testid={`row-npc-need-${it.kind}-${it.id}`}
+                >
+                  <Link href={it.href} className="min-w-0 flex-1 group">
+                    <div className="font-display text-sm truncate group-hover:text-nc-yellow transition-colors">
+                      {it.title}
+                    </div>
+                    <div className="text-[10px] font-mono text-muted-foreground uppercase truncate">
+                      {it.subtype} ·{" "}
+                      {it.start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} ·{" "}
+                      {it.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={signingUp}
+                    onClick={() => quickNpc.signUp(it.kind, it.id)}
+                    className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest shrink-0 h-7 px-2 text-xs"
+                    data-testid={`button-npc-need-${it.kind}-${it.id}`}
+                  >
+                    {signingUp ? (
+                      "..."
+                    ) : (
+                      <>
+                        <UserPlus className="w-3 h-3 mr-1" /> NPC
+                      </>
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 // Hero banner for the caller's next upcoming ACCEPTED mission — i.e. one they

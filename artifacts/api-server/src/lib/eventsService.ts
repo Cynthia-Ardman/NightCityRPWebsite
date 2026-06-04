@@ -70,6 +70,15 @@ export function isEventType(v: unknown): v is EventType {
   return typeof v === "string" && (EVENT_TYPES as readonly string[]).includes(v);
 }
 
+// Main Sessions (eventType "session") are the headline weekly game and ALWAYS
+// need NPCs, so we treat them as NPC-accepting even when the stored needsNpcs
+// flag is off (imported sessions default it to false, and a fixer can forget to
+// tick it). Every NPC gate — both the serialized view and the sign-up endpoint —
+// derives from this helper instead of the raw column so the two never diverge.
+export function eventNeedsNpcs(e: { needsNpcs: boolean; eventType: string }): boolean {
+  return e.needsNpcs || e.eventType === "session";
+}
+
 export interface EventSignupView {
   id: number;
   userId: string;
@@ -331,7 +340,7 @@ function toView(
     startAt: iso(e.startAt)!,
     endAt: iso(e.endAt)!,
     status: e.status,
-    needsNpcs: e.needsNpcs,
+    needsNpcs: eventNeedsNpcs(e),
     npcBlurb: e.npcBlurb,
     createdById: e.createdById,
     createdByName: e.createdByName,
@@ -764,7 +773,7 @@ export async function signUpAsEventNpc(opts: {
   const [event] = await db.select().from(events).where(eq(events.id, opts.eventId));
   if (!event) return { ok: false, httpStatus: 404, error: "Event not found" };
   if (event.status === "cancelled") return { ok: false, httpStatus: 409, error: "Event is cancelled" };
-  if (!event.needsNpcs) return { ok: false, httpStatus: 409, error: "This event is not accepting NPC sign-ups" };
+  if (!eventNeedsNpcs(event)) return { ok: false, httpStatus: 409, error: "This event is not accepting NPC sign-ups" };
   // Validate character ownership when supplied.
   let characterId: number | null = null;
   if (opts.characterId != null) {

@@ -10,10 +10,11 @@ import {
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Briefcase, PartyPopper, Users } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Briefcase, PartyPopper, Users, UserPlus, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { expandOccurrences } from "@/lib/eventRecurrence";
+import { useQuickNpcSignup } from "@/lib/useQuickNpcSignup";
 
 type CalKind = "mission" | "event";
 
@@ -34,6 +35,10 @@ interface CalItem {
   // Raw event type (session/social/other) for colour coding; undefined for missions.
   eventType?: string;
   myStatus: SignupStatus;
+  // Whether this item is accepting NPC sign-ups (event needsNpcs — sessions are
+  // always true server-side — or mission npcSignupOpen). Drives the one-tap
+  // sign-up affordance shown only when the viewer hasn't already joined.
+  npcOpen: boolean;
   // Distinguishes individual occurrences of a recurring event so each renders
   // with a stable, unique key.
   occMs: number;
@@ -91,6 +96,7 @@ export default function DirectoryCalendar() {
   const [view, setView] = useState<CalView>("month");
   const [filter, setFilter] = useState<CalFilter>("all");
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
+  const quickNpc = useQuickNpcSignup();
 
   // Grid cells: a 6-week (42-cell) block for month view, or a single 7-day row
   // for week view. Both start on a Sunday so the weekday header lines up.
@@ -142,6 +148,7 @@ export default function DirectoryCalendar() {
           href: `/missions/${m.id}`,
           subtype: `Tier ${m.tier}`,
           myStatus: isPlayer ? "player" : isNpc ? "npc" : null,
+          npcOpen: m.npcSignupOpen === true,
           occMs: start.getTime(),
         });
       }
@@ -164,6 +171,7 @@ export default function DirectoryCalendar() {
             subtype: EVENT_TYPE_LABEL[e.eventType] ?? "Event",
             eventType: e.eventType,
             myStatus: isNpc ? "npc" : null,
+            npcOpen: e.needsNpcs === true,
             occMs: occ.getTime(),
           });
         }
@@ -381,7 +389,13 @@ export default function DirectoryCalendar() {
                     </div>
                     <div className={`flex flex-col gap-1 ${view === "week" ? "overflow-y-auto" : ""}`}>
                       {visible.map((it) => (
-                        <CalChip key={`${it.kind}-${it.id}-${it.occMs}`} item={it} dense={dense} />
+                        <CalChip
+                          key={`${it.kind}-${it.id}-${it.occMs}`}
+                          item={it}
+                          dense={dense}
+                          onQuickSignup={() => quickNpc.signUp(it.kind, it.id)}
+                          signingUp={quickNpc.pendingKey === `${it.kind}-${it.id}`}
+                        />
                       ))}
                       {hidden > 0 && (
                         <button
@@ -460,39 +474,76 @@ function chipStyle(item: CalItem): { cls: string; Icon: LucideIcon } {
   }
 }
 
-function CalChip({ item, dense }: { item: CalItem; dense?: boolean }) {
+function CalChip({
+  item,
+  dense,
+  onQuickSignup,
+  signingUp,
+}: {
+  item: CalItem;
+  dense?: boolean;
+  onQuickSignup: () => void;
+  signingUp: boolean;
+}) {
   const time = item.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   const { cls, Icon } = chipStyle(item);
   const statusLabel =
     item.myStatus === "player" ? "Signed up as player" : item.myStatus === "npc" ? "Signed up as NPC" : null;
+  // The one-tap sign-up button only appears when the item wants NPCs and the
+  // viewer hasn't already joined (as a player or NPC). It lives OUTSIDE the
+  // <Link> (a button nested in an anchor is invalid), sitting in the corner
+  // where the PLAYER/NPC badge would otherwise be — the two are mutually
+  // exclusive so they never collide.
+  const canQuickNpc = item.npcOpen && item.myStatus === null;
   return (
-    <Link
-      href={item.href}
-      className={`block border rounded-none transition-colors ${cls} ${dense ? "px-1 py-0.5" : "px-1.5 py-1"}`}
+    <div
+      className={`relative border rounded-none transition-colors ${cls}`}
       data-testid={`chip-${item.kind}-${item.id}`}
-      title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
     >
-      <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[8px]" : "text-[10px]"}`}>
-        <Icon className={`shrink-0 ${dense ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
-        <span className="opacity-70">{time}</span>
-        {item.myStatus && (
-          <span
-            className={`ml-auto shrink-0 px-1 font-display tracking-wider border ${dense ? "text-[7px]" : "text-[8px]"} ${
-              item.myStatus === "player"
-                ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
-                : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
-            }`}
-            data-testid={`chip-status-${item.kind}-${item.id}`}
-          >
-            {item.myStatus === "player" ? "PLAYER" : "NPC"}
-          </span>
-        )}
-      </div>
-      <div
-        className={`font-mono leading-tight text-foreground truncate ${dense ? "text-[9px]" : "text-[11px]"}`}
+      <Link
+        href={item.href}
+        className={`block ${dense ? "px-1 py-0.5" : "px-1.5 py-1"} ${canQuickNpc ? "pr-5" : ""}`}
+        title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
       >
-        {item.title}
-      </div>
-    </Link>
+        <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[8px]" : "text-[10px]"}`}>
+          <Icon className={`shrink-0 ${dense ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
+          <span className="opacity-70">{time}</span>
+          {item.myStatus && (
+            <span
+              className={`ml-auto shrink-0 px-1 font-display tracking-wider border ${dense ? "text-[7px]" : "text-[8px]"} ${
+                item.myStatus === "player"
+                  ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
+                  : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
+              }`}
+              data-testid={`chip-status-${item.kind}-${item.id}`}
+            >
+              {item.myStatus === "player" ? "PLAYER" : "NPC"}
+            </span>
+          )}
+        </div>
+        <div
+          className={`font-mono leading-tight text-foreground truncate ${dense ? "text-[9px]" : "text-[11px]"}`}
+        >
+          {item.title}
+        </div>
+      </Link>
+      {canQuickNpc && (
+        <button
+          type="button"
+          disabled={signingUp}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onQuickSignup();
+          }}
+          className="absolute top-0.5 right-0.5 inline-flex items-center justify-center h-4 w-4 border border-nc-yellow/60 bg-nc-yellow/15 text-nc-yellow hover:bg-nc-yellow/30 disabled:opacity-50"
+          data-testid={`button-quick-npc-${item.kind}-${item.id}`}
+          title="Sign up as NPC"
+          aria-label={`Sign up as an NPC for ${item.title}`}
+        >
+          {signingUp ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <UserPlus className="w-2.5 h-2.5" />}
+        </button>
+      )}
+    </div>
   );
 }
