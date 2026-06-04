@@ -8,7 +8,7 @@ vi.mock("./unbelievaboat", () => ({
 
 import {
   db, botConfig, housing, characterStatus, inventoryItems, walletTransactions,
-  characters, lifestyleTiers, shopOpens,
+  characters, shopOpens,
 } from "@workspace/db";
 import { patchBalance } from "./unbelievaboat";
 import { runJob, isAutobillEnabled, AUTOBILL_FLAGS } from "./jobs";
@@ -312,17 +312,13 @@ describe("runJob('monthly_rent') crash-window: debit succeeded, ledger write mis
     expect(income).toHaveLength(0);
   });
 
-  it("does not double-charge a personal fee (lifestyle) on a rerun after a mid-run crash", async () => {
-    const [tier] = await db
-      .insert(lifestyleTiers)
-      .values({ name: "Executive", monthlyCost: 1500 })
-      .returning();
+  it("does not double-charge a personal fee (baseline) on a rerun after a mid-run crash", async () => {
     const owner = await createUser();
-    const char = await createCharacter({ ownerId: owner.id, approved: true });
-    await db.update(characters).set({ lifestyleTierId: tier.id }).where(eq(characters.id, char.id));
+    await createCharacter({ ownerId: owner.id, approved: true });
 
-    // First run: the lifestyle debit "succeeds" then the process crashes. There
-    // is no housing lease, so lifestyle is the first (and only) debit attempted.
+    // First run: the baseline debit "succeeds" then the process crashes. There
+    // is no housing lease and no trauma/xanadu, so the per-owner baseline living
+    // cost is the first (and only) debit attempted.
     let debits = 0;
     mockPatch.mockImplementation(async () => {
       debits++;
@@ -332,22 +328,20 @@ describe("runJob('monthly_rent') crash-window: debit succeeded, ledger write mis
     expect(first.status).toBe("failed");
     expect(debits).toBe(1);
 
-    // The lifestyle ledger row was reserved BEFORE the debit and survived.
-    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "lifestyle"));
+    // The baseline ledger row was reserved BEFORE the debit and survived.
+    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "baseline"));
     expect(afterCrash).toHaveLength(1);
 
-    // Recovery run: the committed lifestyle ledger row trips the period guard,
-    // so lifestyle is NOT re-debited. (The per-owner baseline cost may still
-    // fire on recovery — it was never billed in the crashed run — so we assert
-    // specifically that the lifestyle debit is not repeated.)
+    // Recovery run: the committed baseline ledger row trips the per-owner period
+    // guard, so baseline is NOT re-debited.
     mockPatch.mockReset();
     mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
     await runJob("monthly_rent");
     const recoveryReasons = mockPatch.mock.calls.map((c) => c[1]?.reason ?? "");
-    expect(recoveryReasons.some((r) => r.startsWith("Lifestyle:"))).toBe(false);
+    expect(recoveryReasons.some((r) => r.startsWith("Baseline"))).toBe(false);
 
-    const lifestyle = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "lifestyle"));
-    expect(lifestyle).toHaveLength(1);
+    const baseline = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "baseline"));
+    expect(baseline).toHaveLength(1);
   });
 });
 
@@ -397,15 +391,15 @@ describe("runJob('cyberware_humanity') crash-window: debit succeeded, ledger wri
 // we assert both halves of the contract at once: the on-leave character is
 // exempt while the active character is still charged for that exact fee.
 describe("runJob('monthly_rent') honors the per-character loa flag across all fee branches", () => {
-  // Gives a character a lifestyle tier, a Trauma Team subscription, and Xanadu
-  // Gold so a single monthly_rent run exercises rent + lifestyle + baseline +
-  // trauma_team + xanadu_gold for them at once.
-  async function setupBilledCharacter(opts: { loa: boolean; tierId: number }) {
+  // Gives a character a Trauma Team subscription and Xanadu Gold so a single
+  // monthly_rent run exercises rent + baseline + trauma_team + xanadu_gold for
+  // them at once.
+  async function setupBilledCharacter(opts: { loa: boolean }) {
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id, approved: true });
     await db
       .update(characters)
-      .set({ lifestyleTierId: opts.tierId, traumaTeamTier: "gold", xanaduGold: true })
+      .set({ traumaTeamTier: "gold", xanaduGold: true })
       .where(eq(characters.id, char.id));
     await db.insert(housing).values({
       characterId: char.id, address: `Megabuilding for ${char.id}`, monthlyRent: 500, kind: "residential",
@@ -416,13 +410,9 @@ describe("runJob('monthly_rent') honors the per-character loa flag across all fe
 
   it("exempts an on-LOA character from rent and every personal fee while still charging a non-LOA character in the same run", async () => {
     mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
-    const [tier] = await db
-      .insert(lifestyleTiers)
-      .values({ name: "Executive", monthlyCost: 1500 })
-      .returning();
 
-    const onLeave = await setupBilledCharacter({ loa: true, tierId: tier.id });
-    const active = await setupBilledCharacter({ loa: false, tierId: tier.id });
+    const onLeave = await setupBilledCharacter({ loa: true });
+    const active = await setupBilledCharacter({ loa: false });
 
     await runJob("monthly_rent");
 
@@ -435,13 +425,11 @@ describe("runJob('monthly_rent') honors the per-character loa flag across all fe
 
     // The active character is charged for each per-character fee branch.
     expect(await rowsFor(active.char.id, "rent")).toHaveLength(1);
-    expect(await rowsFor(active.char.id, "lifestyle")).toHaveLength(1);
     expect(await rowsFor(active.char.id, "trauma_team")).toHaveLength(1);
     expect(await rowsFor(active.char.id, "xanadu_gold")).toHaveLength(1);
 
     // The on-LOA character is exempt from every one of those branches.
     expect(await rowsFor(onLeave.char.id, "rent")).toHaveLength(0);
-    expect(await rowsFor(onLeave.char.id, "lifestyle")).toHaveLength(0);
     expect(await rowsFor(onLeave.char.id, "trauma_team")).toHaveLength(0);
     expect(await rowsFor(onLeave.char.id, "xanadu_gold")).toHaveLength(0);
 

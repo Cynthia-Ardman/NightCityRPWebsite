@@ -19,7 +19,7 @@ function uniq(prefix: string): string {
 }
 
 export async function createUser(
-  opts: { id?: string; username?: string; roles?: string[] } = {},
+  opts: { id?: string; username?: string; roles?: string[]; verified18?: boolean } = {},
 ) {
   const id = opts.id ?? uniq("user");
   const [u] = await db
@@ -29,6 +29,10 @@ export async function createUser(
       discordId: id,
       username: opts.username ?? `name_${id}`,
       roles: opts.roles ?? [],
+      // Default to age-verified so the global requireVerified gate
+      // (routes/index.ts) doesn't 403 every authenticated test request.
+      // Pass verified18: false to exercise the unverified path explicitly.
+      verified18: opts.verified18 ?? true,
     })
     .returning();
   return u;

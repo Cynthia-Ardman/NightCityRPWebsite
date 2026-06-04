@@ -23,7 +23,7 @@ const mockDm = vi.mocked(sendDirectMessage);
 
 beforeEach(() => {
   mockDm.mockReset();
-  mockDm.mockResolvedValue(undefined);
+  mockDm.mockResolvedValue(null);
 });
 
 // Generate + assign a puzzle to the given character's owner, returning the
