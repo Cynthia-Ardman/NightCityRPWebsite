@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import Markdown from "@/components/Markdown";
 import FaqAccordion from "@/components/FaqAccordion";
+import BecomeNpcButton from "@/components/BecomeNpcButton";
 import { Pencil, Trash2, ArrowLeft, ExternalLink, FileEdit } from "lucide-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
@@ -88,6 +89,8 @@ export default function GuidebookPageDetail() {
           </div>
         )}
       </div>
+
+      {data.slug === "npc-acting" && <BecomeNpcButton variant="guidebook" />}
 
       {data.images.length > 0 && (
         <div className="space-y-3">

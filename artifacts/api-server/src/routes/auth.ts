@@ -7,6 +7,9 @@ import {
   exchangeCode,
   fetchUser,
   fetchGuildMemberRoles,
+  fetchGuildMemberRoleIdsViaBot,
+  addGuildMemberRole,
+  NPC_ROLE_ID,
   avatarUrl,
   hasRole,
   DiscordConfigError,
@@ -248,6 +251,53 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
       ? { vrchatUserId: link.vrchatUserId, vrchatUsername: link.vrchatUsername, vrchatUrl: link.vrchatUrl }
       : null,
   });
+});
+
+// Whether the current user already holds the self-service NPC Discord role.
+// Read-only Discord lookups are not gated, so this works in every environment.
+// We check the RAW role id (not a resolved name) so the answer is exact.
+// `determined` distinguishes "we know they don't have it" (determined:true,
+// hasRole:false) from "the lookup failed, so we can't tell" (determined:false).
+// Callers use this so the dashboard CTA only appears when we POSITIVELY know
+// the user lacks the role, rather than during a transient Discord outage.
+router.get("/auth/npc-role", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+  if (roleIds === null) {
+    res.json({ hasRole: false, determined: false });
+    return;
+  }
+  res.json({ hasRole: roleIds.includes(NPC_ROLE_ID), determined: true });
+});
+
+// Grant the NPC Discord role to the current user. A portal user's id IS their
+// Discord snowflake, so the grant targets the signed-in member. Idempotent: if
+// they already have the role we report success without calling Discord. The
+// actual write is gated behind externalWritesAllowed() (in addGuildMemberRole),
+// so on the test site this returns a clear error rather than silently failing.
+router.post("/auth/npc-role", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+  if (roleIds && roleIds.includes(NPC_ROLE_ID)) {
+    res.json({ ok: true, hasRole: true });
+    return;
+  }
+  const result = await addGuildMemberRole(u.discordId, NPC_ROLE_ID);
+  if (!result.ok) {
+    res.status(502).json({ ok: false, error: result.error });
+    return;
+  }
+  void recordAudit({
+    req,
+    category: "auth",
+    action: "npc_role_grant",
+    actorId: u.id,
+    actorName: u.username,
+    targetType: "user",
+    targetId: u.id,
+    message: `${u.username} self-granted the NPC role`,
+  });
+  res.json({ ok: true, hasRole: true });
 });
 
 export default router;

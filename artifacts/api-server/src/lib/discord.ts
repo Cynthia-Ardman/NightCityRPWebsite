@@ -193,6 +193,91 @@ export async function fetchGuildMemberRolesViaBot(discordUserId: string): Promis
   return await resolveRoleNames(member.roles);
 }
 
+/**
+ * Fetch a guild member's RAW role ids via the bot token (not resolved to
+ * names). Used for exact-id role checks (e.g. the self-service NPC role).
+ * Returns:
+ *   - string[] of role ids on success (empty array if the user has no roles),
+ *   - []       if the user is not in the guild (404),
+ *   - null     when the lookup could not be performed (missing token/guild,
+ *              upstream error, network failure) so callers can distinguish
+ *              "definitely has no role" from "couldn't determine".
+ */
+export async function fetchGuildMemberRoleIdsViaBot(discordUserId: string): Promise<string[] | null> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) return null;
+  try {
+    const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/members/${discordUserId}`, {
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status === 404) return [];
+    if (!res.ok) {
+      logger.warn({ status: res.status, discordUserId }, "fetchGuildMemberRoleIdsViaBot failed");
+      return null;
+    }
+    const member = (await res.json()) as { roles: string[] };
+    return member.roles ?? [];
+  } catch (err) {
+    logger.error({ err, discordUserId }, "fetchGuildMemberRoleIdsViaBot error");
+    return null;
+  }
+}
+
+/**
+ * Discord role id for the self-service "NPC" role granted from the portal.
+ */
+export const NPC_ROLE_ID = "1348661508011462769";
+
+/**
+ * Grant a guild role to a member using the bot token
+ * (`PUT /guilds/{guild}/members/{user}/roles/{role}`). Gated behind
+ * externalWritesAllowed() like every other outbound Discord write, so it only
+ * fires on the real deployment (or when explicitly opted in). Discord returns
+ * 204 on success and also 204 if the member already has the role, so this is
+ * idempotent. Returns a discriminated result instead of throwing.
+ */
+export async function addGuildMemberRole(
+  discordUserId: string,
+  roleId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+    return { ok: false, error: "Discord bot token or guild id not configured" };
+  }
+  if (!externalWritesAllowed()) {
+    logger.info(
+      { discordUserId, roleId },
+      "Discord write suppressed (non-deployment env); skipping role grant",
+    );
+    return {
+      ok: false,
+      error: "External Discord writes are disabled in this (test) environment",
+    };
+  }
+  try {
+    const res = await fetch(
+      `${API}/guilds/${DISCORD_GUILD_ID}/members/${discordUserId}/roles/${roleId}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+          "X-Audit-Log-Reason": "Self-service NPC role granted via portal",
+        },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn({ status: res.status, body: text, discordUserId, roleId }, "addGuildMemberRole failed");
+      return { ok: false, error: `Discord role grant failed (${res.status}): ${text.slice(0, 300)}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ err, discordUserId, roleId }, "addGuildMemberRole error");
+    return { ok: false, error: msg };
+  }
+}
+
 export function avatarUrl(discordId: string, hash: string | null | undefined): string | null {
   if (!hash) return null;
   return `https://cdn.discordapp.com/avatars/${discordId}/${hash}.png`;

@@ -13,6 +13,7 @@ import { Switch as UiSwitch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
+import BecomeNpcButton from "@/components/BecomeNpcButton";
 import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
 import ncrpLogo from "@assets/image_1780331782394.png";
 
@@ -134,6 +135,8 @@ function Dashboard() {
           </a>
         ) : null}
       </div>
+
+      <BecomeNpcButton variant="dashboard" />
 
       <PlayerLoaControl characters={characters ?? []} />
 
