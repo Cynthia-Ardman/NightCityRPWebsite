@@ -66,6 +66,7 @@
 - [Character wallet endpoint scope](character-wallet-endpoint-scope.md) — /characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows; per-character history UI must also filter t.characterId===id.
 - [Wallet category bucket](character-wallet-endpoint-scope.md) — wallet_transactions.category (rent/cyberware/…) is derived from kind+memo via classifyWalletCategory, independent of load-bearing kind; APIs fallback-derive when null.
 - [Breach Protocol minigame](breach-minigame.md) — exactly-once reward (atomic completedAt-IS-NULL); server anchors timer before any grid reveal, lists redact unstarted grids; /result 200-idempotent.
+- [Event recurrence roll-forward](event-recurrence-rollforward.md) — Discord advances start_at to next occurrence; expandOccurrences must backfill earlier in-window occurrences for OPEN-ENDED series only.
 - [Role-derived access flags](role-derived-flag-sync.md) — Discord-role-derived gate flags (verified18) must be recomputed BOTH directions in the role_sync cron, null-guarded; set-true-on-login alone leaves stale-true authz drift.
 - [Events recurrence & listing](events-recurrence-listing.md) — byWeekday is UTC-frame; expand by stepping the base INSTANT (not absolute weekday) or chips land a day off; listEvents 500-cap must always merge in recurring rows.
 - [Drizzle onConflict partial index](drizzle-onconflict-partial-index.md) — onConflictDoNothing needs `where:` (not `targetWhere:`) for a partial unique index, else predicate dropped → 42P10; read err.cause for the real PG error.

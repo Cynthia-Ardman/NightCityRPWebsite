@@ -47,13 +47,28 @@ export function expandOccurrences(
   const interval = Math.max(1, Math.floor(rule.interval || 1));
   const until = rule.until ? new Date(rule.until) : null;
   const limit = rule.count != null && rule.count > 0 ? rule.count : Infinity;
+  // Bounded series (explicit `count` or `until`) treat baseStart as the
+  // authoritative series origin and never emit occurrences before it. Open-ended
+  // series are different: Discord rolls a recurring event's stored start_at
+  // forward to the *next* occurrence once the current one starts, so an earlier
+  // occurrence that still falls inside the visible window (e.g. this week's, which
+  // already began earlier today) is real and must still render. For those we walk
+  // backward from baseStart to cover the window.
+  const openEnded = limit === Infinity && !until;
   const out: Date[] = [];
   let produced = 0;
 
   // Records an occurrence toward the series total and collects it when in range.
   // Returns false to signal the series has ended (count/until reached).
   const consider = (d: Date): boolean => {
-    if (d.getTime() < baseStart.getTime()) return true; // pre-series, skip but keep going
+    if (d.getTime() < baseStart.getTime()) {
+      // Pre-baseStart occurrences only surface for open-ended series, only inside
+      // the visible window, and never count toward the occurrence budget.
+      if (openEnded && d.getTime() >= rangeStart.getTime() && d.getTime() <= rangeEnd.getTime()) {
+        out.push(d);
+      }
+      return true; // keep going
+    }
     if (until && d.getTime() > until.getTime()) return false;
     if (produced >= limit) return false;
     produced++;
@@ -75,7 +90,15 @@ export function expandOccurrences(
         ),
       ),
     ).sort((a, b) => a - b);
-    for (let i = 0; i < MAX_ITER; i++) {
+    // For open-ended series, start the week index far enough in the past to reach
+    // rangeStart so earlier in-window occurrences are generated too.
+    let startI = 0;
+    if (openEnded && rangeStart.getTime() < baseStart.getTime()) {
+      const weekMs = 7 * interval * 86400000;
+      startI = -Math.ceil((baseStart.getTime() - rangeStart.getTime()) / weekMs) - 1;
+      startI = Math.max(startI, -MAX_ITER); // keep total iterations bounded
+    }
+    for (let i = startI; i < MAX_ITER; i++) {
       const weekBase = new Date(baseStart);
       weekBase.setDate(weekBase.getDate() + 7 * interval * i);
       if (weekBase.getTime() > rangeEnd.getTime()) break;
@@ -90,6 +113,18 @@ export function expandOccurrences(
 
   // DAILY / MONTHLY / YEARLY (and any unknown frequency) advance from baseStart.
   let cur = new Date(baseStart);
+  // Open-ended series: rewind to (just before) the window so earlier in-window
+  // occurrences are emitted as well.
+  if (openEnded && rangeStart.getTime() < baseStart.getTime()) {
+    for (let i = 0; i < MAX_ITER && cur.getTime() > rangeStart.getTime(); i++) {
+      const prev = new Date(cur);
+      if (rule.frequency === 3) prev.setDate(prev.getDate() - interval); // daily
+      else if (rule.frequency === 1) prev.setMonth(prev.getMonth() - interval); // monthly
+      else if (rule.frequency === 0) prev.setFullYear(prev.getFullYear() - interval); // yearly
+      else prev.setDate(prev.getDate() - 7 * interval); // unknown -> weekly-ish
+      cur = prev;
+    }
+  }
   for (let i = 0; i < MAX_ITER; i++) {
     if (cur.getTime() > rangeEnd.getTime()) break;
     if (!consider(cur)) return out;
