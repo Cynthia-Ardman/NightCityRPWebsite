@@ -1,5 +1,5 @@
 import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
 import { Shield, Users, Database, Zap, Activity } from "lucide-react";
@@ -564,6 +564,33 @@ export function UsersTab() {
     },
   });
 
+  // Live reflection of the actual Discord NPC role (not the stored role
+  // snapshot, which doesn't track NPC). Auto-loads the read-only scan on mount
+  // and overlays an NPC badge per row. Degrades silently if Discord is
+  // unreachable — the rest of the user list still renders.
+  const [npcDiscordIds, setNpcDiscordIds] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/admin/npc-scan", { credentials: "include" });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (cancelled || !data?.determined) return;
+        setNpcDiscordIds(
+          new Set<string>(
+            (data.websiteNpcUsers ?? []).map((x: { discordId: string }) => x.discordId),
+          ),
+        );
+      } catch {
+        /* leave null — NPC badge simply won't show */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (isLoading) return <div className="text-nc-cyan font-mono animate-pulse">Querying users...</div>;
 
   const placeholderCount = users?.filter((u) => /^user_[A-Za-z0-9]+$/.test(u.username)).length ?? 0;
@@ -646,6 +673,7 @@ export function UsersTab() {
                       {u.isRipperdoc && <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none text-[10px] px-1 py-0">RIPPER</Badge>}
                       {u.isStoreOwner && <Badge variant="outline" className="border-nc-cyan text-nc-cyan rounded-none text-[10px] px-1 py-0">SHOP</Badge>}
                       {u.isCsApprover && <Badge variant="outline" className="border-green-500 text-green-500 rounded-none text-[10px] px-1 py-0">CS_APPROVER</Badge>}
+                      {npcDiscordIds?.has(u.discordId) && <Badge variant="outline" className="border-purple-400 text-purple-400 rounded-none text-[10px] px-1 py-0" data-testid={`badge-npc-${u.id}`}>NPC</Badge>}
                     </div>
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">{u.characterCount || 0}</TableCell>
