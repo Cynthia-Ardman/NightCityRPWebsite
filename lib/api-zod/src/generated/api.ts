@@ -34,6 +34,14 @@ export const DismissOnboardingResponse = zod.object({
 
 
 /**
+ * @summary Dismiss the dashboard "set your Discord ping preferences" prompt
+ */
+export const DismissNotificationPromptResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary Current session user
  */
 export const GetMeResponse = zod.object({
@@ -52,6 +60,7 @@ export const GetMeResponse = zod.object({
   "activeCharacterId": zod.number().nullish(),
   "loginCount": zod.number().optional().describe('Number of times this user has logged in via Discord. Drives the first-run onboarding banner.'),
   "onboardingBannerDismissed": zod.boolean().optional().describe('True once the user has dismissed the onboarding banner; it then never re-appears.'),
+  "notificationPromptDismissed": zod.boolean().optional().describe('True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless.'),
   "vrchat": zod.union([zod.object({
   "vrchatUserId": zod.string(),
   "vrchatUsername": zod.string(),

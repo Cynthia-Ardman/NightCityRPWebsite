@@ -39,6 +39,12 @@ export const users = pgTable(
     onboardingBannerDismissed: boolean("onboarding_banner_dismissed")
       .notNull()
       .default(false),
+    // Set when the user dismisses the dashboard "set your Discord ping
+    // preferences" prompt. Once dismissed the prompt never re-appears; the
+    // toggles remain permanently available on the Settings page.
+    notificationPromptDismissed: boolean("notification_prompt_dismissed")
+      .notNull()
+      .default(false),
     // ---- Economy: website-authoritative player wallet (synced to UnbelievaBoat) ----
     // The website's own balance for this player, in eddies. Every website-side
     // money change goes through the sync wrapper which updates this AND UB. UB

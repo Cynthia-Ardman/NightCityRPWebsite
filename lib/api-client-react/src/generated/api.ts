@@ -100,6 +100,7 @@ import type {
   DiceRollInput,
   DiceRollResult,
   DiscordCallbackParams,
+  DismissNotificationPrompt200,
   DismissOnboarding200,
   EconomyOutOfSyncList,
   EconomyRetryResult,
@@ -633,6 +634,76 @@ export const useDismissOnboarding = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDismissOnboardingMutationOptions(options));
+    }
+
+export const getDismissNotificationPromptUrl = () => {
+
+
+
+
+  return `/api/auth/notification-prompt/dismiss`
+}
+
+/**
+ * @summary Dismiss the dashboard "set your Discord ping preferences" prompt
+ */
+export const dismissNotificationPrompt = async ( options?: RequestInit): Promise<DismissNotificationPrompt200> => {
+
+  return customFetch<DismissNotificationPrompt200>(getDismissNotificationPromptUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getDismissNotificationPromptMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissNotificationPrompt>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dismissNotificationPrompt>>, TError,void, TContext> => {
+
+const mutationKey = ['dismissNotificationPrompt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dismissNotificationPrompt>>, void> = () => {
+
+
+          return  dismissNotificationPrompt(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DismissNotificationPromptMutationResult = NonNullable<Awaited<ReturnType<typeof dismissNotificationPrompt>>>
+
+    export type DismissNotificationPromptMutationError = ErrorType<void>
+
+    /**
+ * @summary Dismiss the dashboard "set your Discord ping preferences" prompt
+ */
+export const useDismissNotificationPrompt = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissNotificationPrompt>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dismissNotificationPrompt>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDismissNotificationPromptMutationOptions(options));
     }
 
 export const getGetMeUrl = () => {

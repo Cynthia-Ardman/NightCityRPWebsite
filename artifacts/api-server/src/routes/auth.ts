@@ -11,6 +11,8 @@ import {
   addGuildMemberRole,
   removeGuildMemberRole,
   NPC_ROLE_ID,
+  NOTIFICATION_ROLES,
+  type NotificationRoleKey,
   avatarUrl,
   hasRole,
   DiscordConfigError,
@@ -242,6 +244,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     activeCharacterId: u.activeCharacterId,
     loginCount: u.loginCount,
     onboardingBannerDismissed: u.onboardingBannerDismissed,
+    notificationPromptDismissed: u.notificationPromptDismissed,
     isAdmin: hasRole(u.roles, "ADMIN"),
     isFixer: hasRole(u.roles, "FIXER"),
     isArchivist: hasRole(u.roles, "ARCHIVIST"),
@@ -329,6 +332,122 @@ router.delete("/auth/npc-role", requireAuth, async (req, res): Promise<void> => 
     message: `${u.username} self-removed the NPC role`,
   });
   res.json({ ok: true, hasRole: false });
+});
+
+// ---- Notification ("ping") roles ----
+// A single endpoint pair covering all three self-service Discord roles (NPC,
+// Social RP, Main Session) instead of three copy-pasted route trios. Semantics
+// are identical to /auth/npc-role: read-only lookups via the bot are not gated
+// (so they work everywhere), `determined` distinguishes "we know the state"
+// from "the Discord lookup failed", and the actual grant/remove writes are
+// gated behind externalWritesAllowed() (in add/removeGuildMemberRole), so on
+// the test site a toggle returns a clear error rather than silently failing.
+
+// Snapshot of which of the three notification roles the caller currently holds.
+router.get("/auth/notification-roles", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+  if (roleIds === null) {
+    res.json({
+      determined: false,
+      roles: Object.fromEntries(NOTIFICATION_ROLES.map((r) => [r.key, false])),
+    });
+    return;
+  }
+  res.json({
+    determined: true,
+    roles: Object.fromEntries(
+      NOTIFICATION_ROLES.map((r) => [r.key, roleIds.includes(r.roleId)]),
+    ),
+  });
+});
+
+// Enable/disable one notification role for the caller. Body: { role, enabled }.
+// Idempotent: if the member is already in the desired state we report success
+// without calling Discord. On a successful change we audit-log it. Returns the
+// full refreshed snapshot so the UI never drifts from Discord's real state.
+router.post("/auth/notification-roles", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  const role = typeof req.body?.role === "string" ? req.body.role : undefined;
+  const enabled = req.body?.enabled;
+  const def = NOTIFICATION_ROLES.find((r) => r.key === role);
+  if (!def || typeof enabled !== "boolean") {
+    res.status(400).json({ error: "role (npc|social_rp|main_session) and boolean enabled are required" });
+    return;
+  }
+  const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+  const has = roleIds ? roleIds.includes(def.roleId) : false;
+
+  // Already in the desired state — skip the Discord write (idempotent). Only
+  // short-circuit when we could actually read the member; if the lookup failed
+  // (roleIds === null) fall through so the write attempt surfaces a real result.
+  if (roleIds !== null && has === enabled) {
+    res.json({
+      ok: true,
+      determined: true,
+      roles: Object.fromEntries(
+        NOTIFICATION_ROLES.map((r) => [r.key, roleIds.includes(r.roleId)]),
+      ),
+    });
+    return;
+  }
+
+  const reason = `Self-service ${def.label} role ${enabled ? "granted" : "removed"} via portal`;
+  const result = enabled
+    ? await addGuildMemberRole(u.discordId, def.roleId, reason)
+    : await removeGuildMemberRole(u.discordId, def.roleId, reason);
+  if (!result.ok) {
+    res.status(502).json({ ok: false, error: result.error });
+    return;
+  }
+
+  const key = def.key as NotificationRoleKey;
+  void recordAudit({
+    req,
+    category: "auth",
+    action: enabled ? "notification_role_grant" : "notification_role_remove",
+    actorId: u.id,
+    actorName: u.username,
+    targetType: "user",
+    targetId: u.id,
+    message: `${u.username} ${enabled ? "enabled" : "disabled"} the ${def.label} notification role`,
+  });
+
+  // Re-derive the snapshot from the known prior state + the change we just made,
+  // so the response reflects the new reality without a second Discord round-trip.
+  const after = new Set(roleIds ?? []);
+  if (enabled) after.add(def.roleId);
+  else after.delete(def.roleId);
+  res.json({
+    ok: true,
+    determined: true,
+    roles: Object.fromEntries(
+      NOTIFICATION_ROLES.map((r) => [r.key, after.has(r.roleId)]),
+    ),
+    changed: key,
+  });
+});
+
+// Dismiss the dashboard "set your Discord ping preferences" prompt for the
+// current user. Idempotent — once dismissed it never returns. Mirrors the
+// onboarding-banner dismissal. The Settings toggles remain available regardless.
+router.post("/auth/notification-prompt/dismiss", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  await db
+    .update(users)
+    .set({ notificationPromptDismissed: true })
+    .where(eq(users.id, u.id));
+  void recordAudit({
+    req,
+    category: "auth",
+    action: "notification_prompt_dismiss",
+    actorId: u.id,
+    actorName: u.username,
+    targetType: "user",
+    targetId: u.id,
+    message: `${u.username} dismissed the notification-preferences prompt`,
+  });
+  res.json({ ok: true });
 });
 
 export default router;

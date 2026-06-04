@@ -68,6 +68,7 @@ import EventDetail from "@/pages/EventDetail";
 import FixerEvents from "@/pages/fixer/FixerEvents";
 import LoginError from "@/pages/LoginError";
 import LogoutError from "@/pages/LogoutError";
+import Settings from "@/pages/Settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -228,6 +229,7 @@ function AppRoutes() {
           </Route>
           <Route path="/fixer/npcs/:id" component={FixerNpcDetail} />
           <Route path="/items/:uuid" component={InventoryItemDetail} />
+          <Route path="/settings" component={Settings} />
           <Route path="/dice" component={DiceRoller} />
           <Route path="/missions" component={Missions} />
           <Route path="/missions/:id" component={MissionDetail} />

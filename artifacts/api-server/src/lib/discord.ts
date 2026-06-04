@@ -224,9 +224,27 @@ export async function fetchGuildMemberRoleIdsViaBot(discordUserId: string): Prom
 }
 
 /**
- * Discord role id for the self-service "NPC" role granted from the portal.
+ * Discord role ids for the self-service notification ("ping") roles granted from
+ * the portal Settings page. NPC is the original self-service role; Social RP and
+ * Main Session are the two ping roles players previously toggled via Discord
+ * reactions. A portal user's id IS their Discord snowflake, so these are granted
+ * directly to the signed-in member.
  */
 export const NPC_ROLE_ID = "1348661508011462769";
+export const SOCIAL_RP_ROLE_ID = "1466916401070608394";
+export const MAIN_SESSION_ROLE_ID = "1466916614887833610";
+
+/**
+ * The notification roles a player can self-toggle from Settings, keyed by a
+ * stable string the API and UI agree on. Order here is the display order.
+ */
+export const NOTIFICATION_ROLES = [
+  { key: "npc", roleId: NPC_ROLE_ID, label: "NPC" },
+  { key: "social_rp", roleId: SOCIAL_RP_ROLE_ID, label: "Social RP" },
+  { key: "main_session", roleId: MAIN_SESSION_ROLE_ID, label: "Main Session" },
+] as const;
+
+export type NotificationRoleKey = (typeof NOTIFICATION_ROLES)[number]["key"];
 
 /**
  * Grant a guild role to a member using the bot token
@@ -239,6 +257,7 @@ export const NPC_ROLE_ID = "1348661508011462769";
 export async function addGuildMemberRole(
   discordUserId: string,
   roleId: string,
+  reason = "Self-service role granted via portal",
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
     return { ok: false, error: "Discord bot token or guild id not configured" };
@@ -260,7 +279,7 @@ export async function addGuildMemberRole(
         method: "PUT",
         headers: {
           Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-          "X-Audit-Log-Reason": "Self-service NPC role granted via portal",
+          "X-Audit-Log-Reason": reason,
         },
         signal: AbortSignal.timeout(15_000),
       },
@@ -289,6 +308,7 @@ export async function addGuildMemberRole(
 export async function removeGuildMemberRole(
   discordUserId: string,
   roleId: string,
+  reason = "Self-service role removed via portal",
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
     return { ok: false, error: "Discord bot token or guild id not configured" };
@@ -310,7 +330,7 @@ export async function removeGuildMemberRole(
         method: "DELETE",
         headers: {
           Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-          "X-Audit-Log-Reason": "Self-service NPC role removed via portal",
+          "X-Audit-Log-Reason": reason,
         },
         signal: AbortSignal.timeout(15_000),
       },

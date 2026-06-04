@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
 import BecomeNpcButton from "@/components/BecomeNpcButton";
+import { useDismissNotificationPrompt, getGetMeQueryKey } from "@workspace/api-client-react";
+import { Bell, X } from "lucide-react";
 import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
 import ncrpLogo from "@assets/image_1780331782394.png";
 
@@ -139,6 +141,8 @@ function Dashboard() {
 
       <BecomeNpcButton variant="dashboard" />
 
+      <NotificationPrefsPrompt />
+
       <PlayerLoaControl characters={characters ?? []} />
 
       {/* Contextual top row: the Total Eddies stat (+ staff-only queue cards),
@@ -218,6 +222,67 @@ function Dashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Compact, dismissible dashboard prompt nudging players to set their Discord
+// ping preferences on the Settings page. Dismissal is persisted per real user
+// (notificationPromptDismissed on /auth/me) and mirrors the onboarding-banner
+// pattern, so once dismissed it never re-appears. The Settings toggles remain
+// the permanent home regardless of whether this prompt is shown.
+function NotificationPrefsPrompt() {
+  const qc = useQueryClient();
+  const { data: user } = useAuthMe();
+  const dismiss = useDismissNotificationPrompt();
+
+  if (!user || user.notificationPromptDismissed) return null;
+
+  function onDismiss() {
+    // Optimistically hide, then persist and re-fetch /auth/me so the flag sticks.
+    qc.setQueryData(getGetMeQueryKey(), (prev: any) =>
+      prev ? { ...prev, notificationPromptDismissed: true } : prev,
+    );
+    dismiss.mutate(undefined, {
+      onSettled: () => qc.invalidateQueries({ queryKey: getGetMeQueryKey() }),
+    });
+  }
+
+  return (
+    <Card
+      className="rounded-none border-nc-cyan/40 bg-gradient-to-r from-nc-cyan/10 via-nc-cyan/5 to-transparent"
+      data-testid="card-notification-prompt"
+    >
+      <CardContent className="p-4 flex flex-wrap items-center gap-4">
+        <Bell className="w-7 h-7 text-nc-cyan shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-mono tracking-widest text-nc-cyan uppercase">
+            Stay in the loop
+          </div>
+          <div className="font-display text-lg text-foreground">SET YOUR PING PREFERENCES</div>
+          <div className="font-mono text-xs text-muted-foreground">
+            Choose which Discord pings you get — NPC, Social RP, and Main Session — right from Settings.
+          </div>
+        </div>
+        <Button
+          asChild
+          className="rounded-none bg-nc-cyan hover:bg-nc-cyan/80 text-background font-display shrink-0"
+          data-testid="button-notification-prompt-settings"
+        >
+          <Link href="/settings">OPEN SETTINGS</Link>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onDismiss}
+          disabled={dismiss.isPending}
+          className="shrink-0 text-muted-foreground hover:text-nc-cyan h-7 w-7 rounded-none"
+          aria-label="Dismiss notification preferences prompt"
+          data-testid="button-notification-prompt-dismiss"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

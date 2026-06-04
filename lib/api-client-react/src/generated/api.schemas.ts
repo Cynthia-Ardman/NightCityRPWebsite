@@ -827,6 +827,8 @@ export interface Me {
   loginCount?: number;
   /** True once the user has dismissed the onboarding banner; it then never re-appears. */
   onboardingBannerDismissed?: boolean;
+  /** True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless. */
+  notificationPromptDismissed?: boolean;
   /** Linked VRChat profile for this Discord user, or null if none registered. */
   vrchat?: VrchatLinkSummary | null;
 }
@@ -5001,6 +5003,10 @@ state?: string;
 };
 
 export type DismissOnboarding200 = {
+  ok: boolean;
+};
+
+export type DismissNotificationPrompt200 = {
   ok: boolean;
 };
 

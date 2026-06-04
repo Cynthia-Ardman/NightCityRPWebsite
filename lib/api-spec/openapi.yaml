@@ -81,6 +81,22 @@ paths:
                 properties:
                   ok: { type: boolean }
         "401": { description: Not logged in }
+  /auth/notification-prompt/dismiss:
+    post:
+      operationId: dismissNotificationPrompt
+      tags: [auth]
+      summary: Dismiss the dashboard "set your Discord ping preferences" prompt
+      responses:
+        "200":
+          description: Prompt dismissed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "401": { description: Not logged in }
   /auth/me:
     get:
       operationId: getMe
@@ -5154,6 +5170,9 @@ components:
         onboardingBannerDismissed:
           type: boolean
           description: "True once the user has dismissed the onboarding banner; it then never re-appears."
+        notificationPromptDismissed:
+          type: boolean
+          description: "True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless."
         vrchat:
           oneOf:
             - { $ref: "#/components/schemas/VrchatLinkSummary" }

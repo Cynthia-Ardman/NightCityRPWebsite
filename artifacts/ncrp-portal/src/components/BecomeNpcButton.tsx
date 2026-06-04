@@ -55,7 +55,9 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
       return body as NpcRoleStatus;
     },
     onSuccess: () => {
+      // Keep the Settings notifications toggles in sync with this CTA.
       qc.invalidateQueries({ queryKey: ["npc-role"] });
+      qc.invalidateQueries({ queryKey: ["notification-roles"] });
       toast({
         title: "You're an NPC now!",
         description: "The NPC role has been added to your Discord account.",
@@ -82,7 +84,9 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
       return body as NpcRoleStatus;
     },
     onSuccess: () => {
+      // Keep the Settings notifications toggles in sync with this CTA.
       qc.invalidateQueries({ queryKey: ["npc-role"] });
+      qc.invalidateQueries({ queryKey: ["notification-roles"] });
       toast({
         title: "You've left the NPC role",
         description: "The NPC role has been removed from your Discord account.",
