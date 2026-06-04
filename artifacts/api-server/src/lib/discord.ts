@@ -278,6 +278,56 @@ export async function addGuildMemberRole(
   }
 }
 
+/**
+ * Remove a guild role from a member using the bot token
+ * (`DELETE /guilds/{guild}/members/{user}/roles/{role}`). Sibling to
+ * addGuildMemberRole: gated behind externalWritesAllowed() so it only fires on
+ * the real deployment (or when explicitly opted in). Discord returns 204 on
+ * success and also 204 if the member did not have the role, so this is
+ * idempotent. Returns a discriminated result instead of throwing.
+ */
+export async function removeGuildMemberRole(
+  discordUserId: string,
+  roleId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+    return { ok: false, error: "Discord bot token or guild id not configured" };
+  }
+  if (!externalWritesAllowed()) {
+    logger.info(
+      { discordUserId, roleId },
+      "Discord write suppressed (non-deployment env); skipping role removal",
+    );
+    return {
+      ok: false,
+      error: "External Discord writes are disabled in this (test) environment",
+    };
+  }
+  try {
+    const res = await fetch(
+      `${API}/guilds/${DISCORD_GUILD_ID}/members/${discordUserId}/roles/${roleId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+          "X-Audit-Log-Reason": "Self-service NPC role removed via portal",
+        },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn({ status: res.status, body: text, discordUserId, roleId }, "removeGuildMemberRole failed");
+      return { ok: false, error: `Discord role removal failed (${res.status}): ${text.slice(0, 300)}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ err, discordUserId, roleId }, "removeGuildMemberRole error");
+    return { ok: false, error: msg };
+  }
+}
+
 export type GuildMemberLite = {
   id: string;
   username: string;

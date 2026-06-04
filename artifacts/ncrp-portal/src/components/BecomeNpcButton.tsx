@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus } from "lucide-react";
+import { UserPlus, UserMinus } from "lucide-react";
 
 interface NpcRoleStatus {
   hasRole: boolean;
@@ -70,6 +70,33 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
     },
   });
 
+  const leave = useMutation({
+    mutationFn: async (): Promise<NpcRoleStatus> => {
+      const r = await fetch("/api/auth/npc-role", { method: "DELETE", credentials: "include" });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(
+          (body as { error?: string })?.error || `Could not remove the NPC role (HTTP ${r.status}).`,
+        );
+      }
+      return body as NpcRoleStatus;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["npc-role"] });
+      toast({
+        title: "You've left the NPC role",
+        description: "The NPC role has been removed from your Discord account.",
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Couldn't remove the NPC role",
+        description: err instanceof Error ? err.message : "Please try again later.",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (!me) return null;
   const hasRole = data?.hasRole ?? false;
 
@@ -108,26 +135,44 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
     );
   }
 
-  // Guidebook variant: always present, disabled once the user is an NPC.
+  // Guidebook variant: always present. When the user lacks the role it grants;
+  // once they hold it, it flips to a "Leave NPC role" control so they can step
+  // down self-service, mirroring the grant UX.
   return (
     <div
       className="flex flex-wrap items-center gap-3 border border-nc-magenta/40 bg-nc-magenta/5 p-4"
       data-testid="cta-become-npc-guidebook"
     >
-      <UserPlus className="w-6 h-6 text-nc-magenta shrink-0" />
+      {hasRole ? (
+        <UserMinus className="w-6 h-6 text-nc-magenta shrink-0" />
+      ) : (
+        <UserPlus className="w-6 h-6 text-nc-magenta shrink-0" />
+      )}
       <span className="font-mono text-xs text-muted-foreground flex-1 min-w-0">
         {hasRole
-          ? "You already have the NPC role — you're all set."
+          ? "You have the NPC role. Changed your mind? You can step down anytime."
           : "Ready to play background characters? Grant yourself the NPC role instantly."}
       </span>
-      <Button
-        onClick={() => grant.mutate()}
-        disabled={hasRole || isLoading || grant.isPending}
-        className="rounded-none bg-nc-magenta hover:bg-nc-magenta/80 text-foreground font-display shrink-0 disabled:opacity-60"
-        data-testid="button-become-npc-guidebook"
-      >
-        {hasRole ? "YOU'RE AN NPC" : grant.isPending ? "GRANTING..." : "BECOME AN NPC TODAY"}
-      </Button>
+      {hasRole ? (
+        <Button
+          onClick={() => leave.mutate()}
+          disabled={isLoading || leave.isPending}
+          variant="outline"
+          className="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-display shrink-0 disabled:opacity-60"
+          data-testid="button-leave-npc-guidebook"
+        >
+          {leave.isPending ? "LEAVING..." : "LEAVE NPC ROLE"}
+        </Button>
+      ) : (
+        <Button
+          onClick={() => grant.mutate()}
+          disabled={isLoading || grant.isPending}
+          className="rounded-none bg-nc-magenta hover:bg-nc-magenta/80 text-foreground font-display shrink-0 disabled:opacity-60"
+          data-testid="button-become-npc-guidebook"
+        >
+          {grant.isPending ? "GRANTING..." : "BECOME AN NPC TODAY"}
+        </Button>
+      )}
     </div>
   );
 }

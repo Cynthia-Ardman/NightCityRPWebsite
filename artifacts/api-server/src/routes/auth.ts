@@ -9,6 +9,7 @@ import {
   fetchGuildMemberRoles,
   fetchGuildMemberRoleIdsViaBot,
   addGuildMemberRole,
+  removeGuildMemberRole,
   NPC_ROLE_ID,
   avatarUrl,
   hasRole,
@@ -298,6 +299,36 @@ router.post("/auth/npc-role", requireAuth, async (req, res): Promise<void> => {
     message: `${u.username} self-granted the NPC role`,
   });
   res.json({ ok: true, hasRole: true });
+});
+
+// Remove the NPC Discord role from the current user (step down from NPC). Mirror
+// of the grant route. Idempotent: if they don't have the role we report success
+// without calling Discord. The actual write is gated behind externalWritesAllowed()
+// (in removeGuildMemberRole), so on the test site this returns a clear error
+// rather than silently failing.
+router.delete("/auth/npc-role", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+  if (roleIds && !roleIds.includes(NPC_ROLE_ID)) {
+    res.json({ ok: true, hasRole: false });
+    return;
+  }
+  const result = await removeGuildMemberRole(u.discordId, NPC_ROLE_ID);
+  if (!result.ok) {
+    res.status(502).json({ ok: false, error: result.error });
+    return;
+  }
+  void recordAudit({
+    req,
+    category: "auth",
+    action: "npc_role_remove",
+    actorId: u.id,
+    actorName: u.username,
+    targetType: "user",
+    targetId: u.id,
+    message: `${u.username} self-removed the NPC role`,
+  });
+  res.json({ ok: true, hasRole: false });
 });
 
 export default router;
