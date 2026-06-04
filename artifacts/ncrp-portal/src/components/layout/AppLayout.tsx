@@ -240,15 +240,6 @@ function SidebarContent() {
         <div className={`px-4 text-xs font-mono ${NAV_TONES.green.heading} mb-2 mt-6 uppercase tracking-widest`}>Directory</div>
         <NavItem href="/missions" icon={Briefcase} label="Missions" tone="green" />
         <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" tone="green" />
-        {/* Character Archive lists rosters of every sheet. Sheet bodies
-            (background, etc.) are owner/staff-only — see directory.ts — so
-            clicking a row a non-owner doesn't own will 403 unless they're
-            a fixer or admin. Surface the link only to staff to avoid that
-            dead-end UX for regular players, who manage their own characters
-            from /characters anyway. */}
-        {user && (user.isFixer || user.isAdmin) && (
-          <NavItem href="/directory/characters" icon={Archive} label="Character Archive" tone="green" />
-        )}
         <NavItem href="/directory/stores" icon={Store} label="Stores" tone="green" />
         <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Ripperdocs" tone="green" />
         <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />
@@ -266,6 +257,12 @@ function SidebarContent() {
         {user?.isRipperdoc && <NavItem href="/clinics" icon={HeartPulse} label="Manage Clinics" tone="magenta" />}
         {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Wrench} label="Ripperdoc Console" tone="magenta" />}
         {user?.isFixer && <NavItem href="/fixer" icon={Network} label="Fixer Hub" tone="magenta" />}
+        {/* Character Archive lists rosters of every sheet; sheet bodies are
+            owner/staff-only (see directory.ts), so it lives in the staff-only
+            Management group rather than the public Directory. */}
+        {user && (user.isFixer || user.isAdmin) && (
+          <NavItem href="/directory/characters" icon={Archive} label="Character Archive" tone="magenta" />
+        )}
         {user && (user.isFixer || user.isAdmin) && <NavItem href="/breach" icon={Cpu} label="Breach Control" tone="magenta" />}
         {/* Unified staff review queue (misc requests / character edits /
             new characters). Each tab self-gates by role inside the page,
