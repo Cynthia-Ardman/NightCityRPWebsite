@@ -5,7 +5,7 @@ import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffer
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -231,25 +231,25 @@ function SidebarContent() {
             dead-end UX for regular players, who manage their own characters
             from /characters anyway. */}
         {user && (user.isFixer || user.isAdmin) && (
-          <NavItem href="/directory/characters" icon={Users} label="Character Archive" />
+          <NavItem href="/directory/characters" icon={Archive} label="Character Archive" />
         )}
         <NavItem href="/directory/stores" icon={Store} label="Stores" />
-        <NavItem href="/directory/ripperdocs" icon={Syringe} label="Ripperdocs" />
+        <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Ripperdocs" />
         <NavItem href="/directory/lore" icon={BookOpen} label="Lore" />
 
         <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Marketplace</div>
         <NavItem href="/catalog/guns" icon={Skull} label="Guns" />
         <NavItem href="/catalog/cyberware" icon={Syringe} label="Cyberware" />
-        <NavItem href="/catalog/rent" icon={Store} label="Property" />
+        <NavItem href="/catalog/rent" icon={Building2} label="Property" />
 
         {user && (user.isStoreOwner || user.isRipperdoc || user.isFixer || user.isCsApprover || user.isAdmin) && (
           <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Management</div>
         )}
         
-        {user?.isStoreOwner && <NavItem href="/stores" icon={Store} label="Manage Stores" />}
-        {user?.isRipperdoc && <NavItem href="/clinics" icon={Syringe} label="Manage Clinics" />}
-        {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Syringe} label="Ripperdoc Console" />}
-        {user?.isFixer && <NavItem href="/fixer" icon={Users} label="Fixer Hub" />}
+        {user?.isStoreOwner && <NavItem href="/stores" icon={Warehouse} label="Manage Stores" />}
+        {user?.isRipperdoc && <NavItem href="/clinics" icon={HeartPulse} label="Manage Clinics" />}
+        {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Wrench} label="Ripperdoc Console" />}
+        {user?.isFixer && <NavItem href="/fixer" icon={Network} label="Fixer Hub" />}
         {user && (user.isFixer || user.isAdmin) && <NavItem href="/breach" icon={Cpu} label="Breach Control" />}
         {/* Unified staff review queue (misc requests / character edits /
             new characters). Each tab self-gates by role inside the page,
