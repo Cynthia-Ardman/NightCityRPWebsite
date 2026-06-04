@@ -126,6 +126,21 @@ function DiscordIcon({ className }: { className?: string }) {
   );
 }
 
+// Muted per-section accent palette. Each nav section gets ONE calm color so the
+// sidebar reads as organized groups, not a rainbow. Icons + headings rest at low
+// opacity (not bright); the icon brightens on hover and the active row shows the
+// full tone on its icon and left border. "neutral" keeps utility rows uncolored.
+const NAV_TONES = {
+  cyan: { icon: "text-nc-cyan/60 group-hover:text-nc-cyan", iconActive: "text-nc-cyan", activeBorder: "border-nc-cyan", heading: "text-nc-cyan/70" },
+  green: { icon: "text-nc-green/60 group-hover:text-nc-green", iconActive: "text-nc-green", activeBorder: "border-nc-green", heading: "text-nc-green/70" },
+  yellow: { icon: "text-nc-yellow/60 group-hover:text-nc-yellow", iconActive: "text-nc-yellow", activeBorder: "border-nc-yellow", heading: "text-nc-yellow/70" },
+  magenta: { icon: "text-nc-magenta/60 group-hover:text-nc-magenta", iconActive: "text-nc-magenta", activeBorder: "border-nc-magenta", heading: "text-nc-magenta/70" },
+  orange: { icon: "text-nc-orange/60 group-hover:text-nc-orange", iconActive: "text-nc-orange", activeBorder: "border-nc-orange", heading: "text-nc-orange/70" },
+  neutral: { icon: "text-muted-foreground group-hover:text-foreground", iconActive: "text-foreground", activeBorder: "border-foreground/40", heading: "text-muted-foreground" },
+} as const;
+
+type NavTone = keyof typeof NAV_TONES;
+
 function SidebarContent() {
   const { data: user } = useEffectiveMe();
   const [location] = useLocation();
@@ -160,13 +175,14 @@ function SidebarContent() {
   const { data: myUnseen } = useGetMyUnseen({ query: { enabled: !!user, queryKey: getGetMyUnseenQueryKey() } });
   const myRequestsUnseen = myUnseen?.total ?? 0;
 
-  const NavItem = ({ href, icon: Icon, label, disabled, badge }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number }) => {
+  const NavItem = ({ href, icon: Icon, label, disabled, badge, tone = "cyan" }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number, tone?: NavTone }) => {
     const isActive = location === href || location.startsWith(href + '/');
     if (disabled) return null;
-    
+    const t = NAV_TONES[tone];
+
     return (
-      <Link href={href} className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors border-l-2 ${isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground border-nc-cyan' : 'text-sidebar-foreground border-transparent hover:bg-sidebar-accent/50 hover:text-nc-cyan'}`}>
-        <Icon className="h-4 w-4" />
+      <Link href={href} className={`group flex items-center gap-3 px-4 py-3 text-sm transition-colors border-l-2 ${isActive ? `bg-sidebar-accent text-sidebar-accent-foreground ${t.activeBorder}` : 'text-sidebar-foreground border-transparent hover:bg-sidebar-accent/50'}`}>
+        <Icon className={`h-4 w-4 transition-colors ${isActive ? t.iconActive : t.icon}`} />
         <span className="font-display tracking-widest uppercase">{label}</span>
         {badge ? (
           <span
@@ -210,20 +226,20 @@ function SidebarContent() {
       )}
 
       <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-1">
-        <NavItem href="/guidebook" icon={BookMarked} label="Guidebook" />
+        <NavItem href="/guidebook" icon={BookMarked} label="Guidebook" tone="cyan" />
 
-        <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-4 uppercase tracking-widest">Personal</div>
-        <NavItem href="/" icon={User} label="Dashboard" />
-        <NavItem href="/characters" icon={Users} label="Characters" />
-        <NavItem href="/ledger" icon={Receipt} label="Ledger" />
-        <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} />
-        <NavItem href="/offers/mine" icon={ShoppingBag} label="My Offers" badge={pendingOffers} />
-        <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" />
-        <NavItem href="/dice" icon={Dice5} label="Dice Roller" />
+        <div className={`px-4 text-xs font-mono ${NAV_TONES.cyan.heading} mb-2 mt-4 uppercase tracking-widest`}>Personal</div>
+        <NavItem href="/" icon={User} label="Dashboard" tone="cyan" />
+        <NavItem href="/characters" icon={Users} label="Characters" tone="cyan" />
+        <NavItem href="/ledger" icon={Receipt} label="Ledger" tone="cyan" />
+        <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} tone="cyan" />
+        <NavItem href="/offers/mine" icon={ShoppingBag} label="My Offers" badge={pendingOffers} tone="cyan" />
+        <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" tone="cyan" />
+        <NavItem href="/dice" icon={Dice5} label="Dice Roller" tone="cyan" />
 
-        <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Directory</div>
-        <NavItem href="/missions" icon={Briefcase} label="Missions" />
-        <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" />
+        <div className={`px-4 text-xs font-mono ${NAV_TONES.green.heading} mb-2 mt-6 uppercase tracking-widest`}>Directory</div>
+        <NavItem href="/missions" icon={Briefcase} label="Missions" tone="green" />
+        <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" tone="green" />
         {/* Character Archive lists rosters of every sheet. Sheet bodies
             (background, etc.) are owner/staff-only — see directory.ts — so
             clicking a row a non-owner doesn't own will 403 unless they're
@@ -231,38 +247,38 @@ function SidebarContent() {
             dead-end UX for regular players, who manage their own characters
             from /characters anyway. */}
         {user && (user.isFixer || user.isAdmin) && (
-          <NavItem href="/directory/characters" icon={Archive} label="Character Archive" />
+          <NavItem href="/directory/characters" icon={Archive} label="Character Archive" tone="green" />
         )}
-        <NavItem href="/directory/stores" icon={Store} label="Stores" />
-        <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Ripperdocs" />
-        <NavItem href="/directory/lore" icon={BookOpen} label="Lore" />
+        <NavItem href="/directory/stores" icon={Store} label="Stores" tone="green" />
+        <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Ripperdocs" tone="green" />
+        <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />
 
-        <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Marketplace</div>
-        <NavItem href="/catalog/guns" icon={Skull} label="Guns" />
-        <NavItem href="/catalog/cyberware" icon={Syringe} label="Cyberware" />
-        <NavItem href="/catalog/rent" icon={Building2} label="Property" />
+        <div className={`px-4 text-xs font-mono ${NAV_TONES.yellow.heading} mb-2 mt-6 uppercase tracking-widest`}>Marketplace</div>
+        <NavItem href="/catalog/guns" icon={Skull} label="Guns" tone="yellow" />
+        <NavItem href="/catalog/cyberware" icon={Syringe} label="Cyberware" tone="yellow" />
+        <NavItem href="/catalog/rent" icon={Building2} label="Property" tone="yellow" />
 
         {user && (user.isStoreOwner || user.isRipperdoc || user.isFixer || user.isCsApprover || user.isAdmin) && (
-          <div className="px-4 text-xs font-mono text-muted-foreground mb-2 mt-6 uppercase tracking-widest">Management</div>
+          <div className={`px-4 text-xs font-mono ${NAV_TONES.magenta.heading} mb-2 mt-6 uppercase tracking-widest`}>Management</div>
         )}
         
-        {user?.isStoreOwner && <NavItem href="/stores" icon={Warehouse} label="Manage Stores" />}
-        {user?.isRipperdoc && <NavItem href="/clinics" icon={HeartPulse} label="Manage Clinics" />}
-        {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Wrench} label="Ripperdoc Console" />}
-        {user?.isFixer && <NavItem href="/fixer" icon={Network} label="Fixer Hub" />}
-        {user && (user.isFixer || user.isAdmin) && <NavItem href="/breach" icon={Cpu} label="Breach Control" />}
+        {user?.isStoreOwner && <NavItem href="/stores" icon={Warehouse} label="Manage Stores" tone="magenta" />}
+        {user?.isRipperdoc && <NavItem href="/clinics" icon={HeartPulse} label="Manage Clinics" tone="magenta" />}
+        {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Wrench} label="Ripperdoc Console" tone="magenta" />}
+        {user?.isFixer && <NavItem href="/fixer" icon={Network} label="Fixer Hub" tone="magenta" />}
+        {user && (user.isFixer || user.isAdmin) && <NavItem href="/breach" icon={Cpu} label="Breach Control" tone="magenta" />}
         {/* Unified staff review queue (misc requests / character edits /
             new characters). Each tab self-gates by role inside the page,
             but only fixers / cs-approvers / admins have anything to do here,
             so the nav link is staff-gated. */}
         {user && (user.isFixer || user.isCsApprover || user.isAdmin) && (
-          <NavItem href="/requests" icon={FileText} label="Pending Requests" badge={staffPending} />
+          <NavItem href="/requests" icon={FileText} label="Pending Requests" badge={staffPending} tone="magenta" />
         )}
-        {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" />}
+        {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" tone="magenta" />}
 
         {/* Settings sits on its own at the very bottom, below every category. */}
         <div className="mt-6">
-          <NavItem href="/settings" icon={Settings} label="Settings" />
+          <NavItem href="/settings" icon={Settings} label="Settings" tone="neutral" />
         </div>
       </div>
 
