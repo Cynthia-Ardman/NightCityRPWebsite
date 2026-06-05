@@ -27,6 +27,12 @@ export type EconomyMode = "disabled" | "test" | "enabled";
 /** bot_config kill-switch key. OFF (default) => the economy system is disabled. */
 export const ECONOMY_ENABLED_KEY = "economy_enabled";
 
+// Wallet balances are stored as Postgres int4 columns, which top out at
+// 2,147,483,647. A credit that would push a balance past this would overflow
+// the column and throw at write time, so applyWalletDelta rejects it cleanly
+// (status "exceeds_max") before any UB call or DB write.
+export const MAX_WALLET_BALANCE = 2_147_483_647;
+
 async function readBool(key: string): Promise<boolean> {
   try {
     const [row] = await db.select().from(botConfig).where(eq(botConfig.key, key));
@@ -88,7 +94,8 @@ export type WalletApplyStatus =
   | "dry_run"
   | "duplicate"
   | "pending"
-  | "insufficient_funds";
+  | "insufficient_funds"
+  | "exceeds_max";
 
 export interface WalletApplyResult {
   ok: boolean;
@@ -139,6 +146,19 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput): Promise<Wa
   // Overdraw protection (debits only) — checked before any write.
   if (!input.allowNegative && input.amount < 0 && proposed < 0) {
     return { ok: false, status: "insufficient_funds", balance: prev, previousBalance: prev, proposedBalance: proposed };
+  }
+
+  // Overflow protection (credits only) — a balance past the int4 ceiling would
+  // throw at write time, so reject it cleanly before any UB call or DB write.
+  if (input.amount > 0 && proposed > MAX_WALLET_BALANCE) {
+    return {
+      ok: false,
+      status: "exceeds_max",
+      balance: prev,
+      previousBalance: prev,
+      proposedBalance: proposed,
+      error: `This would push the wallet past the maximum balance of ${MAX_WALLET_BALANCE.toLocaleString()} eddies.`,
+    };
   }
 
   if (mode === "disabled") {

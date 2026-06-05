@@ -11,7 +11,7 @@ import { db, stores, ripperdocs, walletTransactions, users, botConfig } from "@w
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
-import { runEconomyReconcile } from "../lib/economy";
+import { runEconomyReconcile, MAX_WALLET_BALANCE } from "../lib/economy";
 
 const app = buildTestApp();
 const mockGetBalance = vi.mocked(getBalance);
@@ -101,6 +101,31 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     expect(mockPatch).not.toHaveBeenCalled();
     const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
     expect(s.balance).toBe(50);
+  });
+
+  it("rejects a withdrawal that would push the wallet past the int4 ceiling", async () => {
+    await setMode("enabled");
+    mockGetBalance.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const owner = await createUser();
+    // Wallet sits 50 below the int4 ceiling; a 100-eddy withdrawal would overflow.
+    await db
+      .update(users)
+      .set({ walletBalance: MAX_WALLET_BALANCE - 50, lastSyncedUbBalance: MAX_WALLET_BALANCE - 50 })
+      .where(eq(users.id, owner.id));
+    const store = await makeStore(owner.id, 100);
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/withdraw`)
+      .set("x-test-user", owner.id)
+      .send({ amount: 100 });
+
+    expect(res.status).toBe(400);
+    // Rejected before any UB call or balance write.
+    expect(mockPatch).not.toHaveBeenCalled();
+    const [u] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(u.walletBalance).toBe(MAX_WALLET_BALANCE - 50);
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(100);
   });
 
   it("502s and does not touch the store when the personal-leg UB sync fails", async () => {

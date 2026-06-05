@@ -85,3 +85,4 @@
 - [Main Sessions are discrete weekly rows](main-sessions-discrete.md) — sessions are one event row per Sunday (own discord id), NOT a recurrence_rule; extend coverage by creating rows (backfill-main-sessions.ts), not recurrence.
 - [Mission remove-vs-pay race](mission-remove-pay-race.md) — roster removal must re-check paid/processing under FOR UPDATE inside the tx; pay claims the same row, pre-tx guard alone races.
 - [Re-override staged requests](staged-review-effects.md) — an approved-but-not-closed request is editable via admin re-override (re-stages decisionParams); gate edit-ability on appliedRef IS NULL, not on status, since approved→appliedRef is always null until close.
+- [Wallet int4 ceiling](wallet-int4-ceiling.md) — wallet/store/ripperdoc balances are int4 (max 2,147,483,647); applyWalletDelta guards credits via MAX_WALLET_BALANCE, but UB->website reconcile paths remain an overflow vector.

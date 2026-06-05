@@ -1419,6 +1419,10 @@ async function venueDepositWithdraw(opts: {
     res.status(400).json({ error: "Insufficient personal wallet balance" });
     return;
   }
+  if (result.status === "exceeds_max") {
+    res.status(400).json({ error: result.error ?? "This would exceed the maximum wallet balance." });
+    return;
+  }
   if (result.status === "dry_run") {
     res.json({
       ok: true,
