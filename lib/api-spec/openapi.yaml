@@ -3034,6 +3034,23 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/AdminCharacterSummary" }
+    post:
+      operationId: adminCreateCharacter
+      tags: [admin]
+      summary: "Manually create an approved character (admin only), optionally assigning an owner and portraits."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminCreateCharacterInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+        "400": { description: Invalid input }
+        "404": { description: Owner (user) not found }
   /admin/characters/{id}/owner:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -5465,6 +5482,22 @@ components:
       required: [ownerId]
       properties:
         ownerId: { type: string, description: "Internal users.id of the new owner." }
+
+    AdminCreateCharacterInput:
+      type: object
+      required: [name]
+      description: "Fields for manually creating an approved character from the admin UI. Owner and portraits are optional."
+      properties:
+        name: { type: string, description: "Character name (required)." }
+        kind: { type: string, enum: [pc, npc], default: pc, description: "Player character or NPC." }
+        ownerId: { type: ["string", "null"], description: "Internal users.id of the owner; omit/null to leave unclaimed." }
+        archetype: { type: ["string", "null"] }
+        background: { type: ["string", "null"] }
+        lifeStatus: { type: string, enum: [active, dead, missing, loa, retired], default: active }
+        portraitUrls:
+          type: array
+          items: { type: string }
+          description: "Already-uploaded object-storage paths from the presigned-URL flow."
 
     UploadUrlRequest:
       type: object

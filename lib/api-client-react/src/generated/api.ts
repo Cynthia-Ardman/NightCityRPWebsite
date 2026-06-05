@@ -27,6 +27,7 @@ import type {
   ActorPayoutResult,
   ActorReportRow,
   AdminCharacterSummary,
+  AdminCreateCharacterInput,
   AdminListAuditLogParams,
   AdminListAuditParams,
   AdminRecordCheckup200,
@@ -13910,6 +13911,77 @@ export function useAdminListCharacters<TData = Awaited<ReturnType<typeof adminLi
 
 
 
+
+export const getAdminCreateCharacterUrl = () => {
+
+
+
+
+  return `/api/admin/characters`
+}
+
+/**
+ * @summary Manually create an approved character (admin only), optionally assigning an owner and portraits.
+ */
+export const adminCreateCharacter = async (adminCreateCharacterInput: AdminCreateCharacterInput, options?: RequestInit): Promise<Character> => {
+
+  return customFetch<Character>(getAdminCreateCharacterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminCreateCharacterInput,)
+  }
+);}
+
+
+
+
+export const getAdminCreateCharacterMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateCharacter>>, TError,{data: BodyType<AdminCreateCharacterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreateCharacter>>, TError,{data: BodyType<AdminCreateCharacterInput>}, TContext> => {
+
+const mutationKey = ['adminCreateCharacter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateCharacter>>, {data: BodyType<AdminCreateCharacterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreateCharacter(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreateCharacterMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateCharacter>>>
+    export type AdminCreateCharacterMutationBody = BodyType<AdminCreateCharacterInput>
+    export type AdminCreateCharacterMutationError = ErrorType<void>
+
+    /**
+ * @summary Manually create an approved character (admin only), optionally assigning an owner and portraits.
+ */
+export const useAdminCreateCharacter = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateCharacter>>, TError,{data: BodyType<AdminCreateCharacterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreateCharacter>>,
+        TError,
+        {data: BodyType<AdminCreateCharacterInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreateCharacterMutationOptions(options));
+    }
 
 export const getAdminAssignCharacterOwnerUrl = (id: number,) => {
 

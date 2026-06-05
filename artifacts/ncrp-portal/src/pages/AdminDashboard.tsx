@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminCreateCharacter, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { uploadImage } from "@/lib/uploadImage";
 
 export default function AdminDashboard() {
   const { data: user, isLoading: userLoading } = useAuthMe();
@@ -683,6 +684,230 @@ export function UsersTab() {
   );
 }
 
+// Admin/fixer form to hand-create a character that skips the player sheet
+// pipeline: type the details, optionally attach an owner + portraits, and it
+// lands APPROVED immediately. Collapsed by default to keep the table tidy.
+function CreateCharacterCard() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: users } = useAdminListUsers();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<"pc" | "npc">("pc");
+  const [ownerId, setOwnerId] = useState("");
+  const [archetype, setArchetype] = useState("");
+  const [background, setBackground] = useState("");
+  const [lifeStatus, setLifeStatus] = useState<"active" | "dead" | "missing" | "loa" | "retired">("active");
+  const [portraitUrls, setPortraitUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const reset = () => {
+    setName("");
+    setKind("pc");
+    setOwnerId("");
+    setArchetype("");
+    setBackground("");
+    setLifeStatus("active");
+    setPortraitUrls([]);
+  };
+
+  const create = useAdminCreateCharacter({
+    mutation: {
+      onSuccess: (c) => {
+        qc.invalidateQueries({ queryKey: getAdminListCharactersQueryKey() });
+        toast({ title: "Character created", description: `${c.name} is live and approved.` });
+        reset();
+        setOpen(false);
+      },
+      onError: (err: any) =>
+        toast({ title: "Create failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+    },
+  });
+
+  const onPickFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const urls: string[] = [];
+      for (const f of Array.from(files)) urls.push(await uploadImage(f));
+      setPortraitUrls((prev) => [...prev, ...urls]);
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e?.message ?? "Could not upload image.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submit = () => {
+    if (!name.trim()) {
+      toast({ title: "Name required", variant: "destructive" });
+      return;
+    }
+    create.mutate({
+      data: {
+        name: name.trim(),
+        kind,
+        ownerId: ownerId || null,
+        archetype: archetype.trim() || null,
+        background: background.trim() || null,
+        lifeStatus,
+        portraitUrls,
+      },
+    });
+  };
+
+  const inputCls = "h-9 px-2 text-sm bg-background border border-border w-full";
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="font-display text-nc-cyan">Create Character</CardTitle>
+          <CardDescription className="font-mono">
+            Manually add a character (skips the sheet review queue). Lands approved &amp; active.
+          </CardDescription>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="rounded-none font-display text-xs"
+          onClick={() => setOpen((o) => !o)}
+          data-testid="button-toggle-create-character"
+        >
+          {open ? "CANCEL" : "NEW CHARACTER"}
+        </Button>
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="font-display text-xs text-muted-foreground">NAME *</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="V"
+                className={inputCls}
+                data-testid="input-create-char-name"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-display text-xs text-muted-foreground">TYPE</Label>
+              <select
+                value={kind}
+                onChange={(e) => setKind(e.target.value as "pc" | "npc")}
+                className={inputCls}
+                data-testid="select-create-char-kind"
+              >
+                <option value="pc">PC</option>
+                <option value="npc">NPC</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-display text-xs text-muted-foreground">OWNER (optional)</Label>
+              <select
+                value={ownerId}
+                onChange={(e) => setOwnerId(e.target.value)}
+                className={inputCls}
+                data-testid="select-create-char-owner"
+              >
+                <option value="">— Unclaimed —</option>
+                {(users ?? [])
+                  .slice()
+                  .sort((a, b) => a.username.localeCompare(b.username))
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.username}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-display text-xs text-muted-foreground">LIFE STATUS</Label>
+              <select
+                value={lifeStatus}
+                onChange={(e) => setLifeStatus(e.target.value as typeof lifeStatus)}
+                className={inputCls}
+                data-testid="select-create-char-lifestatus"
+              >
+                {["active", "dead", "missing", "loa", "retired"].map((s) => (
+                  <option key={s} value={s}>
+                    {s.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-display text-xs text-muted-foreground">ARCHETYPE (optional)</Label>
+              <Input
+                value={archetype}
+                onChange={(e) => setArchetype(e.target.value)}
+                placeholder="Solo, Netrunner, Fixer…"
+                className={inputCls}
+                data-testid="input-create-char-archetype"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="font-display text-xs text-muted-foreground">BACKGROUND (optional)</Label>
+            <textarea
+              value={background}
+              onChange={(e) => setBackground(e.target.value)}
+              rows={4}
+              placeholder="A short bio…"
+              className="px-2 py-2 text-sm bg-background border border-border w-full font-mono"
+              data-testid="textarea-create-char-background"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="font-display text-xs text-muted-foreground">PORTRAITS (optional)</Label>
+            <div className="flex flex-wrap items-center gap-3">
+              {portraitUrls.map((url, i) => (
+                <div key={url} className="relative">
+                  <img src={url} alt="" className="h-20 w-20 object-cover border border-border" />
+                  <button
+                    type="button"
+                    onClick={() => setPortraitUrls((prev) => prev.filter((_, j) => j !== i))}
+                    className="absolute -top-2 -right-2 h-5 w-5 bg-destructive text-background text-xs leading-none"
+                    data-testid={`button-remove-portrait-${i}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <label className="h-20 w-20 border border-dashed border-border flex items-center justify-center cursor-pointer text-xs text-muted-foreground hover:border-nc-cyan hover:text-nc-cyan">
+                {uploading ? "…" : "+ ADD"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => onPickFiles(e.target.files)}
+                  data-testid="input-create-char-portraits"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              size="sm"
+              disabled={create.isPending || uploading || !name.trim()}
+              onClick={submit}
+              className="rounded-none font-display text-xs bg-nc-cyan text-background"
+              data-testid="button-submit-create-character"
+            >
+              {create.isPending ? "CREATING…" : "CREATE CHARACTER"}
+            </Button>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export function CharactersTab() {
   const qc = useQueryClient();
   const { data: chars, isLoading } = useAdminListCharacters();
@@ -697,6 +922,8 @@ export function CharactersTab() {
   const rows = (chars ?? []).filter((c) => (filter === "unclaimed" ? !c.ownerId : true));
 
   return (
+    <div className="space-y-6">
+    <CreateCharacterCard />
     <Card className="rounded-none border-border bg-card/50">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <div>
@@ -797,6 +1024,7 @@ export function CharactersTab() {
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 }
 

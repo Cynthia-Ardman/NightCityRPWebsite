@@ -7359,6 +7359,23 @@ export const AdminListCharactersResponse = zod.array(AdminListCharactersResponse
 
 
 /**
+ * @summary Manually create an approved character (admin only), optionally assigning an owner and portraits.
+ */
+export const adminCreateCharacterBodyKindDefault = `pc`;
+export const adminCreateCharacterBodyLifeStatusDefault = `active`;
+
+export const AdminCreateCharacterBody = zod.object({
+  "name": zod.string().describe('Character name (required).'),
+  "kind": zod.enum(['pc', 'npc']).default(adminCreateCharacterBodyKindDefault).describe('Player character or NPC.'),
+  "ownerId": zod.string().nullish().describe('Internal users.id of the owner; omit\/null to leave unclaimed.'),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).default(adminCreateCharacterBodyLifeStatusDefault),
+  "portraitUrls": zod.array(zod.string()).optional().describe('Already-uploaded object-storage paths from the presigned-URL flow.')
+}).describe('Fields for manually creating an approved character from the admin UI. Owner and portraits are optional.')
+
+
+/**
  * @summary Assign or reassign the ownerId of an imported (unclaimed) character.
  */
 export const AdminAssignCharacterOwnerParams = zod.object({

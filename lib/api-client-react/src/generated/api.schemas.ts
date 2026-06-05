@@ -1283,6 +1283,50 @@ export interface AssignOwnerInput {
   ownerId: string;
 }
 
+/**
+ * Player character or NPC.
+ */
+export type AdminCreateCharacterInputKind = typeof AdminCreateCharacterInputKind[keyof typeof AdminCreateCharacterInputKind];
+
+
+export const AdminCreateCharacterInputKind = {
+  pc: 'pc',
+  npc: 'npc',
+} as const;
+
+export type AdminCreateCharacterInputLifeStatus = typeof AdminCreateCharacterInputLifeStatus[keyof typeof AdminCreateCharacterInputLifeStatus];
+
+
+export const AdminCreateCharacterInputLifeStatus = {
+  active: 'active',
+  dead: 'dead',
+  missing: 'missing',
+  loa: 'loa',
+  retired: 'retired',
+} as const;
+
+/**
+ * Fields for manually creating an approved character from the admin UI. Owner and portraits are optional.
+ */
+export interface AdminCreateCharacterInput {
+  /** Character name (required). */
+  name: string;
+  /** Player character or NPC. */
+  kind?: AdminCreateCharacterInputKind;
+  /**
+     * Internal users.id of the owner; omit/null to leave unclaimed.
+     * @nullable
+     */
+  ownerId?: string | null;
+  /** @nullable */
+  archetype?: string | null;
+  /** @nullable */
+  background?: string | null;
+  lifeStatus?: AdminCreateCharacterInputLifeStatus;
+  /** Already-uploaded object-storage paths from the presigned-URL flow. */
+  portraitUrls?: string[];
+}
+
 export interface UploadUrlRequest {
   /** @minLength 1 */
   name: string;

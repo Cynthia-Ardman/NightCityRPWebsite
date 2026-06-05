@@ -219,6 +219,95 @@ router.get("/admin/characters", adminOrFixer, async (_req, res): Promise<void> =
   res.json(rows);
 });
 
+// Manually create a character from the admin UI. Bypasses the player sheet
+// → review → approve pipeline: an admin types the details directly, so
+// the row lands APPROVED and active immediately. Owner is optional (leave it
+// blank to create an unclaimed character and assign it later). Portrait URLs
+// are already-uploaded object-storage paths from the presigned-URL flow.
+const CHARACTER_KINDS = new Set(["pc", "npc"]);
+const LIFE_STATUSES = new Set(["active", "dead", "missing", "loa", "retired"]);
+
+router.post("/admin/characters", adminOnly, async (req, res): Promise<void> => {
+  const b = (req.body ?? {}) as {
+    name?: unknown;
+    kind?: unknown;
+    ownerId?: unknown;
+    archetype?: unknown;
+    background?: unknown;
+    portraitUrls?: unknown;
+    lifeStatus?: unknown;
+  };
+
+  const name = typeof b.name === "string" ? b.name.trim() : "";
+  if (!name) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  const kind = typeof b.kind === "string" ? b.kind : "pc";
+  if (!CHARACTER_KINDS.has(kind)) {
+    res.status(400).json({ error: "kind must be 'pc' or 'npc'" });
+    return;
+  }
+  const lifeStatus = typeof b.lifeStatus === "string" ? b.lifeStatus : "active";
+  if (!LIFE_STATUSES.has(lifeStatus)) {
+    res.status(400).json({ error: "invalid lifeStatus" });
+    return;
+  }
+  const portraitUrls = Array.isArray(b.portraitUrls)
+    ? b.portraitUrls.filter((u): u is string => typeof u === "string" && u.length > 0)
+    : [];
+  const archetype = typeof b.archetype === "string" && b.archetype.trim() ? b.archetype.trim() : null;
+  const background = typeof b.background === "string" && b.background.trim() ? b.background.trim() : null;
+
+  let ownerId: string | null = null;
+  let owner: typeof users.$inferSelect | undefined;
+  if (typeof b.ownerId === "string" && b.ownerId.trim()) {
+    ownerId = b.ownerId.trim();
+    [owner] = await db.select().from(users).where(eq(users.id, ownerId));
+    if (!owner) {
+      res.status(404).json({ error: "Owner (user) not found" });
+      return;
+    }
+  }
+
+  const [created] = await db
+    .insert(characters)
+    .values({
+      name,
+      kind,
+      ownerId,
+      claimed: ownerId !== null,
+      archetype,
+      background,
+      portraitUrls,
+      // Keep the legacy single-portrait column in sync with the first image so
+      // older read paths that still read portraitUrl show something.
+      portraitUrl: portraitUrls[0] ?? null,
+      approved: true,
+      lifeStatus,
+    })
+    .returning();
+
+  await recordAudit({
+    req,
+    category: "admin",
+    action: "character.create",
+    targetType: "character",
+    targetId: String(created.id),
+    message: `Manually created ${kind.toUpperCase()} "${name}"${owner ? ` for ${owner.username}` : " (unclaimed)"}`,
+    after: { id: created.id, name, kind, ownerId, lifeStatus },
+  });
+  await db.insert(activityEvents).values({
+    kind: "character_created",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${req.user!.username} manually created ${name}${owner ? ` for ${owner.username}` : ""}`,
+  });
+
+  res.status(201).json(created);
+});
+
 // Assign or reassign the ownerId of an imported character. Used by the
 // admin/fixer UI to claim an unclaimed sheet for a player who returned to
 // the server under a different account.
