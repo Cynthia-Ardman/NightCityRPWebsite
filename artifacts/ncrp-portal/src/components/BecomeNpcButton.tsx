@@ -40,8 +40,9 @@ export function useNpcRole() {
  *
  * - variant="dashboard": a prominent CTA banner shown ONLY while the user lacks
  *   the role (and hidden while the status is still loading so it never flashes).
- * - variant="guidebook": always rendered, but DISABLED once the user holds the
- *   role, so the NPC Acting page consistently advertises the action.
+ * - variant="guidebook": always rendered and always actionable. It grants the
+ *   role when the user lacks it, and flips to a "Leave NPC role" step-down
+ *   control once they hold it, so the NPC Acting page is never a dead end.
  */
 export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "guidebook" }) {
   const { data: me } = useAuthMe();
