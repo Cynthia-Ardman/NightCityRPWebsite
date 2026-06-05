@@ -43,6 +43,7 @@ import {
   applyToMission,
   withdrawApplication,
   reviewApplication,
+  removeAssignedPlayer,
   listApplicantOutcomes,
   checkDiscordEventConflict,
   type MissionViewer,
@@ -893,6 +894,33 @@ router.post("/missions/:id/applications/:appId/review", requireAuth, async (req,
     missionId: id,
     applicationId: appId,
     action,
+    viewer: viewerOf(req),
+    req,
+  });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Fixer/admin removes an accepted player from a mission's roster. Reverts the
+// player's attendance + frees their application; blocked if they were paid.
+router.delete("/missions/:id/assignments/:userId", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const userId = String(req.params.userId);
+  if (!userId) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const result = await removeAssignedPlayer({
+    missionId: id,
+    userId,
     viewer: viewerOf(req),
     req,
   });

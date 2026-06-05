@@ -8646,6 +8646,78 @@ export const useReviewApplication = <TError = ErrorType<void>,
       return useMutation(getReviewApplicationMutationOptions(options));
     }
 
+export const getRemoveAssignedPlayerUrl = (id: number,
+    userId: string,) => {
+
+
+
+
+  return `/api/missions/${id}/assignments/${userId}`
+}
+
+/**
+ * @summary Remove an accepted player from a mission (reverts their attendance + frees their application). Owning fixer/admin only; blocked if already paid.
+ */
+export const removeAssignedPlayer = async (id: number,
+    userId: string, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getRemoveAssignedPlayerUrl(id,userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getRemoveAssignedPlayerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeAssignedPlayer>>, TError,{id: number;userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeAssignedPlayer>>, TError,{id: number;userId: string}, TContext> => {
+
+const mutationKey = ['removeAssignedPlayer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeAssignedPlayer>>, {id: number;userId: string}> = (props) => {
+          const {id,userId} = props ?? {};
+
+          return  removeAssignedPlayer(id,userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveAssignedPlayerMutationResult = NonNullable<Awaited<ReturnType<typeof removeAssignedPlayer>>>
+
+    export type RemoveAssignedPlayerMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove an accepted player from a mission (reverts their attendance + frees their application). Owning fixer/admin only; blocked if already paid.
+ */
+export const useRemoveAssignedPlayer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeAssignedPlayer>>, TError,{id: number;userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeAssignedPlayer>>,
+        TError,
+        {id: number;userId: string},
+        TContext
+      > => {
+      return useMutation(getRemoveAssignedPlayerMutationOptions(options));
+    }
+
 export const getSignUpAsNpcUrl = (id: number,) => {
 
 

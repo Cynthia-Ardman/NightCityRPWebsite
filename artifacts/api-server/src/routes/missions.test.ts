@@ -1779,3 +1779,184 @@ describe("Mission listing tabs", () => {
     expect(res.body).toHaveLength(0);
   });
 });
+
+describe("Remove assigned player", () => {
+  // Seed an accepted application + assignment for `player` on a fixer-owned
+  // mission, mirroring the state after reviewApplication(action=accept).
+  async function seedAccepted(opts: {
+    fixerId: string;
+    paymentStatus?: string;
+    attendanceCreditedAt?: Date | null;
+  }) {
+    const player = await createUser({ username: "Player" });
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await seedMission({ fixerId: opts.fixerId, status: "open", workflowState: "posted" });
+    await db.insert(missionApplications).values({
+      missionId: m.id,
+      userId: player.id,
+      characterId: char.id,
+      status: "accepted",
+    });
+    const a = await seedAssignment(m.id, player.id, {
+      characterId: char.id,
+      paymentStatus: opts.paymentStatus ?? "unpaid",
+      attendanceCreditedAt: opts.attendanceCreditedAt ?? null,
+    });
+    return { player, char, mission: m, assignment: a };
+  }
+
+  it("owning fixer removes an unpaid player: assignment deleted, application freed", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const { player, mission } = await seedAccepted({ fixerId: fixer.id });
+
+    const res = await request(app)
+      .delete(`/api/missions/${mission.id}/assignments/${player.id}`)
+      .set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+
+    const assignments = await db
+      .select()
+      .from(missionAssignments)
+      .where(eq(missionAssignments.missionId, mission.id));
+    expect(assignments).toHaveLength(0);
+
+    const [app2] = await db
+      .select()
+      .from(missionApplications)
+      .where(eq(missionApplications.userId, player.id));
+    expect(app2.status).toBe("withdrawn");
+  });
+
+  it("reverts attendance for a player who attended but was not paid (failed)", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const { player, mission } = await seedAccepted({
+      fixerId: fixer.id,
+      paymentStatus: "failed",
+      attendanceCreditedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .delete(`/api/missions/${mission.id}/assignments/${player.id}`)
+      .set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+
+    // Deleting the assignment row removes the attendance credit entirely.
+    const rows = await db
+      .select()
+      .from(missionAssignments)
+      .where(eq(missionAssignments.userId, player.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("refuses to remove a player who was already paid (409, assignment intact)", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const { player, mission } = await seedAccepted({
+      fixerId: fixer.id,
+      paymentStatus: "paid",
+      attendanceCreditedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .delete(`/api/missions/${mission.id}/assignments/${player.id}`)
+      .set("x-test-user", fixer.id);
+    expect(res.status).toBe(409);
+
+    const rows = await db
+      .select()
+      .from(missionAssignments)
+      .where(eq(missionAssignments.userId, player.id));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("a fixer who does not own the mission cannot remove its players (403)", async () => {
+    const owner = await createUser({ roles: ["fixer"] });
+    const other = await createUser({ roles: ["fixer"] });
+    const { player, mission } = await seedAccepted({ fixerId: owner.id });
+
+    const res = await request(app)
+      .delete(`/api/missions/${mission.id}/assignments/${player.id}`)
+      .set("x-test-user", other.id);
+    expect(res.status).toBe(403);
+
+    const rows = await db
+      .select()
+      .from(missionAssignments)
+      .where(eq(missionAssignments.userId, player.id));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("an admin can remove a player from any mission", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const admin = await createUser({ roles: ["admin"] });
+    const { player, mission } = await seedAccepted({ fixerId: fixer.id });
+
+    const res = await request(app)
+      .delete(`/api/missions/${mission.id}/assignments/${player.id}`)
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+
+    const rows = await db
+      .select()
+      .from(missionAssignments)
+      .where(eq(missionAssignments.userId, player.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("returns 404 when the player is not assigned to the mission", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const stranger = await createUser({ username: "Stranger" });
+    const m = await seedMission({ fixerId: fixer.id, status: "open", workflowState: "posted" });
+
+    const res = await request(app)
+      .delete(`/api/missions/${m.id}/assignments/${stranger.id}`)
+      .set("x-test-user", fixer.id);
+    expect(res.status).toBe(404);
+  });
+
+  it("requires a fixer/admin role (403 for a plain player)", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const { player, mission } = await seedAccepted({ fixerId: fixer.id });
+
+    const res = await request(app)
+      .delete(`/api/missions/${mission.id}/assignments/${player.id}`)
+      .set("x-test-user", player.id);
+    expect(res.status).toBe(403);
+  });
+
+  it("remove-vs-pay race never both pays AND removes the same player", async () => {
+    await setLiveMode(true);
+    mockPatch.mockResolvedValue(bal(100));
+    const fixer = await createUser({ roles: ["fixer"] });
+    const player = await createUser({ username: "RacePlayer" });
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await seedMission({ fixerId: fixer.id, playerPay: 100 });
+    await db
+      .insert(missionApplications)
+      .values({ missionId: m.id, userId: player.id, characterId: char.id, status: "accepted" });
+    await seedAssignment(m.id, player.id, { characterId: char.id });
+
+    const [removeRes, payRes] = await Promise.all([
+      request(app).delete(`/api/missions/${m.id}/assignments/${player.id}`).set("x-test-user", fixer.id),
+      payMissionPlayers(m.id, { source: "manual" }),
+    ]);
+
+    const rows = await db
+      .select()
+      .from(missionAssignments)
+      .where(eq(missionAssignments.userId, player.id));
+    const paid = payRes?.paid ?? 0;
+    if (removeRes.status === 200) {
+      // Removal won: the row is gone and the player was never paid.
+      expect(rows).toHaveLength(0);
+      expect(paid).toBe(0);
+    } else {
+      // Payout won: removal is blocked (409) and the row remains paid.
+      expect(removeRes.status).toBe(409);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].paymentStatus).toBe("paid");
+      expect(paid).toBe(1);
+    }
+    // Money moved exactly when (and only when) the player was actually paid.
+    expect(mockPatch).toHaveBeenCalledTimes(paid);
+  });
+});

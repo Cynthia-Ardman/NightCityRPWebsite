@@ -1168,6 +1168,111 @@ export async function reviewApplication(opts: {
   return { ok: true };
 }
 
+/**
+ * Fixer removes an accepted player from a mission. Deleting the assignment row
+ * also reverts that player's attendance (attendanceCreditedAt lives on the row,
+ * so attendance counts drop back automatically) and any accepted application is
+ * flipped back to 'withdrawn' so the slot is freed and they can re-apply.
+ *
+ * GUARD: a player who has already been *paid* (or is mid-payout) cannot be
+ * removed — deleting a paid assignment would orphan a real eddies payout. The
+ * fixer must reverse the payout first. Unpaid/failed/simulated rows are safe to
+ * remove. NPC sign-ups / actor payments are a separate participation and are
+ * intentionally left untouched.
+ */
+export async function removeAssignedPlayer(opts: {
+  missionId: number;
+  userId: string;
+  viewer: MissionViewer;
+  req?: Request;
+}): Promise<ApplyResult> {
+  const [mission] = await db
+    .select({ fixerId: missions.fixerId, title: missions.title })
+    .from(missions)
+    .where(eq(missions.id, opts.missionId));
+  if (!mission) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  // Only the mission's own fixer (or an admin) may manage its roster.
+  if (!ownsMissionApplications(opts.viewer, mission.fixerId)) {
+    return {
+      ok: false,
+      error: "Only the mission's fixer or an admin can remove its players",
+      httpStatus: 403,
+    };
+  }
+
+  const [assignment] = await db
+    .select()
+    .from(missionAssignments)
+    .where(
+      and(
+        eq(missionAssignments.missionId, opts.missionId),
+        eq(missionAssignments.userId, opts.userId),
+      ),
+    );
+  if (!assignment) {
+    return { ok: false, error: "That player isn't assigned to this mission", httpStatus: 404 };
+  }
+  if (assignment.paymentStatus === "paid" || assignment.paymentStatus === "processing") {
+    return {
+      ok: false,
+      error:
+        "This player has already been paid for this mission. Reverse the payout before removing them.",
+      httpStatus: 409,
+    };
+  }
+
+  const txResult = await db.transaction(async (tx): Promise<ApplyResult> => {
+    // Re-read the row under a row lock so a concurrent payout cannot flip it to
+    // 'processing'/'paid' between our pre-check and the delete. payMissionPlayers
+    // claims the row via a conditional UPDATE, which contends on the same lock:
+    // if pay commits first we observe its status here; if we commit first the
+    // row is gone and pay's claim affects zero rows.
+    const [locked] = await tx
+      .select()
+      .from(missionAssignments)
+      .where(eq(missionAssignments.id, assignment.id))
+      .for("update");
+    if (!locked) {
+      return { ok: false, error: "That player isn't assigned to this mission", httpStatus: 404 };
+    }
+    if (locked.paymentStatus === "paid" || locked.paymentStatus === "processing") {
+      return {
+        ok: false,
+        error:
+          "This player has already been paid for this mission. Reverse the payout before removing them.",
+        httpStatus: 409,
+      };
+    }
+    // Deleting the assignment reverts both the mission attachment and the
+    // credited attendance (attendanceCreditedAt is a column on this row).
+    await tx.delete(missionAssignments).where(eq(missionAssignments.id, assignment.id));
+    // Free the application slot so the player can re-apply later.
+    await tx
+      .update(missionApplications)
+      .set({ status: "withdrawn", updatedAt: new Date() })
+      .where(
+        and(
+          eq(missionApplications.missionId, opts.missionId),
+          eq(missionApplications.userId, opts.userId),
+          eq(missionApplications.status, "accepted"),
+        ),
+      );
+    return { ok: true };
+  });
+  if (!txResult.ok) return txResult;
+
+  await recordAudit({
+    req: opts.req,
+    actorId: opts.viewer.id,
+    action: "mission_player_removed",
+    category: "mission",
+    targetType: "mission",
+    targetId: String(opts.missionId),
+    message: `Removed player ${opts.userId} (character ${assignment.characterId ?? "none"}) from mission`,
+  });
+  return { ok: true };
+}
+
 // ===========================================================================
 // NPC SIGN-UPS (Task #185) — players sign up to act as an NPC on a
 // not-yet-completed mission; the mission's fixer later confirms attendance

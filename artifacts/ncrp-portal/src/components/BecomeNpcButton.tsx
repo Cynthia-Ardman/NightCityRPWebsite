@@ -1,9 +1,15 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, UserMinus } from "lucide-react";
+import { UserPlus, UserMinus, X } from "lucide-react";
+
+// Per-device dismissal for the dashboard "Become an NPC" CTA so it can be
+// closed like the notification-preferences prompt. localStorage keeps it
+// lightweight (no server round-trip); it re-appears if the user clears storage.
+const NPC_CTA_DISMISSED_KEY = "ncrp.becomeNpc.dismissed.v1";
 
 interface NpcRoleStatus {
   hasRole: boolean;
@@ -42,6 +48,13 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
   const { data, isLoading } = useNpcRole();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(NPC_CTA_DISMISSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   const grant = useMutation({
     mutationFn: async (): Promise<NpcRoleStatus> => {
@@ -109,7 +122,7 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
     // while loading (so role-holders never see a flash), when they have the
     // role, and when the Discord lookup couldn't determine status — better to
     // stay quiet than prompt someone who may already be an NPC.
-    if (isLoading || !data?.determined || hasRole) return null;
+    if (isLoading || !data?.determined || hasRole || dismissed) return null;
     return (
       <Card
         className="rounded-none border-nc-magenta/50 bg-gradient-to-r from-nc-magenta/15 via-nc-magenta/5 to-transparent shadow-[0_0_20px_rgba(255,0,255,0.15)]"
@@ -133,6 +146,23 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
             data-testid="button-become-npc-dashboard"
           >
             {grant.isPending ? "GRANTING..." : "BECOME AN NPC TODAY"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              try {
+                localStorage.setItem(NPC_CTA_DISMISSED_KEY, "1");
+              } catch {
+                /* storage unavailable — dismissal just won't persist */
+              }
+              setDismissed(true);
+            }}
+            className="shrink-0 text-muted-foreground hover:text-nc-magenta h-7 w-7 rounded-none"
+            aria-label="Dismiss become-an-NPC prompt"
+            data-testid="button-become-npc-dismiss"
+          >
+            <X className="h-4 w-4" />
           </Button>
         </CardContent>
       </Card>

@@ -14,6 +14,7 @@ import {
   useApplyToMission,
   useWithdrawApplication,
   useReviewApplication,
+  useRemoveAssignedPlayer,
   useSignUpAsNpc,
   useWithdrawNpcSignup,
   useConfirmNpcSignup,
@@ -32,6 +33,7 @@ import {
 } from "@workspace/api-client-react";
 import { statusBadge as breachStatusBadge, difficultyBadge as breachDifficultyBadge } from "./breach/breachUtils";
 import { useAuthMe } from "@/hooks/useAuthMe";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -416,7 +418,7 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
             <ul className="divide-y divide-border/40">
               {data.assignments.map((a) => (
                 <li key={a.id} data-testid={`row-assignment-${a.id}`}>
-                  <AssignmentRow a={a} />
+                  <AssignmentRow a={a} missionId={data.id} canManage={data.canManage} />
                 </li>
               ))}
             </ul>
@@ -684,7 +686,41 @@ function ApplicationStatusBadge({ status }: { status: string }) {
   );
 }
 
-function AssignmentRow({ a }: { a: MissionAssignmentView }) {
+function AssignmentRow({
+  a,
+  missionId,
+  canManage,
+}: {
+  a: MissionAssignmentView;
+  missionId: number;
+  canManage: boolean;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const remove = useRemoveAssignedPlayer({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetMissionQueryKey(missionId) });
+        toast({ title: "Player removed from mission" });
+      },
+      onError: (err) =>
+        toast({
+          title: "Couldn't remove player",
+          description: errOf(err) ?? "Please try again.",
+          variant: "destructive",
+        }),
+    },
+  });
+  const onRemove = () => {
+    const who = a.characterName ?? a.userName ?? "this player";
+    if (
+      !window.confirm(
+        `Remove ${who} from this mission? Their attendance and slot for this mission will be reverted.`,
+      )
+    )
+      return;
+    remove.mutate({ id: missionId, userId: a.userId });
+  };
   const inner = (
     <div className="flex items-center gap-3 py-3">
       <Avatar className="border border-nc-cyan/30 rounded-none w-10 h-10">
@@ -709,12 +745,29 @@ function AssignmentRow({ a }: { a: MissionAssignmentView }) {
       </div>
     </div>
   );
-  return a.characterId ? (
+  const linked = a.characterId ? (
     <Link href={`/directory/characters/${a.characterId}`} className="block hover:bg-card/80 transition px-2 -mx-2">
       {inner}
     </Link>
   ) : (
     <div className="px-2 -mx-2">{inner}</div>
+  );
+  if (!canManage) return linked;
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex-1 min-w-0">{linked}</div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="rounded-none text-destructive hover:bg-destructive/10 shrink-0"
+        disabled={remove.isPending}
+        onClick={onRemove}
+        title="Remove player from mission"
+        data-testid={`button-remove-assignment-${a.id}`}
+      >
+        <X className="w-4 h-4" />
+      </Button>
+    </div>
   );
 }
 

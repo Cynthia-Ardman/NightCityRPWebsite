@@ -83,3 +83,4 @@
 - [Fixer NPCs are characters](fixer-npcs-are-characters.md) — NPCs = characters kind='npc' (view /characters/:id); legacy fixer_npcs table empty, its /fixer/npcs/:id detail+create+patch endpoints are orphaned dead code.
 - [Session events always need NPCs](session-npc-derivation.md) — needsNpcs is DERIVED (manual flag OR eventType==="session"); route all view/gate reads through eventNeedsNpcs(e), not the raw column.
 - [Main Sessions are discrete weekly rows](main-sessions-discrete.md) — sessions are one event row per Sunday (own discord id), NOT a recurrence_rule; extend coverage by creating rows (backfill-main-sessions.ts), not recurrence.
+- [Mission remove-vs-pay race](mission-remove-pay-race.md) — roster removal must re-check paid/processing under FOR UPDATE inside the tx; pay claims the same row, pre-tx guard alone races.

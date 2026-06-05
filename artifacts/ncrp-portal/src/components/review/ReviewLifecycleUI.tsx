@@ -52,17 +52,31 @@ export function LifecycleActions({
   status: string;
   actions: ReturnType<typeof useReviewTicketActions>;
 }) {
+  // An APPROVED ticket is decided but its effect (the lease / inventory item /
+  // new character) is NOT applied until the ticket is closed. Make that explicit
+  // so staff don't assume "Approved" means done — that gap is why approved
+  // off-map properties never showed up on a character.
+  const pendingApply = status === "approved";
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button
-        className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
-        disabled={actions.busy}
-        onClick={() => actions.close.mutate({ subjectType, id })}
-        data-testid={`button-close-${subjectType}-${id}`}
-      >
-        CLOSE TICKET
-      </Button>
-      {(status === "approved" || status === "rejected") && (
+    <div className="space-y-2">
+      {pendingApply ? (
+        <p
+          className="font-mono text-[11px] text-nc-yellow leading-snug"
+          data-testid={`hint-close-to-apply-${subjectType}-${id}`}
+        >
+          Approved but not applied yet — click "Close &amp; apply" to finalize and create it.
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
+          disabled={actions.busy}
+          onClick={() => actions.close.mutate({ subjectType, id })}
+          data-testid={`button-close-${subjectType}-${id}`}
+        >
+          {pendingApply ? "CLOSE & APPLY" : "CLOSE TICKET"}
+        </Button>
+        {(status === "approved" || status === "rejected") && (
         <Button
           variant="outline"
           className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
@@ -72,7 +86,8 @@ export function LifecycleActions({
         >
           REOPEN
         </Button>
-      )}
+        )}
+      </div>
     </div>
   );
 }

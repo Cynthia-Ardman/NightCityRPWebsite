@@ -1842,6 +1842,23 @@ paths:
         "400": { description: Bad request }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
+  /missions/{id}/assignments/{userId}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: userId, required: true, schema: { type: string } }
+    delete:
+      operationId: removeAssignedPlayer
+      tags: [missions]
+      summary: "Remove an accepted player from a mission (reverts their attendance + frees their application). Owning fixer/admin only; blocked if already paid."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+        "409": { description: Player already paid for this mission. }
   /missions/{id}/npc-signups:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }

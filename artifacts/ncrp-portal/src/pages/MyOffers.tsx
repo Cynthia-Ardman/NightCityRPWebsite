@@ -85,7 +85,7 @@ export default function MyOffers() {
           <ShoppingBag className="w-8 h-8 text-nc-cyan" /> PENDING APPROVALS
         </h1>
         <p className="text-muted-foreground font-mono mt-2">
-          Stock additions awaiting your approval as a venue owner. Approving charges the venue account; denying does nothing. Venue sales now complete instantly and appear in your offer history.
+          This is where offers involving your characters and the venues you own land. The only thing that needs a decision from you is stock being added to one of your venues — approving it charges that venue's account, while denying does nothing. Direct sales to your characters complete instantly, so they skip straight to your offer history below.
         </p>
       </div>
 
