@@ -313,9 +313,11 @@ describe("custom request request-changes (retired) + resubmit", () => {
 });
 
 // monthly_rent is an int4 column (max ~2.1B). A fat-fingered rent above that
-// overflows on insert and used to surface as an opaque 500. Both the approve
-// step (so it can't be staged) and the close/apply step (so an already-staged
-// bad value fails cleanly) must reject it with a 400.
+// overflows on insert and used to surface as an opaque 500. The approve step
+// now CLAMPS a too-large value down to the ceiling (so a typo is silently
+// corrected, never staged out of range), while the close/apply step still
+// fails a directly-corrupted (bypassed-normalize) over-cap value with a 400.
+const MAX_MONEY = 2_000_000_000;
 describe("property rent overflow guard", () => {
   const OVER_CAP = 100_000_000_000_000; // 100 trillion — well past int4 max
 
@@ -329,7 +331,7 @@ describe("property rent overflow guard", () => {
     return { char, reqId: res.body.id as number };
   }
 
-  it("rejects an over-cap monthlyRent at approve time (override) without staging it", async () => {
+  it("clamps an over-cap monthlyRent down to the ceiling at approve time (override)", async () => {
     const owner = await createUser();
     const admin = await createAdmin();
     const { reqId } = await submitPropertyRequest(owner.id);
@@ -338,10 +340,11 @@ describe("property rent overflow guard", () => {
       .post(`/api/requests/${reqId}/override`)
       .set("x-test-user", admin.id)
       .send({ monthlyRent: OVER_CAP, kind: "residential" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
 
     const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
-    expect(row.status).toBe("pending");
+    expect(row.status).toBe("approved");
+    expect((row.decisionParams as { monthlyRent?: number }).monthlyRent).toBe(MAX_MONEY);
   });
 
   it("fails an already-staged over-cap request with a clean 400 on close, not a 500, and creates no lease", async () => {

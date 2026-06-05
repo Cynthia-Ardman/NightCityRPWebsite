@@ -157,13 +157,13 @@ function normalizeApprovalParams(
   params: ApprovalParams,
 ): { ok: Record<string, number | string> } | { error: string } {
   if (type === "property") {
-    const monthlyRent = parseInt(String(params.monthlyRent), 10);
-    if (!Number.isFinite(monthlyRent) || monthlyRent < 0) {
+    const raw = parseInt(String(params.monthlyRent), 10);
+    if (!Number.isFinite(raw) || raw < 0) {
       return { error: "monthlyRent (>= 0) required to approve a property request" };
     }
-    if (monthlyRent > MAX_MONEY) {
-      return { error: `monthlyRent must be ${MAX_MONEY.toLocaleString()} or less` };
-    }
+    // Clamp a too-large value down to the ceiling instead of rejecting it, so a
+    // staff typo of an enormous number is silently corrected rather than erroring.
+    const monthlyRent = Math.min(raw, MAX_MONEY);
     const kind = params.kind === "business" ? "business" : "residential";
     const out: Record<string, number | string> = { monthlyRent, kind };
     // Optional: staff may set/replace the leased business/property name at
@@ -181,24 +181,21 @@ function normalizeApprovalParams(
     return { ok: { cwp } };
   }
   if (type === "venue_stock") {
-    const unitCost = parseInt(String(params.unitCost), 10);
-    const retail = parseInt(String(params.retail), 10);
+    const rawUnitCost = parseInt(String(params.unitCost), 10);
+    const rawRetail = parseInt(String(params.retail), 10);
     const qty = parseInt(String(params.qty), 10);
-    if (!Number.isFinite(unitCost) || unitCost < 0) {
+    if (!Number.isFinite(rawUnitCost) || rawUnitCost < 0) {
       return { error: "unitCost (>= 0) required to approve a stock request" };
     }
-    if (unitCost > MAX_MONEY) {
-      return { error: `unitCost must be ${MAX_MONEY.toLocaleString()} or less` };
-    }
-    if (!Number.isFinite(retail) || retail < 0) {
+    if (!Number.isFinite(rawRetail) || rawRetail < 0) {
       return { error: "retail (>= 0) required to approve a stock request" };
-    }
-    if (retail > MAX_MONEY) {
-      return { error: `retail must be ${MAX_MONEY.toLocaleString()} or less` };
     }
     if (!Number.isFinite(qty) || qty < 1) {
       return { error: "qty (>= 1) required to approve a stock request" };
     }
+    // Clamp too-large money values down to the ceiling rather than erroring.
+    const unitCost = Math.min(rawUnitCost, MAX_MONEY);
+    const retail = Math.min(rawRetail, MAX_MONEY);
     return { ok: { unitCost, retail, qty } };
   }
   return { ok: {} };
