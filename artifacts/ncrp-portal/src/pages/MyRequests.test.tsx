@@ -31,6 +31,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useResubmitCustomRequest: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useGetMyUnseen: () => ({ data: { request: [], edit: [], sheet: [], total: 0 }, isLoading: false }),
   getListMyCustomRequestsQueryKey: () => ["my-custom-requests"],
+  getListPendingEditsQueryKey: (params?: unknown) => ["pending-edits", params],
   getGetMyUnseenQueryKey: () => ["my-unseen"],
 }));
 
