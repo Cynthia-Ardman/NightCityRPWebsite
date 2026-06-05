@@ -595,7 +595,23 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
   // 1. Reconcile rows already linked to a Discord event.
   for (const row of rows) {
     if (!row.discordEventId) continue; // never-synced rows are owned by the create/edit path
-    if (missionIds.has(row.discordEventId)) continue; // defensive: leave mission-owned ids alone
+    if (missionIds.has(row.discordEventId)) {
+      // A mission now owns this Discord id. This happens when the event row was
+      // imported from Discord first and a mission was later created for (or
+      // linked to) the same scheduled event — leaving a duplicate that renders
+      // TWICE on the calendar (once as the mission, once as this event). The
+      // mission system owns the Discord lifecycle, so retire this orphan: hide
+      // it from the calendar (cancelled) and UNLINK the Discord id so the
+      // cancelled-row teardown branch below never deletes the mission's live
+      // Discord event. Website-only write → runs regardless of Live. Idempotent:
+      // once unlinked the row no longer reaches here (caught by the null guard).
+      await db
+        .update(events)
+        .set({ status: "cancelled", discordEventId: null, discordSyncError: null, discordSyncedAt: new Date() })
+        .where(eq(events.id, row.id));
+      result.cancelled++;
+      continue;
+    }
     const d = discordById.get(row.discordEventId);
     if (!d) {
       // Gone from Discord. Discord automatically removes a scheduled event from

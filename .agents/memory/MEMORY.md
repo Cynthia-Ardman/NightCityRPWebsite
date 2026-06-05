@@ -86,3 +86,5 @@
 - [Mission remove-vs-pay race](mission-remove-pay-race.md) — roster removal must re-check paid/processing under FOR UPDATE inside the tx; pay claims the same row, pre-tx guard alone races.
 - [Re-override staged requests](staged-review-effects.md) — an approved-but-not-closed request is editable via admin re-override (re-stages decisionParams); gate edit-ability on appliedRef IS NULL, not on status, since approved→appliedRef is always null until close.
 - [Wallet int4 ceiling](wallet-int4-ceiling.md) — wallet/store/ripperdoc balances are int4 (max 2,147,483,647); applyWalletDelta guards credits via MAX_WALLET_BALANCE, but UB->website reconcile paths remain an overflow vector.
+- [Calendar mission/event dup](calendar-mission-event-dup.md) — a mission + event sharing one discord_event_id render twice on the merged calendar; reconcile must auto-heal (cancel+unlink the event row), not just skip.
+- [Dashboard count vs review-queue parity](dashboard-review-count-parity.md) — staff dashboard tallies must mirror queue semantics (reviewer-gated, exclude own) or they nag a phantom the viewer can't action.

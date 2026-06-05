@@ -1489,8 +1489,28 @@ export default function PendingRequests() {
   const loreCount = (loreData ?? []).length;
   const guidebookCount = (guidebookData ?? []).length;
 
-  // Default to the first tab the staffer can act on.
-  const defaultTab = canMisc ? "misc" : "edits";
+  // Land on the first tab that actually has unseen items, so a reviewer arriving
+  // from the sidebar "Pending Requests" badge isn't dropped on an empty MISC tab
+  // while the pending item sits on, say, CHARACTER EDITS (the badge aggregates
+  // every queue). Falls back to the first tab the staffer can act on when every
+  // queue is clear. Controlled (not defaultValue) because the counts load
+  // asynchronously after mount; once the viewer picks a tab, that choice sticks.
+  const computedTab =
+    canMisc && miscCount > 0
+      ? "misc"
+      : editsCount > 0
+        ? "edits"
+        : canNewChars && sheetsCount > 0
+          ? "sheets"
+          : canLore && loreCount > 0
+            ? "lore"
+            : canLore && guidebookCount > 0
+              ? "guidebook"
+              : canMisc
+                ? "misc"
+                : "edits";
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const tab = activeTab ?? computedTab;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
@@ -1508,7 +1528,7 @@ export default function PendingRequests() {
         <ErrorBoundary><ReadyToApplyPanel /></ErrorBoundary>
       )}
 
-      <Tabs defaultValue={defaultTab}>
+      <Tabs value={tab} onValueChange={setActiveTab}>
         <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">
           {canMisc && (
             <TabsTrigger value="misc" className="rounded-none font-display tracking-widest" data-testid="tab-misc">

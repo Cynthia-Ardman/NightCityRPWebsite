@@ -23,6 +23,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
 import { hasRole } from "../lib/discord";
+import { isReviewer } from "../lib/review";
 import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand } from "../lib/jobs";
 import { sumCwpByCharacter } from "../lib/cyberware";
 
@@ -71,10 +72,26 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   }
   const ub = await getBalance(req.user!.discordId);
   const totalEddies = ub?.total ?? 0;
-  const [{ pending }] = await db
-    .select({ pending: sql<number>`count(*)::int` })
-    .from(characterSheets)
-    .where(eq(characterSheets.status, "pending"));
+  // Pending character sheets that THIS viewer can actually review. The count
+  // must mirror the review queue's semantics, not a raw global tally: a reviewer
+  // cannot vote on their OWN submission (canVote = !isOwner), so a viewer whose
+  // only pending sheet is their own would otherwise see "1 pending sheet" on the
+  // dashboard with nothing for them to action when they click through. Excluding
+  // own submissions (and gating to reviewers) keeps the card honest. IS DISTINCT
+  // FROM treats a null owner as "not me" so unowned sheets still surface.
+  let pending = 0;
+  if (isReviewer(req.user!)) {
+    const [{ c }] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(characterSheets)
+      .where(
+        and(
+          eq(characterSheets.status, "pending"),
+          sql`${characterSheets.ownerId} IS DISTINCT FROM ${req.user!.id}`,
+        ),
+      );
+    pending = c;
+  }
   const topFixers = await db
     .select({
       fixerId: fixerNpcs.fixerId,
