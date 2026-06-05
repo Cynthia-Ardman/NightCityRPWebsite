@@ -192,6 +192,18 @@
   100% { transform: translate(0) }
 }
 
+/* Incoming-breach nav alert: red flash + subtle horizontal glitch jitter.
+   Used (with no number) on the "My Breaches" nav item when a fresh puzzle
+   has been sent to the player. */
+.nav-alert {
+  animation: nav-alert-flash 1.1s steps(1, end) infinite, glitch-anim 0.18s linear infinite;
+}
+
+@keyframes nav-alert-flash {
+  0%, 49% { color: hsl(var(--destructive)); filter: drop-shadow(0 0 6px hsl(var(--destructive))); }
+  50%, 100% { color: hsl(var(--destructive) / 0.45); filter: none; }
+}
+
 .scanline {
   width: 100%;
   height: 100px;

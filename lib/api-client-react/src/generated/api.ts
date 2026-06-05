@@ -120,6 +120,7 @@ import type {
   FixerNpcUpdate,
   GetActorReportParams,
   GetCharacterPendingEdit200,
+  GetMyBreachPendingCount200,
   GuidebookBrowse,
   GuidebookEditDecision,
   GuidebookEditProposalInput,
@@ -20291,6 +20292,83 @@ export function useListMyBreachPuzzles<TData = Awaited<ReturnType<typeof listMyB
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListMyBreachPuzzlesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetMyBreachPendingCountUrl = () => {
+
+
+
+
+  return `/api/breach/mine/pending-count`
+}
+
+/**
+ * @summary Count of the caller's un-started incoming breaches (status 'sent'); polled to flash the My Breaches nav.
+ */
+export const getMyBreachPendingCount = async ( options?: RequestInit): Promise<GetMyBreachPendingCount200> => {
+
+  return customFetch<GetMyBreachPendingCount200>(getGetMyBreachPendingCountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyBreachPendingCountQueryKey = () => {
+    return [
+    `/api/breach/mine/pending-count`
+    ] as const;
+    }
+
+
+export const getGetMyBreachPendingCountQueryOptions = <TData = Awaited<ReturnType<typeof getMyBreachPendingCount>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyBreachPendingCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyBreachPendingCountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyBreachPendingCount>>> = ({ signal }) => getMyBreachPendingCount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyBreachPendingCount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyBreachPendingCountQueryResult = NonNullable<Awaited<ReturnType<typeof getMyBreachPendingCount>>>
+export type GetMyBreachPendingCountQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Count of the caller's un-started incoming breaches (status 'sent'); polled to flash the My Breaches nav.
+ */
+
+export function useGetMyBreachPendingCount<TData = Awaited<ReturnType<typeof getMyBreachPendingCount>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyBreachPendingCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyBreachPendingCountQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

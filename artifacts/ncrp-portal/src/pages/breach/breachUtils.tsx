@@ -9,6 +9,8 @@ export function statusBadge(status: BreachPuzzle["status"]) {
       return <Badge className="rounded-none bg-nc-yellow text-background font-mono">IN PROGRESS</Badge>;
     case "success":
       return <Badge className="rounded-none bg-nc-green text-background font-mono">SUCCESS</Badge>;
+    case "partial":
+      return <Badge className="rounded-none bg-orange-500 text-background font-mono">PARTIAL</Badge>;
     case "failed":
       return <Badge className="rounded-none bg-destructive text-destructive-foreground font-mono">FAILED</Badge>;
     case "expired":

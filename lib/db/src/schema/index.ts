@@ -1755,7 +1755,8 @@ export const breachPuzzles = pgTable("breach_puzzles", {
   // mission's detail page. Nullable + set-null on delete so the breach survives
   // mission deletion (the contextLabel title snapshot still describes it).
   missionId: integer("mission_id").references(() => missions.id, { onDelete: "set null" }),
-  // Lifecycle: "sent" | "in_progress" | "success" | "failed" | "expired".
+  // Lifecycle: "sent" | "in_progress" | "success" | "partial" | "failed" | "expired".
+  // "partial" = solved at least one but not all daemons (recorded, no reward).
   status: text("status").notNull().default("sent"),
   // Server-authoritative timer anchor (set on the first start call).
   startedAt: timestamp("started_at", { withTimezone: true }),

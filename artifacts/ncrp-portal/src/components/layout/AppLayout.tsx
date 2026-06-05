@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useGetMyBreachPendingCount, getGetMyBreachPendingCountQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
@@ -175,15 +175,22 @@ function SidebarContent() {
   const { data: myUnseen } = useGetMyUnseen({ query: { enabled: !!user, queryKey: getGetMyUnseenQueryKey() } });
   const myRequestsUnseen = myUnseen?.total ?? 0;
 
-  const NavItem = ({ href, icon: Icon, label, disabled, badge, tone = "cyan" }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number, tone?: NavTone }) => {
+  // Poll for un-started incoming breaches so the "My Breaches" nav can flash
+  // red the moment a fixer sends one. No number is shown — just the alert.
+  const { data: breachPending } = useGetMyBreachPendingCount({
+    query: { enabled: !!user, queryKey: getGetMyBreachPendingCountQueryKey(), refetchInterval: 15000 },
+  });
+  const hasIncomingBreach = (breachPending?.count ?? 0) > 0;
+
+  const NavItem = ({ href, icon: Icon, label, disabled, badge, alert, tone = "cyan" }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number, alert?: boolean, tone?: NavTone }) => {
     const isActive = location === href || location.startsWith(href + '/');
     if (disabled) return null;
     const t = NAV_TONES[tone];
 
     return (
-      <Link href={href} className={`group flex items-center gap-3 px-4 py-3 text-sm transition-colors border-l-2 ${isActive ? `bg-sidebar-accent text-sidebar-accent-foreground ${t.activeBorder}` : `text-sidebar-foreground border-transparent ${t.hover}`}`}>
-        <Icon className={`h-4 w-4 transition-colors ${isActive ? t.iconActive : t.icon}`} />
-        <span className="font-display tracking-widest uppercase">{label}</span>
+      <Link href={href} className={`group flex items-center gap-3 px-4 py-3 text-sm transition-colors border-l-2 ${alert ? "border-destructive" : ""} ${isActive ? `bg-sidebar-accent text-sidebar-accent-foreground ${t.activeBorder}` : `text-sidebar-foreground border-transparent ${t.hover}`}`}>
+        <Icon className={`h-4 w-4 transition-colors ${alert ? "text-destructive nav-alert" : isActive ? t.iconActive : t.icon}`} />
+        <span className={`font-display tracking-widest uppercase ${alert ? "nav-alert" : ""}`}>{label}</span>
         {badge ? (
           <span
             className="ml-auto min-w-5 h-5 px-1.5 flex items-center justify-center bg-nc-yellow text-background font-mono text-xs font-bold shadow-[0_0_8px_rgba(255,255,0,0.6)] animate-pulse"
@@ -231,7 +238,7 @@ function SidebarContent() {
         <NavItem href="/ledger" icon={Receipt} label="Ledger" tone="cyan" />
         <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} tone="cyan" />
         <NavItem href="/offers/mine" icon={ShoppingBag} label="My Offers" badge={pendingOffers} tone="cyan" />
-        <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" tone="cyan" />
+        <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" alert={hasIncomingBreach} tone="cyan" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" tone="cyan" />
 
         <div className={`px-4 text-xs font-mono ${NAV_TONES.green.heading} mb-2 mt-6 uppercase tracking-widest`}>Directory</div>
@@ -253,7 +260,7 @@ function SidebarContent() {
         {user?.isStoreOwner && <NavItem href="/stores" icon={Warehouse} label="Manage Stores" tone="magenta" />}
         {user?.isRipperdoc && <NavItem href="/clinics" icon={HeartPulse} label="Manage Clinics" tone="magenta" />}
         {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Wrench} label="Ripperdoc Console" tone="magenta" />}
-        {user?.isFixer && <NavItem href="/fixer" icon={Network} label="Fixer Hub" tone="magenta" />}
+        {user && (user.isFixer || user.isAdmin) && <NavItem href="/fixer" icon={Network} label="Fixer Hub" tone="magenta" />}
         {/* Character Archive lists rosters of every sheet; sheet bodies are
             owner/staff-only (see directory.ts), so it lives in the staff-only
             Management group rather than the public Directory. */}

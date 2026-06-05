@@ -4420,7 +4420,7 @@ paths:
       tags: [breach]
       summary: Staff log of every generated Breach Protocol puzzle (newest first).
       parameters:
-        - { in: query, name: status, schema: { type: string, enum: [sent, in_progress, success, failed, expired] } }
+        - { in: query, name: status, schema: { type: string, enum: [sent, in_progress, success, partial, failed, expired] } }
         - { in: query, name: missionId, schema: { type: integer }, description: "Only return breaches linked to this mission." }
       responses:
         "200":
@@ -4485,6 +4485,21 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/BreachPuzzle" }
+  /breach/mine/pending-count:
+    get:
+      operationId: getMyBreachPendingCount
+      tags: [breach]
+      summary: Count of the caller's un-started incoming breaches (status 'sent'); polled to flash the My Breaches nav.
+      responses:
+        "200":
+          description: Pending count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer }
   /breach/puzzles/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -4688,7 +4703,7 @@ components:
         contextLabel: { type: ["string", "null"], description: "Optional mission / event / custom context this breach is tied to (free text, or a snapshot of the linked mission's title)." }
         missionId: { type: ["integer", "null"], description: "Optional hard link to a real mission; when set the breach appears on that mission's page." }
         missionTitle: { type: ["string", "null"], description: "Current title of the linked mission (null if unlinked or the mission was deleted)." }
-        status: { type: string, enum: [sent, in_progress, success, failed, expired] }
+        status: { type: string, enum: [sent, in_progress, success, partial, failed, expired] }
         startedAt: { type: ["string", "null"], format: date-time }
         completedAt: { type: ["string", "null"], format: date-time }
         selection:

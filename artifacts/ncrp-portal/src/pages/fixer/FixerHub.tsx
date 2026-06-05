@@ -3,7 +3,7 @@ import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, type LucideIcon } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, type LucideIcon } from "lucide-react";
 
 type FixerTool = {
   href: string;
@@ -16,6 +16,15 @@ type FixerTool = {
 };
 
 const FIXER_TOOLS: FixerTool[] = [
+  {
+    href: "/fixer/characters/new",
+    testId: "link-fixer-create-character",
+    icon: UserPlus,
+    title: "Create Character",
+    description: "Hand-create a PC or NPC. Skips the sheet review queue and lands approved & active.",
+    cta: "Create a character",
+    accent: "magenta",
+  },
   {
     href: "/directory/characters",
     testId: "link-fixer-archive",

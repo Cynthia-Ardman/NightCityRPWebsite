@@ -227,7 +227,7 @@ router.get("/admin/characters", adminOrFixer, async (_req, res): Promise<void> =
 const CHARACTER_KINDS = new Set(["pc", "npc"]);
 const LIFE_STATUSES = new Set(["active", "dead", "missing", "loa", "retired"]);
 
-router.post("/admin/characters", adminOnly, async (req, res): Promise<void> => {
+router.post("/admin/characters", adminOrFixer, async (req, res): Promise<void> => {
   const b = (req.body ?? {}) as {
     name?: unknown;
     kind?: unknown;

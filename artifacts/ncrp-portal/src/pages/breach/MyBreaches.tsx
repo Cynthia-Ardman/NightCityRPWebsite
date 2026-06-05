@@ -1,12 +1,15 @@
 import { Link } from "wouter";
-import { useListMyBreachPuzzles } from "@workspace/api-client-react";
+import { useListMyBreachPuzzles, getListMyBreachPuzzlesQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { statusBadge, difficultyBadge, rewardSummary } from "./breachUtils";
 import { Cpu, Play, Dumbbell } from "lucide-react";
 
 export default function MyBreaches() {
-  const { data: puzzles, isLoading } = useListMyBreachPuzzles();
+  // Poll so a freshly-sent breach shows up here without a manual refresh.
+  const { data: puzzles, isLoading } = useListMyBreachPuzzles({
+    query: { queryKey: getListMyBreachPuzzlesQueryKey(), refetchInterval: 10000 },
+  });
 
   const playable = (puzzles ?? []).filter((p) => !p.completedAt);
   const history = (puzzles ?? []).filter((p) => p.completedAt);

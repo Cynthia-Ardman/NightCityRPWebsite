@@ -31,6 +31,7 @@ export const BreachPuzzleStatus = {
   sent: 'sent',
   in_progress: 'in_progress',
   success: 'success',
+  partial: 'partial',
   failed: 'failed',
   expired: 'expired',
 } as const;
@@ -5613,7 +5614,12 @@ export const ListBreachPuzzlesStatus = {
   sent: 'sent',
   in_progress: 'in_progress',
   success: 'success',
+  partial: 'partial',
   failed: 'failed',
   expired: 'expired',
 } as const;
+
+export type GetMyBreachPendingCount200 = {
+  count: number;
+};
 

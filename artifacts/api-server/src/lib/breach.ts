@@ -309,6 +309,17 @@ export async function listMyPuzzles(user: User): Promise<ServiceResult<BreachPuz
   return { status: 200, body: shaped.map(redactUnstarted) };
 }
 
+// Lightweight count of the caller's un-started incoming breaches (status
+// 'sent'). Polled by the sidebar to flash the "My Breaches" nav when a fresh
+// puzzle arrives — intentionally cheap (no grid/daemon payload, no redaction).
+export async function countMyPendingPuzzles(user: User): Promise<ServiceResult<{ count: number }>> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(breachPuzzles)
+    .where(and(eq(breachPuzzles.assignedUserId, user.id), eq(breachPuzzles.status, "sent")));
+  return { status: 200, body: { count: row?.count ?? 0 } };
+}
+
 export async function listCharacterPuzzles(user: User, characterId: number): Promise<ServiceResult<BreachPuzzleView[]>> {
   const [character] = await db.select().from(characters).where(eq(characters.id, characterId));
   if (!character) return { status: 404, body: { error: "Character not found" } };
@@ -444,7 +455,17 @@ export async function submitResult(
   const valid = !expired && score.valid;
   const solvedCount = valid ? score.solvedDaemons.length : 0;
   const success = !expired && score.allSolved;
-  const finalStatus = expired ? "expired" : success ? "success" : "failed";
+  // A submission that breaches at least one (but not all) daemons within the
+  // time limit is a "partial" — recorded for the player's history, but it pays
+  // NO reward (reward is gated on `success` only, below). Solving nothing (or
+  // timing out) stays "failed"/"expired".
+  const finalStatus = expired
+    ? "expired"
+    : success
+      ? "success"
+      : solvedCount > 0
+        ? "partial"
+        : "failed";
 
   // Atomic check-and-set: only the request that flips completedAt from NULL
   // proceeds to score/pay. A concurrent second submit updates zero rows and

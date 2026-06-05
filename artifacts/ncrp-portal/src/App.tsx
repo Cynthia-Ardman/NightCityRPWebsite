@@ -53,6 +53,7 @@ import MyClinics from "@/pages/clinics/MyClinics";
 import MyClinicDetail from "@/pages/clinics/MyClinicDetail";
 import RipperdocConsole from "@/pages/RipperdocConsole";
 import FixerHub from "@/pages/fixer/FixerHub";
+import FixerCreateCharacter from "@/pages/fixer/FixerCreateCharacter";
 import FixerMissions from "@/pages/fixer/FixerMissions";
 import FixerReports from "@/pages/fixer/FixerReports";
 import PayActors from "@/pages/fixer/PayActors";
@@ -240,6 +241,9 @@ function AppRoutes() {
           <Route path="/clinics/:id" component={MyClinicDetail} />
           <Route path="/ripperdoc" component={RipperdocConsole} />
           <Route path="/fixer" component={FixerHub} />
+          <Route path="/fixer/characters/new">
+            <FixerGuard><FixerCreateCharacter /></FixerGuard>
+          </Route>
           <Route path="/fixer/missions" component={FixerMissions} />
           <Route path="/fixer/reports" component={FixerReports} />
           <Route path="/fixer/pay-actors" component={PayActors} />

@@ -6,6 +6,7 @@ import {
   previewPuzzle,
   listPuzzles,
   listMyPuzzles,
+  countMyPendingPuzzles,
   listCharacterPuzzles,
   getPuzzle,
   startPuzzle,
@@ -43,6 +44,14 @@ router.post("/breach/puzzles", requireAuth, requireAnyRole(["ADMIN", "FIXER"]), 
 // The caller's own assigned puzzles.
 router.get("/breach/mine", requireAuth, async (req, res): Promise<void> => {
   const result = await listMyPuzzles(req.user!);
+  res.status(result.status).json(result.body);
+});
+
+// Lightweight count of the caller's un-started incoming breaches. Polled by the
+// sidebar to flash the "My Breaches" nav when a fresh puzzle arrives. Declared
+// before "/breach/puzzles/:id" so it never gets shadowed by the :id matcher.
+router.get("/breach/mine/pending-count", requireAuth, async (req, res): Promise<void> => {
+  const result = await countMyPendingPuzzles(req.user!);
   res.status(result.status).json(result.body);
 });
 

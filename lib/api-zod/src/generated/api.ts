@@ -9514,7 +9514,7 @@ export const ReopenReviewTicketResponse = zod.record(zod.string(), zod.unknown()
  * @summary Staff log of every generated Breach Protocol puzzle (newest first).
  */
 export const ListBreachPuzzlesQueryParams = zod.object({
-  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']).optional(),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'partial', 'failed', 'expired']).optional(),
   "missionId": zod.coerce.number().optional().describe('Only return breaches linked to this mission.')
 })
 
@@ -9539,7 +9539,7 @@ export const ListBreachPuzzlesResponseItem = zod.object({
   "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to (free text, or a snapshot of the linked mission\'s title).'),
   "missionId": zod.number().nullish().describe('Optional hard link to a real mission; when set the breach appears on that mission\'s page.'),
   "missionTitle": zod.string().nullish().describe('Current title of the linked mission (null if unlinked or the mission was deleted).'),
-  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'partial', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
   "selection": zod.array(zod.object({
@@ -9628,7 +9628,7 @@ export const ListMyBreachPuzzlesResponseItem = zod.object({
   "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to (free text, or a snapshot of the linked mission\'s title).'),
   "missionId": zod.number().nullish().describe('Optional hard link to a real mission; when set the breach appears on that mission\'s page.'),
   "missionTitle": zod.string().nullish().describe('Current title of the linked mission (null if unlinked or the mission was deleted).'),
-  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'partial', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
   "selection": zod.array(zod.object({
@@ -9642,6 +9642,14 @@ export const ListMyBreachPuzzlesResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const ListMyBreachPuzzlesResponse = zod.array(ListMyBreachPuzzlesResponseItem)
+
+
+/**
+ * @summary Count of the caller's un-started incoming breaches (status 'sent'); polled to flash the My Breaches nav.
+ */
+export const GetMyBreachPendingCountResponse = zod.object({
+  "count": zod.number()
+})
 
 
 /**
@@ -9672,7 +9680,7 @@ export const GetBreachPuzzleResponse = zod.object({
   "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to (free text, or a snapshot of the linked mission\'s title).'),
   "missionId": zod.number().nullish().describe('Optional hard link to a real mission; when set the breach appears on that mission\'s page.'),
   "missionTitle": zod.string().nullish().describe('Current title of the linked mission (null if unlinked or the mission was deleted).'),
-  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'partial', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
   "selection": zod.array(zod.object({
@@ -9715,7 +9723,7 @@ export const StartBreachPuzzleResponse = zod.object({
   "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to (free text, or a snapshot of the linked mission\'s title).'),
   "missionId": zod.number().nullish().describe('Optional hard link to a real mission; when set the breach appears on that mission\'s page.'),
   "missionTitle": zod.string().nullish().describe('Current title of the linked mission (null if unlinked or the mission was deleted).'),
-  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'partial', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
   "selection": zod.array(zod.object({
@@ -9767,7 +9775,7 @@ export const SubmitBreachResultResponse = zod.object({
   "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to (free text, or a snapshot of the linked mission\'s title).'),
   "missionId": zod.number().nullish().describe('Optional hard link to a real mission; when set the breach appears on that mission\'s page.'),
   "missionTitle": zod.string().nullish().describe('Current title of the linked mission (null if unlinked or the mission was deleted).'),
-  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'partial', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
   "selection": zod.array(zod.object({
@@ -9819,7 +9827,7 @@ export const ListCharacterBreachPuzzlesResponseItem = zod.object({
   "contextLabel": zod.string().nullish().describe('Optional mission \/ event \/ custom context this breach is tied to (free text, or a snapshot of the linked mission\'s title).'),
   "missionId": zod.number().nullish().describe('Optional hard link to a real mission; when set the breach appears on that mission\'s page.'),
   "missionTitle": zod.string().nullish().describe('Current title of the linked mission (null if unlinked or the mission was deleted).'),
-  "status": zod.enum(['sent', 'in_progress', 'success', 'failed', 'expired']),
+  "status": zod.enum(['sent', 'in_progress', 'success', 'partial', 'failed', 'expired']),
   "startedAt": zod.coerce.date().nullish(),
   "completedAt": zod.coerce.date().nullish(),
   "selection": zod.array(zod.object({

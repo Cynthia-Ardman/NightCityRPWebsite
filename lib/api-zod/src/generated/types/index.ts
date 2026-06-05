@@ -179,6 +179,7 @@ export * from './fixerNpcInput';
 export * from './fixerNpcUpdate';
 export * from './getActorReportParams';
 export * from './getCharacterPendingEdit200';
+export * from './getMyBreachPendingCount200';
 export * from './guidebookBrowse';
 export * from './guidebookEditDecision';
 export * from './guidebookEditProposalInput';

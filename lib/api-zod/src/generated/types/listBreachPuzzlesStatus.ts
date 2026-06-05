@@ -13,6 +13,7 @@ export const ListBreachPuzzlesStatus = {
   sent: 'sent',
   in_progress: 'in_progress',
   success: 'success',
+  partial: 'partial',
   failed: 'failed',
   expired: 'expired',
 } as const;
