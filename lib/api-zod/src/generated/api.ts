@@ -61,6 +61,7 @@ export const GetMeResponse = zod.object({
   "loginCount": zod.number().optional().describe('Number of times this user has logged in via Discord. Drives the first-run onboarding banner.'),
   "onboardingBannerDismissed": zod.boolean().optional().describe('True once the user has dismissed the onboarding banner; it then never re-appears.'),
   "notificationPromptDismissed": zod.boolean().optional().describe('True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless.'),
+  "loginRestricted": zod.boolean().optional().describe('True when an admin has enabled staff-only login restriction. While true, only ADMIN \/ FIXER \/ ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else.'),
   "vrchat": zod.union([zod.object({
   "vrchatUserId": zod.string(),
   "vrchatUsername": zod.string(),
@@ -5345,6 +5346,26 @@ export const AdminSetLiveModeResponse = zod.object({
 })
 })
 }).describe('Site-wide Test\/Live switches. A system is effectively live only when master AND that system are both true.')
+
+
+/**
+ * @summary Whether staff-only login restriction is currently on.
+ */
+export const AdminGetSiteAccessResponse = zod.object({
+  "loginRestricted": zod.boolean()
+}).describe('Staff-only login lockdown state. When loginRestricted is true, only ADMIN \/ FIXER \/ ARCHIVIST may sign in or use the portal.')
+
+
+/**
+ * @summary Enable or disable staff-only login restriction.
+ */
+export const AdminSetSiteAccessBody = zod.object({
+  "loginRestricted": zod.boolean()
+}).describe('Staff-only login lockdown state. When loginRestricted is true, only ADMIN \/ FIXER \/ ARCHIVIST may sign in or use the portal.')
+
+export const AdminSetSiteAccessResponse = zod.object({
+  "loginRestricted": zod.boolean()
+}).describe('Staff-only login lockdown state. When loginRestricted is true, only ADMIN \/ FIXER \/ ARCHIVIST may sign in or use the portal.')
 
 
 /**

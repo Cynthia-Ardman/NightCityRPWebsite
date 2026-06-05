@@ -829,6 +829,8 @@ export interface Me {
   onboardingBannerDismissed?: boolean;
   /** True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless. */
   notificationPromptDismissed?: boolean;
+  /** True when an admin has enabled staff-only login restriction. While true, only ADMIN / FIXER / ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else. */
+  loginRestricted?: boolean;
   /** Linked VRChat profile for this Discord user, or null if none registered. */
   vrchat?: VrchatLinkSummary | null;
 }
@@ -4867,6 +4869,13 @@ export interface LiveModeUpdate {
   housing?: boolean;
   cyberware?: boolean;
   evictions?: boolean;
+}
+
+/**
+ * Staff-only login lockdown state. When loginRestricted is true, only ADMIN / FIXER / ARCHIVIST may sign in or use the portal.
+ */
+export interface SiteAccessState {
+  loginRestricted: boolean;
 }
 
 export interface VrchatScanResult {

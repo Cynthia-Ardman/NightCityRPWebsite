@@ -23,7 +23,7 @@ import reviewRouter from "./review";
 import breachRouter from "./breach";
 import eventsRouter from "./events";
 
-import { requireVerified } from "../middlewares/auth";
+import { requireVerified, requireSiteAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -40,6 +40,12 @@ router.use(storageRouter);
 // --- Age-verification gate -------------------------------------------------
 // Signed-in members without the Verified 18+ role get a 403 from here on.
 router.use(requireVerified);
+
+// --- Staff-only lockdown gate ----------------------------------------------
+// When an admin has restricted login, signed-in non-staff members get a 403
+// (site_locked) from here on, so an already-logged-in player is locked out of
+// every data route too. Staff (ADMIN / FIXER / ARCHIVIST) pass through.
+router.use(requireSiteAccess);
 
 // --- Gated routers (full portal) -------------------------------------------
 router.use(charactersRouter);

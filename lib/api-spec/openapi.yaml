@@ -2154,6 +2154,33 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/LiveModeState" }
 
+  /admin/site-access:
+    get:
+      operationId: adminGetSiteAccess
+      tags: [admin]
+      summary: "Whether staff-only login restriction is currently on."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SiteAccessState" }
+    put:
+      operationId: adminSetSiteAccess
+      tags: [admin]
+      summary: "Enable or disable staff-only login restriction."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SiteAccessState" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SiteAccessState" }
+
   /admin/vrchat-links/scan:
     post:
       operationId: adminScanVrchatLinks
@@ -5181,6 +5208,9 @@ components:
         notificationPromptDismissed:
           type: boolean
           description: "True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless."
+        loginRestricted:
+          type: boolean
+          description: "True when an admin has enabled staff-only login restriction. While true, only ADMIN / FIXER / ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else."
         vrchat:
           oneOf:
             - { $ref: "#/components/schemas/VrchatLinkSummary" }
@@ -7754,6 +7784,13 @@ components:
         housing: { type: boolean }
         cyberware: { type: boolean }
         evictions: { type: boolean }
+
+    SiteAccessState:
+      type: object
+      required: [loginRestricted]
+      description: "Staff-only login lockdown state. When loginRestricted is true, only ADMIN / FIXER / ARCHIVIST may sign in or use the portal."
+      properties:
+        loginRestricted: { type: boolean }
 
     VrchatScanResult:
       type: object

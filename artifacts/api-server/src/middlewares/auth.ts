@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { db, users, type User } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hasRole, ROLE_NAMES } from "../lib/discord";
+import { isLoginRestricted, isLockdownExempt } from "../lib/siteAccess";
 
 declare global {
   namespace Express {
@@ -42,6 +43,29 @@ export function requireVerified(req: Request, res: Response, next: NextFunction)
     return;
   }
   res.status(403).json({ error: "verification_required" });
+}
+
+// Staff-only lockdown gate. Mounted (in routes/index.ts) AFTER the always-open
+// routers (health, auth, guidebook, storage) and the age gate, BEFORE every
+// data router. When an admin has restricted login, any signed-in member who is
+// NOT staff (ADMIN / FIXER incl. coordinator / ARCHIVIST) gets a 403 from here
+// on, so an already-logged-in player is locked out too — not just new logins.
+// Unauthenticated requests fall through so the downstream requireAuth returns
+// the usual 401. Staff and the open routers are never affected.
+export async function requireSiteAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!req.user) {
+    next();
+    return;
+  }
+  if (isLockdownExempt(req.user.roles)) {
+    next();
+    return;
+  }
+  if (await isLoginRestricted()) {
+    res.status(403).json({ error: "site_locked" });
+    return;
+  }
+  next();
 }
 
 export function requireRole(group: keyof typeof ROLE_NAMES) {

@@ -21,6 +21,7 @@ import {
   DiscordUpstreamError,
 } from "../lib/discord";
 import { requireAuth } from "../middlewares/auth";
+import { isLoginRestricted, isLockdownExempt } from "../lib/siteAccess";
 import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -53,6 +54,15 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
       discordUser.id,
     );
     const verified18 = roleIds.includes(VERIFIED_18_ROLE_ID);
+    // Staff-only lockdown: when an admin has restricted login, only ADMIN /
+    // FIXER (incl. coordinator) / ARCHIVIST may sign in. Everyone else is turned
+    // away here — BEFORE any session is created — so a restricted player never
+    // even gets a cookie. The middleware (requireSiteAccess) mirrors this for
+    // members who were already logged in when the switch was flipped.
+    if (!isLockdownExempt(roles) && (await isLoginRestricted())) {
+      res.redirect(loginErrorRedirect("restricted"));
+      return;
+    }
     const id = discordUser.id;
     const expiresAt = new Date(Date.now() + token.expires_in * 1000);
     const av = avatarUrl(discordUser.id, discordUser.avatar);
@@ -259,6 +269,9 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     isCsApprover: hasRole(u.roles, "CS_APPROVER"),
     isRipperdoc: hasRole(u.roles, "RIPPERDOC"),
     isStoreOwner: hasRole(u.roles, "STORE_OWNER"),
+    // Staff-only lockdown state. When true, only ADMIN / FIXER / ARCHIVIST may
+    // use the portal; the SPA shows a maintenance screen to everyone else.
+    loginRestricted: await isLoginRestricted(),
     vrchat: link
       ? { vrchatUserId: link.vrchatUserId, vrchatUsername: link.vrchatUsername, vrchatUrl: link.vrchatUrl }
       : null,

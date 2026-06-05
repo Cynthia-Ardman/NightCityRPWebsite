@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
@@ -1112,8 +1112,56 @@ export function LiveModeSwitchboard() {
   );
 }
 
-// Manual refresh of the Discord<->VRChat username links shown on the directory
-// and player profiles. Read-only on Discord, so it is safe to run any time.
+// Staff-only login lockdown. When ON, only ADMIN / FIXER (incl. coordinator) /
+// ARCHIVIST may sign in or use the portal; everyone else is blocked at login and
+// served a maintenance screen. Mirrors the LiveModeSwitchboard styling.
+export function LoginRestrictionCard() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: state, isLoading } = useAdminGetSiteAccess();
+  const update = useAdminSetSiteAccess({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getAdminGetSiteAccessQueryKey() });
+        toast({ title: "Login restriction updated" });
+      },
+      onError: (err: any) =>
+        toast({ title: "Update failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+    },
+  });
+  const restricted = state?.loginRestricted === true;
+  return (
+    <div
+      className={`flex items-center justify-between gap-4 border p-4 ${restricted ? "border-nc-magenta bg-nc-magenta/10" : "border-border bg-card/30"}`}
+      data-testid="login-restriction"
+    >
+      <div>
+        <div className="font-display text-base tracking-widest">
+          STAFF-ONLY LOGIN:{" "}
+          <span className={restricted ? "text-nc-magenta" : "text-nc-yellow"}>
+            {isLoading ? "…" : restricted ? "RESTRICTED" : "OPEN"}
+          </span>
+        </div>
+        <div className="font-mono text-[11px] text-muted-foreground max-w-xl mt-1">
+          When RESTRICTED, only Admins, Fixers (incl. Coordinators) and Archivists can sign in or use the portal. Everyone else is blocked at login and shown a maintenance screen. Use this to take the site offline for players during maintenance.
+        </div>
+      </div>
+      <Button
+        size="sm"
+        disabled={isLoading || update.isPending}
+        onClick={() => {
+          if (!restricted && !confirm("Restrict login to staff only? All non-staff members will be signed out of the portal and unable to log back in until you turn this off.")) return;
+          update.mutate({ data: { loginRestricted: !restricted } });
+        }}
+        className={`rounded-none font-display text-xs ${restricted ? "bg-nc-yellow text-background" : "bg-nc-magenta text-background"}`}
+        data-testid="button-login-restriction"
+      >
+        {restricted ? "OPEN TO ALL" : "RESTRICT TO STAFF"}
+      </Button>
+    </div>
+  );
+}
+
 function VrchatScanButton() {
   const { toast } = useToast();
   const [result, setResult] = useState<VrchatScanResult | null>(null);
@@ -1231,6 +1279,7 @@ export function JobsTab() {
       </CardHeader>
       <CardContent className="space-y-8">
         <LiveModeSwitchboard />
+        <LoginRestrictionCard />
         <VrchatScanButton />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <AutobillSwitch

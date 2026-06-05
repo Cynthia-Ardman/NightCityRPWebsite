@@ -32,6 +32,13 @@ function describeReason(reason: string | null, detail: string | null): ReasonInf
           "The portal isn't set up correctly to talk to Discord right now. Retrying won't help — please contact an administrator.",
         showRetry: false,
       };
+    case "restricted":
+      return {
+        title: "PORTAL LOCKED",
+        message:
+          "Night City is offline for maintenance — sign-in is temporarily restricted to staff. Retrying won't help right now; please check back later.",
+        showRetry: false,
+      };
     case "unknown":
     default:
       return {

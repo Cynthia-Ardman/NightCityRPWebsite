@@ -403,6 +403,7 @@ export * from './sheetVoteInputVote';
 export * from './sheetVoteResult';
 export * from './sheetVoteResultDecided';
 export * from './sheetVoteResultStatus';
+export * from './siteAccessState';
 export * from './standaloneActorPayInput';
 export * from './stockCostDecision';
 export * from './stockCostDecisionDecision';

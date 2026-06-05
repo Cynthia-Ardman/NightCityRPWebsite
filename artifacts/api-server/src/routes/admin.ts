@@ -22,6 +22,7 @@ import { runJob } from "../lib/jobs";
 import { recordAudit } from "../lib/audit";
 import { auditLog } from "@workspace/db";
 import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from "../lib/liveMode";
+import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
 import { getEconomyMode, reconcileOneUser } from "../lib/economy";
 
@@ -551,6 +552,40 @@ router.put("/admin/live-mode", adminOnly, async (req, res): Promise<void> => {
     });
   }
   res.json(await getLiveModeState());
+});
+
+// ─── Staff-only login lockdown ────────────────────────────────────────────
+// When ON, only ADMIN / FIXER (incl. coordinator) / ARCHIVIST may sign in or
+// use the portal; every other member is blocked at login and on every gated
+// route. Defaults OFF.
+router.get("/admin/site-access", adminOnly, async (_req, res): Promise<void> => {
+  res.json({ loginRestricted: await isLoginRestricted() });
+});
+
+router.put("/admin/site-access", adminOnly, async (req, res): Promise<void> => {
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  if (typeof b.loginRestricted !== "boolean") {
+    res.status(400).json({ error: "loginRestricted (boolean) required" });
+    return;
+  }
+  const loginRestricted = b.loginRestricted;
+  await db
+    .insert(botConfig)
+    .values({ key: LOGIN_RESTRICTED_KEY, value: loginRestricted as never })
+    .onConflictDoUpdate({
+      target: botConfig.key,
+      set: { value: loginRestricted as never, updatedAt: new Date() },
+    });
+  await recordAudit({
+    req,
+    category: "admin",
+    action: "site_access.change",
+    targetType: "config",
+    targetId: LOGIN_RESTRICTED_KEY,
+    message: `Login restriction ${loginRestricted ? "ENABLED (staff only)" : "DISABLED"}`,
+    after: { loginRestricted },
+  });
+  res.json({ loginRestricted });
 });
 
 // Re-scrape the VRChat username channel and refresh Discord<->VRChat links.

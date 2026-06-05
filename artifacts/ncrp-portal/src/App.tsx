@@ -65,6 +65,7 @@ import DirectoryCalendar from "@/pages/directory/DirectoryCalendar";
 import EventDetail from "@/pages/EventDetail";
 import FixerEvents from "@/pages/fixer/FixerEvents";
 import LoginError from "@/pages/LoginError";
+import SiteLocked from "@/pages/SiteLocked";
 import LogoutError from "@/pages/LogoutError";
 import Settings from "@/pages/Settings";
 import VerificationRequired from "@/pages/VerificationRequired";
@@ -151,6 +152,16 @@ function AppRoutes() {
   // the login prompt.
   if (user && !user.verified18) {
     return <VerificationRequired />;
+  }
+
+  // Staff-only lockdown. When an admin has restricted login, a signed-in member
+  // who is NOT staff (ADMIN / FIXER incl. coordinator / ARCHIVIST) is locked to
+  // a single maintenance screen — no AppLayout, no routes. The backend mirrors
+  // this (login blocked + every data route 403s), so this is purely the UX. A
+  // logged-out visitor (no user) falls through; their login attempt is blocked
+  // server-side and redirects to the "restricted" login-error page.
+  if (user && user.loginRestricted && !(user.isAdmin || user.isFixer || user.isArchivist)) {
+    return <SiteLocked />;
   }
 
   return (

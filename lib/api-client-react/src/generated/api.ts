@@ -223,6 +223,7 @@ import type {
   SearchMissionActorsParams,
   SheetVoteInput,
   SheetVoteResult,
+  SiteAccessState,
   StandaloneActorPayInput,
   StockCostDecision,
   StockInput,
@@ -10049,6 +10050,154 @@ export const useAdminSetLiveMode = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminSetLiveModeMutationOptions(options));
+    }
+
+export const getAdminGetSiteAccessUrl = () => {
+
+
+
+
+  return `/api/admin/site-access`
+}
+
+/**
+ * @summary Whether staff-only login restriction is currently on.
+ */
+export const adminGetSiteAccess = async ( options?: RequestInit): Promise<SiteAccessState> => {
+
+  return customFetch<SiteAccessState>(getAdminGetSiteAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetSiteAccessQueryKey = () => {
+    return [
+    `/api/admin/site-access`
+    ] as const;
+    }
+
+
+export const getAdminGetSiteAccessQueryOptions = <TData = Awaited<ReturnType<typeof adminGetSiteAccess>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetSiteAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetSiteAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetSiteAccess>>> = ({ signal }) => adminGetSiteAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetSiteAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetSiteAccessQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetSiteAccess>>>
+export type AdminGetSiteAccessQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Whether staff-only login restriction is currently on.
+ */
+
+export function useAdminGetSiteAccess<TData = Awaited<ReturnType<typeof adminGetSiteAccess>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetSiteAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetSiteAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminSetSiteAccessUrl = () => {
+
+
+
+
+  return `/api/admin/site-access`
+}
+
+/**
+ * @summary Enable or disable staff-only login restriction.
+ */
+export const adminSetSiteAccess = async (siteAccessState: SiteAccessState, options?: RequestInit): Promise<SiteAccessState> => {
+
+  return customFetch<SiteAccessState>(getAdminSetSiteAccessUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      siteAccessState,)
+  }
+);}
+
+
+
+
+export const getAdminSetSiteAccessMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetSiteAccess>>, TError,{data: BodyType<SiteAccessState>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSetSiteAccess>>, TError,{data: BodyType<SiteAccessState>}, TContext> => {
+
+const mutationKey = ['adminSetSiteAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSetSiteAccess>>, {data: BodyType<SiteAccessState>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminSetSiteAccess(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSetSiteAccessMutationResult = NonNullable<Awaited<ReturnType<typeof adminSetSiteAccess>>>
+    export type AdminSetSiteAccessMutationBody = BodyType<SiteAccessState>
+    export type AdminSetSiteAccessMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Enable or disable staff-only login restriction.
+ */
+export const useAdminSetSiteAccess = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetSiteAccess>>, TError,{data: BodyType<SiteAccessState>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSetSiteAccess>>,
+        TError,
+        {data: BodyType<SiteAccessState>},
+        TContext
+      > => {
+      return useMutation(getAdminSetSiteAccessMutationOptions(options));
     }
 
 export const getAdminScanVrchatLinksUrl = () => {
