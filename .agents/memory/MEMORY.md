@@ -88,3 +88,4 @@
 - [Wallet int4 ceiling](wallet-int4-ceiling.md) — wallet/store/ripperdoc balances are int4 (max 2,147,483,647); applyWalletDelta guards credits via MAX_WALLET_BALANCE, but UB->website reconcile paths remain an overflow vector.
 - [Calendar mission/event dup](calendar-mission-event-dup.md) — a mission + event sharing one discord_event_id render twice on the merged calendar; reconcile must auto-heal (cancel+unlink the event row), not just skip.
 - [Dashboard count vs review-queue parity](dashboard-review-count-parity.md) — staff dashboard tallies must mirror queue semantics (reviewer-gated, exclude own) or they nag a phantom the viewer can't action.
+- [Review unread two query keys](review-unread-query-keys.md) — mark-seen/post-comment must invalidate BOTH staff unseen-counts AND player my-unseen keys, or one badge goes permanently stale.

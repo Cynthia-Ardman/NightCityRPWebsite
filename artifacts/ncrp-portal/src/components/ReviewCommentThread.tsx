@@ -6,6 +6,7 @@ import {
   useMarkReviewSeen,
   getListReviewCommentsQueryKey,
   getGetReviewUnseenCountsQueryKey,
+  getGetMyUnseenQueryKey,
   type ReviewComment,
 } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -43,7 +44,12 @@ export default function ReviewCommentThread({
   const seen = useMarkReviewSeen({
     mutation: {
       onSuccess: () => {
+        // Refresh BOTH unread surfaces: the staff "Pending Requests" counts and
+        // the player-facing "My Requests" badge/dots. Without the my-unseen
+        // invalidation a submitter who opens their own ticket keeps seeing a
+        // stale "1" until the cache naturally refetches.
         qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
       },
     },
   });
@@ -62,6 +68,7 @@ export default function ReviewCommentThread({
         setBody("");
         qc.invalidateQueries({ queryKey: getListReviewCommentsQueryKey(subjectType, subjectId) });
         qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
       },
       onError: (err) => {
         const msg = (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? "Could not post comment";
