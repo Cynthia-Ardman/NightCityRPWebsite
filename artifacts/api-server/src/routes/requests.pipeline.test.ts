@@ -10,7 +10,7 @@ vi.mock("../lib/discord", async (importActual) => {
   };
 });
 
-import { db, customRequests, inventoryItems, reviewVotes, auditLog } from "@workspace/db";
+import { db, customRequests, inventoryItems, reviewVotes, auditLog, housing } from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
@@ -309,5 +309,67 @@ describe("custom request request-changes (retired) + resubmit", () => {
         .from(reviewVotes)
         .where(and(eq(reviewVotes.subjectType, "request"), eq(reviewVotes.subjectId, reqId))),
     ).toHaveLength(0);
+  });
+});
+
+// monthly_rent is an int4 column (max ~2.1B). A fat-fingered rent above that
+// overflows on insert and used to surface as an opaque 500. Both the approve
+// step (so it can't be staged) and the close/apply step (so an already-staged
+// bad value fails cleanly) must reject it with a 400.
+describe("property rent overflow guard", () => {
+  const OVER_CAP = 100_000_000_000_000; // 100 trillion — well past int4 max
+
+  async function submitPropertyRequest(ownerId: string) {
+    const char = await createCharacter({ ownerId });
+    const res = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", ownerId)
+      .send({ type: "property", characterId: char.id, title: "Afterlife Apartment", description: "Above the bar" });
+    expect(res.status).toBe(201);
+    return { char, reqId: res.body.id as number };
+  }
+
+  it("rejects an over-cap monthlyRent at approve time (override) without staging it", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const { reqId } = await submitPropertyRequest(owner.id);
+
+    const res = await request(app)
+      .post(`/api/requests/${reqId}/override`)
+      .set("x-test-user", admin.id)
+      .send({ monthlyRent: OVER_CAP, kind: "residential" });
+    expect(res.status).toBe(400);
+
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(row.status).toBe("pending");
+  });
+
+  it("fails an already-staged over-cap request with a clean 400 on close, not a 500, and creates no lease", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const { reqId } = await submitPropertyRequest(owner.id);
+
+    // Stage a valid approval, then corrupt the stored rent to simulate a row
+    // approved before the guard existed.
+    const ok = await request(app)
+      .post(`/api/requests/${reqId}/override`)
+      .set("x-test-user", admin.id)
+      .send({ monthlyRent: 5000, kind: "residential" });
+    expect(ok.status).toBe(200);
+    await db
+      .update(customRequests)
+      .set({ decisionParams: { monthlyRent: OVER_CAP, kind: "residential" } as never })
+      .where(eq(customRequests.id, reqId));
+
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(close.status).toBe(400);
+    expect(await db.select().from(housing)).toHaveLength(0);
+
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(row.status).toBe("approved");
+    expect(row.appliedRef).toBeNull();
   });
 });

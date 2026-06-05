@@ -143,6 +143,11 @@ type CharacterRow = typeof characters.$inferSelect;
 // approve can materialize from the stored values without re-prompting.
 type ApprovalParams = { monthlyRent?: unknown; kind?: unknown; businessName?: unknown; cwp?: unknown; unitCost?: unknown; retail?: unknown; qty?: unknown };
 
+// Monetary fields here land in Postgres `integer` (int4) columns, which max out
+// at 2,147,483,647. Cap well under that so a fat-fingered value is rejected with
+// a clear 400 at approve/apply time instead of overflowing into a cryptic 500.
+const MAX_MONEY = 2_000_000_000;
+
 // Validates that the params required to APPROVE a given request type are
 // present and well-formed. Returns a normalized object on success or an error
 // string. Called before recording an approve vote so the tally can never be
@@ -155,6 +160,9 @@ function normalizeApprovalParams(
     const monthlyRent = parseInt(String(params.monthlyRent), 10);
     if (!Number.isFinite(monthlyRent) || monthlyRent < 0) {
       return { error: "monthlyRent (>= 0) required to approve a property request" };
+    }
+    if (monthlyRent > MAX_MONEY) {
+      return { error: `monthlyRent must be ${MAX_MONEY.toLocaleString()} or less` };
     }
     const kind = params.kind === "business" ? "business" : "residential";
     const out: Record<string, number | string> = { monthlyRent, kind };
@@ -179,8 +187,14 @@ function normalizeApprovalParams(
     if (!Number.isFinite(unitCost) || unitCost < 0) {
       return { error: "unitCost (>= 0) required to approve a stock request" };
     }
+    if (unitCost > MAX_MONEY) {
+      return { error: `unitCost must be ${MAX_MONEY.toLocaleString()} or less` };
+    }
     if (!Number.isFinite(retail) || retail < 0) {
       return { error: "retail (>= 0) required to approve a stock request" };
+    }
+    if (retail > MAX_MONEY) {
+      return { error: `retail must be ${MAX_MONEY.toLocaleString()} or less` };
     }
     if (!Number.isFinite(qty) || qty < 1) {
       return { error: "qty (>= 1) required to approve a stock request" };
@@ -206,6 +220,9 @@ async function materializeRequest(
     const monthlyRent = parseInt(String(params.monthlyRent), 10);
     if (!Number.isFinite(monthlyRent) || monthlyRent < 0) {
       return { error: { status: 400, body: { error: "monthlyRent (>= 0) required to approve a property request" } } };
+    }
+    if (monthlyRent > MAX_MONEY) {
+      return { error: { status: 400, body: { error: `monthlyRent must be ${MAX_MONEY.toLocaleString()} or less — re-approve this request with a valid rent` } } };
     }
     const kind = params.kind === "business" ? "business" : "residential";
     if (!c.approved) {
