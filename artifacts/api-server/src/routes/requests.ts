@@ -784,8 +784,12 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
     const blocked = ownerDecidedError(reqRow.type);
     if (blocked) return { error: blocked };
-    if (reqRow.status !== "pending" && reqRow.status !== "changes_requested") {
-      return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
+    // Allow re-overriding an already-approved (staged) request so an admin can
+    // correct the mechanical params before it is closed/applied. Block once the
+    // effect has been materialized (appliedRef set) or the ticket is terminal.
+    const editable = reqRow.status === "pending" || reqRow.status === "changes_requested" || reqRow.status === "approved";
+    if (!editable || reqRow.appliedRef) {
+      return { error: { status: 409, body: { error: `Request already ${reqRow.appliedRef ? "applied" : reqRow.status}` } } };
     }
     if (reqRow.requestedById === req.user!.id) {
       return { error: { status: 403, body: { error: "You cannot override your own request" } } };

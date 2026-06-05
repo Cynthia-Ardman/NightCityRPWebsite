@@ -372,4 +372,62 @@ describe("property rent overflow guard", () => {
     expect(row.status).toBe("approved");
     expect(row.appliedRef).toBeNull();
   });
+
+  it("lets an admin re-override an already-approved (not yet applied) request to correct staged params", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const { reqId } = await submitPropertyRequest(owner.id);
+
+    // First override stages a (wrong) rent.
+    const first = await request(app)
+      .post(`/api/requests/${reqId}/override`)
+      .set("x-test-user", admin.id)
+      .send({ monthlyRent: 99999, kind: "residential" });
+    expect(first.status).toBe(200);
+    expect(first.body.status).toBe("approved");
+
+    // Re-override with the corrected rent — must be accepted, not 409'd.
+    const second = await request(app)
+      .post(`/api/requests/${reqId}/override`)
+      .set("x-test-user", admin.id)
+      .send({ monthlyRent: 2500, kind: "business" });
+    expect(second.status).toBe(200);
+
+    const [staged] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(staged.status).toBe("approved");
+    expect((staged.decisionParams as { monthlyRent?: number }).monthlyRent).toBe(2500);
+    expect((staged.decisionParams as { kind?: string }).kind).toBe("business");
+
+    // Closing applies the corrected value to the materialized lease.
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(close.status).toBe(200);
+    const [lease] = await db.select().from(housing);
+    expect(lease.monthlyRent).toBe(2500);
+  });
+
+  it("409s a re-override once the request has been applied (closed)", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const { reqId } = await submitPropertyRequest(owner.id);
+
+    const ok = await request(app)
+      .post(`/api/requests/${reqId}/override`)
+      .set("x-test-user", admin.id)
+      .send({ monthlyRent: 2500, kind: "residential" });
+    expect(ok.status).toBe(200);
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(close.status).toBe(200);
+
+    const after = await request(app)
+      .post(`/api/requests/${reqId}/override`)
+      .set("x-test-user", admin.id)
+      .send({ monthlyRent: 3000, kind: "residential" });
+    expect(after.status).toBe(409);
+  });
 });

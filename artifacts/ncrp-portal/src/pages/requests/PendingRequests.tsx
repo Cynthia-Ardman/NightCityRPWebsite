@@ -1075,6 +1075,8 @@ function useTerminalItems() {
     ...((reqResolved.data ?? []) as CustomRequest[]),
     ...((reqArchive.data ?? []) as CustomRequest[]),
   ];
+  const requestsById = new Map<number, CustomRequest>();
+  for (const r of requests) requestsById.set(r.id, r);
   for (const r of requests) {
     const status = String(r.status);
     push(classifyRequest(r), {
@@ -1196,7 +1198,7 @@ function useTerminalItems() {
   );
   readyToApply.sort(byDateDesc);
 
-  return { completed, denied, readyToApply, isLoading };
+  return { completed, denied, readyToApply, requestsById, isLoading };
 }
 
 function TerminalCard({
@@ -1316,9 +1318,12 @@ function TabCount({ n }: { n: number }) {
 function ReadyToApplyPanel() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { readyToApply } = useTerminalItems();
+  const { data: me } = useAuthMe();
+  const isAdmin = !!me?.isAdmin;
+  const { readyToApply, requestsById } = useTerminalItems();
   const [applyingAll, setApplyingAll] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [editRequest, setEditRequest] = useState<CustomRequest | null>(null);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
@@ -1404,6 +1409,13 @@ function ReadyToApplyPanel() {
         <div className="space-y-2">
           {readyToApply.map((item) => {
             const Icon = item.Icon;
+            // Only request tickets carry editable mechanical params (rent / CWP /
+            // stock pricing). An admin can correct a bad staged value in place by
+            // re-overriding before the ticket is closed/applied.
+            const req = item.subjectType === "request" ? requestsById.get(item.id) : undefined;
+            const canEdit =
+              isAdmin && !!req &&
+              (req.type === "property" || req.type === "cyberware" || req.type === "venue_stock");
             return (
               <div
                 key={item.key}
@@ -1419,19 +1431,33 @@ function ReadyToApplyPanel() {
                     <div className="font-mono text-[11px] text-muted-foreground truncate">{item.subtitle}</div>
                   </div>
                 </div>
-                <Button
-                  className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest shrink-0"
-                  disabled={busy}
-                  onClick={() => applyOne(item)}
-                  data-testid={`button-apply-ready-${item.kind}-${item.id}`}
-                >
-                  {applyingId === item.key ? "APPLYING..." : "CLOSE & APPLY"}
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {canEdit && (
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                      disabled={busy}
+                      onClick={() => setEditRequest(req!)}
+                      data-testid={`button-edit-ready-${item.kind}-${item.id}`}
+                    >
+                      EDIT
+                    </Button>
+                  )}
+                  <Button
+                    className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
+                    disabled={busy}
+                    onClick={() => applyOne(item)}
+                    data-testid={`button-apply-ready-${item.kind}-${item.id}`}
+                  >
+                    {applyingId === item.key ? "APPLYING..." : "CLOSE & APPLY"}
+                  </Button>
+                </div>
               </div>
             );
           })}
         </div>
       </CardContent>
+      <ApproveDialog request={editRequest} mode="override" onClose={() => setEditRequest(null)} />
     </Card>
   );
 }

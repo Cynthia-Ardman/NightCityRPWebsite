@@ -84,3 +84,4 @@
 - [Session events always need NPCs](session-npc-derivation.md) — needsNpcs is DERIVED (manual flag OR eventType==="session"); route all view/gate reads through eventNeedsNpcs(e), not the raw column.
 - [Main Sessions are discrete weekly rows](main-sessions-discrete.md) — sessions are one event row per Sunday (own discord id), NOT a recurrence_rule; extend coverage by creating rows (backfill-main-sessions.ts), not recurrence.
 - [Mission remove-vs-pay race](mission-remove-pay-race.md) — roster removal must re-check paid/processing under FOR UPDATE inside the tx; pay claims the same row, pre-tx guard alone races.
+- [Re-override staged requests](staged-review-effects.md) — an approved-but-not-closed request is editable via admin re-override (re-stages decisionParams); gate edit-ability on appliedRef IS NULL, not on status, since approved→appliedRef is always null until close.
