@@ -22,6 +22,7 @@ import guidebookRouter from "./guidebook";
 import reviewRouter from "./review";
 import breachRouter from "./breach";
 import eventsRouter from "./events";
+import economyCommandsRouter from "./economy-commands";
 
 import { requireVerified, requireSiteAccess } from "../middlewares/auth";
 
@@ -67,5 +68,6 @@ router.use(loreRouter);
 router.use(reviewRouter);
 router.use(breachRouter);
 router.use(eventsRouter);
+router.use(economyCommandsRouter);
 
 export default router;

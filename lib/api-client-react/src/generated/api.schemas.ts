@@ -3495,6 +3495,61 @@ export interface CharacterEditSubmission {
   message: string;
 }
 
+export type CharacterEditAutoAppliedStatus = typeof CharacterEditAutoAppliedStatus[keyof typeof CharacterEditAutoAppliedStatus];
+
+
+export const CharacterEditAutoAppliedStatus = {
+  applied: 'applied',
+} as const;
+
+export interface CharacterEditAutoApplied {
+  autoApplied: true;
+  characterId: number;
+  status: CharacterEditAutoAppliedStatus;
+  character: Character;
+  message: string;
+}
+
+export interface IncomeCommandState {
+  available: boolean;
+  cooldownEndsAt: string | null;
+}
+
+export type IncomeStatusSlut = IncomeCommandState & {
+  eligible: boolean;
+};
+
+export interface IncomeStatus {
+  balance: number | null;
+  work: IncomeCommandState;
+  slut: IncomeStatusSlut;
+}
+
+export type IncomeCommandResultCommand = typeof IncomeCommandResultCommand[keyof typeof IncomeCommandResultCommand];
+
+
+export const IncomeCommandResultCommand = {
+  work: 'work',
+  slut: 'slut',
+} as const;
+
+export type IncomeCommandResultOutcome = typeof IncomeCommandResultOutcome[keyof typeof IncomeCommandResultOutcome];
+
+
+export const IncomeCommandResultOutcome = {
+  earned: 'earned',
+  fined: 'fined',
+} as const;
+
+export interface IncomeCommandResult {
+  command: IncomeCommandResultCommand;
+  outcome: IncomeCommandResultOutcome;
+  /** Signed delta in eddies (negative on a fine). */
+  amount: number;
+  balance?: number;
+  cooldownEndsAt: string;
+}
+
 export type PendingEditSummaryProposedDiff = { [key: string]: unknown };
 
 export type PendingEditSummaryStatus = typeof PendingEditSummaryStatus[keyof typeof PendingEditSummaryStatus];
@@ -5357,6 +5412,16 @@ export const ListArchiveCharactersSort = {
 
 export type ListArchiveUsersParams = {
 q?: string;
+};
+
+export type RunIncomeWork429 = {
+  error?: string;
+  cooldownEndsAt?: string | null;
+};
+
+export type RunIncomeSlut429 = {
+  error?: string;
+  cooldownEndsAt?: string | null;
 };
 
 export type ListCustomRequestsParams = {

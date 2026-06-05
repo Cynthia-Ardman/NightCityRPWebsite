@@ -211,6 +211,53 @@ export const UpdateCharacterBody = zod.object({
   "updateNote": zod.string().min(1).max(updateCharacterBodyUpdateNoteMax).optional().describe('Optional commit-message-style note describing what changed. When non-empty, appended to the character\'s update log.')
 })
 
+export const UpdateCharacterResponse = zod.object({
+  "autoApplied": zod.literal(true),
+  "characterId": zod.number(),
+  "status": zod.enum(['applied']),
+  "character": zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string())
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
+  "createdAt": zod.coerce.date()
+}),
+  "message": zod.string()
+})
+
 
 export const DeleteCharacterParams = zod.object({
   "id": zod.coerce.number()
@@ -8007,6 +8054,48 @@ export const GetRecentActivityResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
+
+
+/**
+ * @summary Dashboard income-command availability, cooldowns, eligibility, and balance
+ */
+export const GetIncomeStatusResponse = zod.object({
+  "balance": zod.number().nullable(),
+  "work": zod.object({
+  "available": zod.boolean(),
+  "cooldownEndsAt": zod.coerce.date().nullable()
+}),
+  "slut": zod.object({
+  "available": zod.boolean(),
+  "cooldownEndsAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "eligible": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Run the WORK command (anyone; 100–200 eddies, 20h cooldown)
+ */
+export const RunIncomeWorkResponse = zod.object({
+  "command": zod.enum(['work', 'slut']),
+  "outcome": zod.enum(['earned', 'fined']),
+  "amount": zod.number().describe('Signed delta in eddies (negative on a fine).'),
+  "balance": zod.number().optional(),
+  "cooldownEndsAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Run the SLUT command (joytoy role only; 100–500 or a 1–3% fine, 20h cooldown)
+ */
+export const RunIncomeSlutResponse = zod.object({
+  "command": zod.enum(['work', 'slut']),
+  "outcome": zod.enum(['earned', 'fined']),
+  "amount": zod.number().describe('Signed delta in eddies (negative on a fine).'),
+  "balance": zod.number().optional(),
+  "cooldownEndsAt": zod.coerce.date()
+})
 
 
 /**

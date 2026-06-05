@@ -70,6 +70,7 @@ import type {
   CatalogRentUpdate,
   Character,
   CharacterCyberwareStatus,
+  CharacterEditAutoApplied,
   CharacterEditSubmission,
   CharacterInput,
   CharacterLifestyleInput,
@@ -137,6 +138,8 @@ import type {
   HousingReviewerNote,
   HydrateUsersInput,
   HydrateUsersResult,
+  IncomeCommandResult,
+  IncomeStatus,
   InventoryItem,
   InventoryItemHistory,
   InventoryItemInput,
@@ -218,6 +221,8 @@ import type {
   Ripperdoc,
   RipperdocPublic,
   RipperdocUpdate,
+  RunIncomeSlut429,
+  RunIncomeWork429,
   SaleOffer,
   SearchFixerPlayersParams,
   SearchInventoryByOwnerParams,
@@ -1016,9 +1021,9 @@ id. Only one pending edit may exist per character at a time.
  * @summary Submit a character edit for fixer review
  */
 export const updateCharacter = async (id: number,
-    characterUpdate: CharacterUpdate, options?: RequestInit): Promise<CharacterEditSubmission> => {
+    characterUpdate: CharacterUpdate, options?: RequestInit): Promise<CharacterEditAutoApplied | CharacterEditSubmission> => {
 
-  return customFetch<CharacterEditSubmission>(getUpdateCharacterUrl(id),
+  return customFetch<CharacterEditAutoApplied | CharacterEditSubmission>(getUpdateCharacterUrl(id),
   {
     ...options,
     method: 'PATCH',
@@ -15974,6 +15979,223 @@ export function useGetRecentActivity<TData = Awaited<ReturnType<typeof getRecent
 
 
 
+
+export const getGetIncomeStatusUrl = () => {
+
+
+
+
+  return `/api/economy/income`
+}
+
+/**
+ * @summary Dashboard income-command availability, cooldowns, eligibility, and balance
+ */
+export const getIncomeStatus = async ( options?: RequestInit): Promise<IncomeStatus> => {
+
+  return customFetch<IncomeStatus>(getGetIncomeStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetIncomeStatusQueryKey = () => {
+    return [
+    `/api/economy/income`
+    ] as const;
+    }
+
+
+export const getGetIncomeStatusQueryOptions = <TData = Awaited<ReturnType<typeof getIncomeStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIncomeStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetIncomeStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getIncomeStatus>>> = ({ signal }) => getIncomeStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getIncomeStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetIncomeStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getIncomeStatus>>>
+export type GetIncomeStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Dashboard income-command availability, cooldowns, eligibility, and balance
+ */
+
+export function useGetIncomeStatus<TData = Awaited<ReturnType<typeof getIncomeStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIncomeStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetIncomeStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getRunIncomeWorkUrl = () => {
+
+
+
+
+  return `/api/economy/income/work`
+}
+
+/**
+ * @summary Run the WORK command (anyone; 100–200 eddies, 20h cooldown)
+ */
+export const runIncomeWork = async ( options?: RequestInit): Promise<IncomeCommandResult> => {
+
+  return customFetch<IncomeCommandResult>(getRunIncomeWorkUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRunIncomeWorkMutationOptions = <TError = ErrorType<RunIncomeWork429 | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runIncomeWork>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runIncomeWork>>, TError,void, TContext> => {
+
+const mutationKey = ['runIncomeWork'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runIncomeWork>>, void> = () => {
+
+
+          return  runIncomeWork(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunIncomeWorkMutationResult = NonNullable<Awaited<ReturnType<typeof runIncomeWork>>>
+
+    export type RunIncomeWorkMutationError = ErrorType<RunIncomeWork429 | void>
+
+    /**
+ * @summary Run the WORK command (anyone; 100–200 eddies, 20h cooldown)
+ */
+export const useRunIncomeWork = <TError = ErrorType<RunIncomeWork429 | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runIncomeWork>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runIncomeWork>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunIncomeWorkMutationOptions(options));
+    }
+
+export const getRunIncomeSlutUrl = () => {
+
+
+
+
+  return `/api/economy/income/slut`
+}
+
+/**
+ * @summary Run the SLUT command (joytoy role only; 100–500 or a 1–3% fine, 20h cooldown)
+ */
+export const runIncomeSlut = async ( options?: RequestInit): Promise<IncomeCommandResult> => {
+
+  return customFetch<IncomeCommandResult>(getRunIncomeSlutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRunIncomeSlutMutationOptions = <TError = ErrorType<void | RunIncomeSlut429>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runIncomeSlut>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runIncomeSlut>>, TError,void, TContext> => {
+
+const mutationKey = ['runIncomeSlut'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runIncomeSlut>>, void> = () => {
+
+
+          return  runIncomeSlut(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunIncomeSlutMutationResult = NonNullable<Awaited<ReturnType<typeof runIncomeSlut>>>
+
+    export type RunIncomeSlutMutationError = ErrorType<void | RunIncomeSlut429>
+
+    /**
+ * @summary Run the SLUT command (joytoy role only; 100–500 or a 1–3% fine, 20h cooldown)
+ */
+export const useRunIncomeSlut = <TError = ErrorType<void | RunIncomeSlut429>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runIncomeSlut>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runIncomeSlut>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunIncomeSlutMutationOptions(options));
+    }
 
 export const getGetMyWalletUrl = () => {
 

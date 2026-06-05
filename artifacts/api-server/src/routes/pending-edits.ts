@@ -67,6 +67,33 @@ async function applyDiff(characterId: number, diff: EditableDiff, conn: DbConn =
   return updated;
 }
 
+// Fields that a player may change freely without staff review. Portraits,
+// background bio, archetype, and the sheet's free-text preamble are presentation
+// only — they never affect mechanics — so an edit touching ONLY these is applied
+// instantly. Everything else (name, stat sections, stat images, life status,
+// trauma tier, xanadu gold) still goes through the fixer review pipeline.
+const COSMETIC_FIELDS = new Set(["portraitUrl", "portraitUrls", "background", "archetype"]);
+
+// True when every changed field in `diff` is cosmetic. `sheetData` is special:
+// it is cosmetic only when the stat `sections` are unchanged (i.e. only the
+// free-text `preamble`/formatting moved); any change to a stat section is
+// meaningful and must be reviewed.
+function isCosmeticOnlyDiff(diff: Record<string, unknown>, current: Record<string, unknown>): boolean {
+  const keys = Object.keys(diff);
+  if (keys.length === 0) return false;
+  for (const key of keys) {
+    if (COSMETIC_FIELDS.has(key)) continue;
+    if (key === "sheetData") {
+      const before = (current.sheetData ?? {}) as { sections?: unknown };
+      const after = (diff.sheetData ?? {}) as { sections?: unknown };
+      if (JSON.stringify(before?.sections ?? {}) === JSON.stringify(after?.sections ?? {})) continue;
+      return false;
+    }
+    return false;
+  }
+  return true;
+}
+
 // Posts the "new edit pending" message to the CS approval channel and
 // records the message id so future cancel/decide flows can reply in
 // thread (matches the existing sheets.ts pattern).
@@ -113,13 +140,19 @@ export async function createPendingEdit(opts: {
   character: Character;
   submitter: User;
   body: unknown;
-}): Promise<{ ok: true; edit: typeof pendingCharacterEdits.$inferSelect } | { ok: false; error: CreatePendingEditError }> {
-  const parsed = EditableSchema.safeParse(opts.body ?? {});
+}): Promise<
+  | { ok: true; autoApplied: true; character: Character }
+  | { ok: true; autoApplied?: false; edit: typeof pendingCharacterEdits.$inferSelect }
+  | { ok: false; error: CreatePendingEditError }
+> {
+  // `updateNote` rides along in the same PATCH body but is metadata, not an
+  // editable character field. Strip it BEFORE the strict parse — EditableSchema
+  // is `.strict()`, so leaving it in rejects any noted edit as "invalid".
+  const { updateNote: noteRaw, ...rest } = (opts.body ?? {}) as Record<string, unknown>;
+  const parsed = EditableSchema.safeParse(rest);
   if (!parsed.success) {
     return { ok: false, error: { kind: "invalid", details: parsed.error.issues } };
   }
-  const { updateNote: _ignored, ...rest } = (opts.body ?? {}) as Record<string, unknown>;
-  void _ignored;
   // Strip noop fields (value identical to current character) so the
   // reviewer doesn't see a "changed" field that is in fact unchanged.
   const diff: Record<string, unknown> = {};
@@ -135,8 +168,35 @@ export async function createPendingEdit(opts: {
   if (Object.keys(diff).length === 0) {
     return { ok: false, error: { kind: "no_changes" } };
   }
-  const noteRaw = (opts.body as Record<string, unknown>)?.updateNote;
   const updateNote = typeof noteRaw === "string" && noteRaw.trim().length > 0 ? noteRaw.trim().slice(0, 2000) : null;
+
+  // Cosmetic-only edits (portraits, bio, archetype, sheet preamble/formatting)
+  // bypass review entirely and apply on the spot. This runs BEFORE the
+  // in-flight-edit logic so a player can always tweak presentation even while a
+  // meaningful edit of theirs is still queued for fixer review — the two never
+  // collide because cosmetic and meaningful fields are disjoint, and the queued
+  // edit's own diff still wins when it is approved and closed.
+  if (isCosmeticOnlyDiff(diff, cur)) {
+    const character = await db.transaction(async (tx) => {
+      const updated = await applyDiff(opts.character.id, diff as EditableDiff, tx);
+      if (updateNote) {
+        await tx.insert(characterUpdates).values({
+          characterId: opts.character.id,
+          authorId: opts.submitter.id,
+          note: updateNote,
+        });
+      }
+      await tx.insert(activityEvents).values({
+        kind: "character_edit_applied",
+        actorId: opts.submitter.id,
+        actorName: opts.submitter.username,
+        actorAvatarUrl: opts.submitter.avatarUrl,
+        message: `${opts.submitter.username} updated ${opts.character.name} (cosmetic — auto-applied)`,
+      });
+      return updated;
+    });
+    return { ok: true, autoApplied: true, character };
+  }
 
   // One in-flight edit per character. Since reviewer feedback now flows through
   // the non-blocking comment thread (not a blocking 'changes_requested' park),

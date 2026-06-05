@@ -189,6 +189,25 @@ export const characterUpdates = pgTable("character_updates", {
 });
 export type CharacterUpdate = typeof characterUpdates.$inferSelect;
 
+// Per-user cooldown ledger for the dashboard income commands (WORK / SLUT).
+// One row per (user, command); `lastUsedAt` is the anchor a server-side 20h
+// cooldown is measured from. The composite PK makes the atomic
+// reserve-on-conflict upsert in the income routes possible.
+export const incomeCommandUses = pgTable(
+  "income_command_uses",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    command: text("command").notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.command] }),
+  }),
+);
+export type IncomeCommandUse = typeof incomeCommandUses.$inferSelect;
+
 export const characterStatus = pgTable("character_status", {
   characterId: integer("character_id").primaryKey().references(() => characters.id, { onDelete: "cascade" }),
   loa: boolean("loa").notNull().default(false),

@@ -1,6 +1,6 @@
-import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListMissions, useListEvents, getListMissionsQueryKey, getListEventsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, type MissionSummary, type EventView } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListMissions, useListEvents, getListMissionsQueryKey, getListEventsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, useGetIncomeStatus, useRunIncomeWork, useRunIncomeSlut, getGetIncomeStatusQueryKey, type MissionSummary, type EventView, type IncomeCommandResult } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Link } from "wouter";
 import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper, UserPlus } from "lucide-react";
@@ -154,6 +154,7 @@ function Dashboard() {
           more appear. */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
         {statCards}
+        <IncomeCard />
         <AttendCard />
         {(characters ?? []).map((c) => (
           <ShopOpenSection key={c.id} characterId={c.id} name={c.name} />
@@ -1078,6 +1079,112 @@ function ActivityHistoryDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Live "Hh Mm" (or "Mm Ss" under a minute) countdown to an ISO timestamp.
+// Returns null once the target has passed so callers can flip to "ready".
+function useCountdown(targetIso: string | null | undefined): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!targetIso) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [targetIso]);
+  if (!targetIso) return null;
+  const ms = new Date(targetIso).getTime() - now;
+  if (Number.isNaN(ms) || ms <= 0) return null;
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+}
+
+// Dashboard income card. WORK is open to everyone (random 100–200, 20h
+// cooldown); SLUT is gated to the joytoy role server-side (random 100–500 or a
+// 1–3% fine) and only rendered when /economy/income reports the viewer eligible.
+// All cooldown/eligibility/payout logic is enforced by the API — the UI just
+// disables buttons on the obvious cases and surfaces the last outcome.
+function IncomeCard() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useGetIncomeStatus();
+  const [lastResult, setLastResult] = useState<IncomeCommandResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const onDone = () => qc.invalidateQueries({ queryKey: getGetIncomeStatusQueryKey() });
+  const handleSuccess = (resp: IncomeCommandResult) => {
+    setErrorMsg(null);
+    setLastResult(resp);
+    onDone();
+  };
+  const handleError = (err: unknown) => {
+    const d = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
+    setErrorMsg(d?.error ?? "Command failed. Try again shortly.");
+    onDone();
+  };
+
+  const work = useRunIncomeWork({ mutation: { onSuccess: handleSuccess, onError: handleError } });
+  const slut = useRunIncomeSlut({ mutation: { onSuccess: handleSuccess, onError: handleError } });
+
+  const workCooldown = useCountdown(data?.work.available ? null : data?.work.cooldownEndsAt);
+  const slutCooldown = useCountdown(data?.slut.available ? null : data?.slut.cooldownEndsAt);
+
+  if (isLoading || !data) return null;
+
+  const workBusy = work.isPending;
+  const slutBusy = slut.isPending;
+  const workDisabled = !data.work.available || workBusy;
+  const slutDisabled = !data.slut.available || slutBusy;
+
+  return (
+    <div className="border border-nc-cyan/40 bg-nc-cyan/5 p-4 space-y-3 h-full flex flex-col">
+      <div className="font-display tracking-widest text-nc-cyan text-sm">INCOME</div>
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          disabled={workDisabled}
+          onClick={() => work.mutate()}
+          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest disabled:opacity-50"
+          data-testid="button-income-work"
+        >
+          {workBusy ? "WORKING..." : !data.work.available ? `WORK · ${workCooldown ?? "READY"}` : "WORK"}
+        </Button>
+        {data.slut.eligible && (
+          <Button
+            type="button"
+            disabled={slutDisabled}
+            onClick={() => slut.mutate()}
+            variant="outline"
+            className="rounded-none border-nc-magenta/50 text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest disabled:opacity-50"
+            data-testid="button-income-slut"
+          >
+            {slutBusy ? "WORKING..." : !data.slut.available ? `SLUT · ${slutCooldown ?? "READY"}` : "SLUT"}
+          </Button>
+        )}
+      </div>
+
+      {lastResult && (
+        <div
+          className={`text-xs font-mono ${lastResult.outcome === "fined" ? "text-destructive" : "text-nc-cyan"}`}
+          data-testid="text-income-result"
+        >
+          {lastResult.outcome === "fined"
+            ? `FINED €$${Math.abs(lastResult.amount).toLocaleString()}`
+            : `EARNED €$${lastResult.amount.toLocaleString()}`}{" "}
+          ({lastResult.command.toUpperCase()})
+        </div>
+      )}
+      {errorMsg && (
+        <div className="text-xs font-mono text-destructive" data-testid="text-income-error">
+          ERR: {errorMsg}
+        </div>
+      )}
+
+      <div className="text-xs text-muted-foreground mt-auto pt-1" data-testid="text-income-balance">
+        TOTAL_EDDIES · €${(data.balance ?? 0).toLocaleString()}
+      </div>
+    </div>
   );
 }
 

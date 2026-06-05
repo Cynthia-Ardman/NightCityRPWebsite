@@ -185,6 +185,25 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
     return;
   }
   const result = await createPendingEdit({ character: c, submitter: req.user!, body: req.body });
+  if (result.ok && result.autoApplied) {
+    await recordAudit({
+      req,
+      category: "character",
+      action: "edit_applied",
+      targetType: "character",
+      targetId: id,
+      message: `Cosmetic edit auto-applied for ${c.name} (no review required)`,
+      after: { autoApplied: true },
+    });
+    res.status(200).json({
+      autoApplied: true,
+      characterId: id,
+      status: "applied",
+      character: result.character,
+      message: "Your changes were saved.",
+    });
+    return;
+  }
   if (result.ok) {
     await recordAudit({
       req,

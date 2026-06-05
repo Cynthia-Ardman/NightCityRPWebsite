@@ -166,6 +166,13 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/CharacterUpdate" }
       responses:
+        "200":
+          description: |
+            Cosmetic-only edit (portraits, background, archetype, or sheet
+            preamble/formatting) applied immediately without review.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterEditAutoApplied" }
         "202":
           description: Edit queued for review
           content:
@@ -3467,6 +3474,60 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ActivityEvent" }
+  /economy/income:
+    get:
+      operationId: getIncomeStatus
+      tags: [wallet]
+      summary: Dashboard income-command availability, cooldowns, eligibility, and balance
+      responses:
+        "200":
+          description: Income command status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IncomeStatus" }
+  /economy/income/work:
+    post:
+      operationId: runIncomeWork
+      tags: [wallet]
+      summary: Run the WORK command (anyone; 100–200 eddies, 20h cooldown)
+      responses:
+        "200":
+          description: WORK payout applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IncomeCommandResult" }
+        "429":
+          description: On cooldown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  cooldownEndsAt: { type: string, format: date-time, nullable: true }
+        "502": { description: Wallet provider unavailable }
+  /economy/income/slut:
+    post:
+      operationId: runIncomeSlut
+      tags: [wallet]
+      summary: Run the SLUT command (joytoy role only; 100–500 or a 1–3% fine, 20h cooldown)
+      responses:
+        "200":
+          description: SLUT result applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IncomeCommandResult" }
+        "403": { description: Not a joytoy }
+        "429":
+          description: On cooldown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  cooldownEndsAt: { type: string, format: date-time, nullable: true }
+        "502": { description: Wallet provider unavailable }
   /me/wallet:
     get:
       operationId: getMyWallet
@@ -6945,6 +7006,47 @@ components:
         status: { type: string, enum: [pending] }
         submittedAt: { type: string, format: date-time }
         message: { type: string }
+
+    CharacterEditAutoApplied:
+      type: object
+      required: [autoApplied, characterId, status, character, message]
+      properties:
+        autoApplied: { type: boolean, enum: [true] }
+        characterId: { type: integer }
+        status: { type: string, enum: [applied] }
+        character: { $ref: "#/components/schemas/Character" }
+        message: { type: string }
+
+    IncomeCommandState:
+      type: object
+      required: [available, cooldownEndsAt]
+      properties:
+        available: { type: boolean }
+        cooldownEndsAt: { type: string, format: date-time, nullable: true }
+
+    IncomeStatus:
+      type: object
+      required: [balance, work, slut]
+      properties:
+        balance: { type: integer, nullable: true }
+        work: { $ref: "#/components/schemas/IncomeCommandState" }
+        slut:
+          allOf:
+            - $ref: "#/components/schemas/IncomeCommandState"
+            - type: object
+              required: [eligible]
+              properties:
+                eligible: { type: boolean }
+
+    IncomeCommandResult:
+      type: object
+      required: [command, outcome, amount, cooldownEndsAt]
+      properties:
+        command: { type: string, enum: [work, slut] }
+        outcome: { type: string, enum: [earned, fined] }
+        amount: { type: integer, description: "Signed delta in eddies (negative on a fine)." }
+        balance: { type: integer }
+        cooldownEndsAt: { type: string, format: date-time }
 
     PendingEditSummary:
       type: object

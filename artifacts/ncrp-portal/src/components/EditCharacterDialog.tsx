@@ -5,6 +5,7 @@ import {
   useUpdateCharacter,
   useDeleteCharacter,
   getGetCharacterPendingEditQueryKey,
+  getGetCharacterQueryKey,
   getListPendingEditsQueryKey,
   getListMyCharactersQueryKey,
   type Character,
@@ -95,6 +96,20 @@ export default function EditCharacterDialog({
   const update = useUpdateCharacter({
     mutation: {
       onSuccess: (resp) => {
+        // Cosmetic-only edits (portrait, bio, archetype, sheet preamble) are
+        // applied immediately by the API and come back with autoApplied:true —
+        // no review queue, no redirect, just refresh the character in place.
+        if ((resp as { autoApplied?: boolean } | undefined)?.autoApplied) {
+          toast({
+            title: "Saved",
+            description: `${character.name}'s changes are live.`,
+          });
+          qc.invalidateQueries({ queryKey: getGetCharacterPendingEditQueryKey(character.id) });
+          qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(character.id) });
+          qc.invalidateQueries({ queryKey: getListMyCharactersQueryKey() });
+          onOpenChange(false);
+          return;
+        }
         const editId = (resp as { pendingEditId?: number } | undefined)?.pendingEditId;
         toast({
           title: "Submitted for review",
