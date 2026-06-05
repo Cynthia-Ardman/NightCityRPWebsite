@@ -92,3 +92,4 @@
 - [My-unseen phantom badge](my-unseen-phantom-badge.md) — the My Requests nav badge (/review/my-unseen) counts own rows across ALL statuses with no window; every counted row MUST be renderable in MyRequests or the badge sticks with no row to clear.
 - [Pending-edit strict-parse](pending-edit-strict-parse.md) — createPendingEdit must strip sidecar metadata (updateNote) BEFORE EditableSchema.strict() parse, or any noted edit 400s "invalid".
 - [Admin dashboard authz scope](admin-dashboard-authz.md) — AdminDashboard page is isAdmin-only; manual char-create POST is adminOnly to mirror UI, while legacy owner-assign endpoints stay adminOrFixer.
+- [AdminTabs render-guard mock](admin-tabs-render-guard-mock.md) — AdminTabs.test mocks api-client-react with a no-importOriginal allowlist; new hooks in any System Admin tab subtree must be added or the tab "fails to mount".

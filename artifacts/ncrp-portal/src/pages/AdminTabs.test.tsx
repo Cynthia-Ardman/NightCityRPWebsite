@@ -36,7 +36,15 @@ vi.mock("@workspace/api-client-react", () => ({
   useAdminListCharacters: () => ({ data: h.state.chars, isLoading: h.state.charsLoading }),
   useAdminAssignCharacterOwner: () => ({ mutate: h.mutate, isPending: false }),
   useAdminClearCharacterOwner: () => ({ mutate: h.mutate, isPending: false }),
+  useAdminCreateCharacter: () => ({
+    mutate: h.mutate,
+    mutateAsync: h.mutate,
+    isPending: false,
+    reset: vi.fn(),
+  }),
   getAdminListCharactersQueryKey: () => ["admin-chars"],
+  // Cyberware catalog (rendered by CreateCharacterCard's CyberwareEditor)
+  useListCyberware: () => ({ data: undefined, isLoading: false }),
   // Economy
   useAdminGetEconomyOutOfSync: () => ({
     data: h.state.economy,
@@ -67,6 +75,9 @@ vi.mock("@workspace/api-client-react", () => ({
   getAdminGetLiveModeQueryKey: () => ["admin-live-mode"],
   getGetMissionConfigQueryKey: () => ["mission-config"],
   useAdminScanVrchatLinks: () => ({ mutate: h.mutate, isPending: false }),
+  // Site-access / login restriction (rendered by JobsTab's LoginRestrictionCard)
+  useAdminGetSiteAccess: () => ({ data: undefined, isLoading: false }),
+  useAdminSetSiteAccess: () => ({ mutate: h.mutate, isPending: false }),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({

@@ -7,9 +7,12 @@
  */
 import type { AdminCreateCharacterInputKind } from './adminCreateCharacterInputKind';
 import type { AdminCreateCharacterInputLifeStatus } from './adminCreateCharacterInputLifeStatus';
+import type { AdminCreateCharacterInputSheetData } from './adminCreateCharacterInputSheetData';
+import type { AdminCreateCharacterInputTraumaTeamTier } from './adminCreateCharacterInputTraumaTeamTier';
+import type { AdminCyberwareInput } from './adminCyberwareInput';
 
 /**
- * Fields for manually creating an approved character from the admin UI. Owner and portraits are optional.
+ * Fields for manually creating an approved character from the admin UI. Everything except name is optional. Cyberware rows are materialised as inventory_items on creation.
  */
 export interface AdminCreateCharacterInput {
   /** Character name (required). */
@@ -26,6 +29,19 @@ export interface AdminCreateCharacterInput {
   /** @nullable */
   background?: string | null;
   lifeStatus?: AdminCreateCharacterInputLifeStatus;
+  /**
+     * Trauma Team subscription tier; omit/null for none.
+     * @nullable
+     */
+  traumaTeamTier?: AdminCreateCharacterInputTraumaTeamTier;
+  /** Xanadu Gold flat monthly subscription flag. */
+  xanaduGold?: boolean;
   /** Already-uploaded object-storage paths from the presigned-URL flow. */
   portraitUrls?: string[];
+  /** Already-uploaded stat/sheet image paths from the presigned-URL flow. */
+  statsImageUrls?: string[];
+  /** On-profile preamble + labeled sections, same shape as the edit dialog. */
+  sheetData?: AdminCreateCharacterInputSheetData;
+  /** Cyberware rows seeded into inventory_items (category cyberware). */
+  cyberware?: AdminCyberwareInput[];
 }

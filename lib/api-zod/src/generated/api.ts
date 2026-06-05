@@ -7410,6 +7410,11 @@ export const AdminListCharactersResponse = zod.array(AdminListCharactersResponse
  */
 export const adminCreateCharacterBodyKindDefault = `pc`;
 export const adminCreateCharacterBodyLifeStatusDefault = `active`;
+export const adminCreateCharacterBodyXanaduGoldDefault = false;
+export const adminCreateCharacterBodyCyberwareItemPointsDefault = 0;
+export const adminCreateCharacterBodyCyberwareItemPointsMin = 0;
+
+
 
 export const AdminCreateCharacterBody = zod.object({
   "name": zod.string().describe('Character name (required).'),
@@ -7418,8 +7423,21 @@ export const AdminCreateCharacterBody = zod.object({
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).default(adminCreateCharacterBodyLifeStatusDefault),
-  "portraitUrls": zod.array(zod.string()).optional().describe('Already-uploaded object-storage paths from the presigned-URL flow.')
-}).describe('Fields for manually creating an approved character from the admin UI. Owner and portraits are optional.')
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier; omit\/null for none.'),
+  "xanaduGold": zod.boolean().default(adminCreateCharacterBodyXanaduGoldDefault).describe('Xanadu Gold flat monthly subscription flag.'),
+  "portraitUrls": zod.array(zod.string()).optional().describe('Already-uploaded object-storage paths from the presigned-URL flow.'),
+  "statsImageUrls": zod.array(zod.string()).optional().describe('Already-uploaded stat\/sheet image paths from the presigned-URL flow.'),
+  "sheetData": zod.object({
+  "preamble": zod.string().optional(),
+  "sections": zod.record(zod.string(), zod.string()).optional()
+}).optional().describe('On-profile preamble + labeled sections, same shape as the edit dialog.'),
+  "cyberware": zod.array(zod.object({
+  "slot": zod.string().optional().describe('Cyberware slot label (catalog slot or free-text).'),
+  "name": zod.string().describe('Cyberware name.'),
+  "points": zod.number().min(adminCreateCharacterBodyCyberwareItemPointsMin).default(adminCreateCharacterBodyCyberwareItemPointsDefault).describe('Cyberware points (CWP).'),
+  "notes": zod.string().optional()
+})).optional().describe('Cyberware rows seeded into inventory_items (category cyberware).')
+}).describe('Fields for manually creating an approved character from the admin UI. Everything except name is optional. Cyberware rows are materialised as inventory_items on creation.')
 
 
 /**

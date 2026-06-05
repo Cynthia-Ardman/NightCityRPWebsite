@@ -4,6 +4,11 @@ import { useLocation } from "wouter";
 import {
   useUpdateCharacter,
   useDeleteCharacter,
+  useGetCharacterInventory,
+  useAddInventoryItem,
+  useUpdateInventoryItem,
+  useRemoveInventoryItem,
+  getGetCharacterInventoryQueryKey,
   getGetCharacterPendingEditQueryKey,
   getGetCharacterQueryKey,
   getListPendingEditsQueryKey,
@@ -17,6 +22,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import ImageEditor from "@/components/ImageEditor";
+import CyberwareEditor, {
+  type CyberRow,
+  buildCyberNotes,
+  parseCyberNotes,
+} from "@/components/CyberwareEditor";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -69,6 +79,41 @@ export default function EditCharacterDialog({
   // Admin-only destructive delete lives at the bottom of this dialog. The
   // delete button stays disabled until the admin types the literal word DELETE.
   const [deleteConfirm, setDeleteConfirm] = useState<string>("");
+
+  // Cyberware is stored as inventory_items, not on the character row, so it is
+  // edited independently of the review-queued character fields above. We load
+  // the current chrome, let staff edit rows, then reconcile (create / update /
+  // delete) against the inventory endpoints — applying immediately.
+  const { data: inventory } = useGetCharacterInventory(character.id, {
+    query: { queryKey: getGetCharacterInventoryQueryKey(character.id), enabled: open },
+  });
+  const [cyberRows, setCyberRows] = useState<CyberRow[]>([]);
+  const [savingCyber, setSavingCyber] = useState(false);
+  const addInventory = useAddInventoryItem();
+  const updateInventory = useUpdateInventoryItem();
+  const removeInventory = useRemoveInventoryItem();
+
+  // Snapshot the original cyberware rows so reconcile can diff against them
+  // (which rows were deleted, which changed) instead of re-writing everything.
+  const [cyberOriginal, setCyberOriginal] = useState<CyberRow[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    const rows: CyberRow[] = (inventory ?? [])
+      .filter((it) => it.category === "cyberware")
+      .map((it) => {
+        const parsed = parseCyberNotes(it.notes);
+        return {
+          id: it.id,
+          slot: parsed.slot,
+          name: it.name,
+          points: parsed.points,
+          notes: parsed.notes,
+        };
+      });
+    setCyberRows(rows);
+    setCyberOriginal(rows);
+  }, [open, inventory]);
 
   // Reset form state every time we re-open with a different character or after
   // server-side changes (avoids leaking stale form state across opens).
@@ -184,6 +229,78 @@ export default function EditCharacterDialog({
         updateNote: updateNote.trim() || undefined,
       },
     });
+  }
+
+  // Apply cyberware changes immediately (independent of the review-queued
+  // character fields). Diff the edited rows against the original snapshot:
+  // delete removed rows, patch changed rows, insert new ones — then refresh.
+  async function saveCyberware() {
+    if (savingCyber) return;
+    setSavingCyber(true);
+    // `working` mirrors the user's full row list and is mutated in place as rows
+    // persist (folding in server-assigned ids) so nothing the user typed is lost
+    // even on a mid-sequence failure. `survivingOriginal` tracks what is actually
+    // on the server keyed by id, so a retry after a partial failure neither
+    // re-creates already-created rows nor re-deletes already-deleted ones.
+    const working: CyberRow[] = cyberRows.map((r) => ({ ...r }));
+    const survivingOriginal = new Map<number, CyberRow>();
+    for (const o of cyberOriginal) if (o.id != null) survivingOriginal.set(o.id, o);
+    try {
+      const liveIds = new Set(working.filter((r) => r.id != null).map((r) => r.id));
+      const removed = cyberOriginal.filter((r) => r.id != null && !liveIds.has(r.id));
+      for (const r of removed) {
+        await removeInventory.mutateAsync({ id: character.id, itemId: r.id as number });
+        survivingOriginal.delete(r.id as number);
+      }
+
+      for (let i = 0; i < working.length; i++) {
+        const r = working[i];
+        const name = r.name.trim() || r.slot.trim();
+        if (!name) continue; // skip empty rows entirely
+        const notes = buildCyberNotes({ points: r.points, notes: r.notes, slot: r.slot });
+        if (r.id != null) {
+          const orig = survivingOriginal.get(r.id);
+          const origNotes = orig
+            ? buildCyberNotes({ points: orig.points, notes: orig.notes, slot: orig.slot })
+            : "";
+          if (!orig || orig.name !== name || origNotes !== notes) {
+            await updateInventory.mutateAsync({
+              id: character.id,
+              itemId: r.id,
+              data: { name, notes },
+            });
+          }
+          survivingOriginal.set(r.id, { ...r, name });
+        } else {
+          const created = await addInventory.mutateAsync({
+            id: character.id,
+            data: { name, category: "cyberware", quantity: 1, notes, equipped: true },
+          });
+          // Record the new id immediately so a subsequent save treats this row as
+          // existing (no duplicate insert).
+          working[i] = { ...r, id: created.id, name };
+          survivingOriginal.set(created.id, working[i]);
+        }
+      }
+
+      await qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(character.id) });
+      await qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(character.id) });
+      toast({ title: "Cyberware saved", description: `${character.name}'s chrome is updated.` });
+    } catch (err) {
+      const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
+      toast({
+        title: "Cyberware save failed",
+        description: data?.error ?? "Could not update cyberware. Re-saving is safe.",
+        variant: "destructive",
+      });
+    } finally {
+      // Commit whatever actually happened back to local state: the form keeps all
+      // rows (with real ids for created ones) and the diff baseline reflects the
+      // true server state, so a retry only applies what's still outstanding.
+      setCyberRows(working);
+      setCyberOriginal(Array.from(survivingOriginal.values()));
+      setSavingCyber(false);
+    }
   }
 
   return (
@@ -370,6 +487,26 @@ export default function EditCharacterDialog({
             onChange={setStatsImageUrls}
             testIdPrefix="stats"
           />
+
+          {/* Cyberware — applied immediately, separate from review-queued fields */}
+          <div className="border border-nc-cyan/30 p-4 space-y-3 bg-card/20">
+            <CyberwareEditor rows={cyberRows} onChange={setCyberRows} testIdPrefix="edit" />
+            <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+              <p className="text-[10px] font-mono text-muted-foreground">
+                Cyberware applies immediately and does not go through review.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                disabled={savingCyber}
+                onClick={saveCyberware}
+                className="rounded-none font-display text-xs bg-nc-cyan text-background"
+                data-testid="button-save-cyberware"
+              >
+                {savingCyber ? "SAVING…" : "SAVE CYBERWARE"}
+              </Button>
+            </div>
+          </div>
 
           {/* Update note (commit-message style) */}
           <div className="border-t border-border pt-4">

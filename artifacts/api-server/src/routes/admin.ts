@@ -235,7 +235,12 @@ router.post("/admin/characters", adminOnly, async (req, res): Promise<void> => {
     archetype?: unknown;
     background?: unknown;
     portraitUrls?: unknown;
+    statsImageUrls?: unknown;
     lifeStatus?: unknown;
+    traumaTeamTier?: unknown;
+    xanaduGold?: unknown;
+    sheetData?: unknown;
+    cyberware?: unknown;
   };
 
   const name = typeof b.name === "string" ? b.name.trim() : "";
@@ -256,8 +261,61 @@ router.post("/admin/characters", adminOnly, async (req, res): Promise<void> => {
   const portraitUrls = Array.isArray(b.portraitUrls)
     ? b.portraitUrls.filter((u): u is string => typeof u === "string" && u.length > 0)
     : [];
+  const statsImageUrls = Array.isArray(b.statsImageUrls)
+    ? b.statsImageUrls.filter((u): u is string => typeof u === "string" && u.length > 0)
+    : [];
   const archetype = typeof b.archetype === "string" && b.archetype.trim() ? b.archetype.trim() : null;
   const background = typeof b.background === "string" && b.background.trim() ? b.background.trim() : null;
+
+  // Trauma Team subscription tier — optional, validated against the same set the
+  // edit dialog / autobiller use. Empty string or null clears it.
+  const TRAUMA_TIERS = new Set(["silver", "gold", "platinum", "diamond"]);
+  let traumaTeamTier: string | null = null;
+  if (typeof b.traumaTeamTier === "string" && b.traumaTeamTier.trim()) {
+    const t = b.traumaTeamTier.trim().toLowerCase();
+    if (!TRAUMA_TIERS.has(t)) {
+      res.status(400).json({ error: `traumaTeamTier must be one of: ${[...TRAUMA_TIERS].join(", ")}` });
+      return;
+    }
+    traumaTeamTier = t;
+  }
+  const xanaduGold = b.xanaduGold === true;
+
+  // sheetData carries the on-profile preamble + labeled sections (parity with
+  // the edit dialog). Keep only the recognised shape so junk can't be stored.
+  let sheetData: { preamble?: string; sections?: Record<string, string> } | null = null;
+  if (b.sheetData && typeof b.sheetData === "object") {
+    const sd = b.sheetData as Record<string, unknown>;
+    const preamble = typeof sd.preamble === "string" ? sd.preamble : "";
+    const sections: Record<string, string> = {};
+    if (sd.sections && typeof sd.sections === "object") {
+      for (const [k, v] of Object.entries(sd.sections as Record<string, unknown>)) {
+        if (k.trim() && typeof v === "string") sections[k] = v;
+      }
+    }
+    if (preamble.trim() || Object.keys(sections).length > 0) {
+      sheetData = { preamble, sections };
+    }
+  }
+
+  // Cyberware rows are materialised as inventory_items (category "cyberware")
+  // using the same "CWP <n> · <notes> · slot: <x>" note convention the sheet
+  // seeder uses, so band derivation + per-slot grouping work identically.
+  const cyberRows: Array<{ name: string; notes: string }> = [];
+  if (Array.isArray(b.cyberware)) {
+    for (const raw of b.cyberware) {
+      const cw = (raw ?? {}) as Record<string, unknown>;
+      const cwName = String(cw.name ?? "").trim() || String(cw.slot ?? "").trim();
+      if (!cwName) continue;
+      const points = Number(cw.points) || 0;
+      const slot = String(cw.slot ?? "").trim();
+      const userNotes = String(cw.notes ?? "").trim();
+      const parts = [`CWP ${points}`];
+      if (userNotes) parts.push(userNotes);
+      if (slot) parts.push(`slot: ${slot}`);
+      cyberRows.push({ name: cwName, notes: parts.join(" · ") });
+    }
+  }
 
   let ownerId: string | null = null;
   let owner: typeof users.$inferSelect | undefined;
@@ -270,23 +328,59 @@ router.post("/admin/characters", adminOnly, async (req, res): Promise<void> => {
     }
   }
 
-  const [created] = await db
-    .insert(characters)
-    .values({
-      name,
-      kind,
-      ownerId,
-      claimed: ownerId !== null,
-      archetype,
-      background,
-      portraitUrls,
-      // Keep the legacy single-portrait column in sync with the first image so
-      // older read paths that still read portraitUrl show something.
-      portraitUrl: portraitUrls[0] ?? null,
-      approved: true,
-      lifeStatus,
-    })
-    .returning();
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(characters)
+      .values({
+        name,
+        kind,
+        ownerId,
+        claimed: ownerId !== null,
+        archetype,
+        background,
+        portraitUrls,
+        statsImageUrls,
+        // Keep the legacy single-portrait column in sync with the first image so
+        // older read paths that still read portraitUrl show something.
+        portraitUrl: portraitUrls[0] ?? null,
+        approved: true,
+        lifeStatus,
+        traumaTeamTier,
+        xanaduGold,
+        sheetData,
+      })
+      .returning();
+
+    if (cyberRows.length > 0) {
+      const inserted = await tx
+        .insert(inventoryItems)
+        .values(
+          cyberRows.map((r) => ({
+            characterId: row.id,
+            ownerId,
+            name: r.name,
+            category: "cyberware",
+            quantity: 1,
+            notes: r.notes,
+            equipped: true,
+          })),
+        )
+        .returning({ instanceUuid: inventoryItems.instanceUuid, name: inventoryItems.name });
+
+      await tx.insert(inventoryEvents).values(
+        inserted.map((it) => ({
+          instanceUuid: it.instanceUuid,
+          kind: "created" as const,
+          toCharacterId: row.id,
+          itemName: it.name,
+          quantity: 1,
+          reason: "Seeded from admin character creation",
+        })),
+      );
+    }
+
+    return row;
+  });
 
   await recordAudit({
     req,

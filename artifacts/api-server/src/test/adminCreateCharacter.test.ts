@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { db, characters } from "@workspace/db";
+import { db, characters, inventoryItems } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { buildTestApp } from "./app";
 import { createUser, createAdmin } from "./testDb";
@@ -51,6 +51,68 @@ describe("POST /admin/characters (manual character creation)", () => {
     // Empty strings are filtered out; first surviving image backfills portraitUrl.
     expect(res.body.portraitUrls).toEqual(["/api/storage/objects/abc", "/api/storage/objects/def"]);
     expect(res.body.portraitUrl).toBe("/api/storage/objects/abc");
+  });
+
+  it("persists trauma tier, xanadu gold, stats images and sheet data", async () => {
+    const admin = await createAdmin();
+    const res = await request(app)
+      .post("/api/admin/characters")
+      .set("x-test-user", admin.id)
+      .send({
+        name: "Rogue",
+        traumaTeamTier: "GOLD",
+        xanaduGold: true,
+        statsImageUrls: ["/api/storage/objects/s1", ""],
+        sheetData: { preamble: "Intro", sections: { Backstory: "Afterlife." } },
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.traumaTeamTier).toBe("gold");
+    expect(res.body.xanaduGold).toBe(true);
+    expect(res.body.statsImageUrls).toEqual(["/api/storage/objects/s1"]);
+    expect(res.body.sheetData).toEqual({ preamble: "Intro", sections: { Backstory: "Afterlife." } });
+  });
+
+  it("rejects an invalid trauma tier with 400", async () => {
+    const admin = await createAdmin();
+    const res = await request(app)
+      .post("/api/admin/characters")
+      .set("x-test-user", admin.id)
+      .send({ name: "Bad", traumaTeamTier: "bronze" });
+    expect(res.status).toBe(400);
+  });
+
+  it("seeds cyberware as inventory_items with the CWP/slot note convention", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const res = await request(app)
+      .post("/api/admin/characters")
+      .set("x-test-user", admin.id)
+      .send({
+        name: "Adam",
+        ownerId: player.id,
+        cyberware: [
+          { slot: "Operating System", name: "Sandevistan MK.3", points: 4, notes: "fast" },
+          { slot: "Arms", name: "Mantis Blades", points: 3, notes: "" },
+          { slot: "", name: "", points: 1, notes: "ignored" },
+        ],
+      });
+    expect(res.status).toBe(201);
+
+    const items = await db
+      .select()
+      .from(inventoryItems)
+      .where(eq(inventoryItems.characterId, res.body.id));
+    const cyber = items.filter((i) => i.category === "cyberware");
+    expect(cyber).toHaveLength(2);
+
+    const sande = cyber.find((c) => c.name === "Sandevistan MK.3");
+    expect(sande).toBeTruthy();
+    expect(sande!.ownerId).toBe(player.id);
+    expect(sande!.equipped).toBe(true);
+    expect(sande!.notes).toBe("CWP 4 · fast · slot: Operating System");
+
+    const mantis = cyber.find((c) => c.name === "Mantis Blades");
+    expect(mantis!.notes).toBe("CWP 3 · slot: Arms");
   });
 
   it("rejects a missing/blank name with 400", async () => {

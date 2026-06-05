@@ -18,7 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { uploadImage } from "@/lib/uploadImage";
+import ImageEditor from "@/components/ImageEditor";
+import CyberwareEditor, { type CyberRow } from "@/components/CyberwareEditor";
 
 export default function AdminDashboard() {
   const { data: user, isLoading: userLoading } = useAuthMe();
@@ -699,7 +700,13 @@ function CreateCharacterCard() {
   const [background, setBackground] = useState("");
   const [lifeStatus, setLifeStatus] = useState<"active" | "dead" | "missing" | "loa" | "retired">("active");
   const [portraitUrls, setPortraitUrls] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [profileUrl, setProfileUrl] = useState<string | null>(null);
+  const [statsImageUrls, setStatsImageUrls] = useState<string[]>([]);
+  const [traumaTeamTier, setTraumaTeamTier] = useState<string>("");
+  const [xanaduGold, setXanaduGold] = useState<boolean>(false);
+  const [preamble, setPreamble] = useState("");
+  const [sectionRows, setSectionRows] = useState<Array<{ key: string; value: string }>>([]);
+  const [cyberRows, setCyberRows] = useState<CyberRow[]>([]);
 
   const reset = () => {
     setName("");
@@ -709,6 +716,13 @@ function CreateCharacterCard() {
     setBackground("");
     setLifeStatus("active");
     setPortraitUrls([]);
+    setProfileUrl(null);
+    setStatsImageUrls([]);
+    setTraumaTeamTier("");
+    setXanaduGold(false);
+    setPreamble("");
+    setSectionRows([]);
+    setCyberRows([]);
   };
 
   const create = useAdminCreateCharacter({
@@ -724,25 +738,23 @@ function CreateCharacterCard() {
     },
   });
 
-  const onPickFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setUploading(true);
-    try {
-      const urls: string[] = [];
-      for (const f of Array.from(files)) urls.push(await uploadImage(f));
-      setPortraitUrls((prev) => [...prev, ...urls]);
-    } catch (e: any) {
-      toast({ title: "Upload failed", description: e?.message ?? "Could not upload image.", variant: "destructive" });
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const submit = () => {
     if (!name.trim()) {
       toast({ title: "Name required", variant: "destructive" });
       return;
     }
+    const sections: Record<string, string> = {};
+    for (const r of sectionRows) {
+      const k = r.key.trim();
+      if (k) sections[k] = r.value;
+    }
+    const hasSheet = preamble.trim() !== "" || Object.keys(sections).length > 0;
+    // profileUrl is the chosen primary portrait; surface it first so the legacy
+    // single-portrait column picks it up on the server.
+    const orderedPortraits =
+      profileUrl && portraitUrls.includes(profileUrl)
+        ? [profileUrl, ...portraitUrls.filter((u) => u !== profileUrl)]
+        : portraitUrls;
     create.mutate({
       data: {
         name: name.trim(),
@@ -751,7 +763,24 @@ function CreateCharacterCard() {
         archetype: archetype.trim() || null,
         background: background.trim() || null,
         lifeStatus,
-        portraitUrls,
+        portraitUrls: orderedPortraits,
+        statsImageUrls,
+        traumaTeamTier: (traumaTeamTier || null) as
+          | "silver"
+          | "gold"
+          | "platinum"
+          | "diamond"
+          | null,
+        xanaduGold,
+        sheetData: hasSheet ? { preamble, sections } : undefined,
+        cyberware: cyberRows
+          .filter((r) => (r.name.trim() || r.slot.trim()) !== "")
+          .map((r) => ({
+            slot: r.slot.trim(),
+            name: r.name.trim() || r.slot.trim(),
+            points: Number(r.points) || 0,
+            notes: r.notes.trim(),
+          })),
       },
     });
   };
@@ -860,41 +889,132 @@ function CreateCharacterCard() {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label className="font-display text-xs text-muted-foreground">PORTRAITS (optional)</Label>
-            <div className="flex flex-wrap items-center gap-3">
-              {portraitUrls.map((url, i) => (
-                <div key={url} className="relative">
-                  <img src={url} alt="" className="h-20 w-20 object-cover border border-border" />
-                  <button
-                    type="button"
-                    onClick={() => setPortraitUrls((prev) => prev.filter((_, j) => j !== i))}
-                    className="absolute -top-2 -right-2 h-5 w-5 bg-destructive text-background text-xs leading-none"
-                    data-testid={`button-remove-portrait-${i}`}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <label className="h-20 w-20 border border-dashed border-border flex items-center justify-center cursor-pointer text-xs text-muted-foreground hover:border-nc-cyan hover:text-nc-cyan">
-                {uploading ? "…" : "+ ADD"}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="font-display text-xs text-muted-foreground">TRAUMA TEAM SUBSCRIPTION</Label>
+              <select
+                value={traumaTeamTier}
+                onChange={(e) => setTraumaTeamTier(e.target.value)}
+                className={inputCls}
+                data-testid="select-create-char-trauma-tier"
+              >
+                <option value="">None</option>
+                <option value="silver">Silver</option>
+                <option value="gold">Gold</option>
+                <option value="platinum">Platinum</option>
+                <option value="diamond">Diamond</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-display text-xs text-muted-foreground">XANADU GOLD</Label>
+              <label className="flex h-9 items-center gap-3 border border-border bg-background px-2 cursor-pointer">
                 <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  disabled={uploading}
-                  onChange={(e) => onPickFiles(e.target.files)}
-                  data-testid="input-create-char-portraits"
+                  type="checkbox"
+                  checked={xanaduGold}
+                  onChange={(e) => setXanaduGold(e.target.checked)}
+                  className="accent-nc-cyan"
+                  data-testid="checkbox-create-char-xanadu-gold"
                 />
+                <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                  {xanaduGold ? "Active" : "Inactive"}
+                </span>
               </label>
             </div>
           </div>
 
+          {/* Sheet sections + preamble (parity with player sheet / edit dialog) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <Label className="font-display text-xs text-muted-foreground">SHEET SECTIONS (optional)</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-none font-display text-xs"
+                onClick={() => setSectionRows((r) => [...r, { key: "", value: "" }])}
+                data-testid="button-create-char-add-section"
+              >
+                + ADD SECTION
+              </Button>
+            </div>
+            {sectionRows.map((row, idx) => (
+              <div
+                key={idx}
+                className="border border-border/40 p-3 space-y-2 bg-card/30"
+                data-testid={`create-char-section-row-${idx}`}
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={row.key}
+                    onChange={(e) =>
+                      setSectionRows((rs) => rs.map((r, i) => (i === idx ? { ...r, key: e.target.value } : r)))
+                    }
+                    placeholder="Section name (e.g. Backstory)"
+                    className="flex-1"
+                    data-testid={`input-create-char-section-key-${idx}`}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive h-8 w-8 shrink-0"
+                    onClick={() => setSectionRows((rs) => rs.filter((_, i) => i !== idx))}
+                    data-testid={`button-create-char-remove-section-${idx}`}
+                  >
+                    ×
+                  </Button>
+                </div>
+                <textarea
+                  value={row.value}
+                  onChange={(e) =>
+                    setSectionRows((rs) => rs.map((r, i) => (i === idx ? { ...r, value: e.target.value } : r)))
+                  }
+                  rows={3}
+                  placeholder="Section content…"
+                  className="px-2 py-2 text-sm bg-background border border-border w-full font-mono"
+                  data-testid={`input-create-char-section-value-${idx}`}
+                />
+              </div>
+            ))}
+            <div className="space-y-1">
+              <Label className="font-display text-xs text-muted-foreground">PREAMBLE (text above the sections)</Label>
+              <textarea
+                value={preamble}
+                onChange={(e) => setPreamble(e.target.value)}
+                rows={3}
+                placeholder="Optional intro text…"
+                className="px-2 py-2 text-sm bg-background border border-border w-full font-mono"
+                data-testid="input-create-char-preamble"
+              />
+            </div>
+          </div>
+
+          {/* Portraits */}
+          <ImageEditor
+            title="PORTRAITS"
+            urls={portraitUrls}
+            onChange={setPortraitUrls}
+            profileUrl={profileUrl}
+            onSetProfile={setProfileUrl}
+            allowProfile
+            testIdPrefix="create-char-portrait"
+          />
+
+          {/* Stats / sheet images */}
+          <ImageEditor
+            title="STATS / SHEET IMAGES"
+            urls={statsImageUrls}
+            onChange={setStatsImageUrls}
+            testIdPrefix="create-char-stats"
+          />
+
+          {/* Cyberware */}
+          <CyberwareEditor rows={cyberRows} onChange={setCyberRows} testIdPrefix="create-char" />
+
           <div className="flex justify-end gap-2 pt-2">
             <Button
               size="sm"
-              disabled={create.isPending || uploading || !name.trim()}
+              disabled={create.isPending || !name.trim()}
               onClick={submit}
               className="rounded-none font-display text-xs bg-nc-cyan text-background"
               data-testid="button-submit-create-character"
