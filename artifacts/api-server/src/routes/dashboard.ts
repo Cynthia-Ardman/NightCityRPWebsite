@@ -5,6 +5,7 @@ import {
   characters,
   characterStatus,
   characterSheets,
+  reviewVotes,
   activityEvents,
   auditLog,
   fixerNpcs,
@@ -72,13 +73,19 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   }
   const ub = await getBalance(req.user!.discordId);
   const totalEddies = ub?.total ?? 0;
-  // Pending character sheets that THIS viewer can actually review. The count
-  // must mirror the review queue's semantics, not a raw global tally: a reviewer
-  // cannot vote on their OWN submission (canVote = !isOwner), so a viewer whose
-  // only pending sheet is their own would otherwise see "1 pending sheet" on the
-  // dashboard with nothing for them to action when they click through. Excluding
-  // own submissions (and gating to reviewers) keeps the card honest. IS DISTINCT
-  // FROM treats a null owner as "not me" so unowned sheets still surface.
+  // Pending character sheets that THIS viewer can actually action. The count
+  // must mirror the review queue's semantics, not a raw global tally, on TWO
+  // axes:
+  //   1. A reviewer cannot vote on their OWN submission (canVote = !isOwner),
+  //      so own pending sheets are excluded. IS DISTINCT FROM treats a null
+  //      owner as "not me" so unowned sheets still surface.
+  //   2. A reviewer who has ALREADY cast a vote has nothing left to do on that
+  //      sheet — it sits below the majority threshold awaiting OTHER reviewers.
+  //      Counting it would leave the viewer staring at "1 pending sheet" right
+  //      after they clicked Approve, with nothing for them to action when they
+  //      click through. Excluding already-voted sheets mirrors the Pending
+  //      Requests card (which uses the unseen/actionable count) and keeps the
+  //      badge honest.
   let pending = 0;
   if (isReviewer(req.user!)) {
     const [{ c }] = await db
@@ -88,6 +95,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
         and(
           eq(characterSheets.status, "pending"),
           sql`${characterSheets.ownerId} IS DISTINCT FROM ${req.user!.id}`,
+          sql`NOT EXISTS (SELECT 1 FROM ${reviewVotes} WHERE ${reviewVotes.subjectType} = 'sheet' AND ${reviewVotes.subjectId} = ${characterSheets.id} AND ${reviewVotes.voterId} = ${req.user!.id})`,
         ),
       );
     pending = c;
