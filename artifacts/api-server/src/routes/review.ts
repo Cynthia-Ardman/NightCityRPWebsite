@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   db,
   reviewComments,
@@ -319,10 +319,14 @@ router.get("/review/my-unseen", requireAuth, async (req, res): Promise<void> => 
     .select({ id: customRequests.id, createdAt: customRequests.createdAt, reviewedAt: customRequests.reviewedAt, closedAt: customRequests.closedAt })
     .from(customRequests)
     .where(eq(customRequests.requestedById, viewerId));
+  // Exclude drafts: My Requests deliberately hides draft sheets (they live only
+  // in the owner's draft editor), so counting them here would create an unread
+  // badge with no row to open and clear — the same phantom class as the
+  // staff-windowed edits above.
   const sheetRows = await db
     .select({ id: characterSheets.id, createdAt: characterSheets.createdAt, decidedAt: characterSheets.decidedAt, closedAt: characterSheets.closedAt })
     .from(characterSheets)
-    .where(eq(characterSheets.ownerId, viewerId));
+    .where(and(eq(characterSheets.ownerId, viewerId), ne(characterSheets.status, "draft")));
 
   const edit = await listUnseenIds("edit", editRows.map((r) => ({ id: r.id, baseAt: maxDate(r.submittedAt, r.decidedAt, r.closedAt) })), viewerId);
   const request = await listUnseenIds("request", requestRows.map((r) => ({ id: r.id, baseAt: maxDate(r.createdAt, r.reviewedAt, r.closedAt) })), viewerId);

@@ -89,3 +89,4 @@
 - [Calendar mission/event dup](calendar-mission-event-dup.md) — a mission + event sharing one discord_event_id render twice on the merged calendar; reconcile must auto-heal (cancel+unlink the event row), not just skip.
 - [Dashboard count vs review-queue parity](dashboard-review-count-parity.md) — staff dashboard tallies must mirror queue semantics (reviewer-gated, exclude own) or they nag a phantom the viewer can't action.
 - [Review unread two query keys](review-unread-query-keys.md) — mark-seen/post-comment must invalidate BOTH staff unseen-counts AND player my-unseen keys, or one badge goes permanently stale.
+- [My-unseen phantom badge](my-unseen-phantom-badge.md) — the My Requests nav badge (/review/my-unseen) counts own rows across ALL statuses with no window; every counted row MUST be renderable in MyRequests or the badge sticks with no row to clear.

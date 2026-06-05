@@ -13,6 +13,7 @@ import {
   useResubmitCustomRequest,
   useGetMyUnseen,
   getListMyCustomRequestsQueryKey,
+  getListPendingEditsQueryKey,
   getGetMyUnseenQueryKey,
   type CustomRequest,
   type HousingRequest,
@@ -160,7 +161,35 @@ export default function MyRequests() {
   const { data: custom, isLoading: loadingCustom } = useListMyCustomRequests();
   const { data: housing, isLoading: loadingHousing } = useListMyHousingRequests();
   const { data: sheets, isLoading: loadingSheets } = useListMySheets();
-  const { data: edits, isLoading: loadingEdits } = useListPendingEdits();
+  // Fetch the player's OWN edits across EVERY lifecycle bucket. /pending-edits is
+  // staff-scoped for reviewers (its default view is open edits + anything decided
+  // in the last 7 days), so a reviewer's own OLD terminal edit (e.g. a cancelled
+  // edit decided over a week ago) would never come back from the default list —
+  // yet /review/my-unseen still counts it, leaving a stuck "1" badge with no row
+  // to open and clear. Pulling active + resolved + archive and merging guarantees
+  // every edit my-unseen can count is actually rendered here. (For non-reviewers
+  // the bucket param is ignored server-side and each call returns all own edits,
+  // so the merge simply de-dupes.)
+  const { data: editsActive, isLoading: loadingEditsActive } = useListPendingEdits(
+    { bucket: "active" },
+    { query: { queryKey: getListPendingEditsQueryKey({ bucket: "active" }) } },
+  );
+  const { data: editsResolved, isLoading: loadingEditsResolved } = useListPendingEdits(
+    { bucket: "resolved" },
+    { query: { queryKey: getListPendingEditsQueryKey({ bucket: "resolved" }) } },
+  );
+  const { data: editsArchive, isLoading: loadingEditsArchive } = useListPendingEdits(
+    { bucket: "archive" },
+    { query: { queryKey: getListPendingEditsQueryKey({ bucket: "archive" }) } },
+  );
+  const edits = useMemo(() => {
+    const byId = new Map<number, PendingEditSummary>();
+    for (const list of [editsActive, editsResolved, editsArchive]) {
+      for (const e of (list ?? []) as PendingEditSummary[]) byId.set(e.id, e);
+    }
+    return Array.from(byId.values());
+  }, [editsActive, editsResolved, editsArchive]);
+  const loadingEdits = loadingEditsActive || loadingEditsResolved || loadingEditsArchive;
   const [, navigate] = useLocation();
   const [category, setCategory] = useState<HistoryRow["category"] | "All">("All");
   const qc = useQueryClient();
