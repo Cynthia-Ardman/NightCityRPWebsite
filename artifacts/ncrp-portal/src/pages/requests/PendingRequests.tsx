@@ -13,6 +13,7 @@ import {
   useListGuidebookEdits,
   useApproveGuidebookEdit,
   useRejectGuidebookEdit,
+  useCloseReviewTicket,
   useGetReviewUnseenCounts,
   useGetReviewUnseenIds,
   getGetReviewUnseenIdsQueryKey,
@@ -1185,7 +1186,17 @@ function useTerminalItems() {
   completed.sort(byDateDesc);
   denied.sort(byDateDesc);
 
-  return { completed, denied, isLoading };
+  // Approved-but-not-yet-applied tickets: decided (status "approved") but their
+  // effect (lease / inventory item / new character) is only created when the
+  // ticket is closed. These are surfaced in the top "Ready to apply" panel so
+  // staff finish them in place instead of digging through the Completed tab.
+  // Lore/guidebook (subjectType null) apply immediately on approve, so excluded.
+  const readyToApply = completed.filter(
+    (i) => i.subjectType !== null && i.status === "approved" && !i.archived,
+  );
+  readyToApply.sort(byDateDesc);
+
+  return { completed, denied, readyToApply, isLoading };
 }
 
 function TerminalCard({
@@ -1298,6 +1309,133 @@ function TabCount({ n }: { n: number }) {
   );
 }
 
+// Pinned panel surfacing every approved-but-not-yet-applied ticket so staff can
+// finalize them in place (per-item CLOSE & APPLY) or clear them all at once
+// (APPLY ALL), without switching to the Completed tab. Applying still routes
+// through the same idempotent close endpoint that materializes staged effects.
+function ReadyToApplyPanel() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { readyToApply } = useTerminalItems();
+  const [applyingAll, setApplyingAll] = useState(false);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+  };
+
+  const close = useCloseReviewTicket({
+    mutation: {
+      onError: (err) => {
+        const msg =
+          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+          (err instanceof Error ? err.message : "Please try again.");
+        toast({ title: "Could not apply", description: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  if (readyToApply.length === 0) return null;
+  const busy = applyingAll || applyingId !== null;
+
+  const applyOne = async (item: TerminalItem) => {
+    if (!item.subjectType) return;
+    setApplyingId(item.key);
+    try {
+      await close.mutateAsync({ subjectType: item.subjectType, id: item.id });
+      invalidate();
+      toast({ title: `Applied "${item.title}"` });
+    } catch {
+      /* error toast handled by mutation onError */
+    } finally {
+      setApplyingId(null);
+    }
+  };
+
+  const applyAll = async () => {
+    setApplyingAll(true);
+    let ok = 0;
+    let failed = 0;
+    // Sequential so a mid-batch failure doesn't fire a flood of parallel
+    // requests; each close is independently idempotent.
+    for (const item of readyToApply) {
+      if (!item.subjectType) continue;
+      try {
+        await close.mutateAsync({ subjectType: item.subjectType, id: item.id });
+        ok += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    invalidate();
+    setApplyingAll(false);
+    toast({
+      title: `Applied ${ok} approved request${ok === 1 ? "" : "s"}${failed ? ` · ${failed} failed` : ""}`,
+      variant: failed ? "destructive" : undefined,
+    });
+  };
+
+  return (
+    <Card className="rounded-none border-nc-yellow/60 bg-nc-yellow/5" data-testid="panel-ready-to-apply">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-lg font-display tracking-widest text-nc-yellow">
+              READY TO APPLY ({readyToApply.length})
+            </CardTitle>
+            <CardDescription className="font-mono text-xs">
+              Approved — finalize to create the lease / item / character.
+            </CardDescription>
+          </div>
+          <Button
+            className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display text-xs tracking-widest"
+            disabled={busy}
+            onClick={applyAll}
+            data-testid="button-apply-all-approved"
+          >
+            {applyingAll ? "APPLYING..." : `APPLY ALL (${readyToApply.length})`}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {readyToApply.map((item) => {
+            const Icon = item.Icon;
+            return (
+              <div
+                key={item.key}
+                className="flex flex-wrap items-center justify-between gap-3 border border-border/60 bg-card/60 px-3 py-2"
+                data-testid={`row-ready-${item.kind}-${item.id}`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px] shrink-0">
+                    <Icon className="w-3 h-3 mr-1" /> {item.badgeLabel}
+                  </Badge>
+                  <div className="min-w-0">
+                    <div className="font-display text-sm truncate">{item.title}</div>
+                    <div className="font-mono text-[11px] text-muted-foreground truncate">{item.subtitle}</div>
+                  </div>
+                </div>
+                <Button
+                  className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest shrink-0"
+                  disabled={busy}
+                  onClick={() => applyOne(item)}
+                  data-testid={`button-apply-ready-${item.kind}-${item.id}`}
+                >
+                  {applyingId === item.key ? "APPLYING..." : "CLOSE & APPLY"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PendingRequests() {
   const { data: me } = useAuthMe();
   const canMisc = !!(me?.isAdmin || me?.isFixer);
@@ -1339,6 +1477,10 @@ export default function PendingRequests() {
         </h1>
         <p className="text-muted-foreground font-mono mt-2">Review player submissions across the server.</p>
       </div>
+
+      {isReviewer && (
+        <ErrorBoundary><ReadyToApplyPanel /></ErrorBoundary>
+      )}
 
       <Tabs defaultValue={defaultTab}>
         <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">
