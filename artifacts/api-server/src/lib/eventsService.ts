@@ -80,6 +80,24 @@ export function eventNeedsNpcs(e: { needsNpcs: boolean; eventType: string }): bo
   return e.needsNpcs || e.eventType === "session";
 }
 
+// Main Sessions are auto-titled "NCRP Main Event: Session N". They are created
+// on-site (createEvent) as eventType "session", but when the SAME event is seen
+// from the Discord side first — e.g. on a fresh deploy whose DB imported the
+// schedule from Discord rather than authoring it — the import path has no way to
+// know it's the headline weekly game and defaults it to "social". That silently
+// drops the NPC sign-up (eventNeedsNpcs derives off "session"). Detect the
+// canonical title so both the import default and the reconcile self-heal can
+// classify these as sessions without an operator re-typing each week.
+const MAIN_SESSION_TITLE = /main event\b.*\bsession\b/i;
+export function isMainSessionTitle(title: string): boolean {
+  return MAIN_SESSION_TITLE.test(title);
+}
+// eventType for a freshly-imported Discord event: promote Main Sessions, else
+// the generic "social" default.
+export function classifyImportedEventType(title: string): EventType {
+  return isMainSessionTitle(title) ? "session" : "social";
+}
+
 export interface EventSignupView {
   id: number;
   userId: string;
@@ -683,6 +701,16 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
         .where(eq(events.id, row.id));
     }
 
+    // Self-heal Main Sessions that were imported as "social" (see
+    // classifyImportedEventType). eventType is NOT part of the Discord content
+    // hash, so — like the recurrence backfill above — this is a website-only
+    // write that never triggers a spurious push. Promote-only (never demote) and
+    // gated on the canonical Main Session title, so a deliberate non-session
+    // classification of an unrelated event is never clobbered.
+    if (row.status !== "cancelled" && row.eventType !== "session" && isMainSessionTitle(row.title)) {
+      await db.update(events).set({ eventType: "session" }).where(eq(events.id, row.id));
+    }
+
     const discordHash = eventContentHash(discordEventContent(d));
     const websiteHash = eventContentHash(row);
     const synced = row.discordSyncedHash;
@@ -756,7 +784,7 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
       .insert(events)
       .values({
         title: c.title,
-        eventType: "social",
+        eventType: classifyImportedEventType(c.title),
         location: c.location,
         description: c.description,
         imageUrl,

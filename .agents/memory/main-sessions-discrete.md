@@ -20,3 +20,26 @@ It's idempotent (re-run = no-op once coverage reaches the horizon). Keep start a
 21:00 UTC (=2pm Pacific, DST-stable by adding fixed 7-day deltas to the UTC anchor).
 This is a manual run today; an automated cron to keep N weeks always populated is a
 reasonable future improvement.
+
+## Imported sessions land as "social" — promote by title
+
+When the SAME Discord scheduled event is seen from the Discord side FIRST (e.g. a
+fresh deploy whose DB imported the schedule from Discord instead of authoring it),
+the import path defaults `event_type` to `"social"` — it has no signal that the row
+is the headline weekly game. That silently drops NPC sign-up (`eventNeedsNpcs`
+derives off `"session"`), and it recurs every week as each new Sunday imports.
+
+**Why:** `event_type` is website-authoritative — Discord has no session/social
+concept, so the reconcile NEVER pulls it down and it is NOT part of
+`eventContentHash` (title/desc/location/start/end only). Dev had these as
+`"session"` only because they were *created* on-site via `createEvent`; prod
+*imported* them → `"social"`.
+
+**How to apply:** Classify by title. `isMainSessionTitle()` (regex
+`/main event\b.*\bsession\b/i`) + `classifyImportedEventType()` in `eventsService.ts`
+set the import default, AND a promote-only self-heal in the reconcile linked-row
+loop flips existing `social`→`session` for Main-Session-titled rows. Because
+`event_type` isn't in the content hash, update it independently (like the
+recurrence backfill) — it never triggers a spurious Discord push. The
+`discord_event_sync` cron (every 10 min, website-writes always run) makes prod
+self-correct after deploy with no manual re-typing or direct prod DB write.
