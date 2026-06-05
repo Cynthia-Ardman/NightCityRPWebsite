@@ -13,13 +13,26 @@ distinct Discord event), so a recurrence rule would not map cleanly to Discord
 sync. Other recurring events DO use `recurrence_rule`; sessions are the exception.
 
 **How to apply:** To extend Main Session coverage, create more rows — don't reach
-for recurrence. `artifacts/api-server/src/scripts/backfill-main-sessions.ts` clones
-the latest session forward (one week + incrementing the trailing number) up to a
-90-day horizon, via `createEvent()` so Discord sync stays gated on the live flag.
-It's idempotent (re-run = no-op once coverage reaches the horizon). Keep start at
-21:00 UTC (=2pm Pacific, DST-stable by adding fixed 7-day deltas to the UTC anchor).
-This is a manual run today; an automated cron to keep N weeks always populated is a
-reasonable future improvement.
+for recurrence. Core logic is `backfillMainSessions({horizonDays,dryRun})` in
+`eventsService.ts`: clones the latest non-cancelled session forward (one week +
+incrementing the trailing number) to a 90-day horizon via `createEvent()` so the
+Discord push stays gated on the live flag. Idempotent (dedups by UTC day key,
+no-ops once coverage reaches the horizon), with a maxIterations hard cap. Keep
+start at 21:00 UTC (=2pm Pacific, DST-stable by adding fixed 7-day deltas to the
+UTC anchor). Two callers share it: the manual script
+`scripts/backfill-main-sessions.ts` (DRY_RUN / HORIZON_DAYS env) and the
+`main_session_backfill` cron.
+
+**Automated:** `main_session_backfill` job (jobs.ts) runs daily at **06:37 UTC**.
+It is intentionally NOT in `liveSystemByJob` (website rows must be created in Test
+mode too, like discord_event_sync) and has NO bot_config kill switch (it creates
+calendar rows, not money). The 06:37 (off the */10 boundary) is deliberate: it
+must never coincide with a `discord_event_sync` tick, because a new row's
+`createEvent`→Discord-push briefly exists before its `discord_event_id` is linked,
+and a concurrent reconcile importer could re-import that just-pushed Discord event
+as a DUPLICATE row. (This create-vs-reconcile race is pre-existing for ALL
+event-creation paths, not unique to backfill; de-conflicting the schedule just
+avoids widening it.)
 
 ## Imported sessions land as "social" — promote by title
 

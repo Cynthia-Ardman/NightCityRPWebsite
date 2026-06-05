@@ -552,6 +552,102 @@ export async function cancelEvent(id: number): Promise<Event | null> {
 }
 
 // ---------------------------------------------------------------------------
+// Main Session calendar coverage. Main Sessions run every Sunday but are stored
+// as DISCRETE rows (one per week, each its own Discord scheduled-event), NOT a
+// recurrence rule (see memory: main-sessions-discrete) — so the calendar only
+// extends as far out as rows physically exist. This clones the latest session
+// forward one week + one session-number at a time ("Session 69" → "Session 70")
+// until coverage reaches the horizon (~3 months out), going through createEvent
+// so each new row rides the normal Discord push gated on the live flag, exactly
+// like a staff-created event.
+//
+// Idempotent: only fills Sundays AFTER the latest existing session, skips any
+// week that already has a session row, and no-ops once coverage reaches the
+// horizon. Safe to call repeatedly (e.g. from a daily cron).
+export interface BackfillMainSessionsResult {
+  created: number;
+  titles: string[];
+  reason?: string; // why nothing (or less) was created, for the job log
+}
+
+const SESSION_TITLE_NUM = /^(.*?)(\d+)\s*$/;
+const SESSION_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+function sessionDayKeyUTC(d: Date): string {
+  return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+}
+
+export async function backfillMainSessions(
+  opts: { horizonDays?: number; dryRun?: boolean } = {},
+): Promise<BackfillMainSessionsResult> {
+  const horizonDays = opts.horizonDays ?? 90;
+  const dryRun = opts.dryRun ?? false;
+
+  const sessions = (await db.select().from(events).where(eq(events.eventType, "session")))
+    .filter((e) => e.status !== "cancelled" && e.startAt)
+    .sort((a, b) => a.startAt!.getTime() - b.startAt!.getTime());
+
+  if (sessions.length === 0) {
+    return { created: 0, titles: [], reason: "no existing session to seed from" };
+  }
+
+  const last = sessions[sessions.length - 1]!;
+  const m = last.title.match(SESSION_TITLE_NUM);
+  if (!m) {
+    return { created: 0, titles: [], reason: `cannot parse session number from "${last.title}"` };
+  }
+  if (!last.startAt || !last.endAt) {
+    return { created: 0, titles: [], reason: `latest session #${last.id} missing start/end time` };
+  }
+
+  const prefix = m[1]!;
+  let num = Number(m[2]);
+  const durationMs = last.endAt.getTime() - last.startAt.getTime();
+  const existingDays = new Set(sessions.map((e) => sessionDayKeyUTC(e.startAt!)));
+  const horizon = new Date(Date.now() + horizonDays * 24 * 60 * 60 * 1000);
+
+  if (last.startAt.getTime() >= horizon.getTime()) {
+    return { created: 0, titles: [], reason: "coverage already reaches horizon" };
+  }
+
+  let start = new Date(last.startAt.getTime());
+  const titles: string[] = [];
+  // Hard cap so a clock/duration anomaly can never spin into an unbounded
+  // create loop; ample for a 90-day horizon stepped one week at a time.
+  const maxIterations = Math.ceil(horizonDays / 7) + 8;
+
+  for (let i = 0; i < maxIterations; i++) {
+    start = new Date(start.getTime() + SESSION_WEEK_MS);
+    num += 1;
+    const reachedHorizon = start.getTime() >= horizon.getTime();
+    if (!existingDays.has(sessionDayKeyUTC(start))) {
+      const title = `${prefix}${num}`;
+      if (!dryRun) {
+        await createEvent(
+          {
+            title,
+            eventType: "session",
+            location: last.location,
+            description: last.description,
+            imageUrl: last.imageUrl,
+            startAt: start,
+            endAt: new Date(start.getTime() + durationMs),
+            needsNpcs: last.needsNpcs,
+            npcBlurb: last.npcBlurb,
+          },
+          last.createdById ?? "system",
+        );
+      }
+      titles.push(title);
+      existingDays.add(sessionDayKeyUTC(start));
+    }
+    if (reachedHorizon) break;
+  }
+
+  return { created: titles.length, titles };
+}
+
+// ---------------------------------------------------------------------------
 // Bidirectional reconcile (poll-based — there is no Discord gateway). Pure REST;
 // safe to call repeatedly. Returns counts for the job log; never throws.
 //

@@ -6,7 +6,7 @@ import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
-import { reconcileDiscordEvents } from "./eventsService";
+import { reconcileDiscordEvents, backfillMainSessions } from "./eventsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode } from "./economy";
 
@@ -245,7 +245,7 @@ async function chargePersonalFeeWithReservation(opts: {
   return true;
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill";
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
   const [run] = await db.insert(jobRuns).values({ job: name, status: "running" }).returning();
@@ -902,6 +902,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         ? `, deferred ${r.deferred} Discord write(s) (Test mode — set master + missions Live to push)`
         : "";
       message = `discord events sync${live ? " [live]" : " [test: website only]"}: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}, completed ${r.completed}${deferredNote}${r.error ? `, error: ${r.error}` : ""}`;
+    } else if (name === "main_session_backfill") {
+      // Keep ~3 months of weekly Main Sessions on the calendar by cloning the
+      // latest session forward to the horizon. Like discord_event_sync this is
+      // NOT in liveSystemByJob: the website rows must be created in Test mode
+      // too (so the calendar stays populated everywhere), while the Discord
+      // scheduled-event push for each new row is gated internally on the live
+      // flag inside createEvent. Idempotent — a no-op once coverage is full.
+      const r = await backfillMainSessions({ horizonDays: 90 });
+      affected = r.created;
+      message = r.created
+        ? `main session backfill: created ${r.created} session(s) — ${r.titles.join(", ")}`
+        : `main session backfill: nothing to create${r.reason ? ` (${r.reason})` : ""}`;
     }
   } catch (err) {
     status = "failed";
@@ -977,6 +989,17 @@ export function startCron() {
     // on the missions Test/Live switch inside runJob, so Test mode is a no-op.
     cron.schedule("*/10 * * * *", () => {
       runJob("discord_event_sync").catch((err) => logger.error({ err }, "discord_event_sync cron"));
+    });
+    // Keep ~3 months of weekly Main Sessions on the calendar, daily at 06:37 UTC.
+    // Idempotent — creates at most one new Sunday session per run and no-ops once
+    // coverage reaches the horizon. Not kill-switch gated (it creates calendar
+    // rows, not money); the per-row Discord push is gated on the live flag.
+    // Deliberately OFF the */10 minute boundary so it never coincides with a
+    // discord_event_sync tick — that keeps the new row's createEvent → Discord
+    // push from racing the reconcile importer (which could otherwise re-import
+    // the just-pushed Discord event as a duplicate row before it's linked).
+    cron.schedule("37 6 * * *", () => {
+      runJob("main_session_backfill").catch((err) => logger.error({ err }, "main_session_backfill cron"));
     });
     logger.info("Cron jobs scheduled");
   });
