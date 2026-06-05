@@ -281,6 +281,22 @@ async function resetSequences(tables: string[]) {
   }
 }
 
+async function syncVerified18() {
+  // Copy the derived age-verification flag dev -> prod. Only SETS true for ids
+  // dev marks verified (dev derives it from the live Discord role); never clears
+  // a prod flag, so a transient mismatch can't lock anyone out.
+  const trueIds = (await dev.query(`SELECT id FROM users WHERE verified18 IS TRUE`)).rows.map((r) => r.id);
+  console.log(`  dev verified18=true: ${trueIds.length}`);
+  if (trueIds.length === 0) return;
+  const res = await prod.query(
+    `UPDATE users SET verified18 = true
+       WHERE id = ANY($1::text[]) AND verified18 IS DISTINCT FROM true`,
+    [trueIds],
+  );
+  const after = (await prod.query(`SELECT count(*)::int n FROM users WHERE verified18 IS TRUE`)).rows[0].n;
+  console.log(`  prod rows newly set true: ${res.rowCount}; prod verified18=true now: ${after}`);
+}
+
 async function applyGuards() {
   const sql = fs.readFileSync(GUARDS_SQL, "utf8");
   const client = await prod.connect();
@@ -321,6 +337,8 @@ async function main() {
     await insertRows("bot_config", true);
   } else if (phase === "sequences") {
     await resetSequences([...CONTENT, ...HISTORY]);
+  } else if (phase === "verified18") {
+    await syncVerified18();
   } else if (phase === "guards") {
     await applyGuards();
   } else {
