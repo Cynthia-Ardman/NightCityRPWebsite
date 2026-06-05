@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 
 // Shared, mutable mock state. vi.hoisted runs before the (hoisted) vi.mock
 // factories, so the factories can safely close over `h` and read the latest
@@ -175,5 +175,47 @@ describe("NewSheet submit-and-resubmit journey", () => {
     expect(h.updateMutateAsync.mock.calls[0][0].id).toBe(88);
     expect(h.submitDraftMutateAsync).toHaveBeenCalledWith({ id: 88 });
     expect(h.setLocation).toHaveBeenCalledWith("/characters");
+  });
+});
+
+describe("NewSheet top-of-page rules call-out", () => {
+  beforeEach(() => {
+    h.state.getSheetData = undefined;
+    h.state.paramsId = undefined;
+    h.state.me = { id: 1, isFixer: false, isAdmin: false };
+  });
+
+  it("shows the Character Creation Rules and Rules & Restrictions links on PC creation", () => {
+    render(<NewSheet />);
+
+    const banner = screen.getByTestId("card-creation-rules");
+    expect(banner).toBeInTheDocument();
+    // The wouter Link is mocked as a bare <a href> (data-testid isn't
+    // forwarded), and "Rules & Restrictions" also appears in the bottom help
+    // card, so scope the lookups to the banner and assert by name + href.
+    expect(within(banner).getByRole("link", { name: /character creation rules/i })).toHaveAttribute(
+      "href",
+      "/guidebook#character_creation",
+    );
+    expect(within(banner).getByRole("link", { name: /rules & restrictions/i })).toHaveAttribute(
+      "href",
+      "/guidebook#rules",
+    );
+  });
+
+  it("hides the call-out on NPC creation (fixer-driven NPC sheet)", () => {
+    // A fixer editing an NPC draft: sheetType resolves to NPC and is not coerced
+    // back to PC, so the PC-only rules banner must not render.
+    h.state.me = { id: 1, isFixer: true, isAdmin: false };
+    h.state.paramsId = "90";
+    h.state.getSheetData = {
+      id: 90,
+      name: "NPC X",
+      status: "draft",
+      data: { sheetType: "NPC", fullName: "NPC X" },
+    };
+    render(<NewSheet />);
+
+    expect(screen.queryByTestId("card-creation-rules")).toBeNull();
   });
 });
