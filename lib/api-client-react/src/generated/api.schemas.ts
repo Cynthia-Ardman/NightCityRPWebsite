@@ -2455,6 +2455,40 @@ export interface StockUpdate {
   description?: string;
 }
 
+export type CustomCatalogItemType = typeof CustomCatalogItemType[keyof typeof CustomCatalogItemType];
+
+
+export const CustomCatalogItemType = {
+  gun: 'gun',
+  cyberware: 'cyberware',
+  property: 'property',
+} as const;
+
+/**
+ * An approved one-off custom item (gun / cyberware / off-map property)
+sourced from the custom-request flow, with the owning character.
+
+ */
+export interface CustomCatalogItem {
+  id: number;
+  type: CustomCatalogItemType;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  details?: unknown;
+  status: string;
+  /** @nullable */
+  appliedRef?: string | null;
+  characterId: number;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  ownerId?: string | null;
+  createdAt?: string;
+}
+
 export interface CatalogGun {
   id: number;
   name: string;
@@ -5190,6 +5224,19 @@ export type ReactivateCharacter200 = {
   success: boolean;
   archived: boolean;
 };
+
+export type ListCustomCatalogItemsParams = {
+type: ListCustomCatalogItemsType;
+};
+
+export type ListCustomCatalogItemsType = typeof ListCustomCatalogItemsType[keyof typeof ListCustomCatalogItemsType];
+
+
+export const ListCustomCatalogItemsType = {
+  gun: 'gun',
+  cyberware: 'cyberware',
+  property: 'property',
+} as const;
 
 export type DeleteGun200 = {
   ok: boolean;

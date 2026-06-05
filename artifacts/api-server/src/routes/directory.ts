@@ -19,6 +19,7 @@ import {
   catalogDistricts,
   characterTagOptions,
   housing,
+  customRequests,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
@@ -793,6 +794,44 @@ router.get("/catalog/guns", async (req, res): Promise<void> => {
       .filter((g) => (g.status ?? "").toLowerCase() === "live")
       .map(({ wholesalePrice: _w, ...rest }) => rest),
   );
+});
+
+// ---- Custom (off-catalog) items (fixer/admin) -----------------------------
+// One-off custom items granted to characters live in custom_requests, NOT in
+// the standard catalog tables. Staff browse them here per type so each catalog
+// page can show a "Custom" tab alongside the standard listing:
+//   gun       -> custom guns
+//   cyberware -> custom cyberware
+//   property  -> off-map / custom property
+// We surface APPROVED requests (the ones that became real items), joined to the
+// owning character so a fixer can see who holds each one.
+const CUSTOM_TYPES = ["gun", "cyberware", "property"] as const;
+router.get("/catalog/custom", requireAnyRole(["ADMIN", "FIXER"]), async (req, res): Promise<void> => {
+  const type = String(req.query.type ?? "");
+  if (!(CUSTOM_TYPES as readonly string[]).includes(type)) {
+    res.status(400).json({ error: "type must be one of gun, cyberware, property" });
+    return;
+  }
+  const rows = await db
+    .select({
+      id: customRequests.id,
+      type: customRequests.type,
+      title: customRequests.title,
+      description: customRequests.description,
+      imageUrl: customRequests.imageUrl,
+      details: customRequests.details,
+      status: customRequests.status,
+      appliedRef: customRequests.appliedRef,
+      characterId: customRequests.characterId,
+      characterName: characters.name,
+      ownerId: characters.ownerId,
+      createdAt: customRequests.createdAt,
+    })
+    .from(customRequests)
+    .leftJoin(characters, eq(characters.id, customRequests.characterId))
+    .where(and(eq(customRequests.type, type), eq(customRequests.status, "approved")))
+    .orderBy(desc(customRequests.createdAt));
+  res.json(rows);
 });
 
 // ---- Gun catalog management (fixer/admin) ---------------------------------

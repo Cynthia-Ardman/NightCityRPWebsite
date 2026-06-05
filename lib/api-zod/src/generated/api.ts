@@ -683,6 +683,35 @@ export const GetStorePublicResponse = zod.object({
 })
 
 
+/**
+ * Fixer/admin only. Lists the one-off CUSTOM (off-catalog) items of a
+given type — custom guns, custom cyberware, or off-map/custom property —
+that were approved via the custom-request flow, joined to the owning
+character. Used to power the staff-only "Custom" tab on each catalog
+page. Players never see this.
+
+ */
+export const ListCustomCatalogItemsQueryParams = zod.object({
+  "type": zod.enum(['gun', 'cyberware', 'property'])
+})
+
+export const ListCustomCatalogItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['gun', 'cyberware', 'property']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "details": zod.unknown().optional(),
+  "status": zod.string(),
+  "appliedRef": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "ownerId": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).describe('An approved one-off custom item (gun \/ cyberware \/ off-map property)\nsourced from the custom-request flow, with the owning character.\n')
+export const ListCustomCatalogItemsResponse = zod.array(ListCustomCatalogItemsResponseItem)
+
+
 export const ListGunsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),

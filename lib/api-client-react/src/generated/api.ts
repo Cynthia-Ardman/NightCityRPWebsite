@@ -85,6 +85,7 @@ import type {
   CheckMissionConflictsParams,
   CloseReviewTicket200,
   ConfirmNpcSignupInput,
+  CustomCatalogItem,
   CustomRequest,
   CustomRequestApproval,
   CustomRequestInput,
@@ -155,6 +156,7 @@ import type {
   ListArchiveCharactersParams,
   ListArchiveUsersParams,
   ListBreachPuzzlesParams,
+  ListCustomCatalogItemsParams,
   ListCustomRequestsParams,
   ListEventsParams,
   ListGuidebookEditsParams,
@@ -2492,6 +2494,92 @@ export function useGetStorePublic<TData = Awaited<ReturnType<typeof getStorePubl
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStorePublicQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListCustomCatalogItemsUrl = (params: ListCustomCatalogItemsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/catalog/custom?${stringifiedParams}` : `/api/catalog/custom`
+}
+
+/**
+ * Fixer/admin only. Lists the one-off CUSTOM (off-catalog) items of a
+given type — custom guns, custom cyberware, or off-map/custom property —
+that were approved via the custom-request flow, joined to the owning
+character. Used to power the staff-only "Custom" tab on each catalog
+page. Players never see this.
+
+ */
+export const listCustomCatalogItems = async (params: ListCustomCatalogItemsParams, options?: RequestInit): Promise<CustomCatalogItem[]> => {
+
+  return customFetch<CustomCatalogItem[]>(getListCustomCatalogItemsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomCatalogItemsQueryKey = (params?: ListCustomCatalogItemsParams,) => {
+    return [
+    `/api/catalog/custom`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCustomCatalogItemsQueryOptions = <TData = Awaited<ReturnType<typeof listCustomCatalogItems>>, TError = ErrorType<void>>(params: ListCustomCatalogItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomCatalogItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomCatalogItemsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomCatalogItems>>> = ({ signal }) => listCustomCatalogItems(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomCatalogItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomCatalogItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomCatalogItems>>>
+export type ListCustomCatalogItemsQueryError = ErrorType<void>
+
+
+
+export function useListCustomCatalogItems<TData = Awaited<ReturnType<typeof listCustomCatalogItems>>, TError = ErrorType<void>>(
+ params: ListCustomCatalogItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomCatalogItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomCatalogItemsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

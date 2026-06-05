@@ -22,11 +22,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, Home, ImageIcon, ImagePlus, Upload, Briefcase, UserMinus, History, UserPlus, Receipt, Clock, Pencil } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 import { uploadImage } from "@/lib/uploadImage";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
+import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import RentCreateDialog from "@/components/catalog/RentCreateDialog";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
@@ -321,6 +323,18 @@ export default function CatalogRent() {
         titleLabel="Location / Address"
         titlePlaceholder="e.g. Loft above the Afterlife, Watson"
       />
+      <Tabs defaultValue="catalog" className="space-y-4">
+        {isStaff && (
+          <TabsList className="rounded-none bg-card">
+            <TabsTrigger value="catalog" className="rounded-none font-display tracking-widest">
+              CATALOG
+            </TabsTrigger>
+            <TabsTrigger value="custom" className="rounded-none font-display tracking-widest">
+              CUSTOM
+            </TabsTrigger>
+          </TabsList>
+        )}
+        <TabsContent value="catalog" className="space-y-6">
       <div className="space-y-3">
         <Input
           placeholder="SEARCH NAME / DISTRICT / DESCRIPTION..."
@@ -498,6 +512,13 @@ export default function CatalogRent() {
           </section>
         </>
       )}
+        </TabsContent>
+        {isStaff && (
+          <TabsContent value="custom">
+            <CustomCatalogTab type="property" />
+          </TabsContent>
+        )}
+      </Tabs>
 
       <MyHousingRequests />
       {leaseTarget && isBusinessListing(leaseTarget) ? (

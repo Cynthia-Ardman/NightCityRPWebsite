@@ -27,6 +27,8 @@ import CyberwareEditor, {
   buildCyberNotes,
   parseCyberNotes,
 } from "@/components/CyberwareEditor";
+import StaffGrantSections from "@/components/StaffGrantSections";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -61,6 +63,8 @@ export default function EditCharacterDialog({
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const { data: me } = useAuthMe();
+  const isStaff = !!me && (me.isAdmin === true || me.isFixer === true);
 
   const [name, setName] = useState(character.name);
   const [archetype, setArchetype] = useState(character.archetype ?? "");
@@ -507,6 +511,11 @@ export default function EditCharacterDialog({
               </Button>
             </div>
           </div>
+
+          {/* Staff one-stop-shop: grant gear / guns / property to any character */}
+          {isStaff && (
+            <StaffGrantSections characterId={character.id} characterName={character.name} />
+          )}
 
           {/* Update note (commit-message style) */}
           <div className="border-t border-border pt-4">

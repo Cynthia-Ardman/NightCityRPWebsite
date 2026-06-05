@@ -486,6 +486,31 @@ paths:
               schema: { $ref: "#/components/schemas/StorePublic" }
 
   # ---------------- CATALOGS (read-only public) ----------------
+  /catalog/custom:
+    get:
+      operationId: listCustomCatalogItems
+      tags: [catalog]
+      description: |
+        Fixer/admin only. Lists the one-off CUSTOM (off-catalog) items of a
+        given type — custom guns, custom cyberware, or off-map/custom property —
+        that were approved via the custom-request flow, joined to the owning
+        character. Used to power the staff-only "Custom" tab on each catalog
+        page. Players never see this.
+      parameters:
+        - in: query
+          name: type
+          required: true
+          schema: { type: string, enum: [gun, cyberware, property] }
+      responses:
+        "200":
+          description: Approved custom items of the requested type.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CustomCatalogItem" }
+        "400": { description: Invalid or missing type }
+        "403": { description: Forbidden }
   /catalog/guns:
     get:
       operationId: listGuns
@@ -6373,6 +6398,25 @@ components:
         notes: { type: string }
         description: { type: string }
 
+    CustomCatalogItem:
+      type: object
+      description: |
+        An approved one-off custom item (gun / cyberware / off-map property)
+        sourced from the custom-request flow, with the owning character.
+      required: [id, type, title, status, characterId]
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [gun, cyberware, property] }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        details: {}
+        status: { type: string }
+        appliedRef: { type: ["string", "null"] }
+        characterId: { type: integer }
+        characterName: { type: ["string", "null"] }
+        ownerId: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
     CatalogGun:
       type: object
       required: [id, name, price]

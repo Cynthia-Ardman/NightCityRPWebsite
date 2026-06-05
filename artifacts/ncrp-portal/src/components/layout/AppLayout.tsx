@@ -145,7 +145,11 @@ function SidebarContent() {
   const { data: user } = useEffectiveMe();
   const [location] = useLocation();
   const { data: offers } = useListMyOffers({ query: { enabled: !!user, queryKey: getListMyOffersQueryKey() } });
-  const pendingOffers = (offers ?? []).filter((o) => o.status === "pending").length;
+  // Only count offers the player can actually act on here. The My Offers page
+  // only surfaces a decision UI for pending stock-add proposals; other pending
+  // rows (e.g. a give/sale that failed to auto-complete) have no button, so
+  // counting them produced a phantom badge the user could never clear.
+  const pendingOffers = (offers ?? []).filter((o) => o.status === "pending" && o.offerType === "stock_add").length;
   // Staff review queue counter (misc requests + new-character sheets awaiting
   // approval). Only fetched for staff so regular players never trigger the
   // staff-scoped endpoints.

@@ -12,7 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthMe } from "@/hooks/useAuthMe";
+import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
 import GunDetailDialog from "@/components/catalog/GunDetailDialog";
 import GunCreateDialog from "@/components/catalog/GunCreateDialog";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
@@ -107,6 +109,18 @@ export default function CatalogGuns() {
         titlePlaceholder="e.g. Custom Malorian Arms 3516"
       />
 
+      <Tabs defaultValue="catalog" className="space-y-4">
+        {isStaff && (
+          <TabsList className="rounded-none bg-card">
+            <TabsTrigger value="catalog" className="rounded-none font-display tracking-widest">
+              CATALOG
+            </TabsTrigger>
+            <TabsTrigger value="custom" className="rounded-none font-display tracking-widest">
+              CUSTOM
+            </TabsTrigger>
+          </TabsList>
+        )}
+        <TabsContent value="catalog" className="space-y-3">
       <div className="space-y-3">
         <Input
           placeholder="SEARCH NAME / MANUFACTURER / TYPE..."
@@ -205,6 +219,13 @@ export default function CatalogGuns() {
           </table>
         </Card>
       )}
+        </TabsContent>
+        {isStaff && (
+          <TabsContent value="custom">
+            <CustomCatalogTab type="gun" />
+          </TabsContent>
+        )}
+      </Tabs>
 
       <GunDetailDialog
         gun={selected}

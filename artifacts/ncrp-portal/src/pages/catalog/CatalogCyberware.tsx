@@ -5,7 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
+import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import CyberwareDetailDialog, { type Cyber } from "@/components/catalog/CyberwareDetailDialog";
 import CyberwareCreateDialog from "@/components/catalog/CyberwareCreateDialog";
@@ -131,6 +133,18 @@ export default function CatalogCyberware() {
         titleLabel="Cyberware Name"
         titlePlaceholder="e.g. Custom Sandevistan Mk.5"
       />
+      <Tabs defaultValue="catalog" className="space-y-4">
+        {isStaff && (
+          <TabsList className="rounded-none bg-card">
+            <TabsTrigger value="catalog" className="rounded-none font-display tracking-widest">
+              CATALOG
+            </TabsTrigger>
+            <TabsTrigger value="custom" className="rounded-none font-display tracking-widest">
+              CUSTOM
+            </TabsTrigger>
+          </TabsList>
+        )}
+        <TabsContent value="catalog" className="space-y-3">
       <div className="space-y-3">
         <Input
           placeholder="SEARCH NAME / SLOT / DESCRIPTION..."
@@ -193,6 +207,13 @@ export default function CatalogCyberware() {
           </table>
         </Card>
       )}
+        </TabsContent>
+        {isStaff && (
+          <TabsContent value="custom">
+            <CustomCatalogTab type="cyberware" />
+          </TabsContent>
+        )}
+      </Tabs>
 
       {isStaff && (
         <CyberwareDetailDialog

@@ -6,9 +6,15 @@ import { statusBadge, difficultyBadge, rewardSummary } from "./breachUtils";
 import { Cpu, Play, Dumbbell } from "lucide-react";
 
 export default function MyBreaches() {
-  // Poll so a freshly-sent breach shows up here without a manual refresh.
+  // Poll so a freshly-sent breach shows up here without a manual refresh — even
+  // while the tab is backgrounded, and again the moment it regains focus.
   const { data: puzzles, isLoading } = useListMyBreachPuzzles({
-    query: { queryKey: getListMyBreachPuzzlesQueryKey(), refetchInterval: 10000 },
+    query: {
+      queryKey: getListMyBreachPuzzlesQueryKey(),
+      refetchInterval: 5000,
+      refetchIntervalInBackground: true,
+      refetchOnWindowFocus: true,
+    },
   });
 
   const playable = (puzzles ?? []).filter((p) => !p.completedAt);

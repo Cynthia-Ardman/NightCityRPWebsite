@@ -40,6 +40,26 @@ async function loadOwnedChar(userId: string, id: number): Promise<Character | nu
   return c ?? null;
 }
 
+function isStaffUser(user: { roles?: string[] | null }): boolean {
+  return hasRole(user.roles ?? [], "ADMIN") || hasRole(user.roles ?? [], "FIXER");
+}
+
+// Inventory CRUD is a "one-stop-shop" for staff: fixers/admins may add/edit/
+// remove items (gear, guns, cyberware) on ANY character from the edit dialog,
+// while players remain scoped to their own characters. Returns the character
+// row if the caller is staff (any character) or the owner (their own), else
+// null so callers 404 exactly as before.
+async function loadOwnedOrStaffChar(
+  user: { id: string; roles?: string[] | null },
+  id: number,
+): Promise<Character | null> {
+  if (isStaffUser(user)) {
+    const [c] = await db.select().from(characters).where(eq(characters.id, id));
+    return c ?? null;
+  }
+  return loadOwnedChar(user.id, id);
+}
+
 router.get("/characters", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
     .select()
@@ -319,7 +339,7 @@ router.post("/characters/:id/reactivate", requireAuth, async (req, res): Promise
 // Inventory
 router.get("/characters/:id/inventory", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const c = await loadOwnedChar(req.user!.id, id);
+  const c = await loadOwnedOrStaffChar(req.user!, id);
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -330,7 +350,7 @@ router.get("/characters/:id/inventory", requireAuth, async (req, res): Promise<v
 
 router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const c = await loadOwnedChar(req.user!.id, id);
+  const c = await loadOwnedOrStaffChar(req.user!, id);
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -348,7 +368,7 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
     .insert(inventoryItems)
     .values({
       characterId: id,
-      ownerId: req.user!.id,
+      ownerId: c.ownerId ?? req.user!.id,
       name,
       category: category ?? null,
       quantity: quantity ?? 1,
@@ -378,7 +398,7 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
 router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res): Promise<void> => {
   const cid = parseInt(String(req.params.cid), 10);
   const itemId = parseInt(String(req.params.itemId), 10);
-  const c = await loadOwnedChar(req.user!.id, cid);
+  const c = await loadOwnedOrStaffChar(req.user!, cid);
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -450,7 +470,7 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
 router.delete("/characters/:cid/inventory/:itemId", requireAuth, async (req, res): Promise<void> => {
   const cid = parseInt(String(req.params.cid), 10);
   const itemId = parseInt(String(req.params.itemId), 10);
-  const c = await loadOwnedChar(req.user!.id, cid);
+  const c = await loadOwnedOrStaffChar(req.user!, cid);
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
