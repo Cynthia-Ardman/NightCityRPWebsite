@@ -62,7 +62,17 @@ function normalize(s: string): string {
 }
 
 function resolveSlot(label: string): Slot | null {
-  return ALIASES[normalize(label)] ?? null;
+  const direct = ALIASES[normalize(label)];
+  if (direct) return direct;
+  // Sheet slot headers frequently append a capacity annotation such as
+  // "(1 slot per arm)", "(1 slot per leg)" or "(2 slots)". Strip a trailing
+  // slot-count parenthetical and retry so these headers still resolve instead
+  // of leaking into the preamble or attaching to the previous slot's items.
+  const stripped = label.replace(/\s*\([^)]*\bslots?\b[^)]*\)\s*$/i, "").trim();
+  if (stripped && stripped !== label) {
+    return ALIASES[normalize(stripped)] ?? null;
+  }
+  return null;
 }
 
 type Item = { name: string; cwp: number | null; description: string | null };

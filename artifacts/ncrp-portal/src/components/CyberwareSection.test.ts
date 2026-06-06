@@ -117,6 +117,26 @@ describe("CyberwareSection: parseCyberwareBody slot aliases", () => {
     expect(parsed.uncategorized.map((i) => i.name)).toEqual(["Mystery Mod"]);
   });
 
+  it("resolves slot headers that carry a slot-count parenthetical", () => {
+    const body = [
+      "Arms & Arm Attachments (1 slot per arm): Cyberarm (Dextrous)",
+      "Ocular System: Targeting Optic",
+      "Legs & Mobility (1 slot per leg): Reinforced Tendons",
+      "Hands & Feet (2 slots): Grip Plating",
+    ].join("\n");
+    const parsed = parseCyberwareBody(body);
+    expect(parsed.preamble).toBeNull();
+    const arms = parsed.groups.find((g) => g.slot === "Arms & Arm Attachments")!;
+    expect(arms.items.map((i) => i.name)).toEqual(["Cyberarm (Dextrous)"]);
+    const legs = parsed.groups.find((g) => g.slot === "Legs & Mobility")!;
+    expect(legs.items.map((i) => i.name)).toEqual(["Reinforced Tendons"]);
+    const handsFeet = parsed.groups.find((g) => g.slot === "Hands & Feet")!;
+    expect(handsFeet.items.map((i) => i.name)).toEqual(["Grip Plating"]);
+    // Nothing should have leaked into Ocular as a stray item.
+    const ocular = parsed.groups.find((g) => g.slot === "Ocular System")!;
+    expect(ocular.items.map((i) => i.name)).toEqual(["Targeting Optic"]);
+  });
+
   it("falls back to raw body when no recognizable slot is found", () => {
     const parsed = parseCyberwareBody("just some free text with no structure");
     expect(parsed.rawFallback).toBeTruthy();
