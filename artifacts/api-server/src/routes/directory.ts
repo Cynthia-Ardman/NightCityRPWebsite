@@ -708,6 +708,7 @@ router.get("/directory/ripperdocs/:id", async (req, res): Promise<void> => {
     .select({
       id: ripperdocs.id,
       name: ripperdocs.name,
+      ownerId: ripperdocs.ownerId,
       ownerName: users.username,
       purpose: ripperdocs.purpose,
       location: ripperdocs.location,

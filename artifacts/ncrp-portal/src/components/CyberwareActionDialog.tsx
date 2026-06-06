@@ -53,8 +53,13 @@ export default function CyberwareActionDialog({ venueId, stock, onClose, onDone,
     },
   });
 
+  // ApiError (custom-fetch) exposes the parsed JSON body on `.data`, NOT
+  // `.response.data` — `.response` is the raw Response. Read `.data.error`
+  // first, then the formatted `.message`, before any generic fallback so the
+  // real backend reason ("at capacity", "insufficient funds", etc.) surfaces.
   const errMsg =
-    (m.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (m.error as { data?: { error?: string } } | null)?.data?.error ??
+    (m.error instanceof Error ? m.error.message : null) ??
     (m.error ? "Offer failed" : null);
 
   const q = Math.max(1, qty || 1);

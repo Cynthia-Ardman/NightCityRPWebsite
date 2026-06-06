@@ -336,7 +336,12 @@ function ApproveDialog({
   });
   const override = useOverrideCustomRequest({
     mutation: {
-      onSuccess: () => onDone("Request approved via override"),
+      onSuccess: (_res, vars) =>
+        onDone(
+          (vars as { data?: { decision?: string } })?.data?.decision === "deny"
+            ? "Request denied via override"
+            : "Request approved via override",
+        ),
       onError: onFail,
     },
   });
@@ -367,7 +372,7 @@ function ApproveDialog({
       ...(isVenueStock ? { unitCost: unitCostNum, retail: retailNum, qty: qtyNum } : {}),
     };
     if (mode === "override") {
-      override.mutate({ id: request.id, data: { reviewerNote: reviewerNote.trim() || undefined, ...params } });
+      override.mutate({ id: request.id, data: { decision: "approve", reviewerNote: reviewerNote.trim() || undefined, ...params } });
     } else {
       voteApprove.mutate({ id: request.id, data: { vote: "approve", note: reviewerNote.trim() || undefined, ...params } });
     }
@@ -497,6 +502,17 @@ function ApproveDialog({
           <Button variant="ghost" className="rounded-none font-display" onClick={onClose}>
             CANCEL
           </Button>
+          {mode === "override" && (
+            <Button
+              variant="outline"
+              className="rounded-none font-display tracking-widest border-destructive text-destructive hover:bg-destructive/10"
+              disabled={busy}
+              onClick={() => override.mutate({ id: request.id, data: { decision: "deny", reviewerNote: reviewerNote.trim() || undefined } })}
+              data-testid="button-override-deny"
+            >
+              {busy ? "WORKING..." : "OVERRIDE & DENY"}
+            </Button>
+          )}
           <Button
             className="rounded-none font-display tracking-widest bg-nc-green text-background hover:bg-nc-green/80"
             disabled={!valid || busy}

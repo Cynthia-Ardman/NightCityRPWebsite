@@ -1923,6 +1923,11 @@ export interface CharacterStatusUpdate {
 export interface RipperdocPublic {
   id: number;
   name: string;
+  /**
+     * User id of the clinic owner; lets the owner reveal the Manage action.
+     * @nullable
+     */
+  ownerId?: string | null;
   /** @nullable */
   ownerName?: string | null;
   /** @nullable */
@@ -3073,6 +3078,33 @@ export interface CustomRequestInput {
 }
 
 /**
+ * Override outcome. Defaults to approve; deny rejects the ticket (no effect applied on close).
+ */
+export type OverrideDecisionInputDecision = typeof OverrideDecisionInputDecision[keyof typeof OverrideDecisionInputDecision];
+
+
+export const OverrideDecisionInputDecision = {
+  approve: 'approve',
+  deny: 'deny',
+} as const;
+
+export interface OverrideDecisionInput {
+  /** Override outcome. Defaults to approve; deny rejects the ticket (no effect applied on close). */
+  decision?: OverrideDecisionInputDecision;
+}
+
+/**
+ * Override outcome. Defaults to approve; deny rejects the ticket and ignores the mechanical params below.
+ */
+export type CustomRequestApprovalDecision = typeof CustomRequestApprovalDecision[keyof typeof CustomRequestApprovalDecision];
+
+
+export const CustomRequestApprovalDecision = {
+  approve: 'approve',
+  deny: 'deny',
+} as const;
+
+/**
  * For property requests; defaults residential.
  */
 export type CustomRequestApprovalKind = typeof CustomRequestApprovalKind[keyof typeof CustomRequestApprovalKind];
@@ -3084,6 +3116,8 @@ export const CustomRequestApprovalKind = {
 } as const;
 
 export interface CustomRequestApproval {
+  /** Override outcome. Defaults to approve; deny rejects the ticket and ignores the mechanical params below. */
+  decision?: CustomRequestApprovalDecision;
   reviewerNote?: string;
   /**
      * Required for property requests.

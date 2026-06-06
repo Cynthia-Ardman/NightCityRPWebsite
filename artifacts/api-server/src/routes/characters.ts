@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, or, sql } from "drizzle-orm";
 import {
   db,
   characters,
@@ -108,7 +108,10 @@ router.post("/characters", requireAuth, async (req, res): Promise<void> => {
 
 router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const c = await loadOwnedChar(req.user!.id, id);
+  // Staff (admin/fixer) may read ANY character's detail — the admin archive
+  // page renders the full owner tab panel for moderation. Players stay scoped
+  // to their own characters.
+  const c = await loadOwnedOrStaffChar(req.user!, id);
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -262,9 +265,9 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
 
 router.get("/characters/:id/updates", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  // Anyone who can view the character detail (owner) can see its update log.
-  // The public archive uses its own endpoint and does not include this yet.
-  const c = await loadOwnedChar(req.user!.id, id);
+  // Owner or staff (admin/fixer) — the admin archive page surfaces the update
+  // log alongside the rest of the owner tabs for moderation.
+  const c = await loadOwnedOrStaffChar(req.user!, id);
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -814,7 +817,10 @@ router.get("/characters/:id/wallet", requireAuth, async (req, res): Promise<void
 
 router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const c = await loadOwnedChar(req.user!.id, id);
+  // Owner or staff (admin/fixer) — staff view the history on the admin archive
+  // page. Account-level rows are keyed off the character's OWNER, not the
+  // caller, so a staff viewer sees the owner's ledger (not their own).
+  const c = await loadOwnedOrStaffChar(req.user!, id);
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -827,7 +833,7 @@ router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res):
     .where(
       or(
         eq(walletTransactions.characterId, id),
-        eq(walletTransactions.userId, req.user!.id),
+        c.ownerId ? eq(walletTransactions.userId, c.ownerId) : sql`false`,
       ),
     )
     .orderBy(desc(walletTransactions.createdAt))

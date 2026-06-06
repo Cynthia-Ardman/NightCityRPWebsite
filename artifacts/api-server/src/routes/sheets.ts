@@ -570,6 +570,9 @@ router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void>
     res.status(403).json({ error: "Only admins can override" });
     return;
   }
+  // Override can approve (default) OR deny, both bypassing the majority vote.
+  const deny = req.body?.decision === "deny";
+  const newStatus = deny ? "rejected" : "approved";
   const result = await db.transaction(async (tx) => {
     const [sheet] = await tx.select().from(characterSheets).where(eq(characterSheets.id, id)).for("update");
     if (!sheet) return { error: { status: 404, body: { error: "Not found" } } };
@@ -579,15 +582,15 @@ router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void>
     if (sheet.ownerId === u.id) {
       return { error: { status: 403, body: { error: "You cannot override your own sheet" } } };
     }
-    // Effects deferred: stage the approval; the character is materialized on
-    // close.
+    // Effects deferred: stage the decision; an approved sheet materializes the
+    // character on close, a denied one is simply archived on close.
     const [updated] = await tx
       .update(characterSheets)
       .set({
-        status: "approved",
+        status: newStatus,
         decisionBy: u.id,
         overriddenBy: u.id,
-        decisionNote: `Approved via admin override by ${u.username}`,
+        decisionNote: `${deny ? "Denied" : "Approved"} via admin override by ${u.username}`,
         decidedAt: new Date(),
       })
       .where(eq(characterSheets.id, id))
@@ -601,11 +604,11 @@ router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void>
   await recordAudit({
     req,
     category: "sheet",
-    action: "override_approved",
+    action: deny ? "override_rejected" : "override_approved",
     targetType: "sheet",
     targetId: id,
-    message: `${u.username} approved sheet "${result.ok.updated.name}" via admin override (pending close)`,
-    after: { overriddenBy: u.id, staged: true },
+    message: `${u.username} ${deny ? "denied" : "approved"} sheet "${result.ok.updated.name}" via admin override (pending close)`,
+    after: { overriddenBy: u.id, staged: true, decision: deny ? "deny" : "approve" },
   });
   res.json(result.ok.updated);
 });

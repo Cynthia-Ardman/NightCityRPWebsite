@@ -16,6 +16,9 @@ import {
   useGetCharacterPendingEdit,
   getGetCharacterQueryKey,
   useListMyMissions,
+  getListMyMissionsQueryKey,
+  useListOwnedMissions,
+  getListOwnedMissionsQueryKey,
   useListCharacterBreachPuzzles,
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
@@ -60,7 +63,7 @@ export default function CharacterDetail() {
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
       <div className="flex flex-col md:flex-row gap-6 items-start md:items-end border-b border-border pb-6">
         <Avatar className="h-32 w-32 border-2 border-nc-cyan rounded-none shadow-[0_0_20px_rgba(0,255,255,0.2)] bg-card p-1">
-          <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ""} className="object-cover rounded-none" />
+          <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ""} className="object-contain rounded-none" />
           <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-4xl">
             {char.name.substring(0, 2).toUpperCase()}
           </AvatarFallback>
@@ -129,58 +132,77 @@ export default function CharacterDetail() {
 
       <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} isAdmin={isAdmin} />
 
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="bg-card border border-border rounded-none p-0 h-auto flex overflow-x-auto w-full max-w-full no-scrollbar">
-          <TabsTrigger value="profile" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-profile">
-            <Terminal className="w-4 h-4 mr-2 hidden sm:inline" /> Profile
-          </TabsTrigger>
-          <TabsTrigger value="property" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-property">
-            <Home className="w-4 h-4 mr-2 hidden sm:inline" /> Property
-          </TabsTrigger>
-          <TabsTrigger value="inventory" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-inv">
-            <Package className="w-4 h-4 mr-2 hidden sm:inline" /> Inventory
-          </TabsTrigger>
-          <TabsTrigger value="cyberware" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-cyberware">
-            <Cpu className="w-4 h-4 mr-2 hidden sm:inline" /> Cyberware
-          </TabsTrigger>
-          <TabsTrigger value="missions" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-missions">
-            <Briefcase className="w-4 h-4 mr-2 hidden sm:inline" /> Missions
-          </TabsTrigger>
-          <TabsTrigger value="breach" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-breach">
-            <Cpu className="w-4 h-4 mr-2 hidden sm:inline" /> Breach
-          </TabsTrigger>
-        </TabsList>
-
-        <div className="mt-8">
-          <TabsContent value="profile" className="space-y-6 outline-none focus:ring-0">
-            <ProfileDossier sheetData={char.sheetData} background={char.background} />
-            <ImageGallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
-            <ImageGallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
-            <UpdatesLog characterId={char.id} />
-          </TabsContent>
-
-          <TabsContent value="property" className="outline-none focus:ring-0">
-            <HousingCard characterId={char.id} />
-          </TabsContent>
-
-          <TabsContent value="inventory" className="outline-none focus:ring-0">
-            <InventoryTab characterId={char.id} />
-          </TabsContent>
-
-          <TabsContent value="cyberware" className="outline-none focus:ring-0">
-            <CyberwareTab characterId={char.id} />
-          </TabsContent>
-
-          <TabsContent value="missions" className="outline-none focus:ring-0">
-            <MissionsTab characterId={char.id} />
-          </TabsContent>
-
-          <TabsContent value="breach" className="outline-none focus:ring-0">
-            <BreachTab characterId={char.id} />
-          </TabsContent>
-        </div>
-      </Tabs>
+      <CharacterTabsPanel characterId={char.id} />
     </div>
+  );
+}
+
+// The full owner tab panel (Profile / Property / Inventory / Cyberware /
+// Missions / Breach). Extracted so the admin character archive page can render
+// the exact same tabs (read + edit) for ANY character. `staffView` switches the
+// Missions feed from the owner's "/missions/mine" to the staff-wide
+// "/missions/owned" board so a moderator sees the target character's missions.
+export function CharacterTabsPanel({
+  characterId,
+  staffView = false,
+}: {
+  characterId: number;
+  staffView?: boolean;
+}) {
+  const { data: char } = useGetCharacter(characterId);
+  if (!char) return null;
+  return (
+    <Tabs defaultValue="profile" className="w-full">
+      <TabsList className="bg-card border border-border rounded-none p-0 h-auto flex overflow-x-auto w-full max-w-full no-scrollbar">
+        <TabsTrigger value="profile" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-profile">
+          <Terminal className="w-4 h-4 mr-2 hidden sm:inline" /> Profile
+        </TabsTrigger>
+        <TabsTrigger value="property" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-property">
+          <Home className="w-4 h-4 mr-2 hidden sm:inline" /> Property
+        </TabsTrigger>
+        <TabsTrigger value="inventory" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-inv">
+          <Package className="w-4 h-4 mr-2 hidden sm:inline" /> Inventory
+        </TabsTrigger>
+        <TabsTrigger value="cyberware" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-cyberware">
+          <Cpu className="w-4 h-4 mr-2 hidden sm:inline" /> Cyberware
+        </TabsTrigger>
+        <TabsTrigger value="missions" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-missions">
+          <Briefcase className="w-4 h-4 mr-2 hidden sm:inline" /> Missions
+        </TabsTrigger>
+        <TabsTrigger value="breach" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-breach">
+          <Cpu className="w-4 h-4 mr-2 hidden sm:inline" /> Breach
+        </TabsTrigger>
+      </TabsList>
+
+      <div className="mt-8">
+        <TabsContent value="profile" className="space-y-6 outline-none focus:ring-0">
+          <ProfileDossier sheetData={char.sheetData} background={char.background} />
+          <ImageGallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
+          <ImageGallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
+          <UpdatesLog characterId={char.id} />
+        </TabsContent>
+
+        <TabsContent value="property" className="outline-none focus:ring-0">
+          <HousingCard characterId={char.id} />
+        </TabsContent>
+
+        <TabsContent value="inventory" className="outline-none focus:ring-0">
+          <InventoryTab characterId={char.id} />
+        </TabsContent>
+
+        <TabsContent value="cyberware" className="outline-none focus:ring-0">
+          <CyberwareTab characterId={char.id} />
+        </TabsContent>
+
+        <TabsContent value="missions" className="outline-none focus:ring-0">
+          <MissionsTab characterId={char.id} staffView={staffView} />
+        </TabsContent>
+
+        <TabsContent value="breach" className="outline-none focus:ring-0">
+          <BreachTab characterId={char.id} />
+        </TabsContent>
+      </div>
+    </Tabs>
   );
 }
 
@@ -253,11 +275,15 @@ function BreachTab({ characterId }: { characterId: number }) {
   );
 }
 
-function MissionsTab({ characterId }: { characterId: number }) {
-  // Reuse the player-scope mission feed; the detail page is owner-only so any
-  // mission this character was assigned to is in /missions/mine. We filter
-  // down to missions whose assigned players include this specific character.
-  const { data, isLoading } = useListMyMissions();
+function MissionsTab({ characterId, staffView = false }: { characterId: number; staffView?: boolean }) {
+  // Owner view: the player-scope feed (/missions/mine) holds every mission this
+  // character was assigned to. Staff view (admin archive): the owner isn't the
+  // viewer, so fall back to the staff-wide board (/missions/owned, which admins
+  // see in full) and filter to this character. Only one query runs at a time.
+  const mine = useListMyMissions({ query: { enabled: !staffView, queryKey: getListMyMissionsQueryKey() } });
+  const owned = useListOwnedMissions({ query: { enabled: staffView, queryKey: getListOwnedMissionsQueryKey() } });
+  const data = staffView ? owned.data : mine.data;
+  const isLoading = staffView ? owned.isLoading : mine.isLoading;
   const rows = (data ?? []).filter((m) =>
     (m.players ?? []).some((p) => p.characterId === characterId),
   );

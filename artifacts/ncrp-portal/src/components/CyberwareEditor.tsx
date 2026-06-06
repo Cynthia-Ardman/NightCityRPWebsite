@@ -98,10 +98,12 @@ export default function CyberwareEditor({
     onChange([...rows, { slot: "", name: "", points: 0, notes: "", isCustom: false }]);
   }
   function onSlotChange(i: number, value: string) {
+    // Changing the slot resets the slot-specific name/points selection, but must
+    // preserve any notes the user has already typed for this row.
     if (value === CUSTOM_SLOT) {
-      update(i, { isCustom: true, slot: "", name: "", points: 0, notes: "" });
+      update(i, { isCustom: true, slot: "", name: "", points: 0 });
     } else {
-      update(i, { isCustom: false, slot: value, name: "", points: 0, notes: "" });
+      update(i, { isCustom: false, slot: value, name: "", points: 0 });
     }
   }
   function onNameChange(i: number, name: string, slot: string) {

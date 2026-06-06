@@ -304,6 +304,30 @@ router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
       return;
     }
   }
+  // One residential + one business per district per PLAYER. Scoped to the
+  // character's owner (so all of a player's characters share the cap) and only
+  // enforced when we have both an owner and a district to scope by.
+  if (c.ownerId && listing.district) {
+    const [dup] = await db
+      .select({ id: housing.id })
+      .from(housing)
+      .innerJoin(characters, eq(characters.id, housing.characterId))
+      .innerJoin(catalogRent, eq(catalogRent.id, housing.listingId))
+      .where(
+        and(
+          eq(characters.ownerId, c.ownerId),
+          eq(catalogRent.district, listing.district),
+          eq(housing.kind, leaseKind),
+        ),
+      )
+      .limit(1);
+    if (dup) {
+      res.status(409).json({
+        error: `This player already holds a ${leaseKind} property in ${listing.district}. Only one ${leaseKind} property per district is allowed.`,
+      });
+      return;
+    }
+  }
   const address = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
   // Single-unit occupancy. Lock the listing row FOR UPDATE first so concurrent
   // lease attempts serialize: the occupancy re-check and insert happen while we
@@ -676,6 +700,32 @@ router.post("/housing/requests/:id/approve", requireAuth, async (req, res): Prom
       .limit(1);
     if (occupant) {
       return { error: { status: 409, body: { error: "Listing is already occupied by another lease" } } };
+    }
+    // One residential + one business per district per PLAYER (see /housing/lease).
+    if (c.ownerId && listing.district) {
+      const [dup] = await tx
+        .select({ id: housing.id })
+        .from(housing)
+        .innerJoin(characters, eq(characters.id, housing.characterId))
+        .innerJoin(catalogRent, eq(catalogRent.id, housing.listingId))
+        .where(
+          and(
+            eq(characters.ownerId, c.ownerId),
+            eq(catalogRent.district, listing.district),
+            eq(housing.kind, reqRow.kind),
+          ),
+        )
+        .limit(1);
+      if (dup) {
+        return {
+          error: {
+            status: 409,
+            body: {
+              error: `This player already holds a ${reqRow.kind} property in ${listing.district}. Only one ${reqRow.kind} property per district is allowed.`,
+            },
+          },
+        };
+      }
     }
     const address = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
     const [inserted] = await tx

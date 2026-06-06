@@ -623,6 +623,7 @@ export const SetCharacterLifestyleResponse = zod.object({
 export const ListRipperdocsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "ownerId": zod.string().nullish().describe('User id of the clinic owner; lets the owner reveal the Manage action.'),
   "ownerName": zod.string().nullish(),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -640,6 +641,7 @@ export const GetRipperdocPublicParams = zod.object({
 export const GetRipperdocPublicResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "ownerId": zod.string().nullish().describe('User id of the clinic owner; lets the owner reveal the Manage action.'),
   "ownerName": zod.string().nullish(),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -6815,10 +6817,14 @@ export const VoteSheetResponse = zod.object({
 
 
 /**
- * @summary Admin-only immediate approval that bypasses the vote and materializes the character. Records overriddenBy.
+ * @summary Admin-only immediate decision that bypasses the vote. Approves (and materializes on close) or denies. Records overriddenBy.
  */
 export const OverrideSheetParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const OverrideSheetBody = zod.object({
+  "decision": zod.enum(['approve', 'deny']).optional().describe('Override outcome. Defaults to approve; deny rejects the ticket (no effect applied on close).')
 })
 
 export const overrideSheetResponseDataCyberwarePointsSpentMax = 6;
@@ -7113,6 +7119,10 @@ export const VotePendingEditResponse = zod.object({
  */
 export const OverridePendingEditParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const OverridePendingEditBody = zod.object({
+  "decision": zod.enum(['approve', 'deny']).optional().describe('Override outcome. Defaults to approve; deny rejects the ticket (no effect applied on close).')
 })
 
 export const OverridePendingEditResponse = zod.object({
@@ -8406,6 +8416,7 @@ export const overrideCustomRequestBodyRetailMin = 0;
 
 
 export const OverrideCustomRequestBody = zod.object({
+  "decision": zod.enum(['approve', 'deny']).optional().describe('Override outcome. Defaults to approve; deny rejects the ticket and ignores the mechanical params below.'),
   "reviewerNote": zod.string().optional(),
   "monthlyRent": zod.number().min(overrideCustomRequestBodyMonthlyRentMin).optional().describe('Required for property requests.'),
   "kind": zod.enum(['residential', 'business']).optional().describe('For property requests; defaults residential.'),

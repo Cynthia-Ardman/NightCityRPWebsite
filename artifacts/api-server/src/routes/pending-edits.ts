@@ -608,6 +608,9 @@ router.post("/pending-edits/:id/override", requireAuth, async (req, res): Promis
     res.status(403).json({ error: "Only admins can override" });
     return;
   }
+  // Override can approve (default) OR deny, both bypassing the majority vote.
+  const deny = req.body?.decision === "deny";
+  const newStatus = deny ? "rejected" : "approved";
   const result = await db.transaction(async (tx) => {
     const lockedRows = await tx.execute(
       sql`SELECT id, status, character_id, submitted_by, proposed_diff, update_note
@@ -620,15 +623,15 @@ router.post("/pending-edits/:id/override", requireAuth, async (req, res): Promis
       return { kind: "already_decided" as const, status: locked.status };
     }
     if (locked.submitted_by === u.id) return { kind: "own" as const };
-    // Effects deferred: staging the approval only; the diff is applied when the
-    // ticket is closed.
+    // Effects deferred: staging the decision only; an approved diff is applied
+    // when the ticket is closed, a denied one is simply archived on close.
     await tx
       .update(pendingCharacterEdits)
       .set({
-        status: "approved",
+        status: newStatus,
         decidedAt: new Date(),
         overriddenBy: u.id,
-        decisionSummary: `Approved via admin override by ${u.username}`,
+        decisionSummary: `${deny ? "Denied" : "Approved"} via admin override by ${u.username}`,
       })
       .where(eq(pendingCharacterEdits.id, id));
     return { kind: "ok" as const };
@@ -636,7 +639,7 @@ router.post("/pending-edits/:id/override", requireAuth, async (req, res): Promis
   if (result.kind === "not_found") { res.status(404).json({ error: "Not found" }); return; }
   if (result.kind === "own") { res.status(403).json({ error: "You cannot override your own edit" }); return; }
   if (result.kind === "already_decided") { res.status(409).json({ error: `Edit already ${result.status}` }); return; }
-  res.json({ ok: true, status: "approved" });
+  res.json({ ok: true, status: newStatus });
 });
 
 // POST /pending-edits/:id/request-changes — RETIRED. Reviewers no longer park

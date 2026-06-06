@@ -9,6 +9,11 @@
 export interface RipperdocPublic {
   id: number;
   name: string;
+  /**
+     * User id of the clinic owner; lets the owner reveal the Manage action.
+     * @nullable
+     */
+  ownerId?: string | null;
   /** @nullable */
   ownerName?: string | null;
   /** @nullable */

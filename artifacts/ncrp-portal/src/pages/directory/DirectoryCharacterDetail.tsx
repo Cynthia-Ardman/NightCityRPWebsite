@@ -3,11 +3,8 @@ import { useParams } from "wouter";
 import { useGetArchiveCharacter } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pencil } from "lucide-react";
-import Markdown from "@/components/Markdown";
 import {
   KindBadge,
   LifecycleBadge,
@@ -17,6 +14,7 @@ import {
   type CwpBand,
 } from "@/components/directory/CharacterBadges";
 import ArchiveEditDialog from "@/components/directory/ArchiveEditDialog";
+import { CharacterTabsPanel } from "@/pages/CharacterDetail";
 
 export default function DirectoryCharacterDetail() {
   const { id } = useParams();
@@ -28,19 +26,6 @@ export default function DirectoryCharacterDetail() {
 
   if (isLoading) return <div className="p-8 text-nc-cyan font-display text-xl animate-pulse">DECRYPTING_IDENTITY...</div>;
   if (!char) return <div className="p-8 text-destructive font-display text-xl">ERROR: IDENTITY_NOT_FOUND</div>;
-
-  const sheet = char.sheetData as { sections?: Record<string, string>; preamble?: string } | null | undefined;
-  const sections = sheet?.sections;
-  const rawEntries = sections ? Object.entries(sections).filter(([, v]) => v && v.trim().length > 0) : [];
-  const preamble = sheet?.preamble?.trim() ?? "";
-  const sectionEntries: [string, string][] =
-    rawEntries.length > 0
-      ? rawEntries
-      : preamble.length > 0
-        ? [["Backstory", preamble]]
-        : char.background && char.background.trim().length > 0
-          ? [["Backstory", char.background.trim()]]
-          : [];
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
@@ -105,49 +90,13 @@ export default function DirectoryCharacterDetail() {
         </div>
       </div>
 
-      {sectionEntries.length === 0 ? (
-        <Card className="rounded-none border-border bg-card/50">
-          <CardContent className="py-6 text-muted-foreground font-mono italic">No sheet data recorded.</CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {sectionEntries.map(([heading, body]) => (
-            <Card key={heading} className="rounded-none border-border bg-card/50" data-testid={`public-section-${heading}`}>
-              <CardHeader>
-                <CardTitle className="font-display text-nc-cyan tracking-widest text-base">{heading.toUpperCase()}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{body}</Markdown>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Gallery title="PORTRAITS" urls={char.portraitUrls ?? []} />
-      <Gallery title="STATS / SHEET IMAGES" urls={char.statsImageUrls ?? []} />
+      {/* Full owner tab panel (Profile / Property / Inventory / Cyberware /
+          Missions / Breach) — this archive route is staff-only
+          (StaffArchiveGuard: fixer/admin), matching the server read gates, so
+          moderators get the same surface the owner sees plus inventory edit. */}
+      <CharacterTabsPanel characterId={charId} staffView />
 
       <ArchiveEditDialog character={char} open={editOpen} onOpenChange={setEditOpen} isAdmin={isAdmin} />
     </div>
-  );
-}
-
-function Gallery({ title, urls }: { title: string; urls: string[] }) {
-  if (!urls || urls.length === 0) return null;
-  return (
-    <Card className="rounded-none border-border bg-card/50" data-testid={`public-gallery-${title}`}>
-      <CardHeader>
-        <CardTitle className="font-display text-nc-cyan tracking-widest text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-3">
-          {urls.map((u, i) => (
-            <a key={`${u}-${i}`} href={u} target="_blank" rel="noreferrer" className="block border border-border bg-background p-1 hover:border-nc-cyan transition">
-              <img src={u} alt={`${title} ${i + 1}`} loading="lazy" className="max-h-56 object-contain" />
-            </a>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   );
 }

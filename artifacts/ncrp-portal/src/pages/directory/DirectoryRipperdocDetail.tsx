@@ -10,6 +10,8 @@ export default function DirectoryRipperdocDetail() {
   const { data, isLoading } = useGetRipperdocPublic(Number(id));
   const { data: me } = useAuthMe();
   const isStaff = !!me && (me.isAdmin || me.isFixer);
+  const isOwner = !!me && !!data?.ownerId && me.id === data.ownerId;
+  const canManage = isStaff || isOwner;
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">CLINIC NOT FOUND</div>;
   return (
@@ -31,7 +33,7 @@ export default function DirectoryRipperdocDetail() {
           <p className="font-mono text-xs text-nc-magenta mt-1" data-testid="text-ripperdoc-owner">OWNER: {data.ownerName ?? "UNCLAIMED"}</p>
           {data.purpose && <p className="font-mono text-xs text-muted-foreground mt-1" data-testid="text-ripperdoc-purpose">{data.purpose}</p>}
         </div>
-        {isStaff && (
+        {canManage && (
           <Link href={`/clinics/${data.id}`}>
             <Button className="rounded-none bg-nc-magenta text-background font-display shrink-0" data-testid="button-manage-ripperdoc">
               <Settings className="w-4 h-4 mr-2" /> MANAGE

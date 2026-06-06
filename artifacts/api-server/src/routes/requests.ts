@@ -781,6 +781,8 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
   const rid = parseInt(String(req.params.id), 10);
   const body = req.body ?? {};
   const note = typeof body.reviewerNote === "string" && body.reviewerNote.trim() ? body.reviewerNote.trim() : null;
+  // Override can approve (default) OR deny, both bypassing the majority vote.
+  const deny = body.decision === "deny";
 
   const txResult = await db.transaction(async (tx) => {
     const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, rid)).for("update");
@@ -796,6 +798,22 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
     }
     if (reqRow.requestedById === req.user!.id) {
       return { error: { status: 403, body: { error: "You cannot override your own request" } } };
+    }
+    if (deny) {
+      // Deny needs no mechanical params; the ticket is rejected and archived on
+      // close with no effect to apply.
+      await tx
+        .update(customRequests)
+        .set({
+          status: "rejected",
+          reviewedById: req.user!.id,
+          reviewedAt: new Date(),
+          reviewerNote: note,
+          decisionParams: null,
+          overriddenBy: req.user!.id,
+        })
+        .where(eq(customRequests.id, rid));
+      return { ok: { reqRow } };
     }
     // Validate (but do not yet apply) the mechanical params, then STAGE the
     // approval. The effect is committed when the ticket is closed, reading the
@@ -825,11 +843,11 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
   await recordAudit({
     req,
     category: auditCategoryFor(txResult.ok.reqRow.type),
-    action: "request_override_approve",
+    action: deny ? "request_override_reject" : "request_override_approve",
     targetType: "custom_request",
     targetId: rid,
-    message: `Approved ${txResult.ok.reqRow.type} request via admin override (pending close): ${txResult.ok.reqRow.title}`,
-    after: { type: txResult.ok.reqRow.type, characterId: txResult.ok.reqRow.characterId, staged: true, overriddenBy: req.user!.id },
+    message: `${deny ? "Denied" : "Approved"} ${txResult.ok.reqRow.type} request via admin override (pending close): ${txResult.ok.reqRow.title}`,
+    after: { type: txResult.ok.reqRow.type, characterId: txResult.ok.reqRow.characterId, staged: true, overriddenBy: req.user!.id, decision: deny ? "deny" : "approve" },
   });
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));

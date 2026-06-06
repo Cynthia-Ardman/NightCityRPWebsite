@@ -201,6 +201,7 @@ import type {
   MissionUpdateInput,
   MyUnseen,
   NpcSignupInput,
+  OverrideDecisionInput,
   OverridePendingEdit200,
   PayActorsInput,
   PendingEditDetail,
@@ -12794,16 +12795,18 @@ export const getOverrideSheetUrl = (id: number,) => {
 }
 
 /**
- * @summary Admin-only immediate approval that bypasses the vote and materializes the character. Records overriddenBy.
+ * @summary Admin-only immediate decision that bypasses the vote. Approves (and materializes on close) or denies. Records overriddenBy.
  */
-export const overrideSheet = async (id: number, options?: RequestInit): Promise<CharacterSheet> => {
+export const overrideSheet = async (id: number,
+    overrideDecisionInput?: OverrideDecisionInput, options?: RequestInit): Promise<CharacterSheet> => {
 
   return customFetch<CharacterSheet>(getOverrideSheetUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      overrideDecisionInput,)
   }
 );}
 
@@ -12811,8 +12814,8 @@ export const overrideSheet = async (id: number, options?: RequestInit): Promise<
 
 
 export const getOverrideSheetMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number;data?: BodyType<OverrideDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number;data?: BodyType<OverrideDecisionInput>}, TContext> => {
 
 const mutationKey = ['overrideSheet'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -12824,10 +12827,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overrideSheet>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overrideSheet>>, {id: number;data?: BodyType<OverrideDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  overrideSheet(id,requestOptions)
+          return  overrideSheet(id,data,requestOptions)
         }
 
 
@@ -12838,18 +12841,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type OverrideSheetMutationResult = NonNullable<Awaited<ReturnType<typeof overrideSheet>>>
-
+    export type OverrideSheetMutationBody = BodyType<OverrideDecisionInput> | undefined
     export type OverrideSheetMutationError = ErrorType<void>
 
     /**
- * @summary Admin-only immediate approval that bypasses the vote and materializes the character. Records overriddenBy.
+ * @summary Admin-only immediate decision that bypasses the vote. Approves (and materializes on close) or denies. Records overriddenBy.
  */
 export const useOverrideSheet = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideSheet>>, TError,{id: number;data?: BodyType<OverrideDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof overrideSheet>>,
         TError,
-        {id: number},
+        {id: number;data?: BodyType<OverrideDecisionInput>},
         TContext
       > => {
       return useMutation(getOverrideSheetMutationOptions(options));
@@ -13171,14 +13174,16 @@ export const getOverridePendingEditUrl = (id: number,) => {
 /**
  * @summary Admin-only immediate approval that bypasses the vote and applies the edit. Records overriddenBy.
  */
-export const overridePendingEdit = async (id: number, options?: RequestInit): Promise<OverridePendingEdit200> => {
+export const overridePendingEdit = async (id: number,
+    overrideDecisionInput?: OverrideDecisionInput, options?: RequestInit): Promise<OverridePendingEdit200> => {
 
   return customFetch<OverridePendingEdit200>(getOverridePendingEditUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      overrideDecisionInput,)
   }
 );}
 
@@ -13186,8 +13191,8 @@ export const overridePendingEdit = async (id: number, options?: RequestInit): Pr
 
 
 export const getOverridePendingEditMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number;data?: BodyType<OverrideDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number;data?: BodyType<OverrideDecisionInput>}, TContext> => {
 
 const mutationKey = ['overridePendingEdit'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -13199,10 +13204,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overridePendingEdit>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overridePendingEdit>>, {id: number;data?: BodyType<OverrideDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  overridePendingEdit(id,requestOptions)
+          return  overridePendingEdit(id,data,requestOptions)
         }
 
 
@@ -13213,18 +13218,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type OverridePendingEditMutationResult = NonNullable<Awaited<ReturnType<typeof overridePendingEdit>>>
-
+    export type OverridePendingEditMutationBody = BodyType<OverrideDecisionInput> | undefined
     export type OverridePendingEditMutationError = ErrorType<void>
 
     /**
  * @summary Admin-only immediate approval that bypasses the vote and applies the edit. Records overriddenBy.
  */
 export const useOverridePendingEdit = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overridePendingEdit>>, TError,{id: number;data?: BodyType<OverrideDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof overridePendingEdit>>,
         TError,
-        {id: number},
+        {id: number;data?: BodyType<OverrideDecisionInput>},
         TContext
       > => {
       return useMutation(getOverridePendingEditMutationOptions(options));

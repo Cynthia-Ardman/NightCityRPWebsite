@@ -2779,7 +2779,12 @@ paths:
     post:
       operationId: overrideSheet
       tags: [sheets]
-      summary: Admin-only immediate approval that bypasses the vote and materializes the character. Records overriddenBy.
+      summary: Admin-only immediate decision that bypasses the vote. Approves (and materializes on close) or denies. Records overriddenBy.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OverrideDecisionInput" }
       responses:
         "200":
           description: Approved via override
@@ -2870,6 +2875,11 @@ paths:
     post:
       operationId: overridePendingEdit
       tags: [pending-edits]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OverrideDecisionInput" }
       summary: Admin-only immediate approval that bypasses the vote and applies the edit. Records overriddenBy.
       responses:
         "200":
@@ -6139,6 +6149,7 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
+        ownerId: { type: ["string", "null"], description: "User id of the clinic owner; lets the owner reveal the Manage action." }
         ownerName: { type: ["string", "null"] }
         purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
@@ -6835,9 +6846,15 @@ components:
         location: { type: string, description: "Required for store/ripperdoc requests; in-world location." }
         source: { type: string, description: "For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source." }
 
+    OverrideDecisionInput:
+      type: object
+      properties:
+        decision: { type: string, enum: [approve, deny], description: "Override outcome. Defaults to approve; deny rejects the ticket (no effect applied on close)." }
+
     CustomRequestApproval:
       type: object
       properties:
+        decision: { type: string, enum: [approve, deny], description: "Override outcome. Defaults to approve; deny rejects the ticket and ignores the mechanical params below." }
         reviewerNote: { type: string }
         monthlyRent: { type: integer, minimum: 0, description: "Required for property requests." }
         kind: { type: string, enum: [residential, business], description: "For property requests; defaults residential." }

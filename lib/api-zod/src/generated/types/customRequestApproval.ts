@@ -5,9 +5,12 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CustomRequestApprovalDecision } from './customRequestApprovalDecision';
 import type { CustomRequestApprovalKind } from './customRequestApprovalKind';
 
 export interface CustomRequestApproval {
+  /** Override outcome. Defaults to approve; deny rejects the ticket and ignores the mechanical params below. */
+  decision?: CustomRequestApprovalDecision;
   reviewerNote?: string;
   /**
      * Required for property requests.
