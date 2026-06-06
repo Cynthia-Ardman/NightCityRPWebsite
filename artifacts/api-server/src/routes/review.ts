@@ -271,15 +271,20 @@ router.get("/review/unseen-counts", requireAuth, async (req, res): Promise<void>
 // both the player and staff pages).
 async function listUnseenIds(
   subjectType: SubjectType,
-  items: Array<{ id: number; baseAt: Date }>,
+  items: Array<{ id: number; baseAt: Date | null }>,
   viewerId: string,
+  opts: { excludeCommentAuthor?: string } = {},
 ): Promise<number[]> {
   if (items.length === 0) return [];
   const ids = items.map((i) => i.id);
+  const commentConds = [eq(reviewComments.subjectType, subjectType), inArray(reviewComments.subjectId, ids)];
+  // Submitter view passes excludeCommentAuthor=self so the player's own replies
+  // don't re-notify themselves; reviewer callers omit it and see every comment.
+  if (opts.excludeCommentAuthor) commentConds.push(ne(reviewComments.authorId, opts.excludeCommentAuthor));
   const commentRows = await db
     .select({ subjectId: reviewComments.subjectId, last: sql<string>`max(${reviewComments.createdAt})` })
     .from(reviewComments)
-    .where(and(eq(reviewComments.subjectType, subjectType), inArray(reviewComments.subjectId, ids)))
+    .where(and(...commentConds))
     .groupBy(reviewComments.subjectId);
   const lastComment = new Map(commentRows.map((r) => [r.subjectId, new Date(r.last)]));
   const seenRows = await db
@@ -290,7 +295,14 @@ async function listUnseenIds(
   const out: number[] = [];
   for (const item of items) {
     const c = lastComment.get(item.id);
-    const activityAt = c && c > item.baseAt ? c : item.baseAt;
+    const activityAt = maxDateOrNull(item.baseAt, c ?? null);
+    // A null activityAt means there is nothing for this viewer to be notified
+    // about (no decision/close and no qualifying comment). Reviewer callers
+    // always pass a non-null baseAt (submittedAt), so this only skips bare
+    // submissions in the submitter view — which is exactly the phantom-badge
+    // case: a freshly submitted pending row must NOT light up its own author's
+    // badge before any reviewer has acted on it.
+    if (!activityAt) continue;
     const s = seen.get(item.id);
     if (!s || s.getTime() < activityAt.getTime()) out.push(item.id);
   }
@@ -300,6 +312,14 @@ async function listUnseenIds(
 function maxDate(...dates: Array<Date | null | undefined>): Date {
   let m = new Date(0);
   for (const d of dates) if (d && d.getTime() > m.getTime()) m = d;
+  return m;
+}
+
+// Like maxDate but returns null when none of the inputs are set, so callers can
+// distinguish "no activity at all" from "activity at the epoch".
+function maxDateOrNull(...dates: Array<Date | null | undefined>): Date | null {
+  let m: Date | null = null;
+  for (const d of dates) if (d && (!m || d.getTime() > m.getTime())) m = d;
   return m;
 }
 
@@ -328,9 +348,15 @@ router.get("/review/my-unseen", requireAuth, async (req, res): Promise<void> => 
     .from(characterSheets)
     .where(and(eq(characterSheets.ownerId, viewerId), ne(characterSheets.status, "draft")));
 
-  const edit = await listUnseenIds("edit", editRows.map((r) => ({ id: r.id, baseAt: maxDate(r.submittedAt, r.decidedAt, r.closedAt) })), viewerId);
-  const request = await listUnseenIds("request", requestRows.map((r) => ({ id: r.id, baseAt: maxDate(r.createdAt, r.reviewedAt, r.closedAt) })), viewerId);
-  const sheet = await listUnseenIds("sheet", sheetRows.map((r) => ({ id: r.id, baseAt: maxDate(r.createdAt, r.decidedAt, r.closedAt) })), viewerId);
+  // The SUBMITTER is only notified by reviewer-side activity: a decision
+  // (decidedAt/reviewedAt), a close, or a comment from someone other than
+  // themselves. The bare submission timestamp (submittedAt/createdAt) is
+  // deliberately NOT a trigger here — including it made every freshly submitted
+  // pending row light up its own author's "My Requests" badge with nothing new
+  // to read, the recurring phantom-pending-edit bug.
+  const edit = await listUnseenIds("edit", editRows.map((r) => ({ id: r.id, baseAt: maxDateOrNull(r.decidedAt, r.closedAt) })), viewerId, { excludeCommentAuthor: viewerId });
+  const request = await listUnseenIds("request", requestRows.map((r) => ({ id: r.id, baseAt: maxDateOrNull(r.reviewedAt, r.closedAt) })), viewerId, { excludeCommentAuthor: viewerId });
+  const sheet = await listUnseenIds("sheet", sheetRows.map((r) => ({ id: r.id, baseAt: maxDateOrNull(r.decidedAt, r.closedAt) })), viewerId, { excludeCommentAuthor: viewerId });
 
   res.json({ edit, request, sheet, total: edit.length + request.length + sheet.length });
 });

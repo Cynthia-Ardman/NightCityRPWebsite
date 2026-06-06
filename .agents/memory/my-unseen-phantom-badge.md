@@ -39,6 +39,26 @@ clear → a stuck "phantom" count.
 `/requests/mine` and `/sheets` (non-draft) are already owner-scoped across all
 statuses, so requests and non-draft sheets were never phantom.
 
+3. **Bare submission triggered its own author's badge (the real recurring
+   cause).** `my-unseen` is documented to count only rows with reviewer-side
+   activity ("a reviewer comment or a decision/close"), but the impl set
+   `baseAt = max(submittedAt/createdAt, decidedAt, closedAt)` (always ≥ the
+   submission time) and `listUnseenIds` counts any row with **no `review_seen`
+   row** (`if (!s || ...)`). So the instant a player submitted a pending
+   edit/request/sheet they got a "1" on their OWN My Requests badge with zero
+   reviewer activity — a phantom that recurs on every submission. Note the row
+   IS renderable, so invariant #1 doesn't catch this; it's a *trigger* bug, not
+   a renderability gap. Fix: in `my-unseen` only, pass
+   `baseAt = maxDateOrNull(decidedAt/reviewedAt, closedAt)` (drop the submission
+   ts; `maxDateOrNull` returns null when none set) and
+   `listUnseenIds(..., { excludeCommentAuthor: viewerId })`; `listUnseenIds`
+   skips items whose computed `activityAt` is null. Reviewer callers
+   (`unseen-counts`/`unseen-ids`/`countUnseen`) still pass `submittedAt` as a
+   non-null baseAt and omit `excludeCommentAuthor`, so their behavior is
+   unchanged — a new pending submission SHOULD notify reviewers.
+   **Why:** the submission timestamp is activity *to a reviewer*, never to the
+   author; conflating the two views in one shared `baseAt` is the trap.
+
 **Why not a backend union on `/pending-edits`** (`or(staffWhere, submittedBy=me)`):
 the staff Pending Requests queue consumes the same endpoint and does NOT filter
 own rows from display, so a union would pollute the reviewer's own queue with
