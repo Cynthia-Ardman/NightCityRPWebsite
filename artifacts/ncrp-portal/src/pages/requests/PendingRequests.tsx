@@ -383,9 +383,9 @@ function ApproveDialog({
 
   return (
     <Dialog open={!!request} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="rounded-none border-nc-green/40 bg-card sm:max-w-md">
+      <DialogContent className="rounded-none border-nc-green/40 bg-card sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-display tracking-widest text-nc-green">
+          <DialogTitle className="font-display tracking-widest text-nc-green break-words">
             {heading} — {request.title.toUpperCase()}
           </DialogTitle>
           <DialogDescription className="font-mono text-xs">
@@ -498,29 +498,35 @@ function ApproveDialog({
             />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="ghost" className="rounded-none font-display" onClick={onClose}>
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:space-x-0">
+          <Button
+            variant="ghost"
+            className="w-full rounded-none font-display sm:w-auto"
+            onClick={onClose}
+          >
             CANCEL
           </Button>
-          {mode === "override" && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+            {mode === "override" && (
+              <Button
+                variant="outline"
+                className="w-full rounded-none font-display tracking-widest border-destructive text-destructive hover:bg-destructive/10 sm:w-auto"
+                disabled={busy}
+                onClick={() => override.mutate({ id: request.id, data: { decision: "deny", reviewerNote: reviewerNote.trim() || undefined } })}
+                data-testid="button-override-deny"
+              >
+                {busy ? "WORKING..." : "OVERRIDE & DENY"}
+              </Button>
+            )}
             <Button
-              variant="outline"
-              className="rounded-none font-display tracking-widest border-destructive text-destructive hover:bg-destructive/10"
-              disabled={busy}
-              onClick={() => override.mutate({ id: request.id, data: { decision: "deny", reviewerNote: reviewerNote.trim() || undefined } })}
-              data-testid="button-override-deny"
+              className="w-full rounded-none font-display tracking-widest bg-nc-green text-background hover:bg-nc-green/80 sm:w-auto"
+              disabled={!valid || busy}
+              onClick={submit}
+              data-testid="button-confirm-approve"
             >
-              {busy ? "WORKING..." : "OVERRIDE & DENY"}
+              {busy ? "WORKING..." : cta}
             </Button>
-          )}
-          <Button
-            className="rounded-none font-display tracking-widest bg-nc-green text-background hover:bg-nc-green/80"
-            disabled={!valid || busy}
-            onClick={submit}
-            data-testid="button-confirm-approve"
-          >
-            {busy ? "WORKING..." : cta}
-          </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
