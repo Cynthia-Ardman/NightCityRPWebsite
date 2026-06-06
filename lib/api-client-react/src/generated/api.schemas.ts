@@ -3871,6 +3871,16 @@ export interface AdminUser {
   characters?: Character[];
 }
 
+export interface DiscordMemberOption {
+  id: string;
+  username: string;
+  /** @nullable */
+  globalName?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  hasAccount: boolean;
+}
+
 export interface WalletAdjustmentInput {
   characterId: number;
   /** positive or negative */
@@ -5411,6 +5421,10 @@ export type GetCharacterPendingEdit200 = {
   id: number;
   submittedAt: string;
   submittedBy: string;
+};
+
+export type AdminSearchDiscordMembersParams = {
+q: string;
 };
 
 export type AdminRecordCheckup200 = {

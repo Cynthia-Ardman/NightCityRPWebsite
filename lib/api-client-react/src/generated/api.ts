@@ -31,6 +31,7 @@ import type {
   AdminListAuditLogParams,
   AdminListAuditParams,
   AdminRecordCheckup200,
+  AdminSearchDiscordMembersParams,
   AdminUser,
   ApplyToMissionInput,
   ApproveOfferResult,
@@ -103,6 +104,7 @@ import type {
   DiceRollInput,
   DiceRollResult,
   DiscordCallbackParams,
+  DiscordMemberOption,
   DismissNotificationPrompt200,
   DismissOnboarding200,
   EconomyOutOfSyncList,
@@ -13934,6 +13936,90 @@ export const useAdminSyncUserRoles = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getAdminSyncUserRolesMutationOptions(options));
     }
+
+export const getAdminSearchDiscordMembersUrl = (params: AdminSearchDiscordMembersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/discord/members?${stringifiedParams}` : `/api/admin/discord/members`
+}
+
+/**
+ * @summary Search the Discord guild for a member to assign as a character owner (includes members who have never signed in to the portal).
+ */
+export const adminSearchDiscordMembers = async (params: AdminSearchDiscordMembersParams, options?: RequestInit): Promise<DiscordMemberOption[]> => {
+
+  return customFetch<DiscordMemberOption[]>(getAdminSearchDiscordMembersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminSearchDiscordMembersQueryKey = (params?: AdminSearchDiscordMembersParams,) => {
+    return [
+    `/api/admin/discord/members`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminSearchDiscordMembersQueryOptions = <TData = Awaited<ReturnType<typeof adminSearchDiscordMembers>>, TError = ErrorType<unknown>>(params: AdminSearchDiscordMembersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminSearchDiscordMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminSearchDiscordMembersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminSearchDiscordMembers>>> = ({ signal }) => adminSearchDiscordMembers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminSearchDiscordMembers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminSearchDiscordMembersQueryResult = NonNullable<Awaited<ReturnType<typeof adminSearchDiscordMembers>>>
+export type AdminSearchDiscordMembersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search the Discord guild for a member to assign as a character owner (includes members who have never signed in to the portal).
+ */
+
+export function useAdminSearchDiscordMembers<TData = Awaited<ReturnType<typeof adminSearchDiscordMembers>>, TError = ErrorType<unknown>>(
+ params: AdminSearchDiscordMembersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminSearchDiscordMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminSearchDiscordMembersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getAdminListCharactersUrl = () => {
 

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useAdminListUsers,
   useAdminCreateCharacter,
   getAdminListCharactersQueryKey,
 } from "@workspace/api-client-react";
@@ -12,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ImageEditor from "@/components/ImageEditor";
 import CyberwareEditor, { type CyberRow } from "@/components/CyberwareEditor";
+import OwnerPicker from "@/components/OwnerPicker";
 
 // Admin/fixer form to hand-create a character that skips the player sheet
 // pipeline: type the details, optionally attach an owner + portraits, and it
@@ -19,7 +19,6 @@ import CyberwareEditor, { type CyberRow } from "@/components/CyberwareEditor";
 export default function CreateCharacterCard() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: users } = useAdminListUsers();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"pc" | "npc">("pc");
@@ -161,22 +160,11 @@ export default function CreateCharacterCard() {
             </div>
             <div className="space-y-1">
               <Label className="font-display text-xs text-muted-foreground">OWNER (optional)</Label>
-              <select
+              <OwnerPicker
                 value={ownerId}
-                onChange={(e) => setOwnerId(e.target.value)}
-                className={inputCls}
-                data-testid="select-create-char-owner"
-              >
-                <option value="">— Unclaimed —</option>
-                {(users ?? [])
-                  .slice()
-                  .sort((a, b) => a.username.localeCompare(b.username))
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.username}
-                    </option>
-                  ))}
-              </select>
+                onChange={(id) => setOwnerId(id)}
+                testIdPrefix="create-char-owner"
+              />
             </div>
             <div className="space-y-1">
               <Label className="font-display text-xs text-muted-foreground">LIFE STATUS</Label>

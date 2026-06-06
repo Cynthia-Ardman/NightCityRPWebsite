@@ -12,10 +12,10 @@ import {
   botStoreInventory, botTicketIndex, botMissionLog, botBusinessOpenLog,
   botPlayerInventory,
 } from "@workspace/db";
-import { isNull, or, ilike, count } from "drizzle-orm";
+import { isNull, or, ilike, count, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, type ThreadAttachment } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, type ThreadAttachment } from "../lib/discord";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob } from "../lib/jobs";
@@ -42,6 +42,37 @@ router.use("/admin", requireAuth);
 const adminOnly = requireRole("ADMIN");
 const adminOrFixer = requireAnyRole(["ADMIN", "FIXER"]);
 
+// Resolve an ownerId to a `users` row, provisioning a minimal stub for a Discord
+// member who has never signed in. Staff can assign a character to ANYONE in the
+// guild; if the target has no `users` row yet we mint one keyed on their Discord
+// id (which is also the users PK). When that member later signs in, the OAuth
+// callback's upsert matches this same id and fills in the live session fields —
+// so the ownership we set now is preserved seamlessly. Returns the row, or null
+// if the id matches neither an existing user nor a reachable Discord user.
+async function resolveOrProvisionOwner(
+  ownerId: string,
+): Promise<typeof users.$inferSelect | null> {
+  const [existing] = await db.select().from(users).where(eq(users.id, ownerId));
+  if (existing) return existing;
+  const profile = await fetchDiscordUser(ownerId);
+  if (!profile) return null;
+  const [created] = await db
+    .insert(users)
+    .values({
+      id: profile.id,
+      discordId: profile.id,
+      username: profile.username,
+      globalName: profile.globalName,
+      avatarUrl: profile.avatarUrl,
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (created) return created;
+  // Lost an insert race — read the row the other writer just created.
+  const [row] = await db.select().from(users).where(eq(users.id, ownerId));
+  return row ?? null;
+}
+
 router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(users).orderBy(desc(users.lastSeenAt));
   res.json(
@@ -59,6 +90,38 @@ router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
       isStoreOwner: hasRole(u.roles, "STORE_OWNER"),
       lastSeenAt: u.lastSeenAt,
       rolesSyncedAt: u.rolesSyncedAt,
+    })),
+  );
+});
+
+// Search the entire Discord guild for a member to assign as a character owner —
+// including members who have never signed in (and so have no `users` row).
+// Each result carries `hasAccount` so the UI can hint who is already a portal
+// user; assignment provisions a stub `users` row for those who aren't (see
+// resolveOrProvisionOwner), which their first login then adopts.
+router.get("/admin/discord/members", adminOrFixer, async (req, res): Promise<void> => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (q.length < 2) {
+    res.json([]);
+    return;
+  }
+  const members = await searchGuildMembers(q, 25);
+  if (members === null) {
+    res.status(502).json({ error: "Discord member search is unavailable right now" });
+    return;
+  }
+  const ids = members.map((m) => m.id);
+  const existing = ids.length
+    ? await db.select({ id: users.id }).from(users).where(inArray(users.id, ids))
+    : [];
+  const accountIds = new Set(existing.map((u) => u.id));
+  res.json(
+    members.map((m) => ({
+      id: m.id,
+      username: m.username,
+      globalName: m.globalName,
+      avatarUrl: m.avatarUrl,
+      hasAccount: accountIds.has(m.id),
     })),
   );
 });
@@ -321,11 +384,12 @@ router.post("/admin/characters", adminOrFixer, async (req, res): Promise<void> =
   let owner: typeof users.$inferSelect | undefined;
   if (typeof b.ownerId === "string" && b.ownerId.trim()) {
     ownerId = b.ownerId.trim();
-    [owner] = await db.select().from(users).where(eq(users.id, ownerId));
-    if (!owner) {
+    const resolved = await resolveOrProvisionOwner(ownerId);
+    if (!resolved) {
       res.status(404).json({ error: "Owner (user) not found" });
       return;
     }
+    owner = resolved;
   }
 
   const created = await db.transaction(async (tx) => {
@@ -417,7 +481,7 @@ router.put("/admin/characters/:id/owner", adminOrFixer, async (req, res): Promis
     res.status(404).json({ error: "Character not found" });
     return;
   }
-  const [u] = await db.select().from(users).where(eq(users.id, ownerId));
+  const u = await resolveOrProvisionOwner(ownerId);
   if (!u) {
     res.status(404).json({ error: "User not found" });
     return;

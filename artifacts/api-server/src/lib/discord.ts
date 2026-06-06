@@ -455,6 +455,62 @@ export async function listGuildMembersWithRole(
   }
 }
 
+/**
+ * Search the guild's members by username / nickname / global name via the bot
+ * token (`GET /guilds/{guild}/members/search?query=`). Lets staff assign a
+ * character to ANY guild member — including people who have never signed in to
+ * the portal (and so have no `users` row yet). Read-only; returns:
+ *   - GuildMemberLite[] on success (possibly empty),
+ *   - null              when the search could not be performed (missing config
+ *                       or an upstream/network error) so callers can surface a
+ *                       "search unavailable" state instead of "no matches".
+ */
+export async function searchGuildMembers(
+  query: string,
+  limit = 25,
+): Promise<GuildMemberLite[] | null> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) return null;
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    const capped = Math.min(Math.max(limit, 1), 100);
+    const res = await fetch(
+      `${API}/guilds/${DISCORD_GUILD_ID}/members/search?query=${encodeURIComponent(q)}&limit=${capped}`,
+      {
+        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!res.ok) {
+      logger.warn(
+        { status: res.status, body: await res.text() },
+        "searchGuildMembers failed",
+      );
+      return null;
+    }
+    const members = (await res.json()) as Array<{
+      user?: {
+        id: string;
+        username: string;
+        global_name: string | null;
+        avatar: string | null;
+        bot?: boolean;
+      };
+    }>;
+    return members
+      .filter((m): m is { user: NonNullable<(typeof m)["user"]> } => Boolean(m.user) && !m.user!.bot)
+      .map((m) => ({
+        id: m.user.id,
+        username: m.user.username,
+        globalName: m.user.global_name ?? null,
+        avatarUrl: avatarUrl(m.user.id, m.user.avatar),
+      }));
+  } catch (err) {
+    logger.error({ err, query: q }, "searchGuildMembers error");
+    return null;
+  }
+}
+
 export function avatarUrl(discordId: string, hash: string | null | undefined): string | null {
   if (!hash) return null;
   return `https://cdn.discordapp.com/avatars/${discordId}/${hash}.png`;

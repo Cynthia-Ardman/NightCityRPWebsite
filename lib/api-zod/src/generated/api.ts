@@ -7416,6 +7416,23 @@ export const AdminSyncUserRolesResponse = zod.object({
 })
 
 
+/**
+ * @summary Search the Discord guild for a member to assign as a character owner (includes members who have never signed in to the portal).
+ */
+export const AdminSearchDiscordMembersQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const AdminSearchDiscordMembersResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "hasAccount": zod.boolean()
+})
+export const AdminSearchDiscordMembersResponse = zod.array(AdminSearchDiscordMembersResponseItem)
+
+
 export const AdminListCharactersResponseItem = zod.object({
   "id": zod.number(),
   "ownerId": zod.string().nullish(),

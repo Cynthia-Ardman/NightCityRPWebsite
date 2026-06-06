@@ -3054,6 +3054,21 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/discord/members:
+    get:
+      operationId: adminSearchDiscordMembers
+      tags: [admin]
+      summary: Search the Discord guild for a member to assign as a character owner (includes members who have never signed in to the portal).
+      parameters:
+        - { in: query, name: q, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Matching guild members
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DiscordMemberOption" }
   /admin/characters:
     get:
       operationId: adminListCharacters
@@ -7296,6 +7311,16 @@ components:
         characters:
           type: array
           items: { $ref: "#/components/schemas/Character" }
+
+    DiscordMemberOption:
+      type: object
+      required: [id, username, hasAccount]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        globalName: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        hasAccount: { type: boolean }
 
     WalletAdjustmentInput:
       type: object
