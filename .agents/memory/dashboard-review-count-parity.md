@@ -19,3 +19,23 @@ dashboard count is the outlier that produces the phantom-pending complaint.
 **How to apply:** When adding/auditing any dashboard staff tally, check it against the
 queue's filter (own-exclusion + role gate). Note the queue LIST itself (e.g. /sheets/pending)
 may still include own rows for visibility — that's a separate, lower-severity inconsistency.
+
+## Second parity axis: request TYPE exclusion (not just own-exclusion)
+
+The staff custom-request queue (`GET /requests`) excludes the My-Requests-only types
+`stock_cost` (owner-approved), `employee_invite` (invitee-decided), and
+`mission_participation` (player-decided) — they never appear in staff triage. But the
+reviewer unseen endpoints (`/review/unseen-counts` and `/review/unseen-ids`, which feed the
+dashboard "Pending Requests" card, the misc-tab badge, AND PendingRequests' land-on-first-
+unseen-tab logic) historically selected actionable `customRequests` by STATUS only, with no
+type exclusion. A pending+unseen request of an excluded type then counted on the card/badge
+while the queue it links to rendered nothing → recurring phantom "1 pending request, nothing
+there". `mission_participation` is created on every mission roster, so this recurs often.
+
+**Rule:** count surfaces and the queue must exclude the SAME types. The list is exported as
+`STAFF_QUEUE_EXCLUDED_REQUEST_TYPES` from `requests.ts` (single source of truth) and reused
+by both the queue and the two reviewer unseen blocks via `notInArray`. Any new staff
+custom-request count must reuse that constant, not re-list types inline.
+
+**Why:** own-exclusion alone is insufficient parity; type-exclusion is a second independent
+axis that produced the same phantom symptom.

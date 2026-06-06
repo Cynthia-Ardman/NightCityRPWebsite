@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
 import {
   db,
   reviewComments,
@@ -14,7 +14,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage } from "../lib/discord";
 import { isReviewer, type ReviewActionResult } from "../lib/review";
-import { closeRequest, reopenRequest } from "./requests";
+import { closeRequest, reopenRequest, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES } from "./requests";
 import { closeEdit, reopenEdit } from "./pending-edits";
 import { closeSheet, reopenSheet } from "./sheets";
 
@@ -250,10 +250,16 @@ router.get("/review/unseen-counts", requireAuth, async (req, res): Promise<void>
     edits = await countUnseen("edit", rows.filter((r) => r.submittedBy !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
   }
   if (canMisc) {
+    // Mirror the staff /requests queue exactly: exclude the My-Requests-only
+    // types it never renders, or the dashboard card counts a ticket the queue
+    // it links to can't show (phantom "1 pending request, nothing there").
     const rows = await db
       .select({ id: customRequests.id, requestedById: customRequests.requestedById, baseAt: customRequests.createdAt })
       .from(customRequests)
-      .where(inArray(customRequests.status, ACTIONABLE as unknown as string[]));
+      .where(and(
+        inArray(customRequests.status, ACTIONABLE as unknown as string[]),
+        notInArray(customRequests.type, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES as unknown as string[]),
+      ));
     requests = await countUnseen("request", rows.filter((r) => r.requestedById !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
   }
   if (canSheets) {
@@ -385,10 +391,15 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
     edit = await listUnseenIds("edit", rows.filter((r) => r.submittedBy !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
   }
   if (canMisc) {
+    // Same exclusion as /review/unseen-counts so the misc-tab badge and the
+    // landing-tab logic never light up for a type the queue doesn't render.
     const rows = await db
       .select({ id: customRequests.id, requestedById: customRequests.requestedById, baseAt: customRequests.createdAt })
       .from(customRequests)
-      .where(inArray(customRequests.status, ACTIONABLE as unknown as string[]));
+      .where(and(
+        inArray(customRequests.status, ACTIONABLE as unknown as string[]),
+        notInArray(customRequests.type, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES as unknown as string[]),
+      ));
     request = await listUnseenIds("request", rows.filter((r) => r.requestedById !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
   }
   if (canSheets) {

@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { and, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
 import {
   db,
   customRequests,
@@ -41,6 +41,15 @@ import {
 
 const REQUEST_TYPES = ["property", "gun", "cyberware", "store", "ripperdoc"] as const;
 type RequestType = (typeof REQUEST_TYPES)[number];
+
+// Custom-request types that NEVER appear in the staff triage queue: `stock_cost`
+// is owner-approved, `employee_invite` is decided by the invited player, and
+// `mission_participation` is decided by the assigned character's player. They
+// live only in "My Requests". Exported so the reviewer unseen-count / unseen-id
+// endpoints (review.ts) can exclude the exact same set — otherwise the dashboard
+// "Pending Requests" card and the misc-tab badge count a ticket that the queue
+// they link to never renders (a phantom "1 pending request, nothing there").
+export const STAFF_QUEUE_EXCLUDED_REQUEST_TYPES = ["stock_cost", "employee_invite", "mission_participation"] as const;
 
 // Venue requests (store/ripperdoc) carry name/character plus required
 // purpose/location/description and materialize into the stores/ripperdocs
@@ -628,15 +637,12 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
   const statusPredicate = bucket
     ? bucketPredicate(bucket)
     : eq(customRequests.status, String(req.query.status ?? "pending"));
-  // `stock_cost` (owner-approved) and `employee_invite` (decided by the invited
-  // player) live only in "My Requests", never in the staff triage queue.
+  // Exclude the My-Requests-only types (see STAFF_QUEUE_EXCLUDED_REQUEST_TYPES).
   // `venue_stock` IS fixer-voted, so it stays here.
   const rows = await selectWhere(
     and(
       statusPredicate,
-      ne(customRequests.type, "stock_cost"),
-      ne(customRequests.type, "employee_invite"),
-      ne(customRequests.type, "mission_participation"),
+      notInArray(customRequests.type, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES as unknown as string[]),
     ),
   );
   res.json(await attachTallies(rows, req.user!.id));
