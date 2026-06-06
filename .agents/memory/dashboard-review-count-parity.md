@@ -39,3 +39,18 @@ custom-request count must reuse that constant, not re-list types inline.
 
 **Why:** own-exclusion alone is insufficient parity; type-exclusion is a second independent
 axis that produced the same phantom symptom.
+
+## Third axis: client-side cache invalidation after a vote
+
+Even with correct server-side parity, the dashboard "Pending Sheets" card and the
+sidebar staff sheet badge can show a STALE count after a reviewer votes, because
+those are independent react-query caches. The sheet vote/override/resubmit
+mutations (SheetDetail's shared `invalidate()`) must invalidate
+`getGetDashboardSummaryQueryKey()` (Home's Pending Sheets card) and
+`getGetReviewUnseenCountsQueryKey()` (AppLayout staff badge) — not just the sheet
+detail + pending list. Opening the sheet only marks-seen (clears unseen badges via
+ReviewCommentThread); it does NOT refetch the dashboard summary, whose count is the
+voted-exclusion query.
+
+**Rule:** any review action that changes what a staff count surface should show
+must invalidate that surface's query key, not only the detail/list it lives on.

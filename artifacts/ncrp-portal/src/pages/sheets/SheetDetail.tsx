@@ -8,6 +8,8 @@ import {
   useListCyberware,
   getGetSheetQueryKey,
   getListPendingSheetsQueryKey,
+  getGetDashboardSummaryQueryKey,
+  getGetReviewUnseenCountsQueryKey,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +66,12 @@ export default function SheetDetail() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getGetSheetQueryKey(sheetId) });
     qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
+    // The dashboard "Pending Sheets" card counts pending sheets the viewer
+    // hasn't voted on (server-side NOT EXISTS against review_votes), and the
+    // sidebar sheet badge comes from the review unseen-counts — both go stale
+    // after a vote/override/resubmit unless we refetch them here.
+    qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
   };
   const errMsg = (err: unknown, fallback: string) =>
     (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
