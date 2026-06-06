@@ -20,6 +20,12 @@ type Props = {
   stock: { id: number; name: string; price: number; quantity: number };
   onClose: () => void;
   onDone: () => void;
+  // Optional pre-selected buyer (e.g. the Ripperdoc Console's current patient).
+  // When `lockBuyer` is set the picker is read-only so the doc can't retarget
+  // a different character mid-flow. Defaults keep the standalone clinic usage
+  // (own picker, no preset) unchanged.
+  presetBuyer?: CharacterPickerValue;
+  lockBuyer?: boolean;
 };
 
 const ACTIONS: { key: Action; label: string }[] = [
@@ -28,9 +34,9 @@ const ACTIONS: { key: Action; label: string }[] = [
   { key: "install", label: "INSTALL" },
 ];
 
-export default function CyberwareActionDialog({ venueId, stock, onClose, onDone }: Props) {
+export default function CyberwareActionDialog({ venueId, stock, onClose, onDone, presetBuyer, lockBuyer }: Props) {
   const [action, setAction] = useState<Action>("install");
-  const [buyer, setBuyer] = useState<CharacterPickerValue>(null);
+  const [buyer, setBuyer] = useState<CharacterPickerValue>(presetBuyer ?? null);
   const [qty, setQty] = useState(1);
   const [memo, setMemo] = useState("");
 
@@ -114,7 +120,16 @@ export default function CyberwareActionDialog({ venueId, stock, onClose, onDone 
 
             <div>
               <Label className="text-xs">BUYER</Label>
-              <CharacterPicker value={buyer} onChange={setBuyer} testId="input-cyberware-buyer" />
+              {lockBuyer && buyer ? (
+                <div
+                  className="border border-border/60 bg-background/40 px-3 py-2 text-foreground"
+                  data-testid="text-cyberware-buyer-locked"
+                >
+                  {buyer.name}
+                </div>
+              ) : (
+                <CharacterPicker value={buyer} onChange={setBuyer} testId="input-cyberware-buyer" />
+              )}
             </div>
 
             {action === "install" && buyer && cap && (

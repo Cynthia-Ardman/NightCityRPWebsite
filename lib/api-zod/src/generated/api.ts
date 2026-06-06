@@ -7603,6 +7603,47 @@ export const AdminRecordCheckupResponse = zod.object({
 
 
 /**
+ * @summary Consolidated ripperdoc medical record — derived band, installed chrome, checkup history, meds payments.
+ */
+export const GetCharacterMedicalParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCharacterMedicalResponse = zod.object({
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "kind": zod.string(),
+  "cyberwareLevel": zod.string().nullish(),
+  "band": zod.string(),
+  "usedCwp": zod.number(),
+  "lastCheckupAt": zod.coerce.date().nullish(),
+  "checkupStreak": zod.number(),
+  "installed": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string().nullable(),
+  "quantity": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "cwp": zod.number()
+})),
+  "checkups": zod.array(zod.object({
+  "id": zod.number(),
+  "message": zod.string().nullish(),
+  "actorName": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "level": zod.string().nullish()
+})),
+  "medsPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "kind": zod.string(),
+  "memo": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
  * @summary Public list of imported character sheets.
  */
 export const ListPublicCharactersQueryParams = zod.object({

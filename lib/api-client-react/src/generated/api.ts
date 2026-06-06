@@ -122,6 +122,7 @@ import type {
   FixerNpcInput,
   FixerNpcUpdate,
   GetActorReportParams,
+  GetCharacterMedical200,
   GetCharacterPendingEdit200,
   GetMyBreachPendingCount200,
   GuidebookBrowse,
@@ -14374,6 +14375,83 @@ export const useAdminRecordCheckup = <TError = ErrorType<void>,
       > => {
       return useMutation(getAdminRecordCheckupMutationOptions(options));
     }
+
+export const getGetCharacterMedicalUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/characters/${id}/medical`
+}
+
+/**
+ * @summary Consolidated ripperdoc medical record — derived band, installed chrome, checkup history, meds payments.
+ */
+export const getCharacterMedical = async (id: number, options?: RequestInit): Promise<GetCharacterMedical200> => {
+
+  return customFetch<GetCharacterMedical200>(getGetCharacterMedicalUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCharacterMedicalQueryKey = (id: number,) => {
+    return [
+    `/api/admin/characters/${id}/medical`
+    ] as const;
+    }
+
+
+export const getGetCharacterMedicalQueryOptions = <TData = Awaited<ReturnType<typeof getCharacterMedical>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCharacterMedical>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCharacterMedicalQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCharacterMedical>>> = ({ signal }) => getCharacterMedical(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCharacterMedical>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCharacterMedicalQueryResult = NonNullable<Awaited<ReturnType<typeof getCharacterMedical>>>
+export type GetCharacterMedicalQueryError = ErrorType<void>
+
+
+/**
+ * @summary Consolidated ripperdoc medical record — derived band, installed chrome, checkup history, meds payments.
+ */
+
+export function useGetCharacterMedical<TData = Awaited<ReturnType<typeof getCharacterMedical>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCharacterMedical>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCharacterMedicalQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListPublicCharactersUrl = (params?: ListPublicCharactersParams,) => {
   const normalizedParams = new URLSearchParams();

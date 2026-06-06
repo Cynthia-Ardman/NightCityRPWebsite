@@ -15,10 +15,15 @@ type Props = {
   venueId: number;
   onClose: () => void;
   onDone: () => void;
+  // Optional pre-selected patient (e.g. the Ripperdoc Console). With
+  // `lockTarget` the picker is read-only. Defaults keep the clinic usage
+  // (own picker, no preset) unchanged.
+  presetTarget?: CharacterPickerValue;
+  lockTarget?: boolean;
 };
 
-export default function RemoveCyberwareDialog({ venueId, onClose, onDone }: Props) {
-  const [target, setTarget] = useState<CharacterPickerValue>(null);
+export default function RemoveCyberwareDialog({ venueId, onClose, onDone, presetTarget, lockTarget }: Props) {
+  const [target, setTarget] = useState<CharacterPickerValue>(presetTarget ?? null);
   const [itemId, setItemId] = useState<number | null>(null);
   const [fee, setFee] = useState(0);
   const [memo, setMemo] = useState("");
@@ -64,14 +69,23 @@ export default function RemoveCyberwareDialog({ venueId, onClose, onDone }: Prop
 
             <div>
               <Label className="text-xs">CHARACTER</Label>
-              <CharacterPicker
-                value={target}
-                onChange={(v) => {
-                  setTarget(v);
-                  setItemId(null);
-                }}
-                testId="input-remove-character"
-              />
+              {lockTarget && target ? (
+                <div
+                  className="border border-border/60 bg-background/40 px-3 py-2 text-foreground"
+                  data-testid="text-remove-character-locked"
+                >
+                  {target.name}
+                </div>
+              ) : (
+                <CharacterPicker
+                  value={target}
+                  onChange={(v) => {
+                    setTarget(v);
+                    setItemId(null);
+                  }}
+                  testId="input-remove-character"
+                />
+              )}
             </div>
 
             {target && (

@@ -1,13 +1,23 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetCharacterMedical,
+  getGetCharacterMedicalQueryKey,
+  useListMyRipperdocs,
+  useGetRipperdoc,
+  getGetRipperdocQueryKey,
+  getGetCharacterCyberwareQueryKey,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Syringe, Search } from "lucide-react";
+import { Syringe, Search, Activity, Plus, Trash2, Stethoscope, Wallet } from "lucide-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Redirect } from "wouter";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import CyberwareActionDialog from "@/components/CyberwareActionDialog";
+import RemoveCyberwareDialog from "@/components/RemoveCyberwareDialog";
 
 const LEVELS = ["none", "medium", "high", "extreme"] as const;
 type Level = typeof LEVELS[number];
@@ -30,28 +40,41 @@ interface DirectoryChar {
   legacyDiscordUsername?: string | null;
 }
 
+// Cyberpsychosis band → accent colour for the at-a-glance risk readout.
+const BAND_COLOR: Record<string, string> = {
+  none: "text-nc-green",
+  medium: "text-nc-yellow",
+  high: "text-nc-magenta",
+  extreme: "text-destructive",
+  exempt: "text-muted-foreground",
+};
+
 // Standalone ripperdoc workstation. Gated to users with the RIPPERDOC
-// (or ADMIN) Discord role — the backend enforces it on the checkup
-// endpoint, this page just hides the link/route for everyone else so we
-// don't surface a 403 wall to random players.
+// (or ADMIN) Discord role — the backend enforces it on the checkup +
+// medical endpoints, this page just hides the link/route for everyone
+// else so we don't surface a 403 wall to random players.
 export default function RipperdocConsole() {
   const { data: me, isLoading: meLoading } = useAuthMe();
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [level, setLevel] = useState<Level | "">("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [clinicId, setClinicId] = useState<number | null>(null);
+  // Stock item chosen to install onto the current patient; opening the
+  // existing CyberwareActionDialog with the patient pre-locked.
+  const [installStock, setInstallStock] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
 
-  // Character directory is paged by the existing useListAllCharacters
-  // hook; we filter client-side on name for the picker so a doc can type
-  // a partial street name without round-tripping.
+  // Character directory — filter client-side on name for the picker so a doc
+  // can type a partial street name without round-tripping.
   const { data: charsResp, isLoading: charsLoading } = useQuery<DirectoryChar[]>({
     queryKey: ["ripperdoc-directory"],
     queryFn: async () => {
       const r = await fetch("/api/directory/characters?limit=500", { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load characters");
       const body = await r.json();
-      // Tolerate either {items:[...]} (paged) or a bare array shape.
       const list = Array.isArray(body) ? body : body.items ?? [];
       return list as DirectoryChar[];
     },
@@ -64,9 +87,6 @@ export default function RipperdocConsole() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return allChars.slice(0, 50);
-    // Match the character's street name OR the player behind it (current
-    // owner username or the legacy Discord handle from import), so a doc can
-    // pull up every character a given player runs.
     return allChars
       .filter(
         (c) =>
@@ -92,6 +112,32 @@ export default function RipperdocConsole() {
 
   const selected = selectedId ? allChars.find((c) => c.id === selectedId) : null;
 
+  // Consolidated medical record (derived band, installed chrome, checkup +
+  // meds history) — role-gated so a doc can read any patient.
+  const { data: medical, isLoading: medicalLoading } = useGetCharacterMedical(selectedId ?? 0, {
+    query: {
+      enabled: !!selectedId,
+      queryKey: getGetCharacterMedicalQueryKey(selectedId ?? 0),
+    },
+  });
+
+  // Clinics this doc operates — install/remove route through the existing
+  // venue-scoped approval flow, so they need a clinic to act as.
+  const { data: clinics } = useListMyRipperdocs();
+  const myClinics = clinics ?? [];
+  const venueId = clinicId ?? myClinics[0]?.id ?? null;
+  const { data: clinic } = useGetRipperdoc(venueId ?? 0, {
+    query: { enabled: !!venueId, queryKey: getGetRipperdocQueryKey(venueId ?? 0) },
+  });
+  const stock = clinic?.stock ?? [];
+
+  const refreshPatient = () => {
+    if (selectedId) qc.invalidateQueries({ queryKey: getGetCharacterMedicalQueryKey(selectedId) });
+    if (venueId && selectedId)
+      qc.invalidateQueries({ queryKey: getGetCharacterCyberwareQueryKey(venueId, selectedId) });
+    if (venueId) qc.invalidateQueries({ queryKey: getGetRipperdocQueryKey(venueId) });
+  };
+
   const checkup = useMutation({
     mutationFn: async () => {
       if (!selectedId) throw new Error("Pick a character first");
@@ -110,6 +156,7 @@ export default function RipperdocConsole() {
         `Checkup recorded for ${selected?.name ?? "character"} · level: ${res.cyberwareLevel} · streak reset.`,
       );
       setError(null);
+      refreshPatient();
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : String(err));
@@ -121,6 +168,9 @@ export default function RipperdocConsole() {
   if (!me) return <Redirect to="/" />;
   if (!me.isRipperdoc && !me.isAdmin) return <Redirect to="/" />;
 
+  const band = medical?.band ?? null;
+  const presetBuyer = selected ? { id: selected.id, name: selected.name } : null;
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <header className="space-y-2">
@@ -128,7 +178,7 @@ export default function RipperdocConsole() {
           <Syringe className="w-7 h-7" /> RIPPERDOC CONSOLE
         </h1>
         <p className="text-sm text-muted-foreground font-mono">
-          Record a chrome checkup, reset the patient's missed-meds streak, and re-band their cyberware risk.
+          Pull up a patient's chrome, checkup &amp; meds history, record a checkup, and install or remove cyberware.
         </p>
       </header>
 
@@ -182,9 +232,6 @@ export default function RipperdocConsole() {
                           data-testid={`row-ripperdoc-char-${c.id}`}
                         >
                           <span className="truncate">{c.name}</span>
-                          <span className="text-xs text-muted-foreground uppercase">
-                            {c.cyberwareLevel ?? "none"}
-                          </span>
                         </button>
                       );
                     })}
@@ -212,28 +259,40 @@ export default function RipperdocConsole() {
               <>
                 <div className="space-y-1">
                   <div className="font-display text-lg text-foreground">{selected.name}</div>
+                  <div className="flex items-center gap-2 text-sm font-mono" data-testid="text-derived-band">
+                    <span className="text-muted-foreground uppercase text-xs">Cyberpsychosis band</span>
+                    {medicalLoading ? (
+                      <span className="text-muted-foreground animate-pulse">…</span>
+                    ) : (
+                      <>
+                        <span className={`uppercase font-display ${BAND_COLOR[band ?? "none"] ?? "text-foreground"}`}>
+                          {band ?? "—"}
+                        </span>
+                        <span className="text-muted-foreground text-xs">({medical?.usedCwp ?? 0} CWP)</span>
+                      </>
+                    )}
+                  </div>
                   <div className="text-xs font-mono text-muted-foreground">
-                    LAST_CHECKUP: {selected.lastCheckupAt ? new Date(selected.lastCheckupAt).toLocaleString() : "—"}
+                    LAST_CHECKUP: {medical?.lastCheckupAt ? new Date(medical.lastCheckupAt).toLocaleString() : "—"}
                   </div>
                   <div className="text-xs font-mono text-muted-foreground">
                     WEEKS_SINCE_CHECKUP:{" "}
-                    {selected.lastCheckupAt
+                    {medical?.lastCheckupAt
                       ? Math.max(
                           1,
                           Math.floor(
-                            (Date.now() - new Date(selected.lastCheckupAt).getTime()) / (7 * 86400000),
+                            (Date.now() - new Date(medical.lastCheckupAt).getTime()) / (7 * 86400000),
                           ) + 1,
                         )
                       : "12+"}
-                    {" · "}LEGACY_LEVEL_TAG: {selected.cyberwareLevel ?? "none"}
                   </div>
                   <div className="text-[10px] font-mono text-muted-foreground/70">
-                    Note: cyberpsychosis band is now auto-derived from chrome count (0-6 none · 7-9 medium · 10-12 high · 13+ extreme). The tag below is legacy/cosmetic and no longer affects billing.
+                    Band is auto-derived from chrome CWP (0-6 none · 7-9 medium · 10-12 high · 13+ extreme). The level buttons below only update the legacy/cosmetic tag.
                   </div>
                 </div>
 
                 <div>
-                  <Label className="text-xs font-mono text-nc-cyan">CYBERWARE LEVEL</Label>
+                  <Label className="text-xs font-mono text-nc-cyan">LEGACY LEVEL TAG (OPTIONAL)</Label>
                   <div className="grid grid-cols-4 gap-1 mt-1">
                     {LEVELS.map((l) => (
                       <button
@@ -250,9 +309,6 @@ export default function RipperdocConsole() {
                         {l}
                       </button>
                     ))}
-                  </div>
-                  <div className="text-[10px] font-mono text-muted-foreground mt-1">
-                    Weekly cap (auto from chrome count): 0-6 none=0 · 7-9 medium=€$2K · 10-12 high=€$5K · 13+ extreme=€$10K. Setting a level here only updates the legacy tag.
                   </div>
                 </div>
 
@@ -282,6 +338,189 @@ export default function RipperdocConsole() {
           </CardContent>
         </Card>
       </div>
+
+      {selected && (
+        <ErrorBoundary>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Installed cyberware + install/remove actions */}
+            <Card className="rounded-none border-border bg-card/50">
+              <CardHeader className="border-b border-border flex flex-row items-center justify-between gap-2">
+                <CardTitle className="font-display tracking-widest text-nc-cyan text-sm flex items-center gap-2">
+                  <Activity className="w-4 h-4" /> CHROME
+                </CardTitle>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!venueId}
+                    onClick={() => setRemoveOpen(true)}
+                    className="rounded-none border-destructive/60 text-destructive hover:bg-destructive hover:text-destructive-foreground font-display text-xs"
+                    data-testid="button-console-remove"
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" /> REMOVE
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                {myClinics.length === 0 && (
+                  <div className="text-[11px] font-mono text-nc-yellow border border-nc-yellow/40 bg-nc-yellow/5 p-2" data-testid="text-no-clinic">
+                    You don't operate a clinic, so installs/removals are unavailable. View-only.
+                  </div>
+                )}
+                {myClinics.length > 1 && (
+                  <div>
+                    <Label className="text-[10px] font-mono text-muted-foreground uppercase">Operating as</Label>
+                    <select
+                      value={venueId ?? ""}
+                      onChange={(e) => setClinicId(Number(e.target.value))}
+                      className="w-full rounded-none border border-border bg-background px-2 py-1.5 font-mono text-sm"
+                      data-testid="select-console-clinic"
+                    >
+                      {myClinics.map((cl) => (
+                        <option key={cl.id} value={cl.id}>{cl.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-[10px] font-mono text-muted-foreground uppercase">Installed ({medical?.usedCwp ?? 0} CWP)</Label>
+                  {medicalLoading ? (
+                    <div className="text-xs font-mono text-muted-foreground py-2 animate-pulse">LOADING_CHROME...</div>
+                  ) : (medical?.installed.length ?? 0) === 0 ? (
+                    <div className="text-xs font-mono text-muted-foreground py-2" data-testid="text-no-chrome">No installed cyberware.</div>
+                  ) : (
+                    <div className="space-y-1 max-h-64 overflow-y-auto border border-border/60 p-1 mt-1">
+                      {medical!.installed.map((it) => (
+                        <div key={it.id} className="flex justify-between gap-2 px-2 py-1.5 text-xs font-mono border-b border-border/30 last:border-b-0" data-testid={`row-chrome-${it.id}`}>
+                          <span className="truncate">{it.name}{it.quantity && it.quantity > 1 ? ` ×${it.quantity}` : ""}</span>
+                          <span className="text-nc-yellow shrink-0">{it.cwp} CWP</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {venueId && (
+                  <div>
+                    <Label className="text-[10px] font-mono text-muted-foreground uppercase flex items-center gap-1">
+                      <Plus className="w-3 h-3" /> Install from clinic stock
+                    </Label>
+                    {stock.length === 0 ? (
+                      <div className="text-xs font-mono text-muted-foreground py-2" data-testid="text-no-stock">No cyberware in this clinic's stock.</div>
+                    ) : (
+                      <div className="space-y-1 max-h-56 overflow-y-auto border border-border/60 p-1 mt-1">
+                        {stock.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            disabled={s.quantity <= 0}
+                            onClick={() => setInstallStock({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
+                            className="w-full text-left rounded-none border border-border/50 px-2 py-1.5 text-xs font-mono hover:border-nc-magenta/60 transition-colors disabled:opacity-40"
+                            data-testid={`button-install-stock-${s.id}`}
+                          >
+                            <div className="flex justify-between gap-2">
+                              <span className="truncate">{s.name}</span>
+                              <span className="text-nc-yellow shrink-0">€${s.price.toLocaleString()} · x{s.quantity}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Checkup history */}
+            <Card className="rounded-none border-border bg-card/50">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="font-display tracking-widest text-nc-magenta text-sm flex items-center gap-2">
+                  <Stethoscope className="w-4 h-4" /> CHECKUP HISTORY
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {medicalLoading ? (
+                  <div className="text-xs font-mono text-muted-foreground py-2 animate-pulse">LOADING...</div>
+                ) : (medical?.checkups.length ?? 0) === 0 ? (
+                  <div className="text-xs font-mono text-muted-foreground py-2" data-testid="text-no-checkups">No checkups on record.</div>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {medical!.checkups.map((ch) => (
+                      <div key={ch.id} className="border-b border-border/30 pb-2 last:border-b-0" data-testid={`row-checkup-${ch.id}`}>
+                        <div className="text-xs font-mono text-foreground">
+                          {ch.createdAt ? new Date(ch.createdAt).toLocaleString() : "—"}
+                        </div>
+                        <div className="text-[11px] font-mono text-muted-foreground">
+                          {ch.actorName ? `by ${ch.actorName}` : ""}{ch.level ? ` · level: ${ch.level}` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Meds / cyberware payment history */}
+            <Card className="rounded-none border-border bg-card/50">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="font-display tracking-widest text-nc-yellow text-sm flex items-center gap-2">
+                  <Wallet className="w-4 h-4" /> MEDS &amp; CHROME PAYMENTS
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {medicalLoading ? (
+                  <div className="text-xs font-mono text-muted-foreground py-2 animate-pulse">LOADING...</div>
+                ) : (medical?.medsPayments.length ?? 0) === 0 ? (
+                  <div className="text-xs font-mono text-muted-foreground py-2" data-testid="text-no-payments">No meds or cyberware payments on record.</div>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {medical!.medsPayments.map((p) => (
+                      <div key={p.id} className="flex justify-between gap-2 border-b border-border/30 pb-2 last:border-b-0" data-testid={`row-payment-${p.id}`}>
+                        <div className="min-w-0">
+                          <div className="text-xs font-mono text-foreground truncate">{p.memo || p.kind}</div>
+                          <div className="text-[11px] font-mono text-muted-foreground">
+                            {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}
+                          </div>
+                        </div>
+                        <span className={`text-xs font-mono shrink-0 ${p.amount < 0 ? "text-destructive" : "text-nc-green"}`}>
+                          {p.amount < 0 ? "" : "+"}€${p.amount.toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </ErrorBoundary>
+      )}
+
+      {installStock && venueId && (
+        <CyberwareActionDialog
+          venueId={venueId}
+          stock={installStock}
+          presetBuyer={presetBuyer}
+          lockBuyer
+          onClose={() => setInstallStock(null)}
+          onDone={() => {
+            refreshPatient();
+            setInstallStock(null);
+          }}
+        />
+      )}
+      {removeOpen && venueId && (
+        <RemoveCyberwareDialog
+          venueId={venueId}
+          presetTarget={presetBuyer}
+          lockTarget
+          onClose={() => setRemoveOpen(false)}
+          onDone={() => {
+            refreshPatient();
+            setRemoveOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

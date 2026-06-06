@@ -18,9 +18,10 @@ import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, type ThreadAttachment } from "../lib/discord";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
-import { runJob } from "../lib/jobs";
+import { runJob, deriveCyberwareBand } from "../lib/jobs";
 import { recordAudit } from "../lib/audit";
-import { auditLog } from "@workspace/db";
+import { auditLog, classifyWalletCategory } from "@workspace/db";
+import { parseCwp, cwpForItem } from "../lib/cyberware";
 import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from "../lib/liveMode";
 import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
@@ -608,6 +609,107 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
     lastCheckupAt: updated.lastCheckupAt?.toISOString() ?? null,
     checkupStreak: updated.checkupStreak,
     cyberwareLevel: updated.cyberwareLevel,
+  });
+});
+
+// Consolidated medical record for the Ripperdoc Console. Role-gated to
+// RIPPERDOC/ADMIN (mirrors the checkup endpoint above) so a doc can pull up
+// ANY patient — the owner-scoped /characters/:id read endpoints would 404 for
+// other players' characters. Returns the derived cyberpsychosis band (NOT the
+// stale legacy `cyberwareLevel` column, which is "none" for almost everyone),
+// installed chrome, checkup history (from the audit log), and meds/cyberware
+// payment history (wallet rows in the "cyberware" category).
+router.get("/admin/characters/:id/medical", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  if (!hasRole(u.roles ?? [], "ADMIN") && !hasRole(u.roles ?? [], "RIPPERDOC")) {
+    res.status(403).json({ error: "Admin or ripperdoc role required" });
+    return;
+  }
+  const id = parseInt(String(req.params.id), 10);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [c] = await db.select().from(characters).where(eq(characters.id, id));
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  // Installed chrome: cyberware category AND a CWP install tag — matches the
+  // clinic capacity endpoint so the console's view stays consistent with the
+  // install/remove flow. Untagged chrome contributes 0 CWP and isn't installed.
+  const cyberRows = await db
+    .select()
+    .from(inventoryItems)
+    .where(and(eq(inventoryItems.characterId, id), eq(inventoryItems.category, "cyberware")));
+  const installedRows = cyberRows.filter((it) => parseCwp(it.notes) != null);
+  const usedCwp = installedRows.reduce((sum, it) => sum + cwpForItem(it), 0);
+  // NPCs are exempt from cyberpsychosis banding; everyone else derives from CWP.
+  const band = c.kind === "npc" ? "exempt" : deriveCyberwareBand(usedCwp).level;
+
+  // Checkup history lives in the audit log (no dedicated table — the checkup
+  // endpoint only resets lastCheckupAt and writes an audit row per visit).
+  const checkupRows = await db
+    .select()
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.targetType, "character"),
+        eq(auditLog.targetId, String(id)),
+        eq(auditLog.action, "checkup"),
+      ),
+    )
+    .orderBy(desc(auditLog.createdAt))
+    .limit(100);
+
+  // Meds + cyberware payment history: character-scoped wallet rows whose
+  // category resolves to "cyberware" (weekly meds bill, install/removal fees).
+  const txnRows = await db
+    .select()
+    .from(walletTransactions)
+    .where(eq(walletTransactions.characterId, id))
+    .orderBy(desc(walletTransactions.createdAt))
+    .limit(200);
+  const medsPayments = txnRows
+    .map((r) => ({ row: r, category: r.category ?? classifyWalletCategory(r.kind, r.memo) }))
+    .filter((x) => x.category === "cyberware")
+    .map(({ row, category }) => ({
+      id: row.id,
+      amount: row.amount,
+      kind: row.kind,
+      memo: row.memo,
+      category,
+      createdAt: row.createdAt?.toISOString() ?? null,
+    }));
+
+  res.json({
+    characterId: c.id,
+    characterName: c.name,
+    kind: c.kind,
+    cyberwareLevel: c.cyberwareLevel,
+    band,
+    usedCwp,
+    lastCheckupAt: c.lastCheckupAt?.toISOString() ?? null,
+    checkupStreak: c.checkupStreak,
+    installed: installedRows.map((it) => ({
+      id: it.id,
+      name: it.name,
+      quantity: it.quantity,
+      notes: it.notes,
+      cwp: cwpForItem(it),
+    })),
+    checkups: checkupRows.map((a) => ({
+      id: a.id,
+      message: a.message,
+      actorName: a.actorName,
+      createdAt: a.createdAt?.toISOString() ?? null,
+      level:
+        a.afterJson && typeof a.afterJson === "object" && "cyberwareLevel" in a.afterJson
+          ? (a.afterJson as { cyberwareLevel?: string | null }).cyberwareLevel ?? null
+          : null,
+    })),
+    medsPayments,
   });
 });
 

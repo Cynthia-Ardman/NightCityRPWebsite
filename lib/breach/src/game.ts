@@ -59,19 +59,28 @@ export interface DifficultyProfile {
   matches: (count: number) => boolean;
   // Short-circuit cap for the match-test counter (see countSolutions cap).
   countCap: number;
+  // Extra buffer capacity GRANTED ABOVE the minimum solution length. The raw
+  // generator sets bufferSize === solutionSeq.length (a pixel-perfect path with
+  // zero room for a single wasted pick), which plays as effectively impossible
+  // even on "medium". Slack gives the player room to deviate, the way the real
+  // Breach Protocol buffer does. It only raises the pick cap — it never changes
+  // the grid, the laid solution, or the solution-count difficulty band — so the
+  // tier classification is unaffected. Not applied to "impossible" (its buffer
+  // is deliberately set below the solution length to stay unsolvable).
+  bufferSlack: number;
 }
 
 export const DIFFICULTY_PROFILES: Record<Difficulty, DifficultyProfile> = {
   // Existing 5x5 / 3-daemon tiers — bands unchanged from the original logic.
-  easy: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c > 5, countCap: 6 },
-  medium: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c >= 2 && c <= 5, countCap: 6 },
-  hard: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c === 1, countCap: 2 },
+  easy: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c > 5, countCap: 6, bufferSlack: 3 },
+  medium: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c >= 2 && c <= 5, countCap: 6, bufferSlack: 2 },
+  hard: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c === 1, countCap: 2, bufferSlack: 1 },
   // New harder tiers: bigger boards, more daemons, longer sequences, aiming for
   // a near-unique solution (allow up to 2 so the retry loop converges quickly).
-  very_hard: { rows: 6, cols: 6, daemonCount: 4, maxLen: 5, matches: (c) => c >= 1 && c <= 2, countCap: 3 },
-  nightmare: { rows: 7, cols: 7, daemonCount: 5, maxLen: 5, matches: (c) => c >= 1 && c <= 2, countCap: 3 },
+  very_hard: { rows: 6, cols: 6, daemonCount: 4, maxLen: 5, matches: (c) => c >= 1 && c <= 2, countCap: 3, bufferSlack: 1 },
+  nightmare: { rows: 7, cols: 7, daemonCount: 5, maxLen: 5, matches: (c) => c >= 1 && c <= 2, countCap: 3, bufferSlack: 1 },
   // Intentionally unsolvable (scrambled), staff-only.
-  impossible: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c === 0, countCap: 0 },
+  impossible: { rows: 5, cols: 5, daemonCount: 3, maxLen: 4, matches: (c) => c === 0, countCap: 0, bufferSlack: 0 },
 };
 
 const hexToNum = (h: string) => parseInt(h, 16);
@@ -144,7 +153,16 @@ function generateForProfile(profile: DifficultyProfile, impossible: boolean): Pu
     0,
     profile.maxLen,
   );
-  if (impossible) scrambleToImpossible(puzzle);
+  if (impossible) {
+    scrambleToImpossible(puzzle);
+  } else if (profile.bufferSlack > 0) {
+    // Grant extra pick capacity above the minimum solution length so the player
+    // has room to deviate from the single optimal path. This only raises the
+    // cap; the grid and the laid solution are untouched. Cap the total at the
+    // grid cell count so the buffer can never exceed the board.
+    const maxCells = profile.rows * profile.cols;
+    puzzle.bufferSize = Math.min(maxCells, puzzle.bufferSize + profile.bufferSlack);
+  }
   return puzzle;
 }
 

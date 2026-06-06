@@ -25,6 +25,7 @@
 - [api-server test harness](api-server-test-harness.md) — separate *_test DB, x-test-user auth shim runs real role mw; run per-file or redirect full suite to a file (>120s); never `--reporter=basic`.
 - [api-server dev no watcher](api-server-dev-no-watcher.md) — dev workflow is build+start, NO reload; new routes 404 until restart_workflow; curl :8080 expect 401 not 404.
 - [Cyberware band source](cyberware-band-source.md) — band is DERIVED from inventory_items CWP (sumCwpByCharacter+deriveCyberwareBand), NOT the empty characters.cyberwareLevel column; lifeStatus is all 'active' in prod.
+- [Ripperdoc console medical](ripperdoc-console-medical.md) — staff /admin/characters/:id/medical exists b/c per-char history is owner-only; console install/remove preset+lock the existing dialogs, never fork the approval flow.
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
 - [Audit-trail durability](audit-trail-durability.md) — recordAudit() swallows failures; endpoints that MUST be traceable write audit+changelog inline in a db.transaction.
 - [Staff-edit audit parity](staff-edit-audit-parity.md) — every staff PATCH on catalog/housing/stock must write an audit row like its sibling create/delete; missing audit on edit is a recurring gap.

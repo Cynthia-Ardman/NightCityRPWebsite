@@ -3149,6 +3149,67 @@ paths:
                   checkupStreak: { type: integer }
         "404": { description: Not found }
 
+  /admin/characters/{id}/medical:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getCharacterMedical
+      tags: [admin]
+      summary: Consolidated ripperdoc medical record — derived band, installed chrome, checkup history, meds payments.
+      responses:
+        "200":
+          description: Medical record
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [characterId, characterName, kind, band, usedCwp, checkupStreak, installed, checkups, medsPayments]
+                properties:
+                  characterId: { type: integer }
+                  characterName: { type: string }
+                  kind: { type: string }
+                  cyberwareLevel: { type: ["string", "null"] }
+                  band: { type: string }
+                  usedCwp: { type: number }
+                  lastCheckupAt: { type: ["string", "null"], format: date-time }
+                  checkupStreak: { type: integer }
+                  installed:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, cwp]
+                      properties:
+                        id: { type: integer }
+                        name: { type: ["string", "null"] }
+                        quantity: { type: ["integer", "null"] }
+                        notes: { type: ["string", "null"] }
+                        cwp: { type: number }
+                  checkups:
+                    type: array
+                    items:
+                      type: object
+                      required: [id]
+                      properties:
+                        id: { type: integer }
+                        message: { type: ["string", "null"] }
+                        actorName: { type: ["string", "null"] }
+                        createdAt: { type: ["string", "null"], format: date-time }
+                        level: { type: ["string", "null"] }
+                  medsPayments:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, amount, kind]
+                      properties:
+                        id: { type: integer }
+                        amount: { type: integer }
+                        kind: { type: string }
+                        memo: { type: ["string", "null"] }
+                        category: { type: ["string", "null"] }
+                        createdAt: { type: ["string", "null"], format: date-time }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+
   # ---------------- DIRECTORY (public character sheets) ----------------
   /directory/characters:
     get:

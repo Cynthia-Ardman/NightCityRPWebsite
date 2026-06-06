@@ -5434,6 +5434,57 @@ export type AdminRecordCheckup200 = {
   checkupStreak: number;
 };
 
+export type GetCharacterMedical200InstalledItem = {
+  id: number;
+  /** @nullable */
+  name: string | null;
+  /** @nullable */
+  quantity?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  cwp: number;
+};
+
+export type GetCharacterMedical200CheckupsItem = {
+  id: number;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  actorName?: string | null;
+  /** @nullable */
+  createdAt?: string | null;
+  /** @nullable */
+  level?: string | null;
+};
+
+export type GetCharacterMedical200MedsPaymentsItem = {
+  id: number;
+  amount: number;
+  kind: string;
+  /** @nullable */
+  memo?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  createdAt?: string | null;
+};
+
+export type GetCharacterMedical200 = {
+  characterId: number;
+  characterName: string;
+  kind: string;
+  /** @nullable */
+  cyberwareLevel?: string | null;
+  band: string;
+  usedCwp: number;
+  /** @nullable */
+  lastCheckupAt?: string | null;
+  checkupStreak: number;
+  installed: GetCharacterMedical200InstalledItem[];
+  checkups: GetCharacterMedical200CheckupsItem[];
+  medsPayments: GetCharacterMedical200MedsPaymentsItem[];
+};
+
 export type ListPublicCharactersParams = {
 /**
  * Free-text filter. By default matches character name, legacy Discord handle, and owner handle. When mode=content, additionally matches against background and sheet section bodies.
