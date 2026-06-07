@@ -42,6 +42,20 @@ export const DismissNotificationPromptResponse = zod.object({
 
 
 /**
+ * Persists the current user's `rulesAccepted` flag so the blocking rules
+gate never reappears, and grants the "rules read" Discord role. Idempotent.
+The Discord role grant is best-effort and only fires on the real
+deployment; `roleGranted` reports whether it succeeded.
+
+ * @summary Accept the server rules (first-run rules splash)
+ */
+export const AcceptRulesResponse = zod.object({
+  "ok": zod.boolean(),
+  "roleGranted": zod.boolean().describe('True when the Discord rules role was granted on this call.')
+})
+
+
+/**
  * @summary Current session user
  */
 export const GetMeResponse = zod.object({
@@ -61,6 +75,7 @@ export const GetMeResponse = zod.object({
   "loginCount": zod.number().optional().describe('Number of times this user has logged in via Discord. Drives the first-run onboarding banner.'),
   "onboardingBannerDismissed": zod.boolean().optional().describe('True once the user has dismissed the onboarding banner; it then never re-appears.'),
   "notificationPromptDismissed": zod.boolean().optional().describe('True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless.'),
+  "rulesAccepted": zod.boolean().optional().describe('True once the user has accepted the server rules on the first-run rules splash. While false, the SPA shows a blocking rules gate to signed-in members.'),
   "loginRestricted": zod.boolean().optional().describe('True when an admin has enabled staff-only login restriction. While true, only ADMIN \/ FIXER \/ ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else.'),
   "vrchat": zod.union([zod.object({
   "vrchatUserId": zod.string(),

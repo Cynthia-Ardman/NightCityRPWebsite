@@ -1,7 +1,7 @@
 import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, VERIFIED_18_ROLE_ID, postToChannel } from "./discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, addGuildMemberRole, postToChannel } from "./discord";
 import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
@@ -284,6 +284,14 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           // so a transient Discord failure never silently clears the gate.
           const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
           const verified18 = roleIds === null ? u.verified18 : roleIds.includes(VERIFIED_18_ROLE_ID);
+          // Reconcile the rules-read Discord role. The /auth/accept-rules grant is
+          // best-effort (Discord may be transiently down, or writes suppressed off
+          // the live deploy), so a member can clear the UI gate without the role.
+          // Backfill it here for anyone who has accepted but is missing the role,
+          // making eventual grant guaranteed without blocking the accept UX.
+          if (u.rulesAccepted && roleIds !== null && !roleIds.includes(RULES_ROLE_ID)) {
+            await addGuildMemberRole(u.discordId, RULES_ROLE_ID);
+          }
           if (roles.length || roleIds !== null) {
             await db
               .update(users)

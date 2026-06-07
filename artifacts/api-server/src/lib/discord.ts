@@ -256,6 +256,9 @@ export const NPC_ROLE_ID = "1348661508011462769";
 export const SOCIAL_RP_ROLE_ID = "1466916401070608394";
 export const MAIN_SESSION_ROLE_ID = "1466916614887833610";
 
+// Granted when a member accepts the rules on the first-run rules splash.
+export const RULES_ROLE_ID = "1474339980099846296";
+
 /**
  * The notification roles a player can self-toggle from Settings, keyed by a
  * stable string the API and UI agree on. Order here is the display order.

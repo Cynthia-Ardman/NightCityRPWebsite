@@ -97,6 +97,30 @@ paths:
                 properties:
                   ok: { type: boolean }
         "401": { description: Not logged in }
+  /auth/accept-rules:
+    post:
+      operationId: acceptRules
+      tags: [auth]
+      summary: Accept the server rules (first-run rules splash)
+      description: |
+        Persists the current user's `rulesAccepted` flag so the blocking rules
+        gate never reappears, and grants the "rules read" Discord role. Idempotent.
+        The Discord role grant is best-effort and only fires on the real
+        deployment; `roleGranted` reports whether it succeeded.
+      responses:
+        "200":
+          description: Rules accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, roleGranted]
+                properties:
+                  ok: { type: boolean }
+                  roleGranted:
+                    type: boolean
+                    description: "True when the Discord rules role was granted on this call."
+        "401": { description: Not logged in }
   /auth/me:
     get:
       operationId: getMe
@@ -5413,6 +5437,9 @@ components:
         notificationPromptDismissed:
           type: boolean
           description: "True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless."
+        rulesAccepted:
+          type: boolean
+          description: "True once the user has accepted the server rules on the first-run rules splash. While false, the SPA shows a blocking rules gate to signed-in members."
         loginRestricted:
           type: boolean
           description: "True when an admin has enabled staff-only login restriction. While true, only ADMIN / FIXER / ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else."

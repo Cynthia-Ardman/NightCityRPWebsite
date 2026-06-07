@@ -49,6 +49,10 @@ export const users = pgTable(
     notificationPromptDismissed: boolean("notification_prompt_dismissed")
       .notNull()
       .default(false),
+    // Set once the member has read and accepted the server rules on the first-run
+    // rules splash. While false the SPA shows a blocking rules gate; accepting it
+    // also grants the "rules read" Discord role. Never re-appears once true.
+    rulesAccepted: boolean("rules_accepted").notNull().default(false),
     // ---- Economy: website-authoritative player wallet (synced to UnbelievaBoat) ----
     // The website's own balance for this player, in eddies. Every website-side
     // money change goes through the sync wrapper which updates this AND UB. UB

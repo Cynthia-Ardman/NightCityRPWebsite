@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AcceptRules200,
   ActingEntry,
   ActivityEvent,
   ActorHistoryRow,
@@ -718,6 +719,81 @@ export const useDismissNotificationPrompt = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDismissNotificationPromptMutationOptions(options));
+    }
+
+export const getAcceptRulesUrl = () => {
+
+
+
+
+  return `/api/auth/accept-rules`
+}
+
+/**
+ * Persists the current user's `rulesAccepted` flag so the blocking rules
+gate never reappears, and grants the "rules read" Discord role. Idempotent.
+The Discord role grant is best-effort and only fires on the real
+deployment; `roleGranted` reports whether it succeeded.
+
+ * @summary Accept the server rules (first-run rules splash)
+ */
+export const acceptRules = async ( options?: RequestInit): Promise<AcceptRules200> => {
+
+  return customFetch<AcceptRules200>(getAcceptRulesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAcceptRulesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptRules>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptRules>>, TError,void, TContext> => {
+
+const mutationKey = ['acceptRules'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptRules>>, void> = () => {
+
+
+          return  acceptRules(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptRulesMutationResult = NonNullable<Awaited<ReturnType<typeof acceptRules>>>
+
+    export type AcceptRulesMutationError = ErrorType<void>
+
+    /**
+ * @summary Accept the server rules (first-run rules splash)
+ */
+export const useAcceptRules = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptRules>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptRules>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAcceptRulesMutationOptions(options));
     }
 
 export const getGetMeUrl = () => {

@@ -70,6 +70,7 @@ import SiteLocked from "@/pages/SiteLocked";
 import LogoutError from "@/pages/LogoutError";
 import Settings from "@/pages/Settings";
 import VerificationRequired from "@/pages/VerificationRequired";
+import RulesGate from "@/pages/RulesGate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -163,6 +164,15 @@ function AppRoutes() {
   // server-side and redirects to the "restricted" login-error page.
   if (user && user.loginRestricted && !(user.isAdmin || user.isFixer || user.isArchivist)) {
     return <SiteLocked />;
+  }
+
+  // First-run rules gate. A signed-in member who has not yet accepted the server
+  // rules is locked to a single blocking splash that renders the rules inline and
+  // an "I've read the rules" button (which persists the acknowledgement and grants
+  // the rules Discord role). The backend sets rulesAccepted, so this only appears
+  // until the member accepts. Logged-out visitors fall through to the normal shell.
+  if (user && !user.rulesAccepted) {
+    return <RulesGate />;
   }
 
   return (

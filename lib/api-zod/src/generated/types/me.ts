@@ -30,6 +30,8 @@ export interface Me {
   onboardingBannerDismissed?: boolean;
   /** True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless. */
   notificationPromptDismissed?: boolean;
+  /** True once the user has accepted the server rules on the first-run rules splash. While false, the SPA shows a blocking rules gate to signed-in members. */
+  rulesAccepted?: boolean;
   /** True when an admin has enabled staff-only login restriction. While true, only ADMIN / FIXER / ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else. */
   loginRestricted?: boolean;
   /** Linked VRChat profile for this Discord user, or null if none registered. */

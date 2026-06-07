@@ -13,6 +13,7 @@ import {
   addGuildMemberRole,
   removeGuildMemberRole,
   NPC_ROLE_ID,
+  RULES_ROLE_ID,
   NOTIFICATION_ROLES,
   type NotificationRoleKey,
   avatarUrl,
@@ -246,6 +247,36 @@ router.post("/auth/onboarding/dismiss", requireAuth, async (req, res): Promise<v
   res.json({ ok: true });
 });
 
+// Accept the server rules from the first-run rules splash. Persists the
+// `rulesAccepted` flag (so the blocking gate never reappears) and grants the
+// "rules read" Discord role. Idempotent — calling it again is a harmless no-op.
+// The role grant is best-effort: it only fires on the real deployment (gated by
+// externalWritesAllowed inside addGuildMemberRole), and a failed/suppressed grant
+// must NOT block the user, so we always persist the flag and report the grant
+// outcome separately.
+router.post("/auth/accept-rules", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  if (!u.rulesAccepted) {
+    await db.update(users).set({ rulesAccepted: true }).where(eq(users.id, u.id));
+    void recordAudit({
+      req,
+      category: "auth",
+      action: "rules_accepted",
+      actorId: u.id,
+      actorName: u.username,
+      targetType: "user",
+      targetId: u.id,
+      message: `${u.username} accepted the server rules`,
+    });
+  }
+  const grant = await addGuildMemberRole(
+    u.discordId,
+    RULES_ROLE_ID,
+    "Accepted the server rules on the portal first-run splash",
+  );
+  res.json({ ok: true, roleGranted: grant.ok });
+});
+
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   const u = req.user!;
   const [link] = await db
@@ -263,6 +294,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     loginCount: u.loginCount,
     onboardingBannerDismissed: u.onboardingBannerDismissed,
     notificationPromptDismissed: u.notificationPromptDismissed,
+    rulesAccepted: u.rulesAccepted,
     isAdmin: hasRole(u.roles, "ADMIN"),
     isFixer: hasRole(u.roles, "FIXER"),
     isArchivist: hasRole(u.roles, "ARCHIVIST"),
