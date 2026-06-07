@@ -19,3 +19,11 @@ is the attack surface; catalog costs are overridden from the catalog and are saf
 submission validation. Do NOT force full required-field revalidation on PATCH
 (it breaks autosave/incremental edits and drafts) — only the cap + non-negative
 rule, gated on `status === "pending"`. Drafts/changes_requested stay unvalidated.
+
+**NPC exemption must key off the PERSISTED sheet type, never the client payload.**
+NPCs are exempt from the 6-CWP cap, but because pending PATCH skips full
+validation, a non-staff owner could set `data.sheetType: "NPC"` in the PATCH body
+to dodge the cap (and the fixer-only NPC role gate). Derive the effective type
+from `existing.data.sheetType`; only fixers/admins may flip a non-NPC sheet to
+NPC (else 403). Same trap applies anywhere a privileged/exempt flag is read off
+the incoming payload instead of the stored row.

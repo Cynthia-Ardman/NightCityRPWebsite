@@ -2,7 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import SingleImageField from "./SingleImageField";
-import { GUN_STATUSES, type GunFormState, type GunStatus } from "./gunTypes";
+import { FIRE_MODES, GUN_STATUSES, type GunFormState, type GunStatus } from "./gunTypes";
 
 function Field({
   label,
@@ -88,6 +88,32 @@ export default function GunFormFields({
             onChange={(e) => set("weaponType", e.target.value)}
             className="rounded-none"
             data-testid="input-gun-weaponType"
+          />
+        </Field>
+        <Field label="Fire Mode">
+          <div className="flex gap-2 flex-wrap mb-2">
+            {FIRE_MODES.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => set("fireMode", form.fireMode === m ? "" : m)}
+                className={`px-3 py-1.5 border font-display text-xs uppercase tracking-widest ${
+                  form.fireMode === m
+                    ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
+                    : "border-border text-muted-foreground hover:border-nc-cyan/40"
+                }`}
+                data-testid={`toggle-gun-fireMode-${m}`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <Input
+            value={form.fireMode}
+            onChange={(e) => set("fireMode", e.target.value)}
+            placeholder="e.g. Semi-Auto, Burst, Full-Auto"
+            className="rounded-none"
+            data-testid="input-gun-fireMode"
           />
         </Field>
         <Field label="Power Level">

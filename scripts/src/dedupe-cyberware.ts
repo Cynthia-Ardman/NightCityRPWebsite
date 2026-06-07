@@ -1,27 +1,34 @@
 import pg from "pg";
 
 /**
- * Cyberware de-duplication for the LIVE prod DB.
+ * Cyberware de-duplication.
  *
  * Some characters were imported twice (a legacy copy + a v1 copy), so the same
- * physical chrome is counted twice toward CWP. Rule of the setting: no non-NPC
- * character may exceed 15 CWP. Any non-NPC over 15 has duplicate inventory_items
- * rows that must be collapsed.
+ * physical chrome is counted twice toward CWP (e.g. Aurora at 13 CWP should be
+ * 8). This collapses true duplicate inventory_items rows across EVERY character
+ * — not just over-cap ones — so bands derive correctly.
  *
- * Connects ONLY to LIVE_PROD_DATABASE_URL (the Neon DB nightcityroleplay.com
- * uses). Refuses to run against the legacy uuid DB.
+ * Duplicate definition: within ONE character, cyberware rows that share the same
+ * normalized name AND the same per-unit CWP. We keep the NEWEST row (highest id,
+ * the v1 import) and delete the older legacy copies. Only point-bearing rows
+ * (cwp > 0) are ever flagged; 0-CWP rows never affect the total and are left
+ * untouched.
+ *
+ * Target selection (required):
+ *   TARGET=dev   → DATABASE_URL          (local dev DB)
+ *   TARGET=live  → LIVE_PROD_DATABASE_URL (Neon DB nightcityroleplay.com uses)
+ * Refuses to run against the legacy uuid DB (PROD_/OLD_BOT_DATABASE_URL).
  *
  * Modes:
- *   (default)        → REPORT ONLY. Prints over-15 characters, their cyberware
- *                      items, the duplicate groups detected, and exactly which
- *                      rows it WOULD delete. Writes nothing.
- *   APPLY=1          → actually deletes the flagged duplicate rows, inside a
- *                      single transaction, and re-verifies every affected
- *                      character lands at <= 15 CWP before COMMIT.
+ *   (default)  → REPORT ONLY. Prints each character with duplicates, their
+ *                cyberware rows, and exactly which rows it WOULD delete. No writes.
+ *   APPLY=1    → deletes the flagged duplicate rows inside a single transaction.
  *
  * Run:
- *   pnpm --filter @workspace/scripts exec tsx src/dedupe-cyberware.ts          # report
- *   APPLY=1 pnpm --filter @workspace/scripts exec tsx src/dedupe-cyberware.ts  # apply
+ *   TARGET=dev  pnpm --filter @workspace/scripts exec tsx src/dedupe-cyberware.ts          # report dev
+ *   TARGET=dev  APPLY=1 pnpm --filter @workspace/scripts exec tsx src/dedupe-cyberware.ts  # apply dev
+ *   TARGET=live pnpm --filter @workspace/scripts exec tsx src/dedupe-cyberware.ts          # report live
+ *   TARGET=live APPLY=1 pnpm --filter @workspace/scripts exec tsx src/dedupe-cyberware.ts  # apply live
  */
 
 const { Pool } = pg;
@@ -58,12 +65,24 @@ function norm(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-const CAP = 15;
+function resolveTarget(): { url: string; label: string } {
+  const target = (process.env.TARGET ?? "").toLowerCase();
+  if (target === "dev") {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error("TARGET=dev but DATABASE_URL is not set");
+    return { url, label: "dev (DATABASE_URL)" };
+  }
+  if (target === "live") {
+    const url = process.env.LIVE_PROD_DATABASE_URL;
+    if (!url) throw new Error("TARGET=live but LIVE_PROD_DATABASE_URL is not set");
+    return { url, label: "live (LIVE_PROD_DATABASE_URL)" };
+  }
+  throw new Error("Set TARGET=dev or TARGET=live to choose which database to operate on.");
+}
 
 async function main(): Promise<void> {
-  const url = process.env.LIVE_PROD_DATABASE_URL;
-  if (!url) throw new Error("LIVE_PROD_DATABASE_URL is not set");
-  if (/postgres(ql)?:\/\//.test(url) === false) throw new Error("LIVE_PROD_DATABASE_URL malformed");
+  const { url, label } = resolveTarget();
+  if (/postgres(ql)?:\/\//.test(url) === false) throw new Error(`${label} URL malformed`);
 
   const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
   const apply = process.env.APPLY === "1";
@@ -127,23 +146,29 @@ async function main(): Promise<void> {
     return toDelete;
   }
 
-  const over = [...byChar.values()].filter((c) => c.kind !== "npc" && totalOf(c.items) > CAP);
-  over.sort((a, b) => totalOf(b.items) - totalOf(a.items));
+  // Every character that has at least one duplicate group, regardless of kind or
+  // total CWP. Sorted by how much CWP the dedup removes (largest impact first).
+  const affected = [...byChar.values()]
+    .map((c) => ({ c, del: dupesFor(c.items) }))
+    .filter((x) => x.del.length > 0)
+    .sort((a, b) => {
+      const ra = a.del.reduce((s, it) => s + it.cwp, 0);
+      const rb = b.del.reduce((s, it) => s + it.cwp, 0);
+      return rb - ra;
+    });
 
   console.log(`Mode: ${apply ? "APPLY (will delete)" : "REPORT ONLY (no writes)"}`);
+  console.log(`Target: ${label}`);
   console.log(`Cyberware-bearing characters: ${byChar.size}`);
-  console.log(`Non-NPC characters over ${CAP} CWP: ${over.length}\n`);
+  console.log(`Characters with duplicate cyberware: ${affected.length}\n`);
 
   const allDeleteIds: number[] = [];
-  const stillOver: string[] = [];
 
-  for (const c of over) {
+  for (const { c, del } of affected) {
     const before = totalOf(c.items);
-    const del = dupesFor(c.items);
     const delIds = new Set(del.map((d) => d.id));
     const after = totalOf(c.items.filter((it) => !delIds.has(it.id)));
     allDeleteIds.push(...del.map((d) => d.id));
-    if (after > CAP) stillOver.push(`#${c.id} ${c.name} → ${after} CWP after dedup`);
 
     console.log(`#${c.id} ${c.name} [${c.kind}] owner=${c.owner_id ?? "NONE"}`);
     console.log(`   total ${before} → ${after} CWP  (deleting ${del.length} dup row${del.length === 1 ? "" : "s"})`);
@@ -157,10 +182,6 @@ async function main(): Promise<void> {
   console.log(`\n=== SUMMARY ===`);
   console.log(`Rows flagged for deletion: ${allDeleteIds.length}`);
   console.log(`Delete ids: ${allDeleteIds.join(", ") || "(none)"}`);
-  if (stillOver.length) {
-    console.log(`\n⚠️  Characters STILL over ${CAP} after name+cwp dedup (need manual review):`);
-    for (const s of stillOver) console.log(`   ${s}`);
-  }
 
   if (!apply) {
     console.log(`\nREPORT ONLY — no rows deleted. Re-run with APPLY=1 to delete the flagged rows.`);
@@ -168,12 +189,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (stillOver.length) {
-    console.log(`\nABORT: some characters remain over ${CAP} after dedup. Refusing to apply a partial fix.`);
-    await pool.end();
-    process.exitCode = 1;
-    return;
-  }
   if (allDeleteIds.length === 0) {
     console.log(`\nNothing to delete.`);
     await pool.end();

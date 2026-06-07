@@ -30,6 +30,7 @@ const FILTER_COLUMNS: Array<{ key: keyof Gun; label: string }> = [
   { key: "category", label: "Category" },
   { key: "manufacturer", label: "Manufacturer" },
   { key: "weaponType", label: "Weapon Type" },
+  { key: "fireMode", label: "Fire Mode" },
   { key: "powerLevel", label: "Power Level" },
   { key: "restriction", label: "Restriction" },
 ];
@@ -172,6 +173,7 @@ export default function CatalogGuns() {
                 <th className="text-left p-3">Manufacturer</th>
                 <th className="text-left p-3">Category</th>
                 <th className="text-left p-3">Weapon Type</th>
+                <th className="text-left p-3">Fire Mode</th>
                 <th className="text-left p-3">Power Level</th>
                 <th className="text-left p-3">Restriction</th>
                 <th className="text-right p-3">Price</th>
@@ -201,6 +203,7 @@ export default function CatalogGuns() {
                   </td>
                   <td className="p-3">{humanize(g.category)}</td>
                   <td className="p-3">{humanize(g.weaponType)}</td>
+                  <td className="p-3">{humanize(g.fireMode)}</td>
                   <td className="p-3">{humanize(g.powerLevel)}</td>
                   <td className="p-3 text-nc-magenta">{humanize(g.restriction)}</td>
                   <td className="p-3 text-right text-nc-yellow">

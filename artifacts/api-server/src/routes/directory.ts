@@ -876,6 +876,7 @@ const GunEditSchema = z
     restriction: nullableText,
     powerLevel: nullableText,
     weaponType: nullableText,
+    fireMode: nullableText,
     notes: nullableText,
     imageUrl: nullableText,
     status: gunStatus,
@@ -916,6 +917,7 @@ router.post(
       restriction: d.restriction ?? null,
       powerLevel: d.powerLevel ?? null,
       weaponType: d.weaponType ?? null,
+      fireMode: d.fireMode ?? null,
       notes: d.notes ?? null,
       imageUrl: d.imageUrl ?? null,
       status: d.status ?? "draft",
@@ -989,6 +991,7 @@ router.patch(
     if (edit.restriction !== undefined) mark("restriction", cur.restriction, edit.restriction);
     if (edit.powerLevel !== undefined) mark("powerLevel", cur.powerLevel, edit.powerLevel);
     if (edit.weaponType !== undefined) mark("weaponType", cur.weaponType, edit.weaponType);
+    if (edit.fireMode !== undefined) mark("fireMode", cur.fireMode, edit.fireMode);
     if (edit.notes !== undefined) mark("notes", cur.notes, edit.notes);
     if (edit.imageUrl !== undefined) mark("imageUrl", cur.imageUrl, edit.imageUrl);
     if (edit.status !== undefined) mark("status", cur.status, edit.status);

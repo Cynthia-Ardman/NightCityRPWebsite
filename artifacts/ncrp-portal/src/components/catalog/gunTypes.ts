@@ -12,8 +12,13 @@ export type Gun = {
   status?: string | null;
   powerLevel?: string | null;
   weaponType?: string | null;
+  fireMode?: string | null;
   imageUrl?: string | null;
 };
+
+// Common fire-mode presets offered in the editor. Stored as free text so the
+// catalog can still hold anything legacy/imported, but staff get one-tap presets.
+export const FIRE_MODES = ["Semi-Auto", "Burst", "Full-Auto"] as const;
 
 // Catalog imports left raw values like "heavy_machine_gun" / "POWER" /
 // "tech-shotgun". Normalise on render so the listing reads like English
@@ -41,6 +46,7 @@ export type GunFormState = {
   manufacturer: string;
   category: string;
   weaponType: string;
+  fireMode: string;
   powerLevel: string;
   restriction: string;
   price: string;
@@ -58,6 +64,7 @@ export function emptyForm(): GunFormState {
     manufacturer: "",
     category: "",
     weaponType: "",
+    fireMode: "",
     powerLevel: "",
     restriction: "",
     price: "0",
@@ -79,6 +86,7 @@ export function formFromGun(g: Gun): GunFormState {
     manufacturer: g.manufacturer ?? "",
     category: g.category ?? "",
     weaponType: g.weaponType ?? "",
+    fireMode: g.fireMode ?? "",
     powerLevel: g.powerLevel ?? "",
     restriction: g.restriction ?? "",
     price: String(g.price ?? 0),
@@ -113,6 +121,7 @@ export function formToCreatePayload(f: GunFormState) {
     manufacturer: textOrNull(f.manufacturer),
     category: textOrNull(f.category),
     weaponType: textOrNull(f.weaponType),
+    fireMode: textOrNull(f.fireMode),
     powerLevel: textOrNull(f.powerLevel),
     restriction: textOrNull(f.restriction),
     price: priceN ?? 0,
@@ -135,6 +144,7 @@ export function formToPatch(f: GunFormState, original: Gun): Record<string, unkn
     manufacturer: original.manufacturer ?? null,
     category: original.category ?? null,
     weaponType: original.weaponType ?? null,
+    fireMode: original.fireMode ?? null,
     powerLevel: original.powerLevel ?? null,
     restriction: original.restriction ?? null,
     price: original.price ?? 0,

@@ -1252,6 +1252,9 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
   const gear = Array.isArray(data.gear)
     ? (data.gear as unknown[]).map(String).filter((g) => g.trim().length > 0)
     : [];
+  const guns = Array.isArray(data.guns)
+    ? (data.guns as unknown[]).map(String).filter((g) => g.trim().length > 0)
+    : [];
   const bgRaw = background && background.trim().length > 0 ? background : str("background");
   const cleanBg = bgRaw.replace(/\[legacy:[^\]]+\]/g, "").trim();
 
@@ -1271,6 +1274,7 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
     !!notes.trim() ||
     !!skills.trim() ||
     gear.length > 0 ||
+    guns.length > 0 ||
     !!cleanBg;
 
   if (!anything) {
@@ -1317,6 +1321,20 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
           <CardContent className="font-mono text-sm">
             <ul className="list-disc list-inside space-y-1">
               {gear.map((g, i) => (
+                <li key={i} className="break-words [overflow-wrap:anywhere]">{g}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+      {guns.length > 0 && (
+        <Card className="rounded-none border-border bg-card/50" data-testid="dossier-guns">
+          <CardHeader>
+            <CardTitle className="font-display text-nc-cyan tracking-widest text-base">FIREARMS</CardTitle>
+          </CardHeader>
+          <CardContent className="font-mono text-sm">
+            <ul className="list-disc list-inside space-y-1">
+              {guns.map((g, i) => (
                 <li key={i} className="break-words [overflow-wrap:anywhere]">{g}</li>
               ))}
             </ul>

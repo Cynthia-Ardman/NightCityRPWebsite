@@ -728,6 +728,7 @@ export const ListGunsResponseItem = zod.object({
   "status": zod.string().nullish(),
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish(),
+  "fireMode": zod.string().nullish(),
   "imageUrl": zod.string().nullish()
 })
 export const ListGunsResponse = zod.array(ListGunsResponseItem)
@@ -753,6 +754,7 @@ export const CreateGunBody = zod.object({
   "restriction": zod.string().nullish(),
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish(),
+  "fireMode": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().default(createGunBodyStatusDefault).describe('Visibility status; defaults to draft.')
@@ -780,6 +782,7 @@ export const UpdateGunBody = zod.object({
   "restriction": zod.string().nullish(),
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish(),
+  "fireMode": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().describe('Visibility status; only ADMIN\/FIXER may set.')
@@ -799,6 +802,7 @@ export const UpdateGunResponse = zod.object({
   "status": zod.string().nullish(),
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish(),
+  "fireMode": zod.string().nullish(),
   "imageUrl": zod.string().nullish()
 }).and(zod.object({
   "changed": zod.array(zod.string())

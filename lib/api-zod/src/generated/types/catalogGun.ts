@@ -31,5 +31,7 @@ export interface CatalogGun {
   /** @nullable */
   weaponType?: string | null;
   /** @nullable */
+  fireMode?: string | null;
+  /** @nullable */
   imageUrl?: string | null;
 }

@@ -25,6 +25,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useDeleteSheet: () => ({ mutateAsync: h.deleteMutateAsync, isPending: false }),
   useGetSheet: () => ({ data: h.state.getSheetData, isLoading: false }),
   useListCyberware: () => ({ data: [] }),
+  useListGuns: () => ({ data: [] }),
   useListGuidebook: () => ({ data: { sections: [] } }),
   useGetMe: () => ({ data: h.state.me, isLoading: false }),
   getGetMeQueryKey: () => ["me"],

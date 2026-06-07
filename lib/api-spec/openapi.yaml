@@ -6522,6 +6522,7 @@ components:
         status: { type: ["string", "null"] }
         powerLevel: { type: ["string", "null"] }
         weaponType: { type: ["string", "null"] }
+        fireMode: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
     CatalogGunUpdate:
       type: object
@@ -6539,6 +6540,7 @@ components:
         restriction: { type: ["string", "null"] }
         powerLevel: { type: ["string", "null"] }
         weaponType: { type: ["string", "null"] }
+        fireMode: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
         status:
@@ -6573,6 +6575,7 @@ components:
         restriction: { type: ["string", "null"] }
         powerLevel: { type: ["string", "null"] }
         weaponType: { type: ["string", "null"] }
+        fireMode: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
         status:

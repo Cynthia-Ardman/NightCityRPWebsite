@@ -151,6 +151,9 @@ async function validateSheetForSubmission(data: unknown, user: User): Promise<st
   const fieldErr = validateSheetFields(data, user.roles);
   if (fieldErr) return fieldErr;
   const d = data as Record<string, unknown>;
+  // NPCs are story chrome (gangs, ripperdoc rigs, set-piece characters) and are
+  // not balance-constrained, so the 6-CWP creation cap does not apply to them.
+  if (d.sheetType === "NPC") return null;
   // Cyberware is optional. If present, total CWP is capped at 6 at creation.
   // For catalog installs the cost is taken from the catalog (the client-sent
   // value is ignored), so the cap can't be bypassed by a crafted payload.
@@ -267,12 +270,41 @@ router.patch("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const { name, data, characterId } = req.body ?? {};
+  // NPC is a fixer/admin-gated sheet type and is exempt from the 6-CWP creation
+  // cap. The cap-skip must therefore key off the *persisted* sheet type, NOT the
+  // incoming payload — otherwise a non-fixer owner could PATCH a pending PC sheet
+  // with `sheetType: "NPC"` and slip past both the cap and the NPC role gate
+  // (pending edits skip full submission validation). Canonicalize the type
+  // (materialization compares case-insensitively, so "npc"/" Npc " must be caught
+  // too) and reject any unauthorized attempt to flip a non-NPC sheet to NPC.
+  const canonType = (v: unknown): "PC" | "NPC" | undefined => {
+    if (typeof v !== "string") return undefined;
+    const t = v.trim().toUpperCase();
+    return t === "NPC" ? "NPC" : t === "PC" ? "PC" : undefined;
+  };
+  const persistedType = canonType(((existing.data ?? {}) as Record<string, unknown>).sheetType);
+  const incomingType =
+    data && typeof data === "object" ? canonType((data as Record<string, unknown>).sheetType) : undefined;
+  // CS_APPROVER is a reviewer, not a creator — only fixers/admins may designate
+  // a sheet as NPC.
+  const canSetNpc = hasRole(req.user!.roles, "FIXER") || hasRole(req.user!.roles, "ADMIN");
+  if (incomingType === "NPC" && persistedType !== "NPC" && !canSetNpc) {
+    res.status(403).json({ error: "Only fixers can set a sheet to NPC" });
+    return;
+  }
+  // Effective type for the cap decision: a non-fixer can never make it NPC.
+  const effectiveType = incomingType === "NPC" ? (canSetNpc ? "NPC" : persistedType) : incomingType ?? persistedType;
   // A sheet in review can be edited in place (no re-submit), so the full
   // submission validation is skipped to allow incremental tweaks. The 6-CWP
   // cap is a hard rule though, so enforce the cyberware cap (and reject
-  // negatives) whenever a pending sheet's data is updated — otherwise it could
+  // negatives) whenever a pending PC sheet's data is updated — otherwise it could
   // be pushed over-cap after submission and approved without re-validation.
-  if (existing.status === "pending" && data && typeof data === "object") {
+  if (
+    existing.status === "pending" &&
+    data &&
+    typeof data === "object" &&
+    effectiveType !== "NPC"
+  ) {
     const entries = collectCyberware(data as Record<string, unknown>);
     const costMap = await loadCyberwareCostMap();
     const cwErr = validateCyberware(entries, costMap);
@@ -437,6 +469,16 @@ async function seedInventoryFromSheet(
       const name = String(raw ?? "").trim();
       if (!name) continue;
       rows.push({ name, category: "gear", notes: null, equipped: false });
+    }
+  }
+
+  // Firearms picked at creation (catalog name or free-text). Seeded as their own
+  // "gun" category so they group separately from generic gear in inventory.
+  if (Array.isArray(data.guns)) {
+    for (const raw of data.guns) {
+      const name = String(raw ?? "").trim();
+      if (!name) continue;
+      rows.push({ name, category: "gun", notes: null, equipped: false });
     }
   }
 

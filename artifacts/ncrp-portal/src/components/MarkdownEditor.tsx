@@ -43,6 +43,30 @@ export default function MarkdownEditor({
     autosize();
   }, [value, autosize]);
 
+  // Turn the selected line(s) (or the current line) into a markdown bullet
+  // list. Each line gets a "- " prefix unless it already has one, and the list
+  // is forced to start on its own line so it always renders as a <ul>.
+  function applyBulletList() {
+    const el = ref.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? start;
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    const before = value.slice(0, lineStart);
+    const block = value.slice(lineStart, end);
+    const after = value.slice(end);
+    const lines = block.length ? block.split("\n") : ["item"];
+    const bulleted = lines.map((l) => (/^\s*-\s/.test(l) ? l : `- ${l}`)).join("\n");
+    const sep = before.length === 0 || before.endsWith("\n") ? "" : "\n";
+    onChange(`${before}${sep}${bulleted}${after}`);
+    requestAnimationFrame(() => {
+      const node = ref.current;
+      if (!node) return;
+      const caret = before.length + sep.length + bulleted.length;
+      node.focus();
+      node.setSelectionRange(caret, caret);
+    });
+  }
+
   // Wrap the current textarea selection (or insert a placeholder) in a color
   // tag, then restore the selection around the wrapped text.
   function applyColor(color: string) {
@@ -66,6 +90,17 @@ export default function MarkdownEditor({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5 flex-wrap">
+        <button
+          type="button"
+          title="Bullet list"
+          aria-label="Insert bullet list"
+          onClick={applyBulletList}
+          className="h-5 px-1.5 rounded-sm border border-border/60 text-[10px] font-mono uppercase tracking-widest text-muted-foreground hover:border-nc-cyan/60 hover:text-nc-cyan transition-colors"
+          data-testid={testId ? `${testId}-bullet-list` : undefined}
+        >
+          • List
+        </button>
+        <span className="mx-1 h-4 w-px bg-border/60" aria-hidden />
         <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mr-1">
           Color
         </span>
@@ -125,8 +160,9 @@ export default function MarkdownEditor({
       </div>
       <p className="text-[10px] font-mono text-muted-foreground">
         <span className="text-nc-cyan">Markdown supported</span>
-        {" — "}**bold**, *italic*, lists, [links](url), and [c=red]colored text[/c]
-        {" "}(select text, then pick a color).
+        {" — "}**bold**, *italic*, [links](url), and [c=red]colored text[/c]
+        {" "}(select text, then pick a color). For a bullet list, start each line with
+        {" "}<span className="text-nc-cyan">{"- "}</span>(dash + space) or use the • List button.
       </p>
     </div>
   );

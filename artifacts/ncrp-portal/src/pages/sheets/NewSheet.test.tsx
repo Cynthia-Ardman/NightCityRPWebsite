@@ -16,6 +16,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useDeleteSheet: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
   useGetSheet: () => ({ data: undefined, isLoading: false }),
   useListCyberware: () => ({ data: [] }),
+  useListGuns: () => ({ data: [] }),
   useListGuidebook: () => ({ data: { sections: [] } }),
   // useAuthMe is a thin wrapper around useGetMe from this same module.
   useGetMe: () => ({ data: { id: 1, isFixer: false, isAdmin: false }, isLoading: false }),

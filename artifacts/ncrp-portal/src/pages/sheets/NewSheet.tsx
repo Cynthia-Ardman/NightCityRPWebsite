@@ -8,6 +8,7 @@ import {
   useDeleteSheet,
   useGetSheet,
   useListCyberware,
+  useListGuns,
   useListGuidebook,
   getListMySheetsQueryKey,
   getGetSheetQueryKey,
@@ -127,6 +128,18 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   // while it is still in review — no re-submit, just save changes.
   const isInReview = initialSheet?.status === "pending";
   const { data: catalog } = useListCyberware();
+  const { data: gunCatalog } = useListGuns();
+
+  // Distinct, sorted gun names from the catalog. Drives the <datalist> on the
+  // Firearms section so players can pick a known weapon or free-type their own.
+  const gunNames = useMemo(() => {
+    const set = new Set<string>();
+    (gunCatalog ?? []).forEach((g) => {
+      const n = (g.name ?? "").trim();
+      if (n) set.add(n);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [gunCatalog]);
 
   // Resolve the Avatar Restrictions guidebook page so we can link straight to it
   // from the portrait/stats area. Falls back to the rules section if the page
@@ -180,6 +193,9 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const [gear, setGear] = useState<string[]>(
     Array.isArray(init.gear) && init.gear.length > 0 ? init.gear.map(String) : [""],
   );
+  const [guns, setGuns] = useState<string[]>(
+    Array.isArray(init.guns) && init.guns.length > 0 ? init.guns.map(String) : [""],
+  );
   const [portraitUrls, setPortraitUrls] = useState<string[]>(
     Array.isArray(init.portraitUrls) ? init.portraitUrls.map(String) : [],
   );
@@ -199,7 +215,9 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
   const filledChrome = chrome.filter((c) => c.name.trim().length > 0);
   const pointsSpent = filledChrome.reduce((s, c) => s + (Number(c.points) || 0), 0);
-  const overCap = pointsSpent > 6;
+  // NPCs are story chrome and not balance-constrained, so the 6-CWP creation
+  // cap only applies to PCs.
+  const overCap = sheetType === "PC" && pointsSpent > 6;
 
   // A row renders in "custom" mode when the user explicitly chose Custom, or
   // when a loaded slot isn't part of the catalog (e.g. legacy free-text slots).
@@ -240,6 +258,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     })),
     cyberwarePointsSpent: pointsSpent,
     gear: gear.filter(Boolean),
+    guns: guns.map((g) => g.trim()).filter(Boolean),
     portraitUrls: portraitUrls.filter((u) => u.trim()),
     profileUrl: profileUrl.trim() || undefined,
     statsImageUrls: statsImageUrls.filter((u) => u.trim()),
@@ -304,7 +323,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, notes, skills, chrome, gear, portraitUrls, profileUrl, statsImageUrls],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls],
   );
 
   useEffect(() => {
@@ -540,7 +559,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           <Field label="Nickname / Handle"><Input data-testid="input-nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} /></Field>
           <Field label="Pronouns"><Input data-testid="input-pronouns" value={pronouns} onChange={(e) => setPronouns(e.target.value)} /></Field>
           <Field label="Archetype"><Input data-testid="input-archetype" value={archetype} onChange={(e) => setArchetype(e.target.value)} /></Field>
-          <Field label="Age"><Input data-testid="input-age" type="number" value={age} onChange={(e) => setAge(e.target.value)} /></Field>
+          <Field label="Age"><Input data-testid="input-age" type="number" min={1} value={age} onChange={(e) => setAge(e.target.value)} /></Field>
           <Field label="Gender"><Input data-testid="input-gender" value={gender} onChange={(e) => setGender(e.target.value)} /></Field>
         </CardContent>
       </Card>
@@ -556,7 +575,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardHeader><CardTitle className="font-display tracking-widest">PHYSICAL DESCRIPTION</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Field label="Build, Height, Distinguishing Features"><MarkdownEditor testId="input-physical" rows={3} value={physicalDescription} onChange={setPhysicalDescription} /></Field>
-          <Field label="Style"><Textarea data-testid="input-appearance" rows={3} value={appearance} onChange={(e) => setAppearance(e.target.value)} /></Field>
+          <Field label="Style"><MarkdownEditor testId="input-appearance" rows={3} value={appearance} onChange={setAppearance} /></Field>
         </CardContent>
       </Card>
 
@@ -599,15 +618,47 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest">FIREARMS</CardTitle>
+          <Button type="button" onClick={() => setGuns([...guns, ""])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-gun"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-xs font-mono text-muted-foreground">
+            Pick a weapon from the NCRP catalog, or type your own if it isn't listed.
+          </p>
+          <datalist id="gun-catalog-options">
+            {gunNames.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+          {guns.map((g, i) => (
+            <div key={i} className="flex gap-2">
+              <Input
+                value={g}
+                list="gun-catalog-options"
+                onChange={(e) => setGuns(guns.map((x, j) => (j === i ? e.target.value : x)))}
+                placeholder="Militech M-10AF Lexington, custom build..."
+                data-testid={`input-gun-${i}`}
+              />
+              <Button type="button" variant="ghost" size="icon" onClick={() => setGuns(guns.filter((_, j) => j !== i))} className="text-destructive" data-testid={`button-remove-gun-${i}`}><Trash2 className="w-4 h-4" /></Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="font-display tracking-widest">
-            CYBERWARE <span className={`ml-2 ${overCap ? "text-destructive" : "text-nc-yellow"}`}>CWP: {pointsSpent}/6</span>
+            CYBERWARE <span className={`ml-2 ${overCap ? "text-destructive" : "text-nc-yellow"}`}>CWP: {pointsSpent}{sheetType === "PC" ? "/6" : " (NPC · uncapped)"}</span>
           </CardTitle>
           <Button type="button" onClick={() => setChrome([...chrome, { slot: "", name: "", points: 0, notes: "", isCustom: false }])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-cyberware"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs font-mono text-muted-foreground">
             Optional. Pick a slot, then choose an install from the NCRP catalog — CWP is set automatically.
-            Fully organic characters can leave this empty. Total CWP is capped at 6 at character creation.
+            Fully organic characters can leave this empty.
+            {sheetType === "PC"
+              ? " Total CWP is capped at 6 at character creation."
+              : " NPCs are not CWP-capped."}
           </p>
           {chrome.length === 0 && <p className="text-muted-foreground font-mono text-sm">No cyberware — fully organic.</p>}
           {chrome.map((cw, i) => {

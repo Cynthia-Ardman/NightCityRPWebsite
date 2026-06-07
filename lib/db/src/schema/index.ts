@@ -458,6 +458,9 @@ export const catalogGuns = pgTable("catalog_guns", {
   status: text("status"),
   powerLevel: text("power_level"),
   weaponType: text("weapon_type"),
+  // Optional fire mode (e.g. Semi-Auto / Burst / Full-Auto). Free text so the
+  // catalog can capture anything; the UI offers the common presets.
+  fireMode: text("fire_mode"),
   notes: text("notes"),
   // Single optional product image, stored as a /api/storage/objects/<id> path.
   imageUrl: text("image_url"),

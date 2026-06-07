@@ -128,6 +128,7 @@ export default function SheetDetail() {
     ? Object.entries(data.skills as Record<string, unknown>).map(([k, v]) => (v != null && v !== "" ? `${k} ${v}` : k)).join("\n")
     : "";
   const gear = (data.gear as string[]) ?? [];
+  const guns = (data.guns as string[]) ?? [];
   const occupation = String(data.occupation ?? "");
   const background = String(data.background ?? "");
   const physicalDescription = String(data.physicalDescription ?? "");
@@ -292,6 +293,19 @@ export default function SheetDetail() {
           ) : (
             <ul className="list-disc list-inside space-y-1">
               {gear.filter((g) => g && g.trim()).map((g, i) => <li key={i} className="break-words [overflow-wrap:anywhere]">{g}</li>)}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">FIREARMS</CardTitle></CardHeader>
+        <CardContent className="font-mono text-sm">
+          {guns.filter((g) => g && g.trim()).length === 0 ? (
+            <p className="text-muted-foreground">—</p>
+          ) : (
+            <ul className="list-disc list-inside space-y-1">
+              {guns.filter((g) => g && g.trim()).map((g, i) => <li key={i} className="break-words [overflow-wrap:anywhere]">{g}</li>)}
             </ul>
           )}
         </CardContent>

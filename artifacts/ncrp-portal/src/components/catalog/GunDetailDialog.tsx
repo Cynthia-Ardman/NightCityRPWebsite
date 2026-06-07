@@ -154,6 +154,7 @@ export default function GunDetailDialog({
             <Row label="Manufacturer" value={humanize(current.manufacturer)} />
             <Row label="Category" value={humanize(current.category)} />
             <Row label="Weapon Type" value={humanize(current.weaponType)} />
+            <Row label="Fire Mode" value={humanize(current.fireMode)} />
             <Row label="Power Level" value={humanize(current.powerLevel)} />
             <Row label="Restriction" value={<span className="text-nc-magenta">{humanize(current.restriction)}</span>} />
             <Row
