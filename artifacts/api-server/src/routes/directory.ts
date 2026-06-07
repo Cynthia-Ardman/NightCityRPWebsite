@@ -727,7 +727,7 @@ router.get("/directory/ripperdocs/:id", async (req, res): Promise<void> => {
     .from(ripperdocEmployees)
     .innerJoin(characters, eq(characters.id, ripperdocEmployees.characterId))
     .where(eq(ripperdocEmployees.ripperdocId, id));
-  res.json({ ...r, ownerName: r.ownerName ?? null, employees: emps });
+  res.json({ ...r, ownerName: r.ownerName ?? null, employeeNames: emps.map((e) => e.name) });
 });
 
 router.get("/directory/stores", async (_req, res): Promise<void> => {
@@ -773,7 +773,7 @@ router.get("/directory/stores/:id", async (req, res): Promise<void> => {
     .from(storeEmployees)
     .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
     .where(eq(storeEmployees.storeId, id));
-  res.json({ ...s, ownerName: s.ownerName ?? null, employees: emps });
+  res.json({ ...s, ownerName: s.ownerName ?? null, employeeNames: emps.map((e) => e.name) });
 });
 
 // The player-facing catalog is live-only. "draft" entries are works in

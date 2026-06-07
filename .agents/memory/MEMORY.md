@@ -92,6 +92,7 @@
 - [Dashboard count vs review-queue parity](dashboard-review-count-parity.md) — staff dashboard tallies must mirror queue semantics (reviewer-gated, exclude own) or they nag a phantom the viewer can't action.
 - [Review unread two query keys](review-unread-query-keys.md) — mark-seen/post-comment must invalidate BOTH staff unseen-counts AND player my-unseen keys, or one badge goes permanently stale.
 - [My-unseen phantom badge](my-unseen-phantom-badge.md) — the My Requests nav badge (/review/my-unseen) counts own rows across ALL statuses with no window; every counted row MUST be renderable in MyRequests or the badge sticks with no row to clear.
+- [Venue public-vs-management employee field](venue-public-employee-field.md) — public /directory venue detail must return employeeNames (string[]); management /ripperdocs|/stores return employees (objects). Mismatched field = silent "No staff listed".
 - [Staff archive tabs](staff-archive-tabs.md) — archive page reuses owner CharacterTabsPanel; new owner-only character READ gates must widen to loadOwnedOrStaffChar or the tab 404s for staff; no per-char staff missions endpoint (use /missions/owned filtered).
 - [Pending-edit strict-parse](pending-edit-strict-parse.md) — createPendingEdit must strip sidecar metadata (updateNote) BEFORE EditableSchema.strict() parse, or any noted edit 400s "invalid".
 - [Admin dashboard authz scope](admin-dashboard-authz.md) — AdminDashboard page is isAdmin-only; manual char-create POST is adminOnly to mirror UI, while legacy owner-assign endpoints stay adminOrFixer.
