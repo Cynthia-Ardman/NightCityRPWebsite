@@ -1,5 +1,26 @@
 import { sql } from "drizzle-orm";
-import { db, pool } from "@workspace/db";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+
+// Target selection (matches the other importers):
+//   - default            → DATABASE_URL            (dev)
+//   - IMPORT_TARGET=live → LIVE_PROD_DATABASE_URL  (the Neon DB the site uses)
+const targetIsLive = process.env.IMPORT_TARGET === "live";
+const TARGET = targetIsLive
+  ? process.env.LIVE_PROD_DATABASE_URL
+  : process.env.DATABASE_URL;
+
+if (!TARGET) {
+  console.error(
+    targetIsLive
+      ? "IMPORT_TARGET=live but LIVE_PROD_DATABASE_URL is not set"
+      : "DATABASE_URL (dev target) is not set",
+  );
+  process.exit(1);
+}
+
+const pool = new pg.Pool({ connectionString: TARGET });
+const db = drizzle(pool);
 
 // Reconciliation: claim unclaimed imported characters by matching their
 // `legacy_discord_username` (the author's pre-migration Discord handle) to a
@@ -134,6 +155,7 @@ async function apply() {
 
 async function main() {
   const doApply = process.argv.includes("--apply");
+  console.log(`Target: ${targetIsLive ? "LIVE (LIVE_PROD_DATABASE_URL)" : "dev (DATABASE_URL)"}\n`);
   await preview();
   if (!doApply) {
     console.log(`\nDRY RUN — re-run with --apply to write these claims.`);
