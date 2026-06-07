@@ -200,7 +200,7 @@ export default function SheetDetail() {
                         src={url}
                         alt={`Portrait ${i + 1}`}
                         loading="lazy"
-                        className="h-40 w-40 object-cover border border-border hover:border-nc-cyan transition-colors"
+                        className="h-40 w-40 object-contain border border-border hover:border-nc-cyan transition-colors"
                         data-testid={`img-sheet-portrait-${i}`}
                       />
                     </a>

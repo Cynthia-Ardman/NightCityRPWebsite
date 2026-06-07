@@ -307,7 +307,7 @@ export default function DirectoryCharacters() {
               >
                 <div className="w-20 h-20 border border-border bg-background flex-shrink-0">
                   {c.portraitUrl ? (
-                    <img src={c.portraitUrl} alt={c.name} className="w-full h-full object-cover" loading="lazy" />
+                    <img src={c.portraitUrl} alt={c.name} className="w-full h-full object-contain" loading="lazy" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-display text-nc-cyan/40 text-2xl">
                       {c.name.substring(0, 2).toUpperCase()}

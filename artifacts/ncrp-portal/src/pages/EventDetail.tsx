@@ -97,7 +97,7 @@ function EventDetailView({ data }: { data: EventView }) {
 
       {data.imageUrl && (
         <div className="w-full overflow-hidden border border-border rounded-none bg-card/40">
-          <img src={data.imageUrl} alt={data.title} className="w-full max-h-72 object-cover" />
+          <img src={data.imageUrl} alt={data.title} className="w-full max-h-72 object-contain" />
         </div>
       )}
 

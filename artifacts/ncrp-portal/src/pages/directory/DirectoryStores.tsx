@@ -26,7 +26,7 @@ export default function DirectoryStores() {
                     <img
                       src={s.bannerUrl}
                       alt={`${s.name} banner`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       loading="lazy"
                       data-testid={`img-store-${s.id}`}
                     />

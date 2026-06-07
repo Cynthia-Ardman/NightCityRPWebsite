@@ -21,7 +21,7 @@ export default function DirectoryRipperdocDetail() {
           <img
             src={data.bannerUrl}
             alt={`${data.name} banner`}
-            className="w-full max-h-72 object-cover"
+            className="w-full max-h-72 object-contain"
             data-testid="img-ripperdoc-banner"
           />
         </div>

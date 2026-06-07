@@ -171,7 +171,7 @@ function AccountSection() {
       <CardContent className="space-y-6">
         <div className="flex items-center gap-4">
           <Avatar className="h-14 w-14 border border-nc-magenta/30 rounded-none">
-            <AvatarImage src={me.avatarUrl || ""} className="object-cover" />
+            <AvatarImage src={me.avatarUrl || ""} className="object-contain" />
             <AvatarFallback className="bg-background text-nc-magenta rounded-none font-display">
               {me.username.substring(0, 2).toUpperCase()}
             </AvatarFallback>

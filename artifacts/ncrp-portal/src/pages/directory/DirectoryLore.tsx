@@ -128,7 +128,7 @@ export default function DirectoryLore() {
                       <img
                         src={e.imageUrl}
                         alt={e.name}
-                        className="w-full h-32 object-cover"
+                        className="w-full h-32 object-contain"
                         loading="lazy"
                         data-testid={`img-lore-${e.id}`}
                       />

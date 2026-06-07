@@ -20,7 +20,7 @@ export default function DirectoryStoreDetail() {
           <img
             src={data.bannerUrl}
             alt={`${data.name} banner`}
-            className="w-full max-h-72 object-cover"
+            className="w-full max-h-72 object-contain"
             data-testid="img-store-banner"
           />
         </div>

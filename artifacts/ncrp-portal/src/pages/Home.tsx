@@ -186,7 +186,7 @@ function Dashboard() {
                     <Link key={char.id} href={`/characters/${char.id}`}>
                       <div className="p-2 flex items-center gap-3 hover:bg-nc-cyan/5 cursor-pointer group" data-testid={`row-dashboard-char-${char.id}`}>
                         <Avatar className="h-10 w-10 border border-border rounded-none group-hover:border-nc-cyan transition-colors shrink-0">
-                          <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} className="object-cover" />
+                          <AvatarImage src={char.portraitUrl || char.portraitUrls?.[0] || ''} className="object-contain" />
                           <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-xs">
                             {char.name.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -703,7 +703,7 @@ function NpcConsolePanel() {
                 <Link key={npc.id} href={`/characters/${npc.id}`}>
                   <div className="p-3 flex items-center gap-3 hover:bg-nc-magenta/5 cursor-pointer" data-testid={`row-npc-${npc.id}`}>
                     <Avatar className="h-14 w-14 border border-border rounded-none">
-                      <AvatarImage src={npc.portraitUrl || npc.portraitUrls?.[0] || ""} className="object-cover" />
+                      <AvatarImage src={npc.portraitUrl || npc.portraitUrls?.[0] || ""} className="object-contain" />
                       <AvatarFallback className="bg-background text-nc-magenta rounded-none font-display text-lg">
                         {npc.name.substring(0, 2).toUpperCase()}
                       </AvatarFallback>

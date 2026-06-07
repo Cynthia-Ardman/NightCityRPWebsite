@@ -27,7 +27,7 @@ export default function DirectoryRipperdocs() {
                       <img
                         src={r.bannerUrl}
                         alt={`${r.name} banner`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         loading="lazy"
                         data-testid={`img-ripperdoc-${r.id}`}
                       />

@@ -642,7 +642,7 @@ export function UsersTab() {
                   <TableCell className="font-medium text-foreground">
                     <Link href={`/admin/users/${u.id}`} className="hover:underline flex items-center gap-3">
                       {u.avatarUrl ? (
-                        <img src={u.avatarUrl} alt="" className="w-8 h-8 rounded-none border border-border object-cover" />
+                        <img src={u.avatarUrl} alt="" className="w-8 h-8 rounded-none border border-border object-contain" />
                       ) : (
                         <div className="w-8 h-8 rounded-none border border-border bg-muted flex items-center justify-center text-[10px] text-muted-foreground">
                           {(display || u.discordId).slice(0, 2).toUpperCase()}

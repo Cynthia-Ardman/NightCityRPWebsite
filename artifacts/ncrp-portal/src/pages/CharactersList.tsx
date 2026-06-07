@@ -197,7 +197,7 @@ function CharacterSection({
                     <img
                       src={char.portraitUrl || char.portraitUrls?.[0] || ""}
                       alt={char.name}
-                      className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="absolute inset-0 h-full w-full object-contain group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-nc-cyan font-display text-5xl opacity-60">

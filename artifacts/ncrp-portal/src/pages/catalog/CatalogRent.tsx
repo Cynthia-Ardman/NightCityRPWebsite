@@ -976,7 +976,7 @@ function ListingImage({
   }
 
   const inner = src ? (
-    <img src={src} alt={alt} className="w-full h-full object-cover" data-testid={`img-${testId}`} />
+    <img src={src} alt={alt} className="w-full h-full object-contain" data-testid={`img-${testId}`} />
   ) : (
     <div className="w-full h-full flex items-center justify-center text-muted-foreground/50">
       <ImageIcon className="w-7 h-7" />
