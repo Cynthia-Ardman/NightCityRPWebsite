@@ -376,12 +376,16 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
   const { data: char } = useGetCharacter(characterId);
   if (!char) return null;
   const last = char.lastCheckupAt ? new Date(char.lastCheckupAt) : null;
-  // Weeks since this character's last checkup. Note: the household
-  // streak (used for billing) takes the MAX(lastCheckupAt) across all
-  // the owner's characters, so this number is only a hint — see the
-  // dashboard for the actual billable streak.
-  const weeksSince = last
-    ? Math.max(1, Math.floor((Date.now() - last.getTime()) / (7 * 86400000)) + 1)
+  // A character's creation counts as an implicit initial checkup, so a
+  // brand-new PC reads e.g. "week 2" instead of jumping to the max streak.
+  const created = char.createdAt ? new Date(char.createdAt) : null;
+  const effective = last ?? created;
+  // Weeks since this character's last checkup (or creation if they've never
+  // had one). Note: the household streak (used for billing) takes the
+  // MAX(lastCheckupAt) across all the owner's characters, so this number is
+  // only a hint — see the dashboard for the actual billable streak.
+  const weeksSince = effective
+    ? Math.max(1, Math.floor((Date.now() - effective.getTime()) / (7 * 86400000)) + 1)
     : null;
   const danger = weeksSince !== null && weeksSince >= 4;
   // No button: checkups are a PER-USER action recorded by a ripperdoc,
@@ -399,7 +403,20 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
         </div>
         <div className="text-foreground leading-relaxed">
           {last === null ? (
-            <>No checkup recorded yet — household will bill at the max streak.</>
+            <>
+              No checkup logged yet — counting from creation
+              {effective ? (
+                <>
+                  {" · "}
+                  <span className={danger ? "text-destructive font-bold" : "text-nc-yellow"}>
+                    week {weeksSince}
+                  </span>{" "}
+                  of the doubling streak.
+                </>
+              ) : (
+                <>.</>
+              )}
+            </>
           ) : (
             <>
               Last checkup <span className="text-foreground">{last.toLocaleDateString()}</span>

@@ -18,6 +18,8 @@ export type GetCharacterMedical200 = {
   band: string;
   usedCwp: number;
   /** @nullable */
+  createdAt?: Date | null;
+  /** @nullable */
   lastCheckupAt?: Date | null;
   checkupStreak: number;
   installed: GetCharacterMedical200InstalledItem[];

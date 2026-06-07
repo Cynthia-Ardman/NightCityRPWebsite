@@ -277,14 +277,18 @@ export default function RipperdocConsole() {
                   </div>
                   <div className="text-xs font-mono text-muted-foreground">
                     WEEKS_SINCE_CHECKUP:{" "}
-                    {medical?.lastCheckupAt
-                      ? Math.max(
-                          1,
-                          Math.floor(
-                            (Date.now() - new Date(medical.lastCheckupAt).getTime()) / (7 * 86400000),
-                          ) + 1,
-                        )
-                      : "12+"}
+                    {/* No checkup on record → count from the character's creation
+                        date (an implicit initial checkup), matching the billing
+                        logic, instead of showing the max streak. */}
+                    {(() => {
+                      const eff = medical?.lastCheckupAt ?? medical?.createdAt ?? null;
+                      if (!eff) return "—";
+                      const weeks = Math.max(
+                        1,
+                        Math.floor((Date.now() - new Date(eff).getTime()) / (7 * 86400000)) + 1,
+                      );
+                      return medical?.lastCheckupAt ? weeks : `${weeks} (since creation)`;
+                    })()}
                   </div>
                   <div className="text-[10px] font-mono text-muted-foreground/70">
                     Band is auto-derived from chrome CWP (0-6 none · 7-9 medium · 10-12 high · 13+ extreme). The level buttons below only update the legacy/cosmetic tag.

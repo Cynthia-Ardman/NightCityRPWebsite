@@ -7626,6 +7626,7 @@ export const GetCharacterMedicalResponse = zod.object({
   "cyberwareLevel": zod.string().nullish(),
   "band": zod.string(),
   "usedCwp": zod.number(),
+  "createdAt": zod.coerce.date().nullish(),
   "lastCheckupAt": zod.coerce.date().nullish(),
   "checkupStreak": zod.number(),
   "installed": zod.array(zod.object({

@@ -784,9 +784,14 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         const household = ownerChars.filter((c) => (chromeByChar.get(c.id) ?? 0) >= 7).length;
         // Per-user last checkup = most recent across the household. One
         // ripperdoc visit resets the streak for every character.
+        // A character's creation counts as an implicit initial checkup, so a
+        // brand-new chromed PC isn't billed as if they'd skipped checkups for
+        // weeks before they existed. Effective date = real last checkup, or
+        // creation date if they've never had one.
         const lastCheckupAt = ownerChars.reduce<Date | null>((acc, c) => {
-          if (!c.lastCheckupAt) return acc;
-          if (!acc || c.lastCheckupAt > acc) return c.lastCheckupAt;
+          const eff = c.lastCheckupAt ?? c.createdAt;
+          if (!eff) return acc;
+          if (!acc || eff > acc) return eff;
           return acc;
         }, null);
         const weeksUnpaid = weeksSinceLastCheckup(lastCheckupAt, now);

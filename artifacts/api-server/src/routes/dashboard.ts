@@ -185,9 +185,14 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // Fall back to the max(lastCheckupAt) across the household only if no
   // per-user row exists — this is the case for brand-new portal users who
   // were never tracked by the bot.
+  // A character's creation counts as an implicit initial checkup — a
+  // brand-new chromed PC shouldn't be treated as if they'd skipped checkups
+  // for the weeks before they existed (which would jump them straight to the
+  // max streak). Effective date is the real last checkup, or creation if none.
   const charLastCheckup = billable.reduce<Date | null>((acc, c) => {
-    if (!c.lastCheckupAt) return acc;
-    if (!acc || c.lastCheckupAt > acc) return c.lastCheckupAt;
+    const eff = c.lastCheckupAt ?? c.createdAt;
+    if (!eff) return acc;
+    if (!acc || eff > acc) return eff;
     return acc;
   }, null);
   const nextRunDate = nextWeeklyRunDate(now);

@@ -690,6 +690,7 @@ router.get("/admin/characters/:id/medical", requireAuth, async (req, res): Promi
     cyberwareLevel: c.cyberwareLevel,
     band,
     usedCwp,
+    createdAt: c.createdAt?.toISOString() ?? null,
     lastCheckupAt: c.lastCheckupAt?.toISOString() ?? null,
     checkupStreak: c.checkupStreak,
     installed: installedRows.map((it) => ({

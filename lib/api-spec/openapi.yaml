@@ -3181,6 +3181,7 @@ paths:
                   cyberwareLevel: { type: ["string", "null"] }
                   band: { type: string }
                   usedCwp: { type: number }
+                  createdAt: { type: ["string", "null"], format: date-time }
                   lastCheckupAt: { type: ["string", "null"], format: date-time }
                   checkupStreak: { type: integer }
                   installed:
