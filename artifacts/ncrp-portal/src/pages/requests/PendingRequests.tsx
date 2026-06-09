@@ -315,7 +315,7 @@ function MissionApprovalSection({
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListOwnedMissionsQueryKey() });
         qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
-        toast({ title: "Mission approved", description: "It can now be posted from the Missions board." });
+        toast({ title: "Mission approved", description: "It's now live and open on the Missions board." });
       },
       onError: (e) =>
         toast({

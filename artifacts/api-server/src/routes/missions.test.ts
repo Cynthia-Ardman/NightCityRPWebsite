@@ -812,6 +812,96 @@ describe("add-player participation parity (create vs edit)", () => {
 });
 
 // ===========================================================================
+// ROSTER PARTICIPATION CONFIRMATION — the mission detail must surface, per
+// assigned player, whether they've accepted the invite ("accepted"), not yet
+// responded ("pending"), or have no confirmation request (null). Lets a fixer
+// see at a glance who is definitely coming.
+// ===========================================================================
+describe("roster participationStatus on mission detail", () => {
+  async function detailAssignment(missionId: number, viewerId: string, characterId: number) {
+    const res = await request(app).get(`/api/missions/${missionId}`).set("x-test-user", viewerId);
+    expect(res.status).toBe(200);
+    const a = (res.body.assignments as Array<{ characterId: number | null; participationStatus: string | null }>).find(
+      (x) => x.characterId === characterId,
+    );
+    if (!a) throw new Error(`assignment for character ${characterId} not found`);
+    return a;
+  }
+
+  it("reports pending after assignment and accepted once the player accepts", async () => {
+    const manager = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+
+    // Fixer assigns the player → raises a pending participation request.
+    const created = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Run", tier: 1, assignments: [{ characterId: char.id }] });
+    expect(created.status).toBe(201);
+    const missionId = created.body.id as number;
+
+    expect((await detailAssignment(missionId, manager.id, char.id)).participationStatus).toBe("pending");
+
+    // The owning player accepts → roster flips to accepted.
+    const reqRow = (
+      await db.select().from(customRequests).where(eq(customRequests.characterId, char.id))
+    ).find((r) => r.type === "mission_participation");
+    expect(reqRow).toBeTruthy();
+    const decision = await request(app)
+      .post(`/api/requests/${reqRow!.id}/participation-decision`)
+      .set("x-test-user", player.id)
+      .send({ decision: "accept" });
+    expect(decision.status).toBe(200);
+
+    expect((await detailAssignment(missionId, manager.id, char.id)).participationStatus).toBe("accepted");
+  });
+
+  it("scopes status per mission: accepted on one mission does not leak into a pending invite on another", async () => {
+    const manager = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+
+    // Mission A: assign + accept → accepted.
+    const a = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "A", tier: 1, assignments: [{ characterId: char.id }] });
+    expect(a.status).toBe(201);
+    const reqA = (
+      await db.select().from(customRequests).where(eq(customRequests.characterId, char.id))
+    ).find((r) => r.type === "mission_participation" && Number((r.details as { missionId?: number }).missionId) === a.body.id);
+    await request(app)
+      .post(`/api/requests/${reqA!.id}/participation-decision`)
+      .set("x-test-user", player.id)
+      .send({ decision: "accept" });
+
+    // Mission B: assign the same character → still pending; must NOT inherit A's accept.
+    const b = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "B", tier: 1, assignments: [{ characterId: char.id }] });
+    expect(b.status).toBe(201);
+
+    expect((await detailAssignment(a.body.id, manager.id, char.id)).participationStatus).toBe("accepted");
+    expect((await detailAssignment(b.body.id, manager.id, char.id)).participationStatus).toBe("pending");
+  });
+
+  it("reports null for an assignment with no participation request (fixer self-assign)", async () => {
+    const manager = await createUser({ roles: ["admin"] });
+    const ownChar = await createCharacter({ ownerId: manager.id });
+
+    const created = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Solo", tier: 1, assignments: [{ characterId: ownChar.id }] });
+    expect(created.status).toBe(201);
+
+    expect((await detailAssignment(created.body.id, manager.id, ownChar.id)).participationStatus).toBeNull();
+  });
+});
+
+// ===========================================================================
 // AUTO-PAY CRON — only processes past-window missions; gated by a kill switch.
 // ===========================================================================
 describe("runMissionAutoPay window selection", () => {
