@@ -3,7 +3,7 @@ import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, type LucideIcon } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, ShieldAlert, type LucideIcon } from "lucide-react";
 
 type FixerTool = {
   href: string;
@@ -87,6 +87,15 @@ const FIXER_TOOLS: FixerTool[] = [
     description: "Find a player and see the characters, wallets, and accounts tied to them.",
     cta: "Look up a player",
     accent: "cyan",
+  },
+  {
+    href: "/fixer/cyberware-violations",
+    testId: "link-fixer-cyberware-violations",
+    icon: ShieldAlert,
+    title: "Slot Violations",
+    description: "Players holding more than one cyberware item in a single capped body slot. Misc and Custom chrome are unlimited.",
+    cta: "View violations",
+    accent: "magenta",
   },
 ];
 
