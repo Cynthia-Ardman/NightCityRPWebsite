@@ -129,3 +129,23 @@ order-independent on a fresh import.
 
 Prod run (after a re-import):
 `GUIDEBOOK_IMPORT_TARGET=prod pnpm --filter @workspace/api-server exec tsx src/scripts/apply-detailed-systems-corrections.ts`
+
+## Follow-up corrections — "button below" / "ticket above" spatial refs
+
+Two more imported pages used Discord-UI spatial phrasing that makes no sense on
+the website. Fixed by `apply-guidebook-button-ref-fixes.ts` (same protected-edit
+pattern). These two pages are mirror cases:
+
+- **link-vrchat-discord** — genuinely Discord. VRChat linking is the VRCLinking
+  *bot* flow (the portal only reads the resulting Verified 18+ role). "Click the
+  button below" → "click the **link account** button on the VRCLinking bot in
+  Discord"; "use the ticket above" → "open a VRCLinking Help Ticket in Discord".
+- **npc-acting** — the opposite: the portal *does* render a real "Become an NPC"
+  button on this page (`GuidebookPageDetail` injects
+  `<BecomeNpcButton variant="guidebook">` for slug `npc-acting`, above the body).
+  So "Click the NPC button below" / "Click the button below to receive the NPC
+  role" → "Use the \"Become an NPC\" button at the top of this page". (Wording
+  says "at the top" because the injected button renders above the markdown body.)
+
+Prod run (after a re-import):
+`GUIDEBOOK_IMPORT_TARGET=prod pnpm --filter @workspace/api-server exec tsx src/scripts/apply-guidebook-button-ref-fixes.ts`
