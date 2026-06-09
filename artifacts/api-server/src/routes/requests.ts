@@ -523,7 +523,11 @@ async function attachTallies(rows: RequestRow[], viewerId: string): Promise<Reco
 // requester's Discord id from `users`. Never throws — a delivery miss (DMs
 // closed, no bot token, network error) must not affect the already-committed
 // approve/reject decision.
-async function notifyRequesterOfDecision(row: RequestRow, summary: string | null): Promise<void> {
+async function notifyRequesterOfDecision(
+  row: RequestRow,
+  summary: string | null,
+  approved: boolean,
+): Promise<void> {
   try {
     const [u] = await db
       .select({ discordId: users.discordId })
@@ -533,7 +537,10 @@ async function notifyRequesterOfDecision(row: RequestRow, summary: string | null
     const typeLabel = typeLabelFor(row.type);
     const who = row.characterName ?? "your character";
     let content: string;
-    if (row.status === "approved") {
+    // Decision is passed in explicitly: the approve DM fires from closeRequest
+    // AFTER the row's status has already been flipped to "closed", so we can't
+    // infer approved-vs-rejected from row.status here.
+    if (approved) {
       content = `Your ${typeLabel} request "${row.title}" for ${who} was approved.`;
       if (summary) content += `\n${summary}`;
     } else {
@@ -765,7 +772,7 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
       targetId: rid,
       message: `Rejected ${out.reqRow.type} request: ${out.reqRow.title}`,
     });
-    await notifyRequesterOfDecision(row, null);
+    await notifyRequesterOfDecision(row, null, false);
   }
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json({ ...shape(row), decided: out.decided, approveCount: out.tally.approveCount, rejectCount: out.tally.rejectCount, threshold: out.tally.threshold });
@@ -896,7 +903,7 @@ export async function closeRequest(req: Request, id: number): Promise<ReviewActi
   if (result.kind === "applied") {
     await afterApprove(req as never, result.reqRow, result.c, result.appliedRef, result.summary, result.reqRow.overriddenBy ? "override" : "vote");
     const [row] = await selectWhere(eq(customRequests.id, id));
-    await notifyRequesterOfDecision(row, result.summary);
+    await notifyRequesterOfDecision(row, result.summary, true);
   } else if (result.kind === "archived") {
     await recordAudit({
       req,
