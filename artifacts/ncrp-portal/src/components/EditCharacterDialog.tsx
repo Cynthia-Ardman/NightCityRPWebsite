@@ -589,7 +589,7 @@ export default function EditCharacterDialog({
               className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
               data-testid="button-save-edit"
             >
-              {update.isPending ? "SUBMITTING..." : "SUBMIT FOR REVIEW"}
+              {update.isPending ? "SAVING..." : isAdmin ? "SAVE CHANGES" : "SUBMIT FOR REVIEW"}
             </Button>
           </div>
         </form>

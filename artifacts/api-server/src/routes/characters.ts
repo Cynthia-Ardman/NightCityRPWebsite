@@ -202,7 +202,11 @@ const CharacterUpdateSchema = z
 // the review/vote/apply pipeline. Returns 202 with the queued edit id.
 router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const c = await loadOwnedChar(req.user!.id, id);
+  // Staff (fixers/admins) may edit ANY character's sheet — mirroring the
+  // inventory/cyberware "one-stop-shop" loader — not just their own. Without
+  // this, an admin editing another player's sheet 404s here, so portrait/stat
+  // image changes silently fail (the reported "can't add/remove pictures").
+  const c = await loadOwnedOrStaffChar(req.user!, id);
   if (!c) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -215,7 +219,7 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
       action: "edit_applied",
       targetType: "character",
       targetId: id,
-      message: `Cosmetic edit auto-applied for ${c.name} (no review required)`,
+      message: `${result.reason === "admin" ? "Admin" : "Cosmetic"} edit auto-applied for ${c.name} (no review required)`,
       after: { autoApplied: true },
     });
     res.status(200).json({

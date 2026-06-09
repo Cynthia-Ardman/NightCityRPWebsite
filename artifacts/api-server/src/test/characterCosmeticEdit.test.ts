@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, characters, characterUpdates, pendingCharacterEdits } from "@workspace/db";
 import { buildTestApp } from "./app";
 import request from "supertest";
-import { createUser, createCharacter } from "./testDb";
+import { createUser, createAdmin, createCharacter } from "./testDb";
 
 const app = buildTestApp();
 
@@ -134,5 +134,133 @@ describe("cosmetic character edits auto-apply", () => {
     const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
     expect(row.portraitUrl).toBeNull();
     expect(row.name).toBe("Edit Target");
+  });
+});
+
+describe("admin character edits auto-apply (no review queue)", () => {
+  it("applies a stats-image change immediately for an admin (no review)", async () => {
+    const admin = await createAdmin();
+    const owner = await createUser();
+    const c = await ownedChar(owner.id);
+
+    const res = await patch(admin.id, c.id, {
+      statsImageUrls: ["/api/storage/objects/stats-1", "/api/storage/objects/stats-2"],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.autoApplied).toBe(true);
+    expect(await pendingCount(c.id)).toBe(0);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.statsImageUrls).toEqual([
+      "/api/storage/objects/stats-1",
+      "/api/storage/objects/stats-2",
+    ]);
+  });
+
+  it("applies a mixed name + stat-section + image edit immediately for an admin", async () => {
+    const admin = await createAdmin();
+    const owner = await createUser();
+    const c = await ownedChar(owner.id, {
+      sheetData: { preamble: "p", sections: { Body: "5" } },
+    });
+
+    const res = await patch(admin.id, c.id, {
+      name: "Renamed By Admin",
+      sheetData: { preamble: "p", sections: { Body: "9" } },
+      portraitUrls: ["/api/storage/objects/p"],
+      statsImageUrls: ["/api/storage/objects/s"],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.autoApplied).toBe(true);
+    expect(await pendingCount(c.id)).toBe(0);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.name).toBe("Renamed By Admin");
+    expect((row.sheetData as { sections?: Record<string, string> } | null)?.sections).toEqual({
+      Body: "9",
+    });
+    expect(row.portraitUrls).toEqual(["/api/storage/objects/p"]);
+    expect(row.statsImageUrls).toEqual(["/api/storage/objects/s"]);
+  });
+
+  it("logs an updateNote when an admin edit carries one", async () => {
+    const admin = await createAdmin();
+    const owner = await createUser();
+    const c = await ownedChar(owner.id);
+
+    const res = await patch(admin.id, c.id, {
+      name: "Admin Rename",
+      updateNote: "fixed their stat screenshot",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.autoApplied).toBe(true);
+
+    const notes = await db
+      .select()
+      .from(characterUpdates)
+      .where(eq(characterUpdates.characterId, c.id));
+    expect(notes.length).toBe(1);
+    expect(notes[0].note).toBe("fixed their stat screenshot");
+  });
+
+  it("still queues a non-admin's stats-image change for review", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id);
+
+    const res = await patch(u.id, c.id, {
+      statsImageUrls: ["/api/storage/objects/stats-1"],
+    });
+    expect(res.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.statsImageUrls ?? []).toEqual([]);
+  });
+
+  it("supersedes an in-flight pending edit so it can't later clobber the admin change", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const c = await ownedChar(owner.id);
+
+    // Owner queues a stats-image edit (parked for review).
+    const queued = await patch(owner.id, c.id, {
+      statsImageUrls: ["/api/storage/objects/stale"],
+    });
+    expect(queued.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
+
+    // Admin directly applies a different stats image.
+    const applied = await patch(admin.id, c.id, {
+      statsImageUrls: ["/api/storage/objects/admin"],
+    });
+    expect(applied.status).toBe(200);
+    expect(applied.body.autoApplied).toBe(true);
+
+    // The previously-pending edit is now cancelled (superseded), not pending.
+    const [pending] = await db
+      .select()
+      .from(pendingCharacterEdits)
+      .where(eq(pendingCharacterEdits.characterId, c.id));
+    expect(pending.status).toBe("cancelled");
+
+    // The admin's change is the live state.
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.statsImageUrls).toEqual(["/api/storage/objects/admin"]);
+  });
+
+  it("lets a fixer edit a non-owned character but still queues it for review", async () => {
+    const owner = await createUser();
+    const fixer = await createUser({ roles: ["fixer"] });
+    const c = await ownedChar(owner.id);
+
+    const res = await patch(fixer.id, c.id, {
+      statsImageUrls: ["/api/storage/objects/fixer"],
+    });
+    expect(res.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
+
+    // Not applied — fixers go through review, they do not bypass it.
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.statsImageUrls ?? []).toEqual([]);
   });
 });

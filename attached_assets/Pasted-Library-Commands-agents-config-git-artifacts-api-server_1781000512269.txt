@@ -1,0 +1,261 @@
+Library
+Commands
+.agents
+.config
+.git
+artifacts
+api-server
+mockup-sandbox
+ncrp-portal
+.replit-artifact
+dist
+e2e
+node_modules
+public
+src
+components
+contexts
+hooks
+lib
+pages
+admin
+breach
+catalog
+clinics
+directory
+fixer
+guidebook
+pending-edits
+requests
+sheets
+stores
+AdminDashboard.tsx
+AdminTabs.test.tsx
+CharacterDetail.test.tsx
+CharacterDetail.tsx
+CharactersList.tsx
+DiceRoller.test.ts
+DiceRoller.tsx
+EventDetail.tsx
+Home.tsx
+InventoryItemDetail.tsx
+Ledger.tsx
+LoginError.tsx
+LogoutError.tsx
+MissionDetail.test.tsx
+MissionDetail.tsx
+Missions.test.tsx
+Missions.tsx
+MyOffers.tsx
+MyRequests.test.tsx
+MyRequests.tsx
+not-found.tsx
+PlayerLoaControl.test.tsx
+RipperdocConsole.tsx
+RulesGate.tsx
+Settings.tsx
+SiteLocked.tsx
+VerificationRequired.tsx
+WalletTab.test.tsx
+test
+App.tsx
+index.css
+main.tsx
+test-results
+.gitignore
+components.json
+index.html
+package.json
+playwright.config.ts
+tsconfig.json
+tsconfig.tsbuildinfo
+vite.config.ts
+vitest.config.ts
+attached_assets
+docs
+lib
+scripts
+node_modules
+output
+character-sheets-preview.html
+character-sheets-preview.json
+src
+apply-db-guards.ts
+apply-prod-import.ts
+audit-cyberware-coverage.ts
+backfill-cyberware-status.ts
+backfill-legacy-claims.ts
+backfill-mission-runners.ts
+backfill-mission-workflow-state.ts
+backfill-practice-clears.ts
+backfill-review-closed.ts
+backfill-verified18.ts
+backfill-wallet-categories.ts
+check-prod-guards.ts
+check-verified18.ts
+cleanup-character-archive.ts
+db-diff.ts
+dedupe-cyberware.ts
+diag-live.ts
+heal-duplicate-mission-events.ts
+hello.ts
+import-actor-attendance.ts
+import-bot-activity.ts
+import-bot-financials.ts
+import-character-sheets.ts
+import-corpse-test.ts
+import-cyberware-inventory.ts
+import-dm-meds.ts
+import-legacy-mission-assignments.ts
+import-legacy-missions.ts
+import-npcs-cyberware.ts
+import-prod.ts
+import-rent-leases.ts
+import-rent-payments.ts
+import-ripperdocs.ts
+merge-duplicate-characters.ts
+migrate-mission-statuses.ts
+prod-migrate.ts
+refetch-empty-sheets.ts
+seed-catalogs.ts
+sync-from-prod.ts
+sync-lore-schema-to-prod.ts
+cyberware-aliases-prod.json
+cyberware-aliases.json
+mirror-live-to-dev.sh
+package.json
+post-merge.sh
+tsconfig.json
+.gitignore
+.npmrc
+replit.md
+tsconfig.base.json
+tsconfig.json
+Packager files
+.pythonlibs
+node_modules
+package.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+Config files
+.replit
+.replitignore
+replit.nix
+Production
+Status
+Cynthia published about 2 hours ago
+Visibility
+Public
+SEO Rating
+HEALTHY
+Geography
+North America
+Type
+Autoscale(2 vCPU / 4 GiB RAM / 3 Max)
+See all usage
+Database
+Production database connected
+Your production database is ready! Your app can now save and manage live user data securely.
+Night City RP Portal
+night-city-interface.replit.app
+Earn $20 for every friend who joins Replit Core
+Share your link. When a friend signs up and upgrades to Replit Core, you'll both get $20 in credits.
+replit.com/refer/CynthiaArdman
+dfd05aa9
+CA
+CynthiaArdman
+Cynthiapublished 2 days ago
+604da252
+CA
+CynthiaArdman
+Cynthiapublished 3 days ago
+9baf1161
+CA
+CynthiaArdman
+Cynthiapublished 4 days ago
+dc00527b
+CA
+CynthiaArdman
+Cynthiapublished 4 days ago
+8c434c49
+CA
+CynthiaArdman
+Cynthiapublished 4 days ago
+f2f64611
+CA
+CynthiaArdman
+Cynthiapublished 4 days ago
+b70e601c
+CA
+CynthiaArdman
+Cynthiapublished 4 days ago
+b351e332
+CA
+CynthiaArdman
+Cynthiapublished 4 days ago
+d37158ca
+CA
+CynthiaArdman
+Cynthiapublished 4 days ago
+93d66922
+CA
+CynthiaArdman
+Cynthiapublished 4 days ago
+9321d786
+CA
+CynthiaArdman
+Cynthiapublished 8 days ago
+1f2311ac
+CA
+CynthiaArdman
+Cynthiapublished 8 days ago
+994a4b6f
+CA
+CynthiaArdman
+Cynthiapublished 8 days ago
+9862c58c
+CA
+CynthiaArdman
+Cynthiapublished 9 days ago
+d1d2ca01
+CA
+CynthiaArdman
+Cynthiapublished 9 days ago
+1dc05274
+CA
+CynthiaArdman
+Cynthiapublished 9 days ago
+bd8b36a3
+CA
+CynthiaArdman
+Cynthiapublished 9 days ago
+4eefc40e
+CA
+CynthiaArdman
+Cynthiapublished 9 days ago
+a00b8f1b
+CA
+CynthiaArdman
+Cynthiapublished 9 days ago
+c20517ab
+CA
+CynthiaArdman
+Cynthiapublished 9 days ago
+Remote Updates
+Cynthia-Ardman/NightCityRPWebsite
+origin/main•upstreamlast fetched 3 hours ago
+Commit
+There are no changes to commit.
+Add safeguard to prevent missing Discord events and fix past gaps
+
+I think the plan was to have Discord events for the main sessions out three months. And right now I see session 80 on, I think September 13th in a Discord, but I don't see anything between session 80 and I think session 70 or something?
+3 hours ago
+
+Create the 10 missing Main Session events (Sundays July 5 → Sept 6) in your live Discord now, and add the safeguard so it can't happen again?
+Yes, create them now
+3 hours ago
+
+How can I edit the rules pop up that happens when you first log into the website?
+12 minutes ago
+
+When I go to update a character sheet as an admin I can't remove or add pictures at all, I shoiuld be able to.

@@ -141,7 +141,7 @@ export async function createPendingEdit(opts: {
   submitter: User;
   body: unknown;
 }): Promise<
-  | { ok: true; autoApplied: true; character: Character }
+  | { ok: true; autoApplied: true; reason: "cosmetic" | "admin"; character: Character }
   | { ok: true; autoApplied?: false; edit: typeof pendingCharacterEdits.$inferSelect }
   | { ok: false; error: CreatePendingEditError }
 > {
@@ -170,6 +170,54 @@ export async function createPendingEdit(opts: {
   }
   const updateNote = typeof noteRaw === "string" && noteRaw.trim().length > 0 ? noteRaw.trim().slice(0, 2000) : null;
 
+  // Admins are the editorial authority for character sheets, so their edits
+  // apply immediately (full create-parity) and bypass the fixer review queue
+  // entirely. Without this, an admin's non-cosmetic edits (notably stat images
+  // and any mixed image+field edit) get parked in a review they themselves
+  // can't vote on, so the change never takes effect — the reported "can't
+  // add/remove pictures" symptom. Cosmetic-only short-circuit still applies to
+  // everyone below; this just widens the instant-apply path for admins.
+  if (hasRole(opts.submitter.roles, "ADMIN")) {
+    const character = await db.transaction(async (tx) => {
+      const updated = await applyDiff(opts.character.id, diff as EditableDiff, tx);
+      // An admin's direct edit is the authoritative new state, so supersede any
+      // in-flight pending edit for this character. Marking it 'cancelled' (not
+      // 'approved') means closeEdit will merely archive it and will NOT re-apply
+      // its now-stale proposed_diff over the admin's change. Without this, an
+      // older queued edit could later approve+close and clobber what the admin
+      // just saved on overlapping fields.
+      await tx
+        .update(pendingCharacterEdits)
+        .set({
+          status: "cancelled",
+          decidedAt: new Date(),
+          decisionSummary: `superseded by admin edit (${opts.submitter.username})`,
+        })
+        .where(
+          and(
+            eq(pendingCharacterEdits.characterId, opts.character.id),
+            inArray(pendingCharacterEdits.status, ["pending", "changes_requested"]),
+          ),
+        );
+      if (updateNote) {
+        await tx.insert(characterUpdates).values({
+          characterId: opts.character.id,
+          authorId: opts.submitter.id,
+          note: updateNote,
+        });
+      }
+      await tx.insert(activityEvents).values({
+        kind: "character_edit_applied",
+        actorId: opts.submitter.id,
+        actorName: opts.submitter.username,
+        actorAvatarUrl: opts.submitter.avatarUrl,
+        message: `${opts.submitter.username} updated ${opts.character.name} (admin — auto-applied)`,
+      });
+      return updated;
+    });
+    return { ok: true, autoApplied: true, reason: "admin", character };
+  }
+
   // Cosmetic-only edits (portraits, bio, archetype, sheet preamble/formatting)
   // bypass review entirely and apply on the spot. This runs BEFORE the
   // in-flight-edit logic so a player can always tweak presentation even while a
@@ -195,7 +243,7 @@ export async function createPendingEdit(opts: {
       });
       return updated;
     });
-    return { ok: true, autoApplied: true, character };
+    return { ok: true, autoApplied: true, reason: "cosmetic", character };
   }
 
   // One in-flight edit per character. Since reviewer feedback now flows through
