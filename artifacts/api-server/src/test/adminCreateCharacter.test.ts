@@ -148,13 +148,13 @@ describe("POST /admin/characters (manual character creation)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("forbids a fixer (admin-only endpoint, 403)", async () => {
+  it("allows a fixer (the endpoint is adminOrFixer, like every /admin/characters route)", async () => {
     const fixer = await createUser({ roles: ["fixer"] });
     const res = await request(app)
       .post("/api/admin/characters")
       .set("x-test-user", fixer.id)
       .send({ name: "Fixer Made" });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   it("forbids a plain player (403) and unauthenticated (401)", async () => {

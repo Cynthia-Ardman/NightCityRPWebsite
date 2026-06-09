@@ -202,10 +202,13 @@ describe("pending edit request-changes (retired) + resubmit", () => {
 
     // Owner re-edits the character. This must amend the EXISTING review, not
     // spawn a second one.
+    // NOTE: must edit a NON-cosmetic field. `background` is now a COSMETIC_FIELD
+    // (auto-applies with a 200), so it no longer routes through the review queue.
+    // `name` is review-required, which is what this pipeline test exercises.
     const patch = await request(app)
       .patch(`/api/characters/${char.id}`)
       .set("x-test-user", owner.id)
-      .send({ background: "a much richer story" });
+      .send({ name: "Renamed Edit Target" });
     expect(patch.status).toBe(202);
     expect(patch.body.pendingEditId).toBe(edit.id);
 
@@ -216,7 +219,7 @@ describe("pending edit request-changes (retired) + resubmit", () => {
     expect(rows[0].id).toBe(edit.id);
     expect(rows[0].status).toBe("pending");
     expect(rows[0].reviewComment).toBeNull();
-    expect((rows[0].proposedDiff as { background?: string }).background).toBe("a much richer story");
+    expect((rows[0].proposedDiff as { name?: string }).name).toBe("Renamed Edit Target");
   });
 
   it("clears prior votes when an edit is updated-and-resubmitted via a character PATCH", async () => {
@@ -232,10 +235,12 @@ describe("pending edit request-changes (retired) + resubmit", () => {
       .send({ vote: "approve" });
     await parkChangesRequested(edit.id, "Redo it.");
 
+    // Non-cosmetic edit (`name`) so the PATCH routes through review, not the
+    // cosmetic auto-apply path.
     const patch = await request(app)
       .patch(`/api/characters/${char.id}`)
       .set("x-test-user", owner.id)
-      .send({ background: "rewritten" });
+      .send({ name: "Rewritten Name" });
     expect(patch.status).toBe(202);
     expect(patch.body.pendingEditId).toBe(edit.id);
 
@@ -258,10 +263,11 @@ describe("pending edit request-changes (retired) + resubmit", () => {
     expect(override.body.status).toBe("approved");
 
     // A later edit must NOT reopen the decided row; it opens a new review.
+    // Non-cosmetic field (`name`) so the PATCH routes through review.
     const patch = await request(app)
       .patch(`/api/characters/${char.id}`)
       .set("x-test-user", owner.id)
-      .send({ background: "an even newer story" });
+      .send({ name: "Even Newer Name" });
     expect(patch.status).toBe(202);
     expect(patch.body.pendingEditId).not.toBe(edit.id);
 

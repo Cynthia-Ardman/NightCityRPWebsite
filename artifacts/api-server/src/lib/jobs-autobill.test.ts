@@ -55,6 +55,17 @@ async function addChrome(characterId: number, ownerId: string, cwp: number) {
   });
 }
 
+// The cyberware_humanity job treats a character's createdAt as an implicit
+// initial ripperdoc checkup, so a brand-new chromed PC isn't billed for weeks
+// it didn't exist. Tests that want to assert a real charge must age the
+// character past the 7-day checkup window first.
+async function backdateCreation(characterId: number, days = 30): Promise<void> {
+  await db
+    .update(characters)
+    .set({ createdAt: new Date(Date.now() - days * 86_400_000) })
+    .where(eq(characters.id, characterId));
+}
+
 describe("isAutobillEnabled", () => {
   it("returns false when the config row is missing (fail-safe default OFF)", async () => {
     expect(await isAutobillEnabled(AUTOBILL_FLAGS.cyberware)).toBe(false);
@@ -77,6 +88,7 @@ describe("runJob('cyberware_humanity')", () => {
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
     await addChrome(char.id, owner.id, 8); // medium band
+    await backdateCreation(char.id);
 
     const result = await runJob("cyberware_humanity");
     expect(result.status).toBe("succeeded");
@@ -105,6 +117,7 @@ describe("runJob('cyberware_humanity')", () => {
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
     await addChrome(char.id, owner.id, 8);
+    await backdateCreation(char.id);
 
     await runJob("cyberware_humanity");
     await runJob("cyberware_humanity");
@@ -118,6 +131,7 @@ describe("runJob('cyberware_humanity')", () => {
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
     await addChrome(char.id, owner.id, 8);
+    await backdateCreation(char.id);
 
     await runJob("cyberware_humanity");
     expect(mockPatch).toHaveBeenCalledTimes(1);
@@ -355,6 +369,7 @@ describe("runJob('cyberware_humanity') crash-window: debit succeeded, ledger wri
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
     await addChrome(char.id, owner.id, 8); // medium band
+    await backdateCreation(char.id);
 
     // First run: UB debit "succeeds" then the process crashes before the run
     // can finish.
