@@ -736,7 +736,8 @@ function AssignmentRow({
         </div>
         {a.userName && <div className="text-xs font-mono text-muted-foreground">{a.userName}</div>}
       </div>
-      <div className="text-right space-y-1">
+      <div className="text-right space-y-1 flex flex-col items-end">
+        <ParticipationBadge status={a.participationStatus} />
         {a.attendanceCreditedAt && (
           <div className="text-[10px] font-mono text-green-400 inline-flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> Attended
@@ -800,6 +801,35 @@ function PaymentBadge({
       {error && <span className="text-[10px] font-mono text-destructive max-w-[12rem] truncate" title={error}>{error}</span>}
     </div>
   );
+}
+
+// Shows whether an assigned player has confirmed their invite, so a fixer can
+// see at a glance who is definitely coming. Renders nothing when there's no
+// confirmation request (e.g. a fixer self-assigned their own character).
+function ParticipationBadge({ status }: { status?: string | null }) {
+  if (status === "accepted") {
+    return (
+      <Badge
+        variant="outline"
+        className="rounded-none text-[10px] border-green-500 text-green-400 bg-green-500/10 inline-flex items-center gap-1"
+        data-testid="badge-participation-accepted"
+      >
+        <CheckCircle2 className="w-3 h-3" /> Accepted
+      </Badge>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <Badge
+        variant="outline"
+        className="rounded-none text-[10px] border-nc-yellow text-nc-yellow bg-nc-yellow/10 inline-flex items-center gap-1"
+        data-testid="badge-participation-pending"
+      >
+        <Clock className="w-3 h-3" /> Awaiting reply
+      </Badge>
+    );
+  }
+  return null;
 }
 
 function WorkflowPanel({ data }: { data: MissionDetailModel }) {

@@ -10,6 +10,7 @@ import {
   missionNpcSignups,
   botActorAttendance,
   characters,
+  customRequests,
   users,
   type Mission,
 } from "@workspace/db";
@@ -612,6 +613,41 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
   if (!canManage && !viewer.isArchivist && m.workflowState !== "posted") return null;
   const ctx = await getMissionContext();
   const assignments = (await loadAssignments([missionId])).get(missionId) ?? [];
+
+  // Per-character participation confirmation: when a fixer assigns a player's
+  // character we raise a `mission_participation` request the player must accept.
+  // Surface that state on the roster so a fixer can see, at a glance, who has
+  // confirmed ("accepted") vs who hasn't responded yet ("pending"). Characters
+  // with no request (e.g. a fixer self-assigning) get null.
+  const rosterCharIds = assignments
+    .map((a) => a.characterId)
+    .filter((id): id is number => id != null);
+  const participationByChar = new Map<number, "accepted" | "pending">();
+  if (rosterCharIds.length > 0) {
+    const partRows = await db
+      .select({
+        characterId: customRequests.characterId,
+        status: customRequests.status,
+        details: customRequests.details,
+      })
+      .from(customRequests)
+      .where(
+        and(
+          eq(customRequests.type, "mission_participation"),
+          inArray(customRequests.characterId, rosterCharIds),
+        ),
+      );
+    for (const r of partRows) {
+      if (r.characterId == null) continue;
+      if (Number((r.details as { missionId?: number } | null)?.missionId) !== missionId) continue;
+      const mapped = r.status === "approved" ? "accepted" : r.status === "pending" ? "pending" : null;
+      if (!mapped) continue;
+      // A still-pending request (e.g. a re-assignment) outranks an older accept,
+      // since the player has not confirmed the current invite.
+      if (mapped === "pending") participationByChar.set(r.characterId, "pending");
+      else if (!participationByChar.has(r.characterId)) participationByChar.set(r.characterId, "accepted");
+    }
+  }
   const actorRows = await db
     .select({
       id: missionActorPayments.id,
@@ -729,6 +765,7 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
       characterName: a.characterName,
       characterPortraitUrl: a.characterPortraitUrl,
       attendanceCreditedAt: iso(a.attendanceCreditedAt),
+      participationStatus: a.characterId != null ? (participationByChar.get(a.characterId) ?? null) : null,
       paymentStatus: a.paymentStatus,
       // Money detail is fixer-only; players see their own row in full but
       // not other players' amounts/errors.

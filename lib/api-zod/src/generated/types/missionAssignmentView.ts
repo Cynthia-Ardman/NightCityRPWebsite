@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { MissionAssignmentViewParticipationStatus } from './missionAssignmentViewParticipationStatus';
 import type { MissionAssignmentViewPaymentStatus } from './missionAssignmentViewPaymentStatus';
 
 export interface MissionAssignmentView {
@@ -22,6 +23,11 @@ export interface MissionAssignmentView {
   characterPortraitUrl?: string | null;
   /** @nullable */
   attendanceCreditedAt?: Date | null;
+  /**
+     * Whether the assigned player has confirmed the invite. accepted = player accepted; pending = awaiting their response; null = no confirmation request (e.g. fixer self-assigned).
+     * @nullable
+     */
+  participationStatus?: MissionAssignmentViewParticipationStatus;
   paymentStatus: MissionAssignmentViewPaymentStatus;
   /** @nullable */
   payAmount?: number | null;

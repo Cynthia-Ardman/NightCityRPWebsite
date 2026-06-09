@@ -4092,6 +4092,18 @@ export interface UpcomingBills {
   totals: UpcomingBillsTotals;
 }
 
+/**
+ * Whether the assigned player has confirmed the invite. accepted = player accepted; pending = awaiting their response; null = no confirmation request (e.g. fixer self-assigned).
+ * @nullable
+ */
+export type MissionAssignmentViewParticipationStatus = typeof MissionAssignmentViewParticipationStatus[keyof typeof MissionAssignmentViewParticipationStatus] | null;
+
+
+export const MissionAssignmentViewParticipationStatus = {
+  accepted: 'accepted',
+  pending: 'pending',
+} as const;
+
 export type MissionAssignmentViewPaymentStatus = typeof MissionAssignmentViewPaymentStatus[keyof typeof MissionAssignmentViewPaymentStatus];
 
 
@@ -4117,6 +4129,11 @@ export interface MissionAssignmentView {
   characterPortraitUrl?: string | null;
   /** @nullable */
   attendanceCreditedAt?: string | null;
+  /**
+     * Whether the assigned player has confirmed the invite. accepted = player accepted; pending = awaiting their response; null = no confirmation request (e.g. fixer self-assigned).
+     * @nullable
+     */
+  participationStatus?: MissionAssignmentViewParticipationStatus;
   paymentStatus: MissionAssignmentViewPaymentStatus;
   /** @nullable */
   payAmount?: number | null;

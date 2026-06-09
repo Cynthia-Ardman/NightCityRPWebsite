@@ -327,6 +327,7 @@ export * from './missionApplicationView';
 export * from './missionApplicationViewStatus';
 export * from './missionAssignmentInput';
 export * from './missionAssignmentView';
+export * from './missionAssignmentViewParticipationStatus';
 export * from './missionAssignmentViewPaymentStatus';
 export * from './missionConfig';
 export * from './missionConfigUpdate';
