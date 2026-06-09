@@ -31,6 +31,8 @@ import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign,
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
+import StaffCyberwareCard from "@/components/StaffCyberwareCard";
+import StaffLeaseCard from "@/components/StaffLeaseCard";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import Markdown from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
@@ -183,7 +185,7 @@ export function CharacterTabsPanel({
         </TabsContent>
 
         <TabsContent value="property" className="outline-none focus:ring-0">
-          <HousingCard characterId={char.id} />
+          <HousingCard characterId={char.id} characterName={char.name} />
         </TabsContent>
 
         <TabsContent value="inventory" className="outline-none focus:ring-0">
@@ -531,6 +533,9 @@ function CyberwareTab({ characterId }: { characterId: number }) {
   // The owner of this character (or an admin) can request custom cyberware
   // for it — this reuses the unified request pipeline, preselecting this PC.
   const canRequestCyberware = !!me.data?.isAdmin || (!!char.ownerId && char.ownerId === me.data?.id);
+  // Staff (admins + fixers) get a direct cyberware editor — add/edit/remove
+  // chrome straight from the tab, applied immediately (no review queue).
+  const isStaff = !!me.data?.isAdmin || !!me.data?.isFixer;
 
   // Pull cyberware items out of the per-character inventory. We match on
   // category case-insensitively so legacy "Cyberware" / "cyberware" both
@@ -611,6 +616,8 @@ function CyberwareTab({ characterId }: { characterId: number }) {
       </Card>
 
       <CheckupStreakCard characterId={characterId} />
+
+      {isStaff && <StaffCyberwareCard characterId={characterId} characterName={char.name} />}
 
       {canRequestCyberware && (
         <Card className="rounded-none border-border bg-card/50">
@@ -1112,8 +1119,10 @@ function TransferItemDialog({
   );
 }
 
-function HousingCard({ characterId }: { characterId: number }) {
+function HousingCard({ characterId, characterName }: { characterId: number; characterName: string }) {
   const qc = useQueryClient();
+  const me = useAuthMe();
+  const isStaff = !!me.data?.isAdmin || !!me.data?.isFixer;
   const { data: leases, isLoading } = useGetCharacterHousing(characterId);
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetCharacterHousingQueryKey(characterId) });
   const vacate = useVacateHousing({ mutation: { onSuccess: invalidate } });
@@ -1194,6 +1203,8 @@ function HousingCard({ characterId }: { characterId: number }) {
         )}
       </CardContent>
     </Card>
+
+      {isStaff && <StaffLeaseCard characterId={characterId} characterName={characterName} />}
 
       <CategoryPaymentHistory
         characterId={characterId}

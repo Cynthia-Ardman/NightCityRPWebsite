@@ -24,8 +24,8 @@ import MarkdownEditor from "@/components/MarkdownEditor";
 import ImageEditor from "@/components/ImageEditor";
 import CyberwareEditor, {
   type CyberRow,
-  buildCyberNotes,
   parseCyberNotes,
+  reconcileCyberware,
 } from "@/components/CyberwareEditor";
 import StaffGrantSections from "@/components/StaffGrantSections";
 import { useAuthMe } from "@/hooks/useAuthMe";
@@ -250,42 +250,16 @@ export default function EditCharacterDialog({
     const survivingOriginal = new Map<number, CyberRow>();
     for (const o of cyberOriginal) if (o.id != null) survivingOriginal.set(o.id, o);
     try {
-      const liveIds = new Set(working.filter((r) => r.id != null).map((r) => r.id));
-      const removed = cyberOriginal.filter((r) => r.id != null && !liveIds.has(r.id));
-      for (const r of removed) {
-        await removeInventory.mutateAsync({ id: character.id, itemId: r.id as number });
-        survivingOriginal.delete(r.id as number);
-      }
-
-      for (let i = 0; i < working.length; i++) {
-        const r = working[i];
-        const name = r.name.trim() || r.slot.trim();
-        if (!name) continue; // skip empty rows entirely
-        const notes = buildCyberNotes({ points: r.points, notes: r.notes, slot: r.slot });
-        if (r.id != null) {
-          const orig = survivingOriginal.get(r.id);
-          const origNotes = orig
-            ? buildCyberNotes({ points: orig.points, notes: orig.notes, slot: orig.slot })
-            : "";
-          if (!orig || orig.name !== name || origNotes !== notes) {
-            await updateInventory.mutateAsync({
-              id: character.id,
-              itemId: r.id,
-              data: { name, notes },
-            });
-          }
-          survivingOriginal.set(r.id, { ...r, name });
-        } else {
-          const created = await addInventory.mutateAsync({
-            id: character.id,
-            data: { name, category: "cyberware", quantity: 1, notes, equipped: true },
-          });
-          // Record the new id immediately so a subsequent save treats this row as
-          // existing (no duplicate insert).
-          working[i] = { ...r, id: created.id, name };
-          survivingOriginal.set(created.id, working[i]);
-        }
-      }
+      await reconcileCyberware({
+        characterId: character.id,
+        working,
+        survivingOriginal,
+        mutations: {
+          add: (a) => addInventory.mutateAsync(a),
+          update: (a) => updateInventory.mutateAsync(a),
+          remove: (a) => removeInventory.mutateAsync(a),
+        },
+      });
 
       await qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(character.id) });
       await qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(character.id) });

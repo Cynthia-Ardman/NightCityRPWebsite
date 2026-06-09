@@ -61,6 +61,8 @@ vi.mock("@workspace/api-client-react", () => {
     }),
     useListLifestyleTiers: () => idleQuery([]),
     useListMyMissions: () => idleQuery([]),
+    useListRentListings: () => idleQuery([]),
+    useListCyberware: () => idleQuery([]),
 
     // Mutations
     useTransferEddies: idleMutation,
@@ -70,6 +72,7 @@ vi.mock("@workspace/api-client-react", () => {
     useTransferInventoryItem: idleMutation,
     useVacateHousing: idleMutation,
     useUpdateHousingLease: idleMutation,
+    useLeaseHousing: idleMutation,
     useUpdateCharacterStatus: idleMutation,
     useSetCharacterLifestyle: idleMutation,
     useUpdateCharacter: idleMutation,

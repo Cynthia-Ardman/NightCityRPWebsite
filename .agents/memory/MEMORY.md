@@ -110,3 +110,4 @@
 - [Portal vitest fragile mocks](portal-vitest-fragile-mocks.md) — EditCharacterDialog/CharacterDetail/CyberwareEditor tests use manual vi.mock factories; a component calling a hook the factory omits throws "No <hook> export is defined" — pre-existing flake, unrelated to codegen.
 - [Offer badge parity](offer-badge-parity.md) — My Offers nav badge must count only actionable (pending stock_add) offers, else phantom badge sticks.
 - [Lore import channel-mention & protected-edit gap](lore-import-channel-gap.md) — lore pipeline (unlike guidebook) does NOT rewrite `<#id>` and has no editedSinceImport; manual lore fixes get clobbered on re-import.
+- [Staff read/write authz parity](staff-read-write-authz-parity.md) — staff management UI on a character sub-resource needs the GET read path to allow the same fixer+admin scope as its writes.

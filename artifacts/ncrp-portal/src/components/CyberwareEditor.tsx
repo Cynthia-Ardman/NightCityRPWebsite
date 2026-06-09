@@ -58,6 +58,72 @@ export function parseCyberNotes(notes: string | null | undefined): {
   return { points, notes: userNotes.join(" · "), slot };
 }
 
+// Mutation callbacks the reconcile needs. These mirror the orval-generated
+// inventory hooks' `mutateAsync` signatures, kept narrow so the helper stays
+// decoupled from the hook objects themselves.
+export type CyberReconcileMutations = {
+  add: (args: {
+    id: number;
+    data: { name: string; category: string; quantity: number; notes: string; equipped: boolean };
+  }) => Promise<{ id: number }>;
+  update: (args: { id: number; itemId: number; data: { name: string; notes: string } }) => Promise<unknown>;
+  remove: (args: { id: number; itemId: number }) => Promise<unknown>;
+};
+
+// Apply cyberware row edits immediately by diffing `working` against the
+// `survivingOriginal` snapshot: delete removed rows, patch changed rows, insert
+// new ones. Shared by the edit dialog and the character-detail staff card so the
+// reconcile (and its partial-failure resumability) lives in exactly one place.
+//
+// Both `working` and `survivingOriginal` are CALLER-OWNED and mutated in place:
+// `working` mirrors the user's full row list (server-assigned ids are folded in
+// as rows persist, so nothing typed is lost even on a mid-sequence failure), and
+// `survivingOriginal` tracks what is actually on the server keyed by id. Because
+// the caller holds both, its `finally` can commit partial progress after a throw
+// — a retry then neither re-creates already-created rows nor re-deletes
+// already-deleted ones.
+export async function reconcileCyberware(opts: {
+  characterId: number;
+  working: CyberRow[];
+  survivingOriginal: Map<number, CyberRow>;
+  mutations: CyberReconcileMutations;
+}): Promise<void> {
+  const { characterId, working, survivingOriginal, mutations } = opts;
+
+  const liveIds = new Set(working.filter((r) => r.id != null).map((r) => r.id));
+  const removed = Array.from(survivingOriginal.values()).filter(
+    (r) => r.id != null && !liveIds.has(r.id),
+  );
+  for (const r of removed) {
+    await mutations.remove({ id: characterId, itemId: r.id as number });
+    survivingOriginal.delete(r.id as number);
+  }
+
+  for (let i = 0; i < working.length; i++) {
+    const r = working[i];
+    const name = r.name.trim() || r.slot.trim();
+    if (!name) continue; // skip empty rows entirely
+    const notes = buildCyberNotes({ points: r.points, notes: r.notes, slot: r.slot });
+    if (r.id != null) {
+      const orig = survivingOriginal.get(r.id);
+      const origNotes = orig
+        ? buildCyberNotes({ points: orig.points, notes: orig.notes, slot: orig.slot })
+        : "";
+      if (!orig || orig.name !== name || origNotes !== notes) {
+        await mutations.update({ id: characterId, itemId: r.id, data: { name, notes } });
+      }
+      survivingOriginal.set(r.id, { ...r, name });
+    } else {
+      const created = await mutations.add({
+        id: characterId,
+        data: { name, category: "cyberware", quantity: 1, notes, equipped: true },
+      });
+      working[i] = { ...r, id: created.id, name };
+      survivingOriginal.set(created.id, working[i]);
+    }
+  }
+}
+
 // Controlled editor for a list of cyberware rows. Used by both the admin
 // create-character form and the edit-character dialog. No CWP cap is enforced
 // here — staff managing NPCs / existing characters are intentionally uncapped;

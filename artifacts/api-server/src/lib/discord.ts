@@ -886,6 +886,27 @@ export type ListScheduledEventsResult =
   | { ok: true; events: GuildScheduledEvent[] }
   | { ok: false; error: string };
 
+const sleepMs = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Read Discord's Retry-After hint off a 429 response (the header is in seconds)
+ * and return it in milliseconds. Always drains the body so the socket can be
+ * reused. Returns null when no usable hint is present.
+ */
+async function readRetryAfterMs(res: Response): Promise<number | null> {
+  const header = res.headers.get("retry-after");
+  try {
+    await res.text();
+  } catch {
+    /* ignore drain failures */
+  }
+  if (header) {
+    const secs = Number(header);
+    if (Number.isFinite(secs) && secs >= 0) return Math.ceil(secs * 1000);
+  }
+  return null;
+}
+
 /**
  * List the guild's scheduled events (read-only). Used for the create/reschedule
  * conflict check. Fail-safe: callers treat a non-ok result as "couldn't check"
@@ -895,15 +916,34 @@ export async function listGuildScheduledEvents(): Promise<ListScheduledEventsRes
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
     return { ok: false, error: "Discord bot token or guild id not configured" };
   }
+  const url = `${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events`;
+  // Discord rate-limits this route, and the events-sync cron polls it every
+  // 10 min, so transient 429s were failing the whole reconcile. Treat a 429 as
+  // retryable: honour the Retry-After hint with a bounded backoff and only give
+  // up after a few attempts.
+  const MAX_ATTEMPTS = 4;
   try {
-    const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/scheduled-events`, {
-      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      logger.warn({ status: res.status, body: text }, "listGuildScheduledEvents failed");
-      return { ok: false, error: `Discord events lookup failed (${res.status})` };
+    let res: Response | undefined;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      res = await fetch(url, {
+        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.status !== 429) break;
+      const retryMs = await readRetryAfterMs(res);
+      if (attempt === MAX_ATTEMPTS) {
+        logger.warn({ status: 429, attempt }, "listGuildScheduledEvents rate limited; giving up");
+        return { ok: false, error: "Discord events lookup failed (429)" };
+      }
+      // Honour Retry-After when present, else exponential-ish fallback, capped.
+      const waitMs = Math.min(retryMs ?? attempt * 1000, 10_000);
+      logger.warn({ attempt, waitMs }, "listGuildScheduledEvents rate limited (429); backing off");
+      await sleepMs(waitMs);
+    }
+    if (!res || !res.ok) {
+      const text = res ? await res.text() : "";
+      logger.warn({ status: res?.status, body: text }, "listGuildScheduledEvents failed");
+      return { ok: false, error: `Discord events lookup failed (${res?.status ?? "no-response"})` };
     }
     const data = (await res.json()) as Array<{
       id: string;

@@ -108,8 +108,10 @@ router.get("/characters/:id/housing", requireAuth, async (req, res): Promise<voi
     res.status(404).json({ error: "Not found" });
     return;
   }
-  // Visibility: own or admin
-  if (c.ownerId !== req.user!.id && !isAdmin(req.user!)) {
+  // Visibility: own or staff (fixers + admins). Staff manage other players'
+  // property directly from the character-detail Property tab, so they must be
+  // able to read the current leases too.
+  if (c.ownerId !== req.user!.id && !isFixerOrAdmin(req.user!)) {
     res.status(404).json({ error: "Not found" });
     return;
   }
