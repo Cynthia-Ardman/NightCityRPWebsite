@@ -22,12 +22,17 @@ import {
   getListPendingEditsQueryKey,
   getListLoreEditsQueryKey,
   getListGuidebookEditsQueryKey,
+  useListOwnedMissions,
+  useApproveMission,
+  getListOwnedMissionsQueryKey,
+  getListMissionsQueryKey,
   type CustomRequest,
   type LorePendingEdit,
   type LoreEntryUpdate,
   type GuidebookPendingEdit,
   type GuidebookPageUpdate,
   type PendingEditSummary,
+  type MissionSummary,
 } from "@workspace/api-client-react";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
@@ -103,6 +108,19 @@ function MiscRequestsTab() {
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   const isAdmin = !!me?.isAdmin;
+  const isArchivist = !!me?.isArchivist;
+  const isFixer = !!me?.isFixer;
+
+  // Submitted mission proposals are approved from this queue. /missions/owned
+  // 403s for a pure cs_approver, so only fetch for fixer/admin/archivist.
+  const canSeeOwnedMissions = isFixer || isAdmin || isArchivist;
+  const ownedMissions = useListOwnedMissions({
+    query: { enabled: canSeeOwnedMissions, queryKey: getListOwnedMissionsQueryKey() },
+  });
+  const missionProposals = ((ownedMissions.data ?? []) as MissionSummary[]).filter(
+    (m) => m.workflowState === "proposal",
+  );
+  const canApproveMissions = isArchivist || isAdmin;
 
   const unseen = new Set(unseenIds?.request ?? []);
 
@@ -250,11 +268,11 @@ function MiscRequestsTab() {
         );
   };
 
-  if (isLoading) {
+  if (isLoading || (canSeeOwnedMissions && ownedMissions.isLoading)) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
   }
 
-  if (activeRequests.length === 0) {
+  if (activeRequests.length === 0 && missionProposals.length === 0) {
     return (
       <div className="py-20 text-center border border-dashed border-border bg-card/30">
         <Inbox className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
@@ -266,13 +284,122 @@ function MiscRequestsTab() {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {activeRequests.map((r) => renderCard(r, "active"))}
-      </div>
+      {missionProposals.length > 0 && (
+        <MissionApprovalSection rows={missionProposals} canApprove={canApproveMissions} />
+      )}
+
+      {activeRequests.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {activeRequests.map((r) => renderCard(r, "active"))}
+        </div>
+      )}
 
       <ApproveDialog request={approveTarget} mode="vote" onClose={() => setApproveTarget(null)} />
       <ApproveDialog request={overrideTarget} mode="override" onClose={() => setOverrideTarget(null)} />
       <RejectDialog request={rejectTarget} onClose={() => setRejectTarget(null)} />
+    </div>
+  );
+}
+
+function MissionApprovalSection({
+  rows,
+  canApprove,
+}: {
+  rows: MissionSummary[];
+  canApprove: boolean;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const approve = useApproveMission({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListOwnedMissionsQueryKey() });
+        qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+        toast({ title: "Mission approved", description: "It can now be posted from the Missions board." });
+      },
+      onError: (e) =>
+        toast({
+          title: "Approval failed",
+          description: e instanceof Error ? e.message : "Please try again.",
+          variant: "destructive",
+        }),
+    },
+  });
+
+  return (
+    <div className="space-y-3" data-testid="section-mission-approvals">
+      <div className="flex items-center gap-2">
+        <Crosshair className="w-4 h-4 text-nc-magenta" />
+        <h3 className="font-display tracking-widest text-nc-magenta text-sm">
+          MISSIONS AWAITING APPROVAL
+          <span className="ml-1.5 opacity-70">({rows.length})</span>
+        </h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {rows.map((m) => {
+          const when = m.startAt ? new Date(m.startAt) : null;
+          return (
+            <Card
+              key={m.id}
+              className="rounded-none border-border bg-card/50 flex flex-col"
+              data-testid={`card-mission-proposal-${m.id}`}
+            >
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline" className="rounded-none border-nc-magenta text-nc-magenta font-mono text-[10px]">
+                    <Crosshair className="w-3 h-3 mr-1" /> MISSION
+                  </Badge>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {when ? when.toLocaleDateString() : "No date"}
+                  </span>
+                </div>
+                <CardTitle className="text-lg font-display truncate mt-2">{m.title}</CardTitle>
+                <CardDescription className="font-mono text-xs">
+                  {m.fixerName ? `by ${m.fixerName}` : "Unassigned fixer"}
+                  {typeof m.tier === "number" ? ` · Tier ${m.tier}` : ""}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col flex-1 gap-4">
+                <div className="space-y-1 font-mono text-xs text-muted-foreground">
+                  {m.location ? (
+                    <div>
+                      <span className="text-nc-cyan uppercase tracking-widest">Location: </span>
+                      {m.location}
+                    </div>
+                  ) : null}
+                  {typeof m.playerPay === "number" ? (
+                    <div>
+                      <span className="text-nc-cyan uppercase tracking-widest">Player pay: </span>
+                      ${m.playerPay.toLocaleString()}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-auto pt-3 border-t border-border/40 flex flex-wrap gap-2">
+                  {canApprove && (
+                    <Button
+                      className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                      disabled={approve.isPending}
+                      onClick={() => approve.mutate({ id: m.id })}
+                      data-testid={`button-approve-mission-${m.id}`}
+                    >
+                      {approve.isPending ? "APPROVING..." : "APPROVE"}
+                    </Button>
+                  )}
+                  <Link href={`/missions/${m.id}`}>
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
+                      data-testid={`button-view-mission-${m.id}`}
+                    >
+                      VIEW DETAILS
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1487,11 +1614,14 @@ function ReadyToApplyPanel() {
 export default function PendingRequests() {
   const { data: me } = useAuthMe();
   const canMisc = !!(me?.isAdmin || me?.isFixer);
+  // Archivists approve mission proposals, which now live in the Misc tab, so
+  // they must be able to reach it even though they don't vote on custom requests.
+  const canSeeMisc = canMisc || !!me?.isArchivist;
   const canNewChars = !!(me?.isAdmin || me?.isCsApprover);
   const canLore = !!me?.isAdmin;
   // The terminal (Completed/Denied) tabs aggregate reviewer queues; only show
   // them to staff who can see at least one of those queues.
-  const isReviewer = canMisc || canNewChars || canLore;
+  const isReviewer = canSeeMisc || canNewChars || canLore;
 
   // Per-tab badges show UNSEEN-by-me counts (drop once the reviewer opens an
   // item), not the raw pending totals. Lore is the exception — it's a single-
@@ -1528,7 +1658,7 @@ export default function PendingRequests() {
             ? "lore"
             : canLore && guidebookCount > 0
               ? "guidebook"
-              : canMisc
+              : canSeeMisc
                 ? "misc"
                 : "edits";
   const [activeTab, setActiveTab] = useState<string | null>(null);
@@ -1552,7 +1682,7 @@ export default function PendingRequests() {
 
       <Tabs value={tab} onValueChange={setActiveTab}>
         <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">
-          {canMisc && (
+          {canSeeMisc && (
             <TabsTrigger value="misc" className="rounded-none font-display tracking-widest" data-testid="tab-misc">
               MISC REQUESTS<TabCount n={miscCount} />
             </TabsTrigger>
@@ -1587,7 +1717,7 @@ export default function PendingRequests() {
           )}
         </TabsList>
 
-        {canMisc && (
+        {canSeeMisc && (
           <TabsContent value="misc" className="mt-6">
             <ErrorBoundary><MiscRequestsTab /></ErrorBoundary>
           </TabsContent>

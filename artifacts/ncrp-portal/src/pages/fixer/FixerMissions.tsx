@@ -5,6 +5,7 @@ import {
   useListMissions,
   useCreateMission,
   useUpdateMission,
+  useSubmitMission,
   useGetMission,
   useCheckMissionConflicts,
   getCheckMissionConflictsQueryKey,
@@ -321,8 +322,10 @@ function MissionForm({
 
   const create = useCreateMission({ mutation: { onSuccess: onSaved } });
   const update = useUpdateMission({ mutation: { onSuccess: onSaved } });
-  const busy = create.isPending || update.isPending;
-  const errMsg = errOf(create.error) ?? errOf(update.error);
+  const submitProposal = useSubmitMission({ mutation: { onSuccess: onSaved } });
+  const busy = create.isPending || update.isPending || submitProposal.isPending;
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
+  const errMsg = errOf(create.error) ?? errOf(update.error) ?? errOf(submitProposal.error) ?? submitErr;
 
   const set = <K extends keyof FormValues>(k: K, val: FormValues[K]) => setV((p) => ({ ...p, [k]: val }));
 
@@ -352,9 +355,7 @@ function MissionForm({
   const removeAssignment = (idx: number) =>
     setV((p) => ({ ...p, assignments: p.assignments.filter((_, i) => i !== idx) }));
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!v.title.trim()) return;
+  const buildPayload = () => {
     // Send characterId-only assignments; the server derives the owning player.
     // Keep explicit userId for rows that came from existing assignments.
     const assignments = v.assignments
@@ -367,7 +368,7 @@ function MissionForm({
       characterId?: number;
     }>;
 
-    const payload = {
+    return {
       title: v.title.trim(),
       tier: v.tier,
       playerPay: v.playerPay,
@@ -386,22 +387,66 @@ function MissionForm({
       maxPlayers: v.maxPlayers,
       assignments,
     };
+  };
 
+  // Create form: persist the mission in draft state and reset the form.
+  const saveDraft = () => {
+    setSubmitErr(null);
+    if (!v.title.trim()) return;
+    create.mutate(
+      { data: buildPayload() },
+      {
+        onSuccess: () => {
+          setPendingSubmitId(null);
+          clearDraft();
+          setV(EMPTY);
+        },
+      },
+    );
+  };
+
+  // Create form: create the mission, then submit it straight to the approval
+  // queue (Misc Requests). The server requires a job type on submit, so we
+  // enforce it client-side first to give a clear message. If the create
+  // succeeds but the submit fails, we retain the new mission's id so a retry
+  // resubmits the SAME mission instead of creating a duplicate draft.
+  const [pendingSubmitId, setPendingSubmitId] = useState<number | null>(null);
+  const submitForApproval = async () => {
+    setSubmitErr(null);
+    if (!v.title.trim()) return;
+    if (!v.jobType) {
+      setSubmitErr("Select a job type before submitting for approval.");
+      return;
+    }
+    try {
+      let id = pendingSubmitId;
+      if (id == null) {
+        const created = await create.mutateAsync({ data: buildPayload() });
+        id = created.id;
+        setPendingSubmitId(id);
+      }
+      await submitProposal.mutateAsync({ id });
+      setPendingSubmitId(null);
+      clearDraft();
+      setV(EMPTY);
+    } catch {
+      /* error surfaced via errMsg; pendingSubmitId is retained for retry */
+    }
+  };
+
+  // Form submit: edit mode saves the mission; create mode saves a draft (the
+  // explicit "Submit for approval" button drives the proposal path).
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitErr(null);
+    if (!v.title.trim()) return;
     if (missionId != null) {
       update.mutate(
-        { id: missionId, data: payload },
+        { id: missionId, data: buildPayload() },
         { onSuccess: () => qc.invalidateQueries() },
       );
     } else {
-      create.mutate(
-        { data: payload },
-        {
-          onSuccess: () => {
-            clearDraft();
-            setV(EMPTY);
-          },
-        },
-      );
+      saveDraft();
     }
   };
 
@@ -652,15 +697,38 @@ function MissionForm({
             )}
           </div>
 
-          <div className="md:col-span-12 flex items-center gap-3">
-            <Button
-              type="submit"
-              disabled={busy || !v.title.trim()}
-              className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
-              data-testid="button-save-mission"
-            >
-              {busy ? "SAVING..." : missionId != null ? "SAVE MISSION" : "CREATE MISSION"}
-            </Button>
+          <div className="md:col-span-12 flex flex-wrap items-center gap-3">
+            {missionId != null ? (
+              <Button
+                type="submit"
+                disabled={busy || !v.title.trim()}
+                className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
+                data-testid="button-save-mission"
+              >
+                {busy ? "SAVING..." : "SAVE MISSION"}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={busy || !v.title.trim()}
+                  className="rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display tracking-widest"
+                  data-testid="button-save-draft"
+                >
+                  {create.isPending && !submitProposal.isPending ? "SAVING..." : "SAVE AS DRAFT"}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={submitForApproval}
+                  disabled={busy || !v.title.trim()}
+                  className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
+                  data-testid="button-submit-approval"
+                >
+                  {submitProposal.isPending ? "SUBMITTING..." : "SUBMIT FOR APPROVAL"}
+                </Button>
+              </>
+            )}
             {errMsg && (
               <span className="text-destructive text-xs" data-testid="text-mission-error">
                 {errMsg}

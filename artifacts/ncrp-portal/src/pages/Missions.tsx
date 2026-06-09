@@ -9,7 +9,6 @@ import {
   useListMyApplications,
   useListMyActing,
   useSubmitMission,
-  useApproveMission,
   usePostMission,
   useApplyToMission,
   useWithdrawApplication,
@@ -67,7 +66,7 @@ import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
-type TabKey = "open" | "accepted" | "applications" | "acting" | "created" | "history" | "all";
+type TabKey = "open" | "accepted" | "applications" | "acting" | "created" | "history" | "drafts" | "all";
 
 const HISTORY_PAGE_SIZE = 20;
 
@@ -137,6 +136,10 @@ export default function Missions() {
   const owned = useListOwnedMissions({
     query: { enabled: canSeeStaffTabs, queryKey: getListOwnedMissionsQueryKey() },
   });
+  const draftMissions = useMemo(
+    () => (owned.data ?? []).filter((m) => m.workflowState === "draft"),
+    [owned.data],
+  );
 
   const tabs: { key: TabKey; label: string; count?: number; show: boolean }[] = [
     { key: "open", label: "Open", count: openMissions.length, show: true },
@@ -145,6 +148,7 @@ export default function Missions() {
     { key: "acting", label: "Acting", count: acting.data?.length, show: true },
     { key: "created", label: "My Created", count: created.data?.length, show: isStaff },
     { key: "history", label: "History", show: true },
+    { key: "drafts", label: "Drafts", count: draftMissions.length, show: canSeeStaffTabs },
     { key: "all", label: "All Missions", count: owned.data?.length, show: canSeeStaffTabs },
   ];
   const visibleTabs = tabs.filter((t) => t.show);
@@ -285,6 +289,31 @@ export default function Missions() {
             </ListSection>
           </ErrorBoundary>
         </TabsContent>
+
+        {canSeeStaffTabs && (
+          <TabsContent value="drafts" data-testid="tabpanel-drafts">
+            <ErrorBoundary>
+              <ListSection
+                isLoading={owned.isLoading}
+                isEmpty={draftMissions.length === 0}
+                emptyText="No draft missions. Use Create Mission and choose Save as draft to start one."
+              >
+                <div className="space-y-5">
+                  {draftMissions.map((m) => (
+                    <MissionCard
+                      key={m.id}
+                      m={m}
+                      isAdmin={isAdmin}
+                      canApprove={canApprove}
+                      canManage={isStaff}
+                      showWorkflow
+                    />
+                  ))}
+                </div>
+              </ListSection>
+            </ErrorBoundary>
+          </TabsContent>
+        )}
 
         {canSeeStaffTabs && (
           <TabsContent value="all" data-testid="tabpanel-all">
@@ -802,7 +831,7 @@ function MissionCard({
         </div>
 
         {/* 9. Workflow actions (owned board) or inline apply/sign-up (open list) */}
-        {showWorkflow && <WorkflowActions m={m} canApprove={!!canApprove} canManage={!!canManage} />}
+        {showWorkflow && <WorkflowActions m={m} canManage={!!canManage} />}
         {showApply && <InlineMissionActions m={m} />}
       </CardContent>
     </Card>
@@ -998,11 +1027,9 @@ function InlineMissionActions({ m }: { m: MissionSummary }) {
 
 function WorkflowActions({
   m,
-  canApprove,
   canManage,
 }: {
   m: MissionSummary;
-  canApprove: boolean;
   canManage: boolean;
 }) {
   const qc = useQueryClient();
@@ -1012,9 +1039,8 @@ function WorkflowActions({
     qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
   };
   const submit = useSubmitMission({ mutation: { onSuccess: invalidate } });
-  const approve = useApproveMission({ mutation: { onSuccess: invalidate } });
   const post = usePostMission({ mutation: { onSuccess: invalidate } });
-  const busy = submit.isPending || approve.isPending || post.isPending;
+  const busy = submit.isPending || post.isPending;
 
   if (m.workflowState === "draft" && canManage) {
     return (
@@ -1031,18 +1057,15 @@ function WorkflowActions({
       </div>
     );
   }
-  if (m.workflowState === "proposal" && canApprove) {
+  // Proposals are now approved from the Misc Requests / Pending Requests queue,
+  // not here. A proposal awaiting approval simply shows its workflow badge with
+  // no action on this board.
+  if (m.workflowState === "proposal") {
     return (
       <div className="pt-1">
-        <Button
-          size="sm"
-          disabled={busy}
-          onClick={() => approve.mutate({ id: m.id })}
-          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
-          data-testid={`button-approve-${m.id}`}
-        >
-          {approve.isPending ? "APPROVING..." : "APPROVE"}
-        </Button>
+        <span className="font-mono text-xs text-muted-foreground" data-testid={`text-awaiting-approval-${m.id}`}>
+          Awaiting approval in Pending Requests
+        </span>
       </div>
     );
   }
