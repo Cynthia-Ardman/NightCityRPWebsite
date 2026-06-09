@@ -225,6 +225,7 @@ const CHANNEL_PORTAL_LINKS: Record<string, string> = {
   "1379934118799736884": "/catalog/rent", // business-creation -> Property catalog
   "1379934227499454616": "/catalog/rent", // request-lease-or-rental
   "1387192935308591256": "/directory/calendar", // event-announcements -> Calendar (Schedule page retired)
+  "1489585217558806658": "/", // player-hub -> Home (Attend + Open Shop buttons, session-gated)
 };
 
 // Alias Discord channels that should point at an existing on-site guidebook

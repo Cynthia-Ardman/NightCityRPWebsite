@@ -103,3 +103,4 @@
 - [AdminTabs render-guard mock](admin-tabs-render-guard-mock.md) — AdminTabs.test mocks api-client-react with a no-importOriginal allowlist; new hooks in any System Admin tab subtree must be added or the tab "fails to mount".
 - [Portal vitest fragile mocks](portal-vitest-fragile-mocks.md) — EditCharacterDialog/CharacterDetail/CyberwareEditor tests use manual vi.mock factories; a component calling a hook the factory omits throws "No <hook> export is defined" — pre-existing flake, unrelated to codegen.
 - [Offer badge parity](offer-badge-parity.md) — My Offers nav badge must count only actionable (pending stock_add) offers, else phantom badge sticks.
+- [Lore import channel-mention & protected-edit gap](lore-import-channel-gap.md) — lore pipeline (unlike guidebook) does NOT rewrite `<#id>` and has no editedSinceImport; manual lore fixes get clobbered on re-import.
