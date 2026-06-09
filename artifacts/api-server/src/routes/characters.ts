@@ -25,6 +25,12 @@ import { requireAuth, requireRole } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
+import {
+  loadCyberwareSlotByName,
+  resolveSlotForItem,
+  isCappedSlot,
+  normalizeSlot,
+} from "../lib/cyberwareSlots";
 import { isSessionWindowOpen, nextSessionWindowStart, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
 import { hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
@@ -371,13 +377,48 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
     res.status(400).json({ error: "name must be 500 characters or fewer" });
     return;
   }
+  // Canonicalize the category once so whitespace/case variants ("Cyberware ")
+  // can't slip past the cap gate or land an off-canon value in the column.
+  const canonCategory =
+    typeof category === "string" && category.trim().toLowerCase() === "cyberware"
+      ? "cyberware"
+      : category;
+  // One cyberware item per capped slot, per (player) character. Miscellaneous,
+  // Custom/one-off and unresolved-slot chrome are intentionally uncapped and
+  // can stack. NPCs are exempt — staff manage their chrome freely. The slot is
+  // resolved from the note's "slot:" tag, falling back to a catalog name match.
+  if (canonCategory === "cyberware" && c.kind !== "npc") {
+    const catalogByName = await loadCyberwareSlotByName();
+    const newSlot = resolveSlotForItem({ name, notes: notes ?? null }, catalogByName);
+    if (isCappedSlot(newSlot)) {
+      const existing = await db
+        .select({ name: inventoryItems.name, notes: inventoryItems.notes })
+        .from(inventoryItems)
+        .where(
+          and(
+            eq(inventoryItems.characterId, id),
+            sql`lower(trim(${inventoryItems.category})) = 'cyberware'`,
+          ),
+        );
+      const targetKey = normalizeSlot(newSlot);
+      const clash = existing.some(
+        (e) => normalizeSlot(resolveSlotForItem(e, catalogByName)) === targetKey,
+      );
+      if (clash) {
+        res.status(409).json({
+          error: `This character already has cyberware in the ${newSlot} slot. Only Miscellaneous and Custom cyberware can stack.`,
+        });
+        return;
+      }
+    }
+  }
   const [it] = await db
     .insert(inventoryItems)
     .values({
       characterId: id,
       ownerId: c.ownerId ?? req.user!.id,
       name,
-      category: category ?? null,
+      category: canonCategory ?? null,
       quantity: quantity ?? 1,
       notes: notes ?? null,
       equipped: !!equipped,

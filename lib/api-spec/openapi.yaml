@@ -2626,6 +2626,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/InventorySearchResult" }
+  /fixer/cyberware-violations:
+    get:
+      operationId: getCyberwareViolations
+      tags: [fixer]
+      summary: Player characters holding more than one cyberware item in a single capped slot (fixer/admin)
+      responses:
+        "200":
+          description: Violators
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CyberwareViolation" }
   /fixer/players:
     get:
       operationId: searchFixerPlayers
@@ -5877,6 +5890,30 @@ components:
         ownerUsername: { type: ["string", "null"] }
         acquiredAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+
+    CyberwareViolation:
+      type: object
+      required: [characterId, characterName, slots]
+      properties:
+        characterId: { type: integer }
+        characterName: { type: string }
+        ownerUsername: { type: ["string", "null"] }
+        slots:
+          type: array
+          items:
+            type: object
+            required: [slot, count, items]
+            properties:
+              slot: { type: string, description: "Human-readable capped slot name" }
+              count: { type: integer, description: "Number of cyberware items in this slot (>1)" }
+              items:
+                type: array
+                items:
+                  type: object
+                  required: [id, name]
+                  properties:
+                    id: { type: integer }
+                    name: { type: string }
 
     InventorySearchResult:
       type: object

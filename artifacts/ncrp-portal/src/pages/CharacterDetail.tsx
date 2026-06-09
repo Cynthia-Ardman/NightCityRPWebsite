@@ -23,7 +23,7 @@ import {
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,10 @@ import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import StaffCyberwareCard from "@/components/StaffCyberwareCard";
-import { cwpFromNotes, deriveCwpBand } from "@/components/CyberwareEditor";
+import { cwpFromNotes, deriveCwpBand, buildCyberNotes } from "@/components/CyberwareEditor";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FIRE_MODES } from "@/components/catalog/gunTypes";
+import { useListCyberware } from "@workspace/api-client-react";
 import StaffLeaseCard from "@/components/StaffLeaseCard";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import Markdown from "@/components/Markdown";
@@ -747,6 +750,10 @@ function CyberwareTab({ characterId }: { characterId: number }) {
   );
 }
 
+type InventoryCategory = "Misc" | "Weapon" | "Cyberware";
+const CUSTOM_CYBER_SLOT = "__custom__";
+const KEEP_CATEGORY = "__keep__";
+
 function InventoryTab({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
   const { data: items, isLoading } = useGetCharacterInventory(characterId);
@@ -758,12 +765,80 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const addItem = useAddInventoryItem({ mutation: { onSuccess: invalidate } });
   const updateItem = useUpdateInventoryItem({ mutation: { onSuccess: invalidate } });
   const deleteItem = useRemoveInventoryItem({ mutation: { onSuccess: invalidate } });
+  const { data: cyberCatalog } = useListCyberware();
+  const cyberSlots = useMemo(() => {
+    const set = new Set<string>();
+    (cyberCatalog ?? []).forEach((c) => {
+      if (c.slot) set.add(c.slot);
+    });
+    return Array.from(set).sort();
+  }, [cyberCatalog]);
+
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState<InventoryCategory>("Misc");
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  // Weapon-only fields (mirror the gun catalog; packed into notes on save).
+  const [gun, setGun] = useState({ manufacturer: "", weaponType: "", fireMode: "", powerLevel: "", damage: "", magSize: "" });
+  // Cyberware-only fields (packed into the shared "CWP n · … · slot: x" note).
+  const [cyber, setCyber] = useState({ slot: "", cwp: "" });
   const [transferItemId, setTransferItemId] = useState<number | null>(null);
   const [editItemId, setEditItemId] = useState<number | null>(null);
+
+  const resetForm = () => {
+    setName("");
+    setCategory("Misc");
+    setQuantity(1);
+    setNotes("");
+    setGun({ manufacturer: "", weaponType: "", fireMode: "", powerLevel: "", damage: "", magSize: "" });
+    setCyber({ slot: "", cwp: "" });
+  };
+
+  const gunComplete =
+    !!gun.manufacturer.trim() &&
+    !!gun.weaponType.trim() &&
+    !!gun.fireMode.trim() &&
+    !!gun.powerLevel.trim() &&
+    !!gun.damage.trim() &&
+    !!gun.magSize.trim();
+  const cyberComplete = !!cyber.slot.trim() && cyber.cwp.trim() !== "" && Number(cyber.cwp) >= 0;
+  const canSubmitAdd =
+    !!name.trim() &&
+    (category === "Misc" || (category === "Weapon" && gunComplete) || (category === "Cyberware" && cyberComplete));
+
+  const addErr =
+    (addItem.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (addItem.error ? "Could not add item" : null);
+
+  const submitAdd = () => {
+    if (!canSubmitAdd) return;
+    let finalCategory: string = category;
+    let finalNotes = notes.trim() || undefined;
+    let equipped = false;
+    if (category === "Weapon") {
+      const parts = [
+        `Manufacturer: ${gun.manufacturer.trim()}`,
+        `Type: ${gun.weaponType.trim()}`,
+        `Fire: ${gun.fireMode.trim()}`,
+        `Power: ${gun.powerLevel.trim()}`,
+        `Damage: ${gun.damage.trim()}`,
+        `Mag: ${gun.magSize.trim()}`,
+      ];
+      if (notes.trim()) parts.push(notes.trim());
+      finalNotes = parts.join(" · ");
+    } else if (category === "Cyberware") {
+      finalCategory = "cyberware";
+      equipped = true;
+      finalNotes = buildCyberNotes({ points: Number(cyber.cwp) || 0, notes: notes.trim(), slot: cyber.slot.trim() });
+    }
+    addItem.mutate(
+      {
+        id: characterId,
+        data: { name: name.trim(), category: finalCategory, quantity: Math.max(1, quantity), notes: finalNotes, equipped },
+      },
+      { onSuccess: resetForm },
+    );
+  };
 
   if (isLoading) return <div className="text-nc-cyan font-mono animate-pulse">Scanning personal stash...</div>;
 
@@ -775,41 +850,129 @@ function InventoryTab({ characterId }: { characterId: number }) {
         </CardHeader>
         <CardContent>
           <form
-            className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
+            className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!name.trim()) return;
-              addItem.mutate({
-                id: characterId,
-                data: { name: name.trim(), category: category || undefined, quantity: Math.max(1, quantity), notes: notes || undefined },
-              });
-              setName("");
-              setCategory("");
-              setQuantity(1);
-              setNotes("");
+              submitAdd();
             }}
           >
-            <div className="sm:col-span-4">
-              <Label className="text-xs font-mono">NAME</Label>
-              <Input value={name} maxLength={500} onChange={(e) => setName(e.target.value)} data-testid="input-item-name" />
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              <div className="sm:col-span-5">
+                <Label className="text-xs font-mono">NAME</Label>
+                <Input value={name} maxLength={500} onChange={(e) => setName(e.target.value)} data-testid="input-item-name" />
+              </div>
+              <div className="sm:col-span-4">
+                <Label className="text-xs font-mono">CATEGORY</Label>
+                <Select value={category} onValueChange={(v) => setCategory(v as InventoryCategory)}>
+                  <SelectTrigger className="rounded-none font-mono" data-testid="select-item-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Misc">Misc</SelectItem>
+                    <SelectItem value="Weapon">Weapon</SelectItem>
+                    <SelectItem value="Cyberware">Cyberware</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="sm:col-span-3">
+                <Label className="text-xs font-mono">QTY</Label>
+                <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} data-testid="input-item-qty" />
+              </div>
             </div>
-            <div className="sm:col-span-3">
-              <Label className="text-xs font-mono">CATEGORY</Label>
-              <Input value={category} onChange={(e) => setCategory(e.target.value)} data-testid="input-item-category" />
+
+            {category === "Weapon" && (
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end border border-nc-yellow/30 p-3">
+                <div className="sm:col-span-4">
+                  <Label className="text-xs font-mono">MANUFACTURER</Label>
+                  <Input value={gun.manufacturer} onChange={(e) => setGun({ ...gun, manufacturer: e.target.value })} data-testid="input-gun-manufacturer" />
+                </div>
+                <div className="sm:col-span-4">
+                  <Label className="text-xs font-mono">WEAPON TYPE</Label>
+                  <Input value={gun.weaponType} onChange={(e) => setGun({ ...gun, weaponType: e.target.value })} data-testid="input-gun-type" />
+                </div>
+                <div className="sm:col-span-4">
+                  <Label className="text-xs font-mono">FIRE MODE</Label>
+                  <Select value={gun.fireMode} onValueChange={(v) => setGun({ ...gun, fireMode: v })}>
+                    <SelectTrigger className="rounded-none font-mono" data-testid="select-gun-firemode">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FIRE_MODES.map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="sm:col-span-4">
+                  <Label className="text-xs font-mono">POWER LEVEL</Label>
+                  <Input value={gun.powerLevel} onChange={(e) => setGun({ ...gun, powerLevel: e.target.value })} data-testid="input-gun-power" />
+                </div>
+                <div className="sm:col-span-4">
+                  <Label className="text-xs font-mono">DAMAGE</Label>
+                  <Input value={gun.damage} onChange={(e) => setGun({ ...gun, damage: e.target.value })} data-testid="input-gun-damage" />
+                </div>
+                <div className="sm:col-span-4">
+                  <Label className="text-xs font-mono">MAG SIZE</Label>
+                  <Input type="number" min={0} value={gun.magSize} onChange={(e) => setGun({ ...gun, magSize: e.target.value })} data-testid="input-gun-mag" />
+                </div>
+              </div>
+            )}
+
+            {category === "Cyberware" && (
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end border border-nc-cyan/30 p-3">
+                <div className="sm:col-span-6">
+                  <Label className="text-xs font-mono">SLOT</Label>
+                  <Select
+                    value={cyberSlots.includes(cyber.slot) || cyber.slot === "" ? cyber.slot : CUSTOM_CYBER_SLOT}
+                    onValueChange={(v) => setCyber({ ...cyber, slot: v === CUSTOM_CYBER_SLOT ? "" : v })}
+                  >
+                    <SelectTrigger className="rounded-none font-mono" data-testid="select-cyber-slot">
+                      <SelectValue placeholder="Select slot" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cyberSlots.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                      <SelectItem value={CUSTOM_CYBER_SLOT}>Custom / one-off</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {!cyberSlots.includes(cyber.slot) && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Custom slot name (leave blank for unlimited)"
+                      value={cyber.slot}
+                      onChange={(e) => setCyber({ ...cyber, slot: e.target.value })}
+                      data-testid="input-cyber-custom-slot"
+                    />
+                  )}
+                </div>
+                <div className="sm:col-span-3">
+                  <Label className="text-xs font-mono">CWP</Label>
+                  <Input type="number" min={0} value={cyber.cwp} onChange={(e) => setCyber({ ...cyber, cwp: e.target.value })} data-testid="input-cyber-cwp" />
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              <div className="sm:col-span-11">
+                <Label className="text-xs font-mono">NOTES</Label>
+                <Input value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="input-item-notes" />
+              </div>
+              <div className="sm:col-span-1">
+                <Button type="submit" disabled={addItem.isPending || !canSubmitAdd} className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-item">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-            <div className="sm:col-span-1">
-              <Label className="text-xs font-mono">QTY</Label>
-              <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} data-testid="input-item-qty" />
-            </div>
-            <div className="sm:col-span-3">
-              <Label className="text-xs font-mono">NOTES</Label>
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="input-item-notes" />
-            </div>
-            <div className="sm:col-span-1">
-              <Button type="submit" disabled={addItem.isPending || !name.trim()} className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-item">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
+            {category === "Weapon" && !gunComplete && (
+              <p className="text-xs font-mono text-muted-foreground">Fill in all weapon stats before adding.</p>
+            )}
+            {category === "Cyberware" && !cyberComplete && (
+              <p className="text-xs font-mono text-muted-foreground">Pick a slot and set CWP before adding.</p>
+            )}
+            {addErr && (
+              <p className="text-sm font-mono text-destructive" data-testid="text-add-item-error">{addErr}</p>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -933,6 +1096,19 @@ function EditItemDialog({
   const [notes, setNotes] = useState(item?.notes ?? "");
   const update = useUpdateInventoryItem({ mutation: { onSuccess: onDone } });
   if (!item) return null;
+  const STD_CATEGORIES = ["Misc", "Weapon", "Cyberware"];
+  // A stored category may be lowercase ("cyberware") or some arbitrary legacy
+  // value. Map known ones onto the standard options; preserve anything else.
+  const normalizedCategory =
+    category.toLowerCase() === "cyberware"
+      ? "Cyberware"
+      : category.toLowerCase() === "weapon"
+        ? "Weapon"
+        : category.toLowerCase() === "misc" || category === ""
+          ? "Misc"
+          : category;
+  const isOtherCategory = !STD_CATEGORIES.includes(normalizedCategory);
+  const editCategoryValue = isOtherCategory ? KEEP_CATEGORY : normalizedCategory;
   const errMsg =
     (update.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
     (update.error ? "Update failed" : null);
@@ -956,7 +1132,7 @@ function EditItemDialog({
                 itemId: item.id,
                 data: {
                   name: name.trim(),
-                  category: category.trim() || undefined,
+                  category: category.toLowerCase() === "cyberware" ? "cyberware" : category.trim() || undefined,
                   quantity: Math.max(1, quantity),
                   notes: notes.trim() || undefined,
                 },
@@ -970,7 +1146,19 @@ function EditItemDialog({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">CATEGORY</Label>
-                <Input value={category} onChange={(e) => setCategory(e.target.value)} data-testid="input-edit-item-category" />
+                <Select value={editCategoryValue} onValueChange={(v) => setCategory(v === KEEP_CATEGORY ? (item.category ?? "") : v)}>
+                  <SelectTrigger className="rounded-none font-mono" data-testid="select-edit-item-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Misc">Misc</SelectItem>
+                    <SelectItem value="Weapon">Weapon</SelectItem>
+                    <SelectItem value="Cyberware">Cyberware</SelectItem>
+                    {isOtherCategory && (
+                      <SelectItem value={KEEP_CATEGORY}>Keep: {item.category}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="text-xs">QUANTITY</Label>

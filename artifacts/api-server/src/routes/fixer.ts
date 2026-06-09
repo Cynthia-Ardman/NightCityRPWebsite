@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, or, ilike, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, desc, or, ilike, inArray, isNotNull, sql } from "drizzle-orm";
 import {
   db,
   fixerNpcs,
@@ -18,6 +18,12 @@ import {
   ripperdocs,
 } from "@workspace/db";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
+import {
+  loadCyberwareSlotByName,
+  resolveSlotForItem,
+  isCappedSlot,
+  normalizeSlot,
+} from "../lib/cyberwareSlots";
 
 const router: IRouter = Router();
 
@@ -446,5 +452,76 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
     ripperdocs: ripperRows.map((r) => ({ id: r.id, name: r.name, location: r.location, balance: r.balance, createdAt: r.createdAt.toISOString() })),
   });
 });
+
+// Cyberware slot-cap violators (fixer/admin). Lists player characters holding
+// more than one cyberware item in a single CAPPED slot. Miscellaneous, Custom
+// and unresolved-slot chrome are uncapped and never flagged; NPCs are exempt.
+// Permanent staff page — recomputed live from current inventory each load.
+router.get(
+  "/fixer/cyberware-violations",
+  requireAuth,
+  requireAnyRole(["FIXER", "ADMIN"]),
+  async (_req, res): Promise<void> => {
+    const catalogByName = await loadCyberwareSlotByName();
+    const rows = await db
+      .select({
+        itemId: inventoryItems.id,
+        itemName: inventoryItems.name,
+        notes: inventoryItems.notes,
+        characterId: inventoryItems.characterId,
+        characterName: characters.name,
+        characterKind: characters.kind,
+        ownerUsername: users.username,
+      })
+      .from(inventoryItems)
+      .innerJoin(characters, eq(characters.id, inventoryItems.characterId))
+      .leftJoin(users, eq(users.id, characters.ownerId))
+      .where(sql`lower(trim(${inventoryItems.category})) = 'cyberware'`);
+
+    // Group capped-slot items by character + normalized slot.
+    type SlotBucket = { slot: string; items: Array<{ id: number; name: string }> };
+    const byChar = new Map<
+      number,
+      { characterId: number; characterName: string; ownerUsername: string | null; slots: Map<string, SlotBucket> }
+    >();
+    for (const r of rows) {
+      if (r.characterId == null || r.characterKind === "npc") continue;
+      const slot = resolveSlotForItem({ name: r.itemName, notes: r.notes }, catalogByName);
+      if (!isCappedSlot(slot)) continue;
+      const key = normalizeSlot(slot);
+      let entry = byChar.get(r.characterId);
+      if (!entry) {
+        entry = {
+          characterId: r.characterId,
+          characterName: r.characterName,
+          ownerUsername: r.ownerUsername,
+          slots: new Map(),
+        };
+        byChar.set(r.characterId, entry);
+      }
+      let bucket = entry.slots.get(key);
+      if (!bucket) {
+        // Use the first-seen RAW slot string for a readable label.
+        bucket = { slot, items: [] };
+        entry.slots.set(key, bucket);
+      }
+      bucket.items.push({ id: r.itemId, name: r.itemName });
+    }
+
+    const violations = Array.from(byChar.values())
+      .map((entry) => ({
+        characterId: entry.characterId,
+        characterName: entry.characterName,
+        ownerUsername: entry.ownerUsername,
+        slots: Array.from(entry.slots.values())
+          .filter((b) => b.items.length > 1)
+          .map((b) => ({ slot: b.slot, count: b.items.length, items: b.items })),
+      }))
+      .filter((v) => v.slots.length > 0)
+      .sort((a, b) => a.characterName.localeCompare(b.characterName));
+
+    res.json(violations);
+  },
+);
 
 export default router;

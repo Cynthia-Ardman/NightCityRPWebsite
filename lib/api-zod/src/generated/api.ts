@@ -6176,6 +6176,25 @@ export const SearchInventoryByOwnerResponse = zod.object({
 
 
 /**
+ * @summary Player characters holding more than one cyberware item in a single capped slot (fixer/admin)
+ */
+export const GetCyberwareViolationsResponseItem = zod.object({
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "ownerUsername": zod.string().nullish(),
+  "slots": zod.array(zod.object({
+  "slot": zod.string().describe('Human-readable capped slot name'),
+  "count": zod.number().describe('Number of cyberware items in this slot (>1)'),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}))
+}))
+})
+export const GetCyberwareViolationsResponse = zod.array(GetCyberwareViolationsResponseItem)
+
+
+/**
  * @summary Search players by username/global name or owned character name (fixer/admin)
  */
 export const SearchFixerPlayersQueryParams = zod.object({

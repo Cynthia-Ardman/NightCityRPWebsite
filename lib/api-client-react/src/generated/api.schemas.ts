@@ -1574,6 +1574,27 @@ export interface InventorySearchHit {
   createdAt?: string;
 }
 
+export type CyberwareViolationSlotsItemItemsItem = {
+  id: number;
+  name: string;
+};
+
+export type CyberwareViolationSlotsItem = {
+  /** Human-readable capped slot name */
+  slot: string;
+  /** Number of cyberware items in this slot (>1) */
+  count: number;
+  items: CyberwareViolationSlotsItemItemsItem[];
+};
+
+export interface CyberwareViolation {
+  characterId: number;
+  characterName: string;
+  /** @nullable */
+  ownerUsername?: string | null;
+  slots: CyberwareViolationSlotsItem[];
+}
+
 export type InventorySearchResultPastOwnersItem = {
   event: InventoryEvent;
   liveItem?: InventoryItem | null;

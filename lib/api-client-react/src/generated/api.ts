@@ -96,6 +96,7 @@ import type {
   CustomRequestVoteResult,
   CyberwareInstallInput,
   CyberwareRemoveInput,
+  CyberwareViolation,
   DashboardSummary,
   DeactivateCharacter200,
   DeleteCyberware200,
@@ -11971,6 +11972,83 @@ export function useSearchInventoryByOwner<TData = Awaited<ReturnType<typeof sear
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getSearchInventoryByOwnerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetCyberwareViolationsUrl = () => {
+
+
+
+
+  return `/api/fixer/cyberware-violations`
+}
+
+/**
+ * @summary Player characters holding more than one cyberware item in a single capped slot (fixer/admin)
+ */
+export const getCyberwareViolations = async ( options?: RequestInit): Promise<CyberwareViolation[]> => {
+
+  return customFetch<CyberwareViolation[]>(getGetCyberwareViolationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCyberwareViolationsQueryKey = () => {
+    return [
+    `/api/fixer/cyberware-violations`
+    ] as const;
+    }
+
+
+export const getGetCyberwareViolationsQueryOptions = <TData = Awaited<ReturnType<typeof getCyberwareViolations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCyberwareViolations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCyberwareViolationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCyberwareViolations>>> = ({ signal }) => getCyberwareViolations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCyberwareViolations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCyberwareViolationsQueryResult = NonNullable<Awaited<ReturnType<typeof getCyberwareViolations>>>
+export type GetCyberwareViolationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Player characters holding more than one cyberware item in a single capped slot (fixer/admin)
+ */
+
+export function useGetCyberwareViolations<TData = Awaited<ReturnType<typeof getCyberwareViolations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCyberwareViolations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCyberwareViolationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
