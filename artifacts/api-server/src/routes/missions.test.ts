@@ -19,6 +19,7 @@ vi.mock("../lib/discord", async (importActual) => {
     createGuildScheduledEvent: vi.fn(async () => ({ ok: true, id: "evt-1" })),
     modifyGuildScheduledEvent: vi.fn(async (id: string) => ({ ok: true, id })),
     deleteGuildScheduledEvent: vi.fn(async (id: string) => ({ ok: true, id })),
+    sendDirectMessage: vi.fn(async () => "dm-id"),
   };
 });
 
@@ -29,6 +30,7 @@ import {
   missionActorPayments,
   missionApplications,
   missionNpcSignups,
+  customRequests,
   botConfig,
 } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
@@ -744,6 +746,68 @@ describe("normalizeAssignments (via mission create)", () => {
     expect(body.assignments).toHaveLength(1);
     expect(body.assignments[0].userId).toBe(playerA.id);
     expect(body.assignments[0].characterId).toBeNull();
+  });
+});
+
+// ===========================================================================
+// ADD-PLAYER PARITY — assigning a player's character to a mission must raise a
+// pending mission_participation request (the same row whose creation triggers
+// the owner DM) whether the assignment arrives at CREATE time or via a later
+// EDIT. Guards against the reported "edit doesn't notify the new player" gap.
+// ===========================================================================
+describe("add-player participation parity (create vs edit)", () => {
+  async function participationRows(missionId: number, characterId: number) {
+    const rows = await db
+      .select()
+      .from(customRequests)
+      .where(eq(customRequests.characterId, characterId));
+    return rows.filter(
+      (r) =>
+        r.type === "mission_participation" &&
+        Number((r.details as { missionId?: number } | null)?.missionId) === missionId,
+    );
+  }
+
+  it("raises a participation request when the player is added at CREATE time", async () => {
+    const manager = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+
+    const res = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Run", tier: 1, assignments: [{ characterId: char.id }] });
+    expect(res.status).toBe(201);
+
+    const rows = await participationRows(res.body.id, char.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].requestedById).toBe(player.id);
+    expect(rows[0].status).toBe("pending");
+  });
+
+  it("raises a participation request when the player is added via a later EDIT", async () => {
+    const manager = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+
+    // Create with no roster, then add the player through PATCH.
+    const created = await request(app)
+      .post("/api/missions")
+      .set("x-test-user", manager.id)
+      .send({ title: "Run", tier: 1, assignments: [] });
+    expect(created.status).toBe(201);
+    expect(await participationRows(created.body.id, char.id)).toHaveLength(0);
+
+    const edit = await request(app)
+      .patch(`/api/missions/${created.body.id}`)
+      .set("x-test-user", manager.id)
+      .send({ assignments: [{ characterId: char.id }] });
+    expect(edit.status).toBe(200);
+
+    const rows = await participationRows(created.body.id, char.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].requestedById).toBe(player.id);
+    expect(rows[0].status).toBe("pending");
   });
 });
 

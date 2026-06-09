@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMyMissions,
   useListMissions,
@@ -15,8 +15,6 @@ import {
   useSignUpAsNpc,
   useWithdrawNpcSignup,
   useListMyCharacters,
-  listMissionHistory,
-  getListMissionHistoryQueryKey,
   getListMissionsQueryKey,
   getListOwnedMissionsQueryKey,
   getListCreatedMissionsQueryKey,
@@ -27,7 +25,6 @@ import {
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,14 +58,31 @@ import {
   applicationStatusClass,
   applicationStatusLabel,
   WORKFLOW_STATES,
+  type MissionStatus,
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
+import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
-type TabKey = "open" | "accepted" | "applications" | "acting" | "created" | "history" | "drafts" | "all";
+type TabKey =
+  | "open"
+  | "active"
+  | "completed"
+  | "applications"
+  | "accepted"
+  | "acting"
+  | "mine"
+  | "all";
 
-const HISTORY_PAGE_SIZE = 20;
+type TabDef = { key: TabKey; label: string; count?: number; show?: boolean };
+
+// Completed lifecycle statuses (mission ran to its end, not cancelled).
+const COMPLETED_STATUSES: MissionStatus[] = [
+  "completed",
+  "completed_players_paid",
+  "completed_paid",
+];
 
 export default function Missions() {
   const { data: me } = useAuthMe();
@@ -82,15 +96,35 @@ export default function Missions() {
   const [tab, setTab] = useState<TabKey>("open");
 
   // --- Data sources, each scoped + enabled by role ---
-  // Open: posted + open missions anyone can apply to. The server returns only
-  // posted missions to players; staff get all, so we filter to posted here too.
+  // The public list returns every posted mission (all statuses) to players, so
+  // the three Browse tabs are client-side filters over a single fetch.
   const available = useListMissions(undefined, {
     query: { queryKey: getListMissionsQueryKey() },
   });
+  // Open: posted + recruiting (PC applications accepted).
   const openMissions = useMemo(
     () =>
       (available.data ?? []).filter(
         (m) => m.workflowState === "posted" && m.status === "open",
+      ),
+    [available.data],
+  );
+  // Active: posted, PC applications closed (status pending). NPC sign-ups may
+  // still be open, so the cards keep the NPC controls but hide PC apply.
+  const activeMissions = useMemo(
+    () =>
+      (available.data ?? []).filter(
+        (m) => m.workflowState === "posted" && m.status === "pending",
+      ),
+    [available.data],
+  );
+  // Completed: posted missions that ran to completion (not cancelled).
+  const completedMissions = useMemo(
+    () =>
+      (available.data ?? []).filter(
+        (m) =>
+          m.workflowState === "posted" &&
+          COMPLETED_STATUSES.includes(m.status as MissionStatus),
       ),
     [available.data],
   );
@@ -111,47 +145,33 @@ export default function Missions() {
   // Acting: every time the caller acted (NPC/actor) in a mission or event.
   const acting = useListMyActing();
 
-  // My Created: missions the caller personally runs (staff only).
+  // My Missions: missions the caller personally runs (staff only), across all
+  // workflow states — grouped into lifecycle sub-tabs in MyMissionsBoard.
   const created = useListCreatedMissions({
     query: { enabled: isStaff, queryKey: getListCreatedMissionsQueryKey() },
   });
-
-  // Mission History: completed/cancelled missions relevant to the caller.
-  // Paginated — players can attend many missions over time, so we load a page
-  // at a time and let them pull more on demand instead of fetching everything.
-  const history = useInfiniteQuery({
-    queryKey: getListMissionHistoryQueryKey({ limit: HISTORY_PAGE_SIZE }),
-    queryFn: ({ pageParam }) =>
-      listMissionHistory({ limit: HISTORY_PAGE_SIZE, offset: pageParam }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.hasMore ? allPages.length * HISTORY_PAGE_SIZE : undefined,
-  });
-  const historyRows = useMemo(
-    () => (history.data?.pages ?? []).flatMap((p) => p.items),
-    [history.data],
-  );
 
   // All Missions: the staff-wide board (managers + approvers only).
   const owned = useListOwnedMissions({
     query: { enabled: canSeeStaffTabs, queryKey: getListOwnedMissionsQueryKey() },
   });
-  const draftMissions = useMemo(
-    () => (owned.data ?? []).filter((m) => m.workflowState === "draft"),
-    [owned.data],
-  );
 
-  const tabs: { key: TabKey; label: string; count?: number; show: boolean }[] = [
-    { key: "open", label: "Open", count: openMissions.length, show: true },
-    { key: "accepted", label: "Accepted", count: acceptedMissions.length, show: true },
-    { key: "applications", label: "My Applications", count: myApps.data?.length, show: true },
-    { key: "acting", label: "Acting", count: acting.data?.length, show: true },
-    { key: "created", label: "My Created", count: created.data?.length, show: isStaff },
-    { key: "history", label: "History", show: true },
-    { key: "drafts", label: "Drafts", count: draftMissions.length, show: canSeeStaffTabs },
-    { key: "all", label: "All Missions", count: owned.data?.length, show: canSeeStaffTabs },
+  // Tabs are grouped so it's clear which views are the public board, which are
+  // the caller's own player activity, and which are fixer management boards.
+  const browseTabs: TabDef[] = [
+    { key: "open", label: "Open", count: openMissions.length },
+    { key: "active", label: "Active", count: activeMissions.length },
+    { key: "completed", label: "Completed", count: completedMissions.length },
   ];
-  const visibleTabs = tabs.filter((t) => t.show);
+  const playerTabs: TabDef[] = [
+    { key: "applications", label: "My Applications", count: myApps.data?.length },
+    { key: "accepted", label: "Accepted", count: acceptedMissions.length },
+    { key: "acting", label: "Acting", count: acting.data?.length },
+  ];
+  const fixerTabs: TabDef[] = ([
+    { key: "mine", label: "My Missions", count: created.data?.length, show: isStaff },
+    { key: "all", label: "All Missions", count: owned.data?.length, show: canSeeStaffTabs },
+  ] as TabDef[]).filter((t) => t.show !== false);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-12">
@@ -181,20 +201,19 @@ export default function Missions() {
       <MissionOutcomesBanner />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="space-y-6">
-        <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">
-          {visibleTabs.map((t) => (
-            <TabsTrigger
-              key={t.key}
-              value={t.key}
-              className="rounded-none font-display tracking-widest text-xs data-[state=active]:bg-nc-magenta data-[state=active]:text-background"
-              data-testid={`tab-${t.key}`}
-            >
-              {t.label.toUpperCase()}
-              {typeof t.count === "number" && (
-                <span className="ml-1.5 opacity-70">({t.count})</span>
-              )}
-            </TabsTrigger>
-          ))}
+        <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start items-center gap-1">
+          <TabGroupLabel>Browse</TabGroupLabel>
+          <TabTriggers tabs={browseTabs} />
+          <TabDivider />
+          <TabGroupLabel>You</TabGroupLabel>
+          <TabTriggers tabs={playerTabs} />
+          {fixerTabs.length > 0 && (
+            <>
+              <TabDivider />
+              <TabGroupLabel>Fixer</TabGroupLabel>
+              <TabTriggers tabs={fixerTabs} />
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="open" data-testid="tabpanel-open">
@@ -209,14 +228,26 @@ export default function Missions() {
           </ErrorBoundary>
         </TabsContent>
 
-        <TabsContent value="accepted" data-testid="tabpanel-accepted">
+        <TabsContent value="active" data-testid="tabpanel-active">
           <ErrorBoundary>
             <ListSection
-              isLoading={mine.isLoading}
-              isEmpty={acceptedMissions.length === 0}
-              emptyText="You're not on any upcoming missions yet. Apply to one from the Open tab."
+              isLoading={available.isLoading}
+              isEmpty={activeMissions.length === 0}
+              emptyText="No active missions. Open missions move here once PC applications close."
             >
-              <MissionCardList rows={acceptedMissions} isAdmin={isAdmin} />
+              <MissionCardList rows={activeMissions} isAdmin={isAdmin} showApply npcOnly />
+            </ListSection>
+          </ErrorBoundary>
+        </TabsContent>
+
+        <TabsContent value="completed" data-testid="tabpanel-completed">
+          <ErrorBoundary>
+            <ListSection
+              isLoading={available.isLoading}
+              isEmpty={completedMissions.length === 0}
+              emptyText="No completed missions yet."
+            >
+              <MissionCardList rows={completedMissions} isAdmin={isAdmin} />
             </ListSection>
           </ErrorBoundary>
         </TabsContent>
@@ -229,6 +260,18 @@ export default function Missions() {
               emptyText="You haven't applied to any missions yet."
             >
               <MyApplicationsList rows={myApps.data ?? []} />
+            </ListSection>
+          </ErrorBoundary>
+        </TabsContent>
+
+        <TabsContent value="accepted" data-testid="tabpanel-accepted">
+          <ErrorBoundary>
+            <ListSection
+              isLoading={mine.isLoading}
+              isEmpty={acceptedMissions.length === 0}
+              emptyText="You're not on any upcoming missions yet. Apply to one from the Open tab."
+            >
+              <MissionCardList rows={acceptedMissions} isAdmin={isAdmin} />
             </ListSection>
           </ErrorBoundary>
         </TabsContent>
@@ -246,70 +289,19 @@ export default function Missions() {
         </TabsContent>
 
         {isStaff && (
-          <TabsContent value="created" data-testid="tabpanel-created">
+          <TabsContent value="mine" data-testid="tabpanel-mine">
             <ErrorBoundary>
               <ListSection
                 isLoading={created.isLoading}
                 isEmpty={(created.data?.length ?? 0) === 0}
                 emptyText="No missions yet. Use “Create Mission” to draft one."
               >
-                <OwnedMissionBoard
+                <MyMissionsBoard
                   rows={created.data ?? []}
                   isAdmin={isAdmin}
                   canApprove={canApprove}
                   canManage={isStaff}
                 />
-              </ListSection>
-            </ErrorBoundary>
-          </TabsContent>
-        )}
-
-        <TabsContent value="history" data-testid="tabpanel-history">
-          <ErrorBoundary>
-            <ListSection
-              isLoading={history.isLoading}
-              isEmpty={historyRows.length === 0}
-              emptyText="No completed missions in your history yet."
-            >
-              <MissionCardList rows={historyRows} isAdmin={isAdmin} />
-              {history.hasNextPage && (
-                <div className="flex justify-center pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-none font-display tracking-widest"
-                    onClick={() => history.fetchNextPage()}
-                    disabled={history.isFetchingNextPage}
-                    data-testid="button-load-more-history"
-                  >
-                    {history.isFetchingNextPage ? "LOADING…" : "LOAD MORE"}
-                  </Button>
-                </div>
-              )}
-            </ListSection>
-          </ErrorBoundary>
-        </TabsContent>
-
-        {canSeeStaffTabs && (
-          <TabsContent value="drafts" data-testid="tabpanel-drafts">
-            <ErrorBoundary>
-              <ListSection
-                isLoading={owned.isLoading}
-                isEmpty={draftMissions.length === 0}
-                emptyText="No draft missions. Use Create Mission and choose Save as draft to start one."
-              >
-                <div className="space-y-5">
-                  {draftMissions.map((m) => (
-                    <MissionCard
-                      key={m.id}
-                      m={m}
-                      isAdmin={isAdmin}
-                      canApprove={canApprove}
-                      canManage={isStaff}
-                      showWorkflow
-                    />
-                  ))}
-                </div>
               </ListSection>
             </ErrorBoundary>
           </TabsContent>
@@ -465,7 +457,28 @@ function AllMissionsTab({
   );
 }
 
-function OwnedMissionBoard({
+// Group the caller's own missions by lifecycle stage for the My Missions
+// sub-tabs. A cancelled/completed status wins over workflow state (a posted
+// mission that later completed belongs under Completed, not Pending).
+type MyMissionBucket = "draft" | "submitted" | "pending" | "cancelled" | "completed";
+
+function myMissionBucket(m: MissionSummary): MyMissionBucket {
+  if (m.status === "cancelled") return "cancelled";
+  if (COMPLETED_STATUSES.includes(m.status as MissionStatus)) return "completed";
+  if (m.workflowState === "draft") return "draft";
+  if (m.workflowState === "proposal") return "submitted";
+  return "pending"; // approved or posted + still open/pending
+}
+
+const MY_MISSION_SUBTABS: { key: MyMissionBucket; label: string; empty: string }[] = [
+  { key: "draft", label: "Draft", empty: "No drafts. Use Create Mission → Save as draft." },
+  { key: "submitted", label: "Submitted", empty: "Nothing awaiting approval." },
+  { key: "pending", label: "Pending", empty: "No live missions right now." },
+  { key: "cancelled", label: "Cancelled", empty: "No cancelled missions." },
+  { key: "completed", label: "Completed", empty: "No completed missions yet." },
+];
+
+function MyMissionsBoard({
   rows,
   isAdmin,
   canApprove,
@@ -476,32 +489,53 @@ function OwnedMissionBoard({
   canApprove: boolean;
   canManage: boolean;
 }) {
-  // Group by workflow state so the fixer sees the pipeline at a glance.
+  const [sub, setSub] = useState<MyMissionBucket>("pending");
+  const buckets = useMemo(() => {
+    const b: Record<MyMissionBucket, MissionSummary[]> = {
+      draft: [],
+      submitted: [],
+      pending: [],
+      cancelled: [],
+      completed: [],
+    };
+    for (const m of rows) b[myMissionBucket(m)].push(m);
+    return b;
+  }, [rows]);
+
   return (
-    <div className="space-y-6">
-      {WORKFLOW_STATES.map((state) => {
-        const group = rows.filter((m) => m.workflowState === state);
-        if (group.length === 0) return null;
-        return (
-          <div key={state} className="space-y-3" data-testid={`group-workflow-${state}`}>
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className={`rounded-none font-bold tracking-widest uppercase ${missionWorkflowClass(state)}`}
-              >
-                {missionWorkflowLabel(state)}
-              </Badge>
-              <span className="text-xs font-mono text-muted-foreground">({group.length})</span>
-            </div>
+    <Tabs value={sub} onValueChange={(v) => setSub(v as MyMissionBucket)} className="space-y-5">
+      <TabsList className="rounded-none bg-card/40 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">
+        {MY_MISSION_SUBTABS.map((t) => (
+          <TabsTrigger
+            key={t.key}
+            value={t.key}
+            className="rounded-none font-display tracking-widest text-xs data-[state=active]:bg-nc-cyan data-[state=active]:text-background"
+            data-testid={`subtab-mine-${t.key}`}
+          >
+            {t.label.toUpperCase()}
+            <span className="ml-1.5 opacity-70">({buckets[t.key].length})</span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {MY_MISSION_SUBTABS.map((t) => (
+        <TabsContent key={t.key} value={t.key} data-testid={`subpanel-mine-${t.key}`}>
+          <ListSection isLoading={false} isEmpty={buckets[t.key].length === 0} emptyText={t.empty}>
             <div className="space-y-5">
-              {group.map((m) => (
-                <MissionCard key={m.id} m={m} isAdmin={isAdmin} canApprove={canApprove} canManage={canManage} showWorkflow />
+              {buckets[t.key].map((m) => (
+                <MissionCard
+                  key={m.id}
+                  m={m}
+                  isAdmin={isAdmin}
+                  canApprove={canApprove}
+                  canManage={canManage}
+                  showWorkflow
+                />
               ))}
             </div>
-          </div>
-        );
-      })}
-    </div>
+          </ListSection>
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }
 
@@ -509,15 +543,17 @@ function MissionCardList({
   rows,
   isAdmin,
   showApply,
+  npcOnly,
 }: {
   rows: MissionSummary[];
   isAdmin: boolean;
   showApply?: boolean;
+  npcOnly?: boolean;
 }) {
   return (
     <div className="space-y-5">
       {rows.map((m) => (
-        <MissionCard key={m.id} m={m} isAdmin={isAdmin} showApply={showApply} />
+        <MissionCard key={m.id} m={m} isAdmin={isAdmin} showApply={showApply} npcOnly={npcOnly} />
       ))}
     </div>
   );
@@ -725,6 +761,7 @@ function MissionCard({
   canManage,
   showWorkflow,
   showApply,
+  npcOnly,
 }: {
   m: MissionSummary;
   isAdmin: boolean;
@@ -732,6 +769,7 @@ function MissionCard({
   canManage?: boolean;
   showWorkflow?: boolean;
   showApply?: boolean;
+  npcOnly?: boolean;
 }) {
   const when = m.startAt ? new Date(m.startAt) : null;
   return (
@@ -832,7 +870,7 @@ function MissionCard({
 
         {/* 9. Workflow actions (owned board) or inline apply/sign-up (open list) */}
         {showWorkflow && <WorkflowActions m={m} canManage={!!canManage} />}
-        {showApply && <InlineMissionActions m={m} />}
+        {showApply && <InlineMissionActions m={m} npcOnly={npcOnly} />}
       </CardContent>
     </Card>
   );
@@ -847,7 +885,9 @@ function errOf(e: unknown): string | null {
 // pick a character and apply (or withdraw), and one-click NPC sign-up (or
 // remove), all without leaving the missions list. Mirrors the detail page's
 // ApplySection / NpcSignupSection logic against the lighter list summary.
-function InlineMissionActions({ m }: { m: MissionSummary }) {
+// When npcOnly is set (Active tab — PC applications closed), only the NPC
+// sign-up control is shown.
+function InlineMissionActions({ m, npcOnly }: { m: MissionSummary; npcOnly?: boolean }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
   const chars = useListMyCharacters();
@@ -871,40 +911,41 @@ function InlineMissionActions({ m }: { m: MissionSummary }) {
   return (
     <div className="pt-1 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        {/* --- Player-character application --- */}
-        {existing ? (
-          reviewed ? (
-            <span
-              className={`inline-flex items-center gap-2 font-display tracking-widest text-xs px-3 py-1 border rounded-none uppercase ${applicationStatusClass(
-                existing.status,
-              )}`}
-              data-testid={`status-application-${m.id}`}
-            >
-              {applicationStatusLabel(existing.status)}
-              {existing.characterName ? ` · ${existing.characterName}` : ""}
-            </span>
+        {/* --- Player-character application (hidden once applications close) --- */}
+        {!npcOnly &&
+          (existing ? (
+            reviewed ? (
+              <span
+                className={`inline-flex items-center gap-2 font-display tracking-widest text-xs px-3 py-1 border rounded-none uppercase ${applicationStatusClass(
+                  existing.status,
+                )}`}
+                data-testid={`status-application-${m.id}`}
+              >
+                {applicationStatusLabel(existing.status)}
+                {existing.characterName ? ` · ${existing.characterName}` : ""}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={withdrawApp.isPending}
+                onClick={() => withdrawApp.mutate({ id: m.id, appId: existing.id })}
+                className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+                data-testid={`button-withdraw-${m.id}`}
+              >
+                {withdrawApp.isPending ? "WITHDRAWING..." : "WITHDRAW APPLICATION"}
+              </Button>
+            )
           ) : (
             <Button
               size="sm"
-              variant="outline"
-              disabled={withdrawApp.isPending}
-              onClick={() => withdrawApp.mutate({ id: m.id, appId: existing.id })}
-              className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
-              data-testid={`button-withdraw-${m.id}`}
+              onClick={() => setDialogOpen(true)}
+              className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+              data-testid={`button-apply-${m.id}`}
             >
-              {withdrawApp.isPending ? "WITHDRAWING..." : "WITHDRAW APPLICATION"}
+              APPLY AS PLAYER CHARACTER
             </Button>
-          )
-        ) : (
-          <Button
-            size="sm"
-            onClick={() => setDialogOpen(true)}
-            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
-            data-testid={`button-apply-${m.id}`}
-          >
-            APPLY AS PLAYER CHARACTER
-          </Button>
-        )}
+          ))}
 
         {/* --- NPC sign-up --- */}
         {mySignup ? (
@@ -950,7 +991,7 @@ function InlineMissionActions({ m }: { m: MissionSummary }) {
         )}
       </div>
 
-      {appErr && (
+      {!npcOnly && appErr && (
         <div className="text-destructive text-xs" data-testid={`text-apply-error-${m.id}`}>
           {appErr}
         </div>
@@ -961,6 +1002,7 @@ function InlineMissionActions({ m }: { m: MissionSummary }) {
         </div>
       )}
 
+      {!npcOnly && (
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="rounded-none border-border bg-background" data-testid={`dialog-apply-${m.id}`}>
           <DialogHeader>
@@ -1021,6 +1063,7 @@ function InlineMissionActions({ m }: { m: MissionSummary }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }
@@ -1084,7 +1127,48 @@ function WorkflowActions({
       </div>
     );
   }
+  // A live (posted) mission can have its PC-application window opened/closed by
+  // the fixer — toggling between the Open and Active browse tabs.
+  if (m.workflowState === "posted" && canManage) {
+    if (m.status !== "open" && m.status !== "pending") return null;
+    return (
+      <div className="pt-1">
+        <CloseApplicationsButton missionId={m.id} status={m.status} onSuccess={invalidate} />
+      </div>
+    );
+  }
   return null;
+}
+
+// --- Tab group chrome: visual labels + dividers separating Browse / You / Fixer.
+function TabGroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="px-1.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground/50 select-none">
+      {children}
+    </span>
+  );
+}
+
+function TabDivider() {
+  return <span aria-hidden className="mx-1 h-5 w-px bg-border" />;
+}
+
+function TabTriggers({ tabs }: { tabs: TabDef[] }) {
+  return (
+    <>
+      {tabs.map((t) => (
+        <TabsTrigger
+          key={t.key}
+          value={t.key}
+          className="rounded-none font-display tracking-widest text-xs data-[state=active]:bg-nc-magenta data-[state=active]:text-background"
+          data-testid={`tab-${t.key}`}
+        >
+          {t.label.toUpperCase()}
+          {typeof t.count === "number" && <span className="ml-1.5 opacity-70">({t.count})</span>}
+        </TabsTrigger>
+      ))}
+    </>
+  );
 }
 
 function FixerLink({

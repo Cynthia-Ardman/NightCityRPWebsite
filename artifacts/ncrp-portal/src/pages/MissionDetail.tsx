@@ -69,6 +69,7 @@ import {
   jobTypeLabel,
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
+import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
 import Markdown from "@/components/Markdown";
 
 function errOf(e: unknown): string | null {
@@ -865,9 +866,18 @@ function WorkflowPanel({ data }: { data: MissionDetailModel }) {
               <span className="text-muted-foreground text-xs">Approved — awaiting the fixer to post.</span>
             ))}
           {data.workflowState === "posted" && (
-            <span className="text-green-400 text-xs inline-flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Live on the public board.
-            </span>
+            <>
+              <span className="text-green-400 text-xs inline-flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Live on the public board.
+              </span>
+              {data.canManage && (
+                <CloseApplicationsButton
+                  missionId={data.id}
+                  status={data.status}
+                  onSuccess={invalidate}
+                />
+              )}
+            </>
           )}
         </div>
         {err && <div className="text-destructive text-xs" data-testid="text-workflow-error">{err}</div>}

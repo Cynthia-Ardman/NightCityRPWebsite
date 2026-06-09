@@ -1641,7 +1641,10 @@ export async function approveMission(missionId: number, viewer: MissionViewer, r
     targetId: String(missionId),
     message: `Approved mission "${m.title}"`,
   });
-  return { ok: true };
+  // Approval publishes the mission to the public board in one step: an archivist
+  // (or admin) approves from the Pending Requests queue and the mission goes
+  // live (Open) immediately, without a separate manual "post" action.
+  return postMission(missionId, viewer, req);
 }
 
 /**

@@ -10,5 +10,6 @@ Mission proposals (workflowState==='proposal') are approved from the **Misc Requ
 **How to apply:**
 - The proposal approval section lives in MiscRequestsTab; it fetches `useListOwnedMissions` (returns all states for managers/approvers, 403s for a pure cs_approver — gate the query on isFixer||isAdmin||isArchivist).
 - Approve button (useApproveMission) is gated on isArchivist||isAdmin.
+- Approval AUTO-PUBLISHES: approveMission() chains postMission() (proposal→approved→posted, status→open) in one call, so there is no longer a separate manual "post" step after approval. The Missions board approved→post button only matters for the rare row left in `approved` without being posted.
 - The Misc tab itself must be reachable by archivists — gate tab trigger/content/default on `canSeeMisc = canMisc || isArchivist`, not the old `canMisc = isAdmin||isFixer`, or archivists lose their only approval surface.
 - Creation form: "Save as draft" (create only) vs "Submit for approval" (create then submit). The create-then-submit path must retain the created mission id on submit-failure so a retry resubmits the same row instead of creating a duplicate draft. Submit requires jobType (enforce client-side too).
