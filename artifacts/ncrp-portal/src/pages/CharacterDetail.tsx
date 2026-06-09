@@ -32,6 +32,7 @@ import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import StaffCyberwareCard from "@/components/StaffCyberwareCard";
+import { cwpFromNotes, deriveCwpBand } from "@/components/CyberwareEditor";
 import StaffLeaseCard from "@/components/StaffLeaseCard";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import Markdown from "@/components/Markdown";
@@ -550,7 +551,21 @@ function CyberwareTab({ characterId }: { characterId: number }) {
   const sections = (char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections ?? {};
   const cyberwareSheet = Object.entries(sections).find(([heading]) => isCyberwareHeading(heading));
 
-  const level = (char.cyberwareLevel ?? "none").toLowerCase();
+  // Risk band is derived from the character's REAL installed chrome — the same
+  // source the weekly meds-billing cron charges off (sum of "CWP n" across the
+  // cyberware inventory items) — so this badge always matches what the player
+  // is actually billed and updates the moment staff edit their chrome. A staff
+  // override on the legacy cyberwareLevel column still wins (mirrors the archive
+  // list's resolveBand); organic is handled separately below.
+  const chromeCwp = chromeItems.reduce(
+    (sum, it) => sum + cwpFromNotes(it.notes) * Math.max(1, it.quantity ?? 1),
+    0,
+  );
+  const override = (char.cyberwareLevel ?? "none").toLowerCase();
+  const level =
+    override === "medium" || override === "high" || override === "extreme"
+      ? override
+      : deriveCwpBand(chromeCwp);
   const levelStyle =
     level === "extreme" ? "border-destructive text-destructive"
     : level === "high" ? "border-nc-magenta text-nc-magenta"

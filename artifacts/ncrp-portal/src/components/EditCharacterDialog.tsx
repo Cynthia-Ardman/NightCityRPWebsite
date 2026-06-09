@@ -13,6 +13,8 @@ import {
   getGetCharacterQueryKey,
   getListPendingEditsQueryKey,
   getListMyCharactersQueryKey,
+  getListArchiveCharactersQueryKey,
+  getGetArchiveCharacterQueryKey,
   type Character,
 } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -263,6 +265,11 @@ export default function EditCharacterDialog({
 
       await qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(character.id) });
       await qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(character.id) });
+      // Refresh the character-archive list AND detail so the derived CWP band
+      // badge reflects the edited chrome (list key prefix-matched to hit every
+      // filtered variation).
+      await qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
+      await qc.invalidateQueries({ queryKey: getGetArchiveCharacterQueryKey(character.id) });
       toast({ title: "Cyberware saved", description: `${character.name}'s chrome is updated.` });
     } catch (err) {
       const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;

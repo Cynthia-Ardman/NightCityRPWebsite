@@ -58,6 +58,43 @@ export function parseCyberNotes(notes: string | null | undefined): {
   return { points, notes: userNotes.join(" · "), slot };
 }
 
+// Lenient CWP extractor mirroring the server's parseCwp (artifacts/api-server/
+// src/lib/cyberware.ts): accepts "CWP 2", "CWP: 1.0", "C.W.P 3", and the
+// reversed "2 CWP" / "3 points" / "2 pts" forms, so a character's DISPLAYED
+// risk band is computed from exactly the same chrome the billing cron charges
+// off. parseCyberNotes (above) is the STRICT round-trip parser for the editor's
+// canonical "CWP <int>" form; use this one only for read-only band totals where
+// legacy/free-typed notes must still be counted.
+const CWP_PATTERNS = [
+  /\bcwp\b[\s:=-]*?(\d+(?:\.\d+)?)/i,
+  /\bc\.w\.p\.?\b[\s:=-]*?(\d+(?:\.\d+)?)/i,
+  /(\d+(?:\.\d+)?)\s*(?:cwp|c\.w\.p\.?|points?|pts?\.?)\b/i,
+];
+export function cwpFromNotes(notes: string | null | undefined): number {
+  if (!notes) return 0;
+  for (const re of CWP_PATTERNS) {
+    const m = notes.match(re);
+    if (m) {
+      const n = parseFloat(m[1]);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return 0;
+}
+
+// Bucket a total CWP load into the same risk band the server derives
+// (artifacts/api-server/src/lib/jobs.ts deriveCyberwareBand) and that the
+// weekly meds-billing cron charges off: 0-6 none · 7-9 medium · 10-12 high ·
+// 13+ extreme. Kept here next to parseCyberNotes so any client surface showing
+// a character's chrome load derives the band from real installed cyberware
+// (the billed source of truth) instead of the stale cyberwareLevel column.
+export function deriveCwpBand(totalCwp: number): "none" | "medium" | "high" | "extreme" {
+  if (totalCwp >= 13) return "extreme";
+  if (totalCwp >= 10) return "high";
+  if (totalCwp >= 7) return "medium";
+  return "none";
+}
+
 // Mutation callbacks the reconcile needs. These mirror the orval-generated
 // inventory hooks' `mutateAsync` signatures, kept narrow so the helper stays
 // decoupled from the hook objects themselves.

@@ -27,3 +27,26 @@ from `sumCwpByCharacter` + `deriveCyberwareBand` (organic flag first, then optio
 column override, then derived count) — not by reading `cyberwareLevel` directly.
 The derived band can't be expressed as a single SQL predicate, so band FILTERING
 is done in-memory after the row fetch (roster is small, capped at 2000).
+
+## Display-must-equal-billing parity (two recurring traps)
+
+For a player's DISPLAYED band to match what they're BILLED, any client-side band
+computation must select + parse chrome exactly like the server, or they silently
+diverge on legacy data:
+
+- **Category match is case-INSENSITIVE.** Legacy rows carry `category='Cyberware'`
+  (capital C). `sumCwpByCharacter` must use `lower(category)='cyberware'` (via
+  `and(inArray(characterId,...), sql\`lower(...)='cyberware'\`)` — NOT the
+  `= ANY(array)` param-spread footgun). A case-sensitive `eq(category,'cyberware')`
+  silently un-bills those rows while the case-insensitive UI still shows them.
+- **CWP parse must be LENIENT for read-only band totals.** The editor's strict
+  round-trip `parseCyberNotes` only matches canonical `CWP <int>`; legacy notes
+  use decimals (`CWP 1.0`), reversed forms (`2 CWP`, `3 points`), or `[legacy-item:…]`
+  prefixes that it parses as 0. Client band surfaces (e.g. CharacterDetail RISK
+  badge) must use the lenient `cwpFromNotes` (CyberwareEditor.tsx) mirroring server
+  `parseCwp`, NOT `parseCyberNotes`, or the displayed band undercounts vs billing.
+- Archive list/detail badges already get a server-derived `cwpBand`, so they only
+  need react-query invalidation after a chrome edit: invalidate BOTH
+  `getListArchiveCharactersQueryKey()` (prefix) AND `getGetArchiveCharacterQueryKey(id)`.
+- One divergence is INTENTIONAL: explicit `cyberwareLevel` override + `isOrganic`
+  affect display only, not billing (billing is pure installed-CWP). Don't "fix" it.

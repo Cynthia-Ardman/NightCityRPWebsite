@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, inArray, sql } from "drizzle-orm";
 import { db, inventoryItems } from "@workspace/db";
 
 // Importer always emits "CWP <n> · ..." at the start of notes (keyword
@@ -49,7 +49,16 @@ export async function sumCwpByCharacter(characterIds: number[]): Promise<Map<num
       quantity: inventoryItems.quantity,
     })
     .from(inventoryItems)
-    .where(and(inArray(inventoryItems.characterId, characterIds), eq(inventoryItems.category, "cyberware")));
+    // Category match is case-INSENSITIVE: legacy rows carry "Cyberware" (capital
+    // C) and the whole UI (character detail, staff editor, archive) treats the
+    // category case-insensitively, so billing must too or those rows are silently
+    // un-billed and the player's risk band displays higher than they're charged.
+    .where(
+      and(
+        inArray(inventoryItems.characterId, characterIds),
+        sql`lower(${inventoryItems.category}) = 'cyberware'`,
+      ),
+    );
   for (const r of rows) {
     if (r.characterId == null) continue;
     const cur = out.get(r.characterId) ?? 0;
