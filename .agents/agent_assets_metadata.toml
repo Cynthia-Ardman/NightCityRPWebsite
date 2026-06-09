@@ -24,3 +24,9 @@ id = "IP8fV2MdSn4Wlvn9Nbecp"
 uri = "file://.local/exports/bot-db-import.json"
 type = "unspecified"
 title = "bot-db-import.json — 13 tables, 6,382 rows from your bot DB"
+
+[[outputs]]
+id = "eQi7kFr78QQxqOyhMWrVG"
+uri = "file://.local/reports/bot-parity-channel-audit.md"
+type = "text"
+title = "Bot Parity & Channel Decommission Audit"
