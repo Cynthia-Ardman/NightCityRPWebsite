@@ -38,7 +38,13 @@ async function main() {
   for (const t of r.titles) {
     console.log(`  ${DRY_RUN ? "[dry] would create" : "[ ok ] created"} "${t}"`);
   }
-  console.log(`Done. ${DRY_RUN ? "Would create" : "Created"} ${r.created} session(s).`);
+  for (const t of r.healedTitles) {
+    console.log(`  ${DRY_RUN ? "[dry] would push to Discord" : "[ ok ] pushed to Discord"} "${t}"`);
+  }
+  console.log(
+    `Done. ${DRY_RUN ? "Would create" : "Created"} ${r.created} session(s); ` +
+      `${DRY_RUN ? "would push" : "pushed"} ${r.healed} unsynced session(s) to Discord.`,
+  );
   await pool.end();
 }
 

@@ -269,16 +269,25 @@ export async function syncEventDiscordEvent(
   return { discordEventId: event.discordEventId, discordSyncError: res.error };
 }
 
+// A drizzle executor: either the root db handle or a transaction handle. Lets
+// helpers run inside or outside a transaction.
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 // Persist a sync result onto a row. Always writes id + error (idempotent); only
 // touches the synced hash/timestamp when the sync actually attempted a push.
-async function applyEventSync(id: number, fallback: Event, sync: EventSyncResult): Promise<Event> {
+async function applyEventSync(
+  id: number,
+  fallback: Event,
+  sync: EventSyncResult,
+  executor: Executor = db,
+): Promise<Event> {
   const set: Partial<typeof events.$inferInsert> = {
     discordEventId: sync.discordEventId,
     discordSyncError: sync.discordSyncError,
   };
   if (sync.discordSyncedHash !== undefined) set.discordSyncedHash = sync.discordSyncedHash;
   if (sync.discordSyncedAt !== undefined) set.discordSyncedAt = sync.discordSyncedAt;
-  const [updated] = await db.update(events).set(set).where(eq(events.id, id)).returning();
+  const [updated] = await executor.update(events).set(set).where(eq(events.id, id)).returning();
   return updated ?? fallback;
 }
 
@@ -567,6 +576,10 @@ export async function cancelEvent(id: number): Promise<Event | null> {
 export interface BackfillMainSessionsResult {
   created: number;
   titles: string[];
+  /** Existing website-only session rows that were (re)pushed to Discord. */
+  healed: number;
+  /** Titles of the rows pushed to Discord by the self-heal pass. */
+  healedTitles: string[];
   reason?: string; // why nothing (or less) was created, for the job log
 }
 
@@ -588,16 +601,26 @@ export async function backfillMainSessions(
     .sort((a, b) => a.startAt!.getTime() - b.startAt!.getTime());
 
   if (sessions.length === 0) {
-    return { created: 0, titles: [], reason: "no existing session to seed from" };
+    return { created: 0, titles: [], healed: 0, healedTitles: [], reason: "no existing session to seed from" };
   }
+
+  // Self-heal BEFORE the horizon early-returns: a session row can exist on the
+  // website yet never have been pushed to Discord — e.g. it was created by this
+  // backfill/cron while the Live switch was off (createEvent silently defers the
+  // push), and the reconcile cron only updates rows ALREADY linked to Discord,
+  // never creating an event for a website-only row. When Live, push any future,
+  // non-cancelled session that's still missing its Discord event so the Discord
+  // schedule matches the calendar. Must run even when coverage already reaches
+  // the horizon, since the gap can sit entirely below the latest row.
+  const { healed, healedTitles } = await healUnsyncedSessions(sessions, dryRun);
 
   const last = sessions[sessions.length - 1]!;
   const m = last.title.match(SESSION_TITLE_NUM);
   if (!m) {
-    return { created: 0, titles: [], reason: `cannot parse session number from "${last.title}"` };
+    return { created: 0, titles: [], healed, healedTitles, reason: `cannot parse session number from "${last.title}"` };
   }
   if (!last.startAt || !last.endAt) {
-    return { created: 0, titles: [], reason: `latest session #${last.id} missing start/end time` };
+    return { created: 0, titles: [], healed, healedTitles, reason: `latest session #${last.id} missing start/end time` };
   }
 
   const prefix = m[1]!;
@@ -607,7 +630,7 @@ export async function backfillMainSessions(
   const horizon = new Date(Date.now() + horizonDays * 24 * 60 * 60 * 1000);
 
   if (last.startAt.getTime() >= horizon.getTime()) {
-    return { created: 0, titles: [], reason: "coverage already reaches horizon" };
+    return { created: 0, titles: [], healed, healedTitles, reason: "coverage already reaches horizon" };
   }
 
   let start = new Date(last.startAt.getTime());
@@ -644,7 +667,46 @@ export async function backfillMainSessions(
     if (reachedHorizon) break;
   }
 
-  return { created: titles.length, titles };
+  return { created: titles.length, titles, healed, healedTitles };
+}
+
+// Push any future, non-cancelled session row that exists on the website but has
+// no linked Discord event. Only mutates Discord when the shared Live switch is
+// on (in Test mode the push is a no-op, exactly like createEvent). dryRun lists
+// the rows it WOULD push without touching Discord.
+async function healUnsyncedSessions(
+  sessions: Event[],
+  dryRun: boolean,
+): Promise<{ healed: number; healedTitles: string[] }> {
+  const now = Date.now();
+  const unsynced = sessions.filter((e) => !e.discordEventId && e.startAt && e.startAt.getTime() > now);
+  if (unsynced.length === 0) return { healed: 0, healedTitles: [] };
+  if (dryRun) return { healed: unsynced.length, healedTitles: unsynced.map((e) => e.title) };
+
+  const ctx = await getMissionContext();
+  if (!ctx.live) return { healed: 0, healedTitles: [] };
+
+  const healedTitles: string[] = [];
+  for (const candidate of unsynced) {
+    // Lock the row and re-check UNDER the lock before pushing. Two overlapping
+    // heals (e.g. the daily cron overlapping a manual admin "Run job") could both
+    // read discordEventId === null off the snapshot and double-create a Discord
+    // event for one session — orphaning whichever id loses the DB write. The
+    // FOR UPDATE makes the second worker block until the first commits, then it
+    // sees the freshly-set id and skips. The lock spans the Discord create, which
+    // is fine for this rare, single low-traffic row.
+    const title = await db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(events).where(eq(events.id, candidate.id)).for("update");
+      if (!locked || locked.discordEventId) return null;
+      const sync = await syncEventDiscordEvent(locked, true);
+      await applyEventSync(locked.id, locked, sync, tx);
+      // Count only a genuine push (new Discord id, no error) so a transient
+      // Discord failure is reported as still-unsynced, not silently "healed".
+      return sync.discordEventId && !sync.discordSyncError ? locked.title : null;
+    });
+    if (title) healedTitles.push(title);
+  }
+  return { healed: healedTitles.length, healedTitles };
 }
 
 // ---------------------------------------------------------------------------

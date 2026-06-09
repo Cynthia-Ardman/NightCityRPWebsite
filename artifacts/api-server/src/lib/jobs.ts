@@ -923,9 +923,12 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // scheduled-event push for each new row is gated internally on the live
       // flag inside createEvent. Idempotent — a no-op once coverage is full.
       const r = await backfillMainSessions({ horizonDays: 90 });
-      affected = r.created;
-      message = r.created
-        ? `main session backfill: created ${r.created} session(s) — ${r.titles.join(", ")}`
+      affected = r.created + r.healed;
+      const parts: string[] = [];
+      if (r.created) parts.push(`created ${r.created} session(s) — ${r.titles.join(", ")}`);
+      if (r.healed) parts.push(`pushed ${r.healed} unsynced session(s) to Discord — ${r.healedTitles.join(", ")}`);
+      message = parts.length
+        ? `main session backfill: ${parts.join("; ")}`
         : `main session backfill: nothing to create${r.reason ? ` (${r.reason})` : ""}`;
     }
   } catch (err) {
