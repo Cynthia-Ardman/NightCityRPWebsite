@@ -104,3 +104,28 @@ These were reworded for clarity but intentionally still point at Discord:
   If raw channel mentions become common in lore, the lore import pipeline should
   gain the same `<#id>` rewriting (and a protected-edit guard) as the guidebook
   importer.
+
+## Follow-up corrections — Detailed Systems Explanation page
+
+The #210 pass was scoped to Discord-vs-on-site wording and left a few **factual
+errors** on the `detailed-systems-explanation` page in place. These are fixed by
+`apply-detailed-systems-corrections.ts` (same protected-edit pattern:
+`GUIDEBOOK_IMPORT_TARGET=dev|prod`, sets `editedSinceImport=true`). Its regex
+targets do not overlap with `apply-task210-edits.ts`, so the two are
+order-independent on a fresh import.
+
+- **Cyberware Points contradiction.** The page states a **6 CWP** creation cap up
+  top, but the Exceeding/TL;DR/cyberpsychosis lines said **10**. Canonical rule
+  (see `apply-task187-edits.ts`) is 6 at creation, 15 lifetime max; the
+  cyberpsychosis and maintenance tiers on this same page already use the 6/7
+  boundary. The three stray "10"s are now aligned to 6.
+- **"Via the Google Sheet"** link text (business ownership status) → "on the
+  Property catalog" (the sheet is not how the website works; the link already
+  pointed at `/catalog/rent`).
+- **Typo** "Full rent enforcement begins uly 1st" → "July 1st".
+- **Text RP** — "DM `NightCityBot`" now marked "(in Discord)" so website readers
+  know it is a Discord/bot flow (the `!work`/`!crime`/`!slut` economy commands
+  remain marked as Discord, unchanged).
+
+Prod run (after a re-import):
+`GUIDEBOOK_IMPORT_TARGET=prod pnpm --filter @workspace/api-server exec tsx src/scripts/apply-detailed-systems-corrections.ts`
