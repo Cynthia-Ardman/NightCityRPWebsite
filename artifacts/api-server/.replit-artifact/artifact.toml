@@ -12,6 +12,13 @@ paths = ["/api"]
 [services.development]
 run = "pnpm --filter @workspace/api-server run dev"
 
+[services.development.env]
+# Dev/Test-only backdoor login used by the Playwright e2e suite to establish a
+# real session as a seeded user without Discord OAuth. Double-gated: the route is
+# hard-disabled whenever NODE_ENV=production, so this can never be reached in a
+# deployed environment.
+ENABLE_TEST_AUTH = "true"
+
 [services.production]
 
 [services.production.build]

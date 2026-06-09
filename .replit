@@ -64,3 +64,8 @@ defaultBucketID = "replit-objstore-f867534d-c374-46de-b90c-f8572174d8c2"
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.development]
+ENABLE_TEST_AUTH = "true"

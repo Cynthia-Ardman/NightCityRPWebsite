@@ -207,6 +207,11 @@ router.post("/auth/logout", (req, res): void => {
 const TEST_AUTH_ENABLED =
   process.env.NODE_ENV !== "production" && process.env.ENABLE_TEST_AUTH === "true";
 
+// The harness only ever impersonates its own deterministic, namespaced fixtures.
+// Restricting to this prefix keeps the backdoor from impersonating real members
+// even within a non-prod environment where it is enabled.
+const TEST_AUTH_USER_PREFIX = "e2e-";
+
 router.post("/auth/test-login", async (req, res): Promise<void> => {
   if (!TEST_AUTH_ENABLED) {
     res.status(404).json({ error: "Not found" });
@@ -215,6 +220,10 @@ router.post("/auth/test-login", async (req, res): Promise<void> => {
   const userId = typeof req.body?.userId === "string" ? req.body.userId : undefined;
   if (!userId) {
     res.status(400).json({ error: "userId required" });
+    return;
+  }
+  if (!userId.startsWith(TEST_AUTH_USER_PREFIX)) {
+    res.status(403).json({ error: `test-login is restricted to ${TEST_AUTH_USER_PREFIX}* users` });
     return;
   }
   const [u] = await db.select().from(users).where(eq(users.id, userId));
