@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   db,
   saleOffers,
@@ -15,19 +15,54 @@ import { approveOffer, denyOffer, type OfferKind } from "../lib/saleOffers";
 
 const router: IRouter = Router();
 
-// Attach the venue name + buyer/seller names to an offer for display.
-async function shapeOffer(offer: typeof saleOffers.$inferSelect) {
-  const kind = offer.kind as OfferKind;
-  const venueId = kind === "store" ? offer.storeId : offer.ripperdocId;
-  let venueName: string | null = null;
-  if (venueId != null) {
-    const [v] = kind === "store"
-      ? await db.select({ name: stores.name }).from(stores).where(eq(stores.id, venueId))
-      : await db.select({ name: ripperdocs.name }).from(ripperdocs).where(eq(ripperdocs.id, venueId));
-    venueName = v?.name ?? null;
+type Offer = typeof saleOffers.$inferSelect;
+type ShapedOffer = Offer & { venueName: string | null; buyerName: string | null };
+
+// Attach venue + buyer names to a batch of offers for display. Resolves all
+// names in a fixed number of queries (one per stores/ripperdocs/characters)
+// regardless of how many offers there are, instead of 2 queries per offer.
+async function shapeOffers(offers: Offer[]): Promise<ShapedOffer[]> {
+  if (offers.length === 0) return [];
+
+  const storeIds = new Set<number>();
+  const ripperdocIds = new Set<number>();
+  const buyerIds = new Set<number>();
+  for (const o of offers) {
+    if (o.kind === "store") {
+      if (o.storeId != null) storeIds.add(o.storeId);
+    } else if (o.ripperdocId != null) {
+      ripperdocIds.add(o.ripperdocId);
+    }
+    if (o.buyerCharacterId != null) buyerIds.add(o.buyerCharacterId);
   }
-  const [buyer] = await db.select({ name: characters.name }).from(characters).where(eq(characters.id, offer.buyerCharacterId));
-  return { ...offer, venueName, buyerName: buyer?.name ?? null };
+
+  const [storeRows, ripperdocRows, buyerRows] = await Promise.all([
+    storeIds.size
+      ? db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, [...storeIds]))
+      : Promise.resolve([] as { id: number; name: string }[]),
+    ripperdocIds.size
+      ? db.select({ id: ripperdocs.id, name: ripperdocs.name }).from(ripperdocs).where(inArray(ripperdocs.id, [...ripperdocIds]))
+      : Promise.resolve([] as { id: number; name: string }[]),
+    buyerIds.size
+      ? db.select({ id: characters.id, name: characters.name }).from(characters).where(inArray(characters.id, [...buyerIds]))
+      : Promise.resolve([] as { id: number; name: string }[]),
+  ]);
+
+  const storeName = new Map(storeRows.map((r) => [r.id, r.name]));
+  const ripperdocName = new Map(ripperdocRows.map((r) => [r.id, r.name]));
+  const buyerName = new Map(buyerRows.map((r) => [r.id, r.name]));
+
+  return offers.map((o) => {
+    const kind = o.kind as OfferKind;
+    const venueId = kind === "store" ? o.storeId : o.ripperdocId;
+    const venueName =
+      venueId == null ? null : (kind === "store" ? storeName.get(venueId) : ripperdocName.get(venueId)) ?? null;
+    return {
+      ...o,
+      venueName,
+      buyerName: o.buyerCharacterId == null ? null : buyerName.get(o.buyerCharacterId) ?? null,
+    };
+  });
 }
 
 // Buyer's offers (the in-portal pending-approvals surface). Returns all of the
@@ -38,7 +73,7 @@ router.get("/offers/mine", requireAuth, async (req, res): Promise<void> => {
     .from(saleOffers)
     .where(eq(saleOffers.buyerUserId, req.user!.id))
     .orderBy(desc(saleOffers.createdAt));
-  res.json(await Promise.all(rows.map(shapeOffer)));
+  res.json(await shapeOffers(rows));
 });
 
 // Offers for a venue the caller operates (owner/admin/employee), so the seller
@@ -72,7 +107,7 @@ async function listVenueOffers(
   }
   const col = kind === "store" ? saleOffers.storeId : saleOffers.ripperdocId;
   const rows = await db.select().from(saleOffers).where(eq(col, venueId)).orderBy(desc(saleOffers.createdAt));
-  res.json(await Promise.all(rows.map(shapeOffer)));
+  res.json(await shapeOffers(rows));
 }
 
 router.get("/stores/:id/offers", requireAuth, (req, res) => listVenueOffers(req, res, "store"));
@@ -108,7 +143,7 @@ router.get("/offers/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  res.json(await shapeOffer(offer));
+  res.json((await shapeOffers([offer]))[0]);
 });
 
 router.post("/offers/:id/approve", requireAuth, async (req, res): Promise<void> => {

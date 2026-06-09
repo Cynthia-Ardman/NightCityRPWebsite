@@ -71,7 +71,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
       if (s.loa) loaCount++;
     }
   }
-  const ub = await getBalance(req.user!.discordId);
+  const ub = await getBalance(req.user!.discordId, { allowStale: true });
   const totalEddies = ub?.total ?? 0;
   // Pending character sheets that THIS viewer can actually action. The count
   // must mirror the review queue's semantics, not a raw global tally, on TWO
@@ -411,12 +411,12 @@ router.get("/me/system-log", requireAuth, async (req, res): Promise<void> => {
 // Per-user wallet — eddies live on the Discord account via Unbelievaboat,
 // not per-character. UI should prefer these over the per-character endpoints.
 router.get("/me/wallet", requireAuth, async (req, res): Promise<void> => {
-  const ub = await getBalance(req.user!.discordId);
+  const ub = await getBalance(req.user!.discordId, { allowStale: true });
   if (!ub) {
     res.status(502).json({ error: "Wallet provider unavailable" });
     return;
   }
-  res.json({ balance: ub.total, cash: ub.cash, bank: ub.bank, source: "unbelievaboat" });
+  res.json({ balance: ub.total, cash: ub.cash, bank: ub.bank, source: ub.source });
 });
 
 router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<void> => {
