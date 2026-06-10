@@ -1,8 +1,20 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import SelectOrCustom from "@/components/SelectOrCustom";
 import SingleImageField from "./SingleImageField";
-import { FIRE_MODES, GUN_STATUSES, type GunFormState, type GunStatus } from "./gunTypes";
+import {
+  FIRE_MODES,
+  GUN_CATEGORIES,
+  GUN_POWER_LEVELS,
+  GUN_POWER_LEVEL_ALIASES,
+  GUN_RESTRICTIONS,
+  GUN_STATUSES,
+  GUN_WEAPON_TYPES,
+  GUN_WEAPON_TYPE_ALIASES,
+  type GunFormState,
+  type GunStatus,
+} from "./gunTypes";
 
 function Field({
   label,
@@ -75,61 +87,50 @@ export default function GunFormFields({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Category">
-          <Input
+          <SelectOrCustom
             value={form.category}
-            onChange={(e) => set("category", e.target.value)}
-            className="rounded-none"
-            data-testid="input-gun-category"
+            onChange={(v) => set("category", v)}
+            options={GUN_CATEGORIES}
+            placeholder="Select category…"
+            testId="input-gun-category"
           />
         </Field>
         <Field label="Weapon Type">
-          <Input
+          <SelectOrCustom
             value={form.weaponType}
-            onChange={(e) => set("weaponType", e.target.value)}
-            className="rounded-none"
-            data-testid="input-gun-weaponType"
+            onChange={(v) => set("weaponType", v)}
+            options={GUN_WEAPON_TYPES}
+            aliases={GUN_WEAPON_TYPE_ALIASES}
+            placeholder="Select weapon type…"
+            testId="input-gun-weaponType"
           />
         </Field>
         <Field label="Fire Mode">
-          <div className="flex gap-2 flex-wrap mb-2">
-            {FIRE_MODES.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => set("fireMode", form.fireMode === m ? "" : m)}
-                className={`px-3 py-1.5 border font-display text-xs uppercase tracking-widest ${
-                  form.fireMode === m
-                    ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
-                    : "border-border text-muted-foreground hover:border-nc-cyan/40"
-                }`}
-                data-testid={`toggle-gun-fireMode-${m}`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          <Input
+          <SelectOrCustom
             value={form.fireMode}
-            onChange={(e) => set("fireMode", e.target.value)}
-            placeholder="e.g. Semi-Auto, Burst, Full-Auto"
-            className="rounded-none"
-            data-testid="input-gun-fireMode"
+            onChange={(v) => set("fireMode", v)}
+            options={FIRE_MODES}
+            placeholder="Select fire mode…"
+            testId="input-gun-fireMode"
           />
         </Field>
         <Field label="Power Level">
-          <Input
+          <SelectOrCustom
             value={form.powerLevel}
-            onChange={(e) => set("powerLevel", e.target.value)}
-            className="rounded-none"
-            data-testid="input-gun-powerLevel"
+            onChange={(v) => set("powerLevel", v)}
+            options={GUN_POWER_LEVELS}
+            aliases={GUN_POWER_LEVEL_ALIASES}
+            placeholder="Select power level…"
+            testId="input-gun-powerLevel"
           />
         </Field>
         <Field label="Restriction">
-          <Input
+          <SelectOrCustom
             value={form.restriction}
-            onChange={(e) => set("restriction", e.target.value)}
-            className="rounded-none"
-            data-testid="input-gun-restriction"
+            onChange={(v) => set("restriction", v)}
+            options={GUN_RESTRICTIONS}
+            placeholder="Select restriction…"
+            testId="input-gun-restriction"
           />
         </Field>
       </div>

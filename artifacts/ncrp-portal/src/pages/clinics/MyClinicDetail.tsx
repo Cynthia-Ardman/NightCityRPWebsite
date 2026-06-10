@@ -35,6 +35,8 @@ import { Label } from "@/components/ui/label";
 import { Plus, Trash2, DollarSign, PackagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CatalogPicker from "@/components/CatalogPicker";
+import SelectOrCustom from "@/components/SelectOrCustom";
+import { CYBERWARE_SLOTS } from "@/lib/cyberwareOptions";
 import CyberwareActionDialog from "@/components/CyberwareActionDialog";
 import RemoveCyberwareDialog from "@/components/RemoveCyberwareDialog";
 import PurchaseStockDialog from "@/components/PurchaseStockDialog";
@@ -355,8 +357,26 @@ export default function MyClinicDetail() {
             <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Add custom cyberware</p>
             <div className="grid grid-cols-12 gap-2">
               <Input className="col-span-6" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
-              <Input className="col-span-3" placeholder="Cyber category" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-cyber-category" />
-              <Input className="col-span-3" placeholder="Slot" value={stockSlot} onChange={(e) => setStockSlot(e.target.value)} data-testid="input-add-cyber-slot" />
+              <SelectOrCustom
+                className="col-span-3"
+                value={stockCategory}
+                onChange={setStockCategory}
+                options={CYBERWARE_SLOTS}
+                placeholder="Cyber category"
+                emptyLabel="— Category —"
+                customPlaceholder="Custom category"
+                testId="input-add-cyber-category"
+              />
+              <SelectOrCustom
+                className="col-span-3"
+                value={stockSlot}
+                onChange={setStockSlot}
+                options={CYBERWARE_SLOTS}
+                allowEmpty={false}
+                placeholder="Slot *"
+                customPlaceholder="Custom slot"
+                testId="input-add-cyber-slot"
+              />
               <Input className="col-span-3" type="number" min={0} placeholder="CWP" value={stockCwp || ""} onChange={(e) => setStockCwp(Number(e.target.value))} data-testid="input-add-cyber-cwp" />
               <Input className="col-span-3" type="number" min={0} placeholder="Price" value={stockPrice || ""} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
               <Input className="col-span-6" placeholder="Description (optional)" value={stockDescription} onChange={(e) => setStockDescription(e.target.value)} data-testid="input-add-cyber-description" />

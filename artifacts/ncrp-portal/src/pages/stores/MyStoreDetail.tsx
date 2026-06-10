@@ -1,5 +1,5 @@
 import { useParams, Redirect } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetStore,
@@ -42,9 +42,60 @@ import CharacterPicker, { type CharacterPickerValue } from "@/components/Charact
 import StaffVenuePanel from "@/components/StaffVenuePanel";
 import SingleImageUpload from "@/components/SingleImageUpload";
 import VenueWalletPanel from "@/components/VenueWalletPanel";
+import SelectOrCustom from "@/components/SelectOrCustom";
+import {
+  GUN_CATEGORIES,
+  GUN_POWER_LEVELS,
+  GUN_POWER_LEVEL_ALIASES,
+} from "@/components/catalog/gunTypes";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 const STORE_KINDS = ["guns", "gear", "clothing", "mixed", "other"] as const;
+
+// A gun-store stock field (category / power level) edited inline on an existing
+// row. Holds local state seeded from the row so typing a custom value doesn't
+// fire a save per keystroke; SelectOrCustom commits on a preset pick or on blur
+// of the custom input via onCommit.
+function StockRowField({
+  className,
+  initial,
+  options,
+  aliases,
+  allowEmpty,
+  placeholder,
+  emptyLabel,
+  testId,
+  onCommit,
+}: {
+  className?: string;
+  initial: string;
+  options: readonly string[];
+  aliases?: Record<string, string>;
+  allowEmpty?: boolean;
+  placeholder?: string;
+  emptyLabel?: string;
+  testId?: string;
+  onCommit: (v: string) => void;
+}) {
+  const [v, setV] = useState(initial);
+  useEffect(() => {
+    setV(initial);
+  }, [initial]);
+  return (
+    <SelectOrCustom
+      className={className}
+      value={v}
+      onChange={setV}
+      onCommit={onCommit}
+      options={options}
+      aliases={aliases}
+      allowEmpty={allowEmpty}
+      placeholder={placeholder}
+      emptyLabel={emptyLabel}
+      testId={testId}
+    />
+  );
+}
 
 export default function MyStoreDetail() {
   const { id } = useParams<{ id: string }>();
@@ -119,6 +170,30 @@ export default function MyStoreDetail() {
   const [stockReqName, setStockReqName] = useState("");
   const [stockReqCategory, setStockReqCategory] = useState("");
   const [stockReqDescription, setStockReqDescription] = useState("");
+  // Buffered profile edits — staff change name/kind/location/purpose/description
+  // freely, then commit with SAVE (no autosave-on-blur). Seeded from the loaded
+  // store and re-seeded whenever a different store loads. Banner stays immediate.
+  const [edit, setEdit] = useState<{
+    name: string;
+    kind: (typeof STORE_KINDS)[number];
+    location: string;
+    purpose: string;
+    description: string;
+  }>({ name: "", kind: "other", location: "", purpose: "", description: "" });
+  useEffect(() => {
+    if (!store) return;
+    setEdit({
+      name: store.name ?? "",
+      kind: (STORE_KINDS as readonly string[]).includes(store.kind)
+        ? (store.kind as (typeof STORE_KINDS)[number])
+        : "other",
+      location: store.location ?? "",
+      purpose: store.purpose ?? "",
+      description: store.description ?? "",
+    });
+    // Re-seed only when the underlying store identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store?.id]);
   const { data: me, viewAs } = useEffectiveMe();
   const canSetCost = !!me && (me.isFixer || me.isAdmin);
   // "Add from catalog" is an admin-only convenience for seeding stock from the
@@ -148,12 +223,45 @@ export default function MyStoreDetail() {
       <h1 className="text-4xl font-display" data-testid="text-store-name">{store.name}</h1>
 
       <Card className="rounded-none border-border bg-card/50">
-        <CardHeader><CardTitle className="font-display tracking-widest">EDIT</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="font-display tracking-widest">EDIT</CardTitle>
+          <Button
+            size="sm"
+            disabled={update.isPending || !edit.name.trim()}
+            onClick={() =>
+              update.mutate(
+                {
+                  id: storeId,
+                  data: {
+                    name: edit.name.trim(),
+                    kind: edit.kind,
+                    location: edit.location.trim() || null,
+                    purpose: edit.purpose.trim() || null,
+                    description: edit.description.trim() || null,
+                  },
+                },
+                {
+                  onSuccess: () => toast({ title: "Saved", description: "Store details updated." }),
+                  onError: (err) =>
+                    toast({
+                      title: "Could not save",
+                      description: err instanceof Error ? err.message : "Please try again.",
+                      variant: "destructive",
+                    }),
+                },
+              )
+            }
+            className="rounded-none bg-nc-cyan text-background font-display"
+            data-testid="button-save-store"
+          >
+            {update.isPending ? "SAVING..." : "SAVE"}
+          </Button>
+        </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Input defaultValue={store.name} onBlur={(e) => update.mutate({ id: storeId, data: { name: e.target.value } })} data-testid="input-edit-name" />
+          <Input value={edit.name} onChange={(e) => setEdit((p) => ({ ...p, name: e.target.value }))} placeholder="Name" data-testid="input-edit-name" />
           <select
-            defaultValue={store.kind}
-            onChange={(e) => update.mutate({ id: storeId, data: { kind: e.target.value as (typeof STORE_KINDS)[number] } })}
+            value={edit.kind}
+            onChange={(e) => setEdit((p) => ({ ...p, kind: e.target.value as (typeof STORE_KINDS)[number] }))}
             className="rounded-none border border-input bg-background px-3 py-2 font-mono text-sm uppercase"
             data-testid="select-edit-kind"
           >
@@ -161,9 +269,9 @@ export default function MyStoreDetail() {
               <option key={k} value={k}>{k}</option>
             ))}
           </select>
-          <Input defaultValue={store.location ?? ""} onBlur={(e) => update.mutate({ id: storeId, data: { location: e.target.value } })} placeholder="Location" data-testid="input-edit-location" />
-          <Input defaultValue={store.purpose ?? ""} onBlur={(e) => update.mutate({ id: storeId, data: { purpose: e.target.value } })} placeholder="Purpose (what this store is for)" data-testid="input-edit-purpose" />
-          <Textarea className="md:col-span-2" defaultValue={store.description ?? ""} onBlur={(e) => update.mutate({ id: storeId, data: { description: e.target.value } })} placeholder="Description" data-testid="input-edit-description" />
+          <Input value={edit.location} onChange={(e) => setEdit((p) => ({ ...p, location: e.target.value }))} placeholder="Location" data-testid="input-edit-location" />
+          <Input value={edit.purpose} onChange={(e) => setEdit((p) => ({ ...p, purpose: e.target.value }))} placeholder="Purpose (what this store is for)" data-testid="input-edit-purpose" />
+          <Textarea className="md:col-span-2" value={edit.description} onChange={(e) => setEdit((p) => ({ ...p, description: e.target.value }))} placeholder="Description" data-testid="input-edit-description" />
           <div className="md:col-span-2 space-y-1">
             <p className="font-mono text-xs text-muted-foreground uppercase">Banner</p>
             <SingleImageUpload
@@ -280,7 +388,19 @@ export default function MyStoreDetail() {
                 <Input className="col-span-4" defaultValue={s.name} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { name: e.target.value } })} />
                 <Input className="col-span-2" type="number" defaultValue={s.price} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { price: Number(e.target.value) } })} />
                 <Input className="col-span-2" type="number" defaultValue={s.quantity} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { quantity: Number(e.target.value) } })} />
-                <Input className="col-span-2" defaultValue={s.category ?? ""} placeholder="Category" onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { category: e.target.value } })} />
+                {isGunStore ? (
+                  <StockRowField
+                    className="col-span-2"
+                    initial={s.category ?? ""}
+                    options={GUN_CATEGORIES}
+                    placeholder="Category"
+                    emptyLabel="— Category —"
+                    testId={`select-stock-category-${s.id}`}
+                    onCommit={(v) => updateStock.mutate({ id: storeId, stockId: s.id, data: { category: v } })}
+                  />
+                ) : (
+                  <Input className="col-span-2" defaultValue={s.category ?? ""} placeholder="Category" onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { category: e.target.value } })} />
+                )}
                 <Button
                   size="sm"
                   onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
@@ -301,12 +421,15 @@ export default function MyStoreDetail() {
                   data-testid={`input-stock-description-${s.id}`}
                 />
                 {showPowerLevel && (
-                  <Input
+                  <StockRowField
                     className="col-span-4 font-mono text-xs"
-                    defaultValue={s.powerLevel ?? ""}
+                    initial={s.powerLevel ?? ""}
+                    options={GUN_POWER_LEVELS}
+                    aliases={GUN_POWER_LEVEL_ALIASES}
                     placeholder="Power level"
-                    onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { powerLevel: e.target.value } })}
-                    data-testid={`input-stock-power-${s.id}`}
+                    emptyLabel="— Power level —"
+                    testId={`input-stock-power-${s.id}`}
+                    onCommit={(v) => updateStock.mutate({ id: storeId, stockId: s.id, data: { powerLevel: v } })}
                   />
                 )}
               </div>
@@ -363,7 +486,19 @@ export default function MyStoreDetail() {
               )}
               <div className="grid grid-cols-12 gap-2">
                 <Input className="col-span-4" placeholder="Item name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-stock-name" />
-                <Input className="col-span-3" placeholder="Category / type" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
+                {isGunStore ? (
+                  <SelectOrCustom
+                    className="col-span-3"
+                    value={stockCategory}
+                    onChange={setStockCategory}
+                    options={GUN_CATEGORIES}
+                    placeholder="Category"
+                    emptyLabel="— Category —"
+                    testId="input-add-stock-category"
+                  />
+                ) : (
+                  <Input className="col-span-3" placeholder="Category / type" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
+                )}
                 <Input className="col-span-2" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
                 <Input className="col-span-1" type="number" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
                 <Button
@@ -401,12 +536,15 @@ export default function MyStoreDetail() {
                   data-testid="input-add-stock-description"
                 />
                 {showPowerLevel && (
-                  <Input
+                  <SelectOrCustom
                     className="col-span-4 font-mono text-xs"
-                    placeholder="Power level (optional)"
                     value={stockPowerLevel}
-                    onChange={(e) => setStockPowerLevel(e.target.value)}
-                    data-testid="input-add-stock-power"
+                    onChange={setStockPowerLevel}
+                    options={GUN_POWER_LEVELS}
+                    aliases={GUN_POWER_LEVEL_ALIASES}
+                    placeholder="Power level (optional)"
+                    emptyLabel="— Power level —"
+                    testId="input-add-stock-power"
                   />
                 )}
               </div>

@@ -20,6 +20,42 @@ export type Gun = {
 // catalog can still hold anything legacy/imported, but staff get one-tap presets.
 export const FIRE_MODES = ["Semi-Auto", "Burst", "Full-Auto"] as const;
 
+// Dropdown presets for the gun classification fields. Each field still keeps a
+// "Custom…" escape (see SelectOrCustom), so anything off-list is allowed. Values
+// are the human-readable forms we store going forward; legacy lowercase/
+// underscore/abbreviated rows resolve to these via the alias maps below.
+export const GUN_CATEGORIES = ["Power", "Tech", "Smart"] as const;
+export const GUN_WEAPON_TYPES = [
+  "Pistol",
+  "Revolver",
+  "SMG",
+  "Assault Rifle",
+  "Precision Rifle",
+  "Sniper",
+  "Shotgun",
+  "LMG",
+  "HMG",
+] as const;
+export const GUN_POWER_LEVELS = ["Low", "Medium", "High"] as const;
+export const GUN_RESTRICTIONS = ["Basic", "Controlled", "Restricted"] as const;
+
+// Alias maps keyed on the canonical (lowercased, separator-stripped) form of a
+// stored value, so imported variants land on the right preset instead of
+// showing a false "Custom…". Direct case/separator matches are handled by
+// SelectOrCustom itself; only genuinely different spellings need an entry here.
+export const GUN_WEAPON_TYPE_ALIASES: Record<string, string> = {
+  submachinegun: "SMG",
+  lightmachinegun: "LMG",
+  heavymachinegun: "HMG",
+  sniperrifle: "Sniper",
+};
+export const GUN_POWER_LEVEL_ALIASES: Record<string, string> = {
+  l: "Low",
+  m: "Medium",
+  h: "High",
+  med: "Medium",
+};
+
 // Catalog imports left raw values like "heavy_machine_gun" / "POWER" /
 // "tech-shotgun". Normalise on render so the listing reads like English
 // without having to scrub the database. Underscores AND hyphens collapse
