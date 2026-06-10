@@ -22,7 +22,7 @@ import {
   type MissionApplicationListItem,
   type ActingEntry,
 } from "@workspace/api-client-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -85,7 +85,7 @@ const COMPLETED_STATUSES: MissionStatus[] = [
 ];
 
 export default function Missions() {
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isFixer || me.isAdmin);
   const isAdmin = !!me?.isAdmin;
   const canApprove = !!me && (me.isArchivist || me.isAdmin);

@@ -8,7 +8,7 @@ import {
   type MissionSummary,
   type EventView,
 } from "@workspace/api-client-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Briefcase, PartyPopper, Users, UserPlus, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -83,7 +83,7 @@ const EVENT_TYPE_LABEL: Record<string, string> = {
 const MONTH_CHIP_CAP = 3;
 
 export default function DirectoryCalendar() {
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isFixer || me.isAdmin);
 
   const missionsQ = useListMissions(undefined, {

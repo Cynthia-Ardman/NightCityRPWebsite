@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Markdown from "@/components/Markdown";
 import { BookMarked, Plus, Download, FileEdit, FileText } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 function snippet(body: string): string {
   const text = body.replace(/[#*_`>\-]/g, "").replace(/\s+/g, " ").trim();
@@ -15,7 +15,7 @@ function snippet(body: string): string {
 }
 
 export default function DirectoryGuidebook() {
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isAdmin || me.isFixer);
   const isAdmin = !!me?.isAdmin;
   const [q, setQ] = useState("");

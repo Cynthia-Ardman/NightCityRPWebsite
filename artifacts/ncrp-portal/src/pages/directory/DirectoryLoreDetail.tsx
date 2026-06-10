@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Pencil, Lock, ExternalLink, Trash2, ArrowLeft } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORY_BADGE: Record<string, string> = {
@@ -28,7 +28,7 @@ const CATEGORY_BADGE: Record<string, string> = {
 export default function DirectoryLoreDetail() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading } = useGetLore(Number(id));
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [, navigate] = useLocation();

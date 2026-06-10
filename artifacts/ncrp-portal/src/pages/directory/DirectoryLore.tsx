@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Plus, Lock, Download } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 type LoreSort = "recent" | "alpha";
 
@@ -27,7 +27,7 @@ const CATEGORY_BADGE: Record<string, string> = {
 };
 
 export default function DirectoryLore() {
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isAdmin || me.isFixer);
   const isAdmin = !!me?.isAdmin;
   const [tab, setTab] = useState<"all" | LoreEntrySummaryCategory>("all");

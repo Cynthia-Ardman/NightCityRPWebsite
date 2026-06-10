@@ -112,3 +112,4 @@
 - [Lore import channel-mention & protected-edit gap](lore-import-channel-gap.md) — lore pipeline (unlike guidebook) does NOT rewrite `<#id>` and has no editedSinceImport; manual lore fixes get clobbered on re-import.
 - [Staff read/write authz parity](staff-read-write-authz-parity.md) — staff management UI on a character sub-resource needs the GET read path to allow the same fixer+admin scope as its writes.
 - [Cyberware category canon](cyberware-category-canon.md) — every cyberware-category predicate (cap gate, violator report, storage) must use lower(trim(category)) or whitespace/case variants bypass the 1-per-slot cap.
+- [View-as role gating](view-as-gating.md) — gate staff UI/intel on useEffectiveMe, not useAuthMe, or admin "View as player" leaks staff content on shared pages.

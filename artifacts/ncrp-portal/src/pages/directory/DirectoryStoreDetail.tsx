@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 export default function DirectoryStoreDetail() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading } = useGetStorePublic(Number(id));
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isAdmin || me.isFixer);
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">STORE NOT FOUND</div>;

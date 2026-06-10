@@ -3,12 +3,12 @@ import { useGetRipperdocPublic } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 export default function DirectoryRipperdocDetail() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading } = useGetRipperdocPublic(Number(id));
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isAdmin || me.isFixer);
   const isOwner = !!me && !!data?.ownerId && me.id === data.ownerId;
   const canManage = isStaff || isOwner;

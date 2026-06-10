@@ -17,13 +17,13 @@ import Markdown from "@/components/Markdown";
 import FaqAccordion from "@/components/FaqAccordion";
 import BecomeNpcButton from "@/components/BecomeNpcButton";
 import { Pencil, Trash2, ArrowLeft, ExternalLink, FileEdit } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 
 export default function GuidebookPageDetail() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading } = useGetGuidebookPage(Number(id));
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [, navigate] = useLocation();

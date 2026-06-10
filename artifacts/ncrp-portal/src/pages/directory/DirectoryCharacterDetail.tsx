@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "wouter";
 import { useGetArchiveCharacter } from "@workspace/api-client-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Pencil } from "lucide-react";
@@ -21,7 +21,7 @@ export default function DirectoryCharacterDetail() {
   const charId = Number(id);
   const { data: char, isLoading } = useGetArchiveCharacter(charId);
   const [editOpen, setEditOpen] = useState(false);
-  const me = useAuthMe();
+  const me = useEffectiveMe();
   const isAdmin = !!me.data?.isAdmin;
 
   if (isLoading) return <div className="p-8 text-nc-cyan font-display text-xl animate-pulse">DECRYPTING_IDENTITY...</div>;

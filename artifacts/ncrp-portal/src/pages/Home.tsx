@@ -1,7 +1,7 @@
 import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListMissions, useListEvents, getListMissionsQueryKey, getListEventsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, useGetIncomeStatus, useRunIncomeWork, useRunIncomeSlut, getGetIncomeStatusQueryKey, type MissionSummary, type EventView, type IncomeCommandResult } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
 import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper, UserPlus } from "lucide-react";
 import { expandOccurrences } from "@/lib/eventRecurrence";
@@ -36,7 +36,7 @@ function BrandedLoader({ label }: { label: string }) {
 }
 
 export default function Home() {
-  const { data: user, isLoading: userLoading } = useAuthMe();
+  const { data: user, isLoading: userLoading } = useEffectiveMe();
 
   if (userLoading) {
     return <BrandedLoader label="LOADING_SYS_DATA..." />;
@@ -75,7 +75,7 @@ export default function Home() {
 }
 
 function Dashboard() {
-  const { data: user } = useAuthMe();
+  const { data: user } = useEffectiveMe();
   const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary();
   const { data: characters, isLoading: charsLoading } = useListMyCharacters();
   // We'll skip recent activity if the hook isn't fully implemented or we just use characters
@@ -237,7 +237,7 @@ function Dashboard() {
 // the permanent home regardless of whether this prompt is shown.
 function NotificationPrefsPrompt() {
   const qc = useQueryClient();
-  const { data: user } = useAuthMe();
+  const { data: user } = useEffectiveMe();
   const dismiss = useDismissNotificationPrompt();
 
   if (!user || user.notificationPromptDismissed) return null;
@@ -663,7 +663,7 @@ interface NpcRow {
 // see this panel — their assigned NPCs (if any) already render in
 // MY_CHARACTERS via /characters (which filters by ownerId).
 function NpcConsolePanel() {
-  const { data: user } = useAuthMe();
+  const { data: user } = useEffectiveMe();
   const isStaff = Boolean(user?.isAdmin || user?.isFixer);
   // /api/directory/characters returns a raw NpcRow[] (see directory.ts:121),
   // not the { items, total } envelope this card originally expected.
