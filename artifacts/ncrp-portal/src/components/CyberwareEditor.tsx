@@ -31,29 +31,65 @@ export function buildCyberNotes(row: { points: number; notes: string; slot: stri
   return parts.join(" · ");
 }
 
+// Sentinel the bulk cyberware importer (scripts/src/import-cyberware-inventory.ts)
+// stamps into inventory_items.notes so reruns can find its own rows. It must
+// never be shown to users — strip it everywhere a note is parsed for display.
+const CYBER_IMPORT_TAG_RE = /\s*\[cyberware-import:[^\]]*\]/gi;
+
+// Strip the bulk-importer sentinel from a note for display. Use this on any
+// user-facing surface that renders raw inventory notes (e.g. the generic
+// Inventory tab) so imported cyberware never shows "[cyberware-import:v1]".
+export function stripImportSentinel(notes: string | null | undefined): string {
+  return (notes ?? "").replace(CYBER_IMPORT_TAG_RE, "").trim();
+}
+
 // Inverse of buildCyberNotes — pull CWP, free-text notes and slot back out of a
 // stored inventory note so an existing item can be edited.
-export function parseCyberNotes(notes: string | null | undefined): {
+//
+// Two stored shapes exist: the editor's canonical "CWP n · <notes> · slot: <x>"
+// and the bulk importer's "CWP n · <slot> · <notes> [cyberware-import:v1]", where
+// the slot is a BARE segment with no "slot:" prefix. Pass the catalog slot names
+// as `knownSlots` so a bare segment matching a real slot is recognised as the
+// slot (and pulled out of the displayed notes) instead of leaking into the notes
+// text. The import sentinel is always stripped.
+export function parseCyberNotes(
+  notes: string | null | undefined,
+  knownSlots?: Iterable<string | null | undefined>,
+): {
   points: number;
   notes: string;
   slot: string;
 } {
-  const parts = (notes ?? "").split(" · ");
+  const slotLookup = new Map<string, string>();
+  if (knownSlots) {
+    for (const s of knownSlots) {
+      const v = (s ?? "").trim();
+      if (v) slotLookup.set(v.toLowerCase(), v);
+    }
+  }
+  const cleaned = stripImportSentinel(notes);
+  const parts = cleaned.split(" · ");
   let points = 0;
   let slot = "";
   const userNotes: string[] = [];
   for (const p of parts) {
-    const cwp = p.match(/^CWP\s+(\d+)$/i);
+    const t = p.trim();
+    if (!t) continue;
+    const cwp = t.match(/^CWP\s+(\d+)$/i);
     if (cwp) {
       points = Number(cwp[1]) || 0;
       continue;
     }
-    const sl = p.match(/^slot:\s*(.+)$/i);
+    const sl = t.match(/^slot:\s*(.+)$/i);
     if (sl) {
       slot = sl[1].trim();
       continue;
     }
-    if (p.trim()) userNotes.push(p);
+    if (!slot && slotLookup.has(t.toLowerCase())) {
+      slot = slotLookup.get(t.toLowerCase()) as string;
+      continue;
+    }
+    userNotes.push(t);
   }
   return { points, notes: userNotes.join(" · "), slot };
 }

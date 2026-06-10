@@ -32,7 +32,7 @@ import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import StaffCyberwareCard from "@/components/StaffCyberwareCard";
-import { cwpFromNotes, deriveCwpBand, buildCyberNotes } from "@/components/CyberwareEditor";
+import { cwpFromNotes, deriveCwpBand, buildCyberNotes, parseCyberNotes, stripImportSentinel } from "@/components/CyberwareEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FIRE_MODES } from "@/components/catalog/gunTypes";
 import { useListCyberware } from "@workspace/api-client-react";
@@ -550,6 +550,18 @@ function CyberwareTab({ characterId }: { characterId: number }) {
     (it) => (it.category ?? "").toLowerCase() === "cyberware",
   );
 
+  // Parse each chrome item's stored notes once, using the cyberware catalog's
+  // slot names to recognise the bulk importer's bare-slot format and to strip
+  // its [cyberware-import:v1] sentinel. Reused for both slot grouping and the
+  // clean per-item note shown in the list below.
+  const { data: cyberSlotCatalog } = useListCyberware();
+  const cyberSlotNames = (cyberSlotCatalog ?? []).map((c) => c.slot);
+  const parsedNotesByItem = new Map<number, { slot: string; notes: string }>();
+  for (const it of chromeItems) {
+    const parsed = parseCyberNotes(it.notes, cyberSlotNames);
+    parsedNotesByItem.set(it.id, { slot: parsed.slot, notes: parsed.notes });
+  }
+
   // Try to find the cyberware section in the imported character sheet.
   const sections = (char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections ?? {};
   const cyberwareSheet = Object.entries(sections).find(([heading]) => isCyberwareHeading(heading));
@@ -583,8 +595,7 @@ function CyberwareTab({ characterId }: { characterId: number }) {
   // "what the portal actually has on this character" view.
   const grouped = new Map<string, typeof chromeItems>();
   for (const it of chromeItems) {
-    const slotMatch = (it.notes ?? "").match(/slot\s*[:=]\s*([^,;\n]+)/i);
-    const slot = (slotMatch?.[1] ?? "Other").trim().toUpperCase();
+    const slot = (parsedNotesByItem.get(it.id)?.slot || "Other").trim().toUpperCase();
     const list = grouped.get(slot) ?? [];
     list.push(it);
     grouped.set(slot, list);
@@ -713,8 +724,8 @@ function CyberwareTab({ characterId }: { characterId: number }) {
                                 </Badge>
                               ) : null}
                             </div>
-                            {it.notes ? (
-                              <div className="mt-0.5 text-xs text-muted-foreground truncate">{it.notes}</div>
+                            {parsedNotesByItem.get(it.id)?.notes ? (
+                              <div className="mt-0.5 text-xs text-muted-foreground truncate">{parsedNotesByItem.get(it.id)?.notes}</div>
                             ) : null}
                           </div>
                           <Link href={`/items/${it.instanceUuid}`}>
@@ -991,7 +1002,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
                   <span className="col-span-3 text-foreground break-words">{it.name}</span>
                   <span className="col-span-2 text-nc-cyan uppercase truncate">{it.category ?? "—"}</span>
                   <span className="col-span-1 text-right">x{it.quantity}</span>
-                  <span className="col-span-2 truncate text-muted-foreground">{it.notes ?? ""}</span>
+                  <span className="col-span-2 truncate text-muted-foreground">{stripImportSentinel(it.notes)}</span>
                   {(it.category ?? "").trim().toLowerCase() === "cyberware" ? (
                     <span
                       className="col-span-1 text-[10px] leading-tight text-muted-foreground"
@@ -1103,7 +1114,7 @@ function EditItemDialog({
   const [name, setName] = useState(item?.name ?? "");
   const [category, setCategory] = useState(item?.category ?? "");
   const [quantity, setQuantity] = useState(item?.quantity ?? 1);
-  const [notes, setNotes] = useState(item?.notes ?? "");
+  const [notes, setNotes] = useState(stripImportSentinel(item?.notes));
   const update = useUpdateInventoryItem({ mutation: { onSuccess: onDone } });
   if (!item) return null;
   const STD_CATEGORIES = ["Misc", "Weapon", "Cyberware"];

@@ -120,7 +120,10 @@ function parseBlocks(sheetName: string): CharBlock[] {
 function formatNotes(im: Implant): string {
   const parts: string[] = [];
   if (im.cwp) parts.push(`CWP ${im.cwp}`);
-  if (im.slot) parts.push(im.slot);
+  // Emit the slot in the canonical "slot: <x>" form the portal editor reads
+  // (parseCyberNotes / buildCyberNotes). A bare slot segment would otherwise
+  // leak into the displayed NOTES field and leave the SLOT dropdown empty.
+  if (im.slot) parts.push(`slot: ${im.slot}`);
   if (im.brand) parts.push(im.brand + (im.brandTier ? ` (${im.brandTier})` : ""));
   if (im.fn) parts.push(im.fn);
   if (im.notes) parts.push(im.notes);

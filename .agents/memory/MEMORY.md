@@ -53,6 +53,7 @@
 - [Stock-add offer + lease race](stock-add-offer-and-lease.md) — venue-debiting offers need owner-only approve guard (canDecide's admin allowance is a bypass); single-unit lease must lock listing FOR UPDATE across check+insert.
 - [Offer install capacity race](offer-install-capacity-race.md) — install-offer CWP cap must lock buyer row + re-derive used CWP INSIDE the completion tx; operator cwp can't undercut stock "CWP n" note.
 - [Cyberware CWP cap & dedup](cyberware-cwp-cap.md) — non-NPCs hard-capped at 15 CWP; over-cap = double-import dup rows; dedupe by name+per-unit-CWP keeping newest id (scripts/src/dedupe-cyberware.ts).
+- [Cyberware import note format](cyberware-import-note-format.md) — legacy importer wrote bare-slot + `[cyberware-import:v1]`; parseCyberNotes needs catalog slots to disambiguate + stripImportSentinel on raw-notes surfaces; hydration must dirty-guard.
 - [Raw tx.execute snake_case trap](raw-execute-snakecase-trap.md) — casting `SELECT *` result to `$inferSelect` makes camelCase cols undefined; use `.select()....for("update")` to lock-and-read typed.
 - [Offer approve debit-before-flip refund](offer-approve-refund-races.md) — buyer debit precedes the guarded pending→approved flip; if flip fails, refund unless final status is 'approved', and never claim "refunded" without checking applyWalletDelta.ok.
 - [api-client codegen → rebuild dist](api-client-codegen-dist.md) — consumers read the client's built dist/*.d.ts via TS project refs; after codegen, rebuild dist or new hooks show as "no exported member".

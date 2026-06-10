@@ -8,6 +8,7 @@ import {
   useAddInventoryItem,
   useUpdateInventoryItem,
   useRemoveInventoryItem,
+  useListCyberware,
   getGetCharacterInventoryQueryKey,
   getGetCharacterPendingEditQueryKey,
   getGetCharacterQueryKey,
@@ -93,6 +94,7 @@ export default function EditCharacterDialog({
   const { data: inventory } = useGetCharacterInventory(character.id, {
     query: { queryKey: getGetCharacterInventoryQueryKey(character.id), enabled: open },
   });
+  const { data: cyberCatalog } = useListCyberware();
   const [cyberRows, setCyberRows] = useState<CyberRow[]>([]);
   const [savingCyber, setSavingCyber] = useState(false);
   const addInventory = useAddInventoryItem();
@@ -105,10 +107,17 @@ export default function EditCharacterDialog({
 
   useEffect(() => {
     if (!open) return;
+    // Re-hydrate from server inventory only when there are no unsaved edits, so
+    // a late cyberware-catalog load or a background refetch can't clobber rows
+    // the staffer is editing. The catalog dep lets a not-yet-edited grid
+    // re-parse once slot names arrive (bare-slot recognition).
+    const dirty = JSON.stringify(cyberRows) !== JSON.stringify(cyberOriginal);
+    if (dirty) return;
+    const slotNames = (cyberCatalog ?? []).map((c) => c.slot);
     const rows: CyberRow[] = (inventory ?? [])
       .filter((it) => it.category === "cyberware")
       .map((it) => {
-        const parsed = parseCyberNotes(it.notes);
+        const parsed = parseCyberNotes(it.notes, slotNames);
         return {
           id: it.id,
           slot: parsed.slot,
@@ -119,7 +128,8 @@ export default function EditCharacterDialog({
       });
     setCyberRows(rows);
     setCyberOriginal(rows);
-  }, [open, inventory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, inventory, cyberCatalog]);
 
   // Reset form state every time we re-open with a different character or after
   // server-side changes (avoids leaking stale form state across opens).

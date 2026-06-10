@@ -5,6 +5,7 @@ import {
   useAddInventoryItem,
   useUpdateInventoryItem,
   useRemoveInventoryItem,
+  useListCyberware,
   getGetCharacterInventoryQueryKey,
   getGetCharacterQueryKey,
   getListArchiveCharactersQueryKey,
@@ -37,6 +38,7 @@ export default function StaffCyberwareCard({
   const { data: inventory } = useGetCharacterInventory(characterId, {
     query: { queryKey: getGetCharacterInventoryQueryKey(characterId) },
   });
+  const { data: cyberCatalog } = useListCyberware();
   const addInventory = useAddInventoryItem();
   const updateInventory = useUpdateInventoryItem();
   const removeInventory = useRemoveInventoryItem();
@@ -48,15 +50,23 @@ export default function StaffCyberwareCard({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    // Re-hydrate from server inventory only when there are no unsaved edits, so
+    // a late cyberware-catalog load or a background refetch can't clobber rows
+    // the staffer is currently editing. The catalog dep lets a not-yet-edited
+    // grid re-parse once slot names arrive (bare-slot recognition).
+    const dirty = JSON.stringify(cyberRows) !== JSON.stringify(cyberOriginal);
+    if (dirty) return;
+    const slotNames = (cyberCatalog ?? []).map((c) => c.slot);
     const rows: CyberRow[] = (inventory ?? [])
       .filter((it) => (it.category ?? "").toLowerCase() === "cyberware")
       .map((it) => {
-        const parsed = parseCyberNotes(it.notes);
+        const parsed = parseCyberNotes(it.notes, slotNames);
         return { id: it.id, slot: parsed.slot, name: it.name, points: parsed.points, notes: parsed.notes };
       });
     setCyberRows(rows);
     setCyberOriginal(rows);
-  }, [inventory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventory, cyberCatalog]);
 
   async function save() {
     if (saving) return;
