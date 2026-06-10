@@ -5229,6 +5229,7 @@ export interface LiveModeSystems {
   housing: SystemLiveState;
   cyberware: SystemLiveState;
   evictions: SystemLiveState;
+  economy: SystemLiveState;
 }
 
 /**
@@ -5248,6 +5249,7 @@ export interface LiveModeUpdate {
   housing?: boolean;
   cyberware?: boolean;
   evictions?: boolean;
+  economy?: boolean;
 }
 
 /**

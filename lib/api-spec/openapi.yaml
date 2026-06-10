@@ -8276,12 +8276,13 @@ components:
 
     LiveModeSystems:
       type: object
-      required: [missions, housing, cyberware, evictions]
+      required: [missions, housing, cyberware, evictions, economy]
       properties:
         missions: { $ref: "#/components/schemas/SystemLiveState" }
         housing: { $ref: "#/components/schemas/SystemLiveState" }
         cyberware: { $ref: "#/components/schemas/SystemLiveState" }
         evictions: { $ref: "#/components/schemas/SystemLiveState" }
+        economy: { $ref: "#/components/schemas/SystemLiveState" }
 
     LiveModeState:
       type: object
@@ -8300,6 +8301,7 @@ components:
         housing: { type: boolean }
         cyberware: { type: boolean }
         evictions: { type: boolean }
+        economy: { type: boolean }
 
     SiteAccessState:
       type: object

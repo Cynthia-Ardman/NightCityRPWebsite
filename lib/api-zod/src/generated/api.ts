@@ -5491,6 +5491,10 @@ export const AdminGetLiveModeResponse = zod.object({
   "evictions": zod.object({
   "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
   "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+}),
+  "economy": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
 })
 })
 }).describe('Site-wide Test\/Live switches. A system is effectively live only when master AND that system are both true.')
@@ -5504,7 +5508,8 @@ export const AdminSetLiveModeBody = zod.object({
   "missions": zod.boolean().optional(),
   "housing": zod.boolean().optional(),
   "cyberware": zod.boolean().optional(),
-  "evictions": zod.boolean().optional()
+  "evictions": zod.boolean().optional(),
+  "economy": zod.boolean().optional()
 }).describe('Partial update of the Test\/Live switches. Omitted fields are left unchanged.')
 
 export const AdminSetLiveModeResponse = zod.object({
@@ -5523,6 +5528,10 @@ export const AdminSetLiveModeResponse = zod.object({
   "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
 }),
   "evictions": zod.object({
+  "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
+  "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
+}),
+  "economy": zod.object({
   "configured": zod.boolean().describe('The per-system override as stored, independent of the master switch.'),
   "effective": zod.boolean().describe('Whether the system is actually Live right now (master AND configured).')
 })

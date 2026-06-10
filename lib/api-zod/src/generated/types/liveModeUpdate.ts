@@ -15,4 +15,5 @@ export interface LiveModeUpdate {
   housing?: boolean;
   cyberware?: boolean;
   evictions?: boolean;
+  economy?: boolean;
 }

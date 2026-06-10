@@ -12,4 +12,5 @@ export interface LiveModeSystems {
   housing: SystemLiveState;
   cyberware: SystemLiveState;
   evictions: SystemLiveState;
+  economy: SystemLiveState;
 }

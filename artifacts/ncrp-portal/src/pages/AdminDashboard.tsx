@@ -1006,14 +1006,19 @@ export function WalletTab() {
 const HOUSING_AUTOBILL_KEY = "housing_autobill_enabled";
 const CYBERWARE_AUTOBILL_KEY = "cyberware_autobill_enabled";
 const MISSION_AUTOPAY_KEY = "mission_autopay_enabled";
+// Master economy kill switch (ECONOMY_ENABLED_KEY in api-server/src/lib/economy.ts).
+// While OFF the entire economy is disabled — wallet moves, the income WORK/SLUT
+// commands, and UnbelievaBoat sync all return "disabled" and do nothing.
+const ECONOMY_ENABLED_KEY = "economy_enabled";
 
 // Per-system metadata for the Test/Live switchboard. Keys must match the
 // LiveModeState.systems shape returned by GET /admin/live-mode.
-const LIVE_MODE_SYSTEMS: Array<{ key: "missions" | "housing" | "cyberware" | "evictions"; label: string; desc: string }> = [
+const LIVE_MODE_SYSTEMS: Array<{ key: "missions" | "housing" | "cyberware" | "evictions" | "economy"; label: string; desc: string }> = [
   { key: "missions", label: "Missions", desc: "Discord scheduled events, banking/NPC channel posts, mission payouts." },
   { key: "housing", label: "Housing Billing", desc: "Monthly rent + personal fees (monthly_rent job)." },
   { key: "cyberware", label: "Cyberware Humanity", desc: "Weekly cyberpsychosis med charges (cyberware_humanity job)." },
   { key: "evictions", label: "Evictions", desc: "Delinquent lease sweeps + eviction notices (eviction_sweep job)." },
+  { key: "economy", label: "Economy (eddies)", desc: "Real eddie movement through UnbelievaBoat (WORK/SLUT payouts, wallet sync). Needs the Economy System enabled below." },
 ];
 
 // Site-wide Test/Live switchboard: one master switch + per-system overrides.
@@ -1284,6 +1289,14 @@ export function JobsTab() {
         <LoginRestrictionCard />
         <VrchatScanButton />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <AutobillSwitch
+            configKey={ECONOMY_ENABLED_KEY}
+            label="Economy System"
+            description="Master kill switch for the whole economy. While DISABLED, wallet moves and the income WORK/SLUT commands all fail. Enable this first, then set Economy to LIVE above for real eddies to move."
+            rows={flagRows}
+            pending={setFlag.isPending}
+            onToggle={(next) => setFlag.mutate({ key: ECONOMY_ENABLED_KEY, data: { value: next } })}
+          />
           <AutobillSwitch
             configKey={HOUSING_AUTOBILL_KEY}
             label="Housing Autobill"
