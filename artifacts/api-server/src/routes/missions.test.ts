@@ -1167,6 +1167,17 @@ describe("GET /missions/actor-search", () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.some((u: { id: string }) => u.id === target.id)).toBe(true);
   });
+
+  it("finds a player by their character name, resolving to the owner", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const owner = await createUser({ username: "discordhandle123" });
+    await createCharacter({ ownerId: owner.id, name: "Vincent Silverhand" });
+    const res = await request(app)
+      .get("/api/missions/actor-search?q=Silverhand")
+      .set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    expect(res.body.some((u: { id: string }) => u.id === owner.id)).toBe(true);
+  });
 });
 
 // ===========================================================================

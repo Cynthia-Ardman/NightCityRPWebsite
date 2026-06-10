@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { and, eq, inArray, or, ilike, asc } from "drizzle-orm";
+import { and, eq, inArray, or, ilike, asc, isNotNull } from "drizzle-orm";
 import {
   db,
   missions,
@@ -531,13 +531,38 @@ router.get("/missions/actor-search", requireAuth, async (req, res): Promise<void
     return;
   }
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (q.length === 0) {
+    res.json([]);
+    return;
+  }
   const like = `%${q}%`;
+  // Match the player directly (Discord username / global name) OR by any of
+  // their character names — most players are known by their character, not
+  // their Discord handle, so resolve character-name hits back to the owner.
+  const directUsers = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(or(ilike(users.username, like), ilike(users.globalName, like)))
+    .limit(50);
+  const charOwners = await db
+    .select({ ownerId: characters.ownerId })
+    .from(characters)
+    .where(and(ilike(characters.name, like), isNotNull(characters.ownerId)))
+    .limit(200);
+  const idSet = new Set<string>();
+  for (const u of directUsers) idSet.add(u.id);
+  for (const c of charOwners) if (c.ownerId) idSet.add(c.ownerId);
+  const ids = Array.from(idSet);
+  if (ids.length === 0) {
+    res.json([]);
+    return;
+  }
   const rows = await db
     .select({ id: users.id, username: users.username, globalName: users.globalName, avatarUrl: users.avatarUrl })
     .from(users)
-    .where(q.length > 0 ? or(ilike(users.username, like), ilike(users.globalName, like)) : undefined)
+    .where(inArray(users.id, ids))
     .orderBy(asc(users.username))
-    .limit(25);
+    .limit(50);
   res.json(rows);
 });
 
