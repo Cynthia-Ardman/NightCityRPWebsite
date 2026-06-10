@@ -48,6 +48,7 @@ import {
   checkDiscordEventConflict,
   type MissionViewer,
 } from "../lib/missionsService";
+import { convertEventToMission } from "../lib/eventsService";
 
 const router: IRouter = Router();
 
@@ -343,6 +344,60 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
   });
 
   const detail = await getMissionDetail(created.id, viewerOf(req));
+  res.status(201).json(detail);
+});
+
+// Convert an existing EVENT into a mission (REPLACE). Soft-cancels the event and
+// creates a posted/open mission carrying its shared fields + the mission-only
+// fields supplied here. The Discord scheduled event is handed off (no teardown).
+router.post("/events/:id/convert-to-mission", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const eventId = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(eventId)) {
+    res.status(400).json({ error: "Invalid event id" });
+    return;
+  }
+  const b = req.body ?? {};
+  const tier = parseTier(b.tier);
+  if (tier == null) {
+    res.status(400).json({ error: "Tier (1-4) is required" });
+    return;
+  }
+  if (b.jobType !== undefined && b.jobType !== null && b.jobType !== "" && !isJobType(b.jobType)) {
+    res.status(400).json({ error: "Job type must be combat, non_combat, or mixed" });
+    return;
+  }
+  const dur = Number(b.durationMinutes);
+  const result = await convertEventToMission(eventId, req.user!.id, {
+    tier,
+    playerPay: Number.isFinite(Number(b.playerPay)) ? Math.max(0, Math.trunc(Number(b.playerPay))) : 0,
+    npcPayAmount: Number.isFinite(Number(b.npcPayAmount)) ? Math.max(0, Math.trunc(Number(b.npcPayAmount))) : 0,
+    slots: Number.isFinite(Number(b.slots)) ? Math.max(0, Math.trunc(Number(b.slots))) : 0,
+    maxPlayers: Number.isFinite(Number(b.maxPlayers)) ? Math.max(0, Math.trunc(Number(b.maxPlayers))) : 0,
+    jobType: isJobType(b.jobType) ? b.jobType : null,
+    worldLink: typeof b.worldLink === "string" && b.worldLink.trim() ? b.worldLink.trim() : null,
+    requestedSkills: typeof b.requestedSkills === "string" && b.requestedSkills.trim() ? b.requestedSkills.trim() : null,
+    client: typeof b.client === "string" && b.client.trim() ? b.client.trim() : null,
+    notesForPlayers: typeof b.notesForPlayers === "string" && b.notesForPlayers.trim() ? b.notesForPlayers.trim() : null,
+    durationMinutes: Number.isFinite(dur) && dur > 0 ? Math.trunc(dur) : null,
+  });
+  if (!result.ok) {
+    res.status(result.httpStatus ?? 400).json({ error: result.error ?? "Conversion failed" });
+    return;
+  }
+  await recordAudit({
+    req,
+    category: "mission",
+    action: "event.convert_to_mission",
+    targetType: "mission",
+    targetId: result.newId!,
+    message: `Converted event #${eventId} into mission #${result.newId} (tier ${tier})`,
+    after: { eventId, missionId: result.newId, tier },
+  });
+  const detail = await getMissionDetail(result.newId!, viewerOf(req));
   res.status(201).json(detail);
 });
 

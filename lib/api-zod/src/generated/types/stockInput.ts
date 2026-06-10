@@ -23,4 +23,6 @@ export interface StockInput {
      * @minimum 0
      */
   cwp?: number;
+  /** Power level (gun-store stock). Staff-only. */
+  powerLevel?: string;
 }

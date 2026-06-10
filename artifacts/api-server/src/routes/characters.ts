@@ -464,6 +464,18 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
     res.status(404).json({ error: "Item not found" });
     return;
   }
+  // Players may not self-install/uninstall cyberware — that must go through a
+  // ripperdoc. Block the `equipped` toggle on cyberware for non-staff actors;
+  // staff (admin/fixer) retain the ability for corrections.
+  if (
+    equipped !== undefined &&
+    equipped !== before.equipped &&
+    (before.category ?? "").trim().toLowerCase() === "cyberware" &&
+    !isStaffUser(req.user!)
+  ) {
+    res.status(403).json({ error: "Cyberware must be installed or removed by a ripperdoc." });
+    return;
+  }
   const [u] = await db
     .update(inventoryItems)
     .set({

@@ -23,7 +23,7 @@ import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage } from "../lib/discord";
 import { logger } from "../lib/logger";
 import { applyWalletDelta } from "../lib/economy";
-import { createOffer, createRemoveOffer, createStockAddOffer } from "../lib/saleOffers";
+import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwnedOffer } from "../lib/saleOffers";
 import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
 
@@ -567,7 +567,13 @@ router.delete("/stores/:id/employees/:employeeId", requireAuth, async (req, res)
 router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> => {
   const s = await loadManageableStore(req, res);
   if (!s) return;
-  const { name, category, price, quantity, notes, description } = req.body ?? {};
+  // Gun stores carry a regulated catalog — their OWNERS may not add or edit
+  // stock; only staff (admin/fixer) can. Other store kinds stay owner-editable.
+  if (s.kind === "guns" && !isStaff(req.user!.roles)) {
+    res.status(403).json({ error: "Gun store stock is managed by staff only" });
+    return;
+  }
+  const { name, category, price, quantity, notes, description, powerLevel } = req.body ?? {};
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "name required" });
     return;
@@ -588,6 +594,7 @@ router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> =>
         quantity: cleanQty,
         notes: notes ?? null,
         description: typeof description === "string" && description.trim() ? description.trim() : null,
+        powerLevel: typeof powerLevel === "string" && powerLevel.trim() ? powerLevel.trim() : null,
       })
       .returning();
     await tx.insert(auditLog).values({
@@ -610,8 +617,13 @@ router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> =>
 router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {
   const s = await loadManageableStore(req, res);
   if (!s) return;
+  // Gun store stock is staff-managed only (see POST above for the rationale).
+  if (s.kind === "guns" && !isStaff(req.user!.roles)) {
+    res.status(403).json({ error: "Gun store stock is managed by staff only" });
+    return;
+  }
   const stockId = parseInt(String(req.params.stockId), 10);
-  const { name, category, price, quantity, notes, description } = req.body ?? {};
+  const { name, category, price, quantity, notes, description, powerLevel } = req.body ?? {};
   const patch: Record<string, unknown> = {
     ...(name !== undefined ? { name } : {}),
     ...(category !== undefined ? { category } : {}),
@@ -619,6 +631,9 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
     ...(quantity !== undefined ? { quantity: Math.max(0, Math.round(Number(quantity) || 0)) } : {}),
     ...(notes !== undefined ? { notes } : {}),
     ...(description !== undefined ? { description } : {}),
+    ...(powerLevel !== undefined
+      ? { powerLevel: typeof powerLevel === "string" && powerLevel.trim() ? powerLevel.trim() : null }
+      : {}),
   };
   if (Object.keys(patch).length === 0) {
     res.status(400).json({ error: "No changes" });
@@ -802,6 +817,9 @@ router.get("/ripperdocs/:id/characters/:characterId/cyberware", requireAuth, asy
   // installing land in inventory uninstalled (no CWP note) and must NOT surface
   // as installed or be removable; untagged chrome contributes 0 CWP regardless.
   const installed = cyberRows.filter((it) => parseCwp(it.notes) != null);
+  // "Uninstalled" = chrome the player owns but hasn't had fitted (no CWP tag).
+  // These are the candidates the clinic console can install via install_owned.
+  const uninstalled = cyberRows.filter((it) => parseCwp(it.notes) == null);
   const used = installed.reduce((sum, it) => sum + cwpForItem(it), 0);
   const cap = checkCwpCapacity({ kind: character.kind, used, add: 0 });
   res.json({
@@ -812,7 +830,31 @@ router.get("/ripperdocs/:id/characters/:characterId/cyberware", requireAuth, asy
     max: cap.max,
     available: cap.available,
     installed: installed.map((it) => ({ id: it.id, name: it.name, quantity: it.quantity, notes: it.notes, cwp: cwpForItem(it) })),
+    uninstalled: uninstalled.map((it) => ({ id: it.id, name: it.name, quantity: it.quantity, notes: it.notes })),
   });
+});
+
+// Install a cyberware piece the patient ALREADY owns (an uninstalled inventory
+// item) onto their character. Leaves a PENDING offer the player confirms from
+// My Offers; an optional install fee is charged on approval. See
+// lib/saleOffers.ts createInstallOwnedOffer for the validation + completion.
+router.post("/ripperdocs/:id/install-owned", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const { installItemId, buyerCharacterId, price, cwp, memo } = req.body ?? {};
+  if (!installItemId || !buyerCharacterId) {
+    res.status(400).json({ error: "installItemId and buyerCharacterId required" });
+    return;
+  }
+  const result = await createInstallOwnedOffer({
+    venueId,
+    installItemId: parseInt(String(installItemId), 10),
+    buyerCharacterId: parseInt(String(buyerCharacterId), 10),
+    fee: price != null ? Math.max(0, Number(price) || 0) : null,
+    cwp: cwp != null ? Math.max(0, Number(cwp) || 0) : null,
+    memo,
+    actor: req.user!,
+  });
+  res.status(result.status).json(result.body);
 });
 
 // Fixer/admin stocked a venue at a CUSTOM cost (> 0). Rather than debiting the

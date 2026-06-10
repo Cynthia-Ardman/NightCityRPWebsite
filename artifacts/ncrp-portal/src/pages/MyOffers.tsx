@@ -18,11 +18,14 @@ function typeBadge(offer: SaleOffer) {
   const t = offer.offerType ?? "sale";
   if (t === "sale") return null;
   const cls =
-    t === "install" ? "bg-nc-magenta text-background"
+    t === "install" || t === "install_owned" ? "bg-nc-magenta text-background"
     : t === "remove" ? "bg-destructive text-destructive-foreground"
     : t === "stock_add" ? "bg-nc-yellow text-background"
     : "bg-nc-cyan text-background";
-  const label = t === "stock_add" ? "STOCK ADD" : t.toUpperCase();
+  const label =
+    t === "stock_add" ? "STOCK ADD"
+    : t === "install_owned" ? "INSTALL (OWNED)"
+    : t.toUpperCase();
   return (
     <Badge className={`rounded-none font-mono ${cls}`}>
       {label}
@@ -63,9 +66,11 @@ export default function MyOffers() {
     const sorted = [...all].sort(
       (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
     );
+    const needsDecision = (o: SaleOffer) =>
+      o.status === "pending" && (o.offerType === "stock_add" || o.offerType === "install_owned");
     return {
-      pending: sorted.filter((o) => o.status === "pending" && o.offerType === "stock_add"),
-      history: sorted.filter((o) => !(o.status === "pending" && o.offerType === "stock_add")),
+      pending: sorted.filter(needsDecision),
+      history: sorted.filter((o) => !needsDecision(o)),
     };
   }, [offers]);
 
@@ -85,7 +90,7 @@ export default function MyOffers() {
           <ShoppingBag className="w-8 h-8 text-nc-cyan" /> PENDING APPROVALS
         </h1>
         <p className="text-muted-foreground font-mono mt-2">
-          This is where offers involving your characters and the venues you own land. The only thing that needs a decision from you is stock being added to one of your venues — approving it charges that venue's account, while denying does nothing. Direct sales to your characters complete instantly, so they skip straight to your offer history below.
+          This is where offers involving your characters and the venues you own land. Two things need a decision from you: stock being added to one of your venues (approving charges that venue's account), and a ripperdoc offering to fit cyberware you already own (approving installs it and charges any fee they set). Denying does nothing. Direct sales to your characters complete instantly, so they skip straight to your offer history below.
         </p>
       </div>
 
@@ -139,6 +144,11 @@ export default function MyOffers() {
                     {o.offerType === "stock_add" && (
                       <div className="font-mono text-[11px] text-nc-yellow mt-1">
                         Adds to your venue's stock · charged to the venue account
+                      </div>
+                    )}
+                    {o.offerType === "install_owned" && (
+                      <div className="font-mono text-[11px] text-nc-magenta mt-1">
+                        Fits cyberware you already own · approving installs it{o.totalPrice > 0 ? " and charges the fee" : " at no charge"}
                       </div>
                     )}
                   </div>

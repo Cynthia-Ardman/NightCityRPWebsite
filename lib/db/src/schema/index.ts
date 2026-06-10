@@ -365,6 +365,10 @@ export const storeStock = pgTable("store_stock", {
   quantity: integer("quantity").notNull().default(0),
   notes: text("notes"),
   description: text("description"),
+  // Gun power level (e.g. "Power", "Tech", "Smart" / a tier label). Only
+  // meaningful for gun stores; staff-managed since gun-store owners can't edit
+  // their own stock. Mirrors catalog_guns.power_level.
+  powerLevel: text("power_level"),
 });
 
 export const ripperdocs = pgTable("ripperdocs", {
@@ -700,6 +704,11 @@ export const saleOffers = pgTable("sale_offers", {
   // For `remove` offers: the inventory_items row being un-installed from the
   // buyer character. Null for every other offer type.
   removedItemId: integer("removed_item_id"),
+  // For `install_owned` offers: the existing (uninstalled) inventory_items
+  // cyberware row the ripperdoc will install onto the buyer character. Unlike
+  // `install`, there is no stock leg — the player already owns the piece. Null
+  // for every other offer type.
+  installItemId: integer("install_item_id"),
   // Snapshot of the item at offer time.
   itemName: text("item_name").notNull(),
   itemCategory: text("item_category"),

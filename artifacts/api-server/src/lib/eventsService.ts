@@ -561,6 +561,150 @@ export async function cancelEvent(id: number): Promise<Event | null> {
 }
 
 // ---------------------------------------------------------------------------
+// Convert event <-> mission (REPLACE). A single DB transaction soft-cancels the
+// original (raw status flip — NO cancel-sync helper, so NO Discord API call)
+// and creates the counterpart row. The linked Discord scheduled event is HANDED
+// OFF: nulled on the original and carried onto the new row in the same tx, so
+// the merged calendar shows exactly one entry (cancelled rows are filtered out)
+// and the Discord event is never torn down or recreated. Actor-payment history
+// (mission_actor_payments) is deliberately left pointing at the cancelled
+// original — it is historical and must not be rewritten.
+// ---------------------------------------------------------------------------
+export interface ConvertResult {
+  ok: boolean;
+  error?: string;
+  httpStatus?: number;
+  newId?: number;
+}
+
+export interface EventToMissionFields {
+  tier: number;
+  playerPay: number;
+  npcPayAmount: number;
+  slots: number;
+  maxPlayers: number;
+  jobType: string | null;
+  worldLink: string | null;
+  requestedSkills: string | null;
+  client: string | null;
+  notesForPlayers: string | null;
+  /** Null derives the duration from the event's start/end window. */
+  durationMinutes: number | null;
+}
+
+export async function convertEventToMission(
+  eventId: number,
+  fixerId: string,
+  f: EventToMissionFields,
+): Promise<ConvertResult> {
+  return await db.transaction(async (tx) => {
+    const [ev] = await tx.select().from(events).where(eq(events.id, eventId)).for("update");
+    if (!ev) return { ok: false, error: "Event not found", httpStatus: 404 };
+    if (ev.status === "cancelled") {
+      return { ok: false, error: "Event is already cancelled", httpStatus: 409 };
+    }
+    const windowMin = Math.max(
+      1,
+      Math.round((ev.endAt.getTime() - ev.startAt.getTime()) / 60000),
+    );
+    const durationMinutes = f.durationMinutes ?? windowMin;
+    // Hand the Discord scheduled-event over to the new mission row.
+    const handoffDiscordId = ev.discordEventId;
+
+    const [mission] = await tx
+      .insert(missions)
+      .values({
+        title: ev.title,
+        tier: f.tier,
+        playerPay: f.playerPay,
+        npcPayAmount: f.npcPayAmount,
+        location: ev.location,
+        description: ev.description,
+        imageUrl: ev.imageUrl,
+        status: "open",
+        workflowState: "posted",
+        fixerId,
+        startAt: ev.startAt,
+        durationMinutes,
+        slots: f.slots,
+        worldLink: f.worldLink,
+        jobType: f.jobType,
+        requestedSkills: f.requestedSkills,
+        client: f.client,
+        notesForPlayers: f.notesForPlayers,
+        maxPlayers: f.maxPlayers,
+        discordEventId: handoffDiscordId,
+      })
+      .returning();
+
+    await tx
+      .update(events)
+      .set({ status: "cancelled", discordEventId: null, updatedAt: new Date() })
+      .where(eq(events.id, eventId));
+
+    return { ok: true, newId: mission.id };
+  });
+}
+
+export interface MissionToEventFields {
+  eventType: EventType;
+  needsNpcs: boolean;
+  npcBlurb: string | null;
+  /** Null derives the end from the mission start + durationMinutes. */
+  endAt: Date | null;
+}
+
+export async function convertMissionToEvent(
+  missionId: number,
+  createdById: string,
+  f: MissionToEventFields,
+): Promise<ConvertResult> {
+  return await db.transaction(async (tx) => {
+    const [m] = await tx.select().from(missions).where(eq(missions.id, missionId)).for("update");
+    if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+    if (m.status === "cancelled") {
+      return { ok: false, error: "Mission is already cancelled", httpStatus: 409 };
+    }
+    if (!m.startAt) {
+      return { ok: false, error: "Mission has no start time; set one before converting", httpStatus: 409 };
+    }
+    const startAt = m.startAt;
+    const endAt = f.endAt ?? new Date(startAt.getTime() + m.durationMinutes * 60000);
+    if (endAt.getTime() <= startAt.getTime()) {
+      return { ok: false, error: "End time must be after start time", httpStatus: 400 };
+    }
+    const handoffDiscordId = m.discordEventId;
+
+    // Null the Discord id on the mission FIRST so the partial-unique index on
+    // events.discord_event_id can't collide when the new event claims it.
+    await tx
+      .update(missions)
+      .set({ status: "cancelled", discordEventId: null, updatedAt: new Date() })
+      .where(eq(missions.id, missionId));
+
+    const [ev] = await tx
+      .insert(events)
+      .values({
+        title: m.title,
+        eventType: f.eventType,
+        location: m.location,
+        description: m.description,
+        imageUrl: m.imageUrl,
+        startAt,
+        endAt,
+        status: "scheduled",
+        needsNpcs: f.needsNpcs,
+        npcBlurb: f.needsNpcs ? f.npcBlurb : null,
+        createdById,
+        discordEventId: handoffDiscordId,
+      })
+      .returning();
+
+    return { ok: true, newId: ev.id };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Main Session calendar coverage. Main Sessions run every Sunday but are stored
 // as DISCRETE rows (one per week, each its own Discord scheduled-event), NOT a
 // recurrence rule (see memory: main-sessions-discrete) — so the calendar only

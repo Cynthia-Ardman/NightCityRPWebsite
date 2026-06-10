@@ -992,14 +992,24 @@ function InventoryTab({ characterId }: { characterId: number }) {
                   <span className="col-span-2 text-nc-cyan uppercase truncate">{it.category ?? "—"}</span>
                   <span className="col-span-1 text-right">x{it.quantity}</span>
                   <span className="col-span-2 truncate text-muted-foreground">{it.notes ?? ""}</span>
-                  <label className="col-span-1 flex items-center gap-1 text-xs">
-                    <UiSwitch
-                      checked={!!it.equipped}
-                      onCheckedChange={(v) => updateItem.mutate({ id: characterId, itemId: it.id, data: { equipped: v } })}
-                      data-testid={`switch-equip-${it.id}`}
-                    />
-                    EQ
-                  </label>
+                  {(it.category ?? "").trim().toLowerCase() === "cyberware" ? (
+                    <span
+                      className="col-span-1 text-[10px] leading-tight text-muted-foreground"
+                      title="Cyberware is installed or removed by a ripperdoc."
+                      data-testid={`text-cyber-ripperdoc-${it.id}`}
+                    >
+                      via ripperdoc
+                    </span>
+                  ) : (
+                    <label className="col-span-1 flex items-center gap-1 text-xs">
+                      <UiSwitch
+                        checked={!!it.equipped}
+                        onCheckedChange={(v) => updateItem.mutate({ id: characterId, itemId: it.id, data: { equipped: v } })}
+                        data-testid={`switch-equip-${it.id}`}
+                      />
+                      EQ
+                    </label>
+                  )}
                   <div className="col-span-3 flex justify-end gap-1">
                     <Link href={`/items/${it.instanceUuid}`}>
                       <Button

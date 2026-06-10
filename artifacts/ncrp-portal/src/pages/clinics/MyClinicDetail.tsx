@@ -1,5 +1,5 @@
 import { useParams, Redirect } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetRipperdoc,
@@ -132,6 +132,23 @@ export default function MyClinicDetail() {
   const [offerPrice, setOfferPrice] = useState(0);
   const [offerCwp, setOfferCwp] = useState(0);
   const [offerQty, setOfferQty] = useState(1);
+  // Editable clinic profile fields are buffered locally and persisted via an
+  // explicit SAVE button (no silent autosave-on-blur), so the owner gets a
+  // clear save affordance and confirmation.
+  const [edit, setEdit] = useState({ name: "", location: "", purpose: "", description: "" });
+  useEffect(() => {
+    if (data) {
+      setEdit({
+        name: data.name ?? "",
+        location: data.location ?? "",
+        purpose: data.purpose ?? "",
+        description: data.description ?? "",
+      });
+    }
+    // Re-seed only when switching to a different clinic; local edits must not be
+    // clobbered by background refetches of the same clinic.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.id]);
   const { data: me, viewAs } = useEffectiveMe();
   const canManageCatalog = !!me && (me.isFixer || me.isAdmin);
   // "Add from catalog" is an admin-only convenience for seeding stock from the
@@ -153,12 +170,36 @@ export default function MyClinicDetail() {
       <h1 className="text-4xl font-display" data-testid="text-clinic-name">{data.name}</h1>
 
       <Card className="rounded-none border-border bg-card/50">
-        <CardHeader><CardTitle className="font-display tracking-widest">EDIT</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="font-display tracking-widest">EDIT</CardTitle>
+          <Button
+            size="sm"
+            className="rounded-none bg-nc-cyan text-background font-display"
+            disabled={update.isPending}
+            onClick={() =>
+              update.mutate(
+                {
+                  id: rid,
+                  data: {
+                    name: edit.name,
+                    location: edit.location,
+                    purpose: edit.purpose,
+                    description: edit.description,
+                  },
+                },
+                { onSuccess: () => toast({ title: "Saved", description: "Clinic details updated." }) },
+              )
+            }
+            data-testid="button-save-clinic"
+          >
+            {update.isPending ? "SAVING..." : "SAVE"}
+          </Button>
+        </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Input defaultValue={data.name} onBlur={(e) => update.mutate({ id: rid, data: { name: e.target.value } })} data-testid="input-edit-name" />
-          <Input defaultValue={data.location ?? ""} placeholder="Location" onBlur={(e) => update.mutate({ id: rid, data: { location: e.target.value } })} data-testid="input-edit-location" />
-          <Input className="md:col-span-2" defaultValue={data.purpose ?? ""} placeholder="Purpose (what this clinic is for)" onBlur={(e) => update.mutate({ id: rid, data: { purpose: e.target.value } })} data-testid="input-edit-purpose" />
-          <Textarea className="md:col-span-2" defaultValue={data.description ?? ""} placeholder="Description" onBlur={(e) => update.mutate({ id: rid, data: { description: e.target.value } })} data-testid="input-edit-description" />
+          <Input value={edit.name} onChange={(e) => setEdit((p) => ({ ...p, name: e.target.value }))} data-testid="input-edit-name" />
+          <Input value={edit.location} placeholder="Location" onChange={(e) => setEdit((p) => ({ ...p, location: e.target.value }))} data-testid="input-edit-location" />
+          <Input className="md:col-span-2" value={edit.purpose} placeholder="Purpose (what this clinic is for)" onChange={(e) => setEdit((p) => ({ ...p, purpose: e.target.value }))} data-testid="input-edit-purpose" />
+          <Textarea className="md:col-span-2" value={edit.description} placeholder="Description" onChange={(e) => setEdit((p) => ({ ...p, description: e.target.value }))} data-testid="input-edit-description" />
           <div className="md:col-span-2 space-y-1">
             <p className="font-mono text-xs text-muted-foreground uppercase">Banner</p>
             <SingleImageUpload

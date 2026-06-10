@@ -1356,7 +1356,8 @@ export const ListMyStoresResponseItem = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
 }))
 })
 export const ListMyStoresResponse = zod.array(ListMyStoresResponseItem)
@@ -1396,7 +1397,8 @@ export const GetStoreResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
 }))
 })
 
@@ -1446,7 +1448,8 @@ export const UpdateStoreResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
 }))
 })
 
@@ -1539,9 +1542,10 @@ export const SellStoreItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -1618,9 +1622,10 @@ export const ListStoreOffersParams = zod.object({
 export const ListStoreOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -1751,7 +1756,8 @@ export const AddStoreStockBody = zod.object({
   "notes": zod.string().optional(),
   "description": zod.string().optional(),
   "slot": zod.string().optional().describe('Cyberware slot (clinic stock). Encoded into notes alongside CWP.'),
-  "cwp": zod.number().min(addStoreStockBodyCwpMin).optional().describe('Cyberware points (clinic stock). Encoded into notes as \'CWP <n>\'.')
+  "cwp": zod.number().min(addStoreStockBodyCwpMin).optional().describe('Cyberware points (clinic stock). Encoded into notes as \'CWP <n>\'.'),
+  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.')
 })
 
 
@@ -1791,7 +1797,8 @@ export const UpdateStoreStockBody = zod.object({
   "price": zod.number().min(updateStoreStockBodyPriceMin).optional(),
   "quantity": zod.number().min(updateStoreStockBodyQuantityMin).optional(),
   "notes": zod.string().optional(),
-  "description": zod.string().optional()
+  "description": zod.string().optional(),
+  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.')
 })
 
 export const UpdateStoreStockResponse = zod.object({
@@ -1801,7 +1808,8 @@ export const UpdateStoreStockResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
 })
 
 
@@ -1840,7 +1848,8 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
 }))
 })
 export const ListMyRipperdocsResponse = zod.array(ListMyRipperdocsResponseItem)
@@ -1879,7 +1888,8 @@ export const GetRipperdocResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
 }))
 })
 
@@ -1927,7 +1937,8 @@ export const UpdateRipperdocResponse = zod.object({
   "price": zod.number(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
-  "description": zod.string().nullish()
+  "description": zod.string().nullish(),
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
 }))
 })
 
@@ -2005,9 +2016,10 @@ export const RemoveRipperdocEmployeeParams = zod.object({
 export const ListMyOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -2045,9 +2057,10 @@ export const GetOfferParams = zod.object({
 export const GetOfferResponse = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -2085,9 +2098,10 @@ export const ApproveOfferResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -2142,9 +2156,10 @@ export const DenyOfferParams = zod.object({
 export const DenyOfferResponse = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -3990,6 +4005,61 @@ export const PostMissionResponse = zod.object({
 
 
 /**
+ * @summary Convert (replace) an event into a mission. Fixer/admin only.
+ */
+export const ConvertEventToMissionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const convertEventToMissionBodyPlayerPayDefault = 0;
+export const convertEventToMissionBodyPlayerPayMin = 0;
+
+export const convertEventToMissionBodyNpcPayAmountDefault = 0;
+export const convertEventToMissionBodyNpcPayAmountMin = 0;
+
+export const convertEventToMissionBodySlotsDefault = 0;
+export const convertEventToMissionBodySlotsMin = 0;
+
+export const convertEventToMissionBodyMaxPlayersDefault = 0;
+export const convertEventToMissionBodyMaxPlayersMin = 0;
+
+
+
+
+export const ConvertEventToMissionBody = zod.object({
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "playerPay": zod.number().min(convertEventToMissionBodyPlayerPayMin).default(convertEventToMissionBodyPlayerPayDefault),
+  "npcPayAmount": zod.number().min(convertEventToMissionBodyNpcPayAmountMin).default(convertEventToMissionBodyNpcPayAmountDefault),
+  "slots": zod.number().min(convertEventToMissionBodySlotsMin).default(convertEventToMissionBodySlotsDefault),
+  "maxPlayers": zod.number().min(convertEventToMissionBodyMaxPlayersMin).default(convertEventToMissionBodyMaxPlayersDefault),
+  "jobType": zod.enum(['combat', 'non_combat', 'mixed']).optional(),
+  "worldLink": zod.string().optional(),
+  "requestedSkills": zod.string().optional(),
+  "client": zod.string().optional(),
+  "notesForPlayers": zod.string().optional(),
+  "durationMinutes": zod.number().min(1).optional()
+}).describe('Mission-only fields supplied when converting an event into a mission. Shared fields (title\/description\/location\/image\/start) carry over from the event; durationMinutes defaults to the event window.')
+
+
+/**
+ * @summary Convert (replace) a mission into an event. Fixer/admin only.
+ */
+export const ConvertMissionToEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const convertMissionToEventBodyEventTypeDefault = `social`;
+export const convertMissionToEventBodyNeedsNpcsDefault = false;
+
+export const ConvertMissionToEventBody = zod.object({
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']).default(convertMissionToEventBodyEventTypeDefault),
+  "needsNpcs": zod.boolean().default(convertMissionToEventBodyNeedsNpcsDefault),
+  "npcBlurb": zod.string().nullish(),
+  "endAt": zod.coerce.date().optional()
+}).describe('Event-only fields supplied when converting a mission into an event. Shared fields (title\/description\/location\/image\/start) carry over from the mission; endAt defaults to the mission start + durationMinutes.')
+
+
+/**
  * @summary Apply to a posted mission with one of your own characters.
  */
 export const ApplyToMissionParams = zod.object({
@@ -5630,9 +5700,10 @@ export const SellRipperdocItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -5704,9 +5775,10 @@ export const InstallRipperdocCyberwareResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -5772,9 +5844,10 @@ export const GiveRipperdocItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -5841,9 +5914,10 @@ export const RemoveRipperdocCyberwareResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -5889,6 +5963,28 @@ export const RemoveRipperdocCyberwareResponse = zod.object({
 
 
 /**
+ * @summary Offer to install a cyberware piece the patient already owns (leaves a PENDING offer the player approves; optional fee)
+ */
+export const CreateInstallOwnedOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createInstallOwnedOfferBodyPriceMin = 0;
+
+export const createInstallOwnedOfferBodyCwpMin = 0;
+
+
+
+export const CreateInstallOwnedOfferBody = zod.object({
+  "installItemId": zod.number().describe('The buyer-owned uninstalled cyberware inventory item to fit.'),
+  "buyerCharacterId": zod.number(),
+  "price": zod.number().min(createInstallOwnedOfferBodyPriceMin).optional().describe('Optional install fee. Defaults to 0 (free).'),
+  "cwp": zod.number().min(createInstallOwnedOfferBodyCwpMin).optional().describe('Operator CWP override; only used when the catalog has no authoritative value.'),
+  "memo": zod.string().optional()
+})
+
+
+/**
  * @summary CWP capacity + installed cyberware for a character (clinic operators only)
  */
 export const GetCharacterCyberwareParams = zod.object({
@@ -5909,7 +6005,13 @@ export const GetCharacterCyberwareResponse = zod.object({
   "quantity": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "cwp": zod.number()
-}))
+})),
+  "uninstalled": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "quantity": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})).optional().describe('Cyberware the character owns but hasn\'t had fitted (no CWP tag) — install candidates.')
 })
 
 
@@ -5945,9 +6047,10 @@ export const ListRipperdocOffersParams = zod.object({
 export const ListRipperdocOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
   "storeId": zod.number().nullish(),
   "ripperdocId": zod.number().nullish(),
   "stockId": zod.number().nullish(),
@@ -5996,7 +6099,8 @@ export const AddRipperdocStockBody = zod.object({
   "notes": zod.string().optional(),
   "description": zod.string().optional(),
   "slot": zod.string().optional().describe('Cyberware slot (clinic stock). Encoded into notes alongside CWP.'),
-  "cwp": zod.number().min(addRipperdocStockBodyCwpMin).optional().describe('Cyberware points (clinic stock). Encoded into notes as \'CWP <n>\'.')
+  "cwp": zod.number().min(addRipperdocStockBodyCwpMin).optional().describe('Cyberware points (clinic stock). Encoded into notes as \'CWP <n>\'.'),
+  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.')
 })
 
 

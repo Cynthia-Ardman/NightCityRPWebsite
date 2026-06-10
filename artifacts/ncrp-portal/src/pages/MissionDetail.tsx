@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetMission,
@@ -24,12 +24,17 @@ import {
   useListBreachPuzzles,
   getListBreachPuzzlesQueryKey,
   getGetMissionQueryKey,
+  getListMissionsQueryKey,
+  getListEventsQueryKey,
+  useConvertMissionToEvent,
   type ArchiveUser,
   type MissionDetail as MissionDetailModel,
   type MissionAssignmentView,
   type MissionApplicationView,
   type MissionNpcSignupView,
   type ActingEntry,
+  type MissionToEventConvertInput,
+  type MissionToEventConvertInputEventType,
 } from "@workspace/api-client-react";
 import { statusBadge as breachStatusBadge, difficultyBadge as breachDifficultyBadge } from "./breach/breachUtils";
 import { useAuthMe } from "@/hooks/useAuthMe";
@@ -42,6 +47,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Briefcase,
   ArrowLeft,
@@ -58,6 +71,7 @@ import {
   Lock,
   Unlock,
   Cpu,
+  PartyPopper,
 } from "lucide-react";
 import {
   missionStatusClass,
@@ -82,6 +96,192 @@ function fmtDateTime(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
+}
+
+// datetime-local has no timezone; the value is treated as local time.
+function toLocalInputValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const CONVERT_EVENT_TYPE_OPTIONS: { value: MissionToEventConvertInputEventType; label: string }[] = [
+  { value: "social", label: "Social" },
+  { value: "session", label: "Main Session" },
+  { value: "other", label: "Other" },
+];
+
+// Convert (replace) this mission into an event. The original mission is soft-
+// cancelled and its linked Discord scheduled event is handed off to the new
+// event row — no Discord teardown, no calendar duplicate.
+function ConvertToEventDialog({ mission }: { mission: MissionDetailModel }) {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [eventType, setEventType] = useState<MissionToEventConvertInputEventType>("social");
+  const [needsNpcs, setNeedsNpcs] = useState(false);
+  const [npcBlurb, setNpcBlurb] = useState("");
+  const [endAt, setEndAt] = useState("");
+
+  const convert = useConvertMissionToEvent();
+  const qc = useQueryClient();
+
+  // Default the end time to the mission's start + duration so the staffer sees a
+  // sensible window they can tweak.
+  function openDialog() {
+    if (mission.startAt) {
+      const start = new Date(mission.startAt);
+      if (!Number.isNaN(start.getTime())) {
+        const end = new Date(start.getTime() + (mission.durationMinutes ?? 120) * 60000);
+        setEndAt(toLocalInputValue(end.toISOString()));
+      }
+    }
+    setOpen(true);
+  }
+
+  const noStart = !mission.startAt;
+  const endBeforeStart =
+    !!mission.startAt && !!endAt && new Date(endAt) <= new Date(mission.startAt);
+
+  function submit() {
+    if (noStart || endBeforeStart) return;
+    const data: MissionToEventConvertInput = {
+      eventType,
+      needsNpcs,
+      npcBlurb: needsNpcs ? npcBlurb.trim() || null : null,
+      ...(endAt ? { endAt: new Date(endAt).toISOString() } : {}),
+    };
+    convert.mutate(
+      { id: mission.id, data },
+      {
+        onSuccess: (ev) => {
+          qc.invalidateQueries({ queryKey: getGetMissionQueryKey(mission.id) });
+          qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+          qc.invalidateQueries({ queryKey: getListEventsQueryKey() });
+          toast({ title: "Converted to event", description: `"${mission.title}" is now an event.` });
+          setOpen(false);
+          navigate(`/events/${ev.id}`);
+        },
+        onError: (e) => {
+          toast({
+            title: "Conversion failed",
+            description: errOf(e) ?? "Please try again.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={openDialog}
+        className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest inline-flex items-center gap-1"
+        data-testid="button-convert-to-event"
+      >
+        <PartyPopper className="w-4 h-4" /> CONVERT TO EVENT
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="rounded-none border-border bg-card max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-nc-magenta">Convert to Event</DialogTitle>
+            <DialogDescription className="font-mono text-xs text-muted-foreground">
+              This replaces the mission with an event. The mission is cancelled and its Discord scheduled event (if
+              any) carries over — no duplicate on the calendar. This can't be undone automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          {noStart ? (
+            <p className="font-mono text-sm text-destructive" data-testid="text-convert-no-start">
+              This mission has no start time. Set one before converting it to an event.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <Label className="text-xs">EVENT TYPE</Label>
+                <select
+                  value={eventType}
+                  onChange={(e) => setEventType(e.target.value as MissionToEventConvertInputEventType)}
+                  className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+                  data-testid="select-convert-event-type"
+                >
+                  {CONVERT_EVENT_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">END (date &amp; time, local)</Label>
+                <Input
+                  type="datetime-local"
+                  value={endAt}
+                  min={mission.startAt ? toLocalInputValue(mission.startAt) : undefined}
+                  onChange={(e) => setEndAt(e.target.value)}
+                  className="rounded-none"
+                  data-testid="input-convert-end"
+                />
+                {endBeforeStart && (
+                  <p className="text-destructive text-[10px] mt-1" data-testid="text-convert-end-before-start">
+                    End must be after the mission start ({fmtDateTime(mission.startAt)}).
+                  </p>
+                )}
+              </div>
+              <div className="border border-border bg-background/40 p-3 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={needsNpcs}
+                    onChange={(e) => setNeedsNpcs(e.target.checked)}
+                    className="h-4 w-4 accent-nc-magenta"
+                    data-testid="checkbox-convert-needs-npcs"
+                  />
+                  <span className="text-xs uppercase tracking-widest text-nc-magenta">Need NPCs for this event</span>
+                </label>
+                {needsNpcs && (
+                  <Textarea
+                    value={npcBlurb}
+                    onChange={(e) => setNpcBlurb(e.target.value)}
+                    rows={2}
+                    className="rounded-none"
+                    placeholder="What kind of NPCs you need, the vibe, any requirements…"
+                    data-testid="input-convert-npc-blurb"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="rounded-none"
+              data-testid="button-convert-cancel"
+            >
+              CANCEL
+            </Button>
+            <Button
+              type="button"
+              disabled={convert.isPending || noStart || endBeforeStart}
+              onClick={submit}
+              className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
+              data-testid="button-convert-confirm"
+            >
+              {convert.isPending ? "CONVERTING..." : "CONVERT"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 export default function MissionDetail() {
@@ -191,6 +391,7 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
               <Pencil className="w-4 h-4" /> EDIT MISSION
             </Link>
           )}
+          {data.canManage && data.status !== "cancelled" && <ConvertToEventDialog mission={data} />}
           {data.completedAt && (
             <span
               className="font-mono text-xs text-muted-foreground inline-flex items-center gap-1"

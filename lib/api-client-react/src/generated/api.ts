@@ -118,6 +118,7 @@ import type {
   EmployeePatch,
   EventCreateInput,
   EventNpcSignupInput,
+  EventToMissionConvertInput,
   EventUpdateInput,
   EventView,
   FixerNpc,
@@ -147,6 +148,7 @@ import type {
   HydrateUsersResult,
   IncomeCommandResult,
   IncomeStatus,
+  InstallOwnedInput,
   InventoryItem,
   InventoryItemHistory,
   InventoryItemInput,
@@ -200,6 +202,7 @@ import type {
   MissionDetail,
   MissionHistoryPage,
   MissionSummary,
+  MissionToEventConvertInput,
   MissionUpdateInput,
   MyUnseen,
   NpcSignupInput,
@@ -8605,6 +8608,150 @@ export const usePostMission = <TError = ErrorType<void>,
       return useMutation(getPostMissionMutationOptions(options));
     }
 
+export const getConvertEventToMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/convert-to-mission`
+}
+
+/**
+ * @summary Convert (replace) an event into a mission. Fixer/admin only.
+ */
+export const convertEventToMission = async (id: number,
+    eventToMissionConvertInput: EventToMissionConvertInput, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getConvertEventToMissionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      eventToMissionConvertInput,)
+  }
+);}
+
+
+
+
+export const getConvertEventToMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertEventToMission>>, TError,{id: number;data: BodyType<EventToMissionConvertInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof convertEventToMission>>, TError,{id: number;data: BodyType<EventToMissionConvertInput>}, TContext> => {
+
+const mutationKey = ['convertEventToMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof convertEventToMission>>, {id: number;data: BodyType<EventToMissionConvertInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  convertEventToMission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConvertEventToMissionMutationResult = NonNullable<Awaited<ReturnType<typeof convertEventToMission>>>
+    export type ConvertEventToMissionMutationBody = BodyType<EventToMissionConvertInput>
+    export type ConvertEventToMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Convert (replace) an event into a mission. Fixer/admin only.
+ */
+export const useConvertEventToMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertEventToMission>>, TError,{id: number;data: BodyType<EventToMissionConvertInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof convertEventToMission>>,
+        TError,
+        {id: number;data: BodyType<EventToMissionConvertInput>},
+        TContext
+      > => {
+      return useMutation(getConvertEventToMissionMutationOptions(options));
+    }
+
+export const getConvertMissionToEventUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/convert-to-event`
+}
+
+/**
+ * @summary Convert (replace) a mission into an event. Fixer/admin only.
+ */
+export const convertMissionToEvent = async (id: number,
+    missionToEventConvertInput: MissionToEventConvertInput, options?: RequestInit): Promise<EventView> => {
+
+  return customFetch<EventView>(getConvertMissionToEventUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      missionToEventConvertInput,)
+  }
+);}
+
+
+
+
+export const getConvertMissionToEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertMissionToEvent>>, TError,{id: number;data: BodyType<MissionToEventConvertInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof convertMissionToEvent>>, TError,{id: number;data: BodyType<MissionToEventConvertInput>}, TContext> => {
+
+const mutationKey = ['convertMissionToEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof convertMissionToEvent>>, {id: number;data: BodyType<MissionToEventConvertInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  convertMissionToEvent(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConvertMissionToEventMutationResult = NonNullable<Awaited<ReturnType<typeof convertMissionToEvent>>>
+    export type ConvertMissionToEventMutationBody = BodyType<MissionToEventConvertInput>
+    export type ConvertMissionToEventMutationError = ErrorType<void>
+
+    /**
+ * @summary Convert (replace) a mission into an event. Fixer/admin only.
+ */
+export const useConvertMissionToEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertMissionToEvent>>, TError,{id: number;data: BodyType<MissionToEventConvertInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof convertMissionToEvent>>,
+        TError,
+        {id: number;data: BodyType<MissionToEventConvertInput>},
+        TContext
+      > => {
+      return useMutation(getConvertMissionToEventMutationOptions(options));
+    }
+
 export const getApplyToMissionUrl = (id: number,) => {
 
 
@@ -11100,6 +11247,78 @@ export const useRemoveRipperdocCyberware = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRemoveRipperdocCyberwareMutationOptions(options));
+    }
+
+export const getCreateInstallOwnedOfferUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/install-owned`
+}
+
+/**
+ * @summary Offer to install a cyberware piece the patient already owns (leaves a PENDING offer the player approves; optional fee)
+ */
+export const createInstallOwnedOffer = async (id: number,
+    installOwnedInput: InstallOwnedInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getCreateInstallOwnedOfferUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      installOwnedInput,)
+  }
+);}
+
+
+
+
+export const getCreateInstallOwnedOfferMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInstallOwnedOffer>>, TError,{id: number;data: BodyType<InstallOwnedInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createInstallOwnedOffer>>, TError,{id: number;data: BodyType<InstallOwnedInput>}, TContext> => {
+
+const mutationKey = ['createInstallOwnedOffer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInstallOwnedOffer>>, {id: number;data: BodyType<InstallOwnedInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createInstallOwnedOffer(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateInstallOwnedOfferMutationResult = NonNullable<Awaited<ReturnType<typeof createInstallOwnedOffer>>>
+    export type CreateInstallOwnedOfferMutationBody = BodyType<InstallOwnedInput>
+    export type CreateInstallOwnedOfferMutationError = ErrorType<void>
+
+    /**
+ * @summary Offer to install a cyberware piece the patient already owns (leaves a PENDING offer the player approves; optional fee)
+ */
+export const useCreateInstallOwnedOffer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInstallOwnedOffer>>, TError,{id: number;data: BodyType<InstallOwnedInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createInstallOwnedOffer>>,
+        TError,
+        {id: number;data: BodyType<InstallOwnedInput>},
+        TContext
+      > => {
+      return useMutation(getCreateInstallOwnedOfferMutationOptions(options));
     }
 
 export const getGetCharacterCyberwareUrl = (id: number,

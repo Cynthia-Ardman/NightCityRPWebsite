@@ -12,6 +12,7 @@ import {
   withdrawEventNpcSignup,
   checkEventConflict,
   isEventType,
+  convertMissionToEvent,
   type EventViewer,
 } from "../lib/eventsService";
 
@@ -124,6 +125,50 @@ router.post("/events", requireAuth, async (req, res): Promise<void> => {
     after: { id: created.id, title: parsed.title, eventType: parsed.eventType },
   });
   const detail = await getEventDetail(created.id, viewerOf(req));
+  res.status(201).json(detail);
+});
+
+// Convert an existing MISSION into an event (REPLACE). Soft-cancels the mission
+// and creates a scheduled event carrying its shared fields. The Discord
+// scheduled event is handed off (no teardown / recreate).
+router.post("/missions/:id/convert-to-event", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const missionId = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(missionId)) {
+    res.status(400).json({ error: "Invalid mission id" });
+    return;
+  }
+  const b = req.body ?? {};
+  const eventType = isEventType(b.eventType) ? b.eventType : "social";
+  const needsNpcs = b.needsNpcs === true;
+  const endAt = b.endAt !== undefined ? parseDate(b.endAt) : null;
+  if (b.endAt !== undefined && !endAt) {
+    res.status(400).json({ error: "Invalid end time" });
+    return;
+  }
+  const result = await convertMissionToEvent(missionId, req.user!.id, {
+    eventType,
+    needsNpcs,
+    npcBlurb: needsNpcs && typeof b.npcBlurb === "string" && b.npcBlurb.trim() ? b.npcBlurb.trim() : null,
+    endAt,
+  });
+  if (!result.ok) {
+    res.status(result.httpStatus ?? 400).json({ error: result.error ?? "Conversion failed" });
+    return;
+  }
+  await recordAudit({
+    req,
+    category: "mission",
+    action: "mission.convert_to_event",
+    targetType: "event",
+    targetId: result.newId!,
+    message: `Converted mission #${missionId} into event #${result.newId} (${eventType})`,
+    after: { missionId, eventId: result.newId, eventType },
+  });
+  const detail = await getEventDetail(result.newId!, viewerOf(req));
   res.status(201).json(detail);
 });
 

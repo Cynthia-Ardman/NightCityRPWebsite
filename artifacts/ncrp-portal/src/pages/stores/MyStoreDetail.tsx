@@ -112,6 +112,7 @@ export default function MyStoreDetail() {
   const [stockDescription, setStockDescription] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
   const [stockQty, setStockQty] = useState(1);
+  const [stockPowerLevel, setStockPowerLevel] = useState("");
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [stockReqOpen, setStockReqOpen] = useState(false);
@@ -123,6 +124,14 @@ export default function MyStoreDetail() {
   // "Add from catalog" is an admin-only convenience for seeding stock from the
   // master gun catalog; owners/employees use the custom-stock + buy-stock flows.
   const isAdmin = !!me && me.isAdmin;
+  const isStaff = !!me && (me.isAdmin || me.isFixer);
+  // Gun stores carry a regulated catalog: their OWNERS may only VIEW stock —
+  // all editing (add/edit/delete + power level) is staff-only. This mirrors the
+  // server gate in routes/stores.ts; the UI just avoids dead 403 controls.
+  const isGunStore = store?.kind === "guns";
+  const canEditStock = !isGunStore || isStaff;
+  // Power level is a gun-store-only field, and only staff edit it.
+  const showPowerLevel = isGunStore;
 
   // When an admin previews the app as a lower-privilege role, the management
   // view must hide just like it would for that role. Send them to the public
@@ -245,18 +254,27 @@ export default function MyStoreDetail() {
             >
               <PackagePlus className="w-3 h-3 mr-1" /> REQUEST CUSTOM STOCK
             </Button>
-            <Button
-              size="sm"
-              onClick={() => setPurchaseOpen(true)}
-              className="rounded-none bg-nc-cyan text-background font-display"
-              data-testid="button-open-purchase"
-            >
-              <Plus className="w-3 h-3 mr-1" /> BUY STOCK (STORE-FUNDED)
-            </Button>
+            {canEditStock && (
+              <Button
+                size="sm"
+                onClick={() => setPurchaseOpen(true)}
+                className="rounded-none bg-nc-cyan text-background font-display"
+                data-testid="button-open-purchase"
+              >
+                <Plus className="w-3 h-3 mr-1" /> BUY STOCK (STORE-FUNDED)
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
-          {store.stock.map((s) => (
+          {!canEditStock && (
+            <p className="font-mono text-xs text-muted-foreground" data-testid="text-stock-readonly-note">
+              Gun-store stock is managed by staff. You can view it and sell to customers, but item details and power levels are set by an admin or fixer.
+            </p>
+          )}
+          {store.stock.map((s) => {
+          if (canEditStock) {
+            return (
             <div key={s.id} className="space-y-1 border-b border-border/30 py-2" data-testid={`row-stock-${s.id}`}>
               <div className="grid grid-cols-12 gap-2 items-center">
                 <Input className="col-span-4" defaultValue={s.name} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { name: e.target.value } })} />
@@ -274,69 +292,126 @@ export default function MyStoreDetail() {
                 </Button>
                 <Button size="icon" variant="ghost" onClick={() => removeStock.mutate({ id: storeId, stockId: s.id })} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
               </div>
-              <Input
-                className="font-mono text-xs"
-                defaultValue={s.description ?? ""}
-                placeholder="Description"
-                onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { description: e.target.value } })}
-                data-testid={`input-stock-description-${s.id}`}
-              />
-            </div>
-          ))}
-          <div className="pt-3 space-y-2">
-            {isAdmin && (
-              <div className="flex justify-end">
-                <CatalogPicker
-                  kind="guns"
-                  triggerLabel="ADD FROM CATALOG (ADMIN)"
-                  onPick={(item) => {
-                    setStockName(item.name);
-                    setStockCategory(item.category ?? "");
-                    setStockPrice(item.price);
-                    if (stockQty < 1) setStockQty(1);
-                  }}
+              <div className="grid grid-cols-12 gap-2">
+                <Input
+                  className={`${showPowerLevel ? "col-span-8" : "col-span-12"} font-mono text-xs`}
+                  defaultValue={s.description ?? ""}
+                  placeholder="Description"
+                  onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { description: e.target.value } })}
+                  data-testid={`input-stock-description-${s.id}`}
                 />
+                {showPowerLevel && (
+                  <Input
+                    className="col-span-4 font-mono text-xs"
+                    defaultValue={s.powerLevel ?? ""}
+                    placeholder="Power level"
+                    onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { powerLevel: e.target.value } })}
+                    data-testid={`input-stock-power-${s.id}`}
+                  />
+                )}
               </div>
-            )}
-            <div className="grid grid-cols-12 gap-2">
-              <Input className="col-span-4" placeholder="Item name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-stock-name" />
-              <Input className="col-span-3" placeholder="Category / type" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
-              <Input className="col-span-2" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
-              <Input className="col-span-1" type="number" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
-              <Button
-                className="col-span-2 rounded-none bg-nc-cyan text-background font-display"
-                disabled={!stockName.trim() || stockPrice < 0 || addStock.isPending}
-                onClick={() => {
-                  if (!stockName.trim()) return;
-                  addStock.mutate({
-                    id: storeId,
-                    data: {
-                      name: stockName.trim(),
-                      category: stockCategory || undefined,
-                      description: stockDescription || undefined,
-                      price: stockPrice,
-                      quantity: stockQty,
-                    },
-                  });
-                  setStockName("");
-                  setStockCategory("");
-                  setStockDescription("");
-                  setStockPrice(0);
-                  setStockQty(1);
-                }}
-                data-testid="button-add-stock"
-              >
-                <Plus className="w-4 h-4 mr-1" /> ADD
-              </Button>
-              <Input
-                className="col-span-12 font-mono text-xs"
-                placeholder="Description (optional)"
-                value={stockDescription}
-                onChange={(e) => setStockDescription(e.target.value)}
-                data-testid="input-add-stock-description"
-              />
             </div>
-          </div>
+            );
+          }
+
+          return (
+            <div
+              key={s.id}
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 py-2 font-mono text-sm"
+              data-testid={`row-stock-${s.id}`}
+            >
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-bold" data-testid={`text-stock-name-${s.id}`}>{s.name}</span>
+                {s.category && <span className="text-nc-cyan uppercase text-xs">{s.category}</span>}
+                {showPowerLevel && s.powerLevel && (
+                  <span className="text-nc-yellow uppercase text-xs" data-testid={`text-stock-power-${s.id}`}>PWR: {s.powerLevel}</span>
+                )}
+                <span className="text-muted-foreground text-xs">Qty {s.quantity}</span>
+                {s.description && <span className="text-muted-foreground text-xs">{s.description}</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-nc-yellow">{s.price.toLocaleString()} €$</span>
+                <Button
+                  size="sm"
+                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
+                  disabled={s.quantity <= 0}
+                  className="rounded-none bg-nc-cyan text-background font-display text-xs"
+                  data-testid={`button-sell-${s.id}`}
+                >
+                  <DollarSign className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          );
+          })}
+          {canEditStock && (
+            <div className="pt-3 space-y-2">
+              {isAdmin && (
+                <div className="flex justify-end">
+                  <CatalogPicker
+                    kind="guns"
+                    triggerLabel="ADD FROM CATALOG (ADMIN)"
+                    onPick={(item) => {
+                      setStockName(item.name);
+                      setStockCategory(item.category ?? "");
+                      setStockPrice(item.price);
+                      setStockPowerLevel(item.powerLevel ?? "");
+                      if (stockQty < 1) setStockQty(1);
+                    }}
+                  />
+                </div>
+              )}
+              <div className="grid grid-cols-12 gap-2">
+                <Input className="col-span-4" placeholder="Item name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-stock-name" />
+                <Input className="col-span-3" placeholder="Category / type" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
+                <Input className="col-span-2" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
+                <Input className="col-span-1" type="number" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
+                <Button
+                  className="col-span-2 rounded-none bg-nc-cyan text-background font-display"
+                  disabled={!stockName.trim() || stockPrice < 0 || addStock.isPending}
+                  onClick={() => {
+                    if (!stockName.trim()) return;
+                    addStock.mutate({
+                      id: storeId,
+                      data: {
+                        name: stockName.trim(),
+                        category: stockCategory || undefined,
+                        description: stockDescription || undefined,
+                        price: stockPrice,
+                        quantity: stockQty,
+                        ...(showPowerLevel && stockPowerLevel.trim() ? { powerLevel: stockPowerLevel.trim() } : {}),
+                      },
+                    });
+                    setStockName("");
+                    setStockCategory("");
+                    setStockDescription("");
+                    setStockPrice(0);
+                    setStockQty(1);
+                    setStockPowerLevel("");
+                  }}
+                  data-testid="button-add-stock"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> ADD
+                </Button>
+                <Input
+                  className={`${showPowerLevel ? "col-span-8" : "col-span-12"} font-mono text-xs`}
+                  placeholder="Description (optional)"
+                  value={stockDescription}
+                  onChange={(e) => setStockDescription(e.target.value)}
+                  data-testid="input-add-stock-description"
+                />
+                {showPowerLevel && (
+                  <Input
+                    className="col-span-4 font-mono text-xs"
+                    placeholder="Power level (optional)"
+                    value={stockPowerLevel}
+                    onChange={(e) => setStockPowerLevel(e.target.value)}
+                    data-testid="input-add-stock-power"
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       <VenueOffersPanel offers={offers ?? []} />

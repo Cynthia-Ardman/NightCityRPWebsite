@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CharacterCyberwareStatusInstalledItem } from './characterCyberwareStatusInstalledItem';
+import type { CharacterCyberwareStatusUninstalledItem } from './characterCyberwareStatusUninstalledItem';
 
 export interface CharacterCyberwareStatus {
   characterId: number;
@@ -28,4 +29,6 @@ export interface CharacterCyberwareStatus {
      */
   available?: number | null;
   installed: CharacterCyberwareStatusInstalledItem[];
+  /** Cyberware the character owns but hasn't had fitted (no CWP tag) — install candidates. */
+  uninstalled?: CharacterCyberwareStatusUninstalledItem[];
 }

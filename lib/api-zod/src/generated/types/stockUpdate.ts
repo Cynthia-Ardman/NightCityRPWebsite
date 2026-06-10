@@ -16,4 +16,6 @@ export interface StockUpdate {
   quantity?: number;
   notes?: string;
   description?: string;
+  /** Power level (gun-store stock). Staff-only. */
+  powerLevel?: string;
 }

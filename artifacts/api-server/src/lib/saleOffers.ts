@@ -31,7 +31,12 @@ import { logger } from "./logger";
 //               they accept. Money flows OUT of the venue's internal balance,
 //               so the whole completion is a single idempotent DB transaction
 //               (no external UB wallet leg, unlike a buyer-debited sale).
-export type OfferType = "sale" | "install" | "remove" | "give" | "stock_add";
+//   install_owned — ripperdoc only: install a cyberware piece the buyer ALREADY
+//               owns (an uninstalled inventory item) onto their character. No
+//               stock leg (the player owns the piece); leaves a PENDING offer
+//               the player approves from My Offers; optional install fee via
+//               unitPrice. References installItemId.
+export type OfferType = "sale" | "install" | "remove" | "give" | "stock_add" | "install_owned";
 
 // ---------------------------------------------------------------------------
 // Buyer-approval sale offers. The store/ripperdoc operator creates an offer;
@@ -337,6 +342,118 @@ export async function createRemoveOffer(opts: {
     await db.delete(saleOffers).where(and(eq(saleOffers.id, offer.id), eq(saleOffers.status, "pending")));
   }
   return result;
+}
+
+// Install a cyberware piece the buyer ALREADY owns (an uninstalled inventory
+// item) onto their character. Unlike `install` (stock-backed, instant), there
+// is no stock leg and NO auto-completion: the offer is left PENDING for the
+// player to approve from My Offers. An optional install fee flows through the
+// same buyer-approval + commission path as a sale (totalPrice 0 => free).
+export async function createInstallOwnedOffer(opts: {
+  venueId: number;
+  installItemId: number;
+  buyerCharacterId: number;
+  fee?: number | null;
+  cwp?: number | null;
+  memo?: string | null;
+  actor: Actor;
+}): Promise<OfferResult> {
+  const kind: OfferKind = "ripperdoc";
+  const { venueId, installItemId, buyerCharacterId, memo, actor } = opts;
+
+  const [venue] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, venueId));
+  if (!venue) return { status: 404, body: { error: "Venue not found" } };
+  if (!(await isOperator(kind, venue, venueId, actor))) {
+    return { status: 403, body: { error: "Not authorized to operate this clinic" } };
+  }
+
+  const [buyer] = await db.select().from(characters).where(eq(characters.id, buyerCharacterId));
+  if (!buyer) return { status: 404, body: { error: "Character not found" } };
+  if (buyer.archived) return { status: 400, body: { error: "Character is archived" } };
+  if (!buyer.ownerId) return { status: 409, body: { error: "Character is unclaimed" } };
+
+  const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, installItemId));
+  if (!item || item.characterId !== buyer.id) {
+    return { status: 404, body: { error: "Cyberware not found on this character" } };
+  }
+  // Must be an UNINSTALLED chrome piece the player already owns: category
+  // cyberware AND no CWP install tag. Anything already installed (has a CWP
+  // note) is rejected — use the remove flow instead.
+  if ((item.category ?? "").trim().toLowerCase() !== "cyberware" || parseCwp(item.notes) != null) {
+    return { status: 400, body: { error: "That item is not an uninstalled cyberware piece" } };
+  }
+
+  // Per-unit CWP this install will stamp. Catalog is authoritative; an operator
+  // override applies only when the catalog has no value (mirrors `install`).
+  const cwp = await resolveInstallCwp(item.name, item.notes, opts.cwp);
+  const qty = item.quantity ?? 1;
+  // Pre-check the buyer's capacity (re-validated again inside the completion tx
+  // at approval, since other chrome may land in between).
+  const used = (await sumCwpByCharacter([buyer.id])).get(buyer.id) ?? 0;
+  const cap = checkCwpCapacity({ kind: buyer.kind, used, add: cwp * qty });
+  if (!cap.ok) return { status: 409, body: { error: cap.reason } };
+
+  const fee = Math.max(0, opts.fee ?? 0);
+  const seller = await resolveSeller(kind, venue, venueId, actor);
+  const expiresAt = new Date(Date.now() + OFFER_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const priceLabel = fee > 0 ? `for €$${fee}` : "for free";
+
+  const [offer] = await db
+    .insert(saleOffers)
+    .values({
+      kind,
+      offerType: "install_owned",
+      [venueColName(kind)]: venueId,
+      stockId: null,
+      installItemId,
+      cwp,
+      itemName: item.name,
+      itemCategory: "cyberware",
+      // Flat install fee (not per-unit): totalPrice == unitPrice == fee so the
+      // debit/credit/commission legs (which all use totalPrice) stay correct
+      // regardless of the item's quantity.
+      unitPrice: fee,
+      quantity: qty,
+      totalPrice: fee,
+      buyerCharacterId: buyer.id,
+      buyerUserId: buyer.ownerId,
+      sellerCharacterId: seller.sellerCharacterId,
+      sellerEmployeeId: seller.sellerEmployeeId,
+      commissionPct: seller.commissionPct,
+      createdById: actor.id,
+      memo: memo ?? null,
+      status: "pending",
+      expiresAt,
+    } as never)
+    .returning();
+
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_create",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `Initiated install of owned cyberware: ${item.name} onto ${buyer.name} ${priceLabel}`,
+    afterJson: { offerType: "install_owned", fee, cwp, installItemId, buyerCharacterId: buyer.id } as never,
+  });
+
+  // Best-effort player DM (the in-portal surface is /offers/mine). NO
+  // auto-completion: the player must approve before anything is installed.
+  try {
+    const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, offer.buyerUserId));
+    if (u?.discordId) {
+      await sendDirectMessage(
+        u.discordId,
+        `**${venue.name}** wants to install **${item.name}** on **${buyer.name}** ${priceLabel}.\n` +
+          `Approve or deny it here: ${offerLink()}`,
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, offerId: offer.id }, "install_owned player DM failed");
+  }
+
+  return { status: 201, body: offer };
 }
 
 // Admin proposes adding a cyberware piece to ANOTHER venue's stock for a price
@@ -681,6 +798,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
   const kind = offer.kind as OfferKind;
   const offerType: OfferType = (offer.offerType as OfferType) ?? "sale";
   const isRemove = offerType === "remove";
+  const isInstallOwned = offerType === "install_owned";
   const hasMoney = offer.totalPrice > 0;
   const venueTable = venueTableFor(kind);
   const stockTable = stockTableFor(kind);
@@ -693,9 +811,10 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
   const [buyerUser] = await db.select().from(users).where(eq(users.id, offer.buyerUserId));
   if (!buyerUser) return { status: 409, body: { error: "Buyer account missing" } };
 
-  // Install: re-validate the PC capacity cap at approval time. Other chrome may
-  // have landed since the offer was created, so the up-front check isn't enough.
-  if (offerType === "install") {
+  // Install (stock-backed OR owned): re-validate the PC capacity cap at approval
+  // time. Other chrome may have landed since the offer was created, so the
+  // up-front check isn't enough.
+  if (offerType === "install" || isInstallOwned) {
     const used = (await sumCwpByCharacter([buyer.id])).get(buyer.id) ?? 0;
     const cap = checkCwpCapacity({ kind: buyer.kind, used, add: (offer.cwp ?? 0) * offer.quantity });
     if (!cap.ok) return { status: 409, body: { error: cap.reason } };
@@ -705,7 +824,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
   // for free offers (give, or a zero-fee removal) — no money moves.
   if (hasMoney) {
     const debitReason =
-      offerType === "install" ? `Cyberware install: ${offer.itemName} @ ${venue.name}`
+      offerType === "install" || isInstallOwned ? `Cyberware install: ${offer.itemName} @ ${venue.name}`
       : offerType === "remove" ? `Cyberware removal: ${offer.itemName} @ ${venue.name}`
       : `Purchase: ${offer.itemName} x${offer.quantity} @ ${venue.name}`;
     const debit = await applyWalletDelta({
@@ -769,7 +888,30 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
       }
     }
 
-    if (isRemove) {
+    if (isInstallOwned) {
+      // Install a piece the player already owns: re-verify the target is still
+      // an uninstalled chrome item (under the buyer row lock taken above), then
+      // stamp the CWP install tag + mark it equipped. No stock leg. Idempotency
+      // is covered by the pending->approved flip guard.
+      const [target] = await tx
+        .select()
+        .from(inventoryItems)
+        .where(and(eq(inventoryItems.id, offer.installItemId!), eq(inventoryItems.characterId, buyer.id)));
+      if (!target || (target.category ?? "").trim().toLowerCase() !== "cyberware" || parseCwp(target.notes) != null) {
+        completionFailReason = "Cyberware to install was not found or is already installed";
+        throw new Error("install-owned-target-miss");
+      }
+      const [updated] = await tx
+        .update(inventoryItems)
+        .set({
+          category: "cyberware",
+          equipped: true,
+          notes: `CWP ${offer.cwp ?? 0} · Installed at ${venue.name} on ${today}`,
+        })
+        .where(eq(inventoryItems.id, target.id))
+        .returning();
+      insertedItem = updated;
+    } else if (isRemove) {
       // Un-install: flip the item out of the "cyberware" category so it stops
       // counting toward CWP, but keep it in the player's inventory (the default
       // destination). Guard on the still-installed state for idempotency.
@@ -938,7 +1080,9 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
   if (insertedItem) {
     await recordInventoryEvent({
       instanceUuid: (insertedItem as typeof inventoryItems.$inferSelect).instanceUuid,
-      kind: "created",
+      // install_owned mutates an existing item in place (it isn't a fresh
+      // stock->inventory creation), so log it as an adjustment.
+      kind: isInstallOwned ? "adjusted" : "created",
       actorId: actor.id,
       actorName: actor.username,
       toCharacterId: buyer.id,
@@ -946,7 +1090,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
       itemName: offer.itemName,
       quantity: offer.quantity,
       price: offer.totalPrice,
-      reason: offerType === "install" ? `Installed at ${venue.name}` : `Offer approved at ${venue.name}`,
+      reason: offerType === "install" || isInstallOwned ? `Installed at ${venue.name}` : `Offer approved at ${venue.name}`,
       metadata: { venueKind: kind, venueId, venueName: venue.name, offerId: offer.id, offerType },
     });
   }

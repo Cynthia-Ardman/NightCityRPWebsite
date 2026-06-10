@@ -17,4 +17,9 @@ export interface StockItem {
   notes?: string | null;
   /** @nullable */
   description?: string | null;
+  /**
+     * Power level (gun-store stock).
+     * @nullable
+     */
+  powerLevel?: string | null;
 }

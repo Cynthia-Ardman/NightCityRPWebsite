@@ -24,6 +24,11 @@ export interface SaleOffer {
      * @nullable
      */
   removedItemId?: number | null;
+  /**
+     * The buyer-owned uninstalled inventory item an install_owned offer fits.
+     * @nullable
+     */
+  installItemId?: number | null;
   /** @nullable */
   storeId?: number | null;
   /** @nullable */

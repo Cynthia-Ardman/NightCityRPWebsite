@@ -7,6 +7,8 @@ import {
   useGetRipperdoc,
   getGetRipperdocQueryKey,
   getGetCharacterCyberwareQueryKey,
+  useGetCharacterCyberware,
+  useCreateInstallOwnedOffer,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -66,6 +68,9 @@ export default function RipperdocConsole() {
   // existing CyberwareActionDialog with the patient pre-locked.
   const [installStock, setInstallStock] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
+  // Optional install fee per owned (uninstalled) cyberware item, keyed by
+  // inventory item id. Defaults to 0 (free fitting).
+  const [installFees, setInstallFees] = useState<Record<number, number>>({});
 
   // Character directory — filter client-side on name for the picker so a doc
   // can type a partial street name without round-tripping.
@@ -137,6 +142,34 @@ export default function RipperdocConsole() {
       qc.invalidateQueries({ queryKey: getGetCharacterCyberwareQueryKey(venueId, selectedId) });
     if (venueId) qc.invalidateQueries({ queryKey: getGetRipperdocQueryKey(venueId) });
   };
+
+  // CWP capacity + the patient's UNINSTALLED cyberware (owned but not yet
+  // fitted). Drives the "install from patient inventory" list below.
+  const { data: cyberStatus } = useGetCharacterCyberware(venueId ?? 0, selectedId ?? 0, {
+    query: {
+      enabled: !!venueId && !!selectedId,
+      queryKey: getGetCharacterCyberwareQueryKey(venueId ?? 0, selectedId ?? 0),
+    },
+  });
+  const uninstalled = cyberStatus?.uninstalled ?? [];
+
+  // Offer to fit a piece the patient already owns. Leaves a PENDING offer the
+  // player confirms in My Offers; the optional fee is charged on their approval.
+  const installOwned = useCreateInstallOwnedOffer({
+    mutation: {
+      onSuccess: () => {
+        setFeedback(
+          `Install offer sent to ${selected?.name ?? "patient"} — they confirm it (and any fee) in My Offers.`,
+        );
+        setError(null);
+        refreshPatient();
+      },
+      onError: (err) => {
+        setError(err instanceof Error ? err.message : String(err));
+        setFeedback(null);
+      },
+    },
+  });
 
   const checkup = useMutation({
     mutationFn: async () => {
@@ -431,6 +464,68 @@ export default function RipperdocConsole() {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {venueId && (
+                  <div>
+                    <Label className="text-[10px] font-mono text-muted-foreground uppercase flex items-center gap-1">
+                      <Plus className="w-3 h-3" /> Install from patient inventory
+                    </Label>
+                    {uninstalled.length === 0 ? (
+                      <div className="text-xs font-mono text-muted-foreground py-2" data-testid="text-no-owned-cyberware">
+                        Patient owns no uninstalled cyberware.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-56 overflow-y-auto border border-border/60 p-1 mt-1">
+                        {uninstalled.map((u) => (
+                          <div
+                            key={u.id}
+                            className="rounded-none border border-border/50 px-2 py-1.5 text-xs font-mono space-y-1.5"
+                            data-testid={`row-owned-cyberware-${u.id}`}
+                          >
+                            <div className="flex justify-between gap-2">
+                              <span className="truncate">{u.name}{u.quantity && u.quantity > 1 ? ` ×${u.quantity}` : ""}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                value={installFees[u.id] ?? ""}
+                                placeholder="Fee (optional)"
+                                onChange={(e) =>
+                                  setInstallFees((prev) => ({ ...prev, [u.id]: Math.max(0, Number(e.target.value) || 0) }))
+                                }
+                                className="rounded-none font-mono h-8 text-xs"
+                                data-testid={`input-owned-fee-${u.id}`}
+                              />
+                              <Button
+                                size="sm"
+                                disabled={installOwned.isPending || !selectedId}
+                                onClick={() => {
+                                  if (!venueId || !selectedId) return;
+                                  installOwned.mutate({
+                                    id: venueId,
+                                    data: {
+                                      installItemId: u.id,
+                                      buyerCharacterId: selectedId,
+                                      price: Math.max(0, installFees[u.id] ?? 0),
+                                    },
+                                  });
+                                }}
+                                className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display text-xs shrink-0"
+                                data-testid={`button-install-owned-${u.id}`}
+                              >
+                                <Plus className="w-3 h-3 mr-1" /> OFFER
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[10px] font-mono text-muted-foreground/70 mt-1">
+                      Sends a pending install offer the patient confirms in My Offers. Any fee is charged on their approval.
+                    </p>
                   </div>
                 )}
               </CardContent>

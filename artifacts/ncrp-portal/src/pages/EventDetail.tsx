@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetEvent,
@@ -7,11 +7,16 @@ import {
   useWithdrawEventNpcSignup,
   useListMyCharacters,
   useCreateActorPayout,
+  useConvertEventToMission,
   getGetEventQueryKey,
   getListEventsQueryKey,
+  getListMissionsQueryKey,
   getGetActorPayoutsQueryKey,
   type EventView,
   type EventSignupView,
+  type EventToMissionConvertInput,
+  type EventToMissionConvertInputTier,
+  type EventToMissionConvertInputJobType,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +24,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   PartyPopper,
   ArrowLeft,
@@ -28,9 +41,11 @@ import {
   Pencil,
   AlertTriangle,
   Clock,
+  Briefcase,
 } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
+import { useToast } from "@/hooks/use-toast";
 
 function errOf(e: unknown): string | null {
   const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
@@ -52,6 +67,243 @@ function fmtRange(startIso: string, endIso: string): string {
   if (Number.isNaN(end.getTime())) return `${date} · ${startTime}`;
   const endTime = end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   return `${date} · ${startTime} – ${endTime}`;
+}
+
+const CONVERT_TIER_OPTIONS: { value: EventToMissionConvertInputTier; label: string }[] = [
+  { value: 1, label: "Tier 1" },
+  { value: 2, label: "Tier 2" },
+  { value: 3, label: "Tier 3" },
+  { value: 4, label: "Tier 4" },
+];
+
+const CONVERT_JOB_TYPE_OPTIONS: { value: EventToMissionConvertInputJobType | ""; label: string }[] = [
+  { value: "", label: "— none —" },
+  { value: "combat", label: "Combat" },
+  { value: "non_combat", label: "Non-Combat" },
+  { value: "mixed", label: "Mixed" },
+];
+
+// Convert (replace) this event into a mission. The original event is soft-
+// cancelled and its linked Discord scheduled event is handed off to the new
+// mission row — no Discord teardown, no calendar duplicate. Collects the
+// mission-only fields the event doesn't carry (tier, pay, slots, etc.).
+function ConvertToMissionDialog({ event }: { event: EventView }) {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [tier, setTier] = useState<EventToMissionConvertInputTier>(1);
+  const [playerPay, setPlayerPay] = useState("0");
+  const [npcPayAmount, setNpcPayAmount] = useState("0");
+  const [slots, setSlots] = useState("0");
+  const [maxPlayers, setMaxPlayers] = useState("0");
+  const [jobType, setJobType] = useState<EventToMissionConvertInputJobType | "">("");
+  const [worldLink, setWorldLink] = useState("");
+  const [requestedSkills, setRequestedSkills] = useState("");
+  const [client, setClient] = useState("");
+  const [notesForPlayers, setNotesForPlayers] = useState("");
+
+  const convert = useConvertEventToMission();
+  const qc = useQueryClient();
+
+  function num(v: string): number {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }
+
+  function submit() {
+    const data: EventToMissionConvertInput = {
+      tier,
+      playerPay: num(playerPay),
+      npcPayAmount: num(npcPayAmount),
+      slots: num(slots),
+      maxPlayers: num(maxPlayers),
+      ...(jobType ? { jobType } : {}),
+      ...(worldLink.trim() ? { worldLink: worldLink.trim() } : {}),
+      ...(requestedSkills.trim() ? { requestedSkills: requestedSkills.trim() } : {}),
+      ...(client.trim() ? { client: client.trim() } : {}),
+      ...(notesForPlayers.trim() ? { notesForPlayers: notesForPlayers.trim() } : {}),
+    };
+    convert.mutate(
+      { id: event.id, data },
+      {
+        onSuccess: (mission) => {
+          qc.invalidateQueries({ queryKey: getGetEventQueryKey(event.id) });
+          qc.invalidateQueries({ queryKey: getListEventsQueryKey() });
+          qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+          toast({ title: "Converted to mission", description: `"${event.title}" is now a mission.` });
+          setOpen(false);
+          navigate(`/missions/${mission.id}`);
+        },
+        onError: (e) => {
+          toast({
+            title: "Conversion failed",
+            description: errOf(e) ?? "Please try again.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest inline-flex items-center gap-1"
+        data-testid="button-convert-to-mission"
+      >
+        <Briefcase className="w-4 h-4" /> CONVERT TO MISSION
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="rounded-none border-border bg-card max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-nc-magenta">Convert to Mission</DialogTitle>
+            <DialogDescription className="font-mono text-xs text-muted-foreground">
+              This replaces the event with a mission. The event is cancelled and its Discord scheduled event (if any)
+              carries over — no duplicate on the calendar. This can't be undone automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">TIER</Label>
+              <select
+                value={tier}
+                onChange={(e) => setTier(Number(e.target.value) as EventToMissionConvertInputTier)}
+                className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+                data-testid="select-convert-tier"
+              >
+                {CONVERT_TIER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">JOB TYPE</Label>
+              <select
+                value={jobType}
+                onChange={(e) => setJobType(e.target.value as EventToMissionConvertInputJobType | "")}
+                className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+                data-testid="select-convert-job-type"
+              >
+                {CONVERT_JOB_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">PLAYER PAY (€$)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={playerPay}
+                onChange={(e) => setPlayerPay(e.target.value)}
+                className="rounded-none"
+                data-testid="input-convert-player-pay"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">NPC PAY (€$)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={npcPayAmount}
+                onChange={(e) => setNpcPayAmount(e.target.value)}
+                className="rounded-none"
+                data-testid="input-convert-npc-pay"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">SLOTS</Label>
+              <Input
+                type="number"
+                min={0}
+                value={slots}
+                onChange={(e) => setSlots(e.target.value)}
+                className="rounded-none"
+                data-testid="input-convert-slots"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">MAX PLAYERS</Label>
+              <Input
+                type="number"
+                min={0}
+                value={maxPlayers}
+                onChange={(e) => setMaxPlayers(e.target.value)}
+                className="rounded-none"
+                data-testid="input-convert-max-players"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs">WORLD / JOIN LINK (staff-only)</Label>
+              <Input
+                value={worldLink}
+                onChange={(e) => setWorldLink(e.target.value)}
+                className="rounded-none"
+                data-testid="input-convert-world-link"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs">CLIENT</Label>
+              <Input
+                value={client}
+                onChange={(e) => setClient(e.target.value)}
+                className="rounded-none"
+                data-testid="input-convert-client"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs">REQUESTED SKILLS</Label>
+              <Input
+                value={requestedSkills}
+                onChange={(e) => setRequestedSkills(e.target.value)}
+                className="rounded-none"
+                data-testid="input-convert-skills"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs">NOTES FOR PLAYERS</Label>
+              <Textarea
+                value={notesForPlayers}
+                onChange={(e) => setNotesForPlayers(e.target.value)}
+                rows={2}
+                className="rounded-none"
+                data-testid="input-convert-notes"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="rounded-none"
+              data-testid="button-convert-cancel"
+            >
+              CANCEL
+            </Button>
+            <Button
+              type="button"
+              disabled={convert.isPending}
+              onClick={submit}
+              className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
+              data-testid="button-convert-confirm"
+            >
+              {convert.isPending ? "CONVERTING..." : "CONVERT"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 export default function EventDetail() {
@@ -148,6 +400,7 @@ function EventDetailView({ data }: { data: EventView }) {
           >
             <Pencil className="w-4 h-4" /> EDIT EVENT
           </Link>
+          {data.status !== "cancelled" && <ConvertToMissionDialog event={data} />}
           {data.discordSyncError && (
             <span
               className="font-mono text-xs text-nc-yellow inline-flex items-center gap-1"

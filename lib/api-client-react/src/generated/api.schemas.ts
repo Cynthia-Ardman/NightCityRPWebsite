@@ -2027,6 +2027,11 @@ export interface StockItem {
   notes?: string | null;
   /** @nullable */
   description?: string | null;
+  /**
+     * Power level (gun-store stock).
+     * @nullable
+     */
+  powerLevel?: string | null;
 }
 
 export interface Store {
@@ -2187,6 +2192,7 @@ export const SaleOfferOfferType = {
   remove: 'remove',
   give: 'give',
   stock_add: 'stock_add',
+  install_owned: 'install_owned',
 } as const;
 
 export type SaleOfferStatus = typeof SaleOfferStatus[keyof typeof SaleOfferStatus];
@@ -2214,6 +2220,11 @@ export interface SaleOffer {
      * @nullable
      */
   removedItemId?: number | null;
+  /**
+     * The buyer-owned uninstalled inventory item an install_owned offer fits.
+     * @nullable
+     */
+  installItemId?: number | null;
   /** @nullable */
   storeId?: number | null;
   /** @nullable */
@@ -2283,6 +2294,8 @@ export interface StockInput {
      * @minimum 0
      */
   cwp?: number;
+  /** Power level (gun-store stock). Staff-only. */
+  powerLevel?: string;
 }
 
 /**
@@ -2361,6 +2374,23 @@ export interface CyberwareRemoveInput {
   memo?: string;
 }
 
+export interface InstallOwnedInput {
+  /** The buyer-owned uninstalled cyberware inventory item to fit. */
+  installItemId: number;
+  buyerCharacterId: number;
+  /**
+     * Optional install fee. Defaults to 0 (free).
+     * @minimum 0
+     */
+  price?: number;
+  /**
+     * Operator CWP override; only used when the catalog has no authoritative value.
+     * @minimum 0
+     */
+  cwp?: number;
+  memo?: string;
+}
+
 export type CharacterCyberwareStatusInstalledItem = {
   id: number;
   name: string;
@@ -2369,6 +2399,15 @@ export type CharacterCyberwareStatusInstalledItem = {
   /** @nullable */
   notes?: string | null;
   cwp: number;
+};
+
+export type CharacterCyberwareStatusUninstalledItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  quantity?: number | null;
+  /** @nullable */
+  notes?: string | null;
 };
 
 export interface CharacterCyberwareStatus {
@@ -2392,6 +2431,8 @@ export interface CharacterCyberwareStatus {
      */
   available?: number | null;
   installed: CharacterCyberwareStatusInstalledItem[];
+  /** Cyberware the character owns but hasn't had fitted (no CWP tag) — install candidates. */
+  uninstalled?: CharacterCyberwareStatusUninstalledItem[];
 }
 
 export interface VenueAccountInput {
@@ -2481,6 +2522,8 @@ export interface StockUpdate {
   quantity?: number;
   notes?: string;
   description?: string;
+  /** Power level (gun-store stock). Staff-only. */
+  powerLevel?: string;
 }
 
 export type CustomCatalogItemType = typeof CustomCatalogItemType[keyof typeof CustomCatalogItemType];
@@ -5016,6 +5059,68 @@ export interface MissionUpdateInput {
   maxPlayers?: number;
   /** If present, replaces the full assignment set. */
   assignments?: MissionAssignmentInput[];
+}
+
+export type EventToMissionConvertInputTier = typeof EventToMissionConvertInputTier[keyof typeof EventToMissionConvertInputTier];
+
+
+export const EventToMissionConvertInputTier = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_3: 3,
+  NUMBER_4: 4,
+} as const;
+
+export type EventToMissionConvertInputJobType = typeof EventToMissionConvertInputJobType[keyof typeof EventToMissionConvertInputJobType];
+
+
+export const EventToMissionConvertInputJobType = {
+  combat: 'combat',
+  non_combat: 'non_combat',
+  mixed: 'mixed',
+} as const;
+
+/**
+ * Mission-only fields supplied when converting an event into a mission. Shared fields (title/description/location/image/start) carry over from the event; durationMinutes defaults to the event window.
+ */
+export interface EventToMissionConvertInput {
+  tier: EventToMissionConvertInputTier;
+  /** @minimum 0 */
+  playerPay?: number;
+  /** @minimum 0 */
+  npcPayAmount?: number;
+  /** @minimum 0 */
+  slots?: number;
+  /** @minimum 0 */
+  maxPlayers?: number;
+  jobType?: EventToMissionConvertInputJobType;
+  worldLink?: string;
+  requestedSkills?: string;
+  client?: string;
+  notesForPlayers?: string;
+  /** @minimum 1 */
+  durationMinutes?: number;
+}
+
+export type MissionToEventConvertInputEventType = typeof MissionToEventConvertInputEventType[keyof typeof MissionToEventConvertInputEventType];
+
+
+export const MissionToEventConvertInputEventType = {
+  session: 'session',
+  social: 'social',
+  mission: 'mission',
+  other: 'other',
+} as const;
+
+/**
+ * Event-only fields supplied when converting a mission into an event. Shared fields (title/description/location/image/start) carry over from the mission; endAt defaults to the mission start + durationMinutes.
+ */
+export interface MissionToEventConvertInput {
+  eventType?: MissionToEventConvertInputEventType;
+  needsNpcs?: boolean;
+  /** @nullable */
+  npcBlurb?: string | null;
+  endAt?: string;
 }
 
 export interface PayActorsInput {
