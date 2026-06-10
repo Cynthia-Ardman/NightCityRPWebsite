@@ -125,6 +125,10 @@ router.post("/economy/income/work", requireAuth, async (req: Request, res: Respo
   });
   if (!result.ok && result.status !== "dry_run") {
     await releaseCooldown(uid, WORK.command);
+    if (result.status === "disabled") {
+      res.status(503).json({ error: "The economy is currently disabled. An admin must enable the Economy System before WORK can pay out." });
+      return;
+    }
     res.status(502).json({ error: "Could not complete WORK right now. Try again shortly." });
     return;
   }
@@ -195,6 +199,10 @@ router.post("/economy/income/slut", requireAuth, async (req: Request, res: Respo
   if (!result.ok && result.status !== "dry_run") {
     await releaseCooldown(uid, SLUT.command);
     logger.warn({ uid, status: result.status }, "SLUT wallet apply failed");
+    if (result.status === "disabled") {
+      res.status(503).json({ error: "The economy is currently disabled. An admin must enable the Economy System before SLUT can pay out." });
+      return;
+    }
     res.status(502).json({ error: "Could not complete SLUT right now. Try again shortly." });
     return;
   }
