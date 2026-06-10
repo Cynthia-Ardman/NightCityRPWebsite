@@ -16,6 +16,7 @@ import { isNull, or, ilike, count, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, type ThreadAttachment } from "../lib/discord";
+import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob, deriveCyberwareBand } from "../lib/jobs";
@@ -43,36 +44,11 @@ router.use("/admin", requireAuth);
 const adminOnly = requireRole("ADMIN");
 const adminOrFixer = requireAnyRole(["ADMIN", "FIXER"]);
 
-// Resolve an ownerId to a `users` row, provisioning a minimal stub for a Discord
-// member who has never signed in. Staff can assign a character to ANYONE in the
-// guild; if the target has no `users` row yet we mint one keyed on their Discord
-// id (which is also the users PK). When that member later signs in, the OAuth
-// callback's upsert matches this same id and fills in the live session fields —
-// so the ownership we set now is preserved seamlessly. Returns the row, or null
-// if the id matches neither an existing user nor a reachable Discord user.
-async function resolveOrProvisionOwner(
-  ownerId: string,
-): Promise<typeof users.$inferSelect | null> {
-  const [existing] = await db.select().from(users).where(eq(users.id, ownerId));
-  if (existing) return existing;
-  const profile = await fetchDiscordUser(ownerId);
-  if (!profile) return null;
-  const [created] = await db
-    .insert(users)
-    .values({
-      id: profile.id,
-      discordId: profile.id,
-      username: profile.username,
-      globalName: profile.globalName,
-      avatarUrl: profile.avatarUrl,
-    })
-    .onConflictDoNothing()
-    .returning();
-  if (created) return created;
-  // Lost an insert race — read the row the other writer just created.
-  const [row] = await db.select().from(users).where(eq(users.id, ownerId));
-  return row ?? null;
-}
+// Provisioning a `users` stub for a Discord member who has never signed in lives
+// in lib/userProvision so the actor-payment paths can share it. Staff can assign
+// a character to ANYONE in the guild; if the target has no `users` row yet we
+// mint one keyed on their Discord id, which their first login then adopts.
+const resolveOrProvisionOwner = resolveOrProvisionUser;
 
 router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(users).orderBy(desc(users.lastSeenAt));

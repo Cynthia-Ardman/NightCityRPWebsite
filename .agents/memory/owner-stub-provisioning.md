@@ -29,3 +29,20 @@ flag distinguishes signed-in vs stub). Note: the resolver validates the Discord
 user exists, not strictly guild membership — fine because the UI only offers
 guild members and the route is staff-gated; tighten with a guild-member lookup
 only if API-level guild-only enforcement is ever required.
+
+**Shared helper:** the resolve-or-provision logic lives in
+`lib/userProvision.ts` (`resolveOrProvisionUser`); admin owner-assignment AND
+the actor-pay paths both use it (admin's `resolveOrProvisionOwner` is now a thin
+alias). Don't re-inline the select→fetchDiscordUser→insert-onConflict→re-read
+pattern.
+
+**Actor-pay corollary (two parts):** "find/pay ANY discord user" surfaces have
+TWO gaps, not one. (1) A bare `users`/character-name search misses guild members
+who never signed in — merge `searchGuildMembers(q)` into the results
+(best-effort: on null, return local-only rather than failing the search). (2)
+The pay path inserts into `mission_actor_payments`, whose `user_id` is NOT NULL
+with an FK to `users.id` — so provision the stub BEFORE the insert, and if
+provisioning returns null (Discord unreachable / bogus id) you MUST skip the
+insert and count it failed, never fall through to the insert, or you throw an
+unhandled FK 23503 mid-batch after earlier actors were already paid. Both
+`payStandaloneActors` and `payMissionActors` need this.

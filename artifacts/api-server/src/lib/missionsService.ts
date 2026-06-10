@@ -27,6 +27,7 @@ import {
 } from "./discord";
 import { notifyMissionPayout } from "./notifications";
 import { getMissionContext, type MissionExternalContext } from "./missionsConfig";
+import { resolveOrProvisionUser } from "./userProvision";
 
 // ---------------------------------------------------------------------------
 // Workflow state (Task #62) — staff approval pipeline, SEPARATE from runtime
@@ -2171,6 +2172,19 @@ export async function payMissionActors(
     .where(inArray(users.id, uniqueIds));
   const userById = new Map(userRows.map((u) => [u.id, u]));
 
+  // Actors picked from the Discord-guild search may have no `users` row yet
+  // (never signed in to the portal). Mint a stub keyed on their Discord id so
+  // the NOT NULL FK on mission_actor_payments.user_id is satisfied and the
+  // payout (which credits by Discord id) can proceed; their first login adopts
+  // the same row.
+  for (const id of uniqueIds) {
+    if (userById.has(id)) continue;
+    const provisioned = await resolveOrProvisionUser(id);
+    if (provisioned) {
+      userById.set(id, { id: provisioned.id, discordId: provisioned.discordId, username: provisioned.username });
+    }
+  }
+
   // Resolve the fixer/admin who is issuing this payment, so the actor-payment
   // history shows WHO paid each actor (not the mission's owning fixer).
   const payerId = opts.actorId ?? mission.fixerId ?? null;
@@ -2199,6 +2213,14 @@ export async function payMissionActors(
       continue;
     }
     const u = userById.get(userId);
+    if (!u) {
+      // No `users` row and provisioning failed (Discord unreachable or an
+      // unknown id). We can't satisfy the NOT NULL FK on user_id, so skip the
+      // insert entirely — counting it failed — rather than throwing a 23503
+      // mid-batch after earlier actors were already paid.
+      result.failed++;
+      continue;
+    }
     const base = {
       missionId,
       missionName: mission.title,
@@ -2341,6 +2363,19 @@ export async function payStandaloneActors(
     .where(inArray(users.id, uniqueIds));
   const userById = new Map(userRows.map((u) => [u.id, u]));
 
+  // Actors picked from the Discord-guild search may have no `users` row yet
+  // (never signed in to the portal). Mint a stub keyed on their Discord id so
+  // the NOT NULL FK on mission_actor_payments.user_id is satisfied and the
+  // payout (which credits by Discord id) can proceed; their first login adopts
+  // the same row.
+  for (const id of uniqueIds) {
+    if (userById.has(id)) continue;
+    const provisioned = await resolveOrProvisionUser(id);
+    if (provisioned) {
+      userById.set(id, { id: provisioned.id, discordId: provisioned.discordId, username: provisioned.username });
+    }
+  }
+
   // Resolve the fixer/admin issuing the payment so history shows WHO paid.
   const payerId = opts.actorId ?? null;
   let payerName = opts.actorName ?? null;
@@ -2357,6 +2392,14 @@ export async function payStandaloneActors(
 
   for (const userId of uniqueIds) {
     const u = userById.get(userId);
+    if (!u) {
+      // No `users` row and provisioning failed (Discord unreachable or an
+      // unknown id). We can't satisfy the NOT NULL FK on user_id, so skip the
+      // insert entirely — counting it failed — rather than throwing a 23503
+      // mid-batch after earlier actors were already paid.
+      result.failed++;
+      continue;
+    }
     const base = {
       missionId: null,
       eventId: input.eventId ?? null,

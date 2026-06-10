@@ -10,7 +10,7 @@ import {
   customRequests,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, sendDirectMessage } from "../lib/discord";
+import { hasRole, sendDirectMessage, searchGuildMembers } from "../lib/discord";
 import { getMissionContext, MISSION_CONFIG_KEYS } from "../lib/missionsConfig";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -608,17 +608,33 @@ router.get("/missions/actor-search", requireAuth, async (req, res): Promise<void
   for (const u of directUsers) idSet.add(u.id);
   for (const c of charOwners) if (c.ownerId) idSet.add(c.ownerId);
   const ids = Array.from(idSet);
-  if (ids.length === 0) {
-    res.json([]);
-    return;
+  const localRows = ids.length
+    ? await db
+        .select({ id: users.id, username: users.username, globalName: users.globalName, avatarUrl: users.avatarUrl })
+        .from(users)
+        .where(inArray(users.id, ids))
+        .orderBy(asc(users.username))
+        .limit(50)
+    : [];
+
+  // Also search the whole Discord guild so actors who have never signed in to
+  // the portal (and so have no `users` row) are still payable — they're minted
+  // a stub `users` row on payout. Best-effort: if Discord is unreachable we
+  // still return the local matches rather than failing the search outright.
+  const seen = new Set(localRows.map((r) => r.id));
+  const merged: Array<{ id: string; username: string; globalName: string | null; avatarUrl: string | null }> = [
+    ...localRows,
+  ];
+  const guildMembers = await searchGuildMembers(q, 25);
+  if (guildMembers) {
+    for (const m of guildMembers) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      merged.push({ id: m.id, username: m.username, globalName: m.globalName, avatarUrl: m.avatarUrl });
+      if (merged.length >= 50) break;
+    }
   }
-  const rows = await db
-    .select({ id: users.id, username: users.username, globalName: users.globalName, avatarUrl: users.avatarUrl })
-    .from(users)
-    .where(inArray(users.id, ids))
-    .orderBy(asc(users.username))
-    .limit(50);
-  res.json(rows);
+  res.json(merged);
 });
 
 // Non-mission ("standalone") actor payouts — pay actors for a regular session,
