@@ -774,6 +774,9 @@ function InventoryTab({ characterId }: { characterId: number }) {
   // this reuses the unified request pipeline (routed to fixers), preselecting
   // this PC and materializing into inventory on approval.
   const canRequestItem = !!me.data?.isAdmin || (!!char?.ownerId && char.ownerId === me.data?.id);
+  // Direct add (no review) is staff-only — players request items via the
+  // REQUEST CUSTOM ITEM card below, which routes to fixers for approval.
+  const isStaff = !!me.data?.isAdmin || !!me.data?.isFixer;
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(characterId) });
     qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
@@ -861,6 +864,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
 
   return (
     <div className="space-y-6">
+      {isStaff && (
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="font-display tracking-widest">ADD ITEM</CardTitle>
@@ -993,6 +997,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
           </form>
         </CardContent>
       </Card>
+      )}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>

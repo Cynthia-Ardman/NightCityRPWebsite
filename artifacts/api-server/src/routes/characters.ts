@@ -363,6 +363,13 @@ router.get("/characters/:id/inventory", requireAuth, async (req, res): Promise<v
 
 router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
+  // Direct, no-review item creation is staff-only. Players add items by
+  // submitting a custom-item request (routed to fixers), which materializes
+  // into inventory on approval.
+  if (!isStaffUser(req.user!)) {
+    res.status(403).json({ error: "Only staff can add inventory items directly. Submit a custom item request instead." });
+    return;
+  }
   const c = await loadOwnedOrStaffChar(req.user!, id);
   if (!c) {
     res.status(404).json({ error: "Not found" });
