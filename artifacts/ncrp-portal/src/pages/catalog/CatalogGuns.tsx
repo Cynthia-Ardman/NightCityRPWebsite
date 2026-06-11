@@ -39,6 +39,9 @@ export default function CatalogGuns() {
   const { data, isLoading } = useListGuns();
   const { data: me } = useAuthMe();
   const isStaff = !!(me?.isAdmin || me?.isFixer);
+  // Catalog prices are wholesale costs only store owners need; hide them
+  // from everyone else (staff still see them for management).
+  const canSeePrice = isStaff || !!me?.isStoreOwner;
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Gun | null>(null);
@@ -176,7 +179,7 @@ export default function CatalogGuns() {
                 <th className="text-left p-3">Fire Mode</th>
                 <th className="text-left p-3">Power Level</th>
                 <th className="text-left p-3">Restriction</th>
-                <th className="text-right p-3">Price</th>
+                {canSeePrice && <th className="text-right p-3">Price</th>}
               </tr>
             </thead>
             <tbody>
@@ -206,14 +209,16 @@ export default function CatalogGuns() {
                   <td className="p-3">{humanize(g.fireMode)}</td>
                   <td className="p-3">{humanize(g.powerLevel)}</td>
                   <td className="p-3 text-nc-magenta">{humanize(g.restriction)}</td>
-                  <td className="p-3 text-right text-nc-yellow">
-                    {g.price.toLocaleString()} €$
-                  </td>
+                  {canSeePrice && (
+                    <td className="p-3 text-right text-nc-yellow">
+                      {g.price.toLocaleString()} €$
+                    </td>
+                  )}
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                  <td colSpan={canSeePrice ? 8 : 7} className="text-center p-8 text-muted-foreground">
                     No results.
                   </td>
                 </tr>
@@ -233,6 +238,7 @@ export default function CatalogGuns() {
       <GunDetailDialog
         gun={selected}
         isStaff={isStaff}
+        showPrice={canSeePrice}
         open={selected !== null}
         onOpenChange={(v) => {
           if (!v) setSelected(null);

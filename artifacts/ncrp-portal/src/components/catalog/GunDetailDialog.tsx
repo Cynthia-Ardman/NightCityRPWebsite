@@ -33,11 +33,13 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export default function GunDetailDialog({
   gun,
   isStaff,
+  showPrice = true,
   open,
   onOpenChange,
 }: {
   gun: Gun | null;
   isStaff: boolean;
+  showPrice?: boolean;
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
@@ -157,10 +159,12 @@ export default function GunDetailDialog({
             <Row label="Fire Mode" value={humanize(current.fireMode)} />
             <Row label="Power Level" value={humanize(current.powerLevel)} />
             <Row label="Restriction" value={<span className="text-nc-magenta">{humanize(current.restriction)}</span>} />
-            <Row
-              label="Price"
-              value={<span className="text-nc-yellow">{current.price.toLocaleString()} €$</span>}
-            />
+            {showPrice && (
+              <Row
+                label="Price"
+                value={<span className="text-nc-yellow">{current.price.toLocaleString()} €$</span>}
+              />
+            )}
             {isStaff && (
               <Row label="Status" value={humanize(current.status)} />
             )}

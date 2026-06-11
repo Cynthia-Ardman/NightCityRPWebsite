@@ -60,6 +60,9 @@ export default function CatalogCyberware() {
   const { data, isLoading } = useListCyberware();
   const { data: me } = useAuthMe();
   const isStaff = !!(me?.isAdmin || me?.isFixer);
+  // Catalog prices are wholesale costs only ripperdoc owners need; hide them
+  // from everyone else (staff still see them for management).
+  const canSeePrice = isStaff || !!me?.isRipperdoc;
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Cyber | null>(null);
@@ -184,7 +187,7 @@ export default function CatalogCyberware() {
                 <th className="text-left p-3 w-[10%]">Slot</th>
                 <th className="text-left p-3 w-[8%]">CWP</th>
                 <th className="text-left p-3">Description</th>
-                <th className="text-right p-3 w-[10%]">Price</th>
+                {canSeePrice && <th className="text-right p-3 w-[10%]">Price</th>}
               </tr>
             </thead>
             <tbody>
@@ -199,10 +202,10 @@ export default function CatalogCyberware() {
                   <td className={`p-3 font-semibold ${slotColor(c.slot)}`}>{c.slot}</td>
                   <td className="p-3">{trimZero(c.cwp)}</td>
                   <td className="p-3 text-muted-foreground" title={c.description ?? ""}>{c.description ?? "—"}</td>
-                  <td className="p-3 text-right text-nc-yellow whitespace-nowrap">{c.price.toLocaleString()} €$</td>
+                  {canSeePrice && <td className="p-3 text-right text-nc-yellow whitespace-nowrap">{c.price.toLocaleString()} €$</td>}
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={5} className="text-center p-8 text-muted-foreground">No results.</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={canSeePrice ? 5 : 4} className="text-center p-8 text-muted-foreground">No results.</td></tr>}
             </tbody>
           </table>
         </Card>
