@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { useListRipperdocs } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Syringe } from "lucide-react";
+import VenueRequestSection from "@/components/catalog/VenueRequestSection";
 
 export default function DirectoryRipperdocs() {
   const { data, isLoading } = useListRipperdocs();
@@ -11,6 +12,14 @@ export default function DirectoryRipperdocs() {
         <h1 className="text-4xl font-display" data-testid="text-ripperdocs-title">RIPPERDOC DIRECTORY</h1>
         <p className="font-mono text-muted-foreground mt-2">Find a ripperdoc for your next upgrade.</p>
       </div>
+      <VenueRequestSection
+        type="ripperdoc"
+        buttonLabel="REQUEST NEW RIPPERDOC"
+        dialogTitle="REQUEST NEW RIPPERDOC"
+        dialogDescription="Tell staff about the clinic you want to open. They'll review and create it on approval."
+        nameLabel="Clinic Name"
+        namePlaceholder="e.g. Vik's Clinic"
+      />
       {isLoading ? <div className="text-nc-cyan font-display animate-pulse">SCANNING...</div> :
         !data?.length ? (
           <div className="py-20 text-center border border-dashed border-border bg-card/30">

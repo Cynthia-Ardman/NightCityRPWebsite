@@ -242,8 +242,6 @@ function SidebarContent() {
         <NavItem href="/ledger" icon={Receipt} label="Ledger" tone="cyan" />
         <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} tone="cyan" />
         <NavItem href="/offers/mine" icon={ShoppingBag} label="My Offers" badge={pendingOffers} tone="cyan" />
-        {user && <NavItem href="/stores" icon={Warehouse} label="My Stores" tone="cyan" />}
-        {user && <NavItem href="/clinics" icon={HeartPulse} label="My Clinics" tone="cyan" />}
         <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" alert={hasIncomingBreach} tone="cyan" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" tone="cyan" />
 
@@ -259,10 +257,12 @@ function SidebarContent() {
         <NavItem href="/catalog/cyberware" icon={Syringe} label="Cyberware" tone="yellow" />
         <NavItem href="/catalog/rent" icon={Building2} label="Property" tone="yellow" />
 
-        {user && (user.isRipperdoc || user.isFixer || user.isCsApprover || user.isAdmin) && (
+        {user && (user.isStoreOwner || user.isRipperdoc || user.isFixer || user.isCsApprover || user.isAdmin) && (
           <div className={`px-4 text-xs font-mono ${NAV_TONES.magenta.heading} mb-2 mt-6 uppercase tracking-widest`}>Management</div>
         )}
         
+        {user?.isStoreOwner && <NavItem href="/stores" icon={Warehouse} label="Manage Stores" tone="magenta" />}
+        {user?.isRipperdoc && <NavItem href="/clinics" icon={HeartPulse} label="Manage Clinics" tone="magenta" />}
         {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Wrench} label="Ripperdoc Console" tone="magenta" />}
         {user && (user.isFixer || user.isAdmin) && <NavItem href="/fixer" icon={Network} label="Fixer Hub" tone="magenta" />}
         {/* Character Archive lists rosters of every sheet; sheet bodies are

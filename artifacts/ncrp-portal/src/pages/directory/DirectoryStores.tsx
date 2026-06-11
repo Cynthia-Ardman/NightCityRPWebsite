@@ -3,6 +3,7 @@ import { useListStores } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Store } from "lucide-react";
+import VenueRequestSection from "@/components/catalog/VenueRequestSection";
 
 export default function DirectoryStores() {
   const { data, isLoading } = useListStores();
@@ -12,6 +13,14 @@ export default function DirectoryStores() {
         <h1 className="text-4xl font-display text-foreground" data-testid="text-stores-title">STORE DIRECTORY</h1>
         <p className="font-mono text-muted-foreground mt-2">All registered storefronts in Night City.</p>
       </div>
+      <VenueRequestSection
+        type="store"
+        buttonLabel="REQUEST NEW STORE"
+        dialogTitle="REQUEST NEW STORE"
+        dialogDescription="Tell staff about the storefront you want to open. They'll review and create it on approval."
+        nameLabel="Store Name"
+        namePlaceholder="e.g. Watson Arms"
+      />
       {isLoading ? (
         <div className="text-nc-cyan font-display animate-pulse">SCANNING...</div>
       ) : !data?.length ? (
