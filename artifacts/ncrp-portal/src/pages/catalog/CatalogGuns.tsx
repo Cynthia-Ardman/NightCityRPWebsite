@@ -55,7 +55,9 @@ export default function CatalogGuns() {
       const set = new Set<string>();
       for (const r of rows) {
         const v = r[key];
-        if (typeof v === "string" && v.trim()) set.add(v);
+        // Dedupe on the humanized label so casing/whitespace variants
+        // (e.g. "revolver" vs "Revolver") collapse into one filter option.
+        if (typeof v === "string" && v.trim()) set.add(humanize(v));
       }
       out[key as string] = Array.from(set).sort((a, b) => a.localeCompare(b));
     }
@@ -65,7 +67,7 @@ export default function CatalogGuns() {
   const filtered = rows.filter((g) => {
     for (const { key } of FILTER_COLUMNS) {
       const want = filters[key as string];
-      if (want && want !== ALL && g[key] !== want) return false;
+      if (want && want !== ALL && humanize(g[key] as string | null) !== want) return false;
     }
     if (!q) return true;
     const needle = q.toLowerCase();
@@ -155,7 +157,7 @@ export default function CatalogGuns() {
                   <SelectItem value={ALL}>All</SelectItem>
                   {options[key as string].map((opt) => (
                     <SelectItem key={opt} value={opt}>
-                      {humanize(opt)}
+                      {opt}
                     </SelectItem>
                   ))}
                 </SelectContent>
