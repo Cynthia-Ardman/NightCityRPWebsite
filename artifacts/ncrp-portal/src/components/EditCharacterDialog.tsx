@@ -31,7 +31,7 @@ import CyberwareEditor, {
   reconcileCyberware,
 } from "@/components/CyberwareEditor";
 import StaffGrantSections from "@/components/StaffGrantSections";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -66,7 +66,7 @@ export default function EditCharacterDialog({
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isAdmin === true || me.isFixer === true);
 
   const [name, setName] = useState(character.name);

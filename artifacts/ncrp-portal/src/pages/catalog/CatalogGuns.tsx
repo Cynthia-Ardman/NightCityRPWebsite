@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
 import GunDetailDialog from "@/components/catalog/GunDetailDialog";
 import GunCreateDialog from "@/components/catalog/GunCreateDialog";
@@ -64,7 +64,7 @@ const FILTER_COLUMNS: Array<{
 
 export default function CatalogGuns() {
   const { data, isLoading } = useListGuns();
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!(me?.isAdmin || me?.isFixer);
   // Catalog prices are wholesale costs only store owners need; hide them
   // from everyone else (staff still see them for management).

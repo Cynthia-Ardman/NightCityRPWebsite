@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Syringe, Search, Activity, Plus, Trash2, Stethoscope, Wallet } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Redirect } from "wouter";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import CyberwareActionDialog from "@/components/CyberwareActionDialog";
@@ -56,7 +56,7 @@ const BAND_COLOR: Record<string, string> = {
 // medical endpoints, this page just hides the link/route for everyone
 // else so we don't surface a 403 wall to random players.
 export default function RipperdocConsole() {
-  const { data: me, isLoading: meLoading } = useAuthMe();
+  const { data: me, isLoading: meLoading } = useEffectiveMe();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);

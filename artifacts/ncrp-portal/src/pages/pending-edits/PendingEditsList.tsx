@@ -10,7 +10,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ShieldAlert, CheckCircle2, XCircle, Clock, MessageSquareWarning } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
 
@@ -143,7 +143,7 @@ export default function PendingEditsList({
   embedded = false,
   activeOnly = false,
 }: { embedded?: boolean; activeOnly?: boolean } = {}) {
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   return isReviewer ? (
     <ReviewerEditsList embedded={embedded} activeOnly={activeOnly} />

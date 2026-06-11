@@ -13,7 +13,7 @@ import {
   getListMySheetsQueryKey,
   getGetSheetQueryKey,
 } from "@workspace/api-client-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -122,7 +122,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const { toast } = useToast();
   const init = (initialSheet?.data ?? {}) as Record<string, any>;
 
-  const { data: me, isLoading: meLoading } = useAuthMe();
+  const { data: me, isLoading: meLoading } = useEffectiveMe();
   const isFixer = !!(me?.isFixer || me?.isAdmin);
   // A pending sheet is being edited in place (by its owner or a reviewer)
   // while it is still in review — no re-submit, just save changes.

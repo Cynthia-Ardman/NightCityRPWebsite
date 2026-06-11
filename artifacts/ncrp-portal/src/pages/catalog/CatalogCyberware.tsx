@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import CyberwareDetailDialog, { type Cyber } from "@/components/catalog/CyberwareDetailDialog";
 import CyberwareCreateDialog from "@/components/catalog/CyberwareCreateDialog";
 
@@ -58,7 +58,7 @@ function slotColor(slot: string): string {
 
 export default function CatalogCyberware() {
   const { data, isLoading } = useListCyberware();
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isStaff = !!(me?.isAdmin || me?.isFixer);
   // Catalog prices are wholesale costs only ripperdoc owners need; hide them
   // from everyone else (staff still see them for management).

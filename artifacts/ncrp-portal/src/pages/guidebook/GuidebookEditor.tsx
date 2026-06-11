@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 
 function sourcesToText(sources: GuidebookSource[]): string {
@@ -52,7 +52,7 @@ export default function GuidebookEditor() {
   const params = useParams<{ id?: string }>();
   const editingId = params.id ? Number(params.id) : null;
   const isEdit = editingId !== null;
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isAdmin = !!me?.isAdmin;
   const { toast } = useToast();
   const qc = useQueryClient();

@@ -59,7 +59,7 @@ import {
 } from "@/components/ui/dialog";
 import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -102,7 +102,7 @@ function MiscRequestsTab() {
   // Completed/Denied tabs. We only fetch the active bucket here.
   const { data: active, isLoading } = useListCustomRequests({ bucket: "active" });
   const { data: unseenIds } = useGetReviewUnseenIds();
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const [approveTarget, setApproveTarget] = useState<CustomRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CustomRequest | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<CustomRequest | null>(null);
@@ -1161,7 +1161,7 @@ function classifyEditOrSheet(status: string): TerminalDecision | null {
 // Aggregates terminal items across the four queues, gated by role visibility so
 // we never fetch (or 403 on) a queue the viewer can't see.
 function useTerminalItems() {
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const canMisc = !!(me?.isAdmin || me?.isFixer);
   const canEdits = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   const canSheets = !!(me?.isAdmin || me?.isCsApprover);
@@ -1469,7 +1469,7 @@ function TabCount({ n }: { n: number }) {
 function ReadyToApplyPanel() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const isAdmin = !!me?.isAdmin;
   const { readyToApply, requestsById } = useTerminalItems();
   const [applyingAll, setApplyingAll] = useState(false);
@@ -1614,7 +1614,7 @@ function ReadyToApplyPanel() {
 }
 
 export default function PendingRequests() {
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const canMisc = !!(me?.isAdmin || me?.isFixer);
   // Archivists approve mission proposals, which now live in the Misc tab, so
   // they must be able to reach it even though they don't vote on custom requests.

@@ -11,7 +11,7 @@ import {
   getGetDashboardSummaryQueryKey,
   getGetReviewUnseenCountsQueryKey,
 } from "@workspace/api-client-react";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,7 +43,7 @@ export default function SheetDetail() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { data: sheet, isLoading } = useGetSheet(sheetId);
-  const { data: me } = useAuthMe();
+  const { data: me } = useEffectiveMe();
   const { data: catalog } = useListCyberware();
   const { toast } = useToast();
   const [note, setNote] = useState("");

@@ -46,7 +46,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch as UiSwitch } from "@/components/ui/switch";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
-import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { missionStatusClass, missionStatusLabel } from "@/lib/missionStatus";
 
 export default function CharacterDetail() {
@@ -54,7 +54,7 @@ export default function CharacterDetail() {
   const charId = Number(id);
 
   const { data: char, isLoading: charLoading } = useGetCharacter(charId);
-  const me = useAuthMe();
+  const me = useEffectiveMe();
   const isAdmin = !!me.data?.isAdmin;
   const [editOpen, setEditOpen] = useState(false);
   // 204 means no pending edit; the generated hook returns undefined data in
@@ -527,7 +527,7 @@ function CategoryPaymentHistory({
 function CyberwareTab({ characterId }: { characterId: number }) {
   const { data: char, isLoading: charLoading } = useGetCharacter(characterId);
   const { data: items, isLoading: itemsLoading } = useGetCharacterInventory(characterId);
-  const me = useAuthMe();
+  const me = useEffectiveMe();
 
   if (charLoading || itemsLoading) {
     return <div className="text-nc-cyan font-mono animate-pulse">Scanning chrome subnet...</div>;
@@ -769,7 +769,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
   const { data: items, isLoading } = useGetCharacterInventory(characterId);
   const { data: char } = useGetCharacter(characterId);
-  const me = useAuthMe();
+  const me = useEffectiveMe();
   // The owner of this character (or an admin) can request a custom item for it —
   // this reuses the unified request pipeline (routed to fixers), preselecting
   // this PC and materializing into inventory on approval.
@@ -1377,7 +1377,7 @@ function TransferItemDialog({
 
 function HousingCard({ characterId, characterName }: { characterId: number; characterName: string }) {
   const qc = useQueryClient();
-  const me = useAuthMe();
+  const me = useEffectiveMe();
   const isStaff = !!me.data?.isAdmin || !!me.data?.isFixer;
   const { data: leases, isLoading } = useGetCharacterHousing(characterId);
   const invalidate = () => qc.invalidateQueries({ queryKey: getGetCharacterHousingQueryKey(characterId) });
