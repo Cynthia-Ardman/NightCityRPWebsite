@@ -19,20 +19,47 @@ import GunDetailDialog from "@/components/catalog/GunDetailDialog";
 import GunCreateDialog from "@/components/catalog/GunCreateDialog";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import type { Gun } from "@/components/catalog/gunTypes";
-import { humanize } from "@/components/catalog/gunTypes";
+import {
+  canonicalLabel,
+  humanize,
+  FIRE_MODES,
+  GUN_CATEGORIES,
+  GUN_POWER_LEVELS,
+  GUN_POWER_LEVEL_ALIASES,
+  GUN_RESTRICTIONS,
+  GUN_WEAPON_TYPES,
+  GUN_WEAPON_TYPE_ALIASES,
+} from "@/components/catalog/gunTypes";
 
 const ALL = "__all__";
 
 // Single-select filters surfaced as dropdowns. Status is intentionally not
 // here — staff manage drafts per-weapon, and regular players never see draft
-// rows in the first place.
-const FILTER_COLUMNS: Array<{ key: keyof Gun; label: string }> = [
-  { key: "category", label: "Category" },
+// rows in the first place. The optional presets/aliases let us collapse
+// synonyms ("smg"/"submachine_gun") and abbreviations ("Low"/"L") into one
+// canonical filter option instead of splitting near-duplicate categories.
+const FILTER_COLUMNS: Array<{
+  key: keyof Gun;
+  label: string;
+  options?: readonly string[];
+  aliases?: Record<string, string>;
+}> = [
+  { key: "category", label: "Category", options: GUN_CATEGORIES },
   { key: "manufacturer", label: "Manufacturer" },
-  { key: "weaponType", label: "Weapon Type" },
-  { key: "fireMode", label: "Fire Mode" },
-  { key: "powerLevel", label: "Power Level" },
-  { key: "restriction", label: "Restriction" },
+  {
+    key: "weaponType",
+    label: "Weapon Type",
+    options: GUN_WEAPON_TYPES,
+    aliases: GUN_WEAPON_TYPE_ALIASES,
+  },
+  { key: "fireMode", label: "Fire Mode", options: FIRE_MODES },
+  {
+    key: "powerLevel",
+    label: "Power Level",
+    options: GUN_POWER_LEVELS,
+    aliases: GUN_POWER_LEVEL_ALIASES,
+  },
+  { key: "restriction", label: "Restriction", options: GUN_RESTRICTIONS },
 ];
 
 export default function CatalogGuns() {
@@ -51,13 +78,14 @@ export default function CatalogGuns() {
 
   const options = useMemo(() => {
     const out: Record<string, string[]> = {};
-    for (const { key } of FILTER_COLUMNS) {
+    for (const { key, options: opts, aliases } of FILTER_COLUMNS) {
       const set = new Set<string>();
       for (const r of rows) {
         const v = r[key];
-        // Dedupe on the humanized label so casing/whitespace variants
-        // (e.g. "revolver" vs "Revolver") collapse into one filter option.
-        if (typeof v === "string" && v.trim()) set.add(humanize(v));
+        // Dedupe on the canonical label so casing/whitespace AND synonym/
+        // abbreviation variants ("revolver"/"Revolver", "smg"/"submachine_gun")
+        // collapse into one filter option.
+        if (typeof v === "string" && v.trim()) set.add(canonicalLabel(v, opts, aliases));
       }
       out[key as string] = Array.from(set).sort((a, b) => a.localeCompare(b));
     }
@@ -65,9 +93,10 @@ export default function CatalogGuns() {
   }, [rows]);
 
   const filtered = rows.filter((g) => {
-    for (const { key } of FILTER_COLUMNS) {
+    for (const { key, options: opts, aliases } of FILTER_COLUMNS) {
       const want = filters[key as string];
-      if (want && want !== ALL && humanize(g[key] as string | null) !== want) return false;
+      if (want && want !== ALL && canonicalLabel(g[key] as string | null, opts, aliases) !== want)
+        return false;
     }
     if (!q) return true;
     const needle = q.toLowerCase();
@@ -206,11 +235,17 @@ export default function CatalogGuns() {
                   <td className="p-3 text-muted-foreground">
                     {humanize(g.manufacturer)}
                   </td>
-                  <td className="p-3">{humanize(g.category)}</td>
-                  <td className="p-3">{humanize(g.weaponType)}</td>
-                  <td className="p-3">{humanize(g.fireMode)}</td>
-                  <td className="p-3">{humanize(g.powerLevel)}</td>
-                  <td className="p-3 text-nc-magenta">{humanize(g.restriction)}</td>
+                  <td className="p-3">{canonicalLabel(g.category, GUN_CATEGORIES)}</td>
+                  <td className="p-3">
+                    {canonicalLabel(g.weaponType, GUN_WEAPON_TYPES, GUN_WEAPON_TYPE_ALIASES)}
+                  </td>
+                  <td className="p-3">{canonicalLabel(g.fireMode, FIRE_MODES)}</td>
+                  <td className="p-3">
+                    {canonicalLabel(g.powerLevel, GUN_POWER_LEVELS, GUN_POWER_LEVEL_ALIASES)}
+                  </td>
+                  <td className="p-3 text-nc-magenta">
+                    {canonicalLabel(g.restriction, GUN_RESTRICTIONS)}
+                  </td>
                   {canSeePrice && (
                     <td className="p-3 text-right text-nc-yellow">
                       {g.price.toLocaleString()} €$

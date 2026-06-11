@@ -17,6 +17,14 @@ import {
   formFromGun,
   formToPatch,
   humanize,
+  canonicalLabel,
+  FIRE_MODES,
+  GUN_CATEGORIES,
+  GUN_POWER_LEVELS,
+  GUN_POWER_LEVEL_ALIASES,
+  GUN_RESTRICTIONS,
+  GUN_WEAPON_TYPES,
+  GUN_WEAPON_TYPE_ALIASES,
 } from "./gunTypes";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -154,11 +162,24 @@ export default function GunDetailDialog({
               />
             )}
             <Row label="Manufacturer" value={humanize(current.manufacturer)} />
-            <Row label="Category" value={humanize(current.category)} />
-            <Row label="Weapon Type" value={humanize(current.weaponType)} />
-            <Row label="Fire Mode" value={humanize(current.fireMode)} />
-            <Row label="Power Level" value={humanize(current.powerLevel)} />
-            <Row label="Restriction" value={<span className="text-nc-magenta">{humanize(current.restriction)}</span>} />
+            <Row label="Category" value={canonicalLabel(current.category, GUN_CATEGORIES)} />
+            <Row
+              label="Weapon Type"
+              value={canonicalLabel(current.weaponType, GUN_WEAPON_TYPES, GUN_WEAPON_TYPE_ALIASES)}
+            />
+            <Row label="Fire Mode" value={canonicalLabel(current.fireMode, FIRE_MODES)} />
+            <Row
+              label="Power Level"
+              value={canonicalLabel(current.powerLevel, GUN_POWER_LEVELS, GUN_POWER_LEVEL_ALIASES)}
+            />
+            <Row
+              label="Restriction"
+              value={
+                <span className="text-nc-magenta">
+                  {canonicalLabel(current.restriction, GUN_RESTRICTIONS)}
+                </span>
+              }
+            />
             {showPrice && (
               <Row
                 label="Price"

@@ -1,3 +1,5 @@
+import { matchOption } from "@/components/SelectOrCustom";
+
 export type Gun = {
   id: number;
   name: string;
@@ -36,7 +38,8 @@ export const GUN_WEAPON_TYPES = [
   "LMG",
   "HMG",
 ] as const;
-export const GUN_POWER_LEVELS = ["Low", "Medium", "High"] as const;
+// Stored as L / M / H to match the existing catalog convention.
+export const GUN_POWER_LEVELS = ["L", "M", "H"] as const;
 export const GUN_RESTRICTIONS = ["Basic", "Controlled", "Restricted"] as const;
 
 // Alias maps keyed on the canonical (lowercased, separator-stripped) form of a
@@ -50,10 +53,10 @@ export const GUN_WEAPON_TYPE_ALIASES: Record<string, string> = {
   sniperrifle: "Sniper",
 };
 export const GUN_POWER_LEVEL_ALIASES: Record<string, string> = {
-  l: "Low",
-  m: "Medium",
-  h: "High",
-  med: "Medium",
+  low: "L",
+  medium: "M",
+  med: "M",
+  high: "H",
 };
 
 // Catalog imports left raw values like "heavy_machine_gun" / "POWER" /
@@ -69,6 +72,20 @@ export function humanize(v: string | null | undefined): string {
     .split(/\s+/)
     .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
     .join(" ");
+}
+
+// Collapse a stored value to its canonical preset label, so synonyms and
+// abbreviations ("smg"/"submachine_gun", "Low"/"L") render AND filter as one
+// option instead of splitting into near-duplicate categories. Falls back to
+// humanize() for genuine off-list values that match no preset.
+export function canonicalLabel(
+  v: string | null | undefined,
+  options?: readonly string[],
+  aliases?: Record<string, string>,
+): string {
+  if (!v || !String(v).trim()) return "—";
+  const matched = options ? matchOption(String(v), options, aliases) : null;
+  return matched ?? humanize(v);
 }
 
 export const GUN_STATUSES = ["draft", "live", "retired"] as const;
