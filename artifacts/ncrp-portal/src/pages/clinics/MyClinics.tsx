@@ -21,7 +21,8 @@ export default function MyClinics() {
         !data?.length ? (
           <div className="py-20 text-center border border-dashed border-border bg-card/30">
             <Syringe className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <h3 className="font-display text-xl">NO CLINICS ASSIGNED</h3>
+            <h3 className="font-display text-xl">NO CLINICS YET</h3>
+            <p className="font-mono text-sm text-muted-foreground mt-2">Use "Request New Ripperdoc" above to apply for one. Staff will review and create it on approval.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
