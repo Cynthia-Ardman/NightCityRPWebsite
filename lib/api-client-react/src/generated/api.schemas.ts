@@ -2952,6 +2952,7 @@ export const CustomRequestType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  item: 'item',
   store: 'store',
   ripperdoc: 'ripperdoc',
   stock_cost: 'stock_cost',
@@ -3129,6 +3130,7 @@ export const CustomRequestInputType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  item: 'item',
   store: 'store',
   ripperdoc: 'ripperdoc',
 } as const;
@@ -5822,6 +5824,7 @@ export const ListMyCustomRequestsType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  item: 'item',
   store: 'store',
   ripperdoc: 'ripperdoc',
   employee_invite: 'employee_invite',

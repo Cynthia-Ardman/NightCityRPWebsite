@@ -13,6 +13,7 @@ export const ListMyCustomRequestsType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  item: 'item',
   store: 'store',
   ripperdoc: 'ripperdoc',
   employee_invite: 'employee_invite',

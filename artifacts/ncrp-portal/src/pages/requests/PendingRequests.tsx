@@ -57,7 +57,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
@@ -71,6 +71,8 @@ const TYPE_META: Record<
   property: { label: "PROPERTY", Icon: Home },
   gun: { label: "GUN", Icon: Crosshair },
   cyberware: { label: "CYBERWARE", Icon: Cpu },
+  // Freeform off-catalog item (anything that is not a gun or cyberware).
+  item: { label: "ITEM", Icon: Package },
   store: { label: "STORE", Icon: Store },
   ripperdoc: { label: "RIPPERDOC", Icon: Syringe },
   // Owner-requested custom venue stock — fixer-voted to set its cost, then

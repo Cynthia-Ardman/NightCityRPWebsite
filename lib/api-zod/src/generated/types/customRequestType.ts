@@ -13,6 +13,7 @@ export const CustomRequestType = {
   property: 'property',
   gun: 'gun',
   cyberware: 'cyberware',
+  item: 'item',
   store: 'store',
   ripperdoc: 'ripperdoc',
   stock_cost: 'stock_cost',

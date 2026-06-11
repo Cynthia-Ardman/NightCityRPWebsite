@@ -8433,7 +8433,7 @@ export const ListCustomRequestsQueryParams = zod.object({
 
 export const ListCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8461,7 +8461,7 @@ export const ListCustomRequestsResponse = zod.array(ListCustomRequestsResponseIt
  * @summary Submit a custom request for one of the signed-in user's characters.
  */
 export const SubmitCustomRequestBody = zod.object({
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc']),
   "characterId": zod.number(),
   "title": zod.string(),
   "description": zod.string().optional().describe('Required for store\/ripperdoc requests.'),
@@ -8476,12 +8476,12 @@ export const SubmitCustomRequestBody = zod.object({
  * @summary The signed-in user's own custom requests.
  */
 export const ListMyCustomRequestsQueryParams = zod.object({
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'employee_invite', 'venue_stock']).optional()
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'employee_invite', 'venue_stock']).optional()
 })
 
 export const ListMyCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8539,7 +8539,7 @@ export const VoteCustomRequestBody = zod.object({
 
 export const VoteCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8596,7 +8596,7 @@ export const OverrideCustomRequestBody = zod.object({
 
 export const OverrideCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8636,7 +8636,7 @@ export const RequestChangesCustomRequestBody = zod.object({
 
 export const RequestChangesCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8668,7 +8668,7 @@ export const ResubmitCustomRequestParams = zod.object({
 
 export const ResubmitCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8708,7 +8708,7 @@ export const UpdateCustomRequestBody = zod.object({
 
 export const UpdateCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8745,7 +8745,7 @@ export const DecideStockCostRequestBody = zod.object({
 
 export const DecideStockCostRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8781,7 +8781,7 @@ export const DecideEmployeeInviteBody = zod.object({
 
 export const DecideEmployeeInviteResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -8817,7 +8817,7 @@ export const DecideMissionParticipationBody = zod.object({
 
 export const DecideMissionParticipationResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),

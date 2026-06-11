@@ -50,6 +50,7 @@ type HistoryRow = {
     | "Property"
     | "Gun"
     | "Cyberware"
+    | "Item"
     | "Store"
     | "Ripperdoc"
     | "Stock"
@@ -94,6 +95,7 @@ const FIXER_VOTED_TYPES = new Set<CustomRequest["type"]>([
   "property",
   "gun",
   "cyberware",
+  "item",
   "store",
   "ripperdoc",
   "venue_stock",
@@ -103,6 +105,7 @@ const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
   property: "Property",
   gun: "Gun",
   cyberware: "Cyberware",
+  item: "Item",
   store: "Store",
   ripperdoc: "Ripperdoc",
   stock_cost: "Stock",
@@ -118,6 +121,7 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "Property",
   "Gun",
   "Cyberware",
+  "Item",
   "Store",
   "Ripperdoc",
   "Stock",
@@ -139,6 +143,8 @@ function categoryColor(category: HistoryRow["category"]): string {
       return "text-nc-magenta";
     case "Cyberware":
       return "text-nc-yellow";
+    case "Item":
+      return "text-nc-magenta";
     case "Store":
       return "text-nc-cyan";
     case "Ripperdoc":

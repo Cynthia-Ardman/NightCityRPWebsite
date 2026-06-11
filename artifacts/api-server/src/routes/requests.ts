@@ -39,7 +39,7 @@ import {
 // approving one auto-applies it (creates a housing lease or an inventory item).
 // See lib/db schema `custom_requests` for the data model and idempotency marker.
 
-const REQUEST_TYPES = ["property", "gun", "cyberware", "store", "ripperdoc"] as const;
+const REQUEST_TYPES = ["property", "gun", "cyberware", "store", "ripperdoc", "item"] as const;
 type RequestType = (typeof REQUEST_TYPES)[number];
 
 // Custom-request types that NEVER appear in the staff triage queue: `stock_cost`
@@ -68,6 +68,8 @@ function typeLabelFor(type: string): string {
       return "custom gun";
     case "cyberware":
       return "custom cyberware";
+    case "item":
+      return "custom item";
     case "store":
       return "new store";
     case "ripperdoc":
@@ -106,7 +108,7 @@ function clampPct(raw: unknown): number {
 // housing, guns/cyberware are inventory.
 function auditCategoryFor(type: string): "housing" | "shop" | "inventory" {
   if (type === "property") return "housing";
-  if (type === "gun" || type === "cyberware") return "inventory";
+  if (type === "gun" || type === "cyberware" || type === "item") return "inventory";
   // store / ripperdoc / stock_cost / venue_stock / employee_invite all live
   // under the shop umbrella.
   return "shop";
@@ -268,6 +270,23 @@ async function materializeRequest(
       .returning();
     return { ok: { appliedRef: `inventory:${item.instanceUuid}`, summary: `Custom gun approved: ${reqRow.title}` } };
   }
+  if (reqRow.type === "item") {
+    // Freeform off-catalog item (anything that is not a gun or cyberware).
+    // No mechanical params; materializes as a generic "misc" inventory item
+    // owned by the requesting character, mirroring the gun flow.
+    const [item] = await tx
+      .insert(inventoryItems)
+      .values({
+        characterId: reqRow.characterId,
+        ownerId: c.ownerId,
+        name: reqRow.title,
+        category: "misc",
+        quantity: 1,
+        notes: reqRow.description ?? null,
+      })
+      .returning();
+    return { ok: { appliedRef: `inventory:${item.instanceUuid}`, summary: `Custom item approved: ${reqRow.title}` } };
+  }
   if (reqRow.type === "cyberware") {
     const cwp = Number(params.cwp);
     if (!Number.isFinite(cwp) || cwp < 0) {
@@ -390,7 +409,7 @@ async function afterApprove(
     actorAvatarUrl: u.avatarUrl,
     message: `${c.name}: ${summary}${via === "override" ? " (admin override)" : ""}`,
   });
-  if (reqRow.type === "gun" || reqRow.type === "cyberware") {
+  if (reqRow.type === "gun" || reqRow.type === "cyberware" || reqRow.type === "item") {
     await recordInventoryEvent({
       instanceUuid: appliedRef.replace("inventory:", ""),
       kind: "created",

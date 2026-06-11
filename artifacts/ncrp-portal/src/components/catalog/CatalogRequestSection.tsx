@@ -34,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 import SingleImageUpload from "@/components/SingleImageUpload";
 
-type RequestType = "property" | "gun" | "cyberware";
+type RequestType = "property" | "gun" | "cyberware" | "item";
 
 const CUSTOM_SOURCE = "__custom__";
 

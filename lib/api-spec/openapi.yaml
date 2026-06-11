@@ -3817,7 +3817,7 @@ paths:
         - in: query
           name: type
           required: false
-          schema: { type: string, enum: [property, gun, cyberware, store, ripperdoc, employee_invite, venue_stock] }
+          schema: { type: string, enum: [property, gun, cyberware, item, store, ripperdoc, employee_invite, venue_stock] }
       responses:
         "200":
           description: Requests
@@ -6935,7 +6935,7 @@ components:
       required: [id, type, characterId, characterName, requestedById, title, status, createdAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc, stock_cost, employee_invite, venue_stock, mission_participation] }
+        type: { type: string, enum: [property, gun, cyberware, item, store, ripperdoc, stock_cost, employee_invite, venue_stock, mission_participation] }
         characterId: { type: integer }
         characterName: { type: string }
         requestedById: { type: string }
@@ -6996,7 +6996,7 @@ components:
       type: object
       required: [type, characterId, title]
       properties:
-        type: { type: string, enum: [property, gun, cyberware, store, ripperdoc] }
+        type: { type: string, enum: [property, gun, cyberware, item, store, ripperdoc] }
         characterId: { type: integer }
         title: { type: string }
         description: { type: string, description: "Required for store/ripperdoc requests." }
