@@ -669,27 +669,6 @@ function CyberwareTab({ characterId }: { characterId: number }) {
         </Card>
       )}
 
-      {canRequestCyberware && (
-        <Card className="rounded-none border-border bg-card/50">
-          <CardHeader>
-            <CardTitle className="font-display tracking-widest flex items-center gap-2">
-              <Package className="w-4 h-4 text-nc-magenta" /> REQUEST CUSTOM ITEM
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CatalogRequestSection
-              type="item"
-              presetCharacterId={characterId}
-              buttonLabel="REQUEST CUSTOM ITEM"
-              dialogTitle="Request Custom Item"
-              dialogDescription={`Ask staff to add any item (not a gun or cyberware) to ${char.name}.`}
-              titleLabel="Item"
-              titlePlaceholder="e.g. Encrypted Agent, Med Kit, Vehicle Keys"
-            />
-          </CardContent>
-        </Card>
-      )}
-
       {cyberwareSheet ? (
         <Card className="rounded-none border-border bg-card/50">
           <CardHeader>
@@ -789,6 +768,12 @@ const KEEP_CATEGORY = "__keep__";
 function InventoryTab({ characterId }: { characterId: number }) {
   const qc = useQueryClient();
   const { data: items, isLoading } = useGetCharacterInventory(characterId);
+  const { data: char } = useGetCharacter(characterId);
+  const me = useAuthMe();
+  // The owner of this character (or an admin) can request a custom item for it —
+  // this reuses the unified request pipeline (routed to fixers), preselecting
+  // this PC and materializing into inventory on approval.
+  const canRequestItem = !!me.data?.isAdmin || (!!char?.ownerId && char.ownerId === me.data?.id);
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(characterId) });
     qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
@@ -1116,6 +1101,27 @@ function InventoryTab({ characterId }: { characterId: number }) {
             invalidate();
           }}
         />
+      )}
+
+      {canRequestItem && (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest flex items-center gap-2">
+              <Package className="w-4 h-4 text-nc-magenta" /> REQUEST CUSTOM ITEM
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CatalogRequestSection
+              type="item"
+              presetCharacterId={characterId}
+              buttonLabel="REQUEST CUSTOM ITEM"
+              dialogTitle="Request Custom Item"
+              dialogDescription={`Ask staff to add any item (not a gun or cyberware) to ${char?.name ?? "this character"}.`}
+              titleLabel="Item"
+              titlePlaceholder="e.g. Encrypted Agent, Med Kit, Vehicle Keys"
+            />
+          </CardContent>
+        </Card>
       )}
     </div>
   );
