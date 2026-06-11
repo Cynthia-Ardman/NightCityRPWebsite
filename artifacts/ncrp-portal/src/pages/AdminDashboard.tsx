@@ -177,6 +177,7 @@ const AUDIT_SUBTABS: Array<{ key: string; label: string; categories: string[] }>
   { key: "characters", label: "Characters", categories: ["character"] },
   { key: "sheets", label: "Sheets", categories: ["sheet"] },
   { key: "shop_attend", label: "Shop & Attend", categories: ["shop", "attendance"] },
+  { key: "mission", label: "Missions", categories: ["mission"] },
   { key: "admin", label: "Admin", categories: ["admin"] },
 ];
 
@@ -207,7 +208,7 @@ export function AuditLogTab() {
       </CardHeader>
       <CardContent className="space-y-4">
         <Tabs value={sub} onValueChange={setSub}>
-          <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-3 md:grid-cols-7 w-full">
+          <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-3 md:grid-cols-8 w-full">
             {AUDIT_SUBTABS.map((t) => (
               <TabsTrigger
                 key={t.key}

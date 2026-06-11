@@ -17,6 +17,7 @@ import {
 import { logger } from "./logger";
 import { recordAudit } from "./audit";
 import { patchBalance } from "./unbelievaboat";
+import { recordSettledWalletMovement } from "./economy";
 import {
   postToChannel,
   sendDirectMessage,
@@ -2060,6 +2061,30 @@ export async function payMissionPlayers(
         .where(eq(missionAssignments.id, a.id));
       result.paid++;
       paidLines.push(`<@${discordId}>${username ? ` (${username})` : ""}: +${amount.toLocaleString()} eddies`);
+      // The eddies already moved in UnbelievaBoat above (patchBalance). Mission
+      // pay deliberately bypasses applyWalletDelta (it's gated on mission live
+      // mode, not the economy kill-switch), so without this the payout would
+      // only ever surface in the website ledger as a generic 'reconcile' entry.
+      // Record a settled 'mission' ledger row so it shows in the player's
+      // wallet/Ledger history as a mission payout. Best-effort: a failure here
+      // must not unwind a payout that already happened — the reconcile cron will
+      // fold the UB delta in later if this misses.
+      try {
+        await recordSettledWalletMovement({
+          userId: a.userId,
+          amount,
+          ubTotalAfter: balance.total,
+          source: "mission",
+          kind: "mission",
+          memo: `Mission payout: ${mission.title}`,
+          characterId: a.characterId ?? null,
+          relatedEntityType: "mission",
+          relatedEntityId: missionId,
+          idempotencyKey: `mission_payout:${a.id}`,
+        });
+      } catch (err) {
+        logger.warn({ err, missionId, assignmentId: a.id }, "mission payout ledger record failed (reconcile will fold the UB delta)");
+      }
       void notifyMissionPayout({
         discordId,
         amount,

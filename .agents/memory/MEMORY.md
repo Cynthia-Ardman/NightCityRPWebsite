@@ -116,3 +116,4 @@
 - [Cyberware category canon](cyberware-category-canon.md) — every cyberware-category predicate (cap gate, violator report, storage) must use lower(trim(category)) or whitespace/case variants bypass the 1-per-slot cap.
 - [View-as role gating](view-as-gating.md) — gate staff UI/intel on useEffectiveMe, not useAuthMe, or admin "View as player" leaks staff content on shared pages.
 - [Economy disabled symptom](economy-disabled-symptom.md) — dashboard income WORK/SLUT "command failed" = economy_enabled kill switch OFF (or live-mode TEST); toggles live in Jobs tab + Live Mode switchboard.
+- [Settled wallet movement](settled-wallet-movement.md) — mission pay hits UB directly (NOT applyWalletDelta); record a settled ledger row + advance lastSyncedUbBalance so reconcile won't double-count; leave baseline null if unseeded.

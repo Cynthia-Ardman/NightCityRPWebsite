@@ -252,6 +252,110 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput): Promise<Wa
   return { ok: true, status: "synced", balance: proposed, previousBalance: prev, proposedBalance: proposed, ledgerId };
 }
 
+export interface SettledWalletMovementInput {
+  /** The website user whose wallet moved. */
+  userId: string;
+  /** Signed delta in eddies that was ALREADY applied to UB cash. */
+  amount: number;
+  /** The UB total reported immediately after the (already-completed) UB call. */
+  ubTotalAfter: number;
+  source: WalletSource;
+  kind: string;
+  memo?: string | null;
+  characterId?: number | null;
+  relatedEntityType?: string | null;
+  relatedEntityId?: number | null;
+  /** Idempotency key — a duplicate is a no-op that returns the existing row id. */
+  idempotencyKey?: string | null;
+}
+
+/**
+ * Record an ALREADY-SETTLED player wallet movement into the website ledger and
+ * balance, idempotently. Use this for money paths that call UnbelievaBoat
+ * DIRECTLY (e.g. mission payouts) and therefore bypass applyWalletDelta — those
+ * paths are gated independently (mission live mode, not the economy kill-switch)
+ * and would otherwise only ever surface in the website wallet as a generic
+ * 'reconcile' entry on the next reconcile cycle.
+ *
+ * Unlike applyWalletDelta this makes NO UB call (the caller already did) — it
+ * only writes the ledger row + advances the website balance. It advances
+ * lastSyncedUbBalance to the post-call UB total so the reconcile cron does not
+ * double-count this same delta. When the wallet has never been seeded
+ * (lastSyncedUbBalance is null) it leaves the baseline null so the first
+ * reconcile still seeds the full UB total (which already includes this payout).
+ *
+ * Returns the ledger row id, or null when the user no longer exists.
+ */
+export async function recordSettledWalletMovement(
+  input: SettledWalletMovementInput,
+): Promise<number | null> {
+  return await db.transaction(async (tx) => {
+    if (input.idempotencyKey) {
+      const [dup] = await tx
+        .select({ id: walletTransactions.id })
+        .from(walletTransactions)
+        .where(eq(walletTransactions.idempotencyKey, input.idempotencyKey));
+      if (dup) return dup.id;
+    }
+    // Lock the user row so the read-modify-write of walletBalance is atomic
+    // against concurrent applyWalletDelta / reconcile writers.
+    const [u] = await tx
+      .select({ balance: users.walletBalance, lastSyncedUbBalance: users.lastSyncedUbBalance })
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .for("update");
+    if (!u) return null;
+    const prev = u.balance ?? 0;
+    const next = prev + input.amount;
+    const inserted = await tx
+      .insert(walletTransactions)
+      .values({
+        characterId: input.characterId ?? null,
+        userId: input.userId,
+        amount: input.amount,
+        kind: input.kind,
+        memo: input.memo ?? null,
+        source: input.source,
+        syncStatus: "synced",
+        idempotencyKey: input.idempotencyKey ?? null,
+        relatedEntityType: input.relatedEntityType ?? null,
+        relatedEntityId: input.relatedEntityId ?? null,
+        previousBalance: prev,
+        newBalance: next,
+      })
+      .onConflictDoNothing({ target: walletTransactions.idempotencyKey })
+      .returning({ id: walletTransactions.id });
+    if (inserted.length === 0) {
+      // A concurrent writer inserted this same key between the pre-check and
+      // here. That writer owns the balance advance (we both serialize on the
+      // user FOR UPDATE lock), so return its row id WITHOUT moving the balance
+      // again. Only reachable when idempotencyKey is set (null keys never
+      // conflict under the unique index).
+      const [existing] = await tx
+        .select({ id: walletTransactions.id })
+        .from(walletTransactions)
+        .where(eq(walletTransactions.idempotencyKey, input.idempotencyKey!));
+      return existing?.id ?? null;
+    }
+    const row = inserted[0];
+    await tx
+      .update(users)
+      .set({
+        walletBalance: next,
+        ...(u.lastSyncedUbBalance === null
+          ? {}
+          : {
+              lastSyncedUbBalance: input.ubTotalAfter,
+              lastSyncedAt: new Date(),
+              lastSyncStatus: "synced" as const,
+              lastSyncError: null,
+            }),
+      })
+      .where(eq(users.id, input.userId));
+    return row.id;
+  });
+}
+
 export interface ReconcileResult {
   mode: EconomyMode;
   scanned: number;
