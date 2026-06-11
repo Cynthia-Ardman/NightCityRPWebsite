@@ -116,5 +116,6 @@
 - [Staff read/write authz parity](staff-read-write-authz-parity.md) — staff management UI on a character sub-resource needs the GET read path to allow the same fixer+admin scope as its writes.
 - [Cyberware category canon](cyberware-category-canon.md) — every cyberware-category predicate (cap gate, violator report, storage) must use lower(trim(category)) or whitespace/case variants bypass the 1-per-slot cap.
 - [View-as role gating](view-as-gating.md) — gate staff UI/intel on useEffectiveMe, not useAuthMe, or admin "View as player" leaks staff content on shared pages.
+- [New-character submission kill switch](character-submission-killswitch.md) — bot_config `character_submissions_disabled` gates only non-NPC sheet submit/POST; drafts, edits, NPCs exempt.
 - [Economy disabled symptom](economy-disabled-symptom.md) — dashboard income WORK/SLUT "command failed" = economy_enabled kill switch OFF (or live-mode TEST); toggles live in Jobs tab + Live Mode switchboard.
 - [Settled wallet movement](settled-wallet-movement.md) — mission pay hits UB directly (NOT applyWalletDelta); record a settled ledger row + advance lastSyncedUbBalance so reconcile won't double-count; leave baseline null if unseeded.

@@ -6,6 +6,7 @@ import { postToChannel, hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields } from "../lib/sheet-validation";
+import { areCharacterSubmissionsDisabled } from "../lib/characterSubmissions";
 import {
   isReviewer,
   listEligibleReviewerIds,
@@ -25,6 +26,16 @@ type Executor = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const router: IRouter = Router();
 
 const CS_CHANNEL_ID = process.env.CS_APPROVAL_CHANNEL_ID ?? "";
+
+// NPC is a fixer/admin-only sheet type and is exempt from the new-character
+// submission kill switch. Canonicalize so "npc" / " Npc " also match.
+function sheetDataIsNpc(data: unknown): boolean {
+  const v = (data as Record<string, unknown> | null | undefined)?.sheetType;
+  return typeof v === "string" && v.trim().toUpperCase() === "NPC";
+}
+
+const SUBMISSIONS_DISABLED_MSG =
+  "New character submissions are temporarily disabled by staff.";
 
 router.get("/sheets", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
@@ -211,6 +222,10 @@ router.post("/sheets", requireAuth, async (req, res): Promise<void> => {
   }
   const wantsDraft = status === "draft";
   if (!wantsDraft) {
+    if (!sheetDataIsNpc(data) && (await areCharacterSubmissionsDisabled())) {
+      res.status(403).json({ error: SUBMISSIONS_DISABLED_MSG });
+      return;
+    }
     const err = await validateSheetForSubmission(data, req.user!);
     if (err) {
       res.status(400).json({ error: err });
@@ -339,6 +354,10 @@ router.post("/sheets/:id/submit", requireAuth, async (req, res): Promise<void> =
   }
   if (existing.status !== "draft" && existing.status !== "changes_requested") {
     res.status(409).json({ error: "Sheet is not in a submittable state" });
+    return;
+  }
+  if (!sheetDataIsNpc(existing.data) && (await areCharacterSubmissionsDisabled())) {
+    res.status(403).json({ error: SUBMISSIONS_DISABLED_MSG });
     return;
   }
   const err = await validateSheetForSubmission(existing.data, req.user!);

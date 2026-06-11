@@ -1011,6 +1011,10 @@ const MISSION_AUTOPAY_KEY = "mission_autopay_enabled";
 // While OFF the entire economy is disabled — wallet moves, the income WORK/SLUT
 // commands, and UnbelievaBoat sync all return "disabled" and do nothing.
 const ECONOMY_ENABLED_KEY = "economy_enabled";
+// New-character submission kill switch (CHARACTER_SUBMISSIONS_DISABLED_KEY in
+// api-server/src/lib/characterSubmissions.ts). When true, players can't submit
+// new PCs; edits and NPC creation are unaffected. Defaults OFF (absent row).
+const CHARACTER_SUBMISSIONS_DISABLED_KEY = "character_submissions_disabled";
 
 // Per-system metadata for the Test/Live switchboard. Keys must match the
 // LiveModeState.systems shape returned by GET /admin/live-mode.
@@ -1170,6 +1174,54 @@ export function LoginRestrictionCard() {
   );
 }
 
+// Admin kill switch for new player-character submissions. When DISABLED,
+// players cannot submit new PCs for review; editing existing characters and
+// creating NPCs (fixers/admins) stay available. Stored as a plain bot_config
+// flag, so it reuses the generic bot-config endpoints rather than a bespoke one.
+export function CharacterSubmissionsCard() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: rows, isLoading } = useAdminListBotConfig();
+  const update = useAdminSetBotConfig({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getAdminListBotConfigQueryKey() });
+        toast({ title: "Character submissions updated" });
+      },
+      onError: (err: any) =>
+        toast({ title: "Update failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+    },
+  });
+  const disabled = rows?.find((r) => r.key === CHARACTER_SUBMISSIONS_DISABLED_KEY)?.value === true;
+  return (
+    <div
+      className={`flex items-center justify-between gap-4 border p-4 ${disabled ? "border-nc-magenta bg-nc-magenta/10" : "border-border bg-card/30"}`}
+      data-testid="character-submissions"
+    >
+      <div>
+        <div className="font-display text-base tracking-widest">
+          NEW CHARACTER SUBMISSIONS:{" "}
+          <span className={disabled ? "text-nc-magenta" : "text-nc-yellow"}>
+            {isLoading ? "…" : disabled ? "DISABLED" : "OPEN"}
+          </span>
+        </div>
+        <div className="font-mono text-[11px] text-muted-foreground max-w-xl mt-1">
+          When DISABLED, players can't submit new player characters for review. Editing existing characters and creating NPCs (fixers/admins) stay available.
+        </div>
+      </div>
+      <Button
+        size="sm"
+        disabled={isLoading || update.isPending}
+        onClick={() => update.mutate({ key: CHARACTER_SUBMISSIONS_DISABLED_KEY, data: { value: !disabled } })}
+        className={`rounded-none font-display text-xs ${disabled ? "bg-nc-yellow text-background" : "bg-nc-magenta text-background"}`}
+        data-testid="button-character-submissions"
+      >
+        {disabled ? "ALLOW SUBMISSIONS" : "DISABLE SUBMISSIONS"}
+      </Button>
+    </div>
+  );
+}
+
 function VrchatScanButton() {
   const { toast } = useToast();
   const [result, setResult] = useState<VrchatScanResult | null>(null);
@@ -1288,6 +1340,7 @@ export function JobsTab() {
       <CardContent className="space-y-8">
         <LiveModeSwitchboard />
         <LoginRestrictionCard />
+        <CharacterSubmissionsCard />
         <VrchatScanButton />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <AutobillSwitch
