@@ -129,6 +129,7 @@ export * from './confirmNpcSignupInput';
 export * from './confirmNpcSignupInputAction';
 export * from './customCatalogItem';
 export * from './customCatalogItemType';
+export * from './customGunInput';
 export * from './customRequest';
 export * from './customRequestApproval';
 export * from './customRequestApprovalDecision';

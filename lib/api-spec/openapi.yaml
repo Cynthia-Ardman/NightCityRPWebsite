@@ -612,6 +612,31 @@ paths:
                   ok: { type: boolean }
         "403": { description: Forbidden }
         "404": { description: Gun not found }
+  /catalog/custom-guns:
+    post:
+      operationId: createCustomGun
+      tags: [catalog]
+      description: |
+        Fixer/admin endpoint. Grants a one-off CUSTOM gun directly to a specific
+        character: it materializes the inventory item AND records an
+        auto-approved custom-request row so the gun appears in the staff-only
+        CUSTOM tab. This is the same end result as an admin override of a
+        player's custom-gun request, without the vote. Distinct from
+        POST /catalog/guns, which adds a purchasable CATALOG template.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomGunInput" }
+      responses:
+        "201":
+          description: The granted custom gun, in the CustomCatalogItem shape.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomCatalogItem" }
+        "400": { description: Invalid payload or archived character }
+        "403": { description: Forbidden }
+        "404": { description: Character not found }
   /catalog/cyberware:
     get:
       operationId: listCyberware
@@ -6641,6 +6666,16 @@ components:
         description: { type: string }
         powerLevel: { type: string, description: "Power level (gun-store stock). Staff-only." }
 
+    CustomGunInput:
+      type: object
+      description: |
+        Payload for granting a one-off CUSTOM gun to a character (staff action).
+      required: [characterId, name]
+      properties:
+        characterId: { type: integer, description: Owning character id. }
+        name: { type: string, description: The bespoke gun's name. }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
     CustomCatalogItem:
       type: object
       description: |

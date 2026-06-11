@@ -840,6 +840,23 @@ export const DeleteGunResponse = zod.object({
 })
 
 
+/**
+ * Fixer/admin endpoint. Grants a one-off CUSTOM gun directly to a specific
+character: it materializes the inventory item AND records an
+auto-approved custom-request row so the gun appears in the staff-only
+CUSTOM tab. This is the same end result as an admin override of a
+player's custom-gun request, without the vote. Distinct from
+POST /catalog/guns, which adds a purchasable CATALOG template.
+
+ */
+export const CreateCustomGunBody = zod.object({
+  "characterId": zod.number().describe('Owning character id.'),
+  "name": zod.string().describe('The bespoke gun\'s name.'),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish()
+}).describe('Payload for granting a one-off CUSTOM gun to a character (staff action).\n')
+
+
 export const ListCyberwareResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),

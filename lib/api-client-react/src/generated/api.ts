@@ -88,6 +88,7 @@ import type {
   CloseReviewTicket200,
   ConfirmNpcSignupInput,
   CustomCatalogItem,
+  CustomGunInput,
   CustomRequest,
   CustomRequestApproval,
   CustomRequestInput,
@@ -2959,6 +2960,80 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getDeleteGunMutationOptions(options));
+    }
+
+export const getCreateCustomGunUrl = () => {
+
+
+
+
+  return `/api/catalog/custom-guns`
+}
+
+/**
+ * Fixer/admin endpoint. Grants a one-off CUSTOM gun directly to a specific
+character: it materializes the inventory item AND records an
+auto-approved custom-request row so the gun appears in the staff-only
+CUSTOM tab. This is the same end result as an admin override of a
+player's custom-gun request, without the vote. Distinct from
+POST /catalog/guns, which adds a purchasable CATALOG template.
+
+ */
+export const createCustomGun = async (customGunInput: CustomGunInput, options?: RequestInit): Promise<CustomCatalogItem> => {
+
+  return customFetch<CustomCatalogItem>(getCreateCustomGunUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      customGunInput,)
+  }
+);}
+
+
+
+
+export const getCreateCustomGunMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomGun>>, TError,{data: BodyType<CustomGunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCustomGun>>, TError,{data: BodyType<CustomGunInput>}, TContext> => {
+
+const mutationKey = ['createCustomGun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCustomGun>>, {data: BodyType<CustomGunInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCustomGun(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCustomGunMutationResult = NonNullable<Awaited<ReturnType<typeof createCustomGun>>>
+    export type CreateCustomGunMutationBody = BodyType<CustomGunInput>
+    export type CreateCustomGunMutationError = ErrorType<void>
+
+    export const useCreateCustomGun = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomGun>>, TError,{data: BodyType<CustomGunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCustomGun>>,
+        TError,
+        {data: BodyType<CustomGunInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCustomGunMutationOptions(options));
     }
 
 export const getListCyberwareUrl = () => {

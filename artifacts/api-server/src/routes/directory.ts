@@ -20,11 +20,13 @@ import {
   characterTagOptions,
   housing,
   customRequests,
+  inventoryItems,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import { deriveCyberwareBand } from "../lib/jobs";
+import { recordInventoryEvent } from "../lib/inventoryEvents";
 
 const router: IRouter = Router();
 
@@ -941,6 +943,126 @@ router.post(
       return g;
     });
     res.status(201).json(created);
+  },
+);
+
+// Staff (fixer/admin) "grant a custom gun" — the CUSTOM counterpart to creating
+// a CATALOG entry. Unlike POST /catalog/guns (which adds a purchasable registry
+// template), this mints a one-off bespoke gun bound to a specific character: it
+// materializes the inventory item AND records an auto-approved custom-request
+// row (status="approved", appliedRef set) so the gun shows in the staff-only
+// CUSTOM tab — the same end result as an admin override of a player's custom-gun
+// request, minus the vote. Available to fixers and admins.
+const CustomGunSchema = z
+  .object({
+    characterId: z.number().int().positive(),
+    name: z.string().trim().min(1),
+    description: nullableText,
+    imageUrl: nullableText,
+  })
+  .strict();
+
+router.post(
+  "/catalog/custom-guns",
+  requireAnyRole(["ADMIN", "FIXER"]),
+  async (req, res): Promise<void> => {
+    const parsed = CustomGunSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+      return;
+    }
+    const d = parsed.data;
+    const [c] = await db
+      .select({
+        id: characters.id,
+        name: characters.name,
+        ownerId: characters.ownerId,
+        archived: characters.archived,
+      })
+      .from(characters)
+      .where(eq(characters.id, d.characterId));
+    if (!c) {
+      res.status(404).json({ error: "Character not found" });
+      return;
+    }
+    if (c.archived) {
+      res.status(400).json({ error: "Character is archived — cannot grant a custom gun" });
+      return;
+    }
+    const description = d.description ?? null;
+    const imageUrl = d.imageUrl ?? null;
+    const { ip, ua } = auditMeta(req);
+    const result = await db.transaction(async (tx) => {
+      const [item] = await tx
+        .insert(inventoryItems)
+        .values({
+          characterId: c.id,
+          ownerId: c.ownerId,
+          name: d.name,
+          category: "gun",
+          quantity: 1,
+          notes: description,
+        })
+        .returning();
+      const appliedRef = `inventory:${item.instanceUuid}`;
+      const now = new Date();
+      const [reqRow] = await tx
+        .insert(customRequests)
+        .values({
+          type: "gun",
+          characterId: c.id,
+          requestedById: req.user!.id,
+          title: d.name,
+          description,
+          imageUrl,
+          status: "approved",
+          reviewedById: req.user!.id,
+          reviewedAt: now,
+          overriddenBy: req.user!.id,
+          appliedRef,
+        })
+        .returning();
+      await tx.insert(auditLog).values({
+        category: "catalog",
+        action: "custom_gun_grant",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorIp: ip,
+        actorUa: ua,
+        targetType: "custom_request",
+        targetId: String(reqRow.id),
+        message: `Granted custom gun "${d.name}" to ${c.name}`,
+        beforeJson: null,
+        afterJson: { characterId: c.id, name: d.name, appliedRef } as never,
+      });
+      return { item, reqRow };
+    });
+    // Chain-of-custody ledger (fire-and-forget; mirrors afterApprove's gun grant).
+    await recordInventoryEvent({
+      instanceUuid: result.item.instanceUuid,
+      kind: "created",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      toCharacterId: c.id,
+      toCharacterName: c.name,
+      itemName: d.name,
+      quantity: 1,
+      reason: "Staff-granted custom gun",
+    });
+    res.status(201).json({
+      id: result.reqRow.id,
+      type: "gun",
+      title: result.reqRow.title,
+      description: result.reqRow.description,
+      imageUrl: result.reqRow.imageUrl,
+      details: result.reqRow.details ?? null,
+      status: result.reqRow.status,
+      appliedRef: result.reqRow.appliedRef,
+      characterId: c.id,
+      characterName: c.name,
+      ownerId: c.ownerId,
+      createdAt: result.reqRow.createdAt,
+    });
   },
 );
 

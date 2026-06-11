@@ -2526,6 +2526,21 @@ export interface StockUpdate {
   powerLevel?: string;
 }
 
+/**
+ * Payload for granting a one-off CUSTOM gun to a character (staff action).
+
+ */
+export interface CustomGunInput {
+  /** Owning character id. */
+  characterId: number;
+  /** The bespoke gun's name. */
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+}
+
 export type CustomCatalogItemType = typeof CustomCatalogItemType[keyof typeof CustomCatalogItemType];
 
 

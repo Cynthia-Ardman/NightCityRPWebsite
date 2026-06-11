@@ -73,6 +73,7 @@ export default function CatalogGuns() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Gun | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [tab, setTab] = useState("catalog");
 
   const rows = (data ?? []) as Gun[];
 
@@ -144,7 +145,7 @@ export default function CatalogGuns() {
         titlePlaceholder="e.g. Custom Malorian Arms 3516"
       />
 
-      <Tabs defaultValue="catalog" className="space-y-4">
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         {isStaff && (
           <TabsList className="rounded-none bg-card">
             <TabsTrigger value="catalog" className="rounded-none font-display tracking-widest">
@@ -281,7 +282,13 @@ export default function CatalogGuns() {
           if (!v) setSelected(null);
         }}
       />
-      {isStaff && <GunCreateDialog open={createOpen} onOpenChange={setCreateOpen} />}
+      {isStaff && (
+        <GunCreateDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onCustomCreated={() => setTab("custom")}
+        />
+      )}
     </div>
   );
 }
