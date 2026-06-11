@@ -57,3 +57,20 @@ the Ledger.
 **Not handled:** actor/NPC mission payouts (`payMissionActors`,
 `payMissionActorsForEvent`) still call `patchBalance` directly and remain
 ledger-invisible — same pattern would apply if that gap is reported.
+
+**Backfilling pre-fix payouts (one-off, prod):** to retroactively show already-paid
+payouts that pre-date the fix, do NOT reuse `recordSettledWalletMovement` (it moves
+`walletBalance`, which would show a WRONG too-low number for unseeded users and
+can't be reconstructed historically). Instead insert **purely informational**
+history rows: `source/kind:"mission"`, `category:"mission"`,
+`syncStatus:"synced"`, `idempotencyKey:"mission_payout:<assignmentId>"` (same key as
+the live path → can't double-write), `createdAt = paid_at`, and leave
+`previousBalance`/`newBalance` **and** `walletBalance`/`lastSyncedUbBalance`
+untouched. Safe because the authoritative balance is the `users.walletBalance`
+column, NOT a SUM of `wallet_transactions` (`getBalance` reads the column). Reconcile
+later seeds each unseeded user to their full UB total as one snapshot row — the same
+eddies then appear once as the labeled mission entry and once folded into that
+seed snapshot; balances stay correct. Write via a `--apply`-gated tsx script against
+`LIVE_PROD_DATABASE_URL` (executeSql prod is read-only); `INSERT...SELECT ...
+ON CONFLICT (idempotency_key) DO NOTHING`. Done once for all 5 paid missions
+(23 player rows).
