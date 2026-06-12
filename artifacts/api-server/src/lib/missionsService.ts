@@ -1414,6 +1414,49 @@ export async function withdrawNpcSignup(opts: {
  * sign-up resolved with no payout. Cancelled missions refuse confirmation (the
  * completion lock was removed in #185 — completed missions CAN still confirm).
  */
+/**
+ * Best-effort: record an already-settled ACTOR/NPC payout into the website
+ * wallet ledger so it surfaces in the actor's wallet/transaction history.
+ *
+ * Actor/NPC payouts call patchBalance (UnbelievaBoat) DIRECTLY and bypass
+ * applyWalletDelta (gated on mission live mode, not the economy kill-switch), so
+ * without this the eddies only ever appear as a generic 'reconcile' row later.
+ * Mirrors the player mission-pay path. A failure here must never unwind a payout
+ * that already moved real money — the reconcile cron folds the UB delta in later
+ * if this misses. Skips non-positive amounts (no money moved). Idempotent on the
+ * mission_actor_payments row id so re-runs and a backfill share one key.
+ */
+async function recordActorPayoutLedger(opts: {
+  userId: string;
+  amount: number;
+  ubTotalAfter: number;
+  memo: string;
+  paymentRowId: number;
+  relatedEntityType: string;
+  relatedEntityId: number | null;
+}): Promise<void> {
+  if (opts.amount <= 0) return;
+  try {
+    await recordSettledWalletMovement({
+      userId: opts.userId,
+      amount: opts.amount,
+      ubTotalAfter: opts.ubTotalAfter,
+      source: "mission",
+      kind: "mission",
+      memo: opts.memo,
+      characterId: null,
+      relatedEntityType: opts.relatedEntityType,
+      relatedEntityId: opts.relatedEntityId,
+      idempotencyKey: `actor_payout:${opts.paymentRowId}`,
+    });
+  } catch (err) {
+    logger.warn(
+      { err, paymentRowId: opts.paymentRowId },
+      "actor payout ledger record failed (reconcile will fold the UB delta)",
+    );
+  }
+}
+
 export async function confirmNpcSignup(opts: {
   missionId: number;
   signupId: number;
@@ -1549,6 +1592,15 @@ export async function confirmNpcSignup(opts: {
           await setSignup({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null });
         } else {
           await setSignup({ paymentStatus: "paid", paymentError: null, paidAt: now });
+          await recordActorPayoutLedger({
+            userId: signup.userId,
+            amount,
+            ubTotalAfter: balance.total,
+            memo: `NPC payout: ${mission.title}`,
+            paymentRowId: reservedId,
+            relatedEntityType: "mission",
+            relatedEntityId: opts.missionId,
+          });
           if (u.username || u.discordId) {
             await postToChannel(
               ctx.npcSpendingChannelId,
@@ -2319,6 +2371,15 @@ export async function payMissionActors(
     } else {
       // Row is already 'paid' from the reservation.
       result.paid++;
+      await recordActorPayoutLedger({
+        userId,
+        amount,
+        ubTotalAfter: balance.total,
+        memo: `Actor payout: ${mission.title}`,
+        paymentRowId: reservedId,
+        relatedEntityType: "mission",
+        relatedEntityId: missionId,
+      });
       postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
     }
   }
@@ -2488,6 +2549,15 @@ export async function payStandaloneActors(
       result.failed++;
     } else {
       result.paid++;
+      await recordActorPayoutLedger({
+        userId,
+        amount,
+        ubTotalAfter: balance.total,
+        memo: `Actor payout: ${eventName}`,
+        paymentRowId: inserted.id,
+        relatedEntityType: input.eventId != null ? "event" : "actor_event",
+        relatedEntityId: input.eventId ?? null,
+      });
       postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
     }
   }

@@ -169,11 +169,21 @@ function AuditTab() {
   );
 }
 
-// Pre-built sub-tabs (category groupings) for the unified audit log.
-const AUDIT_SUBTABS: Array<{ key: string; label: string; categories: string[] }> = [
+// Pre-built sub-tabs (category groupings) for the unified audit log. An
+// optional `actions` list narrows a single-category fetch down to specific
+// audit actions client-side (e.g. the Payouts tab pulls "mission" rows and
+// keeps only the money-out actions).
+const PAYOUT_ACTIONS = [
+  "mission.npc_confirm",
+  "mission.autopay_players",
+  "mission.pay_actors",
+  "actor.pay_standalone",
+];
+const AUDIT_SUBTABS: Array<{ key: string; label: string; categories: string[]; actions?: string[] }> = [
   { key: "all", label: "All", categories: [] },
   { key: "auth", label: "Auth", categories: ["auth"] },
   { key: "wallet", label: "Wallet", categories: ["wallet"] },
+  { key: "payouts", label: "Payouts", categories: ["mission"], actions: PAYOUT_ACTIONS },
   { key: "characters", label: "Characters", categories: ["character"] },
   { key: "sheets", label: "Sheets", categories: ["sheet"] },
   { key: "shop_attend", label: "Shop & Attend", categories: ["shop", "attendance"] },
@@ -187,19 +197,26 @@ export function AuditLogTab() {
   const [since, setSince] = useState("");
   const tab = AUDIT_SUBTABS.find((t) => t.key === sub) ?? AUDIT_SUBTABS[0];
   // Single-category sub-tabs use the server filter; multi-category sub-tabs
-  // (shop+attend) pull "all" and filter client-side.
+  // (shop+attend) pull "all" and filter client-side. Action-scoped sub-tabs
+  // (payouts) also push their action list to the server so non-matching rows
+  // can't crowd payouts out of the limited result window.
   const serverCategory = tab.categories.length === 1 ? tab.categories[0] : undefined;
+  const serverAction = tab.actions?.length ? tab.actions.join(",") : undefined;
   const params = {
     ...(serverCategory ? { category: serverCategory } : {}),
+    ...(serverAction ? { action: serverAction } : {}),
     ...(actorId ? { actorId } : {}),
     ...(since ? { since: new Date(since).toISOString() } : {}),
     limit: 200,
   };
   const { data: rows, isLoading, refetch } = useAdminListAuditLog(params);
   const qc = useQueryClient();
-  const visibleRows = tab.categories.length > 1
+  let visibleRows = tab.categories.length > 1
     ? (rows ?? []).filter((r) => tab.categories.includes(r.category))
     : (rows ?? []);
+  if (tab.actions?.length) {
+    visibleRows = visibleRows.filter((r) => tab.actions!.includes(r.action));
+  }
   return (
     <Card className="rounded-none border-border bg-card/50">
       <CardHeader>
@@ -208,7 +225,7 @@ export function AuditLogTab() {
       </CardHeader>
       <CardContent className="space-y-4">
         <Tabs value={sub} onValueChange={setSub}>
-          <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-3 md:grid-cols-8 w-full">
+          <TabsList className="bg-card border border-border rounded-none p-0 h-auto grid grid-cols-3 md:grid-cols-9 w-full">
             {AUDIT_SUBTABS.map((t) => (
               <TabsTrigger
                 key={t.key}

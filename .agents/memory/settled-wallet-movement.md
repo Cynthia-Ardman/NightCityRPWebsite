@@ -54,9 +54,16 @@ Admin Audit Log (`AdminDashboard.tsx` `AUDIT_SUBTABS`) needs a `mission` sub-tab
 surface them; `classifyWalletCategory(kind="mission")` → `"mission"` category for
 the Ledger.
 
-**Not handled:** actor/NPC mission payouts (`payMissionActors`,
-`payMissionActorsForEvent`) still call `patchBalance` directly and remain
-ledger-invisible — same pattern would apply if that gap is reported.
+**Actor/NPC payouts (now handled):** the three actor-pay paths
+(`confirmNpcSignup`, `payMissionActors`, `payStandaloneActors`) each call
+`patchBalance` directly too. They now record a settled ledger row via the shared
+best-effort `recordActorPayoutLedger` helper (kind/source `"mission"`,
+characterId null since actors are paid as users not PCs), idempotency key
+`actor_payout:<mission_actor_payments.id>` — a backfill must reuse this exact key.
+Discoverability also has a dedicated **Payouts** sub-tab in the Admin Audit Log
+(`AdminDashboard.tsx`) that filters `mission`-category rows to the payout actions
+(`mission.npc_confirm`, `mission.autopay_players`, `mission.pay_actors`,
+`actor.pay_standalone`).
 
 **Backfilling pre-fix payouts (one-off, prod):** to retroactively show already-paid
 payouts that pre-date the fix, do NOT reuse `recordSettledWalletMovement` (it moves

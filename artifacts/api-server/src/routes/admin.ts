@@ -767,13 +767,18 @@ router.get("/admin/activity", adminOnly, async (_req, res): Promise<void> => {
 // filters and a since cursor.
 router.get("/admin/audit-log", adminOnly, async (req, res): Promise<void> => {
   const category = req.query.category ? String(req.query.category) : null;
-  const action = req.query.action ? String(req.query.action) : null;
+  const actions = req.query.action
+    ? String(req.query.action)
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean)
+    : [];
   const actorId = req.query.actorId ? String(req.query.actorId) : null;
   const since = req.query.since ? new Date(String(req.query.since)) : null;
   const limit = Math.min(500, parseInt(String(req.query.limit ?? "200"), 10) || 200);
   const conds: SQL[] = [
     category && category !== "all" ? eq(auditLog.category, category) : null,
-    action ? eq(auditLog.action, action) : null,
+    actions.length === 1 ? eq(auditLog.action, actions[0]) : actions.length > 1 ? inArray(auditLog.action, actions) : null,
     actorId ? eq(auditLog.actorId, actorId) : null,
     since && !isNaN(since.getTime()) ? gte(auditLog.createdAt, since) : null,
   ].filter((c): c is SQL => c !== null);
