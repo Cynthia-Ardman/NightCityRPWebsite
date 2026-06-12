@@ -57,7 +57,10 @@ function merge(ops: { type: DiffOp["type"]; token: string }[], joiner: string): 
 }
 
 function wordTokens(s: string): string[] {
-  return s.split(/(\s+)/).filter((t) => t.length > 0);
+  // Split on whitespace AND on a literal "\n" sequence. Stored sheet text keeps
+  // escaped newlines inline, so without this a change would swallow the whole
+  // surrounding run as a single token.
+  return s.split(/(\s+|\\n)/).filter((t) => t.length > 0);
 }
 function lineTokens(s: string): string[] {
   return s.split("\n");

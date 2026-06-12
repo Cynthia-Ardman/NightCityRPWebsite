@@ -109,6 +109,29 @@ function LineDiff({ before, after, compact }: { before: string; after: string; c
   );
 }
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+
+// Diff two objects key-by-key, recursing into nested values, and only show the
+// fields that actually changed. This keeps a small edit deep inside a large blob
+// (e.g. one section of a sheet) from re-printing the entire object as removed +
+// re-added, which is what makes the unstructured line-diff hard to read.
+function ObjectDiff({ before, after, compact }: { before: Record<string, unknown>; after: Record<string, unknown>; compact?: boolean }) {
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+  const changed = keys.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+  if (changed.length === 0) return <Empty text="(no change)" compact={compact} />;
+  return (
+    <div className="space-y-3">
+      {changed.map((k) => (
+        <div key={k} className="border-l-2 border-border/60 pl-3" data-testid={`obj-diff-${k}`}>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-nc-cyan/60 mb-1">{k}</div>
+          <DiffValue before={before[k]} after={after[k]} compact />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SplitView({ before, after, compact }: { before: unknown; after: unknown; compact?: boolean }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -173,6 +196,17 @@ export default function DiffValue({
         )}
       </div>
     );
+  }
+
+  // Plain objects (e.g. a sheet's nested data) are diffed field-by-field so only
+  // the changed keys surface, recursing down to a word/line diff per value.
+  // object<->empty is allowed so an added/cleared object still breaks down.
+  if (
+    (isPlainObject(before) || before == null) &&
+    (isPlainObject(after) || after == null) &&
+    (isPlainObject(before) || isPlainObject(after))
+  ) {
+    return <ObjectDiff before={isPlainObject(before) ? before : {}} after={isPlainObject(after) ? after : {}} compact={compact} />;
   }
 
   const beforeText = toText(before);

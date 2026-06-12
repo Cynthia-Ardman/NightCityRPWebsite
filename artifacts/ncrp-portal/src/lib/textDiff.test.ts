@@ -24,6 +24,18 @@ describe("diffWords", () => {
     const ops = diffWords("", "brand new");
     expect(ops).toEqual([{ type: "add", value: "brand new" }]);
   });
+
+  it("splits on a literal \\n so a change stays local in escaped text", () => {
+    const before = "alpha.\\nbeta gamma";
+    const after = "alpha.\\nbeta delta";
+    const ops = diffWords(before, after);
+    const b = ops.filter((o) => o.type !== "add").map((o) => o.value).join("");
+    const a = ops.filter((o) => o.type !== "remove").map((o) => o.value).join("");
+    expect(b).toBe(before);
+    expect(a).toBe(after);
+    // The shared "alpha.\nbeta " prefix is preserved as equal, not swallowed.
+    expect(ops[0]).toEqual({ type: "equal", value: "alpha.\\nbeta " });
+  });
 });
 
 describe("diffLines", () => {
