@@ -61,16 +61,37 @@ function normalize(s: string): string {
     .trim();
 }
 
+// Strip a trailing slot-count parenthetical such as "(1 slot per arm)",
+// "(1 slot per leg)" or "(2 slots)" that sheet headers frequently append.
+function stripSlotCount(label: string): string {
+  return label.replace(/\s*\([^)]*\bslots?\b[^)]*\)\s*$/i, "").trim();
+}
+
 function resolveSlot(label: string): Slot | null {
   const direct = ALIASES[normalize(label)];
   if (direct) return direct;
-  // Sheet slot headers frequently append a capacity annotation such as
-  // "(1 slot per arm)", "(1 slot per leg)" or "(2 slots)". Strip a trailing
-  // slot-count parenthetical and retry so these headers still resolve instead
-  // of leaking into the preamble or attaching to the previous slot's items.
-  const stripped = label.replace(/\s*\([^)]*\bslots?\b[^)]*\)\s*$/i, "").trim();
+  const stripped = stripSlotCount(label);
   if (stripped && stripped !== label) {
     return ALIASES[normalize(stripped)] ?? null;
+  }
+  return null;
+}
+
+// Canonical-only resolution (no loose aliases). Used for *bare* headers — a
+// line with no colon whose whole text must be a slot name. Loose single-word
+// aliases (e.g. "Cyberdeck", "Brain", "Eyes") are deliberately excluded here
+// because they collide with legitimate item names; using them for colonless
+// detection would misread an item line like "- Cyberdeck" as a new header.
+const CANONICAL_BY_NORM: Record<string, Slot> = Object.fromEntries(
+  SLOTS.map((s) => [normalize(s), s]),
+) as Record<string, Slot>;
+
+function resolveCanonicalSlot(label: string): Slot | null {
+  const direct = CANONICAL_BY_NORM[normalize(label)];
+  if (direct) return direct;
+  const stripped = stripSlotCount(label);
+  if (stripped && stripped !== label) {
+    return CANONICAL_BY_NORM[normalize(stripped)] ?? null;
   }
   return null;
 }
@@ -134,16 +155,30 @@ type ParseResult = {
 export function parseCyberwareBody(body: string): ParseResult {
   const lines = body.replace(/\r\n/g, "\n").split("\n");
 
-  // Detect "Slot: items" prefix on a line. We split on the FIRST colon and
-  // check if the lhs maps to a canonical slot.
-  function detectSlotPrefix(line: string): { slot: Slot; rest: string } | null {
+  // Detect a slot header on a line, in one of two shapes:
+  //   1. "Slot: items"  — split on the FIRST colon, resolve the left side.
+  //   2. "Slot"         — a bare line that is itself a canonical slot name.
+  // Shape 2 handles sheets where a player drops the colon on a header (e.g.
+  // a lone "Neural" line); without it, that line is mistaken for an item and
+  // absorbed under the previously-seen slot.
+  function detectSlotHeader(line: string): { slot: Slot; rest: string } | null {
     const cleaned = line.replace(/^[\s>•·▪●◦*+\-–—]+/, "").trim();
-    // Allow optional leading bold/markdown wrappers around the label.
+    // Shape 1: "Slot: items" with optional bold/markdown wrappers.
     const m = cleaned.match(/^(?:\*+|__|>+)?\s*([^:]+?)\s*(?:\*+|__)?\s*:\s*(.*)$/);
-    if (!m) return null;
-    const slot = resolveSlot(m[1]);
-    if (!slot) return null;
-    return { slot, rest: m[2].trim() };
+    if (m) {
+      const slot = resolveSlot(m[1]);
+      if (slot) return { slot, rest: m[2].trim() };
+    }
+    // Shape 2: bare heading — the whole line (minus markdown wrappers) is a
+    // *canonical* slot name, with no colon and no trailing item text. Uses
+    // canonical-only resolution so item lines like "- Cyberdeck" aren't
+    // mistaken for headers.
+    const label = cleaned.replace(/^(?:\*+|__|>+)\s*/, "").replace(/\s*(?:\*+|__)$/, "").trim();
+    if (label) {
+      const slot = resolveCanonicalSlot(label);
+      if (slot) return { slot, rest: "" };
+    }
+    return null;
   }
 
   let currentSlot: Slot | null = null;
@@ -158,7 +193,7 @@ export function parseCyberwareBody(body: string): ParseResult {
       currentSlot = null;
       continue;
     }
-    const prefix = detectSlotPrefix(line);
+    const prefix = detectSlotHeader(line);
     if (prefix) {
       sawAnySlot = true;
       currentSlot = prefix.slot;

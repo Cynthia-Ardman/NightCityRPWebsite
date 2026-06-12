@@ -137,6 +137,46 @@ describe("CyberwareSection: parseCyberwareBody slot aliases", () => {
     expect(ocular.items.map((i) => i.name)).toEqual(["Targeting Optic"]);
   });
 
+  it("treats a bare slot-name line (no colon) as its own header", () => {
+    // Real sheet shape: every header has a colon except a lone "Neural" line.
+    // Without bare-header detection, "Neural" and the item below it were
+    // absorbed as items under the previous "Legs & Mobility" header.
+    const body = [
+      "   * Legs & Mobility (1 slot per leg):",
+      "   * Neural",
+      "Netrunner suite LV2 II 3",
+      "   * Ocular System: Smart Eyes II 2",
+      "   * Miscellaneous: ",
+      "Internal Storage II 1",
+    ].join("\n");
+    const parsed = parseCyberwareBody(body);
+    // Legs & Mobility had no items of its own → not rendered.
+    expect(parsed.groups.find((g) => g.slot === "Legs & Mobility")).toBeUndefined();
+    const neural = parsed.groups.find((g) => g.slot === "Neural")!;
+    expect(neural).toBeDefined();
+    expect(neural.items.map((i) => i.name)).toEqual(["Netrunner suite LV2 II 3"]);
+    const ocular = parsed.groups.find((g) => g.slot === "Ocular System")!;
+    expect(ocular.items.map((i) => i.name)).toEqual(["Smart Eyes II 2"]);
+  });
+
+  it("does NOT treat a bullet item that aliases a slot as a bare header", () => {
+    // "Cyberdeck" is a loose alias for Neural, but as a bullet item under an
+    // existing slot it must stay an item, not start a new header.
+    const body = ["Neural: Sandevistan (3 CWP)", "- Cyberdeck"].join("\n");
+    const parsed = parseCyberwareBody(body);
+    const neural = parsed.groups.find((g) => g.slot === "Neural")!;
+    expect(neural.items.map((i) => i.name)).toEqual(["Sandevistan", "Cyberdeck"]);
+  });
+
+  it("keeps single-word alias item lines (Eyes/Brain) as items, not headers", () => {
+    const body = ["Ocular System: Smart Eyes (2 CWP)", "- Eyes", "- Brain"].join("\n");
+    const parsed = parseCyberwareBody(body);
+    const ocular = parsed.groups.find((g) => g.slot === "Ocular System")!;
+    expect(ocular.items.map((i) => i.name)).toEqual(["Smart Eyes", "Eyes", "Brain"]);
+    // No spurious Auditory/Neural groups created from the alias item lines.
+    expect(parsed.groups.find((g) => g.slot === "Auditory System")).toBeUndefined();
+  });
+
   it("falls back to raw body when no recognizable slot is found", () => {
     const parsed = parseCyberwareBody("just some free text with no structure");
     expect(parsed.rawFallback).toBeTruthy();
