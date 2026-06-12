@@ -25,7 +25,7 @@ import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import {
   isReviewer,
-  listEligibleReviewerIds,
+  listEligibleReviewers,
   majorityOf,
   tallyReviewVotes,
   castReviewVote,
@@ -513,16 +513,22 @@ async function selectWhere(predicate: ReturnType<typeof and> | ReturnType<typeof
 // one bulk vote load + one reviewer-pool load — instead of N+1. The eligible
 // pool excludes each request's own submitter. `stock_cost` rows are
 // owner-decided and simply tally to 0/0 here, which the UI ignores.
-async function attachTallies(rows: RequestRow[], viewerId: string): Promise<Record<string, unknown>[]> {
+// `includeRoster` controls whether reviewer identities (the eligible reviewer
+// roster + per-voter identity) are exposed. This is reviewer-only info: it must
+// stay false for the player-facing /requests/mine endpoint so non-reviewers
+// can't enumerate the staff reviewer pool or see who voted.
+async function attachTallies(
+  rows: RequestRow[],
+  viewerId: string,
+  includeRoster: boolean,
+): Promise<Record<string, unknown>[]> {
   if (rows.length === 0) return [];
   const votesById = await loadVotesBySubject({ subjectType: "request", subjectIds: rows.map((r) => r.id) });
-  const reviewerRows = await db.select({ id: users.id, roles: users.roles }).from(users);
-  const reviewerIds = reviewerRows
-    .filter((r) => isReviewer({ roles: r.roles ?? [] } as never))
-    .map((r) => r.id);
+  // Full reviewer roster (id + identity) so the UI can show who hasn't voted.
+  const reviewerPool = await listEligibleReviewers(null);
   return rows.map((r) => {
-    const eligible = reviewerIds.filter((id) => id !== r.requestedById);
-    const eligibleSet = new Set(eligible);
+    const eligible = reviewerPool.filter((rv) => rv.id !== r.requestedById);
+    const eligibleSet = new Set(eligible.map((rv) => rv.id));
     const votes = (votesById.get(r.id) ?? []).filter((v) => eligibleSet.has(v.voterId));
     const approveCount = votes.filter((v) => v.vote === "approve").length;
     const rejectCount = votes.filter((v) => v.vote === "reject").length;
@@ -533,6 +539,15 @@ async function attachTallies(rows: RequestRow[], viewerId: string): Promise<Reco
       rejectCount,
       threshold: majorityOf(eligible.length),
       myVote: mine?.vote ?? null,
+      ...(includeRoster ? { eligibleReviewers: eligible } : {}),
+      voters: includeRoster
+        ? votes.map((v) => ({
+            id: v.voterId,
+            name: v.voterName,
+            avatarUrl: v.voterAvatarUrl,
+            vote: v.vote,
+          }))
+        : [],
     };
   });
 }
@@ -647,7 +662,7 @@ router.get("/requests/mine", requireAuth, async (req, res): Promise<void> => {
     ? and(eq(customRequests.requestedById, req.user!.id), eq(customRequests.type, typeFilter))
     : eq(customRequests.requestedById, req.user!.id);
   const rows = await selectWhere(predicate);
-  res.json(await attachTallies(rows, req.user!.id));
+  res.json(await attachTallies(rows, req.user!.id, isReviewer(req.user!)));
 });
 
 // Staff: list requests across all players. Defaults to pending. Fixer/admin.
@@ -671,7 +686,7 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
       notInArray(customRequests.type, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES as unknown as string[]),
     ),
   );
-  res.json(await attachTallies(rows, req.user!.id));
+  res.json(await attachTallies(rows, req.user!.id, true));
 });
 
 

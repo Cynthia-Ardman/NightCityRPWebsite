@@ -36,6 +36,7 @@ import {
 } from "@workspace/api-client-react";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
+import { ReviewerRoster } from "@/components/review/ReviewerRoster";
 import DiffValue from "@/components/DiffValue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -219,6 +220,12 @@ function MiscRequestsTab() {
                       <span className="block italic mt-0.5">"{r.reviewerNote}"</span>
                     ) : null}
                   </div>
+                )}
+                {isReviewer && bucket === "active" && r.eligibleReviewers && r.eligibleReviewers.length > 0 && (
+                  <ReviewerRoster
+                    eligibleReviewers={r.eligibleReviewers}
+                    voters={(r.voters ?? []).map((v) => ({ id: v.id, vote: v.vote }))}
+                  />
                 )}
                 {isReviewer && bucket === "active" && r.status === "pending" && (
                   <div className="flex flex-wrap gap-2">

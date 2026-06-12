@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EligibleReviewer } from './eligibleReviewer';
 import type { PendingEditDetailBefore } from './pendingEditDetailBefore';
 import type { PendingEditDetailMyVote } from './pendingEditDetailMyVote';
 import type { PendingEditDetailProposedDiff } from './pendingEditDetailProposedDiff';
@@ -43,6 +44,8 @@ export interface PendingEditDetail {
   /** @nullable */
   decidedAt?: Date | null;
   votes: PendingEditVoteRecord[];
+  /** Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. */
+  eligibleReviewers?: EligibleReviewer[];
   eligibleVoterCount: number;
   threshold: number;
   approveCount: number;

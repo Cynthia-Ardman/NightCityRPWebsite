@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReviewerRoster } from "@/components/review/ReviewerRoster";
 import {
   Dialog,
   DialogContent,
@@ -226,6 +227,13 @@ export default function PendingEditDetail() {
           </div>
           {edit.decisionSummary && (
             <div className="text-xs text-muted-foreground italic">{edit.decisionSummary}</div>
+          )}
+          {edit.eligibleReviewers && edit.eligibleReviewers.length > 0 && (
+            <ReviewerRoster
+              className="pt-3 border-t border-border/40"
+              eligibleReviewers={edit.eligibleReviewers}
+              voters={edit.votes.map((v) => ({ id: v.voterId, vote: v.vote }))}
+            />
           )}
         </CardContent>
       </Card>

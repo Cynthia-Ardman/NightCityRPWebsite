@@ -26,15 +26,28 @@ export function isReviewer(u: User): boolean {
   return hasRole(u.roles, "FIXER") || hasRole(u.roles, "CS_APPROVER") || hasRole(u.roles, "ADMIN");
 }
 
+// A reviewer's public identity, surfaced on detail responses so the UI can
+// show the full roster of who may vote — including those who have not voted
+// yet (eligible roster minus the cast votes).
+export type EligibleReviewer = { id: string; name: string | null; avatarUrl: string | null };
+
 // All distinct users currently holding a reviewer role, minus an excluded
-// user (the submitter). Computed live on every tally so role grants/revokes
-// take immediate effect on the majority threshold. Small set in practice.
-export async function listEligibleReviewerIds(excludeUserId: string | null): Promise<string[]> {
-  const rows = await db.select({ id: users.id, roles: users.roles }).from(users);
+// user (the submitter), joined to their display identity. Computed live on
+// every tally so role grants/revokes take immediate effect on the majority
+// threshold. Small set in practice.
+export async function listEligibleReviewers(excludeUserId: string | null): Promise<EligibleReviewer[]> {
+  const rows = await db
+    .select({ id: users.id, roles: users.roles, name: users.username, avatarUrl: users.avatarUrl })
+    .from(users);
   return rows
     .filter((r) => isReviewer({ roles: r.roles ?? [] } as User))
-    .map((r) => r.id)
-    .filter((id) => id !== excludeUserId);
+    .filter((r) => r.id !== excludeUserId)
+    .map((r) => ({ id: r.id, name: r.name, avatarUrl: r.avatarUrl }));
+}
+
+// Id-only view of the eligible reviewer pool, used by the majority math.
+export async function listEligibleReviewerIds(excludeUserId: string | null): Promise<string[]> {
+  return (await listEligibleReviewers(excludeUserId)).map((r) => r.id);
 }
 
 // Majority = floor(n / 2) + 1. With n=0 (no other reviewers) this returns 1

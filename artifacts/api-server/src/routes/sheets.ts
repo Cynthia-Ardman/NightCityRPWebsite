@@ -10,6 +10,7 @@ import { areCharacterSubmissionsDisabled } from "../lib/characterSubmissions";
 import {
   isReviewer,
   listEligibleReviewerIds,
+  listEligibleReviewers,
   majorityOf,
   tallyReviewVotes,
   castReviewVote,
@@ -121,13 +122,17 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const viewerIsReviewer = isReviewer(req.user!);
   const votes = await listReviewVotes({ subjectType: "sheet", subjectId: id });
-  const eligibleIds = await listEligibleReviewerIds(s.ownerId);
+  const eligibleReviewers = await listEligibleReviewers(s.ownerId);
+  const eligibleIds = eligibleReviewers.map((r) => r.id);
   const approveCount = votes.filter((v) => v.vote === "approve").length;
   const rejectCount = votes.filter((v) => v.vote === "reject").length;
   const myVote = votes.find((v) => v.voterId === req.user!.id) ?? null;
   res.json({
     ...s,
     votes,
+    // Reviewer-only: the full eligible-reviewer roster (incl. who hasn't voted)
+    // is staff info — don't expose it to the sheet owner viewing their own sheet.
+    eligibleReviewers: viewerIsReviewer ? eligibleReviewers : undefined,
     eligibleVoterCount: eligibleIds.length,
     threshold: majorityOf(eligibleIds.length),
     approveCount,

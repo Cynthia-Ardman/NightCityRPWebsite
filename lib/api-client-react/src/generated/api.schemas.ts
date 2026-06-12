@@ -2998,6 +2998,34 @@ export const CustomRequestMyVote = {
   reject: 'reject',
 } as const;
 
+export type CustomRequestVotersItemVote = typeof CustomRequestVotersItemVote[keyof typeof CustomRequestVotersItemVote];
+
+
+export const CustomRequestVotersItemVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export type CustomRequestVotersItem = {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  vote: CustomRequestVotersItemVote;
+};
+
+/**
+ * A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.
+ */
+export interface EligibleReviewer {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+}
+
 export interface CustomRequest {
   id: number;
   type: CustomRequestType;
@@ -3047,6 +3075,10 @@ export interface CustomRequest {
      * @nullable
      */
   myVote?: CustomRequestMyVote;
+  /** Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses. */
+  eligibleReviewers?: EligibleReviewer[];
+  /** Reviewers who have already cast a vote on this request. Present on list responses. */
+  voters?: CustomRequestVotersItem[];
   createdAt: string;
 }
 
@@ -3571,6 +3603,8 @@ export interface CharacterSheet {
   createdAt: string;
   data: CharacterSheetData;
   votes?: ReviewVoteRecord[];
+  /** Full roster of reviewers eligible to vote (excludes the submitter). Present on GET /sheets/{id} only. */
+  eligibleReviewers?: EligibleReviewer[];
   eligibleVoterCount?: number;
   threshold?: number;
   approveCount?: number;
@@ -3895,6 +3929,8 @@ export interface PendingEditDetail {
   /** @nullable */
   decidedAt?: string | null;
   votes: PendingEditVoteRecord[];
+  /** Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. */
+  eligibleReviewers?: EligibleReviewer[];
   eligibleVoterCount: number;
   threshold: number;
   approveCount: number;

@@ -6561,6 +6561,11 @@ export const ListMySheetsResponseItem = zod.object({
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
@@ -6725,6 +6730,11 @@ export const GetSheetResponse = zod.object({
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
@@ -6862,6 +6872,11 @@ export const UpdateSheetResponse = zod.object({
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
@@ -6958,6 +6973,11 @@ export const SubmitDraftSheetResponse = zod.object({
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
@@ -7075,6 +7095,11 @@ export const OverrideSheetResponse = zod.object({
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
@@ -7171,6 +7196,11 @@ export const RequestChangesSheetResponse = zod.object({
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
@@ -7254,6 +7284,11 @@ export const GetPendingEditResponse = zod.object({
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet.'),
   "eligibleVoterCount": zod.number(),
   "threshold": zod.number(),
   "approveCount": zod.number(),
@@ -8469,6 +8504,17 @@ export const ListCustomRequestsResponseItem = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 export const ListCustomRequestsResponse = zod.array(ListCustomRequestsResponseItem)
@@ -8517,6 +8563,17 @@ export const ListMyCustomRequestsResponseItem = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 export const ListMyCustomRequestsResponse = zod.array(ListMyCustomRequestsResponseItem)
@@ -8575,6 +8632,17 @@ export const VoteCustomRequestResponse = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish()
@@ -8632,6 +8700,17 @@ export const OverrideCustomRequestResponse = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -8672,6 +8751,17 @@ export const RequestChangesCustomRequestResponse = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -8704,6 +8794,17 @@ export const ResubmitCustomRequestResponse = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -8744,6 +8845,17 @@ export const UpdateCustomRequestResponse = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -8781,6 +8893,17 @@ export const DecideStockCostRequestResponse = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -8817,6 +8940,17 @@ export const DecideEmployeeInviteResponse = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -8853,6 +8987,17 @@ export const DecideMissionParticipationResponse = zod.object({
   "rejectCount": zod.number().optional(),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
   "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date()
 })
 

@@ -7,6 +7,7 @@
  */
 import type { CharacterSheetData } from './characterSheetData';
 import type { CharacterSheetStatus } from './characterSheetStatus';
+import type { EligibleReviewer } from './eligibleReviewer';
 import type { ReviewerSelfVote } from './reviewerSelfVote';
 import type { ReviewVoteRecord } from './reviewVoteRecord';
 
@@ -39,6 +40,8 @@ export interface CharacterSheet {
   createdAt: Date;
   data: CharacterSheetData;
   votes?: ReviewVoteRecord[];
+  /** Full roster of reviewers eligible to vote (excludes the submitter). Present on GET /sheets/{id} only. */
+  eligibleReviewers?: EligibleReviewer[];
   eligibleVoterCount?: number;
   threshold?: number;
   approveCount?: number;

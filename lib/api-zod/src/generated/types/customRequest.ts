@@ -8,6 +8,8 @@
 import type { CustomRequestMyVote } from './customRequestMyVote';
 import type { CustomRequestStatus } from './customRequestStatus';
 import type { CustomRequestType } from './customRequestType';
+import type { CustomRequestVotersItem } from './customRequestVotersItem';
+import type { EligibleReviewer } from './eligibleReviewer';
 
 export interface CustomRequest {
   id: number;
@@ -58,5 +60,9 @@ export interface CustomRequest {
      * @nullable
      */
   myVote?: CustomRequestMyVote;
+  /** Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses. */
+  eligibleReviewers?: EligibleReviewer[];
+  /** Reviewers who have already cast a vote on this request. Present on list responses. */
+  voters?: CustomRequestVotersItem[];
   createdAt: Date;
 }

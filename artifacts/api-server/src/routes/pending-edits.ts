@@ -15,7 +15,7 @@ import {
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, postToChannel } from "../lib/discord";
-import { isReviewer, listEligibleReviewerIds, majorityOf, type ReviewActionResult } from "../lib/review";
+import { isReviewer, listEligibleReviewerIds, listEligibleReviewers, majorityOf, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -483,7 +483,8 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     .leftJoin(users, eq(users.id, pendingEditApprovals.voterId))
     .where(eq(pendingEditApprovals.editId, id))
     .orderBy(desc(pendingEditApprovals.votedAt));
-  const eligibleIds = await listEligibleReviewerIds(row.submittedBy);
+  const eligibleReviewers = await listEligibleReviewers(row.submittedBy);
+  const eligibleIds = eligibleReviewers.map((r) => r.id);
   const threshold = majorityOf(eligibleIds.length);
   const approveCount = votes.filter((v) => v.vote === "approve").length;
   const rejectCount = votes.filter((v) => v.vote === "reject").length;
@@ -511,6 +512,9 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     submittedAt: row.submittedAt,
     decidedAt: row.decidedAt,
     votes,
+    // Reviewer-only: the full eligible-reviewer roster (incl. who hasn't voted)
+    // is staff info — don't expose it to the submitter viewing their own edit.
+    eligibleReviewers: isStaff ? eligibleReviewers : undefined,
     eligibleVoterCount: eligibleIds.length,
     threshold,
     approveCount,

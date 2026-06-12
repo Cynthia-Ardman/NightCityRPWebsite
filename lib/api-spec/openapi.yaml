@@ -6989,6 +6989,21 @@ components:
         rejectCount: { type: integer }
         threshold: { type: integer, description: "Majority needed among eligible reviewers (excludes the requester)." }
         myVote: { type: ["string", "null"], enum: [approve, reject, null], description: "The viewer's own vote, if any." }
+        eligibleReviewers:
+          type: array
+          description: "Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses."
+          items: { $ref: "#/components/schemas/EligibleReviewer" }
+        voters:
+          type: array
+          description: "Reviewers who have already cast a vote on this request. Present on list responses."
+          items:
+            type: object
+            required: [id, vote]
+            properties:
+              id: { type: string }
+              name: { type: ["string", "null"] }
+              avatarUrl: { type: ["string", "null"] }
+              vote: { type: string, enum: [approve, reject] }
         createdAt: { type: string, format: date-time }
 
     CustomRequestVoteInput:
@@ -7225,6 +7240,10 @@ components:
         votes:
           type: array
           items: { $ref: "#/components/schemas/ReviewVoteRecord" }
+        eligibleReviewers:
+          type: array
+          description: "Full roster of reviewers eligible to vote (excludes the submitter). Present on GET /sheets/{id} only."
+          items: { $ref: "#/components/schemas/EligibleReviewer" }
         eligibleVoterCount: { type: integer }
         threshold: { type: integer }
         approveCount: { type: integer }
@@ -7234,6 +7253,15 @@ components:
         canRequestChanges: { type: boolean }
         canOverride: { type: boolean }
         canResubmit: { type: boolean }
+
+    EligibleReviewer:
+      type: object
+      description: "A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet."
+      required: [id]
+      properties:
+        id: { type: string }
+        name: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
 
     ReviewVoteRecord:
       type: object
@@ -7496,6 +7524,10 @@ components:
         votes:
           type: array
           items: { $ref: "#/components/schemas/PendingEditVoteRecord" }
+        eligibleReviewers:
+          type: array
+          description: "Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet."
+          items: { $ref: "#/components/schemas/EligibleReviewer" }
         eligibleVoterCount: { type: integer }
         threshold: { type: integer }
         approveCount: { type: integer }

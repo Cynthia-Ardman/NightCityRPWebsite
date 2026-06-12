@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Check, X, ShieldCheck, RotateCcw } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
+import { ReviewerRoster } from "@/components/review/ReviewerRoster";
 import { useMemo, useState } from "react";
 
 function sheetStatusBadge(status: string) {
@@ -161,7 +162,8 @@ export default function SheetDetail() {
         <div>
           <h1 className="text-4xl font-display text-foreground" data-testid="text-sheet-name">{sheet.name}</h1>
           <p className="font-mono text-xs text-muted-foreground mt-1">
-            Submitted {new Date(sheet.createdAt).toLocaleString()} · Status:{" "}
+            Submitted {new Date(sheet.createdAt).toLocaleString()}
+            {sheet.ownerName ? <> by <span className="text-foreground">{sheet.ownerName}</span></> : null} · Status:{" "}
             {sheetStatusBadge(sheet.status)}
           </p>
         </div>
@@ -177,6 +179,27 @@ export default function SheetDetail() {
       </div>
 
       <AwaitingVoteBanner show={!!sheet.canVote && !sheet.myVote} />
+
+      {isStaff && sheet.eligibleReviewers && sheet.eligibleReviewers.length > 0 && (
+        <Card className="rounded-none border-border bg-card/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-sm tracking-widest text-nc-cyan">REVIEW STATUS</CardTitle>
+          </CardHeader>
+          <CardContent className="font-mono text-sm space-y-1">
+            <div>
+              <span className="text-nc-green">{sheet.approveCount ?? 0}</span> approve ·{" "}
+              <span className="text-destructive">{sheet.rejectCount ?? 0}</span> reject ·{" "}
+              threshold <span className="text-nc-cyan">{sheet.threshold ?? "?"}</span> of{" "}
+              {sheet.eligibleVoterCount ?? sheet.eligibleReviewers.length} eligible reviewers
+            </div>
+            <ReviewerRoster
+              className="pt-3 border-t border-border/40"
+              eligibleReviewers={sheet.eligibleReviewers}
+              voters={(sheet.votes ?? []).map((v) => ({ id: v.voterId, vote: v.vote }))}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PROFILE</CardTitle></CardHeader>
