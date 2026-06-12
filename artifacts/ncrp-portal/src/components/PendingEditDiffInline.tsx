@@ -1,63 +1,9 @@
 import { useGetPendingEdit } from "@workspace/api-client-react";
-
-// Compact before/after renderer for a single field value. Mirrors the richer
-// FieldDiff on the pending-edit detail page, kept small for the inline panel
-// inside My Requests.
-function renderValue(v: unknown) {
-  if (v === null || v === undefined || v === "") {
-    return (
-      <div className="font-mono text-[11px] text-muted-foreground italic p-2 border border-border/60 bg-card/30">
-        (empty)
-      </div>
-    );
-  }
-  if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
-    const arr = v as string[];
-    if (arr.length === 0) {
-      return (
-        <div className="font-mono text-[11px] text-muted-foreground italic p-2 border border-border/60 bg-card/30">
-          (empty list)
-        </div>
-      );
-    }
-    // Only treat the list as an image gallery when every entry looks like a
-    // URL; otherwise it's a plain text list (e.g. tags) and broken <img> tags
-    // would be misleading.
-    const allUrls = arr.every((s) => /^https?:\/\//i.test(s) || s.startsWith("/"));
-    if (allUrls) {
-      return (
-        <div className="grid grid-cols-2 gap-2 p-2 border border-border/60 bg-card/30">
-          {arr.map((url, i) => (
-            <img key={i} src={url} className="w-full h-20 object-contain border border-border bg-background" />
-          ))}
-        </div>
-      );
-    }
-    return (
-      <ul className="font-mono text-[11px] p-2 border border-border/60 bg-card/30 list-disc list-inside space-y-0.5">
-        {arr.map((s, i) => (
-          <li key={i}>{s}</li>
-        ))}
-      </ul>
-    );
-  }
-  if (typeof v === "object") {
-    return (
-      <pre className="font-mono text-[11px] whitespace-pre-wrap p-2 border border-border/60 bg-card/30 max-h-48 overflow-y-auto">
-        {JSON.stringify(v, null, 2)}
-      </pre>
-    );
-  }
-  return (
-    <pre className="font-mono text-[11px] whitespace-pre-wrap p-2 border border-border/60 bg-card/30 max-h-48 overflow-y-auto">
-      {String(v)}
-    </pre>
-  );
-}
+import DiffValue from "@/components/DiffValue";
 
 // Fetches the full pending edit (which carries the `before` snapshot the list
-// summary lacks) and shows a per-field before/after diff so a player can see
-// exactly what their edit changed.
+// summary lacks) and shows a per-field unified diff so a player can see exactly
+// what their edit changed without scanning two full copies.
 export default function PendingEditDiffInline({ editId }: { editId: number }) {
   const { data, isLoading } = useGetPendingEdit(editId);
   if (isLoading) {
@@ -79,16 +25,7 @@ export default function PendingEditDiffInline({ editId }: { editId: number }) {
           <div className="font-display text-[11px] tracking-widest text-nc-cyan border-b border-border/50 pb-0.5">
             {f.toUpperCase()}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <div>
-              <div className="font-mono text-[10px] text-destructive mb-0.5">— BEFORE</div>
-              {renderValue(before[f])}
-            </div>
-            <div>
-              <div className="font-mono text-[10px] text-nc-green mb-0.5">+ AFTER</div>
-              {renderValue(diff[f])}
-            </div>
-          </div>
+          <DiffValue before={before[f]} after={diff[f]} compact />
         </div>
       ))}
     </div>

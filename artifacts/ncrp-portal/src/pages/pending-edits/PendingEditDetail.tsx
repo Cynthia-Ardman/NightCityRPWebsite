@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
+import DiffValue from "@/components/DiffValue";
 
 function statusBadge(status: string) {
   if (status === "pending") return <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-xs animate-pulse"><Clock className="w-3 h-3 mr-1" /> PENDING</Badge>;
@@ -43,53 +44,16 @@ function statusBadge(status: string) {
   return <Badge variant="outline" className="rounded-none font-mono text-xs">{status}</Badge>;
 }
 
-// Render a single field's before/after side-by-side. Strings get textareas,
-// arrays of urls get image grids, objects get a JSON preview.
-function FieldDiff({ field, before, after }: { field: string; before: unknown; after: unknown }) {
-  const renderValue = (v: unknown, label: "BEFORE" | "AFTER") => {
-    if (v === null || v === undefined || v === "") {
-      return <div className="font-mono text-xs text-muted-foreground italic p-3 border border-border bg-card/30">(empty)</div>;
-    }
-    if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
-      if (v.length === 0) {
-        return <div className="font-mono text-xs text-muted-foreground italic p-3 border border-border bg-card/30">(empty list)</div>;
-      }
-      return (
-        <div className="grid grid-cols-2 gap-2 p-2 border border-border bg-card/30">
-          {(v as string[]).map((url, i) => (
-            <img key={i} src={url} className="w-full h-24 object-contain border border-border bg-background" />
-          ))}
-        </div>
-      );
-    }
-    if (typeof v === "object") {
-      return (
-        <pre className="font-mono text-xs whitespace-pre-wrap p-3 border border-border bg-card/30 max-h-80 overflow-y-auto">
-          {JSON.stringify(v, null, 2)}
-        </pre>
-      );
-    }
-    return (
-      <pre className="font-mono text-xs whitespace-pre-wrap p-3 border border-border bg-card/30 max-h-80 overflow-y-auto">
-        {String(v)}
-      </pre>
-    );
-  };
+// Render a single field's change. Defaults to the unified diff (only what
+// changed is highlighted); reviewers can flip the whole page to the classic
+// before/after columns via the toggle.
+function FieldDiff({ field, before, after, view }: { field: string; before: unknown; after: unknown; view: "unified" | "split" }) {
   return (
     <div className="space-y-2" data-testid={`field-diff-${field}`}>
       <div className="font-display text-sm tracking-widest text-nc-cyan border-b border-border pb-1">
         {field.toUpperCase()}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <div className="font-mono text-xs text-destructive mb-1">— BEFORE</div>
-          {renderValue(before, "BEFORE")}
-        </div>
-        <div>
-          <div className="font-mono text-xs text-nc-green mb-1">+ AFTER</div>
-          {renderValue(after, "AFTER")}
-        </div>
-      </div>
+      <DiffValue before={before} after={after} view={view} />
     </div>
   );
 }
@@ -101,6 +65,7 @@ export default function PendingEditDetail() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [voteNote, setVoteNote] = useState("");
+  const [diffView, setDiffView] = useState<"unified" | "split">("unified");
   const [editOpen, setEditOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeNote, setCloseNote] = useState("");
@@ -270,7 +235,33 @@ export default function PendingEditDetail() {
         {fields.length === 0 ? (
           <div className="font-mono text-sm text-muted-foreground italic">No changed fields recorded.</div>
         ) : (
-          fields.map((f) => <FieldDiff key={f} field={f} before={before[f]} after={diff[f]} />)
+          <>
+            <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-2">
+              <div className="font-mono text-xs text-muted-foreground">
+                {fields.length} changed field{fields.length === 1 ? "" : "s"} —{" "}
+                <span className="text-destructive">red</span> removed, <span className="text-nc-green">green</span> added.
+              </div>
+              <div className="flex border border-border" role="group" aria-label="Diff view">
+                <button
+                  type="button"
+                  onClick={() => setDiffView("unified")}
+                  className={`px-3 py-1 font-display text-[11px] tracking-widest ${diffView === "unified" ? "bg-nc-cyan text-background" : "text-muted-foreground hover:text-nc-cyan"}`}
+                  data-testid="button-diff-unified"
+                >
+                  CHANGES
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiffView("split")}
+                  className={`px-3 py-1 font-display text-[11px] tracking-widest ${diffView === "split" ? "bg-nc-cyan text-background" : "text-muted-foreground hover:text-nc-cyan"}`}
+                  data-testid="button-diff-split"
+                >
+                  SIDE-BY-SIDE
+                </button>
+              </div>
+            </div>
+            {fields.map((f) => <FieldDiff key={f} field={f} before={before[f]} after={diff[f]} view={diffView} />)}
+          </>
         )}
       </div>
 

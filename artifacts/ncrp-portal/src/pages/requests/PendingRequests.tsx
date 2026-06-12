@@ -36,6 +36,7 @@ import {
 } from "@workspace/api-client-react";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
+import DiffValue from "@/components/DiffValue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -879,10 +880,11 @@ function LoreEditCard({ edit }: { edit: LorePendingEdit }) {
             changedKeys.map((k) => (
               <div key={k} className="font-mono text-xs">
                 <div className="text-nc-cyan uppercase tracking-widest mb-0.5">{LORE_FIELD_LABELS[k]}</div>
-                {edit.kind === "edit" && (
-                  <div className="text-muted-foreground line-through whitespace-pre-wrap break-words">{fmtLoreValue(before[k])}</div>
+                {edit.kind === "edit" ? (
+                  <DiffValue before={fmtLoreValue(before[k])} after={fmtLoreValue((diff as Record<string, unknown>)[k])} compact />
+                ) : (
+                  <div className="text-foreground whitespace-pre-wrap break-words">{fmtLoreValue((diff as Record<string, unknown>)[k])}</div>
                 )}
-                <div className="text-foreground whitespace-pre-wrap break-words">{fmtLoreValue((diff as Record<string, unknown>)[k])}</div>
               </div>
             ))
           )}
@@ -1025,10 +1027,11 @@ function GuidebookEditCard({ edit }: { edit: GuidebookPendingEdit }) {
             changedKeys.map((k) => (
               <div key={k} className="font-mono text-xs">
                 <div className="text-nc-cyan uppercase tracking-widest mb-0.5">{GUIDEBOOK_FIELD_LABELS[k]}</div>
-                {edit.kind === "edit" && (
-                  <div className="text-muted-foreground line-through whitespace-pre-wrap break-words">{fmtLoreValue(before[k])}</div>
+                {edit.kind === "edit" ? (
+                  <DiffValue before={fmtLoreValue(before[k])} after={fmtLoreValue((diff as Record<string, unknown>)[k])} compact />
+                ) : (
+                  <div className="text-foreground whitespace-pre-wrap break-words">{fmtLoreValue((diff as Record<string, unknown>)[k])}</div>
                 )}
-                <div className="text-foreground whitespace-pre-wrap break-words">{fmtLoreValue((diff as Record<string, unknown>)[k])}</div>
               </div>
             ))
           )}
