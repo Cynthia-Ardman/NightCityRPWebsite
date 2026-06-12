@@ -27,14 +27,14 @@ import { useState, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu } from "lucide-react";
+import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu, Lock } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import StaffCyberwareCard from "@/components/StaffCyberwareCard";
 import { cwpFromNotes, deriveCwpBand, buildCyberNotes, parseCyberNotes, stripImportSentinel } from "@/components/CyberwareEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FIRE_MODES } from "@/components/catalog/gunTypes";
+import { FIRE_MODES, GUN_CATEGORIES, GUN_WEAPON_TYPES, GUN_POWER_LEVELS } from "@/components/catalog/gunTypes";
 import { useListCyberware } from "@workspace/api-client-react";
 import StaffLeaseCard from "@/components/StaffLeaseCard";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
@@ -799,7 +799,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   // Weapon-only fields (mirror the gun catalog; packed into notes on save).
-  const [gun, setGun] = useState({ manufacturer: "", weaponType: "", fireMode: "", powerLevel: "", damage: "", magSize: "" });
+  const [gun, setGun] = useState({ manufacturer: "", category: "", weaponType: "", fireMode: "", powerLevel: "" });
   // Cyberware-only fields (packed into the shared "CWP n · … · slot: x" note).
   const [cyber, setCyber] = useState({ slot: "", cwp: "" });
   const [transferItemId, setTransferItemId] = useState<number | null>(null);
@@ -810,17 +810,16 @@ function InventoryTab({ characterId }: { characterId: number }) {
     setCategory("Misc");
     setQuantity(1);
     setNotes("");
-    setGun({ manufacturer: "", weaponType: "", fireMode: "", powerLevel: "", damage: "", magSize: "" });
+    setGun({ manufacturer: "", category: "", weaponType: "", fireMode: "", powerLevel: "" });
     setCyber({ slot: "", cwp: "" });
   };
 
   const gunComplete =
     !!gun.manufacturer.trim() &&
+    !!gun.category.trim() &&
     !!gun.weaponType.trim() &&
     !!gun.fireMode.trim() &&
-    !!gun.powerLevel.trim() &&
-    !!gun.damage.trim() &&
-    !!gun.magSize.trim();
+    !!gun.powerLevel.trim();
   const cyberComplete = !!cyber.slot.trim() && cyber.cwp.trim() !== "" && Number(cyber.cwp) >= 0;
   const canSubmitAdd =
     !!name.trim() &&
@@ -838,11 +837,10 @@ function InventoryTab({ characterId }: { characterId: number }) {
     if (category === "Weapon") {
       const parts = [
         `Manufacturer: ${gun.manufacturer.trim()}`,
+        `Category: ${gun.category.trim()}`,
         `Type: ${gun.weaponType.trim()}`,
         `Fire: ${gun.fireMode.trim()}`,
         `Power: ${gun.powerLevel.trim()}`,
-        `Damage: ${gun.damage.trim()}`,
-        `Mag: ${gun.magSize.trim()}`,
       ];
       if (notes.trim()) parts.push(notes.trim());
       finalNotes = parts.join(" · ");
@@ -865,9 +863,14 @@ function InventoryTab({ characterId }: { characterId: number }) {
   return (
     <div className="space-y-6">
       {isStaff && (
-      <Card className="rounded-none border-border bg-card/50">
+      <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display tracking-widest">ADD ITEM</CardTitle>
+          <CardTitle className="font-display tracking-widest text-nc-yellow flex items-center gap-2">
+            <Lock className="w-4 h-4" /> ADD ITEM
+            <span className="text-[10px] tracking-widest border border-nc-yellow/50 text-nc-yellow px-1.5 py-0.5 font-mono">
+              FIXER-ONLY
+            </span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form
@@ -908,8 +911,30 @@ function InventoryTab({ characterId }: { characterId: number }) {
                   <Input value={gun.manufacturer} onChange={(e) => setGun({ ...gun, manufacturer: e.target.value })} data-testid="input-gun-manufacturer" />
                 </div>
                 <div className="sm:col-span-4">
+                  <Label className="text-xs font-mono">CATEGORY</Label>
+                  <Select value={gun.category} onValueChange={(v) => setGun({ ...gun, category: v })}>
+                    <SelectTrigger className="rounded-none font-mono" data-testid="select-gun-category">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GUN_CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="sm:col-span-4">
                   <Label className="text-xs font-mono">WEAPON TYPE</Label>
-                  <Input value={gun.weaponType} onChange={(e) => setGun({ ...gun, weaponType: e.target.value })} data-testid="input-gun-type" />
+                  <Select value={gun.weaponType} onValueChange={(v) => setGun({ ...gun, weaponType: v })}>
+                    <SelectTrigger className="rounded-none font-mono" data-testid="select-gun-type">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GUN_WEAPON_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="sm:col-span-4">
                   <Label className="text-xs font-mono">FIRE MODE</Label>
@@ -926,15 +951,16 @@ function InventoryTab({ characterId }: { characterId: number }) {
                 </div>
                 <div className="sm:col-span-4">
                   <Label className="text-xs font-mono">POWER LEVEL</Label>
-                  <Input value={gun.powerLevel} onChange={(e) => setGun({ ...gun, powerLevel: e.target.value })} data-testid="input-gun-power" />
-                </div>
-                <div className="sm:col-span-4">
-                  <Label className="text-xs font-mono">DAMAGE</Label>
-                  <Input value={gun.damage} onChange={(e) => setGun({ ...gun, damage: e.target.value })} data-testid="input-gun-damage" />
-                </div>
-                <div className="sm:col-span-4">
-                  <Label className="text-xs font-mono">MAG SIZE</Label>
-                  <Input type="number" min={0} value={gun.magSize} onChange={(e) => setGun({ ...gun, magSize: e.target.value })} data-testid="input-gun-mag" />
+                  <Select value={gun.powerLevel} onValueChange={(v) => setGun({ ...gun, powerLevel: v })}>
+                    <SelectTrigger className="rounded-none font-mono" data-testid="select-gun-power">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GUN_POWER_LEVELS.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             )}

@@ -59,6 +59,18 @@ statuses, so requests and non-draft sheets were never phantom.
    **Why:** the submission timestamp is activity *to a reviewer*, never to the
    author; conflating the two views in one shared `baseAt` is the trap.
 
+4. **`closedAt` re-pinged the submitter on already-seen resolved rows.**
+   Note #3's fix kept `closedAt` in the submitter `baseAt`. But a reviewer's
+   administrative close (archiving an already-decided ticket) bumped `closedAt`
+   past the submitter's `review_seen` row, re-lighting the badge on a request the
+   player had already read the decision for — the "completed request stays
+   pinged" bug. Fix: submitter `baseAt` now uses ONLY the decision ts
+   (`r.decidedAt ?? null` / `r.reviewedAt ?? null`); `closedAt` is dropped from
+   the maps (still SELECTed, just unused). Reviewer comments still notify via the
+   `lastComment` merge in `listUnseenIds`. **Why:** to the submitter a close is
+   not new information — only the decision (and reviewer comments) should ping
+   them; reviewer-side callers never used `closedAt` for the submitter view.
+
 **Why not a backend union on `/pending-edits`** (`or(staffWhere, submittedBy=me)`):
 the staff Pending Requests queue consumes the same endpoint and does NOT filter
 own rows from display, so a union would pollute the reviewer's own queue with

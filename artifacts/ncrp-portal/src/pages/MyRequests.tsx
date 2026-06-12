@@ -200,7 +200,9 @@ export default function MyRequests() {
   const [category, setCategory] = useState<HistoryRow["category"] | "All">("All");
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [editing, setEditing] = useState<{ id: number; title: string; description: string } | null>(null);
+  // mode "resubmit" = changes_requested flow (edit then send back to queue);
+  // mode "save" = still-pending in-queue edit (save only, votes reset server-side).
+  const [editing, setEditing] = useState<{ id: number; title: string; description: string; mode: "save" | "resubmit" } | null>(null);
   const [discussing, setDiscussing] = useState<string | null>(null);
   // Per-queue ids of the player's own submissions with unseen activity. Drives
   // the per-row unread dot; opening a row's discussion clears it server-side.
@@ -260,15 +262,23 @@ export default function MyRequests() {
     },
   });
 
-  // Edit (if changed) then resubmit. Resubmit is allowed even with no edits.
-  const saveAndResubmit = async () => {
+  // Save the edited title/description. In "resubmit" mode (changes_requested) we
+  // also send it back to the queue; resubmit is allowed even with no edits. In
+  // "save" mode (still pending) we only persist — the server resets prior votes
+  // so the next round judges the edited content.
+  const saveEditing = async () => {
     if (!editing) return;
     try {
       await update.mutateAsync({ id: editing.id, data: { title: editing.title, description: editing.description } });
-      await resubmit.mutateAsync({ id: editing.id });
+      if (editing.mode === "resubmit") {
+        await resubmit.mutateAsync({ id: editing.id });
+      } else {
+        toast({ title: "Request updated" });
+        invalidateMine();
+      }
       setEditing(null);
     } catch (err) {
-      toast({ title: "Could not resubmit", description: errMsg(err, "Save failed"), variant: "destructive" });
+      toast({ title: "Could not save", description: errMsg(err, "Save failed"), variant: "destructive" });
     }
   };
 
@@ -426,7 +436,7 @@ export default function MyRequests() {
                 type="button"
                 size="sm"
                 className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
-                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "" })}
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "resubmit" })}
                 data-testid={`button-edit-resubmit-${r.customId}`}
               >
                 <Pencil className="w-3 h-3 mr-1" /> EDIT & RESUBMIT
@@ -444,7 +454,24 @@ export default function MyRequests() {
               </Button>
             </div>
           ) : null}
-          {r.respondTo && r.status === "changes_requested" ? (
+          {/* Still-pending player proposal: let the submitter amend it in place
+              while it sits in the fixer queue (saving resets any votes already
+              cast). Only the fixer-voted proposal types carry an editable
+              title/description; owner/player-decision rows are excluded. */}
+          {r.status === "pending" && r.customId != null && r.customType && FIXER_VOTED_TYPES.has(r.customType) ? (
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "save" })}
+                data-testid={`button-edit-pending-${r.customId}`}
+              >
+                <Pencil className="w-3 h-3 mr-1" /> EDIT
+              </Button>
+            </div>
+          ) : null}
+          {r.respondTo && (r.status === "pending" || r.status === "changes_requested") ? (
             <div className="flex gap-2 mt-2">
               <Button
                 type="button"
@@ -453,7 +480,7 @@ export default function MyRequests() {
                 onClick={() => navigate(r.respondTo!)}
                 data-testid={`button-respond-${r.key}`}
               >
-                <Pencil className="w-3 h-3 mr-1" /> VIEW &amp; RESPOND
+                <Pencil className="w-3 h-3 mr-1" /> VIEW &amp; EDIT
               </Button>
             </div>
           ) : null}
@@ -693,7 +720,7 @@ export default function MyRequests() {
       <Dialog open={editing != null} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         <DialogContent className="rounded-none border-nc-cyan bg-card">
           <DialogHeader>
-            <DialogTitle className="font-display tracking-widest text-nc-cyan">EDIT & RESUBMIT</DialogTitle>
+            <DialogTitle className="font-display tracking-widest text-nc-cyan">{editing?.mode === "save" ? "EDIT REQUEST" : "EDIT & RESUBMIT"}</DialogTitle>
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
@@ -732,10 +759,10 @@ export default function MyRequests() {
               type="button"
               disabled={update.isPending || resubmit.isPending || !editing?.title.trim()}
               className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-              onClick={saveAndResubmit}
+              onClick={saveEditing}
               data-testid="button-edit-save-resubmit"
             >
-              SAVE & RESUBMIT
+              {editing?.mode === "save" ? "SAVE CHANGES" : "SAVE & RESUBMIT"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -355,14 +355,19 @@ router.get("/review/my-unseen", requireAuth, async (req, res): Promise<void> => 
     .where(and(eq(characterSheets.ownerId, viewerId), ne(characterSheets.status, "draft")));
 
   // The SUBMITTER is only notified by reviewer-side activity: a decision
-  // (decidedAt/reviewedAt), a close, or a comment from someone other than
-  // themselves. The bare submission timestamp (submittedAt/createdAt) is
-  // deliberately NOT a trigger here — including it made every freshly submitted
-  // pending row light up its own author's "My Requests" badge with nothing new
-  // to read, the recurring phantom-pending-edit bug.
-  const edit = await listUnseenIds("edit", editRows.map((r) => ({ id: r.id, baseAt: maxDateOrNull(r.decidedAt, r.closedAt) })), viewerId, { excludeCommentAuthor: viewerId });
-  const request = await listUnseenIds("request", requestRows.map((r) => ({ id: r.id, baseAt: maxDateOrNull(r.reviewedAt, r.closedAt) })), viewerId, { excludeCommentAuthor: viewerId });
-  const sheet = await listUnseenIds("sheet", sheetRows.map((r) => ({ id: r.id, baseAt: maxDateOrNull(r.decidedAt, r.closedAt) })), viewerId, { excludeCommentAuthor: viewerId });
+  // (decidedAt/reviewedAt) or a comment from someone other than themselves.
+  // The bare submission timestamp (submittedAt/createdAt) is deliberately NOT a
+  // trigger here — including it made every freshly submitted pending row light
+  // up its own author's "My Requests" badge with nothing new to read, the
+  // recurring phantom-pending-edit bug.
+  // closedAt is ALSO deliberately excluded: a reviewer's administrative close
+  // (archiving an already-resolved ticket) was re-pinging the submitter on a
+  // request they'd already seen the decision for, so a "completed" request kept
+  // a stuck unread dot/badge. Closing now clears on its own — the decision (and
+  // any reviewer comment) is what notifies the player.
+  const edit = await listUnseenIds("edit", editRows.map((r) => ({ id: r.id, baseAt: r.decidedAt ?? null })), viewerId, { excludeCommentAuthor: viewerId });
+  const request = await listUnseenIds("request", requestRows.map((r) => ({ id: r.id, baseAt: r.reviewedAt ?? null })), viewerId, { excludeCommentAuthor: viewerId });
+  const sheet = await listUnseenIds("sheet", sheetRows.map((r) => ({ id: r.id, baseAt: r.decidedAt ?? null })), viewerId, { excludeCommentAuthor: viewerId });
 
   res.json({ edit, request, sheet, total: edit.length + request.length + sheet.length });
 });

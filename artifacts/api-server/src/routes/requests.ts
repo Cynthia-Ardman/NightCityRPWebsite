@@ -1029,7 +1029,20 @@ router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
     res.json(shape(row));
     return;
   }
-  await db.update(customRequests).set(patch).where(eq(customRequests.id, rid));
+  // Editing a request that is STILL pending (i.e. live in the fixer queue) is a
+  // material change to what reviewers are voting on, so clear any votes already
+  // cast — the next round must judge the edited content. (For changes_requested
+  // the votes are cleared by the separate resubmit step instead, so we only
+  // reset here when the row hasn't left the queue.) clearReviewVotes is a no-op
+  // for owner/player-decided types that never accrue votes.
+  if (reqRow.status === "pending") {
+    await db.transaction(async (tx) => {
+      await tx.update(customRequests).set(patch).where(eq(customRequests.id, rid));
+      await clearReviewVotes({ subjectType: "request", subjectId: rid, conn: tx });
+    });
+  } else {
+    await db.update(customRequests).set(patch).where(eq(customRequests.id, rid));
+  }
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));
 });
