@@ -131,7 +131,7 @@ function MiscRequestsTab() {
   const activeRequests = (active ?? []) as CustomRequest[];
 
   const renderCard = (r: CustomRequest, bucket: LifecycleBucket) => {
-        const meta = TYPE_META[r.type];
+        const meta = TYPE_META[r.type] ?? { label: "REQUEST", Icon: Inbox };
         const Icon = meta.Icon;
         return (
           <Card
