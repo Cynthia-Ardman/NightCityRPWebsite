@@ -35,6 +35,7 @@ import { Link } from "wouter";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 import DiffValue from "@/components/DiffValue";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 function statusBadge(status: string) {
   if (status === "pending") return <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-xs animate-pulse"><Clock className="w-3 h-3 mr-1" /> PENDING</Badge>;
@@ -72,11 +73,17 @@ export default function PendingEditDetail() {
   const [closeNote, setCloseNote] = useState("");
 
   const { data: edit, isLoading } = useGetPendingEdit(editId);
-  // Pull the live character so the submitter can edit-and-resubmit in place
-  // (only needed when they're the one able to resubmit after changes).
+  const me = useEffectiveMe();
+  // The submitter can amend their own edit in place while it is still pending
+  // (the backend upserts the same review row and clears prior votes). This is
+  // distinct from canResubmit, which only applies after changes were requested.
+  const canAmend =
+    !!me.data?.id && !!edit && edit.submittedBy === me.data.id && edit.status === "pending";
+  // Pull the live character so the submitter can edit-and-resubmit (after
+  // changes) or amend (while pending) in place.
   const { data: character } = useGetCharacter(edit?.characterId ?? 0, {
     query: {
-      enabled: !!edit?.characterId && !!edit?.canResubmit,
+      enabled: !!edit?.characterId && (!!edit?.canResubmit || canAmend),
       queryKey: getGetCharacterQueryKey(edit?.characterId ?? 0),
     },
   });
@@ -386,6 +393,23 @@ export default function PendingEditDetail() {
           </div>
           <p className="font-mono text-xs text-muted-foreground mt-1">
             Use <span className="text-nc-magenta">EDIT &amp; RESUBMIT</span> to make the requested changes — your update amends this same review. Or resubmit as-is to send it back unchanged. Either way, prior votes are cleared.
+          </p>
+        </div>
+      )}
+
+      {/* Amend (submitter, while still pending) — update the edit in place */}
+      {canAmend && (
+        <div className="border-t border-border pt-4 space-y-2">
+          <Button
+            onClick={() => setEditOpen(true)}
+            disabled={!mergedCharacter}
+            className="rounded-none bg-nc-magenta text-foreground hover:bg-nc-magenta/80 font-display"
+            data-testid="button-amend-edit"
+          >
+            <Pencil className="w-4 h-4 mr-1" /> AMEND THIS EDIT
+          </Button>
+          <p className="font-mono text-xs text-muted-foreground mt-1">
+            Change what you proposed while it's still under review — your update amends this same ticket. Prior votes are cleared so reviewers re-tally against the new content.
           </p>
         </div>
       )}

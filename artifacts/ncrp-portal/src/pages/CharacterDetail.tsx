@@ -763,6 +763,10 @@ function CyberwareTab({ characterId }: { characterId: number }) {
 
 type InventoryCategory = "Misc" | "Weapon" | "Cyberware";
 const CUSTOM_CYBER_SLOT = "__custom__";
+// Sentinel for the "Custom" entry in the weapon Category / Weapon type
+// dropdowns. Picking it reveals a free-text input so off-catalog weapons can
+// still be logged.
+const CUSTOM_GUN_OPTION = "__custom__";
 const KEEP_CATEGORY = "__keep__";
 
 function InventoryTab({ characterId }: { characterId: number }) {
@@ -800,6 +804,11 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const [notes, setNotes] = useState("");
   // Weapon-only fields (mirror the gun catalog; packed into notes on save).
   const [gun, setGun] = useState({ manufacturer: "", category: "", weaponType: "", fireMode: "", powerLevel: "" });
+  // Free-text overrides for the weapon Category / Weapon type dropdowns. When
+  // on, the matching <Select> swaps to a text input so off-catalog values can
+  // be entered.
+  const [customGunCategory, setCustomGunCategory] = useState(false);
+  const [customWeaponType, setCustomWeaponType] = useState(false);
   // Cyberware-only fields (packed into the shared "CWP n · … · slot: x" note).
   const [cyber, setCyber] = useState({ slot: "", cwp: "" });
   const [transferItemId, setTransferItemId] = useState<number | null>(null);
@@ -811,6 +820,8 @@ function InventoryTab({ characterId }: { characterId: number }) {
     setQuantity(1);
     setNotes("");
     setGun({ manufacturer: "", category: "", weaponType: "", fireMode: "", powerLevel: "" });
+    setCustomGunCategory(false);
+    setCustomWeaponType(false);
     setCyber({ slot: "", cwp: "" });
   };
 
@@ -912,7 +923,18 @@ function InventoryTab({ characterId }: { characterId: number }) {
                 </div>
                 <div className="sm:col-span-4">
                   <Label className="text-xs font-mono">CATEGORY</Label>
-                  <Select value={gun.category} onValueChange={(v) => setGun({ ...gun, category: v })}>
+                  <Select
+                    value={customGunCategory ? CUSTOM_GUN_OPTION : gun.category}
+                    onValueChange={(v) => {
+                      if (v === CUSTOM_GUN_OPTION) {
+                        setCustomGunCategory(true);
+                        setGun({ ...gun, category: "" });
+                      } else {
+                        setCustomGunCategory(false);
+                        setGun({ ...gun, category: v });
+                      }
+                    }}
+                  >
                     <SelectTrigger className="rounded-none font-mono" data-testid="select-gun-category">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
@@ -920,12 +942,33 @@ function InventoryTab({ characterId }: { characterId: number }) {
                       {GUN_CATEGORIES.map((c) => (
                         <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
+                      <SelectItem value={CUSTOM_GUN_OPTION}>Custom…</SelectItem>
                     </SelectContent>
                   </Select>
+                  {customGunCategory && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Custom category"
+                      value={gun.category}
+                      onChange={(e) => setGun({ ...gun, category: e.target.value })}
+                      data-testid="input-gun-custom-category"
+                    />
+                  )}
                 </div>
                 <div className="sm:col-span-4">
                   <Label className="text-xs font-mono">WEAPON TYPE</Label>
-                  <Select value={gun.weaponType} onValueChange={(v) => setGun({ ...gun, weaponType: v })}>
+                  <Select
+                    value={customWeaponType ? CUSTOM_GUN_OPTION : gun.weaponType}
+                    onValueChange={(v) => {
+                      if (v === CUSTOM_GUN_OPTION) {
+                        setCustomWeaponType(true);
+                        setGun({ ...gun, weaponType: "" });
+                      } else {
+                        setCustomWeaponType(false);
+                        setGun({ ...gun, weaponType: v });
+                      }
+                    }}
+                  >
                     <SelectTrigger className="rounded-none font-mono" data-testid="select-gun-type">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
@@ -933,8 +976,18 @@ function InventoryTab({ characterId }: { characterId: number }) {
                       {GUN_WEAPON_TYPES.map((t) => (
                         <SelectItem key={t} value={t}>{t}</SelectItem>
                       ))}
+                      <SelectItem value={CUSTOM_GUN_OPTION}>Custom…</SelectItem>
                     </SelectContent>
                   </Select>
+                  {customWeaponType && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Custom weapon type"
+                      value={gun.weaponType}
+                      onChange={(e) => setGun({ ...gun, weaponType: e.target.value })}
+                      data-testid="input-gun-custom-type"
+                    />
+                  )}
                 </div>
                 <div className="sm:col-span-4">
                   <Label className="text-xs font-mono">FIRE MODE</Label>
@@ -1071,37 +1124,44 @@ function InventoryTab({ characterId }: { characterId: number }) {
                         <History className="w-3 h-3" />
                       </Button>
                     </Link>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-nc-cyan h-8 px-2"
-                      onClick={() => setEditItemId(it.id)}
-                      title="Edit item details"
-                      data-testid={`button-edit-item-${it.id}`}
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-nc-cyan h-8 px-2"
-                      onClick={() => setTransferItemId(it.id)}
-                      data-testid={`button-transfer-item-${it.id}`}
-                    >
-                      <Send className="w-3 h-3 mr-1" /> MOVE
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive h-8 w-8"
-                      onClick={() => deleteItem.mutate({ id: characterId, itemId: it.id })}
-                      data-testid={`button-delete-item-${it.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {/* Cyberware edits/removals must go through review — only
+                        staff get the direct edit/delete controls. Players use
+                        the cyberware request flow instead. */}
+                    {(it.category ?? "").trim().toLowerCase() !== "cyberware" || isStaff ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-nc-cyan h-8 px-2"
+                          onClick={() => setEditItemId(it.id)}
+                          title="Edit item details"
+                          data-testid={`button-edit-item-${it.id}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-nc-cyan h-8 px-2"
+                          onClick={() => setTransferItemId(it.id)}
+                          data-testid={`button-transfer-item-${it.id}`}
+                        >
+                          <Send className="w-3 h-3 mr-1" /> MOVE
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive h-8 w-8"
+                          onClick={() => deleteItem.mutate({ id: characterId, itemId: it.id })}
+                          data-testid={`button-delete-item-${it.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ))}

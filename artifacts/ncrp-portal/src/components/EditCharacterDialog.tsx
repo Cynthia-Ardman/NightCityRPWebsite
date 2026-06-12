@@ -483,25 +483,38 @@ export default function EditCharacterDialog({
             testIdPrefix="stats"
           />
 
-          {/* Cyberware — applied immediately, separate from review-queued fields */}
-          <div className="border border-nc-cyan/30 p-4 space-y-3 bg-card/20">
-            <CyberwareEditor rows={cyberRows} onChange={setCyberRows} testIdPrefix="edit" />
-            <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
-              <p className="text-[10px] font-mono text-muted-foreground">
-                Cyberware applies immediately and does not go through review.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                disabled={savingCyber}
-                onClick={saveCyberware}
-                className="rounded-none font-display text-xs bg-nc-cyan text-background"
-                data-testid="button-save-cyberware"
-              >
-                {savingCyber ? "SAVING…" : "SAVE CYBERWARE"}
-              </Button>
+          {/* Cyberware — staff edit it directly here (applied immediately). For
+              players, direct edits are hidden: their cyberware changes must go
+              through review via the request flow on the character's Cyberware
+              tab, so we only show a pointer instead of the immediate editor. */}
+          {isStaff ? (
+            <div className="border border-nc-cyan/30 p-4 space-y-3 bg-card/20">
+              <CyberwareEditor rows={cyberRows} onChange={setCyberRows} testIdPrefix="edit" />
+              <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+                <p className="text-[10px] font-mono text-muted-foreground">
+                  Staff edits apply immediately and do not go through review.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={savingCyber}
+                  onClick={saveCyberware}
+                  className="rounded-none font-display text-xs bg-nc-cyan text-background"
+                  data-testid="button-save-cyberware"
+                >
+                  {savingCyber ? "SAVING…" : "SAVE CYBERWARE"}
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="border border-nc-cyan/30 p-4 bg-card/20">
+              <p className="text-xs font-mono text-muted-foreground" data-testid="text-cyberware-review-note">
+                Cyberware changes go through review. Request an install or removal
+                from the <span className="text-nc-cyan">Cyberware</span> tab on the
+                character page and a fixer will approve it.
+              </p>
+            </div>
+          )}
 
           {/* Staff one-stop-shop: grant gear / guns / property to any character */}
           {isStaff && (

@@ -471,16 +471,15 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
     res.status(404).json({ error: "Item not found" });
     return;
   }
-  // Players may not self-install/uninstall cyberware — that must go through a
-  // ripperdoc. Block the `equipped` toggle on cyberware for non-staff actors;
-  // staff (admin/fixer) retain the ability for corrections.
-  if (
-    equipped !== undefined &&
-    equipped !== before.equipped &&
-    (before.category ?? "").trim().toLowerCase() === "cyberware" &&
-    !isStaffUser(req.user!)
-  ) {
-    res.status(403).json({ error: "Cyberware must be installed or removed by a ripperdoc." });
+  // Players may not self-modify cyberware — installs/removals (the `equipped`
+  // toggle), stat/notes/name edits, and recategorizations must all go through a
+  // ripperdoc/review. Block any non-staff PATCH that touches a cyberware item OR
+  // tries to turn an item INTO cyberware; staff (admin/fixer) retain direct
+  // control for corrections.
+  const beforeIsCyber = (before.category ?? "").trim().toLowerCase() === "cyberware";
+  const targetIsCyber = typeof category === "string" && category.trim().toLowerCase() === "cyberware";
+  if ((beforeIsCyber || targetIsCyber) && !isStaffUser(req.user!)) {
+    res.status(403).json({ error: "Cyberware changes must go through review. Submit a cyberware request instead." });
     return;
   }
   const [u] = await db
@@ -546,6 +545,16 @@ router.delete("/characters/:cid/inventory/:itemId", requireAuth, async (req, res
     .select()
     .from(inventoryItems)
     .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+  // Cyberware removals must go through review for players — only staff may delete
+  // a cyberware item directly (corrections). Players use the request flow.
+  if (
+    doomed &&
+    (doomed.category ?? "").trim().toLowerCase() === "cyberware" &&
+    !isStaffUser(req.user!)
+  ) {
+    res.status(403).json({ error: "Cyberware changes must go through review. Submit a cyberware request instead." });
+    return;
+  }
   await db.delete(inventoryItems).where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
   if (doomed) {
     await db.insert(characterUpdates).values({
