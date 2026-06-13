@@ -40,6 +40,7 @@ import {
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
+import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import DiffValue from "@/components/DiffValue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -160,7 +161,6 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
           voters: (r.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
         }}
         markSeenOnMount={isReviewer}
-        showDiscordThread={isReviewer}
         initiallyExpanded={r.id === focusId}
         awaitingVote={isReviewer && bucket === "active" && r.status === "pending" && !r.myVote}
         tally={
@@ -185,33 +185,44 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
           )
         }
         actions={
-          isReviewer && bucket === "active" && r.status === "pending" ? (
+          isReviewer ? (
             <div className="flex flex-wrap gap-2">
-              <Button
-                className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                onClick={() => setApproveTarget(r)}
-                data-testid={`button-approve-misc-${r.id}`}
-              >
-                {r.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                onClick={() => setRejectTarget(r)}
-                data-testid={`button-reject-misc-${r.id}`}
-              >
-                {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
-              </Button>
-              {isAdmin && (
-                <Button
-                  variant="outline"
-                  className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
-                  onClick={() => setOverrideTarget(r)}
-                  data-testid={`button-override-misc-${r.id}`}
-                >
-                  OVERRIDE
-                </Button>
+              {bucket === "active" && r.status === "pending" && (
+                <>
+                  <Button
+                    className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                    onClick={() => setApproveTarget(r)}
+                    data-testid={`button-approve-misc-${r.id}`}
+                  >
+                    {r.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                    onClick={() => setRejectTarget(r)}
+                    data-testid={`button-reject-misc-${r.id}`}
+                  >
+                    {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                      onClick={() => setOverrideTarget(r)}
+                      data-testid={`button-override-misc-${r.id}`}
+                    >
+                      OVERRIDE
+                    </Button>
+                  )}
+                </>
               )}
+              <DiscordThreadDrawer
+                subjectType="request"
+                subjectId={r.id}
+                buttonLabel="SEE THREAD"
+                watchUnread
+                buttonClassName="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-display text-xs tracking-widest h-9 shrink-0"
+              />
             </div>
           ) : null
         }
@@ -826,36 +837,47 @@ function NewCharactersTab() {
         }
         actions={
           <div className="space-y-2">
-            {isReviewer && sheet.status === "pending" && (
+            {isReviewer && (
               <div className="flex flex-wrap gap-2">
-                <Button
-                  className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                  disabled={busy}
-                  onClick={() => vote.mutate({ id: sheet.id, data: { vote: "approve" } })}
-                  data-testid={`button-approve-sheet-${sheet.id}`}
-                >
-                  {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                  disabled={busy}
-                  onClick={() => vote.mutate({ id: sheet.id, data: { vote: "reject" } })}
-                  data-testid={`button-reject-sheet-${sheet.id}`}
-                >
-                  {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
-                </Button>
-                {isAdmin && (
-                  <Button
-                    variant="outline"
-                    className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
-                    disabled={busy}
-                    onClick={() => override.mutate({ id: sheet.id, data: { decision: "approve" } })}
-                    data-testid={`button-override-sheet-${sheet.id}`}
-                  >
-                    OVERRIDE
-                  </Button>
+                {sheet.status === "pending" && (
+                  <>
+                    <Button
+                      className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                      disabled={busy}
+                      onClick={() => vote.mutate({ id: sheet.id, data: { vote: "approve" } })}
+                      data-testid={`button-approve-sheet-${sheet.id}`}
+                    >
+                      {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                      disabled={busy}
+                      onClick={() => vote.mutate({ id: sheet.id, data: { vote: "reject" } })}
+                      data-testid={`button-reject-sheet-${sheet.id}`}
+                    >
+                      {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                        disabled={busy}
+                        onClick={() => override.mutate({ id: sheet.id, data: { decision: "approve" } })}
+                        data-testid={`button-override-sheet-${sheet.id}`}
+                      >
+                        OVERRIDE
+                      </Button>
+                    )}
+                  </>
                 )}
+                <DiscordThreadDrawer
+                  subjectType="sheet"
+                  subjectId={sheet.id}
+                  buttonLabel="SEE THREAD"
+                  watchUnread
+                  buttonClassName="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-display text-xs tracking-widest h-9 shrink-0"
+                />
               </div>
             )}
             <Link href={`/sheets/${sheet.id}`}>

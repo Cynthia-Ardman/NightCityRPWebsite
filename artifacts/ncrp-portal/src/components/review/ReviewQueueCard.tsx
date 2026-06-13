@@ -6,7 +6,6 @@ import { ChevronDown, ChevronUp, MessageSquare, type LucideIcon } from "lucide-r
 import { UnseenDot } from "@/components/review/ReviewLifecycleUI";
 import { ReviewerRoster, type RosterReviewer, type RosterVote } from "@/components/review/ReviewerRoster";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
-import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 
 export type ReviewSubjectType = "request" | "sheet" | "edit";
 
@@ -35,7 +34,6 @@ export function ReviewQueueCard({
   showRoster = false,
   actions,
   showThread = true,
-  showDiscordThread = false,
   awaitingVote = false,
   markSeenOnMount = false,
   initiallyExpanded = false,
@@ -56,11 +54,6 @@ export function ReviewQueueCard({
   showRoster?: boolean;
   actions?: ReactNode;
   showThread?: boolean;
-  // Show the READ-ONLY cs-approver Discord thread mirror as a pop-out drawer
-  // button in the card header. Staff-only surfaces (the misc-request triage
-  // queue) opt in; the server endpoint is reviewer-gated, so this never leaks
-  // to players.
-  showDiscordThread?: boolean;
   awaitingVote?: boolean;
   markSeenOnMount?: boolean;
   // Seed the comment-thread section open on mount — used by ?focus= deep links
@@ -91,7 +84,6 @@ export function ReviewQueueCard({
             </Badge>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {showDiscordThread && <DiscordThreadDrawer subjectType={subjectType} subjectId={id} iconOnly />}
             {date != null && (
               <span className="text-xs font-mono text-muted-foreground">
                 {new Date(date).toLocaleDateString()}

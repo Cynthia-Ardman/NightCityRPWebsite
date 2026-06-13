@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
+import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 
 function statusBadge(status: string) {
   switch (status) {
@@ -200,36 +201,47 @@ function EditReviewCard({
       }
       actions={
         <div className="space-y-2">
-          {isReviewer && e.status === "pending" && (
+          {isReviewer && (
             <div className="flex flex-wrap gap-2">
-              <Button
-                className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                disabled={busy}
-                onClick={() => vote.mutate({ id: e.id, data: { vote: "approve" } })}
-                data-testid={`button-approve-edit-${e.id}`}
-              >
-                {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                disabled={busy}
-                onClick={() => vote.mutate({ id: e.id, data: { vote: "reject" } })}
-                data-testid={`button-reject-edit-${e.id}`}
-              >
-                {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
-              </Button>
-              {isAdmin && (
-                <Button
-                  variant="outline"
-                  className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
-                  disabled={busy}
-                  onClick={() => override.mutate({ id: e.id, data: { decision: "approve" } })}
-                  data-testid={`button-override-edit-${e.id}`}
-                >
-                  OVERRIDE
-                </Button>
+              {e.status === "pending" && (
+                <>
+                  <Button
+                    className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                    disabled={busy}
+                    onClick={() => vote.mutate({ id: e.id, data: { vote: "approve" } })}
+                    data-testid={`button-approve-edit-${e.id}`}
+                  >
+                    {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                    disabled={busy}
+                    onClick={() => vote.mutate({ id: e.id, data: { vote: "reject" } })}
+                    data-testid={`button-reject-edit-${e.id}`}
+                  >
+                    {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                      disabled={busy}
+                      onClick={() => override.mutate({ id: e.id, data: { decision: "approve" } })}
+                      data-testid={`button-override-edit-${e.id}`}
+                    >
+                      OVERRIDE
+                    </Button>
+                  )}
+                </>
               )}
+              <DiscordThreadDrawer
+                subjectType="edit"
+                subjectId={e.id}
+                buttonLabel="SEE THREAD"
+                watchUnread
+                buttonClassName="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-display text-xs tracking-widest h-9 shrink-0"
+              />
             </div>
           )}
           <Link href={`/pending-edits/${e.id}`}>

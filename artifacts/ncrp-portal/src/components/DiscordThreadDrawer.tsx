@@ -34,10 +34,11 @@ function newestMs(messages: DiscordThreadMessage[]): number {
 //
 // `watchUnread` opts a button in to a lightweight background poll of the thread
 // so it can flash gold when a Discord reply has arrived since the reviewer last
-// opened it. Only enable this on single-button surfaces (the detail pages) —
-// never on a queue of cards, or it fires one poll per card. "Seen" is tracked
-// per-browser in localStorage (there is no server-side seen state for the
-// Discord mirror), and is advanced whenever the drawer is open.
+// opened it. It is safe on a queue of cards: the server caches each thread for
+// ~8s keyed by thread id (shared across cards and reviewers), so N polling
+// cards collapse to at most one Discord fetch per thread per cache window.
+// "Seen" is tracked per-browser in localStorage (there is no server-side seen
+// state for the Discord mirror), and is advanced whenever the drawer is open.
 export default function DiscordThreadDrawer({
   subjectType,
   subjectId,
