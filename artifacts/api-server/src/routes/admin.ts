@@ -15,7 +15,7 @@ import {
 import { isNull, or, ilike, count, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, type ThreadAttachment } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, type ThreadAttachment } from "../lib/discord";
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
@@ -101,6 +101,19 @@ router.get("/admin/discord/members", adminOrFixer, async (req, res): Promise<voi
       hasAccount: accountIds.has(m.id),
     })),
   );
+});
+
+// Search the guild's text channels by name so staff can reference a channel
+// (#name) in a review discussion. Channels are cached server-side, so an empty
+// query returns the full list (capped) — typing "#" shows channels immediately.
+router.get("/admin/discord/channels", adminOrFixer, async (req, res): Promise<void> => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const channels = await searchGuildChannels(q, 25);
+  if (channels === null) {
+    res.status(502).json({ error: "Discord channel search is unavailable right now" });
+    return;
+  }
+  res.json(channels.map((c) => ({ id: c.id, name: c.name })));
 });
 
 // Read-only scan that reconciles who holds the self-service Discord "NPC" role

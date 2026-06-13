@@ -3207,6 +3207,21 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/DiscordMemberOption" }
+  /admin/discord/channels:
+    get:
+      operationId: adminSearchDiscordChannels
+      tags: [admin]
+      summary: Search the Discord guild's text channels by name so staff can reference a channel in a review discussion.
+      parameters:
+        - { in: query, name: q, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Matching guild channels
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DiscordChannelOption" }
   /admin/characters:
     get:
       operationId: adminListCharacters
@@ -7650,6 +7665,13 @@ components:
         globalName: { type: ["string", "null"] }
         avatarUrl: { type: ["string", "null"] }
         hasAccount: { type: boolean }
+
+    DiscordChannelOption:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
 
     WalletAdjustmentInput:
       type: object

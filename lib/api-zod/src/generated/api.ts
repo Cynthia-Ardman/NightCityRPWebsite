@@ -7692,6 +7692,20 @@ export const AdminSearchDiscordMembersResponseItem = zod.object({
 export const AdminSearchDiscordMembersResponse = zod.array(AdminSearchDiscordMembersResponseItem)
 
 
+/**
+ * @summary Search the Discord guild's text channels by name so staff can reference a channel in a review discussion.
+ */
+export const AdminSearchDiscordChannelsQueryParams = zod.object({
+  "q": zod.coerce.string().optional()
+})
+
+export const AdminSearchDiscordChannelsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})
+export const AdminSearchDiscordChannelsResponse = zod.array(AdminSearchDiscordChannelsResponseItem)
+
+
 export const AdminListCharactersResponseItem = zod.object({
   "id": zod.number(),
   "ownerId": zod.string().nullish(),

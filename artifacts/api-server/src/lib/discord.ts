@@ -591,6 +591,66 @@ export async function searchGuildMembers(
   }
 }
 
+export type GuildChannelLite = {
+  id: string;
+  name: string;
+  type: number;
+};
+
+// Channel types that can be referenced by name in chat: text (0), announcement
+// (5), and forum (15). Voice/category/stage/etc. are excluded.
+const MENTIONABLE_CHANNEL_TYPES = new Set([0, 5, 15]);
+
+// The guild's channel list changes rarely, so cache it briefly to avoid hitting
+// Discord on every keystroke of a channel-mention autocomplete.
+let channelCache: { at: number; channels: GuildChannelLite[] } | null = null;
+const CHANNEL_CACHE_MS = 60_000;
+
+async function loadGuildChannels(): Promise<GuildChannelLite[] | null> {
+  if (channelCache && Date.now() - channelCache.at < CHANNEL_CACHE_MS) {
+    return channelCache.channels;
+  }
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) return null;
+  try {
+    const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/channels`, {
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status, body: await res.text() }, "loadGuildChannels failed");
+      return null;
+    }
+    const raw = (await res.json()) as Array<{ id: string; name: string; type: number }>;
+    const channels = raw
+      .filter((c) => MENTIONABLE_CHANNEL_TYPES.has(c.type) && typeof c.name === "string")
+      .map((c) => ({ id: c.id, name: c.name, type: c.type }));
+    channelCache = { at: Date.now(), channels };
+    return channels;
+  } catch (err) {
+    logger.error({ err }, "loadGuildChannels error");
+    return null;
+  }
+}
+
+// Search the guild's text channels by name (the leading "#" is ignored). Prefix
+// matches sort first. Returns null when Discord is unreachable / unconfigured.
+export async function searchGuildChannels(
+  query: string,
+  limit = 25,
+): Promise<GuildChannelLite[] | null> {
+  const all = await loadGuildChannels();
+  if (all === null) return null;
+  const q = query.trim().toLowerCase().replace(/^#/, "");
+  const matches = q ? all.filter((c) => c.name.toLowerCase().includes(q)) : [...all];
+  matches.sort((a, b) => {
+    const ap = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+    const bp = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    return a.name.localeCompare(b.name);
+  });
+  return matches.slice(0, Math.min(Math.max(limit, 1), 100));
+}
+
 export function avatarUrl(discordId: string, hash: string | null | undefined): string | null {
   if (!hash) return null;
   return `https://cdn.discordapp.com/avatars/${discordId}/${hash}.png`;

@@ -11,10 +11,11 @@ import {
 } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import MentionTextarea from "@/components/MentionTextarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 type SubjectType = "edit" | "request" | "sheet";
 
@@ -36,6 +37,10 @@ export default function ReviewCommentThread({
   const qc = useQueryClient();
   const { toast } = useToast();
   const [body, setBody] = useState("");
+  // Mention/channel autocomplete hits staff-only Discord lookups, so only enable
+  // it for fixers/admins. Everyone else gets a plain textarea.
+  const { data: me } = useEffectiveMe();
+  const canMention = !!(me?.isAdmin || me?.isFixer);
 
   const { data: comments, isLoading } = useListReviewComments(subjectType, subjectId, {
     query: { queryKey: getListReviewCommentsQueryKey(subjectType, subjectId) },
@@ -128,13 +133,14 @@ export default function ReviewCommentThread({
         )}
 
         <div className="space-y-2 border-t border-border/40 pt-3">
-          <Textarea
+          <MentionTextarea
             value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Write a message..."
+            onChange={setBody}
+            enableMentions={canMention}
+            placeholder={canMention ? "Write a message…  @ to mention, # for a channel" : "Write a message..."}
             rows={2}
             maxLength={4000}
-            data-testid="input-review-comment"
+            testId="input-review-comment"
           />
           <Button
             onClick={() => post.mutate({ subjectType, id: subjectId, data: { body: trimmed } })}

@@ -32,6 +32,7 @@ import type {
   AdminListAuditLogParams,
   AdminListAuditParams,
   AdminRecordCheckup200,
+  AdminSearchDiscordChannelsParams,
   AdminSearchDiscordMembersParams,
   AdminUser,
   ApplyToMissionInput,
@@ -107,6 +108,7 @@ import type {
   DiceRollInput,
   DiceRollResult,
   DiscordCallbackParams,
+  DiscordChannelOption,
   DiscordMemberOption,
   DismissNotificationPrompt200,
   DismissOnboarding200,
@@ -14463,6 +14465,90 @@ export function useAdminSearchDiscordMembers<TData = Awaited<ReturnType<typeof a
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminSearchDiscordMembersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminSearchDiscordChannelsUrl = (params?: AdminSearchDiscordChannelsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/discord/channels?${stringifiedParams}` : `/api/admin/discord/channels`
+}
+
+/**
+ * @summary Search the Discord guild's text channels by name so staff can reference a channel in a review discussion.
+ */
+export const adminSearchDiscordChannels = async (params?: AdminSearchDiscordChannelsParams, options?: RequestInit): Promise<DiscordChannelOption[]> => {
+
+  return customFetch<DiscordChannelOption[]>(getAdminSearchDiscordChannelsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminSearchDiscordChannelsQueryKey = (params?: AdminSearchDiscordChannelsParams,) => {
+    return [
+    `/api/admin/discord/channels`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminSearchDiscordChannelsQueryOptions = <TData = Awaited<ReturnType<typeof adminSearchDiscordChannels>>, TError = ErrorType<unknown>>(params?: AdminSearchDiscordChannelsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminSearchDiscordChannels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminSearchDiscordChannelsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminSearchDiscordChannels>>> = ({ signal }) => adminSearchDiscordChannels(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminSearchDiscordChannels>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminSearchDiscordChannelsQueryResult = NonNullable<Awaited<ReturnType<typeof adminSearchDiscordChannels>>>
+export type AdminSearchDiscordChannelsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search the Discord guild's text channels by name so staff can reference a channel in a review discussion.
+ */
+
+export function useAdminSearchDiscordChannels<TData = Awaited<ReturnType<typeof adminSearchDiscordChannels>>, TError = ErrorType<unknown>>(
+ params?: AdminSearchDiscordChannelsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminSearchDiscordChannels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminSearchDiscordChannelsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -4072,6 +4072,11 @@ export interface DiscordMemberOption {
   hasAccount: boolean;
 }
 
+export interface DiscordChannelOption {
+  id: string;
+  name: string;
+}
+
 export interface WalletAdjustmentInput {
   characterId: number;
   /** positive or negative */
@@ -5703,6 +5708,10 @@ export type GetCharacterPendingEdit200 = {
 
 export type AdminSearchDiscordMembersParams = {
 q: string;
+};
+
+export type AdminSearchDiscordChannelsParams = {
+q?: string;
 };
 
 export type AdminRecordCheckup200 = {
