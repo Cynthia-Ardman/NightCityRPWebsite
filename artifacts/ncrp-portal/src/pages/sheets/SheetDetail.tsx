@@ -170,7 +170,6 @@ export default function SheetDetail() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {isStaff && <DiscordThreadDrawer subjectType="sheet" subjectId={sheetId} />}
           {canEdit && (
             <Button
               onClick={() => setLocation(`/sheets/${sheetId}/edit`)}
@@ -426,14 +425,28 @@ export default function SheetDetail() {
         <ReviewCommentThread subjectType="sheet" subjectId={sheetId} markSeenOnMount={isStaff} />
       )}
 
-      {/* Admin override */}
-      {sheet.canOverride && (
+      {/* Reviewer actions — See Thread sits with the override controls. The
+          thread button shows for all staff; override buttons only for admins. */}
+      {isStaff && (
         <div className="border-t border-border pt-4">
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => override.mutate({ id: sheetId, data: { decision: "approve" } })} disabled={override.isPending} className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display" data-testid="button-override"><ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW</Button>
-            <Button onClick={() => override.mutate({ id: sheetId, data: { decision: "deny" } })} disabled={override.isPending} variant="outline" className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display" data-testid="button-override-deny"><X className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — DENY NOW</Button>
+            <DiscordThreadDrawer
+              subjectType="sheet"
+              subjectId={sheetId}
+              buttonLabel="SEE THREAD"
+              watchUnread
+              buttonClassName="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest h-10 shrink-0"
+            />
+            {sheet.canOverride && (
+              <>
+                <Button onClick={() => override.mutate({ id: sheetId, data: { decision: "approve" } })} disabled={override.isPending} className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display" data-testid="button-override"><ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW</Button>
+                <Button onClick={() => override.mutate({ id: sheetId, data: { decision: "deny" } })} disabled={override.isPending} variant="outline" className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display" data-testid="button-override-deny"><X className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — DENY NOW</Button>
+              </>
+            )}
           </div>
-          <p className="font-mono text-xs text-muted-foreground mt-1">Bypasses the majority vote and resolves immediately. Records you as the override decider.</p>
+          {sheet.canOverride && (
+            <p className="font-mono text-xs text-muted-foreground mt-1">Bypasses the majority vote and resolves immediately. Records you as the override decider.</p>
+          )}
         </div>
       )}
 

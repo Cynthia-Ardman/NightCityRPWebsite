@@ -202,7 +202,6 @@ export default function PendingEditDetail() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {isReviewer && <DiscordThreadDrawer subjectType="edit" subjectId={editId} />}
           {statusBadge(edit.status)}
         </div>
       </div>
@@ -350,31 +349,46 @@ export default function PendingEditDetail() {
       {/* Two-way discussion thread (player <-> reviewers). Never blocks approval. */}
       <ReviewCommentThread subjectType="edit" subjectId={editId} />
 
-      {/* Admin override */}
-      {edit.canOverride && (
+      {/* Reviewer actions — See Thread sits with the override controls. The
+          thread button shows for every reviewer; the override buttons only for
+          admins (canOverride). */}
+      {isReviewer && (
         <div className="border-t border-border pt-4">
           <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => override.mutate({ id: editId, data: { decision: "approve" } })}
-              disabled={override.isPending}
-              className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display"
-              data-testid="button-override"
-            >
-              <ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW
-            </Button>
-            <Button
-              onClick={() => override.mutate({ id: editId, data: { decision: "deny" } })}
-              disabled={override.isPending}
-              variant="outline"
-              className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display"
-              data-testid="button-override-deny"
-            >
-              <X className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — DENY NOW
-            </Button>
+            <DiscordThreadDrawer
+              subjectType="edit"
+              subjectId={editId}
+              buttonLabel="SEE THREAD"
+              watchUnread
+              buttonClassName="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest h-10 shrink-0"
+            />
+            {edit.canOverride && (
+              <>
+                <Button
+                  onClick={() => override.mutate({ id: editId, data: { decision: "approve" } })}
+                  disabled={override.isPending}
+                  className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display"
+                  data-testid="button-override"
+                >
+                  <ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW
+                </Button>
+                <Button
+                  onClick={() => override.mutate({ id: editId, data: { decision: "deny" } })}
+                  disabled={override.isPending}
+                  variant="outline"
+                  className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display"
+                  data-testid="button-override-deny"
+                >
+                  <X className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — DENY NOW
+                </Button>
+              </>
+            )}
           </div>
-          <p className="font-mono text-xs text-muted-foreground mt-1">
-            Bypasses the majority vote and resolves the edit immediately. Records you as the override decider.
-          </p>
+          {edit.canOverride && (
+            <p className="font-mono text-xs text-muted-foreground mt-1">
+              Bypasses the majority vote and resolves the edit immediately. Records you as the override decider.
+            </p>
+          )}
         </div>
       )}
 
