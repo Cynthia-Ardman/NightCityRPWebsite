@@ -5529,6 +5529,7 @@ components:
         isAdmin: { type: boolean }
         isFixer: { type: boolean }
         isArchivist: { type: boolean }
+        isCoordinator: { type: boolean }
         isCsApprover: { type: boolean }
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
@@ -7300,6 +7301,21 @@ components:
         rejectCount: { type: integer }
         threshold: { type: integer }
         myVote: { $ref: "#/components/schemas/ReviewerSelfVote" }
+        eligibleReviewers:
+          type: array
+          description: "Full roster of reviewers eligible to vote on this sheet (excludes the owner). Present on the reviewer-facing pending list."
+          items: { $ref: "#/components/schemas/EligibleReviewer" }
+        voters:
+          type: array
+          description: "Reviewers who have already cast a vote on this sheet. Present on the reviewer-facing pending list."
+          items:
+            type: object
+            required: [id, vote]
+            properties:
+              id: { type: string }
+              name: { type: ["string", "null"] }
+              avatarUrl: { type: ["string", "null"] }
+              vote: { type: string, enum: [approve, reject] }
 
     SheetVoteInput:
       type: object
@@ -7475,13 +7491,19 @@ components:
         approveCount: { type: integer }
         rejectCount: { type: integer }
         threshold: { type: integer }
+        myVote: { $ref: "#/components/schemas/ReviewerSelfVote" }
+        eligibleReviewers:
+          type: array
+          description: "Full roster of reviewers eligible to vote on this edit (excludes the submitter). Present on the reviewer-facing pending list."
+          items: { $ref: "#/components/schemas/EligibleReviewer" }
         voters:
           type: array
           items:
             type: object
-            required: [name, vote]
+            required: [id, vote]
             properties:
-              name: { type: string }
+              id: { type: string }
+              name: { type: ["string", "null"] }
               avatarUrl: { type: ["string", "null"] }
               vote: { type: string, enum: [approve, reject] }
 

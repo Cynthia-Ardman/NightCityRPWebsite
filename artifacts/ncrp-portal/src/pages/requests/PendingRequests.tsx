@@ -6,6 +6,8 @@ import {
   useVoteCustomRequest,
   useOverrideCustomRequest,
   useListPendingSheets,
+  useVoteSheet,
+  useOverrideSheet,
   useListPendingEdits,
   useListLoreEdits,
   useApproveLoreEdit,
@@ -32,11 +34,12 @@ import {
   type GuidebookPendingEdit,
   type GuidebookPageUpdate,
   type PendingEditSummary,
+  type PendingSheetSummary,
   type MissionSummary,
 } from "@workspace/api-client-react";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
-import { UnseenDot, useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
-import { ReviewerRoster } from "@/components/review/ReviewerRoster";
+import { useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
+import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
 import DiffValue from "@/components/DiffValue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -59,11 +62,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
-import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 const TYPE_META: Record<
@@ -108,7 +110,6 @@ function MiscRequestsTab() {
   const [approveTarget, setApproveTarget] = useState<CustomRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CustomRequest | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<CustomRequest | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   const isAdmin = !!me?.isAdmin;
@@ -131,151 +132,120 @@ function MiscRequestsTab() {
   const activeRequests = (active ?? []) as CustomRequest[];
 
   const renderCard = (r: CustomRequest, bucket: LifecycleBucket) => {
-        const meta = TYPE_META[r.type] ?? { label: "REQUEST", Icon: Inbox };
-        const Icon = meta.Icon;
-        return (
-          <Card
-            key={r.id}
-            className="rounded-none border-border bg-card/50 flex flex-col"
-            data-testid={`card-misc-request-${r.id}`}
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <UnseenDot show={unseen.has(r.id)} testid={`dot-unseen-request-${r.id}`} />
-                  <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
-                    <Icon className="w-3 h-3 mr-1" /> {meta.label}
-                  </Badge>
-                </div>
-                <span className="text-xs font-mono text-muted-foreground">
-                  {new Date(r.createdAt).toLocaleDateString()}
+    const meta = TYPE_META[r.type] ?? { label: "REQUEST", Icon: Inbox };
+    const det = venueDetails(r);
+    return (
+      <ReviewQueueCard
+        key={r.id}
+        subjectType="request"
+        id={r.id}
+        testId={`card-misc-request-${r.id}`}
+        unseen={unseen.has(r.id)}
+        badgeLabel={meta.label}
+        badgeIcon={meta.Icon}
+        title={r.title}
+        subtitle={`${r.characterName} · by ${r.requestedByName || r.requestedById}`}
+        date={r.createdAt}
+        showRoster={isReviewer && bucket === "active"}
+        roster={{
+          eligibleReviewers: r.eligibleReviewers ?? [],
+          voters: (r.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
+        }}
+        markSeenOnMount={isReviewer}
+        awaitingVote={isReviewer && bucket === "active" && r.status === "pending" && !r.myVote}
+        tally={
+          bucket === "active" ? (
+            <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
+              <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
+              <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
+              {r.myVote ? (
+                <span className="ml-2">
+                  · you voted{" "}
+                  <span className={r.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
+                    {r.myVote.toUpperCase()}
+                  </span>
                 </span>
-              </div>
-              <CardTitle className="text-lg font-display truncate mt-2">{r.title}</CardTitle>
-              <CardDescription className="font-mono text-xs">
-                {r.characterName} · by {r.requestedByName || r.requestedById}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col flex-1 gap-4">
-              {r.imageUrl ? (
-                <a
-                  href={r.imageUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block border border-border bg-background"
-                  data-testid={`link-misc-image-${r.id}`}
-                >
-                  <img
-                    src={r.imageUrl}
-                    alt={r.title}
-                    className="w-full h-40 object-contain"
-                    loading="lazy"
-                    data-testid={`img-misc-request-${r.id}`}
-                  />
-                </a>
               ) : null}
-              {(() => {
-                const det = venueDetails(r);
-                if (!det) return null;
-                return (
-                  <div className="space-y-1 font-mono text-xs" data-testid={`venue-details-${r.id}`}>
-                    {det.purpose ? (
-                      <div>
-                        <span className="text-nc-cyan uppercase tracking-widest">Purpose: </span>
-                        <span className="text-muted-foreground">{det.purpose}</span>
-                      </div>
-                    ) : null}
-                    {det.location ? (
-                      <div>
-                        <span className="text-nc-cyan uppercase tracking-widest">Location: </span>
-                        <span className="text-muted-foreground">{det.location}</span>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })()}
-              {r.description ? (
-                <p className="font-mono text-sm text-muted-foreground whitespace-pre-wrap">{r.description}</p>
-              ) : (
-                <p className="font-mono text-sm text-muted-foreground italic">No description provided.</p>
-              )}
-              <div className="mt-auto pt-3 border-t border-border/40 space-y-3">
-                {bucket === "active" ? (
-                  <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
-                    <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
-                    <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
-                    {r.myVote ? (
-                      <span className="ml-2">
-                        · you voted{" "}
-                        <span className={r.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
-                          {r.myVote.toUpperCase()}
-                        </span>
-                      </span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="font-mono text-xs text-muted-foreground" data-testid={`status-misc-${r.id}`}>
-                    Status: <span className="text-foreground uppercase">{r.status.replace("_", " ")}</span>
-                    {r.reviewerNote ? (
-                      <span className="block italic mt-0.5">"{r.reviewerNote}"</span>
-                    ) : null}
-                  </div>
-                )}
-                {isReviewer && bucket === "active" && r.eligibleReviewers && r.eligibleReviewers.length > 0 && (
-                  <ReviewerRoster
-                    eligibleReviewers={r.eligibleReviewers}
-                    voters={(r.voters ?? []).map((v) => ({ id: v.id, vote: v.vote }))}
-                  />
-                )}
-                {isReviewer && bucket === "active" && r.status === "pending" && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                      onClick={() => setApproveTarget(r)}
-                      data-testid={`button-approve-misc-${r.id}`}
-                    >
-                      {r.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                      onClick={() => setRejectTarget(r)}
-                      data-testid={`button-reject-misc-${r.id}`}
-                    >
-                      {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
-                    </Button>
-                    {isAdmin && (
-                      <Button
-                        variant="outline"
-                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
-                        onClick={() => setOverrideTarget(r)}
-                        data-testid={`button-override-misc-${r.id}`}
-                      >
-                        OVERRIDE
-                      </Button>
-                    )}
-                  </div>
-                )}
+            </div>
+          ) : (
+            <div className="font-mono text-xs text-muted-foreground" data-testid={`status-misc-${r.id}`}>
+              Status: <span className="text-foreground uppercase">{r.status.replace("_", " ")}</span>
+              {r.reviewerNote ? <span className="block italic mt-0.5">"{r.reviewerNote}"</span> : null}
+            </div>
+          )
+        }
+        actions={
+          isReviewer && bucket === "active" && r.status === "pending" ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                onClick={() => setApproveTarget(r)}
+                data-testid={`button-approve-misc-${r.id}`}
+              >
+                {r.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                onClick={() => setRejectTarget(r)}
+                data-testid={`button-reject-misc-${r.id}`}
+              >
+                {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+              </Button>
+              {isAdmin && (
                 <Button
                   variant="outline"
-                  className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
-                  onClick={() => setExpanded((cur) => (cur === r.id ? null : r.id))}
-                  data-testid={`button-view-respond-misc-${r.id}`}
+                  className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                  onClick={() => setOverrideTarget(r)}
+                  data-testid={`button-override-misc-${r.id}`}
                 >
-                  <MessageSquare className="w-3 h-3 mr-1" />
-                  VIEW &amp; RESPOND
-                  {expanded === r.id ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                  OVERRIDE
                 </Button>
-                {expanded === r.id && (
-                  <div className="space-y-3">
-                    <AwaitingVoteBanner show={isReviewer && bucket === "active" && r.status === "pending" && !r.myVote} />
-                    <ReviewCommentThread subjectType="request" subjectId={r.id} markSeenOnMount={isReviewer} />
-                  </div>
-                )}
+              )}
+            </div>
+          ) : null
+        }
+      >
+        {r.imageUrl ? (
+          <a
+            href={r.imageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block border border-border bg-background"
+            data-testid={`link-misc-image-${r.id}`}
+          >
+            <img
+              src={r.imageUrl}
+              alt={r.title}
+              className="w-full h-40 object-contain"
+              loading="lazy"
+              data-testid={`img-misc-request-${r.id}`}
+            />
+          </a>
+        ) : null}
+        {det ? (
+          <div className="space-y-1 font-mono text-xs" data-testid={`venue-details-${r.id}`}>
+            {det.purpose ? (
+              <div>
+                <span className="text-nc-cyan uppercase tracking-widest">Purpose: </span>
+                <span className="text-muted-foreground">{det.purpose}</span>
               </div>
-            </CardContent>
-          </Card>
-        );
+            ) : null}
+            {det.location ? (
+              <div>
+                <span className="text-nc-cyan uppercase tracking-widest">Location: </span>
+                <span className="text-muted-foreground">{det.location}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {r.description ? (
+          <p className="font-mono text-sm text-muted-foreground whitespace-pre-wrap">{r.description}</p>
+        ) : (
+          <p className="font-mono text-sm text-muted-foreground italic">No description provided.</p>
+        )}
+      </ReviewQueueCard>
+    );
   };
 
   if (isLoading || (canSeeOwnedMissions && ownedMissions.isLoading)) {
@@ -746,11 +716,53 @@ function RejectDialog({ request, onClose }: { request: CustomRequest | null; onC
 function NewCharactersTab() {
   // Active-only tab: resolved/closed sheets live in the cross-cutting
   // Completed/Denied tabs.
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: active, isLoading } = useListPendingSheets({ bucket: "active" });
   const { data: unseenIds } = useGetReviewUnseenIds();
+  const { data: me } = useEffectiveMe();
   const unseen = new Set(unseenIds?.sheet ?? []);
+  const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
+  const isAdmin = !!me?.isAdmin;
 
-  const sheets = (active ?? []) as any[];
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+  };
+  const errMsg = (err: unknown, fallback: string) =>
+    (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
+
+  const vote = useVoteSheet({
+    mutation: {
+      onSuccess: (res) => {
+        invalidate();
+        const decided = (res as { decided?: string })?.decided;
+        toast({
+          title:
+            decided === "approved"
+              ? "Sheet approved — majority reached"
+              : decided === "rejected"
+                ? "Sheet rejected"
+                : "Vote recorded",
+        });
+      },
+      onError: (err) =>
+        toast({ title: "Vote failed", description: errMsg(err, "Vote failed"), variant: "destructive" }),
+    },
+  });
+  const override = useOverrideSheet({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Sheet approved via override" });
+      },
+      onError: (err) =>
+        toast({ title: "Override failed", description: errMsg(err, "Override failed"), variant: "destructive" }),
+    },
+  });
+  const busy = vote.isPending || override.isPending;
+
+  const sheets = (active ?? []) as PendingSheetSummary[];
 
   if (isLoading) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
@@ -766,40 +778,90 @@ function NewCharactersTab() {
     );
   }
 
-  const renderCard = (sheet: any) => (
-    <Card
-      key={sheet.id}
-      className="rounded-none border-border bg-card/50 flex flex-col h-full"
-      data-testid={`card-pending-sheet-${sheet.id}`}
-    >
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <UnseenDot show={unseen.has(sheet.id)} testid={`dot-unseen-sheet-${sheet.id}`} />
-          <CardTitle className="text-xl font-display truncate">{sheet.name}</CardTitle>
-        </div>
-        <CardDescription className="font-mono text-xs">By {sheet.ownerName || sheet.ownerId}</CardDescription>
-      </CardHeader>
-      <CardContent className="mt-auto flex flex-col gap-3 border-t border-border/50 pt-4">
-        <div className="flex justify-between items-center">
-          <div className="text-xs font-mono text-muted-foreground">
-            {new Date(sheet.createdAt).toLocaleDateString()}
+  const renderCard = (sheet: PendingSheetSummary) => {
+    const my = sheet.myVote;
+    return (
+      <ReviewQueueCard
+        key={sheet.id}
+        subjectType="sheet"
+        id={sheet.id}
+        testId={`card-pending-sheet-${sheet.id}`}
+        unseen={unseen.has(sheet.id)}
+        badgeLabel="NEW CHARACTER"
+        badgeIcon={FileText}
+        badgeClassName="border-nc-yellow text-nc-yellow"
+        title={sheet.name}
+        subtitle={`By ${sheet.ownerName || sheet.ownerId}`}
+        date={sheet.createdAt}
+        showRoster={isReviewer}
+        roster={{
+          eligibleReviewers: sheet.eligibleReviewers ?? [],
+          voters: (sheet.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
+        }}
+        markSeenOnMount={isReviewer}
+        awaitingVote={isReviewer && sheet.status === "pending" && !my}
+        tally={
+          <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-sheet-${sheet.id}`}>
+            <span className="text-nc-green">{sheet.approveCount ?? 0}</span>/{sheet.threshold ?? "?"} approve ·{" "}
+            <span className="text-destructive">{sheet.rejectCount ?? 0}</span> reject
+            {my ? (
+              <span className="ml-2">
+                · you voted{" "}
+                <span className={my.vote === "approve" ? "text-nc-green" : "text-destructive"}>
+                  {my.vote.toUpperCase()}
+                </span>
+              </span>
+            ) : null}
           </div>
-          <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none animate-pulse">
-            REVIEW REQ
-          </Badge>
-        </div>
-        <Link href={`/sheets/${sheet.id}`}>
-          <Button
-            variant="outline"
-            className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
-            data-testid={`button-open-sheet-${sheet.id}`}
-          >
-            OPEN SHEET
-          </Button>
-        </Link>
-      </CardContent>
-    </Card>
-  );
+        }
+        actions={
+          <div className="space-y-2">
+            {isReviewer && sheet.status === "pending" && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                  disabled={busy}
+                  onClick={() => vote.mutate({ id: sheet.id, data: { vote: "approve" } })}
+                  data-testid={`button-approve-sheet-${sheet.id}`}
+                >
+                  {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                  disabled={busy}
+                  onClick={() => vote.mutate({ id: sheet.id, data: { vote: "reject" } })}
+                  data-testid={`button-reject-sheet-${sheet.id}`}
+                >
+                  {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                    disabled={busy}
+                    onClick={() => override.mutate({ id: sheet.id, data: { decision: "approve" } })}
+                    data-testid={`button-override-sheet-${sheet.id}`}
+                  >
+                    OVERRIDE
+                  </Button>
+                )}
+              </div>
+            )}
+            <Link href={`/sheets/${sheet.id}`}>
+              <Button
+                variant="outline"
+                className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
+                data-testid={`button-open-sheet-${sheet.id}`}
+              >
+                OPEN SHEET
+              </Button>
+            </Link>
+          </div>
+        }
+      />
+    );
+  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

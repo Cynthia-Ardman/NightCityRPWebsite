@@ -21,6 +21,7 @@ export interface Me {
   isAdmin: boolean;
   isFixer: boolean;
   isArchivist: boolean;
+  isCoordinator?: boolean;
   isCsApprover: boolean;
   isRipperdoc: boolean;
   isStoreOwner: boolean;

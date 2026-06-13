@@ -342,7 +342,10 @@ export async function createPendingEdit(opts: {
 
 // Hydrate one or more edits with the joined character + submitter info
 // the UI needs for list rendering and the diff view.
-async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelect>) {
+async function hydrateEdits(
+  rows: Array<typeof pendingCharacterEdits.$inferSelect>,
+  opts: { viewerId: string; includeRoster: boolean },
+) {
   if (rows.length === 0) return [];
   const charIds = Array.from(new Set(rows.map((r) => r.characterId)));
   const userIds = Array.from(new Set(rows.map((r) => r.submittedBy)));
@@ -355,10 +358,13 @@ async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelec
   // Full eligible reviewer pool, computed once. Per-edit threshold excludes
   // that edit's own submitter (you can't vote on your own edit), matching
   // the detail endpoint's math so list and detail never disagree.
-  const reviewerRows = await db.select({ id: users.id, roles: users.roles }).from(users);
-  const reviewerIds = reviewerRows
+  const reviewerRows = await db
+    .select({ id: users.id, roles: users.roles, name: users.username, avatarUrl: users.avatarUrl })
+    .from(users);
+  const reviewerPool = reviewerRows
     .filter((r) => isReviewer({ roles: r.roles ?? [] } as User))
-    .map((r) => r.id);
+    .map((r) => ({ id: r.id, name: r.name, avatarUrl: r.avatarUrl }));
+  const reviewerIds = reviewerPool.map((r) => r.id);
 
   // All votes across the listed edits, joined to voter names, in one query.
   const allVotes = await db
@@ -368,6 +374,7 @@ async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelec
       voterName: users.username,
       voterAvatarUrl: users.avatarUrl,
       vote: pendingEditApprovals.vote,
+      note: pendingEditApprovals.note,
       votedAt: pendingEditApprovals.votedAt,
     })
     .from(pendingEditApprovals)
@@ -387,7 +394,9 @@ async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelec
     const votes = votesByEdit.get(r.id) ?? [];
     const approveCount = votes.filter((v) => v.vote === "approve").length;
     const rejectCount = votes.filter((v) => v.vote === "reject").length;
-    const eligibleCount = reviewerIds.filter((id) => id !== r.submittedBy).length;
+    const eligible = reviewerPool.filter((rv) => rv.id !== r.submittedBy);
+    const eligibleCount = eligible.length;
+    const myVote = votes.find((v) => v.voterId === opts.viewerId) ?? null;
     return {
       id: r.id,
       characterId: r.characterId,
@@ -406,11 +415,16 @@ async function hydrateEdits(rows: Array<typeof pendingCharacterEdits.$inferSelec
       approveCount,
       rejectCount,
       threshold: majorityOf(eligibleCount),
+      myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
       voters: votes.map((v) => ({
+        id: v.voterId,
         name: v.voterName ?? "(unknown)",
         avatarUrl: v.voterAvatarUrl ?? null,
         vote: v.vote,
       })),
+      // Full eligible-reviewer roster (incl. who hasn't voted) is reviewer-only
+      // info — omit it for the player-facing "my own submissions" view.
+      ...(opts.includeRoster ? { eligibleReviewers: eligible } : {}),
     };
   });
 }
@@ -444,7 +458,7 @@ router.get("/pending-edits", requireAuth, async (req, res): Promise<void> => {
     .from(pendingCharacterEdits)
     .where(isStaff ? staffWhere : eq(pendingCharacterEdits.submittedBy, u.id))
     .orderBy(desc(pendingCharacterEdits.submittedAt));
-  res.json(await hydrateEdits(rows));
+  res.json(await hydrateEdits(rows, { viewerId: u.id, includeRoster: isStaff }));
 });
 
 // GET /pending-edits/:id — full detail + before/after snapshot + votes.

@@ -35,6 +35,9 @@ export const ROLE_NAMES = {
   ADMIN: ["admin", "administrator", "staff"],
   // "coordinator" is treated as equivalent to a fixer everywhere FIXER is checked.
   FIXER: ["fixer", "coordinator"],
+  // Coordinator on its own — a narrower group than FIXER, used where coordinators
+  // (but not rank-and-file fixers) get an elevated ability (e.g. deleting characters).
+  COORDINATOR: ["coordinator"],
   ARCHIVIST: ["archivist"],
   CS_APPROVER: ["cs approver", "character approver", "cs-approver"],
   RIPPERDOC: ["ripperdoc"],

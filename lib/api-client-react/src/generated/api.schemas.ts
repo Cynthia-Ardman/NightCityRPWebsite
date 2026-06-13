@@ -821,6 +821,7 @@ export interface Me {
   isAdmin: boolean;
   isFixer: boolean;
   isArchivist: boolean;
+  isCoordinator?: boolean;
   isCsApprover: boolean;
   isRipperdoc: boolean;
   isStoreOwner: boolean;
@@ -3627,6 +3628,23 @@ export const PendingSheetSummaryStatus = {
   changes_requested: 'changes_requested',
 } as const;
 
+export type PendingSheetSummaryVotersItemVote = typeof PendingSheetSummaryVotersItemVote[keyof typeof PendingSheetSummaryVotersItemVote];
+
+
+export const PendingSheetSummaryVotersItemVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export type PendingSheetSummaryVotersItem = {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  vote: PendingSheetSummaryVotersItemVote;
+};
+
 export interface PendingSheetSummary {
   id: number;
   name: string;
@@ -3641,6 +3659,10 @@ export interface PendingSheetSummary {
   rejectCount: number;
   threshold: number;
   myVote?: ReviewerSelfVote;
+  /** Full roster of reviewers eligible to vote on this sheet (excludes the owner). Present on the reviewer-facing pending list. */
+  eligibleReviewers?: EligibleReviewer[];
+  /** Reviewers who have already cast a vote on this sheet. Present on the reviewer-facing pending list. */
+  voters?: PendingSheetSummaryVotersItem[];
 }
 
 export type SheetVoteInputVote = typeof SheetVoteInputVote[keyof typeof SheetVoteInputVote];
@@ -3814,7 +3836,9 @@ export const PendingEditSummaryVotersItemVote = {
 } as const;
 
 export type PendingEditSummaryVotersItem = {
-  name: string;
+  id: string;
+  /** @nullable */
+  name?: string | null;
   /** @nullable */
   avatarUrl?: string | null;
   vote: PendingEditSummaryVotersItemVote;
@@ -3851,6 +3875,9 @@ export interface PendingEditSummary {
   approveCount: number;
   rejectCount: number;
   threshold: number;
+  myVote?: ReviewerSelfVote;
+  /** Full roster of reviewers eligible to vote on this edit (excludes the submitter). Present on the reviewer-facing pending list. */
+  eligibleReviewers?: EligibleReviewer[];
   voters: PendingEditSummaryVotersItem[];
 }
 

@@ -306,6 +306,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     rulesAccepted: u.rulesAccepted,
     isAdmin: hasRole(u.roles, "ADMIN"),
     isFixer: hasRole(u.roles, "FIXER"),
+    isCoordinator: hasRole(u.roles, "COORDINATOR"),
     isArchivist: hasRole(u.roles, "ARCHIVIST"),
     isCsApprover: hasRole(u.roles, "CS_APPROVER"),
     isRipperdoc: hasRole(u.roles, "RIPPERDOC"),

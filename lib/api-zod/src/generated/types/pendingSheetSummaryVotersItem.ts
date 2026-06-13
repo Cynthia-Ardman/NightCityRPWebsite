@@ -5,13 +5,13 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
-import type { PendingEditSummaryVotersItemVote } from './pendingEditSummaryVotersItemVote';
+import type { PendingSheetSummaryVotersItemVote } from './pendingSheetSummaryVotersItemVote';
 
-export type PendingEditSummaryVotersItem = {
+export type PendingSheetSummaryVotersItem = {
   id: string;
   /** @nullable */
   name?: string | null;
   /** @nullable */
   avatarUrl?: string | null;
-  vote: PendingEditSummaryVotersItemVote;
+  vote: PendingSheetSummaryVotersItemVote;
 };

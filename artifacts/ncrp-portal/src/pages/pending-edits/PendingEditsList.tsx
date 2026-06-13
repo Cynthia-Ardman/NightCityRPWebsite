@@ -2,6 +2,8 @@ import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListPendingEdits,
+  useVotePendingEdit,
+  useOverridePendingEdit,
   useGetReviewUnseenIds,
   getGetReviewUnseenIdsQueryKey,
   getListPendingEditsQueryKey,
@@ -9,10 +11,13 @@ import {
 } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ShieldAlert, CheckCircle2, XCircle, Clock, MessageSquareWarning } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import { useToast } from "@/hooks/use-toast";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
+import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
 
 function statusBadge(status: string) {
   switch (status) {
@@ -139,6 +144,120 @@ function EditRow({
   );
 }
 
+// Active-bucket reviewer card: mirrors the Misc Requests / New Characters
+// queue cards (shared ReviewQueueCard) with inline vote / reject / override.
+function EditReviewCard({
+  e,
+  unseen,
+  isReviewer,
+  isAdmin,
+  vote,
+  override,
+  busy,
+}: {
+  e: PendingEditSummary;
+  unseen: boolean;
+  isReviewer: boolean;
+  isAdmin: boolean;
+  vote: ReturnType<typeof useVotePendingEdit>;
+  override: ReturnType<typeof useOverridePendingEdit>;
+  busy: boolean;
+}) {
+  const changed = e.proposedDiff ? Object.keys(e.proposedDiff) : [];
+  const my = e.myVote;
+  return (
+    <ReviewQueueCard
+      subjectType="edit"
+      id={e.id}
+      testId={`card-pending-edit-${e.id}`}
+      unseen={unseen}
+      badgeLabel="CHARACTER EDIT"
+      badgeIcon={ShieldAlert}
+      badgeClassName="border-nc-magenta text-nc-magenta"
+      title={e.characterName}
+      subtitle={`by ${e.submitterName ?? "(unknown)"}`}
+      date={e.submittedAt}
+      showRoster={isReviewer}
+      roster={{
+        eligibleReviewers: e.eligibleReviewers ?? [],
+        voters: e.voters.map((v) => ({ id: v.id, vote: v.vote })),
+      }}
+      markSeenOnMount={isReviewer}
+      awaitingVote={isReviewer && e.status === "pending" && !my}
+      tally={
+        <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-edit-${e.id}`}>
+          <span className="text-nc-green">{e.approveCount}</span>/{e.threshold} approve ·{" "}
+          <span className="text-destructive">{e.rejectCount}</span> reject
+          {my ? (
+            <span className="ml-2">
+              · you voted{" "}
+              <span className={my.vote === "approve" ? "text-nc-green" : "text-destructive"}>
+                {my.vote.toUpperCase()}
+              </span>
+            </span>
+          ) : null}
+        </div>
+      }
+      actions={
+        <div className="space-y-2">
+          {isReviewer && e.status === "pending" && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                disabled={busy}
+                onClick={() => vote.mutate({ id: e.id, data: { vote: "approve" } })}
+                data-testid={`button-approve-edit-${e.id}`}
+              >
+                {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                disabled={busy}
+                onClick={() => vote.mutate({ id: e.id, data: { vote: "reject" } })}
+                data-testid={`button-reject-edit-${e.id}`}
+              >
+                {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                  disabled={busy}
+                  onClick={() => override.mutate({ id: e.id, data: { decision: "approve" } })}
+                  data-testid={`button-override-edit-${e.id}`}
+                >
+                  OVERRIDE
+                </Button>
+              )}
+            </div>
+          )}
+          <Link href={`/pending-edits/${e.id}`}>
+            <Button
+              variant="outline"
+              className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
+              data-testid={`button-open-edit-${e.id}`}
+            >
+              OPEN EDIT
+            </Button>
+          </Link>
+        </div>
+      }
+    >
+      {changed.length > 0 ? (
+        <div className="font-mono text-xs text-nc-cyan/80" data-testid={`edit-fields-${e.id}`}>
+          {changed.length} field{changed.length === 1 ? "" : "s"}: {changed.join(", ")}
+        </div>
+      ) : (
+        <div className="font-mono text-xs text-muted-foreground italic">No field changes.</div>
+      )}
+      {e.updateNote ? (
+        <div className="font-mono text-xs text-foreground/80 italic">"{e.updateNote}"</div>
+      ) : null}
+    </ReviewQueueCard>
+  );
+}
+
 export default function PendingEditsList({
   embedded = false,
   activeOnly = false,
@@ -168,6 +287,9 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
     { query: { enabled: !activeOnly, queryKey: getListPendingEditsQueryKey({ bucket: "archive" }) } },
   );
   const { data: unseenIds } = useGetReviewUnseenIds();
+  const { data: me } = useEffectiveMe();
+  const { toast } = useToast();
+  const isAdmin = !!me?.isAdmin;
   const isLoading = la || (!activeOnly && (lr || lar));
 
   const invalidate = () => {
@@ -175,6 +297,37 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
   };
   const actions = useReviewTicketActions(invalidate);
+  const errMsg = (err: unknown, fallback: string) =>
+    (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
+  const vote = useVotePendingEdit({
+    mutation: {
+      onSuccess: (res) => {
+        invalidate();
+        const decided = (res as { decided?: string })?.decided;
+        toast({
+          title:
+            decided === "approved"
+              ? "Edit approved — majority reached"
+              : decided === "rejected"
+                ? "Edit rejected"
+                : "Vote recorded",
+        });
+      },
+      onError: (err) =>
+        toast({ title: "Vote failed", description: errMsg(err, "Vote failed"), variant: "destructive" }),
+    },
+  });
+  const override = useOverridePendingEdit({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Edit approved via override" });
+      },
+      onError: (err) =>
+        toast({ title: "Override failed", description: errMsg(err, "Override failed"), variant: "destructive" }),
+    },
+  });
+  const voteBusy = vote.isPending || override.isPending;
   const unseen = new Set(unseenIds?.edit ?? []);
 
   const buckets: Record<LifecycleBucket, PendingEditSummary[]> = {
@@ -193,15 +346,32 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
         <div className="space-y-8" data-testid="pending-edits-list">
           {shownBuckets.map((b) => (
             <BucketSection key={b} bucket={b} count={buckets[b].length}>
-              {buckets[b].map((e) => (
-                <EditRow
-                  key={e.id}
-                  e={e}
-                  unseen={unseen.has(e.id)}
-                  showLifecycle={b === "resolved"}
-                  actions={actions}
-                />
-              ))}
+              {b === "active" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {buckets[b].map((e) => (
+                    <EditReviewCard
+                      key={e.id}
+                      e={e}
+                      unseen={unseen.has(e.id)}
+                      isReviewer
+                      isAdmin={isAdmin}
+                      vote={vote}
+                      override={override}
+                      busy={voteBusy}
+                    />
+                  ))}
+                </div>
+              ) : (
+                buckets[b].map((e) => (
+                  <EditRow
+                    key={e.id}
+                    e={e}
+                    unseen={unseen.has(e.id)}
+                    showLifecycle={b === "resolved"}
+                    actions={actions}
+                  />
+                ))
+              )}
             </BucketSection>
           ))}
         </div>

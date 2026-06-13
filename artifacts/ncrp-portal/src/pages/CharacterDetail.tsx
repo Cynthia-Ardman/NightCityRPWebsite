@@ -56,6 +56,9 @@ export default function CharacterDetail() {
   const { data: char, isLoading: charLoading } = useGetCharacter(charId);
   const me = useEffectiveMe();
   const isAdmin = !!me.data?.isAdmin;
+  // Deletion is broader than admin: archivists and coordinators can also
+  // permanently delete a character (enforced server-side too).
+  const canDelete = isAdmin || !!me.data?.isArchivist || !!me.data?.isCoordinator;
   const [editOpen, setEditOpen] = useState(false);
   // 204 means no pending edit; the generated hook returns undefined data in
   // that case so we just check truthiness to decide whether to render the
@@ -136,7 +139,7 @@ export default function CharacterDetail() {
         </Link>
       ) : null}
 
-      <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} isAdmin={isAdmin} />
+      <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} isAdmin={isAdmin} canDelete={canDelete} />
 
       <CharacterTabsPanel characterId={char.id} />
     </div>

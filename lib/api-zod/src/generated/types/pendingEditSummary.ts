@@ -5,9 +5,11 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EligibleReviewer } from './eligibleReviewer';
 import type { PendingEditSummaryProposedDiff } from './pendingEditSummaryProposedDiff';
 import type { PendingEditSummaryStatus } from './pendingEditSummaryStatus';
 import type { PendingEditSummaryVotersItem } from './pendingEditSummaryVotersItem';
+import type { ReviewerSelfVote } from './reviewerSelfVote';
 
 export interface PendingEditSummary {
   id: number;
@@ -40,5 +42,8 @@ export interface PendingEditSummary {
   approveCount: number;
   rejectCount: number;
   threshold: number;
+  myVote?: ReviewerSelfVote;
+  /** Full roster of reviewers eligible to vote on this edit (excludes the submitter). Present on the reviewer-facing pending list. */
+  eligibleReviewers?: EligibleReviewer[];
   voters: PendingEditSummaryVotersItem[];
 }

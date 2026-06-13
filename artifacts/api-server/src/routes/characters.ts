@@ -21,7 +21,7 @@ import {
   type Character,
 } from "@workspace/db";
 import { gte } from "drizzle-orm";
-import { requireAuth, requireRole } from "../middlewares/auth";
+import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
@@ -299,11 +299,11 @@ router.get("/characters/:id/updates", requireAuth, async (req, res): Promise<voi
   res.json(rows);
 });
 
-// Permanent, irreversible deletion. ADMIN-only — players archive their own
-// characters via /deactivate instead. All character-scoped rows (inventory,
-// wallet, status, updates, housing, shop opens, …) are removed automatically
-// by ON DELETE CASCADE foreign keys.
-router.delete("/characters/:id", requireRole("ADMIN"), async (req, res): Promise<void> => {
+// Permanent, irreversible deletion. ADMIN / ARCHIVIST / COORDINATOR — players
+// archive their own characters via /deactivate instead. All character-scoped
+// rows (inventory, wallet, status, updates, housing, shop opens, …) are removed
+// automatically by ON DELETE CASCADE foreign keys.
+router.delete("/characters/:id", requireAnyRole(["ADMIN", "ARCHIVIST", "COORDINATOR"]), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });

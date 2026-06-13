@@ -69,6 +69,7 @@ export const GetMeResponse = zod.object({
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean(),
   "isArchivist": zod.boolean(),
+  "isCoordinator": zod.boolean().optional(),
   "isCsApprover": zod.boolean(),
   "isRipperdoc": zod.boolean(),
   "isStoreOwner": zod.boolean(),
@@ -6656,7 +6657,18 @@ export const ListPendingSheetsResponseItem = zod.object({
   "vote": zod.enum(['approve', 'reject']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
-})]).optional()
+})]).optional(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this sheet (excludes the owner). Present on the reviewer-facing pending list.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this sheet. Present on the reviewer-facing pending list.')
 })
 export const ListPendingSheetsResponse = zod.array(ListPendingSheetsResponseItem)
 
@@ -7242,8 +7254,19 @@ export const ListPendingEditsResponseItem = zod.object({
   "approveCount": zod.number(),
   "rejectCount": zod.number(),
   "threshold": zod.number(),
+  "myVote": zod.union([zod.null(),zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().nullish(),
+  "votedAt": zod.coerce.date().optional()
+})]).optional(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this edit (excludes the submitter). Present on the reviewer-facing pending list.'),
   "voters": zod.array(zod.object({
-  "name": zod.string(),
+  "id": zod.string(),
+  "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 }))

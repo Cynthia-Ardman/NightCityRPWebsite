@@ -397,6 +397,8 @@ export * from './pendingEditVoteResult';
 export * from './pendingEditVoteResultStatus';
 export * from './pendingSheetSummary';
 export * from './pendingSheetSummaryStatus';
+export * from './pendingSheetSummaryVotersItem';
+export * from './pendingSheetSummaryVotersItemVote';
 export * from './playerActivityProfile';
 export * from './playerActivityProfileActivityEventsItem';
 export * from './playerActivityProfileActorPaymentsItem';

@@ -5,7 +5,9 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EligibleReviewer } from './eligibleReviewer';
 import type { PendingSheetSummaryStatus } from './pendingSheetSummaryStatus';
+import type { PendingSheetSummaryVotersItem } from './pendingSheetSummaryVotersItem';
 import type { ReviewerSelfVote } from './reviewerSelfVote';
 
 export interface PendingSheetSummary {
@@ -22,4 +24,8 @@ export interface PendingSheetSummary {
   rejectCount: number;
   threshold: number;
   myVote?: ReviewerSelfVote;
+  /** Full roster of reviewers eligible to vote on this sheet (excludes the owner). Present on the reviewer-facing pending list. */
+  eligibleReviewers?: EligibleReviewer[];
+  /** Reviewers who have already cast a vote on this sheet. Present on the reviewer-facing pending list. */
+  voters?: PendingSheetSummaryVotersItem[];
 }

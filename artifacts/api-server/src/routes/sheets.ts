@@ -9,7 +9,6 @@ import { validateSheetFields } from "../lib/sheet-validation";
 import { areCharacterSubmissionsDisabled } from "../lib/characterSubmissions";
 import {
   isReviewer,
-  listEligibleReviewerIds,
   listEligibleReviewers,
   majorityOf,
   tallyReviewVotes,
@@ -81,22 +80,34 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
     .leftJoin(users, eq(users.id, characterSheets.ownerId))
     .where(statusWhere)
     .orderBy(desc(characterSheets.createdAt));
-  // Attach the vote tally for each sheet in one query (no N+1). The threshold
-  // for each sheet excludes that sheet's owner from the eligible pool.
+  // Attach the vote tally + reviewer roster for each sheet in a fixed number of
+  // queries (no N+1). The eligible pool for each sheet excludes that sheet's
+  // owner. The roster (eligibleReviewers + per-voter identity) lets the queue
+  // card render the same "who has voted" panel as custom requests; it's
+  // reviewer-only info and this endpoint is already reviewer-gated above.
   const votesBySheet = await loadVotesBySubject({ subjectType: "sheet", subjectIds: rows.map((r) => r.id) });
-  const allReviewerIds = await listEligibleReviewerIds(null);
+  const reviewerPool = await listEligibleReviewers(null);
   const out = rows.map((r) => {
-    const votes = votesBySheet.get(r.id) ?? [];
-    const eligibleCount = allReviewerIds.filter((id) => id !== r.ownerId).length;
+    const eligible = reviewerPool.filter((rv) => rv.id !== r.ownerId);
+    const eligibleSet = new Set(eligible.map((rv) => rv.id));
+    const allVotes = votesBySheet.get(r.id) ?? [];
+    const votes = allVotes.filter((v) => eligibleSet.has(v.voterId));
     const approveCount = votes.filter((v) => v.vote === "approve").length;
     const rejectCount = votes.filter((v) => v.vote === "reject").length;
-    const myVote = votes.find((v) => v.voterId === req.user!.id) ?? null;
+    const myVote = allVotes.find((v) => v.voterId === req.user!.id) ?? null;
     return {
       ...r,
       approveCount,
       rejectCount,
-      threshold: majorityOf(eligibleCount),
+      threshold: majorityOf(eligible.length),
       myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
+      eligibleReviewers: eligible,
+      voters: votes.map((v) => ({
+        id: v.voterId,
+        name: v.voterName,
+        avatarUrl: v.voterAvatarUrl,
+        vote: v.vote,
+      })),
     };
   });
   res.json(out);
