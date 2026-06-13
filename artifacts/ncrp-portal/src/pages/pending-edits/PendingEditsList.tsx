@@ -151,6 +151,7 @@ function EditReviewCard({
   e,
   unseen,
   isReviewer,
+  canVote,
   isAdmin,
   vote,
   override,
@@ -159,6 +160,7 @@ function EditReviewCard({
   e: PendingEditSummary;
   unseen: boolean;
   isReviewer: boolean;
+  canVote: boolean;
   isAdmin: boolean;
   vote: ReturnType<typeof useVotePendingEdit>;
   override: ReturnType<typeof useOverridePendingEdit>;
@@ -184,7 +186,7 @@ function EditReviewCard({
         voters: e.voters.map((v) => ({ id: v.id, vote: v.vote })),
       }}
       markSeenOnMount={isReviewer}
-      awaitingVote={isReviewer && e.status === "pending" && !my}
+      awaitingVote={canVote && e.status === "pending" && !my}
       tally={
         <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-edit-${e.id}`}>
           <span className="text-nc-green">{e.approveCount}</span>/{e.threshold} approve ·{" "}
@@ -205,23 +207,27 @@ function EditReviewCard({
             <div className="flex flex-wrap gap-2">
               {e.status === "pending" && (
                 <>
-                  <Button
-                    className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                    disabled={busy}
-                    onClick={() => vote.mutate({ id: e.id, data: { vote: "approve" } })}
-                    data-testid={`button-approve-edit-${e.id}`}
-                  >
-                    {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                    disabled={busy}
-                    onClick={() => vote.mutate({ id: e.id, data: { vote: "reject" } })}
-                    data-testid={`button-reject-edit-${e.id}`}
-                  >
-                    {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
-                  </Button>
+                  {canVote && (
+                    <>
+                      <Button
+                        className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                        disabled={busy}
+                        onClick={() => vote.mutate({ id: e.id, data: { vote: "approve" } })}
+                        data-testid={`button-approve-edit-${e.id}`}
+                      >
+                        {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                        disabled={busy}
+                        onClick={() => vote.mutate({ id: e.id, data: { vote: "reject" } })}
+                        data-testid={`button-reject-edit-${e.id}`}
+                      >
+                        {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                      </Button>
+                    </>
+                  )}
                   {isAdmin && (
                     <Button
                       variant="outline"
@@ -302,6 +308,8 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
   const { data: me } = useEffectiveMe();
   const { toast } = useToast();
   const isAdmin = !!me?.isAdmin;
+  // Only fixers / cs-approvers cast counted votes; a pure admin uses OVERRIDE.
+  const canVote = !!(me?.isFixer || me?.isCsApprover);
   const isLoading = la || (!activeOnly && (lr || lar));
 
   const invalidate = () => {
@@ -366,6 +374,7 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
                       e={e}
                       unseen={unseen.has(e.id)}
                       isReviewer
+                      canVote={canVote}
                       isAdmin={isAdmin}
                       vote={vote}
                       override={override}

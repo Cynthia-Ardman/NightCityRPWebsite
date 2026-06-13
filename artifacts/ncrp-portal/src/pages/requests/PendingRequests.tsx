@@ -113,6 +113,10 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   const [overrideTarget, setOverrideTarget] = useState<CustomRequest | null>(null);
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
+  // Approver pool: only fixers / cs-approvers cast counted votes. A pure admin
+  // (no fixer role) is staff (sees the queue + roster + override) but is NOT an
+  // approver — they use OVERRIDE, not the vote buttons.
+  const canVote = !!(me?.isFixer || me?.isCsApprover);
   const isAdmin = !!me?.isAdmin;
   const isArchivist = !!me?.isArchivist;
   const isFixer = !!me?.isFixer;
@@ -162,7 +166,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
         }}
         markSeenOnMount={isReviewer}
         initiallyExpanded={r.id === focusId}
-        awaitingVote={isReviewer && bucket === "active" && r.status === "pending" && !r.myVote}
+        awaitingVote={canVote && bucket === "active" && r.status === "pending" && !r.myVote}
         tally={
           bucket === "active" ? (
             <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
@@ -189,21 +193,25 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
             <div className="flex flex-wrap gap-2">
               {bucket === "active" && r.status === "pending" && (
                 <>
-                  <Button
-                    className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                    onClick={() => setApproveTarget(r)}
-                    data-testid={`button-approve-misc-${r.id}`}
-                  >
-                    {r.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                    onClick={() => setRejectTarget(r)}
-                    data-testid={`button-reject-misc-${r.id}`}
-                  >
-                    {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
-                  </Button>
+                  {canVote && (
+                    <>
+                      <Button
+                        className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                        onClick={() => setApproveTarget(r)}
+                        data-testid={`button-approve-misc-${r.id}`}
+                      >
+                        {r.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                        onClick={() => setRejectTarget(r)}
+                        data-testid={`button-reject-misc-${r.id}`}
+                      >
+                        {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                      </Button>
+                    </>
+                  )}
                   {isAdmin && (
                     <Button
                       variant="outline"
@@ -744,6 +752,8 @@ function NewCharactersTab() {
   const { data: me } = useEffectiveMe();
   const unseen = new Set(unseenIds?.sheet ?? []);
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
+  // Only fixers / cs-approvers cast counted votes; a pure admin uses OVERRIDE.
+  const canVote = !!(me?.isFixer || me?.isCsApprover);
   const isAdmin = !!me?.isAdmin;
 
   const invalidate = () => {
@@ -820,7 +830,7 @@ function NewCharactersTab() {
           voters: (sheet.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
         }}
         markSeenOnMount={isReviewer}
-        awaitingVote={isReviewer && sheet.status === "pending" && !my}
+        awaitingVote={canVote && sheet.status === "pending" && !my}
         tally={
           <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-sheet-${sheet.id}`}>
             <span className="text-nc-green">{sheet.approveCount ?? 0}</span>/{sheet.threshold ?? "?"} approve ·{" "}
@@ -841,23 +851,27 @@ function NewCharactersTab() {
               <div className="flex flex-wrap gap-2">
                 {sheet.status === "pending" && (
                   <>
-                    <Button
-                      className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                      disabled={busy}
-                      onClick={() => vote.mutate({ id: sheet.id, data: { vote: "approve" } })}
-                      data-testid={`button-approve-sheet-${sheet.id}`}
-                    >
-                      {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                      disabled={busy}
-                      onClick={() => vote.mutate({ id: sheet.id, data: { vote: "reject" } })}
-                      data-testid={`button-reject-sheet-${sheet.id}`}
-                    >
-                      {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
-                    </Button>
+                    {canVote && (
+                      <>
+                        <Button
+                          className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                          disabled={busy}
+                          onClick={() => vote.mutate({ id: sheet.id, data: { vote: "approve" } })}
+                          data-testid={`button-approve-sheet-${sheet.id}`}
+                        >
+                          {my?.vote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                          disabled={busy}
+                          onClick={() => vote.mutate({ id: sheet.id, data: { vote: "reject" } })}
+                          data-testid={`button-reject-sheet-${sheet.id}`}
+                        >
+                          {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                        </Button>
+                      </>
+                    )}
                     {isAdmin && (
                       <Button
                         variant="outline"

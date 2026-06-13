@@ -25,6 +25,7 @@ import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import {
   isReviewer,
+  isEligibleReviewer,
   listEligibleReviewers,
   majorityOf,
   tallyReviewVotes,
@@ -750,8 +751,8 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
 // on details.approval so the deciding approve can materialize from them. When
 // the tally reaches majority the request is decided in the same locked txn.
 router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> => {
-  if (!isReviewer(req.user!)) {
-    res.status(403).json({ error: "Only fixers / approvers / admins can vote" });
+  if (!isEligibleReviewer(req.user!)) {
+    res.status(403).json({ error: "Only fixers / approvers can vote. Admins use override." });
     return;
   }
   const rid = parseInt(String(req.params.id), 10);

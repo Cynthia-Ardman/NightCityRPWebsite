@@ -15,7 +15,7 @@ import {
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, postToChannel, startThreadFromMessage } from "../lib/discord";
-import { isReviewer, listEligibleReviewerIds, listEligibleReviewers, majorityOf, type ReviewActionResult } from "../lib/review";
+import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, majorityOf, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -330,7 +330,7 @@ async function hydrateEdits(
     .select({ id: users.id, roles: users.roles, name: users.username, avatarUrl: users.avatarUrl })
     .from(users);
   const reviewerPool = reviewerRows
-    .filter((r) => isReviewer({ roles: r.roles ?? [] } as User))
+    .filter((r) => isEligibleReviewer({ roles: r.roles ?? [] } as User))
     .map((r) => ({ id: r.id, name: r.name, avatarUrl: r.avatarUrl }));
   const reviewerIds = reviewerPool.map((r) => r.id);
 
@@ -359,12 +359,16 @@ async function hydrateEdits(
   return rows.map((r) => {
     const c = charById.get(r.characterId);
     const s = subById.get(r.submittedBy);
-    const votes = votesByEdit.get(r.id) ?? [];
-    const approveCount = votes.filter((v) => v.vote === "approve").length;
-    const rejectCount = votes.filter((v) => v.vote === "reject").length;
     const eligible = reviewerPool.filter((rv) => rv.id !== r.submittedBy);
     const eligibleCount = eligible.length;
-    const myVote = votes.find((v) => v.voterId === opts.viewerId) ?? null;
+    const eligibleSet = new Set(eligible.map((rv) => rv.id));
+    const allVotes = votesByEdit.get(r.id) ?? [];
+    // Count only eligible-pool votes so an ineligible (e.g. admin-only) vote
+    // can't skew the displayed tally — mirrors the decision math.
+    const votes = allVotes.filter((v) => eligibleSet.has(v.voterId));
+    const approveCount = votes.filter((v) => v.vote === "approve").length;
+    const rejectCount = votes.filter((v) => v.vote === "reject").length;
+    const myVote = allVotes.find((v) => v.voterId === opts.viewerId) ?? null;
     return {
       id: r.id,
       characterId: r.characterId,
@@ -444,6 +448,9 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
   }
   const u = req.user!;
   const isStaff = isReviewer(u);
+  // Only fixers / cs-approvers cast counted votes; a pure admin reviews via
+  // OVERRIDE, not the vote/request-changes flow.
+  const canCast = isEligibleReviewer(u);
   const isSubmitter = row.submittedBy === u.id;
   if (!isStaff && !isSubmitter) {
     res.status(403).json({ error: "Forbidden" });
@@ -467,9 +474,13 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     .orderBy(desc(pendingEditApprovals.votedAt));
   const eligibleReviewers = await listEligibleReviewers(row.submittedBy);
   const eligibleIds = eligibleReviewers.map((r) => r.id);
+  const eligibleSet = new Set(eligibleIds);
   const threshold = majorityOf(eligibleIds.length);
-  const approveCount = votes.filter((v) => v.vote === "approve").length;
-  const rejectCount = votes.filter((v) => v.vote === "reject").length;
+  // Count only eligible-pool votes so an ineligible (e.g. admin-only) vote can't
+  // skew the displayed tally — mirrors the decision math.
+  const effectiveVotes = votes.filter((v) => eligibleSet.has(v.voterId));
+  const approveCount = effectiveVotes.filter((v) => v.vote === "approve").length;
+  const rejectCount = effectiveVotes.filter((v) => v.vote === "reject").length;
   const myVote = votes.find((v) => v.voterId === u.id) ?? null;
   // Build a field-by-field before/after preview. We use the snapshot
   // captured at submission time so the reviewer sees what the submitter
@@ -502,9 +513,10 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     approveCount,
     rejectCount,
     myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
-    canVote: isStaff && !isSubmitter && row.status === "pending",
-    // Reviewers (not the submitter) can request changes on a pending edit.
-    canRequestChanges: isStaff && !isSubmitter && row.status === "pending",
+    canVote: canCast && !isSubmitter && row.status === "pending",
+    // Fixers / cs-approvers (not the submitter) can request changes on a pending
+    // edit. Admins are excluded here (they use override).
+    canRequestChanges: canCast && !isSubmitter && row.status === "pending",
     // Admins can override a pending edit to immediate approval.
     canOverride: hasRole(u.roles, "ADMIN") && !isSubmitter && row.status === "pending",
     // The submitter can resubmit once changes were requested.
@@ -527,8 +539,8 @@ const VoteSchema = z.object({
 router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const u = req.user!;
-  if (!isReviewer(u)) {
-    res.status(403).json({ error: "Only fixers / approvers / admins can vote" });
+  if (!isEligibleReviewer(u)) {
+    res.status(403).json({ error: "Only fixers / approvers can vote. Admins use override." });
     return;
   }
   const parsed = VoteSchema.safeParse(req.body ?? {});

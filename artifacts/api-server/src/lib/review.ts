@@ -18,19 +18,37 @@ type DbConn = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 // helpers at the bottom.
 // ---------------------------------------------------------------------------
 
-// A reviewer is anyone with FIXER, CS_APPROVER, or ADMIN. Admins are included
-// so the operator team can always unstick a vote. The submitter of a given
-// subject is excluded from that subject's eligible pool at tally time (you
-// can't approve your own submission).
+// Two distinct notions of "reviewer" — keep them apart:
+//
+//   isReviewer        → STAFF ACCESS to the review queues (view the roster,
+//                        open tickets, see the Discord thread, close/reopen,
+//                        staff dashboard counts). FIXER, CS_APPROVER, or ADMIN.
+//   isEligibleReviewer → APPROVER POOL: who may cast a *counted* vote, appears
+//                        in the eligible-reviewer roster, and is counted in the
+//                        majority threshold. FIXER or CS_APPROVER only.
+//
+// Admins are intentionally NOT in the approver pool. An admin who does not also
+// hold a fixer/cs-approver role does not appear as an eligible approver and
+// cannot vote — they act through the separate admin-only OVERRIDE path instead
+// (per-type `/override` endpoints, gated on hasRole ADMIN). This stops a pure
+// admin from showing up as a reviewer for character sheets, edits, or misc
+// requests while still letting the operator team unilaterally unstick a queue.
 //
 // Trial fixers are a NARROW mission-author tier — they never review/vote on
 // anything. We exclude them up front so a lingering or dual "fixer" role name
 // (e.g. stored roles not yet re-synced after the trial-fixer rollout) can't
-// leak them into the eligible-reviewer pool or the majority math. The marker is
-// id-derived, so this never wrongly excludes a real admin/cs-approver.
+// leak them into either pool. The marker is id-derived, so this never wrongly
+// excludes a real admin/cs-approver.
 export function isReviewer(u: User): boolean {
   if (hasRole(u.roles, "TRIAL_FIXER")) return false;
   return hasRole(u.roles, "FIXER") || hasRole(u.roles, "CS_APPROVER") || hasRole(u.roles, "ADMIN");
+}
+
+// The approver pool: who may cast a counted vote and is counted in the majority
+// threshold. FIXER or CS_APPROVER only — admins are excluded (they override).
+export function isEligibleReviewer(u: User): boolean {
+  if (hasRole(u.roles, "TRIAL_FIXER")) return false;
+  return hasRole(u.roles, "FIXER") || hasRole(u.roles, "CS_APPROVER");
 }
 
 // A reviewer's public identity, surfaced on detail responses so the UI can
@@ -53,7 +71,7 @@ export async function listEligibleReviewers(excludeUserId: string | null): Promi
     .select({ id: users.id, roles: users.roles, name: users.username, avatarUrl: users.avatarUrl })
     .from(users);
   return rows
-    .filter((r) => isReviewer({ roles: r.roles ?? [] } as User))
+    .filter((r) => isEligibleReviewer({ roles: r.roles ?? [] } as User))
     .filter((r) => r.id !== excludeUserId)
     .map((r) => ({
       id: r.id,

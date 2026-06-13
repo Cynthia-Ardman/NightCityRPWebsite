@@ -122,6 +122,7 @@
 - [Settled wallet movement](settled-wallet-movement.md) — mission pay hits UB directly (NOT applyWalletDelta); record a settled ledger row + advance lastSyncedUbBalance so reconcile won't double-count; leave baseline null if unseeded.
 - [BucketSection double-grid trap](bucketsection-double-grid.md) — BucketSection renders children directly (no grid); callers own grid/stack layout — nesting a grid inside its old grid-cols collapsed cards to 1/3 width.
 - [role_sync bulk fetch](role-sync-bulk-fetch.md) — hourly; bulk member snapshot preferred (per-user fallback for no-intent); only clear empty roles on a DEFINITE read, never a partial/uncertain one.
+- [Review approver pool split](review-approver-pool-split.md) — isReviewer (staff access, incl ADMIN) vs isEligibleReviewer (approver pool, NO admin); read-path tallies must filter to eligible voters too, or stale admin votes skew counts.
 - [Discord thread drawer](discord-thread-drawer.md) — cs-approver thread mirror is a right-side Sheet pop-out (DiscordThreadDrawer), not inline; only mount the 15s-polling panel when open so queue lists don't poll-per-card.
 - [Discord thread mirror linkage](discord-thread-mirror-linkage.md) — thread-from-message id == message id; 400/160004 => return msgId (success), other non-ok => null; persist threadId only when non-null, never `?? msgId`; fix BOTH server lib + backfill helpers.
 - [Trial-fixer author-only tier](trial-fixer-tier.md) — exclude at isReviewer AND strip lingering fixer/coordinator names in applyRoleIdGrants; gating one surface lets stale roles vote.

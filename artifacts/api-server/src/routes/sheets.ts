@@ -10,6 +10,7 @@ import { validateSheetFields } from "../lib/sheet-validation";
 import { areCharacterSubmissionsDisabled } from "../lib/characterSubmissions";
 import {
   isReviewer,
+  isEligibleReviewer,
   listEligibleReviewers,
   majorityOf,
   tallyReviewVotes,
@@ -133,11 +134,18 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const viewerIsReviewer = isReviewer(req.user!);
+  // Only fixers / cs-approvers cast counted votes; a pure admin reviews via
+  // OVERRIDE, not the vote/request-changes flow.
+  const viewerCanVote = isEligibleReviewer(req.user!);
   const votes = await listReviewVotes({ subjectType: "sheet", subjectId: id });
   const eligibleReviewers = await listEligibleReviewers(s.ownerId);
   const eligibleIds = eligibleReviewers.map((r) => r.id);
-  const approveCount = votes.filter((v) => v.vote === "approve").length;
-  const rejectCount = votes.filter((v) => v.vote === "reject").length;
+  const eligibleSet = new Set(eligibleIds);
+  // Count only eligible-pool votes so an ineligible (e.g. admin-only) vote can't
+  // skew the displayed tally — mirrors the decision math in tallyReviewVotes.
+  const effectiveVotes = votes.filter((v) => eligibleSet.has(v.voterId));
+  const approveCount = effectiveVotes.filter((v) => v.vote === "approve").length;
+  const rejectCount = effectiveVotes.filter((v) => v.vote === "reject").length;
   const myVote = votes.find((v) => v.voterId === req.user!.id) ?? null;
   res.json({
     ...s,
@@ -150,9 +158,10 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     approveCount,
     rejectCount,
     myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
-    // A reviewer who is not the owner can vote / request changes on a pending sheet.
-    canVote: viewerIsReviewer && !isOwner && s.status === "pending",
-    canRequestChanges: viewerIsReviewer && !isOwner && s.status === "pending",
+    // A fixer / cs-approver who is not the owner can vote / request changes on a
+    // pending sheet. Admins are excluded here (they use override).
+    canVote: viewerCanVote && !isOwner && s.status === "pending",
+    canRequestChanges: viewerCanVote && !isOwner && s.status === "pending",
     // Admins can override a pending sheet straight to approved.
     canOverride: hasRole(req.user!.roles, "ADMIN") && !isOwner && s.status === "pending",
     // The owner can resubmit a changes_requested (or draft) sheet.
@@ -596,8 +605,8 @@ async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Pro
 router.post("/sheets/:id/vote", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const u = req.user!;
-  if (!isReviewer(u)) {
-    res.status(403).json({ error: "Only fixers / approvers / admins can vote" });
+  if (!isEligibleReviewer(u)) {
+    res.status(403).json({ error: "Only fixers / approvers can vote. Admins use override." });
     return;
   }
   const { vote, note } = req.body ?? {};
