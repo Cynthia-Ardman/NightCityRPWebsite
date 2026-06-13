@@ -2,11 +2,13 @@ import { describe, it, expect } from "vitest";
 import { applyRoleIdGrants, hasRole, TRIAL_FIXER_ROLE_ID } from "./discord";
 
 describe("applyRoleIdGrants (Trial Fixer)", () => {
-  it("grants fixer to a member holding the Trial Fixer role id", () => {
+  it("tags the Trial Fixer role id with the marker but NOT canonical fixer", () => {
+    // Trial fixers are a NARROW role: they may author/propose missions but get
+    // none of the full-fixer staff tools, so they must NOT be granted "fixer".
     const names = ["member"];
     const result = applyRoleIdGrants(names, [TRIAL_FIXER_ROLE_ID]);
-    expect(result).toContain("fixer");
-    expect(hasRole(result, "FIXER")).toBe(true);
+    expect(result).not.toContain("fixer");
+    expect(hasRole(result, "FIXER")).toBe(false);
   });
 
   it("tags a trial fixer with the TRIAL_FIXER marker (display-only)", () => {
@@ -22,7 +24,7 @@ describe("applyRoleIdGrants (Trial Fixer)", () => {
     expect(hasRole(result, "TRIAL_FIXER")).toBe(false);
   });
 
-  it("does not grant fixer when the Trial Fixer role id is absent", () => {
+  it("does not grant or tag anything when the Trial Fixer role id is absent", () => {
     const names = ["member"];
     const result = applyRoleIdGrants(names, ["999"]);
     expect(result).toEqual(["member"]);
@@ -30,10 +32,10 @@ describe("applyRoleIdGrants (Trial Fixer)", () => {
     expect(hasRole(result, "TRIAL_FIXER")).toBe(false);
   });
 
-  it("is idempotent for an existing fixer (no duplicate name)", () => {
-    const names = ["fixer"];
+  it("is idempotent for the trial marker (no duplicate)", () => {
+    const names = ["trial-fixer"];
     const result = applyRoleIdGrants(names, [TRIAL_FIXER_ROLE_ID]);
-    expect(result.filter((r) => r === "fixer")).toHaveLength(1);
+    expect(result.filter((r) => r === "trial-fixer")).toHaveLength(1);
   });
 
   it("does not confer coordinator-only access", () => {

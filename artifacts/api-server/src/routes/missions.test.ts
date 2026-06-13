@@ -485,7 +485,7 @@ describe("Mission completion lock", () => {
 
     await Promise.all([
       payMissionActors(m.id, [actor.id], 50, { actorId: admin.id }),
-      setMissionCompleted(m.id, true, { id: admin.id, isManager: true, isAdmin: true, isArchivist: true }),
+      setMissionCompleted(m.id, true, { id: admin.id, isManager: true, isAdmin: true, isArchivist: true, isTrialAuthor: false }),
     ]);
 
     const paidRows = await db
@@ -589,7 +589,7 @@ describe("NPC sign-ups", () => {
       missionId: m.id,
       signupId: signup.id,
       action: "attended",
-      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false, isTrialAuthor: false },
     });
     expect(r1.ok).toBe(true);
     // Idempotent: confirming again does NOT pay twice.
@@ -597,7 +597,7 @@ describe("NPC sign-ups", () => {
       missionId: m.id,
       signupId: signup.id,
       action: "attended",
-      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false, isTrialAuthor: false },
     });
     expect(r2.ok).toBe(true);
     expect(mockPatch).toHaveBeenCalledTimes(1);
@@ -634,7 +634,7 @@ describe("NPC sign-ups", () => {
       missionId: m.id,
       signupId: signup.id,
       action: "no_show",
-      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false, isTrialAuthor: false },
     });
     expect(r.ok).toBe(true);
     expect(mockPatch).not.toHaveBeenCalled();
@@ -665,7 +665,7 @@ describe("NPC sign-ups", () => {
       missionId: m.id,
       signupId: signup.id,
       action: "attended",
-      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false, isTrialAuthor: false },
     });
 
     const acting = await listActingForUser(player.id);
@@ -690,7 +690,7 @@ describe("NPC sign-ups", () => {
       missionId: m.id,
       signupId: signup.id,
       action: "attended",
-      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false },
+      viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false, isTrialAuthor: false },
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.httpStatus).toBe(409);

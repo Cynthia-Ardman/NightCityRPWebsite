@@ -7962,7 +7962,7 @@ components:
 
     MissionDetail:
       type: object
-      required: [id, title, tier, status, workflowState, slots, playerPay, durationMinutes, maxPlayers, canManage, canApprove, canComplete, canUncomplete, live, assignments, actorPayments, applications, createdAt]
+      required: [id, title, tier, status, workflowState, slots, playerPay, durationMinutes, maxPlayers, canManage, canEdit, canApprove, canComplete, canUncomplete, live, assignments, actorPayments, applications, createdAt]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -7990,6 +7990,7 @@ components:
         discordEventId: { type: ["string", "null"] }
         discordSyncError: { type: ["string", "null"] }
         canManage: { type: boolean, description: "True if caller is fixer/admin (sees Fixer tab + tools)." }
+        canEdit: { type: boolean, description: "True if caller may edit + submit this mission: full managers OR the trial fixer who owns it. Narrower than canManage (no payments/post/complete)." }
         canApprove: { type: boolean, description: "True if caller is archivist/admin (can approve proposals)." }
         completedAt: { type: ["string", "null"], format: date-time, description: "Set when manually marked completed; while set, actor payments are locked." }
         completedBy: { type: ["string", "null"], description: "User id who marked the mission completed." }

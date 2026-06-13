@@ -16,7 +16,10 @@ export const LOGIN_RESTRICTED_KEY = "login_restricted";
 
 // Role groups exempt from the lockdown. NOTE: "coordinator" is part of the
 // FIXER group in ROLE_NAMES, so coordinators are covered by "FIXER".
-const STAFF_GROUPS = ["ADMIN", "FIXER", "ARCHIVIST"] as const;
+// TRIAL_FIXER is its own group (trial fixers no longer carry the canonical
+// "fixer" name) but they are still staff who run the mission pipeline, so they
+// keep portal access during a staff-only lockdown.
+const STAFF_GROUPS = ["ADMIN", "FIXER", "ARCHIVIST", "TRIAL_FIXER"] as const;
 
 /** True when the user's Discord roles include any lockdown-exempt staff group. */
 export function isLockdownExempt(roles: string[] | null | undefined): boolean {

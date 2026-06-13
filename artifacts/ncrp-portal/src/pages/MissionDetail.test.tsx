@@ -95,6 +95,7 @@ function makeMission(overrides: Partial<MissionDetailModel> = {}): MissionDetail
     slots: 4,
     maxPlayers: 4,
     canManage: false,
+    canEdit: false,
     canApprove: false,
     live: true,
     assignments: [],
@@ -158,7 +159,7 @@ describe("MissionDetail — applications recency warning", () => {
 describe("MissionDetail — worldLink visibility", () => {
   it("shows the staff-only world link for a manager", () => {
     state.me = makeMe({ isFixer: true });
-    state.mission = makeMission({ canManage: true, worldLink: "https://vrchat.example/world" });
+    state.mission = makeMission({ canManage: true, canEdit: true, worldLink: "https://vrchat.example/world" });
     renderPage();
 
     // PlayerView (default tab) holds the staff-only world link card.
@@ -245,6 +246,7 @@ describe("MissionDetail — workflow buttons by role", () => {
     state.mission = makeMission({
       workflowState: "draft",
       canManage: true,
+      canEdit: true,
       canApprove: false,
     });
     renderPage();

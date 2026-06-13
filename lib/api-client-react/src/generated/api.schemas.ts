@@ -4732,6 +4732,8 @@ export interface MissionDetail {
   discordSyncError?: string | null;
   /** True if caller is fixer/admin (sees Fixer tab + tools). */
   canManage: boolean;
+  /** True if caller may edit + submit this mission: full managers OR the trial fixer who owns it. Narrower than canManage (no payments/post/complete). */
+  canEdit: boolean;
   /** True if caller is archivist/admin (can approve proposals). */
   canApprove: boolean;
   /**

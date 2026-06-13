@@ -42,10 +42,12 @@ export const ROLE_NAMES = {
   CS_APPROVER: ["cs approver", "character approver", "cs-approver"],
   RIPPERDOC: ["ripperdoc"],
   STORE_OWNER: ["store owner", "shop owner"],
-  // Trial fixers act as full Fixers everywhere FIXER is checked, but staff want
-  // to SEE who is still on trial. Matched on a synthetic marker name injected by
-  // applyRoleIdGrants from the Trial Fixer role ID (below), so the distinction is
-  // id-derived and survives a Discord role rename.
+  // Trial fixers are a NARROW staff tier: they can create/propose missions
+  // (subject to the unchanged Archivist/Admin approval flow) but are gated out
+  // of every other fixer tool. They are NOT granted the "fixer" name, so the
+  // FIXER group checks stay false for them. Matched on a synthetic marker name
+  // injected by applyRoleIdGrants from the Trial Fixer role ID (below), so the
+  // distinction is id-derived and survives a Discord role rename.
   TRIAL_FIXER: ["trial-fixer", "trial fixer"],
 };
 
@@ -60,9 +62,10 @@ export const VERIFIED_18_ROLE_ID = "1351048862323834952";
 /**
  * Discord role id for the guild's "Trial Fixer" role. Matched by exact id (not
  * name) so a rename can't silently drop the grant — same pattern as the
- * Verified 18+ gate. A member holding this role is treated as a full Fixer
- * everywhere the FIXER group is checked; the proposal → Archivist/Admin
- * approval flow still gates what actually reaches players.
+ * Verified 18+ gate. A member holding this role gets a NARROW mission-author
+ * tier (create/propose missions only); the proposal → Archivist/Admin approval
+ * flow still gates what actually reaches players, and every other fixer tool
+ * stays out of reach.
  */
 export const TRIAL_FIXER_ROLE_ID = "1489385692915302419";
 
@@ -79,17 +82,18 @@ export const TRIAL_FIXER_ROLE_MARKER = "trial-fixer";
  * Augment a member's resolved role NAMES with synthetic names derived from
  * exact role IDs, so id-gated grants survive Discord role renames and flow
  * through the name-based {@link hasRole} checks used everywhere downstream.
- * Currently maps the Trial Fixer role id onto the canonical "fixer" name,
- * granting trial fixers full Fixer-equivalent access. Idempotent: never adds a
- * duplicate name. Pass the raw role ids alongside the resolved names.
+ * Tags the Trial Fixer role id with the {@link TRIAL_FIXER_ROLE_MARKER} marker
+ * ONLY — it deliberately does NOT grant the canonical "fixer" name, so trial
+ * fixers get the narrow mission-author tier (gated via the TRIAL_FIXER group)
+ * rather than full Fixer-equivalent access. Idempotent: never adds a duplicate
+ * name. Pass the raw role ids alongside the resolved names.
  */
 export function applyRoleIdGrants(names: string[], ids: string[]): string[] {
   if (!ids.includes(TRIAL_FIXER_ROLE_ID)) return names;
   const out = [...names];
-  // Grant full Fixer-equivalent access.
-  if (!out.some((n) => n.toLowerCase() === "fixer")) out.push("fixer");
-  // Tag them as a trial fixer (display-only) so staff UIs can distinguish them
-  // from established fixers, independent of the Discord role's display name.
+  // Tag them as a trial fixer so the TRIAL_FIXER group checks (and the
+  // display-only `isTrialFixer` flags) stay true, independent of the Discord
+  // role's display name. Intentionally NOT mapped onto "fixer".
   if (!out.some((n) => n.toLowerCase() === TRIAL_FIXER_ROLE_MARKER)) {
     out.push(TRIAL_FIXER_ROLE_MARKER);
   }

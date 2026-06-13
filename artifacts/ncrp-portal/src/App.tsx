@@ -163,7 +163,7 @@ function AppRoutes() {
   // this (login blocked + every data route 403s), so this is purely the UX. A
   // logged-out visitor (no user) falls through; their login attempt is blocked
   // server-side and redirects to the "restricted" login-error page.
-  if (user && user.loginRestricted && !(user.isAdmin || user.isFixer || user.isArchivist)) {
+  if (user && user.loginRestricted && !(user.isAdmin || user.isFixer || user.isArchivist || user.isTrialFixer)) {
     return <SiteLocked />;
   }
 

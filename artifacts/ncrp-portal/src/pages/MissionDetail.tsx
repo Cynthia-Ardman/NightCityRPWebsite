@@ -381,9 +381,9 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
         </div>
       </div>
 
-      {(data.canComplete || data.canUncomplete || data.completedAt || data.canManage) && (
+      {(data.canComplete || data.canUncomplete || data.completedAt || data.canManage || data.canEdit) && (
         <div className="flex flex-wrap items-center gap-3 border border-border bg-card/40 p-3">
-          {data.canManage && (
+          {data.canEdit && (
             <Link
               href={`/fixer/missions?edit=${data.id}`}
               className="rounded-none border border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display tracking-widest inline-flex items-center gap-1 px-4 py-2 text-sm"
@@ -492,7 +492,7 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
         </Tabs>
       ) : (
         <>
-          {data.canApprove && <WorkflowPanel data={data} />}
+          {(data.canApprove || data.canEdit) && <WorkflowPanel data={data} />}
           <PlayerView data={data} />
         </>
       )}
@@ -552,8 +552,8 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
 
       <MissionFacts data={data} />
 
-      {/* Staff-only world/join link */}
-      {data.canManage && data.worldLink && (
+      {/* Staff-only world/join link (visible to managers + the trial fixer who owns it) */}
+      {data.canEdit && data.worldLink && (
         <Card className="rounded-none border-border bg-card/50">
           <CardHeader>
             <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
@@ -1059,7 +1059,7 @@ function WorkflowPanel({ data }: { data: MissionDetailModel }) {
         </p>
         <div className="flex flex-wrap items-center gap-3">
           {data.workflowState === "draft" &&
-            (data.canManage ? (
+            (data.canEdit ? (
               <Button
                 type="button"
                 disabled={busy}

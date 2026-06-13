@@ -308,8 +308,8 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
             definite = false;
           }
-          // Map id-gated grants (e.g. Trial Fixer → "fixer") onto the names so
-          // existing logged-in trial fixers get Fixer access without re-login.
+          // Map id-gated grants (e.g. Trial Fixer → "trial-fixer" marker) onto
+          // the names so id-derived role markers stay current without re-login.
           // Only when we have raw ids; the per-user fallback may return null.
           if (roleIds !== null) roles = applyRoleIdGrants(roles, roleIds);
           const verified18 = roleIds === null ? u.verified18 : roleIds.includes(VERIFIED_18_ROLE_ID);

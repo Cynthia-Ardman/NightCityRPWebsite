@@ -55,11 +55,15 @@ const router: IRouter = Router();
 function viewerOf(req: Request): MissionViewer {
   const u = req.user!;
   const isAdmin = hasRole(u.roles, "ADMIN");
+  const isManagerRole = isAdmin || hasRole(u.roles, "FIXER");
   return {
     id: u.id,
-    isManager: isAdmin || hasRole(u.roles, "FIXER"),
+    isManager: isManagerRole,
     isAdmin,
     isArchivist: isAdmin || hasRole(u.roles, "ARCHIVIST"),
+    // A trial fixer is an author-only tier; full managers are never also "trial
+    // authors" (the manager grant supersedes it).
+    isTrialAuthor: !isManagerRole && hasRole(u.roles, "TRIAL_FIXER"),
   };
 }
 
@@ -71,6 +75,22 @@ function canApprove(req: Request): boolean {
 function isManager(req: Request): boolean {
   const roles = req.user?.roles ?? [];
   return hasRole(roles, "ADMIN") || hasRole(roles, "FIXER");
+}
+
+// Trial fixer (narrow author tier) — true only when they are NOT a full
+// manager, so manager checks and author checks stay cleanly separated.
+function isTrialAuthor(req: Request): boolean {
+  const roles = req.user?.roles ?? [];
+  return !isManager(req) && hasRole(roles, "TRIAL_FIXER");
+}
+
+// May author missions: full managers OR trial fixers. Authoring covers
+// create / edit-own / submit-own and the create-form helpers (config,
+// conflicts) plus the "My Created Missions" board. Everything else (payments,
+// posting, completion, the All Missions board, other fixers' missions) stays
+// manager-gated.
+function canAuthorMissions(req: Request): boolean {
+  return isManager(req) || isTrialAuthor(req);
 }
 
 function parseTier(v: unknown): number | null {
@@ -267,8 +287,8 @@ router.get("/missions", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/missions", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
+  if (!canAuthorMissions(req)) {
+    res.status(403).json({ error: "Fixer, trial fixer, or admin role required" });
     return;
   }
   const b = req.body ?? {};
@@ -428,8 +448,10 @@ router.get("/missions/owned", requireAuth, async (req, res): Promise<void> => {
 // "My Created Missions" — missions the caller personally runs (fixerId ===
 // caller), across all workflow states. Creators/approvers only.
 router.get("/missions/created", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req) && !canApprove(req)) {
-    res.status(403).json({ error: "Fixer, archivist, or admin role required" });
+  // Scoped to the caller's own missions (fixerId === caller), so trial fixers
+  // get their own board without seeing anyone else's pipeline.
+  if (!canAuthorMissions(req) && !canApprove(req)) {
+    res.status(403).json({ error: "Fixer, trial fixer, archivist, or admin role required" });
     return;
   }
   res.json(await listCreatedMissionSummaries(viewerOf(req)));
@@ -473,8 +495,8 @@ router.get("/missions/acting/:userId", requireAuth, async (req, res): Promise<vo
 
 // Fail-safe Discord scheduling-conflict check for the create/reschedule form.
 router.get("/missions/conflicts", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
+  if (!canAuthorMissions(req)) {
+    res.status(403).json({ error: "Fixer, trial fixer, or admin role required" });
     return;
   }
   const startAt = parseDate(req.query.startAt);
@@ -488,8 +510,8 @@ router.get("/missions/conflicts", requireAuth, async (req, res): Promise<void> =
 });
 
 router.get("/missions/config", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
+  if (!canAuthorMissions(req)) {
+    res.status(403).json({ error: "Fixer, trial fixer, or admin role required" });
     return;
   }
   const ctx = await getMissionContext();
@@ -699,8 +721,8 @@ router.get("/missions/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
+  if (!canAuthorMissions(req)) {
+    res.status(403).json({ error: "Fixer, trial fixer, or admin role required" });
     return;
   }
   const id = parseInt(String(req.params.id), 10);
@@ -711,6 +733,12 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
   const [before] = await db.select().from(missions).where(eq(missions.id, id));
   if (!before) {
     res.status(404).json({ error: "Mission not found" });
+    return;
+  }
+  // Trial fixers may only edit missions they personally own; full managers edit
+  // any mission.
+  if (!isManager(req) && before.fixerId !== req.user!.id) {
+    res.status(403).json({ error: "You can only edit your own missions" });
     return;
   }
   const b = req.body ?? {};
@@ -885,8 +913,8 @@ router.post("/missions/:id/uncomplete", requireAuth, async (req, res): Promise<v
 
 // Fixer submits a draft for staff review.
 router.post("/missions/:id/submit", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
+  if (!canAuthorMissions(req)) {
+    res.status(403).json({ error: "Fixer, trial fixer, or admin role required" });
     return;
   }
   const id = missionIdParam(req, res);

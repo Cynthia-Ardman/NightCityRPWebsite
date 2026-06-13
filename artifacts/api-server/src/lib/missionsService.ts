@@ -109,6 +109,10 @@ export interface MissionViewer {
   isManager: boolean; // fixer or admin
   isAdmin: boolean;
   isArchivist: boolean; // archivist or admin (can approve proposals)
+  // Trial fixer who is NOT a full manager. They may author (create/edit/submit)
+  // their OWN missions but get no other fixer tools. Per-mission ownership is
+  // enforced at each write path; never grant them blanket manager access.
+  isTrialAuthor: boolean;
 }
 
 type AssignmentJoin = {
@@ -621,11 +625,17 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
   const rows = await loadMissions(eq(missions.id, missionId));
   const m = rows[0];
   if (!m) return null;
+  const isOwnerFixer = m.fixerId != null && m.fixerId === viewer.id;
   const canManage = viewer.isManager;
+  // Trial fixers are author-only: they get NO management tools (payments, post,
+  // complete, roster money) but CAN view + edit/submit a mission they own.
+  const isTrialOwner = viewer.isTrialAuthor && isOwnerFixer;
+  const canEdit = canManage || isTrialOwner;
   // Visibility: regular players only see Posted missions (the draft pipeline is
   // staff-internal). Archivists are approvers, so they must be able to view a
-  // non-posted mission to approve it — even though they don't get fixer tools.
-  if (!canManage && !viewer.isArchivist && m.workflowState !== "posted") return null;
+  // non-posted mission to approve it. A trial fixer may view their OWN
+  // non-posted missions (to edit/submit them) but not anyone else's.
+  if (!canManage && !viewer.isArchivist && !isTrialOwner && m.workflowState !== "posted") return null;
   const ctx = await getMissionContext();
   const assignments = (await loadAssignments([missionId])).get(missionId) ?? [];
 
@@ -729,7 +739,6 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
       .where(eq(users.id, m.completedBy));
     completedByName = u?.globalName ?? u?.username ?? null;
   }
-  const isOwnerFixer = m.fixerId != null && m.fixerId === viewer.id;
   const isCompleted = m.completedAt != null;
 
   return {
@@ -751,9 +760,10 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     client: m.client,
     notesForPlayers: m.notesForPlayers,
     maxPlayers: m.maxPlayers,
-    // World Link is an OOC staff planning doc: visible to fixers/admins AND to
-    // archivist approvers (who review non-posted missions), never to players.
-    worldLink: canManage || viewer.isArchivist ? m.worldLink : null,
+    // World Link is an OOC staff planning doc: visible to fixers/admins, to
+    // archivist approvers (who review non-posted missions), and to the trial
+    // fixer who owns the mission (their own planning doc) — never to players.
+    worldLink: canEdit || viewer.isArchivist ? m.worldLink : null,
     fixerId: m.fixerId,
     fixerName: m.fixerName,
     fixerAvatarUrl: m.fixerAvatarUrl,
@@ -761,12 +771,16 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     discordEventId: m.discordEventId,
     discordSyncError: m.discordSyncError,
     canManage,
+    // Author-level: full managers OR the trial fixer who owns this mission. Gates
+    // the Edit + Submit-for-approval controls, NOT the management tools.
+    canEdit,
     canApprove: viewer.isArchivist,
     completedAt: iso(m.completedAt),
     completedBy: m.completedBy,
     completedByName,
-    // Owner fixer / admin / archivist may lock a not-yet-completed mission.
-    canComplete: (viewer.isAdmin || viewer.isArchivist || isOwnerFixer) && !isCompleted,
+    // A full-manager owner fixer / admin / archivist may lock a not-yet-completed
+    // mission. Trial fixers are author-only — completion is not theirs to do.
+    canComplete: (viewer.isAdmin || viewer.isArchivist || (isOwnerFixer && viewer.isManager)) && !isCompleted,
     // Reopening a completed mission is admin/archivist only.
     canUncomplete: (viewer.isAdmin || viewer.isArchivist) && isCompleted,
     live: ctx.live,
@@ -867,7 +881,9 @@ export async function setMissionCompleted(
     .where(eq(missions.id, missionId));
   if (!m) return { ok: false, httpStatus: 404, error: "Mission not found" };
 
-  const isOwnerFixer = m.fixerId != null && m.fixerId === viewer.id;
+  // Trial fixers are author-only and excluded from completion (manager guard);
+  // only a full-manager owner fixer, admin, or archivist may lock a mission.
+  const isOwnerFixer = m.fixerId != null && m.fixerId === viewer.id && viewer.isManager;
 
   if (completed) {
     if (!(viewer.isAdmin || viewer.isArchivist || isOwnerFixer)) {
@@ -1702,6 +1718,11 @@ export type TransitionResult =
 export async function submitMissionProposal(missionId: number, viewer: MissionViewer, req?: Request): Promise<TransitionResult> {
   const [m] = await db.select().from(missions).where(eq(missions.id, missionId));
   if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  // Trial fixers may only submit missions they personally own; full managers
+  // may submit any draft.
+  if (!viewer.isManager && m.fixerId !== viewer.id) {
+    return { ok: false, error: "You can only submit your own missions", httpStatus: 403 };
+  }
   if (m.workflowState !== "draft") {
     return { ok: false, error: `Can only submit a draft (current: ${m.workflowState})`, httpStatus: 409 };
   }

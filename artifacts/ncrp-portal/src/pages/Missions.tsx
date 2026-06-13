@@ -90,8 +90,12 @@ export default function Missions() {
   const isStaff = !!me && (me.isFixer || me.isAdmin);
   const isAdmin = !!me?.isAdmin;
   const canApprove = !!me && (me.isArchivist || me.isAdmin);
+  // Trial fixers are author-only: they may create/propose missions (subject to
+  // the unchanged Archivist/Admin approval) and shepherd their own pipeline, but
+  // they get NONE of the staff management tools or the all-missions board.
+  const canAuthor = isStaff || !!me?.isTrialFixer;
   // Archivists approve but don't create; fixers/admins both create and manage.
-  // Staff tabs (My Created / All Missions) are visible to anyone in those roles.
+  // The all-missions board (All Missions) is for full managers + approvers only.
   const canSeeStaffTabs = isStaff || canApprove;
 
   const [tab, setTab] = useState<TabKey>("open");
@@ -146,10 +150,10 @@ export default function Missions() {
   // Acting: every time the caller acted (NPC/actor) in a mission or event.
   const acting = useListMyActing();
 
-  // My Missions: missions the caller personally runs (staff only), across all
-  // workflow states — grouped into lifecycle sub-tabs in MyMissionsBoard.
+  // My Missions: missions the caller personally runs (any author, incl. trial
+  // fixers), across all workflow states — grouped into lifecycle sub-tabs.
   const created = useListCreatedMissions({
-    query: { enabled: isStaff, queryKey: getListCreatedMissionsQueryKey() },
+    query: { enabled: canAuthor, queryKey: getListCreatedMissionsQueryKey() },
   });
 
   // All Missions: the staff-wide board (managers + approvers only).
@@ -170,7 +174,7 @@ export default function Missions() {
     { key: "acting", label: "Acting", count: acting.data?.length },
   ];
   const fixerTabs: TabDef[] = ([
-    { key: "mine", label: "My Missions", count: created.data?.length, show: isStaff },
+    { key: "mine", label: "My Missions", count: created.data?.length, show: canAuthor },
     { key: "all", label: "All Missions", count: owned.data?.length, show: canSeeStaffTabs },
   ] as TabDef[]).filter((t) => t.show !== false);
 
@@ -185,7 +189,7 @@ export default function Missions() {
             Scheduled jobs run by fixers, with payouts to the players who show up.
           </p>
         </div>
-        {isStaff && (
+        {canAuthor && (
           <Link href="/fixer/missions">
             <Button
               className="rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
@@ -197,7 +201,7 @@ export default function Missions() {
         )}
       </div>
 
-      {isStaff && <MissionTestModeBanner />}
+      {canAuthor && <MissionTestModeBanner />}
 
       <MissionOutcomesBanner />
 
@@ -289,7 +293,7 @@ export default function Missions() {
           </ErrorBoundary>
         </TabsContent>
 
-        {isStaff && (
+        {canAuthor && (
           <TabsContent value="mine" data-testid="tabpanel-mine">
             <ErrorBoundary>
               <ListSection
@@ -302,6 +306,7 @@ export default function Missions() {
                   isAdmin={isAdmin}
                   canApprove={canApprove}
                   canManage={isStaff}
+                  canAuthor={canAuthor}
                 />
               </ListSection>
             </ErrorBoundary>
@@ -484,11 +489,13 @@ function MyMissionsBoard({
   isAdmin,
   canApprove,
   canManage,
+  canAuthor,
 }: {
   rows: MissionSummary[];
   isAdmin: boolean;
   canApprove: boolean;
   canManage: boolean;
+  canAuthor?: boolean;
 }) {
   const [sub, setSub] = useState<MyMissionBucket>("pending");
   const buckets = useMemo(() => {
@@ -529,6 +536,7 @@ function MyMissionsBoard({
                   isAdmin={isAdmin}
                   canApprove={canApprove}
                   canManage={canManage}
+                  canAuthor={canAuthor}
                   showWorkflow
                 />
               ))}
@@ -760,6 +768,7 @@ function MissionCard({
   isAdmin,
   canApprove,
   canManage,
+  canAuthor,
   showWorkflow,
   showApply,
   npcOnly,
@@ -768,6 +777,7 @@ function MissionCard({
   isAdmin: boolean;
   canApprove?: boolean;
   canManage?: boolean;
+  canAuthor?: boolean;
   showWorkflow?: boolean;
   showApply?: boolean;
   npcOnly?: boolean;
@@ -870,7 +880,7 @@ function MissionCard({
         </div>
 
         {/* 9. Workflow actions (owned board) or inline apply/sign-up (open list) */}
-        {showWorkflow && <WorkflowActions m={m} canManage={!!canManage} />}
+        {showWorkflow && <WorkflowActions m={m} canManage={!!canManage} canAuthor={!!canAuthor} />}
         {showApply && <InlineMissionActions m={m} npcOnly={npcOnly} />}
       </CardContent>
     </Card>
@@ -1072,9 +1082,13 @@ function InlineMissionActions({ m, npcOnly }: { m: MissionSummary; npcOnly?: boo
 function WorkflowActions({
   m,
   canManage,
+  canAuthor,
 }: {
   m: MissionSummary;
   canManage: boolean;
+  // Author-level (trial fixers + full managers): may submit a draft. Trial
+  // fixers stop there — Post / Close-applications stay manager-only.
+  canAuthor?: boolean;
 }) {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -1086,7 +1100,7 @@ function WorkflowActions({
   const post = usePostMission({ mutation: { onSuccess: invalidate } });
   const busy = submit.isPending || post.isPending;
 
-  if (m.workflowState === "draft" && canManage) {
+  if (m.workflowState === "draft" && (canManage || canAuthor)) {
     return (
       <div className="pt-1">
         <Button
