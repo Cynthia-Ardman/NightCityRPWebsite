@@ -68,6 +68,7 @@ export const GetMeResponse = zod.object({
   "verified18": zod.boolean().optional().describe('True when the member holds the guild\'s Verified 18+ Discord role. When false, the portal is age-gated to the VRChat↔Discord linking guidebook page plus a link to the help channel.'),
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean(),
+  "isTrialFixer": zod.boolean().optional().describe('Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers act as full fixers.'),
   "isArchivist": zod.boolean(),
   "isCoordinator": zod.boolean().optional(),
   "isCsApprover": zod.boolean(),
@@ -2236,6 +2237,7 @@ export const ListMissionsResponseItem = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "myCharacterId": zod.number().nullish(),
@@ -2350,6 +2352,7 @@ export const ListMyMissionsResponseItem = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "myCharacterId": zod.number().nullish(),
@@ -2434,6 +2437,7 @@ export const ListOwnedMissionsResponseItem = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "myCharacterId": zod.number().nullish(),
@@ -2503,6 +2507,7 @@ export const ListCreatedMissionsResponseItem = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "myCharacterId": zod.number().nullish(),
@@ -2586,6 +2591,7 @@ export const ListMissionHistoryResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "myCharacterId": zod.number().nullish(),
@@ -2831,6 +2837,7 @@ export const GetMissionResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -3003,6 +3010,7 @@ export const UpdateMissionResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -3236,6 +3244,7 @@ export const PayMissionActorsResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -3372,6 +3381,7 @@ export const CompleteMissionResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -3508,6 +3518,7 @@ export const UncompleteMissionResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -3644,6 +3655,7 @@ export const SubmitMissionResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -3780,6 +3792,7 @@ export const ApproveMissionResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -3916,6 +3929,7 @@ export const PostMissionResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -4112,6 +4126,7 @@ export const ApplyToMissionResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -4249,6 +4264,7 @@ export const WithdrawApplicationResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -4390,6 +4406,7 @@ export const ReviewApplicationResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -4527,6 +4544,7 @@ export const RemoveAssignedPlayerResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -4667,6 +4685,7 @@ export const SignUpAsNpcResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -4803,6 +4822,7 @@ export const WithdrawNpcSignupResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -4944,6 +4964,7 @@ export const ConfirmNpcSignupResponse = zod.object({
   "fixerId": zod.string().nullish(),
   "fixerName": zod.string().nullish(),
   "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
   "discordEventId": zod.string().nullish(),
   "discordSyncError": zod.string().nullish(),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
@@ -6566,7 +6587,8 @@ export const ListMySheetsResponseItem = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
@@ -6663,7 +6685,8 @@ export const ListPendingSheetsResponseItem = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this sheet (excludes the owner). Present on the reviewer-facing pending list.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -6748,7 +6771,8 @@ export const GetSheetResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
@@ -6892,7 +6916,8 @@ export const UpdateSheetResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
@@ -6994,7 +7019,8 @@ export const SubmitDraftSheetResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
@@ -7117,7 +7143,8 @@ export const OverrideSheetResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
@@ -7219,7 +7246,8 @@ export const RequestChangesSheetResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
   "eligibleVoterCount": zod.number().optional(),
   "threshold": zod.number().optional(),
@@ -7270,7 +7298,8 @@ export const ListPendingEditsResponseItem = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this edit (excludes the submitter). Present on the reviewer-facing pending list.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -7318,7 +7347,8 @@ export const GetPendingEditResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet.'),
   "eligibleVoterCount": zod.number(),
   "threshold": zod.number(),
@@ -7487,6 +7517,7 @@ export const AdminListUsersResponseItem = zod.object({
   "roles": zod.array(zod.string()),
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean().optional(),
+  "isTrialFixer": zod.boolean().optional().describe('Display-only: true when this fixer is still on trial (derived from the Trial Fixer role id).'),
   "isCsApprover": zod.boolean().optional(),
   "isRipperdoc": zod.boolean().optional(),
   "isStoreOwner": zod.boolean().optional(),
@@ -7549,6 +7580,7 @@ export const AdminGetUserResponse = zod.object({
   "roles": zod.array(zod.string()),
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean().optional(),
+  "isTrialFixer": zod.boolean().optional().describe('Display-only: true when this fixer is still on trial (derived from the Trial Fixer role id).'),
   "isCsApprover": zod.boolean().optional(),
   "isRipperdoc": zod.boolean().optional(),
   "isStoreOwner": zod.boolean().optional(),
@@ -7627,6 +7659,7 @@ export const AdminSyncUserRolesResponse = zod.object({
   "roles": zod.array(zod.string()),
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean().optional(),
+  "isTrialFixer": zod.boolean().optional().describe('Display-only: true when this fixer is still on trial (derived from the Trial Fixer role id).'),
   "isCsApprover": zod.boolean().optional(),
   "isRipperdoc": zod.boolean().optional(),
   "isStoreOwner": zod.boolean().optional(),
@@ -8552,7 +8585,8 @@ export const ListCustomRequestsResponseItem = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -8611,7 +8645,8 @@ export const ListMyCustomRequestsResponseItem = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -8680,7 +8715,8 @@ export const VoteCustomRequestResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -8748,7 +8784,8 @@ export const OverrideCustomRequestResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -8799,7 +8836,8 @@ export const RequestChangesCustomRequestResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -8842,7 +8880,8 @@ export const ResubmitCustomRequestResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -8893,7 +8932,8 @@ export const UpdateCustomRequestResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -8941,7 +8981,8 @@ export const DecideStockCostRequestResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -8988,7 +9029,8 @@ export const DecideEmployeeInviteResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),
@@ -9035,7 +9077,8 @@ export const DecideMissionParticipationResponse = zod.object({
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish()
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
 }).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
   "voters": zod.array(zod.object({
   "id": zod.string(),

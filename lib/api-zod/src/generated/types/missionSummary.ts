@@ -46,6 +46,8 @@ export interface MissionSummary {
   fixerName?: string | null;
   /** @nullable */
   fixerAvatarUrl?: string | null;
+  /** Display-only: true when the owning fixer is still on trial. */
+  fixerIsTrial?: boolean;
   /** @nullable */
   discordEventId?: string | null;
   /** @nullable */

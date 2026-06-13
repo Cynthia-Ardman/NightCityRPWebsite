@@ -20,6 +20,8 @@ export interface Me {
   verified18?: boolean;
   isAdmin: boolean;
   isFixer: boolean;
+  /** Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers act as full fixers. */
+  isTrialFixer?: boolean;
   isArchivist: boolean;
   isCoordinator?: boolean;
   isCsApprover: boolean;

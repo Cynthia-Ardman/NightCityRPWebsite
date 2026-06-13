@@ -310,6 +310,9 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     rulesAccepted: u.rulesAccepted,
     isAdmin: hasRole(u.roles, "ADMIN"),
     isFixer: hasRole(u.roles, "FIXER"),
+    // Display-only: true when this fixer is still on trial (derived from the
+    // Trial Fixer role id, not its name). Trial fixers act as full fixers.
+    isTrialFixer: hasRole(u.roles, "TRIAL_FIXER"),
     isCoordinator: hasRole(u.roles, "COORDINATOR"),
     isArchivist: hasRole(u.roles, "ARCHIVIST"),
     isCsApprover: hasRole(u.roles, "CS_APPROVER"),

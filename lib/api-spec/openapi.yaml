@@ -5581,6 +5581,7 @@ components:
           description: "True when the member holds the guild's Verified 18+ Discord role. When false, the portal is age-gated to the VRChat↔Discord linking guidebook page plus a link to the help channel."
         isAdmin: { type: boolean }
         isFixer: { type: boolean }
+        isTrialFixer: { type: boolean, description: "Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers act as full fixers." }
         isArchivist: { type: boolean }
         isCoordinator: { type: boolean }
         isCsApprover: { type: boolean }
@@ -7311,11 +7312,12 @@ components:
     EligibleReviewer:
       type: object
       description: "A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet."
-      required: [id]
+      required: [id, isTrialFixer]
       properties:
         id: { type: string }
         name: { type: ["string", "null"] }
         avatarUrl: { type: ["string", "null"] }
+        isTrialFixer: { type: boolean, description: "Display-only: true when this reviewer is a trial fixer (still on probation)." }
 
     ReviewVoteRecord:
       type: object
@@ -7685,6 +7687,7 @@ components:
           items: { type: string }
         isAdmin: { type: boolean }
         isFixer: { type: boolean }
+        isTrialFixer: { type: boolean, description: "Display-only: true when this fixer is still on trial (derived from the Trial Fixer role id)." }
         isCsApprover: { type: boolean }
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
@@ -7904,6 +7907,7 @@ components:
         fixerId: { type: ["string", "null"] }
         fixerName: { type: ["string", "null"] }
         fixerAvatarUrl: { type: ["string", "null"] }
+        fixerIsTrial: { type: boolean, description: "Display-only: true when the owning fixer is still on trial." }
         discordEventId: { type: ["string", "null"] }
         discordSyncError: { type: ["string", "null"] }
         myCharacterId: { type: ["integer", "null"] }
@@ -7982,6 +7986,7 @@ components:
         fixerId: { type: ["string", "null"] }
         fixerName: { type: ["string", "null"] }
         fixerAvatarUrl: { type: ["string", "null"] }
+        fixerIsTrial: { type: boolean, description: "Display-only: true when the owning fixer is still on trial." }
         discordEventId: { type: ["string", "null"] }
         discordSyncError: { type: ["string", "null"] }
         canManage: { type: boolean, description: "True if caller is fixer/admin (sees Fixer tab + tools)." }

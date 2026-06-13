@@ -844,6 +844,8 @@ export interface Me {
   verified18?: boolean;
   isAdmin: boolean;
   isFixer: boolean;
+  /** Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers act as full fixers. */
+  isTrialFixer?: boolean;
   isArchivist: boolean;
   isCoordinator?: boolean;
   isCsApprover: boolean;
@@ -3049,6 +3051,8 @@ export interface EligibleReviewer {
   name?: string | null;
   /** @nullable */
   avatarUrl?: string | null;
+  /** Display-only: true when this reviewer is a trial fixer (still on probation). */
+  isTrialFixer: boolean;
 }
 
 export interface CustomRequest {
@@ -4077,6 +4081,8 @@ export interface AdminUser {
   roles: string[];
   isAdmin: boolean;
   isFixer?: boolean;
+  /** Display-only: true when this fixer is still on trial (derived from the Trial Fixer role id). */
+  isTrialFixer?: boolean;
   isCsApprover?: boolean;
   isRipperdoc?: boolean;
   isStoreOwner?: boolean;
@@ -4526,6 +4532,8 @@ export interface MissionSummary {
   fixerName?: string | null;
   /** @nullable */
   fixerAvatarUrl?: string | null;
+  /** Display-only: true when the owning fixer is still on trial. */
+  fixerIsTrial?: boolean;
   /** @nullable */
   discordEventId?: string | null;
   /** @nullable */
@@ -4716,6 +4724,8 @@ export interface MissionDetail {
   fixerName?: string | null;
   /** @nullable */
   fixerAvatarUrl?: string | null;
+  /** Display-only: true when the owning fixer is still on trial. */
+  fixerIsTrial?: boolean;
   /** @nullable */
   discordEventId?: string | null;
   /** @nullable */

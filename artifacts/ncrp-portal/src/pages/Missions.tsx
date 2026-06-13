@@ -63,6 +63,7 @@ import {
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
 import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
+import { TrialFixerBadge } from "@/components/TrialFixerBadge";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 type TabKey =
@@ -858,7 +859,7 @@ function MissionCard({
         <div className="flex items-center gap-2">
           <User className="w-4 h-4 shrink-0 text-muted-foreground" />
           <span className="text-muted-foreground uppercase text-xs tracking-widest">Fixer:</span>
-          <FixerLink fixerId={m.fixerId} fixerName={m.fixerName} isAdmin={isAdmin} />
+          <FixerLink fixerId={m.fixerId} fixerName={m.fixerName} isAdmin={isAdmin} isTrial={m.fixerIsTrial} />
         </div>
 
         {/* 8. Players (clickable) */}
@@ -1175,16 +1176,18 @@ function FixerLink({
   fixerId,
   fixerName,
   isAdmin,
+  isTrial = false,
 }: {
   fixerId: string | null | undefined;
   fixerName: string | null | undefined;
   isAdmin: boolean;
+  isTrial?: boolean;
 }) {
   if (!fixerName) return <span className="text-muted-foreground">—</span>;
   // Only admins have a user profile route to link to. Everyone else sees the
   // name as plain text (graceful degradation — there is no public fixer page).
-  if (isAdmin && fixerId) {
-    return (
+  const inner =
+    isAdmin && fixerId ? (
       <Link
         href={`/admin/users/${fixerId}`}
         className="text-nc-magenta hover:underline font-semibold"
@@ -1192,9 +1195,15 @@ function FixerLink({
       >
         {fixerName}
       </Link>
+    ) : (
+      <span className="text-nc-magenta font-semibold">{fixerName}</span>
     );
-  }
-  return <span className="text-nc-magenta font-semibold">{fixerName}</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {inner}
+      <TrialFixerBadge show={isTrial} />
+    </span>
+  );
 }
 
 function PlayerLinks({ m }: { m: MissionSummary }) {

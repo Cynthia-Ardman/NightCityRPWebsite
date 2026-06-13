@@ -679,6 +679,7 @@ export function UsersTab() {
                     <div className="flex flex-wrap gap-1">
                       {u.isAdmin && <Badge variant="outline" className="border-destructive text-destructive rounded-none text-[10px] px-1 py-0">ADMIN</Badge>}
                       {u.isFixer && <Badge variant="outline" className="border-nc-magenta text-nc-magenta rounded-none text-[10px] px-1 py-0">FIXER</Badge>}
+                      {u.isTrialFixer && <Badge variant="outline" className="border-orange-400 text-orange-400 rounded-none text-[10px] px-1 py-0" data-testid={`badge-trial-${u.id}`}>TRIAL</Badge>}
                       {u.isRipperdoc && <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none text-[10px] px-1 py-0">RIPPER</Badge>}
                       {u.isStoreOwner && <Badge variant="outline" className="border-nc-cyan text-nc-cyan rounded-none text-[10px] px-1 py-0">SHOP</Badge>}
                       {u.isCsApprover && <Badge variant="outline" className="border-green-500 text-green-500 rounded-none text-[10px] px-1 py-0">CS_APPROVER</Badge>}

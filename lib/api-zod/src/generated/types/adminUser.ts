@@ -18,6 +18,8 @@ export interface AdminUser {
   roles: string[];
   isAdmin: boolean;
   isFixer?: boolean;
+  /** Display-only: true when this fixer is still on trial (derived from the Trial Fixer role id). */
+  isTrialFixer?: boolean;
   isCsApprover?: boolean;
   isRipperdoc?: boolean;
   isStoreOwner?: boolean;

@@ -25,6 +25,7 @@ import {
   modifyGuildScheduledEvent,
   deleteGuildScheduledEvent,
   listGuildScheduledEvents,
+  hasRole,
 } from "./discord";
 import { notifyMissionPayout } from "./notifications";
 import { getMissionContext, type MissionExternalContext } from "./missionsConfig";
@@ -157,7 +158,12 @@ async function loadAssignments(missionIds: number[]): Promise<Map<number, Assign
   return out;
 }
 
-type MissionWithFixer = Mission & { fixerName: string | null; fixerAvatarUrl: string | null };
+type MissionWithFixer = Mission & {
+  fixerName: string | null;
+  fixerAvatarUrl: string | null;
+  // Display-only: true when the owning fixer is still on trial.
+  fixerIsTrial: boolean;
+};
 
 async function loadMissions(
   where: ReturnType<typeof eq> | undefined,
@@ -169,6 +175,7 @@ async function loadMissions(
       mission: missions,
       fixerName: users.username,
       fixerAvatarUrl: users.avatarUrl,
+      fixerRoles: users.roles,
     })
     .from(missions)
     .leftJoin(users, eq(users.id, missions.fixerId))
@@ -180,7 +187,12 @@ async function loadMissions(
   if (limit) q = q.limit(limit);
   if (offset) q = q.offset(offset);
   const rows = await q;
-  return rows.map((r) => ({ ...r.mission, fixerName: r.fixerName, fixerAvatarUrl: r.fixerAvatarUrl }));
+  return rows.map((r) => ({
+    ...r.mission,
+    fixerName: r.fixerName,
+    fixerAvatarUrl: r.fixerAvatarUrl,
+    fixerIsTrial: hasRole(r.fixerRoles ?? [], "TRIAL_FIXER"),
+  }));
 }
 
 function toSummary(
@@ -221,6 +233,7 @@ function toSummary(
     fixerId: m.fixerId,
     fixerName: m.fixerName,
     fixerAvatarUrl: m.fixerAvatarUrl,
+    fixerIsTrial: m.fixerIsTrial,
     discordEventId: m.discordEventId,
     discordSyncError: m.discordSyncError,
     myCharacterId: mine?.characterId ?? null,
@@ -744,6 +757,7 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     fixerId: m.fixerId,
     fixerName: m.fixerName,
     fixerAvatarUrl: m.fixerAvatarUrl,
+    fixerIsTrial: m.fixerIsTrial,
     discordEventId: m.discordEventId,
     discordSyncError: m.discordSyncError,
     canManage,

@@ -15,4 +15,6 @@ export interface EligibleReviewer {
   name?: string | null;
   /** @nullable */
   avatarUrl?: string | null;
+  /** Display-only: true when this reviewer is a trial fixer (still on probation). */
+  isTrialFixer: boolean;
 }

@@ -42,6 +42,11 @@ export const ROLE_NAMES = {
   CS_APPROVER: ["cs approver", "character approver", "cs-approver"],
   RIPPERDOC: ["ripperdoc"],
   STORE_OWNER: ["store owner", "shop owner"],
+  // Trial fixers act as full Fixers everywhere FIXER is checked, but staff want
+  // to SEE who is still on trial. Matched on a synthetic marker name injected by
+  // applyRoleIdGrants from the Trial Fixer role ID (below), so the distinction is
+  // id-derived and survives a Discord role rename.
+  TRIAL_FIXER: ["trial-fixer", "trial fixer"],
 };
 
 /**
@@ -62,6 +67,15 @@ export const VERIFIED_18_ROLE_ID = "1351048862323834952";
 export const TRIAL_FIXER_ROLE_ID = "1489385692915302419";
 
 /**
+ * Synthetic role NAME injected into a member's resolved role list when they hold
+ * the Trial Fixer role ID. Lets the name-based {@link hasRole}(roles,
+ * "TRIAL_FIXER") check (and the display-only `isTrialFixer` flags it powers)
+ * stay true even if the Discord role is renamed — the distinction is derived
+ * from the role ID, not the human-readable name.
+ */
+export const TRIAL_FIXER_ROLE_MARKER = "trial-fixer";
+
+/**
  * Augment a member's resolved role NAMES with synthetic names derived from
  * exact role IDs, so id-gated grants survive Discord role renames and flow
  * through the name-based {@link hasRole} checks used everywhere downstream.
@@ -70,13 +84,16 @@ export const TRIAL_FIXER_ROLE_ID = "1489385692915302419";
  * duplicate name. Pass the raw role ids alongside the resolved names.
  */
 export function applyRoleIdGrants(names: string[], ids: string[]): string[] {
-  if (
-    ids.includes(TRIAL_FIXER_ROLE_ID) &&
-    !names.some((n) => n.toLowerCase() === "fixer")
-  ) {
-    return [...names, "fixer"];
+  if (!ids.includes(TRIAL_FIXER_ROLE_ID)) return names;
+  const out = [...names];
+  // Grant full Fixer-equivalent access.
+  if (!out.some((n) => n.toLowerCase() === "fixer")) out.push("fixer");
+  // Tag them as a trial fixer (display-only) so staff UIs can distinguish them
+  // from established fixers, independent of the Discord role's display name.
+  if (!out.some((n) => n.toLowerCase() === TRIAL_FIXER_ROLE_MARKER)) {
+    out.push(TRIAL_FIXER_ROLE_MARKER);
   }
-  return names;
+  return out;
 }
 
 export function getRedirectUri(): string {

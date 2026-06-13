@@ -1,4 +1,10 @@
-export type RosterReviewer = { id: string; name?: string | null; avatarUrl?: string | null };
+export type RosterReviewer = {
+  id: string;
+  name?: string | null;
+  avatarUrl?: string | null;
+  // Display-only: true when this reviewer is a trial fixer (still on probation).
+  isTrialFixer?: boolean;
+};
 export type RosterVote = { id: string; vote: "approve" | "reject" };
 
 // Shared "who has voted / who hasn't" panel for the three review pipelines
@@ -40,9 +46,14 @@ export function ReviewerRoster({
               key={r.id}
               data-testid={`roster-reviewer-${r.id}`}
               title={status}
-              className={`inline-flex items-center rounded-none border px-1.5 py-0.5 font-mono text-[11px] leading-tight ${styles}`}
+              className={`inline-flex items-center gap-1 rounded-none border px-1.5 py-0.5 font-mono text-[11px] leading-tight ${styles}`}
             >
               {r.name ?? r.id}
+              {r.isTrialFixer && (
+                <span className="text-orange-400" title="Trial fixer">
+                  · trial
+                </span>
+              )}
             </span>
           );
         })}

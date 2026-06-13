@@ -84,6 +84,7 @@ import {
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
+import { TrialFixerBadge } from "@/components/TrialFixerBadge";
 import Markdown from "@/components/Markdown";
 
 function errOf(e: unknown): string | null {
@@ -597,7 +598,10 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
                 </AvatarFallback>
               </Avatar>
               <div>
-                <div className="font-display text-foreground">{data.fixerName ?? "(unknown fixer)"}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-display text-foreground">{data.fixerName ?? "(unknown fixer)"}</span>
+                  <TrialFixerBadge show={data.fixerIsTrial} testId="badge-fixer-trial" />
+                </div>
                 <div className="text-xs font-mono text-muted-foreground">Fixer running this job</div>
               </div>
             </div>

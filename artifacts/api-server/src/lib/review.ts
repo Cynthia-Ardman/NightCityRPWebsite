@@ -29,7 +29,13 @@ export function isReviewer(u: User): boolean {
 // A reviewer's public identity, surfaced on detail responses so the UI can
 // show the full roster of who may vote — including those who have not voted
 // yet (eligible roster minus the cast votes).
-export type EligibleReviewer = { id: string; name: string | null; avatarUrl: string | null };
+export type EligibleReviewer = {
+  id: string;
+  name: string | null;
+  avatarUrl: string | null;
+  // Display-only: true when this reviewer is a trial fixer (still on probation).
+  isTrialFixer: boolean;
+};
 
 // All distinct users currently holding a reviewer role, minus an excluded
 // user (the submitter), joined to their display identity. Computed live on
@@ -42,7 +48,12 @@ export async function listEligibleReviewers(excludeUserId: string | null): Promi
   return rows
     .filter((r) => isReviewer({ roles: r.roles ?? [] } as User))
     .filter((r) => r.id !== excludeUserId)
-    .map((r) => ({ id: r.id, name: r.name, avatarUrl: r.avatarUrl }));
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      avatarUrl: r.avatarUrl,
+      isTrialFixer: hasRole(r.roles ?? [], "TRIAL_FIXER"),
+    }));
 }
 
 // Id-only view of the eligible reviewer pool, used by the majority math.
