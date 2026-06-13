@@ -437,6 +437,9 @@ export const characterSheets = pgTable("character_sheets", {
   closedAt: timestamp("closed_at", { withTimezone: true }),
   closedBy: text("closed_by").references(() => users.id),
   discordMessageId: text("discord_message_id"),
+  // Discord thread that mirrors this ticket's review discussion in the
+  // cs-approver channel. Read-only on the portal; the website never posts to it.
+  discordThreadId: text("discord_thread_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -664,6 +667,12 @@ export const customRequests = pgTable("custom_requests", {
   // rejected/cancelled ticket just archives it. closedBy = who closed it.
   closedAt: timestamp("closed_at", { withTimezone: true }),
   closedBy: text("closed_by").references(() => users.id),
+  // Discord message posted to the cs-approver channel at submit time, and the
+  // thread started from it. Read-only mirror on the portal; never written to
+  // by the website. customRequests historically did not post to CS — these are
+  // populated by the new submit wiring + backfill.
+  discordMessageId: text("discord_message_id"),
+  discordThreadId: text("discord_thread_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusIdx: index("custom_requests_status_idx").on(t.status),
@@ -1183,6 +1192,9 @@ export const pendingCharacterEdits = pgTable("pending_character_edits", {
   closedAt: timestamp("closed_at", { withTimezone: true }),
   closedBy: text("closed_by").references(() => users.id),
   discordMessageId: text("discord_message_id"),
+  // Discord thread mirroring this ticket's review discussion (read-only on the
+  // portal; the website never posts to it).
+  discordThreadId: text("discord_thread_id"),
 }, (t) => ({
   pendingPerCharacterIdx: uniqueIndex("pending_edit_one_per_char_idx")
     .on(t.characterId)

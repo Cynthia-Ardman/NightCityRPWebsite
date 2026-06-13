@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { postToChannel, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID } from "../lib/discord";
+import { postToChannel, startThreadFromMessage, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID } from "../lib/discord";
 import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
@@ -220,7 +220,16 @@ async function announceSubmission(sheetId: number, name: string, data: any, user
     },
   ]);
   if (msgId) {
-    await db.update(characterSheets).set({ discordMessageId: msgId }).where(eq(characterSheets.id, sheetId));
+    // Turn the summary post into a thread so reviewers can discuss in-channel;
+    // the portal mirrors that thread read-only. Thread id == the OP message id.
+    // Only persist discordThreadId when a thread genuinely exists — on a hard
+    // failure (null) leave it unset so the panel shows "not linked" and a later
+    // backfill can thread from the stored message id.
+    const threadId = await startThreadFromMessage(CS_CHANNEL_ID, msgId, `Sheet: ${name}`);
+    await db
+      .update(characterSheets)
+      .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
+      .where(eq(characterSheets.id, sheetId));
   }
   await db.insert(activityEvents).values({
     kind: "sheet_submitted",

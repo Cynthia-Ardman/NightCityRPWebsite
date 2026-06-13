@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, MessageSquare, type LucideIcon } from "lucide-r
 import { UnseenDot } from "@/components/review/ReviewLifecycleUI";
 import { ReviewerRoster, type RosterReviewer, type RosterVote } from "@/components/review/ReviewerRoster";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
+import DiscordThreadPanel from "@/components/DiscordThreadPanel";
 
 export type ReviewSubjectType = "request" | "sheet" | "edit";
 
@@ -34,6 +35,7 @@ export function ReviewQueueCard({
   showRoster = false,
   actions,
   showThread = true,
+  showDiscordThread = false,
   awaitingVote = false,
   markSeenOnMount = false,
 }: {
@@ -53,6 +55,10 @@ export function ReviewQueueCard({
   showRoster?: boolean;
   actions?: ReactNode;
   showThread?: boolean;
+  // Mount the READ-ONLY cs-approver Discord thread mirror in the expanded
+  // section. Staff-only surfaces (the misc-request triage queue) opt in; the
+  // server endpoint is reviewer-gated, so this never leaks to players.
+  showDiscordThread?: boolean;
   awaitingVote?: boolean;
   markSeenOnMount?: boolean;
 }) {
@@ -120,6 +126,9 @@ export function ReviewQueueCard({
                 {expanded && (
                   <div className="space-y-3">
                     <AwaitingVoteBanner show={awaitingVote} />
+                    {showDiscordThread && (
+                      <DiscordThreadPanel subjectType={subjectType} subjectId={id} />
+                    )}
                     <ReviewCommentThread
                       subjectType={subjectType}
                       subjectId={id}

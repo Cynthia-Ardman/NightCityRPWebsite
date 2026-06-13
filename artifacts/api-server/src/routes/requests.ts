@@ -19,7 +19,7 @@ import {
   missionAssignments,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, sendDirectMessage } from "../lib/discord";
+import { hasRole, sendDirectMessage, postToChannel, startThreadFromMessage } from "../lib/discord";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -50,6 +50,54 @@ type RequestType = (typeof REQUEST_TYPES)[number];
 // "Pending Requests" card and the misc-tab badge count a ticket that the queue
 // they link to never renders (a phantom "1 pending request, nothing there").
 export const STAFF_QUEUE_EXCLUDED_REQUEST_TYPES = ["stock_cost", "employee_invite", "mission_participation"] as const;
+
+const CS_CHANNEL_ID = process.env.CS_APPROVAL_CHANNEL_ID ?? "";
+
+// Post a custom request's summary to the cs-approver channel and start a thread
+// from it (the read-only mirror shown on the portal). Best-effort and
+// fire-and-forget: a Discord miss must never block request creation, and writes
+// are suppressed outside the production deployment. customRequests historically
+// did not post to CS — this brings them in line with sheets/edits.
+async function announceRequest(
+  requestId: number,
+  reqType: string,
+  title: string,
+  characterName: string,
+  submitterName: string,
+): Promise<void> {
+  if (!CS_CHANNEL_ID) return;
+  try {
+    const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
+    const reviewUrl = portalBase ? `https://${portalBase}/requests` : `/requests`;
+    const msgId = await postToChannel(
+      CS_CHANNEL_ID,
+      `New ${reqType} request pending review: **${title}** by ${submitterName}`,
+      [
+        {
+          title,
+          fields: [
+            { name: "Type", value: reqType, inline: true },
+            { name: "Character", value: characterName, inline: true },
+            { name: "Player", value: submitterName, inline: true },
+            { name: "Review", value: reviewUrl, inline: false },
+          ],
+        },
+      ],
+    );
+    if (msgId) {
+      // Only persist discordThreadId when a thread genuinely exists; on a hard
+      // failure (null) keep just the message id so a later backfill can thread
+      // from it without re-posting.
+      const threadId = await startThreadFromMessage(CS_CHANNEL_ID, msgId, `Request: ${title}`);
+      await db
+        .update(customRequests)
+        .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
+        .where(eq(customRequests.id, requestId));
+    }
+  } catch (err) {
+    logger.warn({ err, requestId }, "announceRequest failed");
+  }
+}
 
 // Venue requests (store/ripperdoc) carry name/character plus required
 // purpose/location/description and materialize into the stores/ripperdocs
@@ -652,6 +700,8 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
     })
     .returning();
   const [row] = await selectWhere(eq(customRequests.id, inserted.id));
+  // Mirror sheets/edits: announce to cs-approver + open a thread, fire-and-forget.
+  void announceRequest(inserted.id, reqType, String(title).trim(), c.name, req.user!.username);
   res.status(201).json(shape(row));
 });
 

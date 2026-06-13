@@ -4627,6 +4627,23 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReviewUnseenIds" }
+  /review/{subjectType}/{id}/discord-thread:
+    parameters:
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getReviewDiscordThread
+      tags: [review]
+      summary: The ticket's cs-approver Discord thread, displayed READ-ONLY on the detail page. Reviewers only. The portal never posts to Discord. Returns linked:false with an empty list when no thread is linked yet.
+      responses:
+        "200":
+          description: Discord thread mirror
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiscordThreadView" }
+        "400": { description: Bad subject }
+        "403": { description: Reviewers only }
+        "404": { description: Not found }
   /review/{subjectType}/{id}/close:
     parameters:
       - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
@@ -5165,6 +5182,27 @@ components:
         request: { type: array, items: { type: integer } }
         sheet: { type: array, items: { type: integer } }
         total: { type: integer }
+    DiscordThreadMessage:
+      type: object
+      required: [id, authorId, authorName, authorAvatarUrl, authorIsBot, content, createdAt]
+      properties:
+        id: { type: string }
+        authorId: { type: string }
+        authorName: { type: string }
+        authorAvatarUrl: { type: ["string", "null"] }
+        authorIsBot: { type: boolean }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+    DiscordThreadView:
+      type: object
+      required: [linked, threadId, webUrl, messages]
+      properties:
+        linked: { type: boolean, description: "Whether a Discord thread is linked to this ticket yet." }
+        threadId: { type: ["string", "null"] }
+        webUrl: { type: ["string", "null"], description: "discord.com URL of the thread (deep-linkable to the app)." }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/DiscordThreadMessage" }
     LoreSource:
       type: object
       required: [label, url]

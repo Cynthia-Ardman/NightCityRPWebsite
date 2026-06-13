@@ -1175,3 +1175,143 @@ export async function sendDirectMessage(userId: string, content: string): Promis
   const dm = (await dmRes.json()) as { id: string };
   return postToChannel(dm.id, content);
 }
+
+// ---------------------------------------------------------------------------
+// Ticket threads — a read-only mirror of each review ticket's discussion in the
+// cs-approver channel. Writes (starting a thread) are gated like every other
+// outbound write; reads (listing messages) are NOT gated so the portal panel
+// works in dev/preview too (it just shows whatever already exists, if anything).
+// ---------------------------------------------------------------------------
+
+/**
+ * Start a Discord thread hanging off an existing channel message (the "Create
+ * Thread" action on a message). The created thread's id equals the source
+ * message id. Returns the thread id, or null on any failure / suppressed write.
+ */
+export async function startThreadFromMessage(
+  channelId: string,
+  messageId: string,
+  name: string,
+): Promise<string | null> {
+  if (!DISCORD_BOT_TOKEN) {
+    logger.warn("No bot token; cannot start Discord thread");
+    return null;
+  }
+  if (!externalWritesAllowed()) {
+    logger.info({ channelId, messageId }, "Discord write suppressed (non-deployment env); skipping thread create");
+    return null;
+  }
+  const res = await fetch(`${API}/channels/${channelId}/messages/${messageId}/threads`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    // 10080 = 7 days, the max auto-archive window.
+    body: JSON.stringify({ name: name.slice(0, 100), auto_archive_duration: 10080 }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    // A thread already exists for this message (Discord error code 160004 / "A
+    // thread has already been created for this message"). For a thread created
+    // FROM a message, the thread id always equals the message id, so the
+    // existing thread is addressable at messageId — return it so callers link
+    // the real thread instead of treating an idempotent re-run as a failure.
+    if (res.status === 400 && (/160004/.test(body) || /thread has already been created/i.test(body))) {
+      return messageId;
+    }
+    // Any other non-ok status is a genuine failure (permissions, rate limit,
+    // network): NO thread was created. Return null so callers leave the row
+    // unlinked and a later retry / backfill can recover.
+    logger.warn({ status: res.status, body, channelId, messageId }, "Discord thread create failed");
+    return null;
+  }
+  const data = (await res.json()) as { id: string };
+  return data.id;
+}
+
+/** A single Discord message rendered in the read-only ticket thread panel. */
+export interface DiscordThreadMessage {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatarUrl: string | null;
+  authorIsBot: boolean;
+  content: string;
+  createdAt: string; // ISO
+}
+
+interface RawDiscordMessage {
+  id: string;
+  content: string;
+  timestamp: string;
+  author?: {
+    id: string;
+    username?: string;
+    global_name?: string | null;
+    avatar?: string | null;
+    bot?: boolean;
+  };
+  embeds?: Array<{ title?: string | null; description?: string | null }>;
+}
+
+// When a message carries no plain content (the submission summaries are posted
+// as embeds), surface the first embed's title/description so the panel isn't
+// blank.
+function messageDisplayContent(m: RawDiscordMessage): string {
+  if (m.content && m.content.trim()) return m.content;
+  const e = m.embeds?.[0];
+  if (e) {
+    return [e.title, e.description].filter((s) => s && s.trim()).join("\n");
+  }
+  return "";
+}
+
+/**
+ * List a thread's messages oldest-first for the read-only portal panel. Returns
+ * an empty array (never throws) when there is no token, no thread, or the fetch
+ * fails — the panel degrades to "no messages yet". Read-only: NOT write-gated.
+ */
+export async function listThreadMessages(
+  threadId: string,
+  limit = 50,
+): Promise<DiscordThreadMessage[]> {
+  if (!DISCORD_BOT_TOKEN || !threadId) return [];
+  try {
+    const res = await fetch(
+      `${API}/channels/${threadId}/messages?limit=${Math.min(Math.max(limit, 1), 100)}`,
+      {
+        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!res.ok) {
+      logger.warn({ status: res.status, threadId }, "listThreadMessages fetch failed");
+      return [];
+    }
+    const arr = (await res.json()) as RawDiscordMessage[];
+    // Discord returns newest-first; reverse to chat order (oldest-first).
+    return arr
+      .slice()
+      .reverse()
+      .map((m) => ({
+        id: m.id,
+        authorId: m.author?.id ?? "",
+        authorName: m.author?.global_name || m.author?.username || "Unknown",
+        authorAvatarUrl: avatarUrl(m.author?.id ?? "", m.author?.avatar),
+        authorIsBot: !!m.author?.bot,
+        content: messageDisplayContent(m),
+        createdAt: m.timestamp,
+      }));
+  } catch (err) {
+    logger.warn({ err, threadId }, "listThreadMessages error");
+    return [];
+  }
+}
+
+/** Web URL for a thread (also app-deep-linkable via the discord:// scheme). */
+export function threadWebUrl(threadId: string): string | null {
+  if (!threadId || !DISCORD_GUILD_ID) return null;
+  return `https://discord.com/channels/${DISCORD_GUILD_ID}/${threadId}`;
+}

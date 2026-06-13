@@ -167,6 +167,8 @@ export * from './diceRollResult';
 export * from './discordCallbackParams';
 export * from './discordChannelOption';
 export * from './discordMemberOption';
+export * from './discordThreadMessage';
+export * from './discordThreadView';
 export * from './dismissNotificationPrompt200';
 export * from './dismissOnboarding200';
 export * from './economyOutOfSyncEntry';

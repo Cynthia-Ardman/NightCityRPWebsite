@@ -67,6 +67,8 @@ vi.mock("@workspace/api-client-react", () => ({
   useMarkReviewSeen: () => ({ mutate: vi.fn(), isPending: false }),
   getListReviewCommentsQueryKey: (t: string, id: number) => ["review", t, id, "comments"],
   getGetReviewUnseenCountsQueryKey: () => ["review", "unseen-counts"],
+  useGetReviewDiscordThread: () => ({ data: { linked: false, threadId: null, webUrl: null, messages: [] }, isLoading: false }),
+  getGetReviewDiscordThreadQueryKey: (t: string, id: number) => ["review", t, id, "discord-thread"],
 }));
 
 vi.mock("@/hooks/useAuthMe", () => ({

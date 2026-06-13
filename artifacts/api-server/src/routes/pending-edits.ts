@@ -14,7 +14,7 @@ import {
 } from "@workspace/db";
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, postToChannel } from "../lib/discord";
+import { hasRole, postToChannel, startThreadFromMessage } from "../lib/discord";
 import { isReviewer, listEligibleReviewerIds, listEligibleReviewers, majorityOf, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
 
@@ -118,7 +118,15 @@ async function announceEdit(editId: number, character: Character, submitter: Use
     ],
   );
   if (msgId) {
-    await db.update(pendingCharacterEdits).set({ discordMessageId: msgId }).where(eq(pendingCharacterEdits.id, editId));
+    // Start a thread from the summary post; the portal mirrors it read-only.
+    // Thread id == the OP message id. Only persist discordThreadId when a thread
+    // genuinely exists — on a hard failure (null) leave it unset so a later
+    // backfill can thread from the stored message id.
+    const threadId = await startThreadFromMessage(CS_CHANNEL_ID, msgId, `Edit: ${character.name}`);
+    await db
+      .update(pendingCharacterEdits)
+      .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
+      .where(eq(pendingCharacterEdits.id, editId));
   }
 }
 

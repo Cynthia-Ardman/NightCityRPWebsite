@@ -9953,6 +9953,30 @@ export const GetReviewUnseenIdsResponse = zod.object({
 
 
 /**
+ * @summary The ticket's cs-approver Discord thread, displayed READ-ONLY on the detail page. Reviewers only. The portal never posts to Discord. Returns linked:false with an empty list when no thread is linked yet.
+ */
+export const GetReviewDiscordThreadParams = zod.object({
+  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "id": zod.coerce.number()
+})
+
+export const GetReviewDiscordThreadResponse = zod.object({
+  "linked": zod.boolean().describe('Whether a Discord thread is linked to this ticket yet.'),
+  "threadId": zod.string().nullable(),
+  "webUrl": zod.string().nullable().describe('discord.com URL of the thread (deep-linkable to the app).'),
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorAvatarUrl": zod.string().nullable(),
+  "authorIsBot": zod.boolean(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
  */
 export const CloseReviewTicketParams = zod.object({

@@ -12,7 +12,7 @@ import {
   users,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, sendDirectMessage } from "../lib/discord";
+import { hasRole, sendDirectMessage, listThreadMessages, threadWebUrl, type DiscordThreadMessage } from "../lib/discord";
 import { isReviewer, type ReviewActionResult } from "../lib/review";
 import { closeRequest, reopenRequest, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES } from "./requests";
 import { closeEdit, reopenEdit } from "./pending-edits";
@@ -452,6 +452,61 @@ router.post("/review/:type/:id/reopen", requireAuth, async (req, res): Promise<v
   else if (parsed.type === "request") result = await reopenRequest(req, parsed.id);
   else result = await reopenSheet(req, parsed.id);
   res.status(result.status).json(result.body);
+});
+
+// ---------------------------------------------------------------------------
+// Read-only Discord thread mirror (staff only). Each ticket's cs-approver
+// thread is DISPLAYED on its detail page — the portal never posts to Discord.
+// The cs-approver channel is internal, so this is gated to reviewers, NOT the
+// submitter (unlike the comment thread above which both sides share).
+// ---------------------------------------------------------------------------
+
+// Look up the Discord thread id stored on a subject's row.
+async function resolveThreadId(type: SubjectType, id: number): Promise<string | null> {
+  if (type === "edit") {
+    const [row] = await db.select({ t: pendingCharacterEdits.discordThreadId }).from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
+    return row?.t ?? null;
+  }
+  if (type === "request") {
+    const [row] = await db.select({ t: customRequests.discordThreadId }).from(customRequests).where(eq(customRequests.id, id));
+    return row?.t ?? null;
+  }
+  const [row] = await db.select({ t: characterSheets.discordThreadId }).from(characterSheets).where(eq(characterSheets.id, id));
+  return row?.t ?? null;
+}
+
+// Tiny in-process cache so a reviewer's panel polling (and several reviewers on
+// the same ticket) don't hammer the Discord API / hit rate limits. Keyed by
+// thread id; short TTL so new replies still surface within a few seconds.
+const THREAD_CACHE_TTL_MS = 8_000;
+const threadCache = new Map<string, { at: number; messages: DiscordThreadMessage[] }>();
+
+async function getThreadMessagesCached(threadId: string): Promise<DiscordThreadMessage[]> {
+  const hit = threadCache.get(threadId);
+  const now = Date.now();
+  if (hit && now - hit.at < THREAD_CACHE_TTL_MS) return hit.messages;
+  const messages = await listThreadMessages(threadId);
+  threadCache.set(threadId, { at: now, messages });
+  return messages;
+}
+
+// GET /review/:type/:id/discord-thread — the ticket's cs-approver thread,
+// read-only. Reviewers only. Degrades gracefully: when no thread is linked yet
+// (dev env, or a ticket created before backfill) returns linked:false with an
+// empty message list instead of erroring.
+router.get("/review/:type/:id/discord-thread", requireAuth, async (req, res): Promise<void> => {
+  const parsed = parseParams(req);
+  if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
+  if (!isReviewer(req.user!)) { res.status(403).json({ error: "Reviewers only" }); return; }
+  const subject = await resolveSubject(parsed.type, parsed.id);
+  if (!subject) { res.status(404).json({ error: "Not found" }); return; }
+  const threadId = await resolveThreadId(parsed.type, parsed.id);
+  if (!threadId) {
+    res.json({ linked: false, threadId: null, webUrl: null, messages: [] });
+    return;
+  }
+  const messages = await getThreadMessagesCached(threadId);
+  res.json({ linked: true, threadId, webUrl: threadWebUrl(threadId), messages });
 });
 
 export default router;

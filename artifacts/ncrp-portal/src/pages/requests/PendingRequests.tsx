@@ -152,6 +152,7 @@ function MiscRequestsTab() {
           voters: (r.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
         }}
         markSeenOnMount={isReviewer}
+        showDiscordThread={isReviewer}
         awaitingVote={isReviewer && bucket === "active" && r.status === "pending" && !r.myVote}
         tally={
           bucket === "active" ? (

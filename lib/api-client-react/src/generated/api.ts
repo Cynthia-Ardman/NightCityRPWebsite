@@ -110,6 +110,7 @@ import type {
   DiscordCallbackParams,
   DiscordChannelOption,
   DiscordMemberOption,
+  DiscordThreadView,
   DismissNotificationPrompt200,
   DismissOnboarding200,
   EconomyOutOfSyncList,
@@ -20633,6 +20634,88 @@ export function useGetReviewUnseenIds<TData = Awaited<ReturnType<typeof getRevie
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetReviewUnseenIdsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetReviewDiscordThreadUrl = (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,) => {
+
+
+
+
+  return `/api/review/${subjectType}/${id}/discord-thread`
+}
+
+/**
+ * @summary The ticket's cs-approver Discord thread, displayed READ-ONLY on the detail page. Reviewers only. The portal never posts to Discord. Returns linked:false with an empty list when no thread is linked yet.
+ */
+export const getReviewDiscordThread = async (subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: RequestInit): Promise<DiscordThreadView> => {
+
+  return customFetch<DiscordThreadView>(getGetReviewDiscordThreadUrl(subjectType,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReviewDiscordThreadQueryKey = (subjectType: 'edit' | 'request' | 'sheet',
+    id: number,) => {
+    return [
+    `/api/review/${subjectType}/${id}/discord-thread`
+    ] as const;
+    }
+
+
+export const getGetReviewDiscordThreadQueryOptions = <TData = Awaited<ReturnType<typeof getReviewDiscordThread>>, TError = ErrorType<void>>(subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewDiscordThread>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReviewDiscordThreadQueryKey(subjectType,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReviewDiscordThread>>> = ({ signal }) => getReviewDiscordThread(subjectType,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(subjectType && id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReviewDiscordThread>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReviewDiscordThreadQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewDiscordThread>>>
+export type GetReviewDiscordThreadQueryError = ErrorType<void>
+
+
+/**
+ * @summary The ticket's cs-approver Discord thread, displayed READ-ONLY on the detail page. Reviewers only. The portal never posts to Discord. Returns linked:false with an empty list when no thread is linked yet.
+ */
+
+export function useGetReviewDiscordThread<TData = Awaited<ReturnType<typeof getReviewDiscordThread>>, TError = ErrorType<void>>(
+ subjectType: 'edit' | 'request' | 'sheet',
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewDiscordThread>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReviewDiscordThreadQueryOptions(subjectType,id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

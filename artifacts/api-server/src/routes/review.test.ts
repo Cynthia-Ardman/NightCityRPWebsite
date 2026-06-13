@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import request from "supertest";
+import { eq } from "drizzle-orm";
 import { db, customRequests } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createCharacter } from "../test/testDb";
@@ -148,5 +149,60 @@ describe("review close/reopen authz", () => {
       .set("x-test-user", owner.id)
       .send({});
     expect(res.status).toBe(403);
+  });
+});
+
+describe("GET /review/:type/:id/discord-thread", () => {
+  it("forbids a non-reviewer (the submitter included) — the cs-approver channel is internal", async () => {
+    const owner = await createUser();
+    const req = await makeRequest(owner.id);
+    const res = await request(app)
+      .get(`/api/review/request/${req.id}/discord-thread`)
+      .set("x-test-user", owner.id);
+    expect(res.status).toBe(403);
+  });
+
+  it("reports linked:false with no messages when the ticket has no thread", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const owner = await createUser();
+    const req = await makeRequest(owner.id);
+    const res = await request(app)
+      .get(`/api/review/request/${req.id}/discord-thread`)
+      .set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    expect(res.body.linked).toBe(false);
+    expect(res.body.threadId).toBeNull();
+    expect(res.body.messages).toEqual([]);
+  });
+
+  it("reports linked:true and a web url once a thread id is stored", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const owner = await createUser();
+    const req = await makeRequest(owner.id);
+    await db
+      .update(customRequests)
+      .set({ discordThreadId: "123456789012345678" })
+      .where(eq(customRequests.id, req.id));
+    const res = await request(app)
+      .get(`/api/review/request/${req.id}/discord-thread`)
+      .set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    expect(res.body.linked).toBe(true);
+    expect(res.body.threadId).toBe("123456789012345678");
+    // No bot token in tests -> listThreadMessages returns []; the linkage state
+    // is what matters here.
+    expect(res.body.messages).toEqual([]);
+  });
+
+  it("404s an unknown subject and 400s a bad type", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const notFound = await request(app)
+      .get(`/api/review/request/999999/discord-thread`)
+      .set("x-test-user", fixer.id);
+    expect(notFound.status).toBe(404);
+    const badType = await request(app)
+      .get(`/api/review/bogus/1/discord-thread`)
+      .set("x-test-user", fixer.id);
+    expect(badType.status).toBe(400);
   });
 });

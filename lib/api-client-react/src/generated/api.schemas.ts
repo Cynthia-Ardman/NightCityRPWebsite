@@ -341,6 +341,30 @@ export interface MyUnseen {
   total: number;
 }
 
+export interface DiscordThreadMessage {
+  id: string;
+  authorId: string;
+  authorName: string;
+  /** @nullable */
+  authorAvatarUrl: string | null;
+  authorIsBot: boolean;
+  content: string;
+  createdAt: string;
+}
+
+export interface DiscordThreadView {
+  /** Whether a Discord thread is linked to this ticket yet. */
+  linked: boolean;
+  /** @nullable */
+  threadId: string | null;
+  /**
+     * discord.com URL of the thread (deep-linkable to the app).
+     * @nullable
+     */
+  webUrl: string | null;
+  messages: DiscordThreadMessage[];
+}
+
 export interface LoreSource {
   label: string;
   url: string;

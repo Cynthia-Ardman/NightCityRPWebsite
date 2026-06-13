@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Check, X, ShieldCheck, RotateCcw } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
+import DiscordThreadPanel from "@/components/DiscordThreadPanel";
 import { ReviewerRoster } from "@/components/review/ReviewerRoster";
 import { useMemo, useState } from "react";
 
@@ -416,6 +417,9 @@ export default function SheetDetail() {
           </CardContent>
         </Card>
       )}
+
+      {/* Read-only mirror of the cs-approver Discord thread. Staff only. */}
+      {isStaff && <DiscordThreadPanel subjectType="sheet" subjectId={sheetId} />}
 
       {/* Two-way discussion thread (player <-> reviewers). Never blocks approval. */}
       {(isStaff || isOwner) && (

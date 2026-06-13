@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
+import DiscordThreadPanel from "@/components/DiscordThreadPanel";
 import DiffValue from "@/components/DiffValue";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
@@ -342,6 +343,9 @@ export default function PendingEditDetail() {
           </CardContent>
         </Card>
       )}
+
+      {/* Read-only mirror of the cs-approver Discord thread. Staff only. */}
+      {isReviewer && <DiscordThreadPanel subjectType="edit" subjectId={editId} />}
 
       {/* Two-way discussion thread (player <-> reviewers). Never blocks approval. */}
       <ReviewCommentThread subjectType="edit" subjectId={editId} />
