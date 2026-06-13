@@ -141,7 +141,7 @@ export async function createPendingEdit(opts: {
   submitter: User;
   body: unknown;
 }): Promise<
-  | { ok: true; autoApplied: true; reason: "cosmetic" | "admin"; character: Character }
+  | { ok: true; autoApplied: true; reason: "cosmetic"; character: Character }
   | { ok: true; autoApplied?: false; edit: typeof pendingCharacterEdits.$inferSelect }
   | { ok: false; error: CreatePendingEditError }
 > {

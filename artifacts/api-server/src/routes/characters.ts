@@ -225,7 +225,7 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
       action: "edit_applied",
       targetType: "character",
       targetId: id,
-      message: `${result.reason === "admin" ? "Admin" : "Cosmetic"} edit auto-applied for ${c.name} (no review required)`,
+      message: `Cosmetic edit auto-applied for ${c.name} (no review required)`,
       after: { autoApplied: true },
     });
     res.status(200).json({

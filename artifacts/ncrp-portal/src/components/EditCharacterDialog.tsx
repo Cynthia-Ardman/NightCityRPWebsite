@@ -63,16 +63,14 @@ export default function EditCharacterDialog({
   character,
   open,
   onOpenChange,
-  isAdmin = false,
   canDelete = false,
 }: {
   character: Character;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  isAdmin?: boolean;
-  // Whether the viewer may permanently delete this character. Broader than
-  // isAdmin: archivists and coordinators can also delete (the DANGER tab),
-  // but isAdmin still drives the save-button copy.
+  // Whether the viewer may permanently delete this character (the DANGER tab):
+  // admins, archivists and coordinators. All non-cosmetic character edits now
+  // go through review regardless of role, so the save button copy is uniform.
   canDelete?: boolean;
 }) {
   const qc = useQueryClient();
@@ -668,7 +666,7 @@ export default function EditCharacterDialog({
               className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
               data-testid="button-save-edit"
             >
-              {update.isPending ? "SAVING..." : isAdmin ? "SAVE CHANGES" : "SUBMIT FOR REVIEW"}
+              {update.isPending ? "SAVING..." : "SUBMIT FOR REVIEW"}
             </Button>
           </div>
         </form>

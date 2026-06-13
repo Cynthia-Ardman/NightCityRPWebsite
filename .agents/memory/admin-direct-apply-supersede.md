@@ -1,24 +1,30 @@
 ---
-name: Admin direct-apply supersedes pending edits
-description: When an admin edit bypasses the character-edit review queue and applies directly, it must cancel in-flight pending edits or a later approve+close clobbers it.
+name: Direct-apply write paths must supersede in-flight pending edits
+description: Any character write path that applies a full diff directly (bypassing review) must cancel in-flight pending edits, or a later approve+close clobbers it. The old admin fast-path that triggered this rule has been removed.
 ---
 
-# Admin direct-apply must supersede in-flight pending edits
+# Direct-apply write paths must supersede in-flight pending edits
 
-`createPendingEdit` has an ADMIN fast-path that applies the full diff immediately
-(no review queue) and a separate review path for everyone else. When the admin
-path applies directly, it MUST also mark any in-flight pending edit for the same
-character as `cancelled` (statuses `pending` + `changes_requested`), inside the
-same transaction as the `applyDiff`.
+**Current state:** `createPendingEdit` no longer has an admin/staff instant-apply
+fast-path. EVERY non-cosmetic character edit now goes through the pending-edits
+review queue regardless of role. Only cosmetic-only diffs (portrait, background,
+archetype, sheetData preamble) auto-apply, and those fields do not overlap with
+the non-cosmetic fields carried in a queued `proposed_diff`, so the cosmetic
+auto-apply path does NOT need to supersede in-flight edits.
+
+**Durable rule (still applies to any FUTURE bypass path):** if you ever add a
+write path that applies a full character diff directly to the live row while
+review-queued edits can exist for the same character, it MUST also mark any
+in-flight pending edit (`pending` + `changes_requested`) as `cancelled` in the
+same transaction as the apply.
 
 **Why:** `closeEdit` re-applies a row's `proposed_diff` when its status is
-`approved`. An older queued edit for the same character can still be voted
-approved and closed AFTER the admin already applied a newer change — re-applying
-its now-stale diff over the admin's edit on overlapping fields. Marking the
-queued row `cancelled` (NOT `approved`) means `closeEdit` only archives it and
-never re-applies the stale diff.
+`approved`. An older queued edit can still be voted approved and closed AFTER a
+newer direct change was applied — re-applying its stale diff over the newer edit
+on overlapping fields. Cancel (NOT approve) the queued row so `closeEdit` only
+archives it and never re-runs the stale diff.
 
-**How to apply:** Any new bypass/instant-apply write path on characters (or a
-similar review-queued resource) that writes directly to the live row must also
-resolve/supersede competing in-flight queued edits in the same transaction.
-Cancel, don't approve — approve would re-run the diff on close.
+**How to apply:** PATCH /characters uses `loadOwnedOrStaffChar` so staff can edit
+any character — they just go through review like everyone else now. The
+supersede-on-cancel pattern is the guard to reach for the moment any new
+instant-apply write path is reintroduced.

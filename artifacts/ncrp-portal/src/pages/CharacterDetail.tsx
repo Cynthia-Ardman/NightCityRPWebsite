@@ -139,7 +139,7 @@ export default function CharacterDetail() {
         </Link>
       ) : null}
 
-      <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} isAdmin={isAdmin} canDelete={canDelete} />
+      <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} canDelete={canDelete} />
 
       <CharacterTabsPanel characterId={char.id} />
     </div>
