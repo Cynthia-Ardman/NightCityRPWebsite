@@ -362,15 +362,17 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
                   ))}
                 </div>
               ) : (
-                buckets[b].map((e) => (
-                  <EditRow
-                    key={e.id}
-                    e={e}
-                    unseen={unseen.has(e.id)}
-                    showLifecycle={b === "resolved"}
-                    actions={actions}
-                  />
-                ))
+                <div className="space-y-2">
+                  {buckets[b].map((e) => (
+                    <EditRow
+                      key={e.id}
+                      e={e}
+                      unseen={unseen.has(e.id)}
+                      showLifecycle={b === "resolved"}
+                      actions={actions}
+                    />
+                  ))}
+                </div>
               )}
             </BucketSection>
           ))}

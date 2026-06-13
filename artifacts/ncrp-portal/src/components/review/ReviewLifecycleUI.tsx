@@ -111,7 +111,7 @@ export function BucketSection({
       {count === 0 ? (
         <p className="text-muted-foreground font-mono text-xs italic">Nothing here.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{children}</div>
+        children
       )}
     </section>
   );
