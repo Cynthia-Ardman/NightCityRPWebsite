@@ -120,3 +120,4 @@
 - [New-character submission kill switch](character-submission-killswitch.md) — bot_config `character_submissions_disabled` gates only non-NPC sheet submit/POST; drafts, edits, NPCs exempt.
 - [Economy disabled symptom](economy-disabled-symptom.md) — dashboard income WORK/SLUT "command failed" = economy_enabled kill switch OFF (or live-mode TEST); toggles live in Jobs tab + Live Mode switchboard.
 - [Settled wallet movement](settled-wallet-movement.md) — mission pay hits UB directly (NOT applyWalletDelta); record a settled ledger row + advance lastSyncedUbBalance so reconcile won't double-count; leave baseline null if unseeded.
+- [role_sync bulk fetch](role-sync-bulk-fetch.md) — hourly; bulk member snapshot preferred (per-user fallback for no-intent); only clear empty roles on a DEFINITE read, never a partial/uncertain one.

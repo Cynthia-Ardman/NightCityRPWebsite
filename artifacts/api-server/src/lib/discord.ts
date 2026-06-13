@@ -462,6 +462,76 @@ export async function listGuildMembersWithRole(
 }
 
 /**
+ * Bulk-fetch EVERY guild member's roles in one paginated pass, returning a map
+ * of Discord user id -> { names, ids } (names lowercased to match the per-user
+ * path). This is the cheap path the role-sync cron uses instead of two API
+ * calls per registered user: it pages the privileged guild-members endpoint
+ * (`GET /guilds/{guild}/members?limit=1000&after=<cursor>`, ~1 call per 1000
+ * members) so syncing scales with guild size, not with how often we run.
+ *
+ * Requires the "Server Members Intent". Read-only — never mutates Discord, safe
+ * in every environment. Returns:
+ *   - Map on success (a member missing from the map is simply not in the guild),
+ *   - null when the scan could not be performed (missing config, upstream/network
+ *     error, or it hit the page cap) so the caller can skip the sweep entirely
+ *     rather than mass-clearing roles from a partial result.
+ */
+export async function fetchAllGuildMemberRoles(): Promise<Map<
+  string,
+  { names: string[]; ids: string[] }
+> | null> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) return null;
+  const roleMap = await getGuildRolesMap();
+  const out = new Map<string, { names: string[]; ids: string[] }>();
+  let after = "0";
+  const MAX_PAGES = 50;
+  try {
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const res = await fetch(
+        `${API}/guilds/${DISCORD_GUILD_ID}/members?limit=1000&after=${after}`,
+        {
+          headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      if (!res.ok) {
+        logger.warn(
+          { status: res.status, body: await res.text() },
+          "fetchAllGuildMemberRoles failed",
+        );
+        return null;
+      }
+      const members = (await res.json()) as Array<{
+        user?: { id: string };
+        roles?: string[];
+      }>;
+      if (members.length === 0) break;
+      for (const m of members) {
+        if (!m.user) continue;
+        const ids = m.roles ?? [];
+        const names = ids.map((id) => roleMap.get(id) ?? id).filter(Boolean);
+        out.set(m.user.id, { names, ids });
+      }
+      if (members.length < 1000) break;
+      const last = members[members.length - 1].user;
+      if (!last) break;
+      after = last.id;
+      if (page === MAX_PAGES - 1) {
+        // A full final page means more members likely remain unscanned. Bail to
+        // null rather than return an undercount that would look like mass role
+        // removal to the sync caller.
+        logger.warn({ scanned: out.size }, "fetchAllGuildMemberRoles hit page cap; aborting");
+        return null;
+      }
+    }
+    return out;
+  } catch (err) {
+    logger.error({ err }, "fetchAllGuildMemberRoles error");
+    return null;
+  }
+}
+
+/**
  * Search the guild's members by username / nickname / global name via the bot
  * token (`GET /guilds/{guild}/members/search?query=`). Lets staff assign a
  * character to ANY guild member — including people who have never signed in to

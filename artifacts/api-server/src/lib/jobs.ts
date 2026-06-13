@@ -1,7 +1,7 @@
 import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, addGuildMemberRole, postToChannel } from "./discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, addGuildMemberRole, postToChannel } from "./discord";
 import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
@@ -275,14 +275,39 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       logger.info({ job: name, system: gatedSystem }, "job skipped — Test mode (live gate)");
     } else if (name === "role_sync") {
       const allUsers = await db.select().from(users);
+      // Try the cheap path first: one paginated bulk fetch of every guild
+      // member's roles (~1 Discord call per 1000 members) instead of 2 calls
+      // per registered user. This is what makes a tighter sync interval safe.
+      // A null result means the bulk scan couldn't be trusted (config/network
+      // error or page-cap) — fall back to the per-user path rather than
+      // mass-clearing roles from a partial snapshot.
+      const bulk = await fetchAllGuildMemberRoles();
       for (const u of allUsers) {
         try {
-          const roles = await fetchGuildMemberRolesViaBot(u.discordId);
-          // Recompute the 18+ gate flag from raw role ids so removing the
-          // Verified-18 role in Discord actually revokes portal access on the
-          // next sweep. Only touch verified18 when the fetch succeeds (non-null)
-          // so a transient Discord failure never silently clears the gate.
-          const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+          let roles: string[];
+          let roleIds: string[] | null;
+          // `definite` = we have a TRUSTWORTHY read of this member, so an empty
+          // result genuinely means "no roles / left the guild" and must be
+          // persisted (clearing stale role names). A non-null bulk result is a
+          // complete snapshot, so every lookup against it is definite — an absent
+          // member has truly left. The per-user fallback returns [] the same way
+          // for "no roles" and a transient names-fetch failure, so it stays
+          // conservative and never clears on empty.
+          let definite: boolean;
+          if (bulk) {
+            const entry = bulk.get(u.discordId);
+            roles = entry ? entry.names : [];
+            roleIds = entry ? entry.ids : [];
+            definite = true;
+          } else {
+            roles = await fetchGuildMemberRolesViaBot(u.discordId);
+            // Recompute the 18+ gate flag from raw role ids so removing the
+            // Verified-18 role in Discord actually revokes portal access on the
+            // next sweep. Only touch verified18 when the fetch succeeds
+            // (non-null) so a transient Discord failure never clears the gate.
+            roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+            definite = false;
+          }
           const verified18 = roleIds === null ? u.verified18 : roleIds.includes(VERIFIED_18_ROLE_ID);
           // Reconcile the rules-read Discord role. The /auth/accept-rules grant is
           // best-effort (Discord may be transiently down, or writes suppressed off
@@ -292,10 +317,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           if (u.rulesAccepted && roleIds !== null && !roleIds.includes(RULES_ROLE_ID)) {
             await addGuildMemberRole(u.discordId, RULES_ROLE_ID);
           }
-          if (roles.length || roleIds !== null) {
+          // With a definite read, always write `roles` (even empty) so a member
+          // who lost their last role or left the guild is reconciled instead of
+          // keeping stale names. Otherwise keep the conservative behavior: only
+          // overwrite when we actually saw role names.
+          if (definite || roles.length || roleIds !== null) {
             await db
               .update(users)
-              .set({ ...(roles.length ? { roles } : {}), verified18, rolesSyncedAt: new Date() })
+              .set({
+                ...(definite || roles.length ? { roles } : {}),
+                verified18,
+                rolesSyncedAt: new Date(),
+              })
               .where(eq(users.id, u.id));
             affected++;
           }
@@ -944,7 +977,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
 }
 
 export function startCron() {
-  // node-cron expressions: monthly_rent on the 1st at 04:00; role_sync every 6h; cyberware_humanity daily 05:00
+  // node-cron expressions: monthly_rent on the 1st at 04:00; role_sync hourly; cyberware_humanity daily 05:00
   import("node-cron").then(({ default: cron }) => {
     cron.schedule("0 4 1 * *", async () => {
       if (!(await isAutobillEnabled(AUTOBILL_FLAGS.housing))) {
@@ -953,7 +986,7 @@ export function startCron() {
       }
       runJob("monthly_rent").catch((err) => logger.error({ err }, "monthly_rent cron"));
     });
-    cron.schedule("0 */6 * * *", () => {
+    cron.schedule("0 * * * *", () => {
       runJob("role_sync").catch((err) => logger.error({ err }, "role_sync cron"));
     });
     // Weekly cyberpsychosis-meds charge: Mondays at 05:00.
