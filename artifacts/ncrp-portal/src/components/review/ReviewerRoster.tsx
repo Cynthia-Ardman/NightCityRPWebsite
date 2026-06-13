@@ -1,13 +1,12 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Check, X, Clock } from "lucide-react";
-
 export type RosterReviewer = { id: string; name?: string | null; avatarUrl?: string | null };
 export type RosterVote = { id: string; vote: "approve" | "reject" };
 
 // Shared "who has voted / who hasn't" panel for the three review pipelines
 // (character edits, character sheets, custom requests). Given the full
-// eligible-reviewer roster and the votes cast so far, it lists each reviewer
-// with their status: approved, rejected, or still awaiting.
+// eligible-reviewer roster and the votes cast so far, it lists each reviewer as
+// a compact colour-coded name chip: green outline = approved, red = rejected,
+// grey = still awaiting. Chips wrap, so long display names never break the card
+// layout the way the old inline status badges did.
 export function ReviewerRoster({
   eligibleReviewers,
   voters,
@@ -26,36 +25,25 @@ export function ReviewerRoster({
       <div className="font-mono text-xs text-muted-foreground mb-2">
         {votedCount} of {eligibleReviewers.length} reviewer{eligibleReviewers.length === 1 ? "" : "s"} voted
       </div>
-      <div className="grid gap-1.5 sm:grid-cols-2">
+      <div className="flex flex-wrap gap-1.5">
         {eligibleReviewers.map((r) => {
           const vote = voteById.get(r.id) ?? null;
+          const styles =
+            vote === "approve"
+              ? "border-nc-green/70 text-nc-green"
+              : vote === "reject"
+                ? "border-destructive/70 text-destructive"
+                : "border-border text-muted-foreground";
+          const status = vote === "approve" ? "Approved" : vote === "reject" ? "Rejected" : "Awaiting";
           return (
-            <div
+            <span
               key={r.id}
-              className="flex items-center gap-2 font-mono text-xs"
               data-testid={`roster-reviewer-${r.id}`}
+              title={status}
+              className={`inline-flex items-center rounded-none border px-1.5 py-0.5 font-mono text-[11px] leading-tight ${styles}`}
             >
-              <Avatar className="h-6 w-6 rounded-none border border-border">
-                <AvatarImage src={r.avatarUrl ?? ""} />
-                <AvatarFallback className="bg-background text-nc-cyan rounded-none text-[10px]">
-                  {(r.name ?? "?").substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <span className={vote ? "text-foreground" : "text-muted-foreground"}>{r.name ?? r.id}</span>
-              {vote === "approve" ? (
-                <span className="ml-auto flex items-center gap-1 text-nc-green">
-                  <Check className="w-3 h-3" /> APPROVED
-                </span>
-              ) : vote === "reject" ? (
-                <span className="ml-auto flex items-center gap-1 text-destructive">
-                  <X className="w-3 h-3" /> REJECTED
-                </span>
-              ) : (
-                <span className="ml-auto flex items-center gap-1 text-muted-foreground/70">
-                  <Clock className="w-3 h-3" /> AWAITING
-                </span>
-              )}
-            </div>
+              {r.name ?? r.id}
+            </span>
           );
         })}
       </div>
