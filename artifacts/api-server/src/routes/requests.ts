@@ -68,7 +68,11 @@ async function announceRequest(
   if (!CS_CHANNEL_ID) return;
   try {
     const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
-    const reviewUrl = portalBase ? `https://${portalBase}/requests` : `/requests`;
+    // Deep-link straight to this request: the misc-requests queue reads ?focus=
+    // and auto-expands + scrolls to the matching card, so the CS-approver post
+    // lands the reviewer on the exact ticket (parity with sheets/edits).
+    const reviewPath = `/requests?focus=${requestId}`;
+    const reviewUrl = portalBase ? `https://${portalBase}${reviewPath}` : reviewPath;
     const msgId = await postToChannel(
       CS_CHANNEL_ID,
       `New ${reqType} request pending review: **${title}** by ${submitterName}`,

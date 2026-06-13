@@ -38,6 +38,7 @@ export function ReviewQueueCard({
   showDiscordThread = false,
   awaitingVote = false,
   markSeenOnMount = false,
+  initiallyExpanded = false,
 }: {
   subjectType: ReviewSubjectType;
   id: number;
@@ -62,8 +63,11 @@ export function ReviewQueueCard({
   showDiscordThread?: boolean;
   awaitingVote?: boolean;
   markSeenOnMount?: boolean;
+  // Seed the comment-thread section open on mount — used by ?focus= deep links
+  // from the Discord CS-approver post so the linked ticket lands expanded.
+  initiallyExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const hasFooter =
     tally != null ||
     (showRoster && roster && roster.eligibleReviewers.length > 0) ||
@@ -72,6 +76,7 @@ export function ReviewQueueCard({
 
   return (
     <Card
+      id={`review-${subjectType}-${id}`}
       className={`rounded-none border-border bg-card/50 flex flex-col ${
         unseen ? "border-l-2 border-l-nc-magenta" : ""
       }`}

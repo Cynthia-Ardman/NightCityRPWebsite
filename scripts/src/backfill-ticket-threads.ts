@@ -165,6 +165,11 @@ async function main() {
       const title = (r.title ?? "").trim() || `Request #${r.id}`;
       let msgId = r.msg;
       if (!msgId) {
+        // Mirror the live announceRequest embed, including the ?focus= deep link
+        // back to the specific request so the backfilled post is clickable.
+        const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
+        const reviewPath = `/requests?focus=${r.id}`;
+        const reviewUrl = portalBase ? `https://${portalBase}${reviewPath}` : reviewPath;
         msgId = await postToChannel(
           CS_CHANNEL_ID,
           `New ${r.type} request pending review: **${title}** by ${r.submitter}`,
@@ -175,6 +180,7 @@ async function main() {
                 { name: "Type", value: r.type, inline: true },
                 { name: "Character", value: r.character_name ?? "—", inline: true },
                 { name: "Player", value: r.submitter, inline: true },
+                { name: "Review", value: reviewUrl, inline: false },
               ],
             },
           ],

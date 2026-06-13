@@ -124,3 +124,5 @@
 - [role_sync bulk fetch](role-sync-bulk-fetch.md) — hourly; bulk member snapshot preferred (per-user fallback for no-intent); only clear empty roles on a DEFINITE read, never a partial/uncertain one.
 - [Discord thread drawer](discord-thread-drawer.md) — cs-approver thread mirror is a right-side Sheet pop-out (DiscordThreadDrawer), not inline; only mount the 15s-polling panel when open so queue lists don't poll-per-card.
 - [Discord thread mirror linkage](discord-thread-mirror-linkage.md) — thread-from-message id == message id; 400/160004 => return msgId (success), other non-ok => null; persist threadId only when non-null, never `?? msgId`; fix BOTH server lib + backfill helpers.
+- [Trial-fixer author-only tier](trial-fixer-tier.md) — exclude at isReviewer AND strip lingering fixer/coordinator names in applyRoleIdGrants; gating one surface lets stale roles vote.
+- [Discord announce/backfill URL parity](discord-announce-url-parity.md) — backfill posts must reuse live announce's `PUBLIC_BASE_URL ?? REPLIT_DOMAINS[0]` base, else deep links go relative/non-clickable.

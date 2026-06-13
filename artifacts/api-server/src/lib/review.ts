@@ -22,7 +22,14 @@ type DbConn = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 // so the operator team can always unstick a vote. The submitter of a given
 // subject is excluded from that subject's eligible pool at tally time (you
 // can't approve your own submission).
+//
+// Trial fixers are a NARROW mission-author tier — they never review/vote on
+// anything. We exclude them up front so a lingering or dual "fixer" role name
+// (e.g. stored roles not yet re-synced after the trial-fixer rollout) can't
+// leak them into the eligible-reviewer pool or the majority math. The marker is
+// id-derived, so this never wrongly excludes a real admin/cs-approver.
 export function isReviewer(u: User): boolean {
+  if (hasRole(u.roles, "TRIAL_FIXER")) return false;
   return hasRole(u.roles, "FIXER") || hasRole(u.roles, "CS_APPROVER") || hasRole(u.roles, "ADMIN");
 }
 

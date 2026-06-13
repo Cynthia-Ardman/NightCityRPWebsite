@@ -43,6 +43,17 @@ describe("applyRoleIdGrants (Trial Fixer)", () => {
     expect(hasRole(result, "COORDINATOR")).toBe(false);
   });
 
+  it("strips a lingering fixer/coordinator name from a trial fixer (dual-role grant)", () => {
+    // A transitional or mistaken dual grant (Trial Fixer id PLUS a "fixer" or
+    // "coordinator" role name) must collapse to the narrow trial tier — the id
+    // is authoritative, so the FIXER/COORDINATOR group checks stay false.
+    const result = applyRoleIdGrants(["member", "fixer", "coordinator"], [TRIAL_FIXER_ROLE_ID]);
+    expect(hasRole(result, "FIXER")).toBe(false);
+    expect(hasRole(result, "COORDINATOR")).toBe(false);
+    expect(hasRole(result, "TRIAL_FIXER")).toBe(true);
+    expect(result).toContain("member");
+  });
+
   it("leaves names untouched when no ids supplied", () => {
     expect(applyRoleIdGrants(["member"], [])).toEqual(["member"]);
   });

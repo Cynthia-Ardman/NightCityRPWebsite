@@ -90,7 +90,12 @@ export const TRIAL_FIXER_ROLE_MARKER = "trial-fixer";
  */
 export function applyRoleIdGrants(names: string[], ids: string[]): string[] {
   if (!ids.includes(TRIAL_FIXER_ROLE_ID)) return names;
-  const out = [...names];
+  // Trial fixers are a narrow mission-author tier, NOT full fixers. Drop any
+  // "fixer"/"coordinator" role NAMES they may also carry (a transitional or
+  // mistaken dual-role grant) so the FIXER group checks stay false for them
+  // everywhere downstream — the trial-fixer marker below is authoritative.
+  const suppressed = new Set<string>([...ROLE_NAMES.FIXER, ...ROLE_NAMES.COORDINATOR]);
+  const out = names.filter((n) => !suppressed.has(n.toLowerCase()));
   // Tag them as a trial fixer so the TRIAL_FIXER group checks (and the
   // display-only `isTrialFixer` flags) stay true, independent of the Discord
   // role's display name. Intentionally NOT mapped onto "fixer".

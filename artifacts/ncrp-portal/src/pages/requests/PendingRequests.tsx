@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
 import {
@@ -101,7 +101,7 @@ function venueDetails(r: CustomRequest): { purpose?: string; location?: string }
   return d as { purpose?: string; location?: string };
 }
 
-function MiscRequestsTab() {
+function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   // Active-only tab: completed/denied requests live in the cross-cutting
   // Completed/Denied tabs. We only fetch the active bucket here.
   const { data: active, isLoading } = useListCustomRequests({ bucket: "active" });
@@ -131,6 +131,14 @@ function MiscRequestsTab() {
 
   const activeRequests = (active ?? []) as CustomRequest[];
 
+  // A ?focus=<id> deep link (from the Discord CS-approver post) scrolls the
+  // matching card into view once the active queue has rendered.
+  useEffect(() => {
+    if (focusId == null) return;
+    const el = document.getElementById(`review-request-${focusId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusId, activeRequests.length]);
+
   const renderCard = (r: CustomRequest, bucket: LifecycleBucket) => {
     const meta = TYPE_META[r.type] ?? { label: "REQUEST", Icon: Inbox };
     const det = venueDetails(r);
@@ -153,6 +161,7 @@ function MiscRequestsTab() {
         }}
         markSeenOnMount={isReviewer}
         showDiscordThread={isReviewer}
+        initiallyExpanded={r.id === focusId}
         awaitingVote={isReviewer && bucket === "active" && r.status === "pending" && !r.myVote}
         tally={
           bucket === "active" ? (
@@ -1747,10 +1756,16 @@ export default function PendingRequests() {
   if (canLore) { visibleTabs.add("lore"); visibleTabs.add("guidebook"); }
   if (isReviewer) { visibleTabs.add("completed"); visibleTabs.add("denied"); }
   const search = useSearch();
-  const urlTab = new URLSearchParams(search).get("tab");
+  const searchParams = new URLSearchParams(search);
+  const urlTab = searchParams.get("tab");
   const initialUrlTab = urlTab && visibleTabs.has(urlTab) ? urlTab : null;
+  // A ?focus=<requestId> deep link (from the Discord CS-approver post) targets a
+  // misc request, so land on the MISC tab and let it expand + scroll the card.
+  const focusParam = searchParams.get("focus");
+  const focusId = focusParam && /^\d+$/.test(focusParam) ? Number(focusParam) : null;
+  const focusTab = focusId != null && canSeeMisc ? "misc" : null;
   const [activeTab, setActiveTab] = useState<string | null>(null);
-  const tab = activeTab ?? initialUrlTab ?? computedTab;
+  const tab = activeTab ?? initialUrlTab ?? focusTab ?? computedTab;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
@@ -1807,7 +1822,7 @@ export default function PendingRequests() {
 
         {canSeeMisc && (
           <TabsContent value="misc" className="mt-6">
-            <ErrorBoundary><MiscRequestsTab /></ErrorBoundary>
+            <ErrorBoundary><MiscRequestsTab focusId={focusId} /></ErrorBoundary>
           </TabsContent>
         )}
         <TabsContent value="edits" className="mt-6">
