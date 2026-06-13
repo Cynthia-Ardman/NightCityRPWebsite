@@ -52,6 +52,33 @@ export const ROLE_NAMES = {
  */
 export const VERIFIED_18_ROLE_ID = "1351048862323834952";
 
+/**
+ * Discord role id for the guild's "Trial Fixer" role. Matched by exact id (not
+ * name) so a rename can't silently drop the grant — same pattern as the
+ * Verified 18+ gate. A member holding this role is treated as a full Fixer
+ * everywhere the FIXER group is checked; the proposal → Archivist/Admin
+ * approval flow still gates what actually reaches players.
+ */
+export const TRIAL_FIXER_ROLE_ID = "1489385692915302419";
+
+/**
+ * Augment a member's resolved role NAMES with synthetic names derived from
+ * exact role IDs, so id-gated grants survive Discord role renames and flow
+ * through the name-based {@link hasRole} checks used everywhere downstream.
+ * Currently maps the Trial Fixer role id onto the canonical "fixer" name,
+ * granting trial fixers full Fixer-equivalent access. Idempotent: never adds a
+ * duplicate name. Pass the raw role ids alongside the resolved names.
+ */
+export function applyRoleIdGrants(names: string[], ids: string[]): string[] {
+  if (
+    ids.includes(TRIAL_FIXER_ROLE_ID) &&
+    !names.some((n) => n.toLowerCase() === "fixer")
+  ) {
+    return [...names, "fixer"];
+  }
+  return names;
+}
+
 export function getRedirectUri(): string {
   // Only honor PUBLIC_BASE_URL in actual deployments (REPLIT_DEPLOYMENT=1).
   // In the dev workspace we always use the live workspace domain so Discord

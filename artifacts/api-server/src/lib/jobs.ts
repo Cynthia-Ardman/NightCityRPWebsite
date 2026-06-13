@@ -1,7 +1,7 @@
 import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, addGuildMemberRole, postToChannel } from "./discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, applyRoleIdGrants, addGuildMemberRole, postToChannel } from "./discord";
 import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
@@ -308,6 +308,10 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
             definite = false;
           }
+          // Map id-gated grants (e.g. Trial Fixer → "fixer") onto the names so
+          // existing logged-in trial fixers get Fixer access without re-login.
+          // Only when we have raw ids; the per-user fallback may return null.
+          if (roleIds !== null) roles = applyRoleIdGrants(roles, roleIds);
           const verified18 = roleIds === null ? u.verified18 : roleIds.includes(VERIFIED_18_ROLE_ID);
           // Reconcile the rules-read Discord role. The /auth/accept-rules grant is
           // best-effort (Discord may be transiently down, or writes suppressed off

@@ -15,7 +15,7 @@ import {
 import { isNull, or, ilike, count, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, type ThreadAttachment } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, applyRoleIdGrants, type ThreadAttachment } from "../lib/discord";
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
@@ -235,11 +235,13 @@ router.post("/admin/users/:userId/roles", adminOnly, async (req, res): Promise<v
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const roles = await fetchGuildMemberRolesViaBot(u.discordId);
+  const rawRoles = await fetchGuildMemberRolesViaBot(u.discordId);
   // Re-derive the age-verification flag from the raw role ids in the same sweep
   // so an admin re-syncing a member also refreshes their gate status. Only flip
   // when the bot lookup succeeded (non-null) to avoid clearing it on an outage.
   const roleIds = await fetchGuildMemberRoleIdsViaBot(u.discordId);
+  // Map id-gated grants (e.g. Trial Fixer → "fixer") onto the stored names.
+  const roles = roleIds === null ? rawRoles : applyRoleIdGrants(rawRoles, roleIds);
   const verified18 =
     roleIds === null ? u.verified18 : roleIds.includes(VERIFIED_18_ROLE_ID);
   await db

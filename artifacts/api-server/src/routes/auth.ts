@@ -10,6 +10,7 @@ import {
   fetchGuildMemberRolesDetailed,
   fetchGuildMemberRoleIdsViaBot,
   VERIFIED_18_ROLE_ID,
+  applyRoleIdGrants,
   addGuildMemberRole,
   removeGuildMemberRole,
   NPC_ROLE_ID,
@@ -50,10 +51,13 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
   try {
     const token = await exchangeCode(code);
     const discordUser = await fetchUser(token.access_token);
-    const { names: roles, ids: roleIds } = await fetchGuildMemberRolesDetailed(
+    const { names: rawRoles, ids: roleIds } = await fetchGuildMemberRolesDetailed(
       token.access_token,
       discordUser.id,
     );
+    // Map id-gated grants (e.g. Trial Fixer → "fixer") onto the stored names so
+    // every downstream hasRole(..., "FIXER") check honors them.
+    const roles = applyRoleIdGrants(rawRoles, roleIds);
     const verified18 = roleIds.includes(VERIFIED_18_ROLE_ID);
     // Staff-only lockdown: when an admin has restricted login, only ADMIN /
     // FIXER (incl. coordinator) / ARCHIVIST may sign in. Everyone else is turned
