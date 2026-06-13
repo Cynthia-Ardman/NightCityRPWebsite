@@ -2,7 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { postToChannel, hasRole } from "../lib/discord";
+import { postToChannel, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID } from "../lib/discord";
+import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields } from "../lib/sheet-validation";
@@ -739,6 +740,23 @@ export async function closeSheet(req: Request, id: number): Promise<ReviewAction
       targetId: id,
       message: `Closed & materialized sheet "${result.sheet.name}"`,
     });
+    // Grant the "Approved Character" Discord role to the submitter. The portal
+    // user id IS the Discord snowflake. Fire-and-forget + gated/idempotent in
+    // addGuildMemberRole, so a failure here must not fail the approval.
+    if (result.sheet.ownerId) {
+      void addGuildMemberRole(
+        result.sheet.ownerId,
+        APPROVED_CHARACTER_ROLE_ID,
+        `Character sheet "${result.sheet.name}" approved`,
+      ).then((r) => {
+        if (!r.ok) {
+          logger.warn(
+            { sheetId: id, ownerId: result.sheet.ownerId, error: r.error },
+            "Approved-character role grant did not apply",
+          );
+        }
+      });
+    }
   } else if (result.kind === "archived") {
     await recordAudit({
       req,
