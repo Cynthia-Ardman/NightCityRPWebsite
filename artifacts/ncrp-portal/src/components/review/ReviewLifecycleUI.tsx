@@ -7,16 +7,21 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { BUCKET_LABEL, type LifecycleBucket } from "@/lib/reviewLifecycle";
 
-// Tiny magenta dot flagging a ticket the current reviewer hasn't opened since
-// its last activity. Driven by /review/unseen-ids.
+// Prominent "NEW" pill flagging a ticket the current reviewer hasn't opened
+// since its last activity (a new comment or vote). Driven by /review/unseen-ids.
+// Deliberately a labeled pill, not a bare dot, so reviewers can scan a column
+// of cards and immediately see which ones need attention without opening each.
 export function UnseenDot({ show, testid }: { show: boolean; testid: string }) {
   if (!show) return null;
   return (
     <span
-      className="w-2.5 h-2.5 rounded-full bg-nc-magenta shadow-[0_0_6px_rgba(255,0,128,0.8)] shrink-0"
-      title="New activity"
+      className="inline-flex items-center gap-1 rounded-none border border-nc-magenta bg-nc-magenta/10 px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-nc-magenta shadow-[0_0_6px_rgba(255,0,128,0.6)] shrink-0"
+      title="New activity since you last opened this ticket"
       data-testid={testid}
-    />
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-nc-magenta animate-pulse" />
+      NEW
+    </span>
   );
 }
 

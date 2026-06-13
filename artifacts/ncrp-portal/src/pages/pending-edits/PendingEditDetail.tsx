@@ -74,6 +74,11 @@ export default function PendingEditDetail() {
 
   const { data: edit, isLoading } = useGetPendingEdit(editId);
   const me = useEffectiveMe();
+  // Reviewers reach this detail from the unified /requests queue (Character
+  // Edits tab), so "back to queue" returns them there on the right tab.
+  // Players (submitters) have their own flat /pending-edits list.
+  const isReviewer = !!(me.data?.isFixer || me.data?.isCsApprover || me.data?.isAdmin);
+  const queueHref = isReviewer ? "/requests?tab=edits" : "/pending-edits";
   // The submitter can amend their own edit in place while it is still pending
   // (the backend upserts the same review row and clears prior votes). This is
   // distinct from canResubmit, which only applies after changes were requested.
@@ -118,7 +123,7 @@ export default function PendingEditDetail() {
       onSuccess: () => {
         toast({ title: "Edit cancelled" });
         invalidate();
-        navigate("/pending-edits");
+        navigate(queueHref);
       },
       onError: (err) => {
         const msg = (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? "Cancel failed";
@@ -151,7 +156,7 @@ export default function PendingEditDetail() {
         setCloseOpen(false);
         setCloseNote("");
         invalidate();
-        navigate("/pending-edits");
+        navigate(queueHref);
       },
       onError: (err) => toast({ title: "Close failed", description: errMsg(err, "Close failed"), variant: "destructive" }),
     },
@@ -169,7 +174,7 @@ export default function PendingEditDetail() {
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
-      <Link href="/pending-edits">
+      <Link href={queueHref}>
         <a className="inline-flex items-center gap-2 font-mono text-xs text-muted-foreground hover:text-nc-cyan">
           <ArrowLeft className="w-3 h-3" /> BACK TO QUEUE
         </a>

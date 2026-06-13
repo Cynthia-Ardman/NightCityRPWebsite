@@ -64,7 +64,12 @@ export function ReviewQueueCard({
     showThread;
 
   return (
-    <Card className="rounded-none border-border bg-card/50 flex flex-col" data-testid={testId}>
+    <Card
+      className={`rounded-none border-border bg-card/50 flex flex-col ${
+        unseen ? "border-l-2 border-l-nc-magenta" : ""
+      }`}
+      data-testid={testId}
+    >
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">

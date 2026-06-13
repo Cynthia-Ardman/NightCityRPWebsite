@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import {
   useListCustomRequests,
   useVoteCustomRequest,
@@ -1735,8 +1735,21 @@ export default function PendingRequests() {
               : canSeeMisc
                 ? "misc"
                 : "edits";
+  // Honor a ?tab= deep link as the initial tab (used by "back to queue" from
+  // detail pages). It seeds the initial value only; once the viewer clicks a
+  // tab, activeTab takes over and that choice sticks. Validate against the tabs
+  // this viewer can actually see (mirrors the TabsTrigger guards below) so a
+  // crafted URL can't strand them on an unrendered, empty tab.
+  const visibleTabs = new Set<string>(["edits"]);
+  if (canSeeMisc) visibleTabs.add("misc");
+  if (canNewChars) visibleTabs.add("sheets");
+  if (canLore) { visibleTabs.add("lore"); visibleTabs.add("guidebook"); }
+  if (isReviewer) { visibleTabs.add("completed"); visibleTabs.add("denied"); }
+  const search = useSearch();
+  const urlTab = new URLSearchParams(search).get("tab");
+  const initialUrlTab = urlTab && visibleTabs.has(urlTab) ? urlTab : null;
   const [activeTab, setActiveTab] = useState<string | null>(null);
-  const tab = activeTab ?? computedTab;
+  const tab = activeTab ?? initialUrlTab ?? computedTab;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
