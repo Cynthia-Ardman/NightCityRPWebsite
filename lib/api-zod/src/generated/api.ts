@@ -6686,6 +6686,7 @@ export const ListPendingSheetsResponseItem = zod.object({
   "name": zod.string(),
   "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
   "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional(),
   "ownerId": zod.string(),
   "ownerName": zod.string().nullish(),
   "ownerAvatarUrl": zod.string().nullish(),
@@ -7301,6 +7302,7 @@ export const ListPendingEditsResponseItem = zod.object({
   "reviewComment": zod.string().nullish().describe('Reviewer\'s comment when changes were requested.'),
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "submittedAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional(),
   "decidedAt": zod.coerce.date().nullish(),
   "approveCount": zod.number(),
   "rejectCount": zod.number(),
@@ -8609,7 +8611,8 @@ export const ListCustomRequestsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 export const ListCustomRequestsResponse = zod.array(ListCustomRequestsResponseItem)
 
@@ -8669,7 +8672,8 @@ export const ListMyCustomRequestsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 export const ListMyCustomRequestsResponse = zod.array(ListMyCustomRequestsResponseItem)
 
@@ -8739,7 +8743,8 @@ export const VoteCustomRequestResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 }).and(zod.object({
   "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish()
 }))
@@ -8808,7 +8813,8 @@ export const OverrideCustomRequestResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 
 
@@ -8860,7 +8866,8 @@ export const RequestChangesCustomRequestResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 
 
@@ -8904,7 +8911,8 @@ export const ResubmitCustomRequestResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 
 
@@ -8956,7 +8964,8 @@ export const UpdateCustomRequestResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 
 
@@ -9005,7 +9014,8 @@ export const DecideStockCostRequestResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 
 
@@ -9053,7 +9063,8 @@ export const DecideEmployeeInviteResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 
 
@@ -9101,7 +9112,8 @@ export const DecideMissionParticipationResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "vote": zod.enum(['approve', 'reject'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
 })
 
 

@@ -1,5 +1,5 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { db, users, reviewVotes, type User } from "@workspace/db";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { db, users, reviewVotes, reviewComments, type User } from "@workspace/db";
 import { hasRole } from "./discord";
 
 // Either the root db handle or a transaction handle — the vote helpers run
@@ -233,6 +233,32 @@ export async function loadVotesBySubject(opts: {
     const list = out.get(subjectId);
     if (list) list.push(rest);
     else out.set(subjectId, [rest]);
+  }
+  return out;
+}
+
+// Compute each subject's "last activity" timestamp = max(its base timestamp,
+// its newest review comment). This mirrors the unseen-tracking activityAt
+// (comments-only) so "recently updated" sorting in the review queues stays
+// consistent with the unread-badge signal. Returns a Map keyed by subject id;
+// every input id is present (defaulting to its baseAt) so callers never miss a
+// row. Bulk: one grouped comment query, no N+1.
+export async function loadLastActivityBySubject(
+  subjectType: "sheet" | "request" | "edit",
+  items: Array<{ id: number; baseAt: Date }>,
+): Promise<Map<number, Date>> {
+  const out = new Map<number, Date>(items.map((i) => [i.id, i.baseAt]));
+  if (items.length === 0) return out;
+  const ids = items.map((i) => i.id);
+  const rows = await db
+    .select({ subjectId: reviewComments.subjectId, last: sql<string>`max(${reviewComments.createdAt})` })
+    .from(reviewComments)
+    .where(and(eq(reviewComments.subjectType, subjectType), inArray(reviewComments.subjectId, ids)))
+    .groupBy(reviewComments.subjectId);
+  for (const r of rows) {
+    const d = new Date(r.last);
+    const cur = out.get(r.subjectId);
+    if (!cur || cur < d) out.set(r.subjectId, d);
   }
   return out;
 }

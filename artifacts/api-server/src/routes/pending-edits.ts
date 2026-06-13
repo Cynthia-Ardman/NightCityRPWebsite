@@ -15,7 +15,7 @@ import {
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, postToChannel, startThreadFromMessage } from "../lib/discord";
-import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, majorityOf, type ReviewActionResult } from "../lib/review";
+import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, loadLastActivityBySubject, majorityOf, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -356,6 +356,13 @@ async function hydrateEdits(
     else votesByEdit.set(v.editId, [v]);
   }
 
+  // "Last activity" = max(submittedAt, newest review comment) so the queue can
+  // sort by recently-updated, mirroring the unread-badge signal.
+  const activityByEdit = await loadLastActivityBySubject(
+    "edit",
+    rows.map((r) => ({ id: r.id, baseAt: r.submittedAt })),
+  );
+
   return rows.map((r) => {
     const c = charById.get(r.characterId);
     const s = subById.get(r.submittedBy);
@@ -383,6 +390,7 @@ async function hydrateEdits(
       reviewComment: r.reviewComment,
       overriddenBy: r.overriddenBy,
       submittedAt: r.submittedAt,
+      lastActivityAt: (activityByEdit.get(r.id) ?? r.submittedAt).toISOString(),
       decidedAt: r.decidedAt,
       approveCount,
       rejectCount,

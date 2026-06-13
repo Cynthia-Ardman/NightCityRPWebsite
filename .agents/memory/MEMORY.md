@@ -1,3 +1,4 @@
+- [OpenAPI list-only fields](openapi-list-only-fields.md) — a field only some endpoints of a reused schema (CustomRequest shape()) return must stay OPTIONAL in OpenAPI, never required.
 - [Long-running scripts](long-running-scripts.md) — Anthropic SDK calls, fetches, Discord pagination need explicit AbortSignal.timeout or they hang.
 - [Anthropic SDK timeouts](anthropic-sdk-timeouts.md) — pass `{ timeout: ms }` per call; default is much longer than you expect.
 - [Discord forwarded messages](discord-forwarded-messages.md) — OP message_reference can hide the real first post; resolve via referenced_message.

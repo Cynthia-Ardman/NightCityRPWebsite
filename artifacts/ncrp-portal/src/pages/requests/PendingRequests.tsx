@@ -38,6 +38,7 @@ import {
   type MissionSummary,
 } from "@workspace/api-client-react";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
+import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "./reviewSort";
 import { useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
@@ -111,6 +112,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   const [approveTarget, setApproveTarget] = useState<CustomRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CustomRequest | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<CustomRequest | null>(null);
+  const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   // Approver pool: only fixers / cs-approvers cast counted votes. A pure admin
@@ -134,7 +136,12 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
 
   const unseen = new Set(unseenIds?.request ?? []);
 
-  const activeRequests = (active ?? []) as CustomRequest[];
+  const activeRequests = sortReviewItems(
+    (active ?? []) as CustomRequest[],
+    sortMode,
+    (r) => r.createdAt,
+    (r) => r.lastActivityAt,
+  );
 
   // A ?focus=<id> deep link (from the Discord CS-approver post) scrolls the
   // matching card into view once the active queue has rendered.
@@ -298,8 +305,13 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
       )}
 
       {activeRequests.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {activeRequests.map((r) => renderCard(r, "active"))}
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <ReviewSortDropdown value={sortMode} onChange={setSortMode} testId="select-sort-misc" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {activeRequests.map((r) => renderCard(r, "active"))}
+          </div>
         </div>
       )}
 
@@ -792,8 +804,14 @@ function NewCharactersTab() {
     },
   });
   const busy = vote.isPending || override.isPending;
+  const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
 
-  const sheets = (active ?? []) as PendingSheetSummary[];
+  const sheets = sortReviewItems(
+    (active ?? []) as PendingSheetSummary[],
+    sortMode,
+    (s) => s.createdAt,
+    (s) => s.lastActivityAt,
+  );
 
   if (isLoading) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
@@ -910,8 +928,13 @@ function NewCharactersTab() {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {sheets.map((sheet) => renderCard(sheet))}
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <ReviewSortDropdown value={sortMode} onChange={setSortMode} testId="select-sort-sheets" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {sheets.map((sheet) => renderCard(sheet))}
+      </div>
     </div>
   );
 }

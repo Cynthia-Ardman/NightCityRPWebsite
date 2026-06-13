@@ -37,6 +37,7 @@ export interface PendingEditSummary {
      */
   overriddenBy?: string | null;
   submittedAt: Date;
+  lastActivityAt?: Date;
   /** @nullable */
   decidedAt?: Date | null;
   approveCount: number;

@@ -15,6 +15,7 @@ export interface PendingSheetSummary {
   name: string;
   status: PendingSheetSummaryStatus;
   createdAt: Date;
+  lastActivityAt?: Date;
   ownerId: string;
   /** @nullable */
   ownerName?: string | null;

@@ -3109,6 +3109,7 @@ export interface CustomRequest {
   /** Reviewers who have already cast a vote on this request. Present on list responses. */
   voters?: CustomRequestVotersItem[];
   createdAt: string;
+  lastActivityAt?: string;
 }
 
 export type CustomRequestVoteInputVote = typeof CustomRequestVoteInputVote[keyof typeof CustomRequestVoteInputVote];
@@ -3683,6 +3684,7 @@ export interface PendingSheetSummary {
   name: string;
   status: PendingSheetSummaryStatus;
   createdAt: string;
+  lastActivityAt?: string;
   ownerId: string;
   /** @nullable */
   ownerName?: string | null;
@@ -3903,6 +3905,7 @@ export interface PendingEditSummary {
      */
   overriddenBy?: string | null;
   submittedAt: string;
+  lastActivityAt?: string;
   /** @nullable */
   decidedAt?: string | null;
   approveCount: number;

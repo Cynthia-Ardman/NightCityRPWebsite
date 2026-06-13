@@ -18,6 +18,7 @@ import {
   clearReviewVotes,
   listReviewVotes,
   loadVotesBySubject,
+  loadLastActivityBySubject,
   type ReviewActionResult,
 } from "../lib/review";
 import type { Request } from "express";
@@ -88,6 +89,10 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
   // card render the same "who has voted" panel as custom requests; it's
   // reviewer-only info and this endpoint is already reviewer-gated above.
   const votesBySheet = await loadVotesBySubject({ subjectType: "sheet", subjectIds: rows.map((r) => r.id) });
+  const activityBySheet = await loadLastActivityBySubject(
+    "sheet",
+    rows.map((r) => ({ id: r.id, baseAt: r.createdAt })),
+  );
   const reviewerPool = await listEligibleReviewers(null);
   const out = rows.map((r) => {
     const eligible = reviewerPool.filter((rv) => rv.id !== r.ownerId);
@@ -99,6 +104,7 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
     const myVote = allVotes.find((v) => v.voterId === req.user!.id) ?? null;
     return {
       ...r,
+      lastActivityAt: (activityBySheet.get(r.id) ?? r.createdAt).toISOString(),
       approveCount,
       rejectCount,
       threshold: majorityOf(eligible.length),

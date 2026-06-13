@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,6 +20,7 @@ import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
+import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "../requests/reviewSort";
 
 function statusBadge(status: string) {
   switch (status) {
@@ -349,9 +351,15 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
   });
   const voteBusy = vote.isPending || override.isPending;
   const unseen = new Set(unseenIds?.edit ?? []);
+  const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
 
   const buckets: Record<LifecycleBucket, PendingEditSummary[]> = {
-    active: (active ?? []) as PendingEditSummary[],
+    active: sortReviewItems(
+      (active ?? []) as PendingEditSummary[],
+      sortMode,
+      (e) => e.submittedAt,
+      (e) => e.lastActivityAt,
+    ),
     resolved: (resolved ?? []) as PendingEditSummary[],
     archive: (archive ?? []) as PendingEditSummary[],
   };
@@ -364,6 +372,11 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
         <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>
       ) : (
         <div className="space-y-8" data-testid="pending-edits-list">
+          {buckets.active.length > 0 && (
+            <div className="flex justify-end">
+              <ReviewSortDropdown value={sortMode} onChange={setSortMode} testId="select-sort-edits" />
+            </div>
+          )}
           {shownBuckets.map((b) => (
             <BucketSection key={b} bucket={b} count={buckets[b].length}>
               {b === "active" ? (

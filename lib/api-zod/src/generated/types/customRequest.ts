@@ -65,4 +65,5 @@ export interface CustomRequest {
   /** Reviewers who have already cast a vote on this request. Present on list responses. */
   voters?: CustomRequestVotersItem[];
   createdAt: Date;
+  lastActivityAt?: Date;
 }

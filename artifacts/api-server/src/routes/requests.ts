@@ -32,6 +32,7 @@ import {
   castReviewVote,
   clearReviewVotes,
   loadVotesBySubject,
+  loadLastActivityBySubject,
   type ReviewActionResult,
 } from "../lib/review";
 
@@ -577,6 +578,10 @@ async function attachTallies(
 ): Promise<Record<string, unknown>[]> {
   if (rows.length === 0) return [];
   const votesById = await loadVotesBySubject({ subjectType: "request", subjectIds: rows.map((r) => r.id) });
+  const activityById = await loadLastActivityBySubject(
+    "request",
+    rows.map((r) => ({ id: r.id, baseAt: r.createdAt })),
+  );
   // Full reviewer roster (id + identity) so the UI can show who hasn't voted.
   const reviewerPool = await listEligibleReviewers(null);
   return rows.map((r) => {
@@ -588,6 +593,7 @@ async function attachTallies(
     const mine = (votesById.get(r.id) ?? []).find((v) => v.voterId === viewerId);
     return {
       ...shape(r),
+      lastActivityAt: (activityById.get(r.id) ?? r.createdAt).toISOString(),
       approveCount,
       rejectCount,
       threshold: majorityOf(eligible.length),

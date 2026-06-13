@@ -7060,6 +7060,7 @@ components:
               avatarUrl: { type: ["string", "null"] }
               vote: { type: string, enum: [approve, reject] }
         createdAt: { type: string, format: date-time }
+        lastActivityAt: { type: string, format: date-time }
 
     CustomRequestVoteInput:
       type: object
@@ -7349,6 +7350,7 @@ components:
         name: { type: string }
         status: { type: string, enum: [draft, pending, approved, rejected, changes_requested] }
         createdAt: { type: string, format: date-time }
+        lastActivityAt: { type: string, format: date-time }
         ownerId: { type: string }
         ownerName: { type: ["string", "null"] }
         ownerAvatarUrl: { type: ["string", "null"] }
@@ -7545,6 +7547,7 @@ components:
         reviewComment: { type: ["string", "null"], description: "Reviewer's comment when changes were requested." }
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
         submittedAt: { type: string, format: date-time }
+        lastActivityAt: { type: string, format: date-time }
         decidedAt: { type: ["string", "null"], format: date-time }
         approveCount: { type: integer }
         rejectCount: { type: integer }
