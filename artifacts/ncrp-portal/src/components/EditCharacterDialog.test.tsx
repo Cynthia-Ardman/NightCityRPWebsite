@@ -8,6 +8,11 @@ const h = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
   navigate: vi.fn(),
   toast: vi.fn(),
+  // Stable empty-query result. The cyberware hydration effect depends on the
+  // inventory/catalog array identity and writes derived rows back to state, so
+  // returning a fresh [] per render would re-fire it forever ("Maximum update
+  // depth exceeded" / hang). One shared instance keeps the deps stable.
+  emptyQuery: { data: [] as never[], isLoading: false },
   state: {
     isPending: false as boolean,
     capturedOptions: undefined as
@@ -45,12 +50,76 @@ vi.mock("@workspace/api-client-react", () => ({
     h.state.capturedDeleteOptions = opts;
     return { mutate: h.deleteMutate, isPending: false };
   },
+  // Cyberware/inventory is edited inline in the dialog; the component calls
+  // these unconditionally at the top level, so they must be stubbed even though
+  // the non-staff viewer used here never renders the editor.
+  useGetCharacterInventory: () => h.emptyQuery,
+  useListCyberware: () => h.emptyQuery,
+  useAddInventoryItem: () => ({
+    mutate: () => {},
+    mutateAsync: async () => undefined,
+    isPending: false,
+  }),
+  useUpdateInventoryItem: () => ({
+    mutate: () => {},
+    mutateAsync: async () => undefined,
+    isPending: false,
+  }),
+  useRemoveInventoryItem: () => ({
+    mutate: () => {},
+    mutateAsync: async () => undefined,
+    isPending: false,
+  }),
+  getGetCharacterInventoryQueryKey: (id: number) => ["character-inventory", id],
   getGetCharacterPendingEditQueryKey: (id: number) => [
     "character-pending-edit",
     id,
   ],
   getListPendingEditsQueryKey: () => ["pending-edits"],
   getListMyCharactersQueryKey: () => ["characters", "mine"],
+}));
+
+// The dialog reads the effective viewer via ViewAsContext (useEffectiveMe ->
+// useAuthMe -> useGetMe). Stub it directly so the test doesn't depend on the
+// generated me-hook or a surrounding provider. A non-staff viewer keeps the
+// STAFF tab and the inline cyberware editor out of the tree.
+vi.mock("@/contexts/ViewAsContext", () => ({
+  useEffectiveMe: () => ({ data: { id: 1, isAdmin: false, isFixer: false } }),
+}));
+
+// Render the Radix tab/accordion primitives as plain containers. This keeps
+// every field mounted at once (so selectors don't need to drive tab/section
+// navigation) and avoids the Radix presence ref loop that throws
+// "Maximum update depth exceeded" under jsdom.
+vi.mock("@/components/ui/tabs", () => ({
+  Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabsList: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabsTrigger: ({ children }: { children: React.ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
+  TabsContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("@/components/ui/accordion", () => ({
+  Accordion: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AccordionItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AccordionTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AccordionContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+// The Radix Dialog mounts its content through @radix-ui/react-presence, whose
+// ref-callback setState loops ("Maximum update depth exceeded") under jsdom.
+// Render it as a plain, always-mounted container gated only on `open`.
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) =>
+    open ? <div>{children}</div> : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div role="dialog">{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("wouter", () => ({
@@ -314,14 +383,14 @@ describe("EditCharacterDialog", () => {
     );
   });
 
-  it("hides the admin delete affordance unless isAdmin is passed", () => {
+  it("hides the delete affordance unless canDelete is passed", () => {
     renderDialog();
     expect(screen.queryByTestId("section-danger-zone")).toBeNull();
     expect(screen.queryByTestId("button-confirm-delete")).toBeNull();
   });
 
-  it("admin delete: stays disabled until 'DELETE' is typed, then fires the delete mutation", () => {
-    renderDialog({ isAdmin: true });
+  it("delete: stays disabled until 'DELETE' is typed, then fires the delete mutation", () => {
+    renderDialog({ canDelete: true });
 
     const input = screen.getByTestId("input-delete-confirm") as HTMLInputElement;
     const btn = screen.getByTestId("button-confirm-delete") as HTMLButtonElement;
@@ -339,8 +408,8 @@ describe("EditCharacterDialog", () => {
     expect(h.deleteMutate).toHaveBeenCalledWith({ id: 9 });
   });
 
-  it("admin delete success: toasts, invalidates the roster, closes, and navigates", () => {
-    const { onOpenChange } = renderDialog({ isAdmin: true });
+  it("delete success: toasts, invalidates the roster, closes, and navigates", () => {
+    const { onOpenChange } = renderDialog({ canDelete: true });
     expect(h.state.capturedDeleteOptions?.mutation?.onSuccess).toBeTypeOf("function");
 
     h.state.capturedDeleteOptions!.mutation!.onSuccess!();

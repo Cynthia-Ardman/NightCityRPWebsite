@@ -36,6 +36,10 @@ vi.mock("@workspace/api-client-react", () => {
   const noop = () => undefined;
   const queryKey = (..._a: unknown[]) => ["k"];
   const idleQuery = (data: unknown = undefined) => ({ data, isLoading: false });
+  // Stable empty-query result for the dialog's cyberware hydration effect, which
+  // depends on the inventory/catalog array identity and writes back to state.
+  // A fresh [] per render would re-fire it forever and hang the test.
+  const stableEmpty = { data: [] as never[], isLoading: false };
   const idleMutation = () => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn().mockResolvedValue(undefined),
@@ -49,7 +53,7 @@ vi.mock("@workspace/api-client-react", () => {
     useListCharacterUpdates: () => idleQuery([]),
     useGetWalletTransactions: () => idleQuery([]),
     useGetMyWallet: () => idleQuery({ balance: 0 }),
-    useGetCharacterInventory: () => idleQuery([]),
+    useGetCharacterInventory: () => stableEmpty,
     useGetCharacterHousing: () => idleQuery([]),
     useGetCharacterStatus: () => idleQuery({
       loa: false,
@@ -61,10 +65,20 @@ vi.mock("@workspace/api-client-react", () => {
     }),
     useListLifestyleTiers: () => idleQuery([]),
     useListMyMissions: () => idleQuery([]),
+    useListOwnedMissions: () => idleQuery([]),
+    useListCharacterBreachPuzzles: () => idleQuery([]),
     useListRentListings: () => idleQuery([]),
-    useListCyberware: () => idleQuery([]),
+    useListGuns: () => idleQuery([]),
+    useListCyberware: () => stableEmpty,
+    // CatalogRequestSection + CharacterPicker render inside the page tree.
+    useListMyCharacters: () => idleQuery([]),
+    useListMyCustomRequests: () => idleQuery([]),
+    useListRipperdocs: () => idleQuery([]),
+    useListStores: () => idleQuery([]),
+    useListPublicCharacters: () => idleQuery([]),
 
     // Mutations
+    useSubmitCustomRequest: idleMutation,
     useTransferEddies: idleMutation,
     useAddInventoryItem: idleMutation,
     useUpdateInventoryItem: idleMutation,
@@ -89,6 +103,12 @@ vi.mock("@workspace/api-client-react", () => {
     getGetCharacterPendingEditQueryKey: queryKey,
     getListPendingEditsQueryKey: queryKey,
     getListMyCharactersQueryKey: queryKey,
+    getListMyMissionsQueryKey: queryKey,
+    getListOwnedMissionsQueryKey: queryKey,
+    getListMyCustomRequestsQueryKey: queryKey,
+    getListRipperdocsQueryKey: queryKey,
+    getListStoresQueryKey: queryKey,
+    getListPublicCharactersQueryKey: queryKey,
   };
 });
 
@@ -119,6 +139,46 @@ vi.mock("@tanstack/react-query", async (orig) => {
 });
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+
+// Both the page and the edit dialog read the effective viewer via
+// useEffectiveMe. Drive it from the same shared admin flag so the delete gate
+// (canDelete = admin || archivist || coordinator) is controllable per-test.
+vi.mock("@/contexts/ViewAsContext", () => ({
+  useEffectiveMe: () => ({ data: { id: 1, isAdmin: h.state.isAdmin } }),
+}));
+
+// Render the Radix tab/accordion primitives flat so the dialog's fields all
+// mount at once and the Radix presence ref loop ("Maximum update depth
+// exceeded") doesn't fire under jsdom.
+vi.mock("@/components/ui/tabs", () => ({
+  Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabsList: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabsTrigger: ({ children }: { children: React.ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
+  TabsContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("@/components/ui/accordion", () => ({
+  Accordion: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AccordionItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AccordionTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AccordionContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+// Radix Dialog's presence ref-callback loops under jsdom; render it flat so the
+// edit dialog's delete affordance is reachable without the loop.
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) =>
+    open ? <div>{children}</div> : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div role="dialog">{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
 
 // Replace the heavy uploadImage helper to keep EditCharacterDialog inert.
 vi.mock("@/lib/uploadImage", () => ({ uploadImage: vi.fn() }));
