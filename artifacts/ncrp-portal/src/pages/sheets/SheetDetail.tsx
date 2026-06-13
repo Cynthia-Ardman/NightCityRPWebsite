@@ -132,6 +132,7 @@ export default function SheetDetail() {
   const guns = (data.guns as string[]) ?? [];
   const occupation = String(data.occupation ?? "");
   const background = String(data.background ?? "");
+  const hooks = String(data.hooks ?? "");
   const physicalDescription = String(data.physicalDescription ?? "");
   const appearance = String(data.appearance ?? "");
   const psychProfile = String(data.psychProfile ?? "");
@@ -295,6 +296,15 @@ export default function SheetDetail() {
         <CardContent>
           {background.trim()
             ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{background}</Markdown>
+            : <span className="font-mono text-sm text-muted-foreground">—</span>}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">HOOKS</CardTitle></CardHeader>
+        <CardContent>
+          {hooks.trim()
+            ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{hooks}</Markdown>
             : <span className="font-mono text-sm text-muted-foreground">—</span>}
         </CardContent>
       </Card>

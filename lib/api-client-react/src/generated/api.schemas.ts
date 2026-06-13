@@ -3520,6 +3520,11 @@ export interface CharacterSheetData {
   /** @nullable */
   psychProfile: string | null;
   background: string;
+  /**
+     * Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.
+     * @nullable
+     */
+  hooks?: string | null;
   /** @deprecated */
   attributes?: CharacterSheetDataAttributes;
   /** Free-text narrative description of what the character is good at. */

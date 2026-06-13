@@ -6528,6 +6528,7 @@ export const ListMySheetsResponseItem = zod.object({
   "appearance": zod.string().optional(),
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
+  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -6607,6 +6608,7 @@ export const SubmitSheetBody = zod.object({
   "appearance": zod.string().optional(),
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
+  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -6708,6 +6710,7 @@ export const GetSheetResponse = zod.object({
   "appearance": zod.string().optional(),
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
+  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -6792,6 +6795,7 @@ export const UpdateSheetBody = zod.object({
   "appearance": zod.string().optional(),
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
+  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -6850,6 +6854,7 @@ export const UpdateSheetResponse = zod.object({
   "appearance": zod.string().optional(),
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
+  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -6951,6 +6956,7 @@ export const SubmitDraftSheetResponse = zod.object({
   "appearance": zod.string().optional(),
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
+  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -7073,6 +7079,7 @@ export const OverrideSheetResponse = zod.object({
   "appearance": zod.string().optional(),
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
+  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -7174,6 +7181,7 @@ export const RequestChangesSheetResponse = zod.object({
   "appearance": zod.string().optional(),
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
+  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({

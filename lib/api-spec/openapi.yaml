@@ -7360,6 +7360,9 @@ components:
         appearance: { type: string }
         psychProfile: { type: ["string", "null"] }
         background: { type: string }
+        hooks:
+          type: ["string", "null"]
+          description: Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.
         attributes:
           type: object
           deprecated: true

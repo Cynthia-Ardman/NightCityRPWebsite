@@ -187,6 +187,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const [appearance, setAppearance] = useState<string>(init.appearance ?? "");
   const [psychProfile, setPsychProfile] = useState<string>(init.psychProfile ?? "");
   const [background, setBackground] = useState<string>(init.background ?? "");
+  const [hooks, setHooks] = useState<string>(init.hooks ?? "");
   const [notes, setNotes] = useState<string>(init.notes ?? "");
   const [skills, setSkills] = useState<string>(skillsToText(init.skills));
   const [chrome, setChrome] = useState<CW[]>(() => loadCyberware(init));
@@ -248,7 +249,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     sheetType,
     fullName, nickname, pronouns, occupation, archetype,
     age: Number(age) || 0, gender,
-    physicalDescription, appearance, psychProfile, background, notes,
+    physicalDescription, appearance, psychProfile, background, hooks, notes,
     skills,
     cyberware: filledChrome.map((c) => ({
       slot: c.slot.trim() || "Custom",
@@ -323,7 +324,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls],
   );
 
   useEffect(() => {
@@ -590,6 +591,13 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardHeader><CardTitle className="font-display tracking-widest">BACKGROUND</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Field label="Lifepath / Background"><MarkdownEditor testId="input-background" rows={5} value={background} onChange={setBackground} /></Field>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">HOOKS</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <Field label="Story Hooks"><MarkdownEditor testId="input-hooks" rows={4} value={hooks} onChange={setHooks} placeholder="Plot threads, rumors, connections, and unfinished business other characters can pull on..." /></Field>
         </CardContent>
       </Card>
 
