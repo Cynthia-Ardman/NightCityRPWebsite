@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp, MessageSquare, type LucideIcon } from "lucide-r
 import { UnseenDot } from "@/components/review/ReviewLifecycleUI";
 import { ReviewerRoster, type RosterReviewer, type RosterVote } from "@/components/review/ReviewerRoster";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
-import DiscordThreadPanel from "@/components/DiscordThreadPanel";
+import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 
 export type ReviewSubjectType = "request" | "sheet" | "edit";
 
@@ -55,9 +55,10 @@ export function ReviewQueueCard({
   showRoster?: boolean;
   actions?: ReactNode;
   showThread?: boolean;
-  // Mount the READ-ONLY cs-approver Discord thread mirror in the expanded
-  // section. Staff-only surfaces (the misc-request triage queue) opt in; the
-  // server endpoint is reviewer-gated, so this never leaks to players.
+  // Show the READ-ONLY cs-approver Discord thread mirror as a pop-out drawer
+  // button in the card header. Staff-only surfaces (the misc-request triage
+  // queue) opt in; the server endpoint is reviewer-gated, so this never leaks
+  // to players.
   showDiscordThread?: boolean;
   awaitingVote?: boolean;
   markSeenOnMount?: boolean;
@@ -84,11 +85,14 @@ export function ReviewQueueCard({
               <Icon className="w-3 h-3 mr-1" /> {badgeLabel}
             </Badge>
           </div>
-          {date != null && (
-            <span className="text-xs font-mono text-muted-foreground">
-              {new Date(date).toLocaleDateString()}
-            </span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {showDiscordThread && <DiscordThreadDrawer subjectType={subjectType} subjectId={id} iconOnly />}
+            {date != null && (
+              <span className="text-xs font-mono text-muted-foreground">
+                {new Date(date).toLocaleDateString()}
+              </span>
+            )}
+          </div>
         </div>
         <CardTitle className="text-lg font-display truncate mt-2">{title}</CardTitle>
         {subtitle != null && (
@@ -126,9 +130,6 @@ export function ReviewQueueCard({
                 {expanded && (
                   <div className="space-y-3">
                     <AwaitingVoteBanner show={awaitingVote} />
-                    {showDiscordThread && (
-                      <DiscordThreadPanel subjectType={subjectType} subjectId={id} />
-                    )}
                     <ReviewCommentThread
                       subjectType={subjectType}
                       subjectId={id}

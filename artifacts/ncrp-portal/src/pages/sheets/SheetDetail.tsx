@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Check, X, ShieldCheck, RotateCcw } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
-import DiscordThreadPanel from "@/components/DiscordThreadPanel";
+import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import { ReviewerRoster } from "@/components/review/ReviewerRoster";
 import { useMemo, useState } from "react";
 
@@ -169,15 +169,18 @@ export default function SheetDetail() {
             {sheetStatusBadge(sheet.status)}
           </p>
         </div>
-        {canEdit && (
-          <Button
-            onClick={() => setLocation(`/sheets/${sheetId}/edit`)}
-            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-            data-testid="button-edit-sheet"
-          >
-            EDIT
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {isStaff && <DiscordThreadDrawer subjectType="sheet" subjectId={sheetId} />}
+          {canEdit && (
+            <Button
+              onClick={() => setLocation(`/sheets/${sheetId}/edit`)}
+              className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+              data-testid="button-edit-sheet"
+            >
+              EDIT
+            </Button>
+          )}
+        </div>
       </div>
 
       <AwaitingVoteBanner show={!!sheet.canVote && !sheet.myVote} />
@@ -417,9 +420,6 @@ export default function SheetDetail() {
           </CardContent>
         </Card>
       )}
-
-      {/* Read-only mirror of the cs-approver Discord thread. Staff only. */}
-      {isStaff && <DiscordThreadPanel subjectType="sheet" subjectId={sheetId} />}
 
       {/* Two-way discussion thread (player <-> reviewers). Never blocks approval. */}
       {(isStaff || isOwner) && (
