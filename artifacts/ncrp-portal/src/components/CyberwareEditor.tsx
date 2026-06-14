@@ -15,9 +15,13 @@ export type CyberRow = {
   points: number;
   notes: string;
   isCustom?: boolean;
+  // True when the user opted to type a free-text name under a normal (catalog)
+  // slot, instead of picking from that slot's catalog name dropdown.
+  customName?: boolean;
 };
 
 const CUSTOM_SLOT = "__custom__";
+const CUSTOM_NAME = "__custom_name__";
 
 // Encode a cyberware row into the inventory_items.notes convention shared with
 // the sheet seeder: "CWP <n> · <user notes> · slot: <slot>". The "slot: …" part
@@ -234,20 +238,28 @@ export default function CyberwareEditor({
     onChange(rows.filter((_, j) => j !== i));
   }
   function add() {
-    onChange([...rows, { slot: "", name: "", points: 0, notes: "", isCustom: false }]);
+    onChange([...rows, { slot: "", name: "", points: 0, notes: "", isCustom: false, customName: false }]);
   }
   function onSlotChange(i: number, value: string) {
     // Changing the slot resets the slot-specific name/points selection, but must
     // preserve any notes the user has already typed for this row.
     if (value === CUSTOM_SLOT) {
-      update(i, { isCustom: true, slot: "", name: "", points: 0 });
+      update(i, { isCustom: true, customName: false, slot: "", name: "", points: 0 });
     } else {
-      update(i, { isCustom: false, slot: value, name: "", points: 0 });
+      update(i, { isCustom: false, customName: false, slot: value, name: "", points: 0 });
     }
   }
   function onNameChange(i: number, name: string, slot: string) {
+    // "Custom name…" lets the user type a free-text name under a normal catalog
+    // slot. Flip the row into custom-name mode and clear the catalog-derived
+    // name/points so they start fresh.
+    if (name === CUSTOM_NAME) {
+      update(i, { customName: true, name: "", points: 0, notes: "" });
+      return;
+    }
     const item = (catalog ?? []).find((c) => c.slot === slot && c.name === name);
     update(i, {
+      customName: false,
       name,
       points: item ? Number(item.cwp) || 0 : 0,
       notes: item?.description ?? "",
@@ -273,6 +285,16 @@ export default function CyberwareEditor({
       {rows.map((row, idx) => {
         const custom = rowIsCustom(row);
         const namesForSlot = (catalog ?? []).filter((c) => c.slot === row.slot);
+        // Custom-name mode: either explicitly chosen via "Custom name…", or an
+        // existing row whose stored name isn't one of its slot's catalog names
+        // (so it round-trips as free text instead of an unmatched dropdown).
+        const customName =
+          !custom &&
+          (!!row.customName ||
+            (row.name.trim() !== "" &&
+              namesForSlot.length > 0 &&
+              !namesForSlot.some((c) => c.name === row.name)));
+        const showNameInput = custom || customName || namesForSlot.length === 0;
         return (
           <div
             key={row.id ?? `new-${idx}`}
@@ -309,10 +331,12 @@ export default function CyberwareEditor({
 
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">NAME</Label>
-                {custom || namesForSlot.length === 0 ? (
+                {showNameInput ? (
                   <Input
                     value={row.name}
-                    onChange={(e) => update(idx, { name: e.target.value })}
+                    onChange={(e) =>
+                      update(idx, { name: e.target.value, ...(custom ? {} : { customName: true }) })
+                    }
                     placeholder="Cyberware name"
                     className="h-9"
                     data-testid={`input-cyber-name-${testIdPrefix}-${idx}`}
@@ -331,6 +355,7 @@ export default function CyberwareEditor({
                         {c.cwp ? ` (${c.cwp} CWP)` : ""}
                       </option>
                     ))}
+                    <option value={CUSTOM_NAME}>Custom name…</option>
                   </select>
                 )}
               </div>

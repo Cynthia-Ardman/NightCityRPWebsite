@@ -118,7 +118,6 @@ export default function MyClinicDetail() {
   const [empRole, setEmpRole] = useState("");
   const [empCommission, setEmpCommission] = useState(0);
   const [stockName, setStockName] = useState("");
-  const [stockCategory, setStockCategory] = useState("");
   const [stockSlot, setStockSlot] = useState("");
   const [stockCwp, setStockCwp] = useState(0);
   const [stockDescription, setStockDescription] = useState("");
@@ -358,17 +357,7 @@ export default function MyClinicDetail() {
             <div className="grid grid-cols-12 gap-2">
               <Input className="col-span-6" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
               <SelectOrCustom
-                className="col-span-3"
-                value={stockCategory}
-                onChange={setStockCategory}
-                options={CYBERWARE_SLOTS}
-                placeholder="Cyber category"
-                emptyLabel="— Category —"
-                customPlaceholder="Custom category"
-                testId="input-add-cyber-category"
-              />
-              <SelectOrCustom
-                className="col-span-3"
+                className="col-span-6"
                 value={stockSlot}
                 onChange={setStockSlot}
                 options={CYBERWARE_SLOTS}
@@ -388,7 +377,6 @@ export default function MyClinicDetail() {
                     id: rid,
                     data: {
                       name: stockName.trim(),
-                      category: stockCategory.trim() || undefined,
                       slot: stockSlot.trim() || undefined,
                       cwp: stockCwp > 0 ? Math.floor(stockCwp) : undefined,
                       description: stockDescription.trim() || undefined,
@@ -397,7 +385,6 @@ export default function MyClinicDetail() {
                     },
                   });
                   setStockName("");
-                  setStockCategory("");
                   setStockSlot("");
                   setStockCwp(0);
                   setStockDescription("");

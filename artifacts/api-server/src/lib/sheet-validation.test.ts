@@ -160,31 +160,23 @@ describe("validateSheetFields - skills", () => {
   });
 });
 
-describe("validateSheetFields - gear", () => {
-  it("rejects a missing gear list", () => {
+describe("validateSheetFields - gear (optional)", () => {
+  it("accepts a missing gear list", () => {
     const d = validSheet();
     delete d.gear;
-    expect(validateSheetFields(d, [])).toBe(
-      "Missing required field: gear/equipment (at least one entry)",
-    );
+    expect(validateSheetFields(d, [])).toBeNull();
   });
 
-  it("rejects gear that is not an array", () => {
-    expect(validateSheetFields(validSheet({ gear: "Pistol" }), [])).toBe(
-      "Missing required field: gear/equipment (at least one entry)",
-    );
+  it("accepts gear that is not an array", () => {
+    expect(validateSheetFields(validSheet({ gear: "Pistol" }), [])).toBeNull();
   });
 
-  it("rejects an empty gear array", () => {
-    expect(validateSheetFields(validSheet({ gear: [] }), [])).toBe(
-      "Missing required field: gear/equipment (at least one entry)",
-    );
+  it("accepts an empty gear array", () => {
+    expect(validateSheetFields(validSheet({ gear: [] }), [])).toBeNull();
   });
 
-  it("rejects a gear array of only blank / non-string entries", () => {
-    expect(validateSheetFields(validSheet({ gear: ["", "   ", 5, null] }), [])).toBe(
-      "Missing required field: gear/equipment (at least one entry)",
-    );
+  it("accepts a gear array of only blank / non-string entries", () => {
+    expect(validateSheetFields(validSheet({ gear: ["", "   ", 5, null] }), [])).toBeNull();
   });
 
   it("accepts a gear array with at least one non-empty entry", () => {

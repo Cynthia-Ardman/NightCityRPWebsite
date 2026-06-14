@@ -58,10 +58,7 @@ export function validateSheetFields(data: unknown, roles: string[]): string | nu
     return "Missing required field: skills";
   }
 
-  const gearList = d.gear;
-  if (!Array.isArray(gearList) || gearList.filter((g) => typeof g === "string" && g.trim()).length === 0) {
-    return "Missing required field: gear/equipment (at least one entry)";
-  }
+  // Gear/equipment is optional — a sheet may be submitted with no starting gear.
 
   // Portrait and stats images are required to submit (but not to save a draft).
   const portraits = d.portraitUrls;
