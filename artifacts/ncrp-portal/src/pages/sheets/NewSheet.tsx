@@ -185,6 +185,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const [age, setAge] = useState<string>(init.age != null ? String(init.age) : "");
   const [gender, setGender] = useState<string>(init.gender ?? "");
   const [physicalDescription, setPhysicalDescription] = useState<string>(init.physicalDescription ?? "");
+  const [appearance, setAppearance] = useState<string>(init.appearance ?? "");
   const [psychProfile, setPsychProfile] = useState<string>(init.psychProfile ?? "");
   const [background, setBackground] = useState<string>(init.background ?? "");
   const [hooks, setHooks] = useState<string>(init.hooks ?? "");
@@ -249,7 +250,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     sheetType,
     fullName, nickname, pronouns, occupation, archetype,
     age: Number(age) || 0, gender,
-    physicalDescription, psychProfile, background, hooks, notes,
+    physicalDescription, appearance, psychProfile, background, hooks, notes,
     skills,
     cyberware: filledChrome.map((c) => ({
       slot: c.slot.trim() || "Custom",
@@ -329,7 +330,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls],
   );
 
   useEffect(() => {
@@ -601,6 +602,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           <Tabs defaultValue="description" className="w-full">
             <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-none border-b border-border bg-transparent p-0 mb-4">
               <TabsTrigger value="description" className={subTabTriggerClass} data-testid="subtab-new-description">DESCRIPTION</TabsTrigger>
+              <TabsTrigger value="style" className={subTabTriggerClass} data-testid="subtab-new-style">STYLE</TabsTrigger>
               <TabsTrigger value="psychology" className={subTabTriggerClass} data-testid="subtab-new-psychology">PSYCHOLOGY</TabsTrigger>
               <TabsTrigger value="background" className={subTabTriggerClass} data-testid="subtab-new-background">BACKGROUND</TabsTrigger>
               <TabsTrigger value="hooks" className={subTabTriggerClass} data-testid="subtab-new-hooks">HOOKS</TabsTrigger>
@@ -613,6 +615,17 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardHeader><CardTitle className="font-display tracking-widest">PHYSICAL DESCRIPTION</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Field label="Build, Height, Distinguishing Features"><MarkdownEditor testId="input-physical" rows={3} value={physicalDescription} onChange={setPhysicalDescription} /></Field>
+        </CardContent>
+      </Card>
+
+            </TabsContent>
+
+            <TabsContent value="style" forceMount className="mt-0 data-[state=inactive]:hidden">
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">STYLE</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <Field label="Style"><MarkdownEditor testId="input-appearance" rows={3} value={appearance} onChange={setAppearance} /></Field>
         </CardContent>
       </Card>
 
