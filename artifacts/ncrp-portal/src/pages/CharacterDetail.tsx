@@ -23,7 +23,7 @@ import {
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,6 +151,14 @@ export default function CharacterDetail() {
 // the exact same tabs (read + edit) for ANY character. `staffView` switches the
 // Missions feed from the owner's "/missions/mine" to the staff-wide
 // "/missions/owned" board so a moderator sees the target character's missions.
+const CHAR_TAB_VALUES = ["profile", "property", "inventory", "cyberware", "missions", "breach"] as const;
+
+function readCharTabFromHash(): string {
+  if (typeof window === "undefined") return "profile";
+  const h = window.location.hash.replace(/^#/, "");
+  return (CHAR_TAB_VALUES as readonly string[]).includes(h) ? h : "profile";
+}
+
 export function CharacterTabsPanel({
   characterId,
   staffView = false,
@@ -159,9 +167,18 @@ export function CharacterTabsPanel({
   staffView?: boolean;
 }) {
   const { data: char } = useGetCharacter(characterId);
+  // Deep-linkable tabs: EditCharacterDialog (and external links) route here with
+  // a #hash (e.g. /characters/:id#cyberware). Drive the Tabs from the hash and
+  // keep it in sync when the hash changes while we're already on the page.
+  const [tab, setTab] = useState<string>(() => readCharTabFromHash());
+  useEffect(() => {
+    const onHash = () => setTab(readCharTabFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   if (!char) return null;
   return (
-    <Tabs defaultValue="profile" className="w-full">
+    <Tabs value={tab} onValueChange={setTab} className="w-full">
       <TabsList className="bg-card border border-border rounded-none p-0 h-auto flex overflow-x-auto w-full max-w-full no-scrollbar">
         <TabsTrigger value="profile" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-profile">
           <Terminal className="w-4 h-4 mr-2 hidden sm:inline" /> Profile

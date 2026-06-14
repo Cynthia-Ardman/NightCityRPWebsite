@@ -59,6 +59,47 @@ function rowsToSections(rows: SectionRow[]): Record<string, string> {
   return out;
 }
 
+type AcquireRoute = { label: string; description: string; onClick: () => void; testId: string };
+
+// Read-only panel explaining how a category of equipment is acquired through the
+// proper review/store flow. It never edits inventory — each button just links to
+// the relevant request form.
+function AcquisitionPanel({
+  intro,
+  routes,
+  testId,
+}: {
+  intro: string;
+  routes: AcquireRoute[];
+  testId: string;
+}) {
+  return (
+    <div className="border border-nc-cyan/30 p-4 bg-card/20 space-y-4" data-testid={testId}>
+      <p className="text-xs font-mono text-muted-foreground">{intro}</p>
+      <div className="space-y-2">
+        {routes.map((r) => (
+          <div
+            key={r.label}
+            className="flex flex-col gap-2 border border-border bg-background/40 p-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-xs font-mono text-muted-foreground">{r.description}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 rounded-none font-display text-xs"
+              onClick={r.onClick}
+              data-testid={r.testId}
+            >
+              {r.label}
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function EditCharacterDialog({
   character,
   open,
@@ -308,6 +349,16 @@ export default function EditCharacterDialog({
     }
   }
 
+  // Acquisition tabs (cyberware/gear/firearms for non-staff) only LINK to the
+  // proper request flows — they never edit inventory directly. Close the dialog,
+  // route to the destination, then set the hash so the character page's tab
+  // deep-linking picks it up even when we're already on that page.
+  const goAcquire = (path: string, hash?: string) => {
+    onOpenChange(false);
+    navigate(path);
+    if (hash) window.location.hash = hash;
+  };
+
   const tabTriggerClass =
     "rounded-none border border-border bg-transparent px-3 py-1.5 font-display text-xs tracking-widest text-muted-foreground data-[state=active]:border-nc-cyan data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:shadow-none";
   const accTriggerClass =
@@ -339,6 +390,12 @@ export default function EditCharacterDialog({
               </TabsTrigger>
               <TabsTrigger value="cyberware" className={tabTriggerClass} data-testid="tab-edit-cyberware">
                 CYBERWARE
+              </TabsTrigger>
+              <TabsTrigger value="gear" className={tabTriggerClass} data-testid="tab-edit-gear">
+                GEAR
+              </TabsTrigger>
+              <TabsTrigger value="firearms" className={tabTriggerClass} data-testid="tab-edit-firearms">
+                FIREARMS
               </TabsTrigger>
               {isStaff && (
                 <TabsTrigger value="staff" className={tabTriggerClass} data-testid="tab-edit-staff">
@@ -592,14 +649,54 @@ export default function EditCharacterDialog({
                     </div>
                   </div>
                 ) : (
-                  <div className="border border-nc-cyan/30 p-4 bg-card/20">
-                    <p className="text-xs font-mono text-muted-foreground" data-testid="text-cyberware-review-note">
-                      Cyberware changes go through review. Request an install or removal
-                      from the <span className="text-nc-cyan">Cyberware</span> tab on the
-                      character page and a fixer will approve it.
-                    </p>
-                  </div>
+                  <AcquisitionPanel
+                    testId="text-cyberware-review-note"
+                    intro="Cyberware is never edited directly here. It's installed by a ripperdoc from clinic stock, or — for anything custom — through a cyberware request that a fixer approves before a ripperdoc installs it."
+                    routes={[
+                      {
+                        label: "GO TO CYBERWARE",
+                        description:
+                          "Request an install or removal from the Cyberware tab on the character page. A fixer reviews custom chrome; ripperdocs handle the install.",
+                        onClick: () => goAcquire(`/characters/${character.id}`, "cyberware"),
+                        testId: "button-edit-go-cyberware",
+                      },
+                    ]}
+                  />
                 )}
+              </TabsContent>
+
+              {/* GEAR — read-only pointer to the proper acquisition flow */}
+              <TabsContent value="gear" className="mt-0">
+                <AcquisitionPanel
+                  testId="panel-edit-gear"
+                  intro="Gear isn't edited directly here. Buy it from a store, or — for anything custom — file a custom item request that a fixer approves."
+                  routes={[
+                    {
+                      label: "GO TO INVENTORY",
+                      description:
+                        "View and request gear from the Inventory tab on the character page. Store purchases and approved custom item requests show up there.",
+                      onClick: () => goAcquire(`/characters/${character.id}`, "inventory"),
+                      testId: "button-edit-go-inventory",
+                    },
+                  ]}
+                />
+              </TabsContent>
+
+              {/* FIREARMS — read-only pointer to the gun store / request flow */}
+              <TabsContent value="firearms" className="mt-0">
+                <AcquisitionPanel
+                  testId="panel-edit-firearms"
+                  intro="Firearms aren't edited directly here. Buy one from a gun store, or — for anything custom — file a custom gun request that a fixer approves."
+                  routes={[
+                    {
+                      label: "GO TO GUN STORE",
+                      description:
+                        "Browse and purchase firearms from the gun store. Custom builds go through a gun request reviewed by a fixer.",
+                      onClick: () => goAcquire("/catalog/guns"),
+                      testId: "button-edit-go-guns",
+                    },
+                  ]}
+                />
               </TabsContent>
 
               {/* STAFF one-stop-shop: grant gear / guns / property to any character */}

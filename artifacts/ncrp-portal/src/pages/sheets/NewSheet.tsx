@@ -21,6 +21,7 @@ import MarkdownEditor from "@/components/MarkdownEditor";
 import ImageEditor from "@/components/ImageEditor";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, Trash2, BookMarked, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CHARACTER_CREATION_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
@@ -432,6 +433,11 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     ? "Save failed"
     : draftId ? "Draft loaded" : "";
 
+  const tabTriggerClass =
+    "rounded-none border border-border bg-transparent px-3 py-1.5 font-display text-xs tracking-widest text-muted-foreground data-[state=active]:border-nc-cyan data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:shadow-none";
+  const subTabTriggerClass =
+    "rounded-none border-b-2 border-transparent bg-transparent px-3 py-1.5 font-display text-[11px] tracking-widest text-muted-foreground data-[state=active]:border-nc-cyan data-[state=active]:text-nc-cyan data-[state=active]:shadow-none";
+
   return (
     <form onSubmit={onSubmit} className="space-y-6 max-w-7xl mx-auto pb-12">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -550,6 +556,19 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </Card>
       )}
 
+      <Tabs defaultValue="identity" className="w-full">
+        <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-none bg-transparent p-0 mb-4 mt-2">
+          <TabsTrigger value="identity" className={tabTriggerClass} data-testid="tab-new-identity">IDENTITY</TabsTrigger>
+          <TabsTrigger value="story" className={tabTriggerClass} data-testid="tab-new-story">STORY</TabsTrigger>
+          <TabsTrigger value="gear" className={tabTriggerClass} data-testid="tab-new-gear">GEAR</TabsTrigger>
+          <TabsTrigger value="firearms" className={tabTriggerClass} data-testid="tab-new-firearms">FIREARMS</TabsTrigger>
+          <TabsTrigger value="cyberware" className={tabTriggerClass} data-testid="tab-new-cyberware">CYBERWARE</TabsTrigger>
+          <TabsTrigger value="media" className={tabTriggerClass} data-testid="tab-new-media">MEDIA</TabsTrigger>
+          <TabsTrigger value="notes" className={tabTriggerClass} data-testid="tab-new-notes">NOTES</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="identity" forceMount className="mt-0 space-y-6 data-[state=inactive]:hidden">
+
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">IDENTITY</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -577,6 +596,20 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </CardContent>
       </Card>
 
+        </TabsContent>
+
+        <TabsContent value="story" forceMount className="mt-0 data-[state=inactive]:hidden">
+          <Tabs defaultValue="description" className="w-full">
+            <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-none border-b border-border bg-transparent p-0 mb-4">
+              <TabsTrigger value="description" className={subTabTriggerClass} data-testid="subtab-new-description">DESCRIPTION</TabsTrigger>
+              <TabsTrigger value="psychology" className={subTabTriggerClass} data-testid="subtab-new-psychology">PSYCHOLOGY</TabsTrigger>
+              <TabsTrigger value="background" className={subTabTriggerClass} data-testid="subtab-new-background">BACKGROUND</TabsTrigger>
+              <TabsTrigger value="hooks" className={subTabTriggerClass} data-testid="subtab-new-hooks">HOOKS</TabsTrigger>
+              <TabsTrigger value="skills" className={subTabTriggerClass} data-testid="subtab-new-skills">SKILLS</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="description" forceMount className="mt-0 data-[state=inactive]:hidden">
+
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PHYSICAL DESCRIPTION</CardTitle></CardHeader>
         <CardContent className="space-y-4">
@@ -585,12 +618,20 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </CardContent>
       </Card>
 
+            </TabsContent>
+
+            <TabsContent value="psychology" forceMount className="mt-0 data-[state=inactive]:hidden">
+
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PSYCHOLOGICAL PROFILE</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Field label="Personality, Motivations, Fears"><MarkdownEditor testId="input-psych" rows={4} value={psychProfile} onChange={setPsychProfile} /></Field>
         </CardContent>
       </Card>
+
+            </TabsContent>
+
+            <TabsContent value="background" forceMount className="mt-0 data-[state=inactive]:hidden">
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">BACKGROUND</CardTitle></CardHeader>
@@ -599,12 +640,20 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </CardContent>
       </Card>
 
+            </TabsContent>
+
+            <TabsContent value="hooks" forceMount className="mt-0 data-[state=inactive]:hidden">
+
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">HOOKS</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Field label="Story Hooks"><MarkdownEditor testId="input-hooks" rows={4} value={hooks} onChange={setHooks} placeholder="Plot threads, rumors, connections, and unfinished business other characters can pull on..." /></Field>
         </CardContent>
       </Card>
+
+            </TabsContent>
+
+            <TabsContent value="skills" forceMount className="mt-0 data-[state=inactive]:hidden">
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">SKILLS</CardTitle></CardHeader>
@@ -614,6 +663,12 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           </Field>
         </CardContent>
       </Card>
+
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="gear" forceMount className="mt-0 data-[state=inactive]:hidden">
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between">
@@ -628,6 +683,10 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           ))}
         </CardContent>
       </Card>
+
+        </TabsContent>
+
+        <TabsContent value="firearms" forceMount className="mt-0 data-[state=inactive]:hidden">
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between">
@@ -657,6 +716,10 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           ))}
         </CardContent>
       </Card>
+
+        </TabsContent>
+
+        <TabsContent value="cyberware" forceMount className="mt-0 data-[state=inactive]:hidden">
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between">
@@ -754,6 +817,10 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </CardContent>
       </Card>
 
+        </TabsContent>
+
+        <TabsContent value="media" forceMount className="mt-0 data-[state=inactive]:hidden">
+
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PORTRAIT &amp; STATS</CardTitle></CardHeader>
         <CardContent className="space-y-6 font-mono">
@@ -792,10 +859,17 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </CardContent>
       </Card>
 
+        </TabsContent>
+
+        <TabsContent value="notes" forceMount className="mt-0 data-[state=inactive]:hidden">
+
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">NOTES</CardTitle></CardHeader>
         <CardContent><Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="input-notes" /></CardContent>
       </Card>
+
+        </TabsContent>
+      </Tabs>
 
       <div className="flex flex-wrap gap-3 justify-end items-center">
         <Button type="button" variant="outline" onClick={() => setLocation("/characters")} className="rounded-none font-display">CANCEL</Button>
