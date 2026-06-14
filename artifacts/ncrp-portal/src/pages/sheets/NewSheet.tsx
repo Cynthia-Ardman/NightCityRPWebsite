@@ -185,7 +185,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const [age, setAge] = useState<string>(init.age != null ? String(init.age) : "");
   const [gender, setGender] = useState<string>(init.gender ?? "");
   const [physicalDescription, setPhysicalDescription] = useState<string>(init.physicalDescription ?? "");
-  const [appearance, setAppearance] = useState<string>(init.appearance ?? "");
   const [psychProfile, setPsychProfile] = useState<string>(init.psychProfile ?? "");
   const [background, setBackground] = useState<string>(init.background ?? "");
   const [hooks, setHooks] = useState<string>(init.hooks ?? "");
@@ -250,7 +249,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     sheetType,
     fullName, nickname, pronouns, occupation, archetype,
     age: Number(age) || 0, gender,
-    physicalDescription, appearance, psychProfile, background, hooks, notes,
+    physicalDescription, psychProfile, background, hooks, notes,
     skills,
     cyberware: filledChrome.map((c) => ({
       slot: c.slot.trim() || "Custom",
@@ -330,7 +329,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls],
   );
 
   useEffect(() => {
@@ -614,7 +613,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardHeader><CardTitle className="font-display tracking-widest">PHYSICAL DESCRIPTION</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Field label="Build, Height, Distinguishing Features"><MarkdownEditor testId="input-physical" rows={3} value={physicalDescription} onChange={setPhysicalDescription} /></Field>
-          <Field label="Style"><MarkdownEditor testId="input-appearance" rows={3} value={appearance} onChange={setAppearance} /></Field>
         </CardContent>
       </Card>
 
