@@ -5671,11 +5671,21 @@ components:
     SheetData:
       type: object
       required: [preamble, sections]
+      # Sheet-created characters store discrete story fields plus gear/guns/
+      # identity at the top level of sheetData. additionalProperties keeps those
+      # extra keys (they pass through validation untouched) so a story edit can
+      # send a merged blob without dropping anything the new-character form saved.
+      additionalProperties: true
       properties:
         preamble: { type: string }
         sections:
           type: object
           additionalProperties: { type: string }
+        physicalDescription: { type: string }
+        appearance: { type: string }
+        psychProfile: { type: string }
+        hooks: { type: string }
+        skills: { type: string }
 
     PublicCharacterSummary:
       type: object

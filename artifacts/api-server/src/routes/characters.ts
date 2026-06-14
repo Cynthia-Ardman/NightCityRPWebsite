@@ -191,10 +191,20 @@ const CharacterUpdateSchema = z
     portraitUrl: z.string().nullable(),
     portraitUrls: z.array(z.string()),
     statsImageUrls: z.array(z.string()),
-    sheetData: z.object({
-      preamble: z.string(),
-      sections: z.record(z.string(), z.string()),
-    }),
+    // Mirrors the live EditableSchema in pending-edits.ts: sheet-created
+    // characters keep discrete story fields + gear/guns/identity at the top
+    // level of sheetData, so the inner object must passthrough unknown keys.
+    sheetData: z
+      .object({
+        preamble: z.string(),
+        sections: z.record(z.string(), z.string()),
+        physicalDescription: z.string().optional(),
+        appearance: z.string().optional(),
+        psychProfile: z.string().optional(),
+        hooks: z.string().optional(),
+        skills: z.string().optional(),
+      })
+      .passthrough(),
     lifeStatus: z.enum(LIFE_STATUSES),
     updateNote: z.string().trim().min(1).max(2000),
   })

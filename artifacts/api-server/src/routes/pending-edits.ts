@@ -33,10 +33,24 @@ const EditableSchema = z
     portraitUrl: z.string().nullable(),
     portraitUrls: z.array(z.string()),
     statsImageUrls: z.array(z.string()),
-    sheetData: z.object({
-      preamble: z.string(),
-      sections: z.record(z.string(), z.string()),
-    }),
+    // `preamble`/`sections` are the legacy free-form story shape. Sheet-created
+    // characters instead store discrete story fields (physicalDescription,
+    // appearance, …) plus gear/guns/identity at the top level of sheetData.
+    // The inner object is non-strict (.passthrough) so those extra keys survive
+    // the parse — without it the validator silently STRIPS them and a story edit
+    // wipes everything the new-character form stored. See applyDiff (whole
+    // replace) — the client always sends the merged blob, so nothing is lost.
+    sheetData: z
+      .object({
+        preamble: z.string(),
+        sections: z.record(z.string(), z.string()),
+        physicalDescription: z.string().optional(),
+        appearance: z.string().optional(),
+        psychProfile: z.string().optional(),
+        hooks: z.string().optional(),
+        skills: z.string().optional(),
+      })
+      .passthrough(),
     lifeStatus: z.enum(["active", "dead", "missing", "loa", "retired"]),
     traumaTeamTier: z.enum(["silver", "gold", "platinum", "diamond"]).nullable(),
     xanaduGold: z.boolean(),

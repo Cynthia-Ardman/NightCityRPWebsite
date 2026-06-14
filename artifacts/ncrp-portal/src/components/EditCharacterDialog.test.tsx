@@ -284,7 +284,7 @@ describe("EditCharacterDialog", () => {
         portraitUrl: string | null;
         portraitUrls: string[];
         statsImageUrls: string[];
-        sheetData: { preamble: string; sections: Record<string, string> };
+        sheetData: Record<string, unknown>;
         lifeStatus: string;
         traumaTeamTier: string | null;
         xanaduGold: boolean;
@@ -305,9 +305,16 @@ describe("EditCharacterDialog", () => {
       "https://img/2.png",
     ]);
     expect(call.data.statsImageUrls).toEqual(["https://img/stats.png"]);
+    // sheetData is now MERGED, not replaced: the edited preamble/sections plus
+    // the discrete story fields (empty here, untouched in this test) ride along.
     expect(call.data.sheetData).toEqual({
       preamble: "Hello world",
       sections: { Backstory: "Born here.", Quirks: "loud" },
+      physicalDescription: "",
+      appearance: "",
+      psychProfile: "",
+      hooks: "",
+      skills: "",
     });
     // updateNote is trimmed before being sent.
     expect(call.data.updateNote).toBe("refit");

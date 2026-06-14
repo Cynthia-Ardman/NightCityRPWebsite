@@ -104,7 +104,12 @@ export const ListMyCharactersResponseItem = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -164,7 +169,12 @@ export const GetCharacterResponse = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -220,7 +230,12 @@ export const UpdateCharacterBody = zod.object({
   "statsImageUrls": zod.array(zod.string()).optional(),
   "sheetData": zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 }).optional(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
   "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish(),
@@ -246,7 +261,12 @@ export const UpdateCharacterResponse = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -606,7 +626,12 @@ export const SetCharacterLifestyleResponse = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -7554,7 +7579,12 @@ export const AdminListUsersResponseItem = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -7617,7 +7647,12 @@ export const AdminGetUserResponse = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -7696,7 +7731,12 @@ export const AdminSyncUserRolesResponse = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -7834,7 +7874,12 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -7883,7 +7928,12 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -8072,7 +8122,12 @@ export const GetPublicCharacterResponse = zod.object({
   "statsImageUrls": zod.array(zod.string()),
   "sheetData": zod.union([zod.null(),zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional()
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),

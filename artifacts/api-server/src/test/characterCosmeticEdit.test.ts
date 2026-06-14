@@ -72,6 +72,47 @@ describe("cosmetic character edits auto-apply", () => {
     expect(await pendingCount(c.id)).toBe(0);
   });
 
+  it("auto-applies a merged sheetData blob and preserves non-story keys (gear/identity)", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id, {
+      sheetData: {
+        preamble: "old",
+        sections: {},
+        physicalDescription: "tall",
+        gear: ["knife"],
+        identity: { handle: "Ghost" },
+      },
+    });
+
+    // The edit dialog sends the whole merged blob: edited story fields plus the
+    // untouched gear/identity it spread off the existing sheetData.
+    const res = await patch(u.id, c.id, {
+      sheetData: {
+        preamble: "old",
+        sections: {},
+        physicalDescription: "taller now",
+        appearance: "neon jacket",
+        psychProfile: "",
+        hooks: "",
+        skills: "",
+        gear: ["knife"],
+        identity: { handle: "Ghost" },
+      },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.autoApplied).toBe(true);
+    expect(await pendingCount(c.id)).toBe(0);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    const sheet = row.sheetData as Record<string, unknown>;
+    // Edited story fields landed...
+    expect(sheet.physicalDescription).toBe("taller now");
+    expect(sheet.appearance).toBe("neon jacket");
+    // ...and the non-story keys survived the round-trip (passthrough).
+    expect(sheet.gear).toEqual(["knife"]);
+    expect(sheet.identity).toEqual({ handle: "Ghost" });
+  });
+
   it("auto-applies a cosmetic edit that carries an updateNote (note logged)", async () => {
     const u = await createUser();
     const c = await ownedChar(u.id);

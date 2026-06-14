@@ -59,6 +59,27 @@ function rowsToSections(rows: SectionRow[]): Record<string, string> {
   return out;
 }
 
+// Turn whatever shape an older sheet stored skills in (an object of
+// skill -> rank, or a plain string) into the free-text value the form edits.
+// Mirrors NewSheet's helper so the edit form and the create form agree.
+function skillsToText(o: unknown): string {
+  if (typeof o === "string") return o;
+  if (o && typeof o === "object") {
+    return Object.entries(o as Record<string, unknown>)
+      .map(([k, v]) => (v != null && v !== "" ? `${k} ${v}` : k))
+      .join("\n");
+  }
+  return "";
+}
+
+// Read a top-level string field off a character's sheetData blob. Sheet-created
+// characters store discrete story fields (physicalDescription, appearance, …)
+// here; legacy characters don't, so missing keys read as "".
+function sheetStr(sheetData: Character["sheetData"], key: string): string {
+  const v = (sheetData ?? {}) as Record<string, unknown>;
+  return typeof v[key] === "string" ? (v[key] as string) : "";
+}
+
 type AcquireRoute = { label: string; description: string; onClick: () => void; testId: string };
 
 // Read-only panel explaining how a category of equipment is acquired through the
@@ -127,6 +148,14 @@ export default function EditCharacterDialog({
   const [rows, setRows] = useState<SectionRow[]>(
     sectionsToRows(character.sheetData?.sections),
   );
+  // Discrete story fields — the same set the new-character form captures.
+  // Sheet-created characters store these at the top level of sheetData; legacy
+  // characters leave them empty and use the free-form sections below instead.
+  const [physicalDescription, setPhysicalDescription] = useState(sheetStr(character.sheetData, "physicalDescription"));
+  const [appearance, setAppearance] = useState(sheetStr(character.sheetData, "appearance"));
+  const [psychProfile, setPsychProfile] = useState(sheetStr(character.sheetData, "psychProfile"));
+  const [hooks, setHooks] = useState(sheetStr(character.sheetData, "hooks"));
+  const [skills, setSkills] = useState(skillsToText(character.sheetData?.skills));
   const [portraitUrl, setPortraitUrl] = useState<string | null>(character.portraitUrl ?? null);
   const [portraitUrls, setPortraitUrls] = useState<string[]>(character.portraitUrls ?? []);
   const [statsImageUrls, setStatsImageUrls] = useState<string[]>(character.statsImageUrls ?? []);
@@ -191,6 +220,11 @@ export default function EditCharacterDialog({
     setBackground(character.background ?? "");
     setPreamble(character.sheetData?.preamble ?? "");
     setRows(sectionsToRows(character.sheetData?.sections));
+    setPhysicalDescription(sheetStr(character.sheetData, "physicalDescription"));
+    setAppearance(sheetStr(character.sheetData, "appearance"));
+    setPsychProfile(sheetStr(character.sheetData, "psychProfile"));
+    setHooks(sheetStr(character.sheetData, "hooks"));
+    setSkills(skillsToText(character.sheetData?.skills));
     setPortraitUrl(character.portraitUrl ?? null);
     setPortraitUrls(character.portraitUrls ?? []);
     setStatsImageUrls(character.statsImageUrls ?? []);
@@ -289,7 +323,20 @@ export default function EditCharacterDialog({
         portraitUrl: portraitUrl,
         portraitUrls,
         statsImageUrls,
-        sheetData: { preamble, sections: rowsToSections(rows) },
+        // MERGE onto the existing sheetData rather than replacing it. Sheet-created
+        // characters keep discrete story fields (the ones edited above) plus
+        // gear/guns/identity here; spreading the current blob first preserves the
+        // keys this form doesn't surface, so a story edit never wipes them.
+        sheetData: {
+          ...((character.sheetData ?? {}) as Record<string, unknown>),
+          preamble,
+          sections: rowsToSections(rows),
+          physicalDescription,
+          appearance,
+          psychProfile,
+          hooks,
+          skills,
+        },
         lifeStatus: lifeStatus as "active" | "dead" | "missing" | "loa" | "retired",
         traumaTeamTier: (traumaTeamTier || null) as "silver" | "gold" | "platinum" | "diamond" | null,
         xanaduGold,
@@ -361,6 +408,8 @@ export default function EditCharacterDialog({
 
   const tabTriggerClass =
     "rounded-none border border-border bg-transparent px-3 py-1.5 font-display text-xs tracking-widest text-muted-foreground data-[state=active]:border-nc-cyan data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:shadow-none";
+  const subTabTriggerClass =
+    "rounded-none border-b-2 border-transparent bg-transparent px-3 py-1.5 font-display text-[11px] tracking-widest text-muted-foreground data-[state=active]:border-nc-cyan data-[state=active]:text-nc-cyan data-[state=active]:shadow-none";
   const accTriggerClass =
     "font-display text-xs tracking-widest text-nc-cyan hover:no-underline";
 
@@ -506,103 +555,157 @@ export default function EditCharacterDialog({
 
               {/* STORY */}
               <TabsContent value="story" className="mt-0">
-                <Accordion type="multiple" defaultValue={["background", "sections"]}>
-                  <AccordionItem value="background" className="border-border">
-                    <AccordionTrigger className={accTriggerClass}>BACKGROUND / DOSSIER SUMMARY</AccordionTrigger>
-                    <AccordionContent>
-                      <MarkdownEditor
-                        value={background}
-                        onChange={setBackground}
-                        rows={6}
-                        testId="input-edit-background"
-                      />
-                    </AccordionContent>
-                  </AccordionItem>
+                <Tabs defaultValue="description" className="space-y-4">
+                  <TabsList className="flex h-auto flex-wrap justify-start gap-1 rounded-none border-b border-border bg-transparent p-0">
+                    <TabsTrigger value="description" className={subTabTriggerClass}>DESCRIPTION</TabsTrigger>
+                    <TabsTrigger value="style" className={subTabTriggerClass}>STYLE</TabsTrigger>
+                    <TabsTrigger value="psychology" className={subTabTriggerClass}>PSYCHOLOGY</TabsTrigger>
+                    <TabsTrigger value="background" className={subTabTriggerClass}>BACKGROUND</TabsTrigger>
+                    <TabsTrigger value="hooks" className={subTabTriggerClass}>HOOKS</TabsTrigger>
+                    <TabsTrigger value="skills" className={subTabTriggerClass}>SKILLS</TabsTrigger>
+                    <TabsTrigger value="sections" className={subTabTriggerClass}>SECTIONS</TabsTrigger>
+                    <TabsTrigger value="note" className={subTabTriggerClass}>NOTE</TabsTrigger>
+                  </TabsList>
 
-                  <AccordionItem value="sections" className="border-border">
-                    <AccordionTrigger className={accTriggerClass}>SHEET SECTIONS</AccordionTrigger>
-                    <AccordionContent className="space-y-3">
-                      <div className="flex items-center justify-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="rounded-none font-display"
-                          onClick={() => setRows((r) => [...r, { key: "", value: "" }])}
-                          data-testid="button-add-section"
-                        >
-                          <Plus className="w-3 h-3 mr-1" /> ADD SECTION
-                        </Button>
-                      </div>
-                      {rows.length === 0 && (
-                        <div className="text-muted-foreground italic">No sections. Add one above.</div>
-                      )}
-                      {rows.map((row, idx) => (
-                        <div
-                          key={idx}
-                          className="border border-border/40 p-3 space-y-2 bg-card/30"
-                          data-testid={`section-row-${idx}`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Input
-                              value={row.key}
-                              onChange={(e) =>
-                                setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, key: e.target.value } : r)))
-                              }
-                              placeholder="Section name (e.g. Backstory)"
-                              className="flex-1"
-                              data-testid={`input-section-key-${idx}`}
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive h-8 w-8 shrink-0"
-                              onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}
-                              data-testid={`button-remove-section-${idx}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <MarkdownEditor
-                            value={row.value}
-                            onChange={(v) =>
-                              setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, value: v } : r)))
+                  <TabsContent value="description" className="mt-0">
+                    <Label className="text-xs">PHYSICAL DESCRIPTION</Label>
+                    <MarkdownEditor
+                      value={physicalDescription}
+                      onChange={setPhysicalDescription}
+                      rows={6}
+                      testId="input-edit-physical"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="style" className="mt-0">
+                    <Label className="text-xs">STYLE / APPEARANCE</Label>
+                    <MarkdownEditor
+                      value={appearance}
+                      onChange={setAppearance}
+                      rows={6}
+                      testId="input-edit-appearance"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="psychology" className="mt-0">
+                    <Label className="text-xs">PSYCHOLOGICAL PROFILE</Label>
+                    <MarkdownEditor
+                      value={psychProfile}
+                      onChange={setPsychProfile}
+                      rows={6}
+                      testId="input-edit-psych"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="background" className="mt-0">
+                    <Label className="text-xs">BACKGROUND / DOSSIER SUMMARY</Label>
+                    <MarkdownEditor
+                      value={background}
+                      onChange={setBackground}
+                      rows={6}
+                      testId="input-edit-background"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="hooks" className="mt-0">
+                    <Label className="text-xs">STORY HOOKS</Label>
+                    <MarkdownEditor
+                      value={hooks}
+                      onChange={setHooks}
+                      rows={6}
+                      testId="input-edit-hooks"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="skills" className="mt-0">
+                    <Label className="text-xs">SKILLS</Label>
+                    <MarkdownEditor
+                      value={skills}
+                      onChange={setSkills}
+                      rows={6}
+                      testId="input-edit-skills"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="sections" className="mt-0 space-y-3">
+                    <div className="flex items-center justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="rounded-none font-display"
+                        onClick={() => setRows((r) => [...r, { key: "", value: "" }])}
+                        data-testid="button-add-section"
+                      >
+                        <Plus className="w-3 h-3 mr-1" /> ADD SECTION
+                      </Button>
+                    </div>
+                    {rows.length === 0 && (
+                      <div className="text-muted-foreground italic">No sections. Add one above.</div>
+                    )}
+                    {rows.map((row, idx) => (
+                      <div
+                        key={idx}
+                        className="border border-border/40 p-3 space-y-2 bg-card/30"
+                        data-testid={`section-row-${idx}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={row.key}
+                            onChange={(e) =>
+                              setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, key: e.target.value } : r)))
                             }
-                            rows={4}
-                            testId={`input-section-value-${idx}`}
+                            placeholder="Section name (e.g. Backstory)"
+                            className="flex-1"
+                            data-testid={`input-section-key-${idx}`}
                           />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive h-8 w-8 shrink-0"
+                            onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}
+                            data-testid={`button-remove-section-${idx}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
-                      ))}
-                      <div>
-                        <Label className="text-xs">PREAMBLE (text above the labeled sections)</Label>
                         <MarkdownEditor
-                          value={preamble}
-                          onChange={setPreamble}
-                          rows={3}
-                          testId="input-edit-preamble"
+                          value={row.value}
+                          onChange={(v) =>
+                            setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, value: v } : r)))
+                          }
+                          rows={4}
+                          testId={`input-section-value-${idx}`}
                         />
                       </div>
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  <AccordionItem value="note" className="border-border">
-                    <AccordionTrigger className={accTriggerClass}>UPDATE NOTE (OPTIONAL)</AccordionTrigger>
-                    <AccordionContent>
-                      <Textarea
-                        value={updateNote}
-                        onChange={(e) => setUpdateNote(e.target.value)}
-                        placeholder="What changed? e.g. Installed Sandevistan MK.3, retconned backstory, etc."
+                    ))}
+                    <div>
+                      <Label className="text-xs">PREAMBLE (text above the labeled sections)</Label>
+                      <MarkdownEditor
+                        value={preamble}
+                        onChange={setPreamble}
                         rows={3}
-                        maxLength={2000}
-                        data-testid="input-edit-update-note"
+                        testId="input-edit-preamble"
                       />
-                      <p className="text-xs font-mono text-muted-foreground mt-1">
-                        If filled in, this note is appended to the character's update log (visible at the bottom of the profile).
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="note" className="mt-0">
+                    <Label className="text-xs">UPDATE NOTE (OPTIONAL)</Label>
+                    <Textarea
+                      value={updateNote}
+                      onChange={(e) => setUpdateNote(e.target.value)}
+                      placeholder="What changed? e.g. Installed Sandevistan MK.3, retconned backstory, etc."
+                      rows={3}
+                      maxLength={2000}
+                      data-testid="input-edit-update-note"
+                    />
+                    <p className="text-xs font-mono text-muted-foreground mt-1">
+                      If filled in, this note is appended to the character's update log (visible at the bottom of the profile).
+                    </p>
+                  </TabsContent>
+                </Tabs>
               </TabsContent>
 
               {/* MEDIA */}

@@ -10,4 +10,10 @@ import type { SheetDataSections } from './sheetDataSections';
 export interface SheetData {
   preamble: string;
   sections: SheetDataSections;
-}
+  physicalDescription?: string;
+  appearance?: string;
+  psychProfile?: string;
+  hooks?: string;
+  skills?: string;
+  [key: string]: unknown;
+ }
