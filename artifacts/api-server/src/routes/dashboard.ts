@@ -13,8 +13,6 @@ import {
   housing,
   walletTransactions,
   inventoryItems,
-  botCyberwareStatus,
-  botCyberwareWeeklyRuns,
   botBalanceHistory,
   botRentPaymentEvents,
   stores,
@@ -176,15 +174,21 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // 5 items totalling 10 CWP is correctly High, not None.
   const billableIds = billable.map((c) => c.id);
   const chromeCounts = await sumCwpByCharacter(billableIds);
-  // Per-user checkup state. The portal stores characters.lastCheckupAt per
-  // character, but the legacy bot (and current weekly cron) track checkups
-  // PER USER — one ripperdoc visit on any character resets the streak for
-  // every character that user owns. Trust botCyberwareStatus first (it's
-  // the authoritative per-user mirror; weeks = weeks since last checkup,
-  // lastProcessed = most recent weekly cron tick that touched this user).
-  // Fall back to the max(lastCheckupAt) across the household only if no
-  // per-user row exists — this is the case for brand-new portal users who
-  // were never tracked by the bot.
+  // Checkup state. Checkups are HOUSEHOLD-scoped: one ripperdoc visit on any
+  // character resets the streak for every character that player owns. The
+  // weekly cyberware_humanity cron charges money strictly off
+  // characters.lastCheckupAt (falling back to createdAt as an implicit
+  // initial checkup), reduced to the most recent date across the household.
+  // We derive this projection from that exact same source so the displayed
+  // bill always equals what the cron will actually debit.
+  //
+  // bot_cyberware_status is a stale legacy per-user mirror (the weeks-since-
+  // checkup the bot computed at its last tick). It is deliberately NOT
+  // consulted here: trusting its cached `weeks` would let an out-of-date,
+  // higher count override the authoritative checkup date and nag the player
+  // with a projected charge the cron will never make once their real
+  // lastCheckupAt is current.
+  //
   // A character's creation counts as an implicit initial checkup — a
   // brand-new chromed PC shouldn't be treated as if they'd skipped checkups
   // for the weeks before they existed (which would jump them straight to the
@@ -196,41 +200,8 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     return acc;
   }, null);
   const nextRunDate = nextWeeklyRunDate(now);
-  const discordId = req.user!.discordId;
-  const [botRow] = await db
-    .select()
-    .from(botCyberwareStatus)
-    .where(eq(botCyberwareStatus.userId, discordId))
-    .limit(1);
-  // Try to resolve an exact checkup date from the bot's weekly_runs log
-  // (each row's checkup_ids array lists the discord IDs that paid for a
-  // checkup that week). If the user has a row in cyberware_status but no
-  // matching run (older history), approximate as last_processed - weeks*7d
-  // so the UI shows roughly when the streak started rather than "never".
-  let lastCheckupAt: Date | null = charLastCheckup;
-  let weeksUnpaid = weeksSinceLastCheckup(charLastCheckup, nextRunDate);
-  if (botRow) {
-    weeksUnpaid = botRow.weeks ?? weeksUnpaid;
-    // checkupIds is a jsonb array of discord-id strings. Use `?` (jsonb
-    // top-level key/element containment) which is the explicit predicate
-    // for "this array contains this string". Safer than scalar @> tricks.
-    const [lastRun] = await db
-      .select({ runAt: botCyberwareWeeklyRuns.runAt })
-      .from(botCyberwareWeeklyRuns)
-      .where(sql`${botCyberwareWeeklyRuns.checkupIds} ? ${discordId}`)
-      .orderBy(desc(botCyberwareWeeklyRuns.runAt))
-      .limit(1);
-    if (lastRun?.runAt) {
-      lastCheckupAt = lastRun.runAt;
-    } else if (botRow.lastProcessed && (botRow.weeks ?? 0) >= 0) {
-      const approx = new Date(botRow.lastProcessed.getTime() - (botRow.weeks ?? 0) * 7 * 86_400_000);
-      lastCheckupAt = approx;
-    }
-    // Don't let charLastCheckup beat a fresher value from the bot mirror.
-    if (charLastCheckup && (!lastCheckupAt || charLastCheckup > lastCheckupAt)) {
-      lastCheckupAt = charLastCheckup;
-    }
-  }
+  const lastCheckupAt: Date | null = charLastCheckup;
+  const weeksUnpaid = weeksSinceLastCheckup(charLastCheckup, nextRunDate);
   const maxChromeCount = billable.reduce((m, c) => Math.max(m, chromeCounts.get(c.id) ?? 0), 0);
   const household = billable.filter((c) => (chromeCounts.get(c.id) ?? 0) >= 7).length;
   // Anchor character = the one driving the band (highest chrome). Used so
@@ -245,17 +216,15 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     }
   }
 
-  // Suppress meds entirely if the player had a checkup within the
-  // current billing week. The bot mirror tracks this as weeks=0
-  // (just had one); we ALSO fall back to a 7-day window on
-  // lastCheckupAt for portal-only users that aren't in the bot
-  // mirror yet. Without this guard, projectedWeeklyMeds floors
-  // weeksUnpaid at 1 and charges a full week's bill the same day
-  // you visit a ripperdoc — which the player rightfully reads as a bug.
+  // Suppress meds entirely if the household had a checkup within the
+  // current billing week. weeksSinceLastCheckup() floors at 1, so without
+  // this guard projectedWeeklyMeds would charge a full week's bill the same
+  // day you visit a ripperdoc — which the player rightfully reads as a bug.
+  // This mirrors the cyberware_humanity cron's own 7-day guard exactly, off
+  // the same authoritative effective checkup date.
   const sevenDaysMs = 7 * 86_400_000;
   const checkupIsCurrent =
-    (botRow && (botRow.weeks ?? 0) <= 0) ||
-    (!!lastCheckupAt && (now.getTime() - lastCheckupAt.getTime()) < sevenDaysMs);
+    !!lastCheckupAt && (now.getTime() - lastCheckupAt.getTime()) < sevenDaysMs;
   const proj = checkupIsCurrent
     ? { charge: 0, level: deriveCyberwareBand(maxChromeCount).level, cap: 0, baseCharge: 0, multiplier: 1, weeksUnpaid: 0, household }
     : projectedWeeklyMeds({ chromeCount: maxChromeCount, household, weeksUnpaid });
