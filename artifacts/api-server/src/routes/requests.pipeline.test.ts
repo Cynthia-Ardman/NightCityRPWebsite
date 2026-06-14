@@ -10,7 +10,7 @@ vi.mock("../lib/discord", async (importActual) => {
   };
 });
 
-import { db, customRequests, inventoryItems, reviewVotes, auditLog, housing } from "@workspace/db";
+import { db, customRequests, inventoryItems, reviewVotes, auditLog, housing, users } from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
@@ -25,6 +25,9 @@ beforeEach(() => {
 
 function createFixer() {
   return createUser({ roles: ["fixer"] });
+}
+function createCsApprover() {
+  return createUser({ roles: ["cs approver"] });
 }
 
 // A gun request needs no mechanical approval params, so it's the simplest
@@ -432,5 +435,114 @@ describe("property rent overflow guard", () => {
       .set("x-test-user", admin.id)
       .send({ monthlyRent: 3000, kind: "residential" });
     expect(after.status).toBe(409);
+  });
+});
+
+// A ticket can collect enough approvals to pass majority only AFTER the
+// eligible reviewer pool shrinks (a reviewer's role is revoked or they leave).
+// The decision is otherwise only evaluated at vote-cast time, so the ticket is
+// stranded `pending` with no Close & Apply. Reading the staff queue must
+// re-evaluate and finalize it.
+describe("auto-finalize on staff-queue read after reviewer pool shrinks", () => {
+  it("flips a stranded pending request to approved when the shrunk pool drops the threshold", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const f3 = await createFixer();
+    const f4 = await createFixer(); // pool of 4 → threshold 3
+    const { reqId } = await submitGunRequest(owner.id);
+
+    // Two approvals — not enough at threshold 3, so it stays pending.
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const second = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    expect(second.body.decided).toBeNull();
+    expect(second.body.status).toBe("pending");
+    expect(second.body.threshold).toBe(3);
+
+    // Reading the queue now must NOT finalize — the tally is still short.
+    const before = await request(app).get("/api/requests").set("x-test-user", f3.id);
+    expect(before.body.find((r: { id: number }) => r.id === reqId).status).toBe("pending");
+
+    // A non-voting reviewer loses their role: pool 4 → 3, threshold 3 → 2.
+    await db.update(users).set({ roles: [] }).where(eq(users.id, f4.id));
+
+    // The next staff-queue read self-heals the stranded ticket to approved.
+    const after = await request(app).get("/api/requests").set("x-test-user", f3.id);
+    const entry = after.body.find((r: { id: number }) => r.id === reqId);
+    expect(entry.status).toBe("approved");
+
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(row.status).toBe("approved");
+    // Effect stays DEFERRED to close — nothing materialized yet.
+    expect(row.appliedRef).toBeNull();
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+
+    // An auto-finalize audit row is recorded for traceability.
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_auto_finalize_approve"));
+    expect(audits).toHaveLength(1);
+
+    // Close & Apply now works and materializes exactly one item.
+    const close = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", f3.id).send({});
+    expect(close.status).toBe(200);
+    expect(close.body.status).toBe("closed");
+    expect(await db.select().from(inventoryItems)).toHaveLength(1);
+  });
+
+  it("flips a stranded pending request to rejected when the shrunk pool drops the threshold", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const f3 = await createFixer();
+    const f4 = await createFixer(); // pool of 4 → threshold 3
+    const { reqId } = await submitGunRequest(owner.id);
+
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "reject" });
+    const second = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "reject" });
+    expect(second.body.decided).toBeNull();
+    expect(second.body.status).toBe("pending");
+
+    await db.update(users).set({ roles: [] }).where(eq(users.id, f4.id));
+
+    // The row is still pending in the DB, so it surfaces in the default (pending)
+    // queue; the read finalizes it in place and the entry flips to rejected.
+    const after = await request(app).get("/api/requests").set("x-test-user", f3.id);
+    const entry = after.body.find((r: { id: number }) => r.id === reqId);
+    expect(entry?.status).toBe("rejected");
+
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(row.status).toBe("rejected");
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "request_auto_finalize_reject"));
+    expect(audits).toHaveLength(1);
+  });
+
+  // CS_APPROVERs are eligible requests voters but were previously locked out of
+  // the staff queue (fixer/admin-only), so they could never trigger the
+  // finalize-on-read. The queue is now reviewer-gated; a CS_APPROVER opening it
+  // must self-heal a stranded ticket just like a fixer.
+  it("lets a CS_APPROVER trigger finalize-on-read after the pool shrinks", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const cs = await createCsApprover();
+    const f4 = await createFixer(); // pool of 4 → threshold 3
+    const { reqId } = await submitGunRequest(owner.id);
+
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const second = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    expect(second.body.status).toBe("pending");
+    expect(second.body.threshold).toBe(3);
+
+    // A non-voting reviewer loses their role: pool 4 → 3, threshold 3 → 2.
+    await db.update(users).set({ roles: [] }).where(eq(users.id, f4.id));
+
+    // The CS_APPROVER can now reach the queue AND self-heal the stranded ticket.
+    const after = await request(app).get("/api/requests").set("x-test-user", cs.id);
+    expect(after.status).toBe(200);
+    const entry = after.body.find((r: { id: number }) => r.id === reqId);
+    expect(entry?.status).toBe("approved");
+
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(row.status).toBe("approved");
+    expect(row.appliedRef).toBeNull();
   });
 });

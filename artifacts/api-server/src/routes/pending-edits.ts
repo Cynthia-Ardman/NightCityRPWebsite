@@ -409,6 +409,59 @@ async function hydrateEdits(
   });
 }
 
+// Re-evaluate one still-`pending` edit against the LIVE eligible-reviewer
+// majority and, if it now resolves, apply the same staged transition the vote
+// handler makes. Self-heals edits stranded `pending` after the eligible pool
+// shrank (a reviewer's role was revoked or they left) below the already-cast
+// tally — the decision is otherwise only evaluated at vote-cast time, so the
+// edit never surfaces its Close & Apply action. Locked (FOR UPDATE) + status-
+// guarded, so it is idempotent and races safely with a real vote or admin
+// override. Effects stay DEFERRED to close (the diff is applied then). Returns
+// the decided status, or null if it stayed pending. Reviewer-gated by caller.
+async function finalizeDecidedEdit(req: Request, id: number): Promise<"approved" | "rejected" | null> {
+  const result = await db.transaction(async (tx) => {
+    const lockedRows = await tx.execute(
+      sql`SELECT id, status, character_id, submitted_by
+          FROM pending_character_edits
+          WHERE id = ${id}
+          FOR UPDATE`,
+    );
+    const locked = (lockedRows as unknown as { rows: Array<{ status: string; character_id: number; submitted_by: string }> }).rows?.[0]
+      ?? (lockedRows as unknown as Array<{ status: string; character_id: number; submitted_by: string }>)[0];
+    if (!locked || locked.status !== "pending") return null;
+    const allVotes = await tx.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, id));
+    const eligibleIds = await listEligibleReviewerIds(locked.submitted_by);
+    const eligibleSet = new Set(eligibleIds);
+    const effective = allVotes.filter((v) => eligibleSet.has(v.voterId));
+    const approves = effective.filter((v) => v.vote === "approve").length;
+    const rejects = effective.filter((v) => v.vote === "reject").length;
+    const threshold = majorityOf(eligibleIds.length);
+    let decided: "approved" | "rejected" | null = null;
+    if (approves >= threshold) decided = "approved";
+    else if (rejects >= threshold) decided = "rejected";
+    if (!decided) return null;
+    await tx
+      .update(pendingCharacterEdits)
+      .set({
+        status: decided,
+        decidedAt: new Date(),
+        decisionSummary: `${approves} approve / ${rejects} reject (threshold ${threshold} of ${eligibleIds.length})`,
+      })
+      .where(eq(pendingCharacterEdits.id, id));
+    if (decided === "rejected") {
+      await tx.insert(activityEvents).values({
+        kind: "character_edit_rejected",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorAvatarUrl: req.user!.avatarUrl,
+        message: `Edit on character #${locked.character_id} rejected (${rejects}/${threshold})`,
+      });
+    }
+    return decided;
+  });
+  return result ?? null;
+}
+
 // GET /pending-edits — fixer/admin sees ALL pending; everyone else sees
 // only their own (so a player can find their submission). Closed edits
 // drop off the list after 7 days to keep it readable.
@@ -438,7 +491,18 @@ router.get("/pending-edits", requireAuth, async (req, res): Promise<void> => {
     .from(pendingCharacterEdits)
     .where(isStaff ? staffWhere : eq(pendingCharacterEdits.submittedBy, u.id))
     .orderBy(desc(pendingCharacterEdits.submittedAt));
-  res.json(await hydrateEdits(rows, { viewerId: u.id, includeRoster: isStaff }));
+  const out = await hydrateEdits(rows, { viewerId: u.id, includeRoster: isStaff });
+  // Self-heal any edit whose tally already passes the (possibly shrunk)
+  // majority but was left pending — reviewer-only — see finalizeDecidedEdit.
+  if (isStaff) {
+    for (const entry of out) {
+      if (entry.status !== "pending") continue;
+      if (entry.approveCount < entry.threshold && entry.rejectCount < entry.threshold) continue;
+      const decided = await finalizeDecidedEdit(req, entry.id);
+      if (decided) entry.status = decided;
+    }
+  }
+  res.json(out);
 });
 
 // GET /pending-edits/:id — full detail + before/after snapshot + votes.
@@ -449,7 +513,7 @@ router.get("/pending-edits", requireAuth, async (req, res): Promise<void> => {
 // render "2 of 3 approvals" without re-deriving the math client-side.
 router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
+  let [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
   if (!row) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -463,6 +527,12 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
   if (!isStaff && !isSubmitter) {
     res.status(403).json({ error: "Forbidden" });
     return;
+  }
+  // Self-heal an edit whose tally already passes the (possibly shrunk) majority
+  // but was left pending, then re-read it so the response reflects the decision.
+  if (isStaff && row.status === "pending") {
+    const decided = await finalizeDecidedEdit(req, id);
+    if (decided) [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
   }
   const [c] = await db.select().from(characters).where(eq(characters.id, row.characterId));
   const [submitter] = await db.select().from(users).where(eq(users.id, row.submittedBy));

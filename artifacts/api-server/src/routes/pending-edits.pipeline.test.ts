@@ -11,7 +11,7 @@ vi.mock("../lib/discord", async (importActual) => {
   };
 });
 
-import { db, characters, pendingCharacterEdits, pendingEditApprovals, activityEvents } from "@workspace/db";
+import { db, characters, pendingCharacterEdits, pendingEditApprovals, activityEvents, users } from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
@@ -307,5 +307,76 @@ describe("pending edit request-changes (retired) + resubmit", () => {
 
     // Approvals wiped — the fresh round starts from zero.
     expect(await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id))).toHaveLength(0);
+  });
+});
+
+// An edit can pass majority only AFTER the eligible reviewer pool shrinks (a
+// reviewer's role is revoked or they leave). The decision is otherwise only
+// evaluated at vote-cast time, stranding the edit `pending` with no Close &
+// Apply. The reviewer detail read must re-evaluate and finalize it.
+describe("pending edit auto-finalize on reviewer read after pool shrinks", () => {
+  it("flips a stranded pending edit to approved when the shrunk pool drops the threshold", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const f3 = await createFixer();
+    const f4 = await createFixer(); // pool of 4 → threshold 3
+    const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
+
+    await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const second = await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    expect(second.body.status).toBe("pending");
+    expect(second.body.threshold).toBe(3);
+
+    // Reading the detail now must NOT finalize — the tally is still short.
+    const before = await request(app).get(`/api/pending-edits/${edit.id}`).set("x-test-user", f3.id);
+    expect(before.body.status).toBe("pending");
+
+    // A non-voting reviewer loses their role: pool 4 → 3, threshold 3 → 2.
+    await db.update(users).set({ roles: [] }).where(eq(users.id, f4.id));
+
+    // The next reviewer detail read self-heals the stranded edit to approved.
+    const after = await request(app).get(`/api/pending-edits/${edit.id}`).set("x-test-user", f3.id);
+    expect(after.body.status).toBe("approved");
+
+    const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
+    expect(row.status).toBe("approved");
+    // The diff stays DEFERRED to close — character not yet changed.
+    const [stillOld] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(stillOld.background).toBe("old story");
+
+    // Close & Apply now works and commits the diff.
+    const close = await request(app).post(`/api/review/edit/${edit.id}/close`).set("x-test-user", f3.id).send({});
+    expect(close.status).toBe(200);
+    const [afterChar] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(afterChar.background).toBe("new story");
+  });
+
+  it("flips a stranded pending edit to rejected and logs an activity event", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const f3 = await createFixer();
+    const f4 = await createFixer(); // pool of 4 → threshold 3
+    const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
+
+    await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "reject" });
+    await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f2.id).send({ vote: "reject" });
+
+    await db.update(users).set({ roles: [] }).where(eq(users.id, f4.id));
+
+    const after = await request(app).get(`/api/pending-edits/${edit.id}`).set("x-test-user", f3.id);
+    expect(after.body.status).toBe("rejected");
+
+    const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
+    expect(row.status).toBe("rejected");
+    // Diff never applied on a rejection.
+    const [unchanged] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(unchanged.background).toBe("old story");
+    const events = await db
+      .select()
+      .from(activityEvents)
+      .where(eq(activityEvents.kind, "character_edit_rejected"));
+    expect(events.length).toBeGreaterThanOrEqual(1);
   });
 });

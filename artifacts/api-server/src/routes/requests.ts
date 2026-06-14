@@ -33,6 +33,7 @@ import {
   clearReviewVotes,
   loadVotesBySubject,
   loadLastActivityBySubject,
+  latestVoterIdFor,
   type ReviewActionResult,
 } from "../lib/review";
 
@@ -166,10 +167,6 @@ function auditCategoryFor(type: string): "housing" | "shop" | "inventory" {
   // store / ripperdoc / stock_cost / venue_stock / employee_invite all live
   // under the shop umbrella.
   return "shop";
-}
-
-function isFixerOrAdmin(user: { roles: string[] }): boolean {
-  return hasRole(user.roles, "ADMIN") || hasRole(user.roles, "FIXER");
 }
 
 function isAdmin(user: { roles: string[] }): boolean {
@@ -611,6 +608,111 @@ async function attachTallies(
   });
 }
 
+// Re-evaluate one still-`pending` request against the LIVE eligible-reviewer
+// majority and, if it now resolves, apply the same status transition the vote
+// handler makes. This self-heals tickets stranded `pending` after the eligible
+// pool shrank (a reviewer's role was revoked or they left) below the
+// already-cast tally — the decision is otherwise only ever evaluated at
+// vote-cast time, so a shrinking pool never re-triggers it and the ticket
+// never surfaces its Close & Apply action. Locked + status-guarded, so it is
+// idempotent and races safely with a concurrent real vote or admin override.
+// Returns the decided status, or null if it stayed pending. Reviewer-gated by
+// the caller (only the staff queue invokes it).
+async function finalizeDecidedRequest(
+  req: Request,
+  rid: number,
+): Promise<"approved" | "rejected" | null> {
+  const txResult = await db.transaction(async (tx) => {
+    const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, rid)).for("update");
+    if (!reqRow || reqRow.status !== "pending") return null;
+    // Owner-decided types (stock_cost, employee_invite, mission_participation)
+    // never tally through the fixer pool — leave them to their own flow.
+    if (ownerDecidedError(reqRow.type)) return null;
+    const tally = await tallyReviewVotes({ subjectType: "request", subjectId: rid, submitterId: reqRow.requestedById, conn: tx });
+    if (!tally.decided) return null;
+    // Attribute the decision to the most recent matching voter — the closest
+    // thing to a "deciding" reviewer — falling back to the triggering reviewer
+    // only if (impossibly) no matching vote exists.
+    const deciderId =
+      (await latestVoterIdFor({
+        subjectType: "request",
+        subjectId: rid,
+        vote: tally.decided === "approved" ? "approve" : "reject",
+        conn: tx,
+      })) ?? req.user!.id;
+    if (tally.decided === "rejected") {
+      await tx
+        .update(customRequests)
+        .set({ status: "rejected", reviewedById: deciderId, reviewedAt: new Date(), reviewerNote: null })
+        .where(eq(customRequests.id, rid));
+      return { decided: "rejected" as const, reqRow, tally };
+    }
+    // Decided approve — STAGE only (mirrors the vote handler): effects are
+    // applied when a fixer closes the ticket. Persist the stashed mechanical
+    // params onto decisionParams so close can materialize without re-prompting.
+    const storedApproval = ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? null;
+    await tx
+      .update(customRequests)
+      .set({ status: "approved", reviewedById: deciderId, reviewedAt: new Date(), reviewerNote: null, decisionParams: storedApproval as never })
+      .where(eq(customRequests.id, rid));
+    return { decided: "approved" as const, reqRow, tally };
+  });
+  if (!txResult) return null;
+  const out = txResult;
+  if (out.decided === "approved") {
+    await recordAudit({
+      req,
+      category: auditCategoryFor(out.reqRow.type),
+      action: "request_auto_finalize_approve",
+      targetType: "custom_request",
+      targetId: rid,
+      message: `Auto-finalized ${out.reqRow.type} request → approved (majority reached after reviewer-pool change; pending close): ${out.reqRow.title}`,
+      after: { type: out.reqRow.type, characterId: out.reqRow.characterId, staged: true, autoFinalized: true },
+    });
+  } else {
+    const [row] = await selectWhere(eq(customRequests.id, rid));
+    try {
+      await db.insert(activityEvents).values({
+        kind: "request_rejected",
+        actorId: req.user!.id,
+        actorName: req.user!.username,
+        actorAvatarUrl: req.user!.avatarUrl,
+        message: `${row.characterName ?? "(unknown)"}: Rejected ${typeLabelFor(out.reqRow.type)} request: ${out.reqRow.title}`,
+      });
+    } catch (err) {
+      logger.warn({ err, requestId: rid }, "auto-finalize reject activity-feed write failed");
+    }
+    await recordAudit({
+      req,
+      category: auditCategoryFor(out.reqRow.type),
+      action: "request_auto_finalize_reject",
+      targetType: "custom_request",
+      targetId: rid,
+      message: `Auto-finalized ${out.reqRow.type} request → rejected (majority reached after reviewer-pool change): ${out.reqRow.title}`,
+      after: { autoFinalized: true },
+    });
+    await notifyRequesterOfDecision(row, null, false);
+  }
+  return out.decided;
+}
+
+// Walk an attachTallies result and auto-finalize any row whose live tally
+// already resolves while it is still `pending`. Cheap in steady state: the
+// decided-but-pending case is rare (only the stranded tickets), so this fires
+// zero finalize transactions on a healthy queue. Mutates `entries` in place so
+// the response reflects the freshly-applied status.
+async function finalizeDecidedRequestsInPlace(req: Request, entries: Record<string, unknown>[]): Promise<void> {
+  for (const entry of entries) {
+    if (entry.status !== "pending") continue;
+    const approve = entry.approveCount as number;
+    const reject = entry.rejectCount as number;
+    const threshold = entry.threshold as number;
+    if (approve < threshold && reject < threshold) continue;
+    const decided = await finalizeDecidedRequest(req, entry.id as number);
+    if (decided) entry.status = decided;
+  }
+}
+
 // Best-effort Discord DM to the player who submitted a request, telling them
 // the staff decision (and the reviewer note on rejection). Resolves the
 // requester's Discord id from `users`. Never throws — a delivery miss (DMs
@@ -726,10 +828,14 @@ router.get("/requests/mine", requireAuth, async (req, res): Promise<void> => {
   res.json(await attachTallies(rows, req.user!.id, isReviewer(req.user!)));
 });
 
-// Staff: list requests across all players. Defaults to pending. Fixer/admin.
+// Staff: list requests across all players. Defaults to pending. Reviewer-gated.
 router.get("/requests", requireAuth, async (req, res): Promise<void> => {
-  if (!isFixerOrAdmin(req.user!)) {
-    res.status(403).json({ error: "Requires fixer or admin role" });
+  // Gate on the full reviewer pool (FIXER / CS_APPROVER / ADMIN) to match the
+  // sheets and pending-edits queues. CS_APPROVERs are eligible requests voters
+  // (isEligibleReviewer), so they must be able to see the queue — and to trigger
+  // finalize-on-read for tickets stranded after the voter pool shrank.
+  if (!isReviewer(req.user!)) {
+    res.status(403).json({ error: "Requires reviewer role" });
     return;
   }
   // Lifecycle buckets for the Active / Resolved / Archive sections. A `bucket`
@@ -747,7 +853,11 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
       notInArray(customRequests.type, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES as unknown as string[]),
     ),
   );
-  res.json(await attachTallies(rows, req.user!.id, true));
+  const out = await attachTallies(rows, req.user!.id, true);
+  // Self-heal any ticket whose tally already passes the (possibly shrunk)
+  // majority but was left pending — see finalizeDecidedRequestsInPlace.
+  await finalizeDecidedRequestsInPlace(req, out);
+  res.json(out);
 });
 
 

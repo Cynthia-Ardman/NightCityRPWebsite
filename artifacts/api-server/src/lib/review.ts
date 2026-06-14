@@ -135,6 +135,33 @@ export async function tallyReviewVotes(opts: {
   return { approveCount, rejectCount, threshold, eligibleVoterCount: eligibleIds.length, decided };
 }
 
+// The most recent reviewer to have cast a given vote on a subject, or null if
+// none. Used to attribute an AUTO-FINALIZED decision (one that resolves because
+// the eligible pool shrank, not because a fresh vote tipped it) to the closest
+// thing to a deciding reviewer — never to whoever's queue load happened to
+// trigger the re-evaluation.
+export async function latestVoterIdFor(opts: {
+  subjectType: ReviewSubjectType;
+  subjectId: number;
+  vote: "approve" | "reject";
+  conn?: DbConn;
+}): Promise<string | null> {
+  const conn = opts.conn ?? db;
+  const [row] = await conn
+    .select({ voterId: reviewVotes.voterId })
+    .from(reviewVotes)
+    .where(
+      and(
+        eq(reviewVotes.subjectType, opts.subjectType),
+        eq(reviewVotes.subjectId, opts.subjectId),
+        eq(reviewVotes.vote, opts.vote),
+      ),
+    )
+    .orderBy(desc(reviewVotes.votedAt))
+    .limit(1);
+  return row?.voterId ?? null;
+}
+
 // Upsert one reviewer's vote (last write wins). Use inside the decision txn.
 export async function castReviewVote(opts: {
   subjectType: ReviewSubjectType;

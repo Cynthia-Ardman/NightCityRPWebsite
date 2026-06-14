@@ -11,7 +11,7 @@ vi.mock("../lib/discord", async (importActual) => {
   };
 });
 
-import { db, characterSheets, characters, reviewVotes, auditLog, inventoryItems } from "@workspace/db";
+import { db, characterSheets, characters, reviewVotes, auditLog, inventoryItems, users } from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
@@ -313,5 +313,53 @@ describe("sheet close — materialize-once idempotency", () => {
       .set("x-test-user", f1.id)
       .send({});
     expect(reopen.status).toBe(409);
+  });
+});
+
+// A sheet can pass majority only AFTER the eligible reviewer pool shrinks (a
+// reviewer's role is revoked or they leave). The decision is otherwise only
+// evaluated at vote-cast time, stranding the sheet `pending` with no Close &
+// Apply. The reviewer detail read must re-evaluate and finalize it.
+describe("sheet auto-finalize on reviewer read after pool shrinks", () => {
+  it("flips a stranded pending sheet to approved when the shrunk pool drops the threshold", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const f3 = await createFixer();
+    const f4 = await createFixer(); // pool of 4 → threshold 3
+    const sheet = await createPendingSheet(owner.id, "Stranded Subject");
+
+    await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const second = await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    expect(second.body.decided).toBeNull();
+    expect(second.body.status).toBe("pending");
+    expect(second.body.threshold).toBe(3);
+
+    // Reading the detail now must NOT finalize — the tally is still short.
+    const before = await request(app).get(`/api/sheets/${sheet.id}`).set("x-test-user", f3.id);
+    expect(before.body.status).toBe("pending");
+
+    // A non-voting reviewer loses their role: pool 4 → 3, threshold 3 → 2.
+    await db.update(users).set({ roles: [] }).where(eq(users.id, f4.id));
+
+    // The next reviewer detail read self-heals the stranded sheet to approved.
+    const after = await request(app).get(`/api/sheets/${sheet.id}`).set("x-test-user", f3.id);
+    expect(after.body.status).toBe("approved");
+
+    const [row] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(row.status).toBe("approved");
+    // Materialization stays DEFERRED to close — no character yet.
+    expect(row.characterId).toBeNull();
+    expect(await db.select().from(characters).where(eq(characters.ownerId, owner.id))).toHaveLength(0);
+
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "sheet_auto_finalize_approved"));
+    expect(audits).toHaveLength(1);
+
+    // Close & Apply now works and materializes the character.
+    const close = await request(app).post(`/api/review/sheet/${sheet.id}/close`).set("x-test-user", f3.id).send({});
+    expect(close.status).toBe(200);
+    const [closed] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(closed.status).toBe("closed");
+    expect(closed.characterId).not.toBeNull();
   });
 });

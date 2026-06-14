@@ -19,6 +19,7 @@ import {
   listReviewVotes,
   loadVotesBySubject,
   loadLastActivityBySubject,
+  latestVoterIdFor,
   type ReviewActionResult,
 } from "../lib/review";
 import type { Request } from "express";
@@ -39,6 +40,51 @@ function sheetDataIsNpc(data: unknown): boolean {
 
 const SUBMISSIONS_DISABLED_MSG =
   "New character submissions are temporarily disabled by staff.";
+
+// Re-evaluate one still-`pending` sheet against the LIVE eligible-reviewer
+// majority and, if it now resolves, apply the same staged transition the vote
+// handler makes. Self-heals sheets stranded `pending` after the eligible pool
+// shrank (a reviewer's role was revoked or they left) below the already-cast
+// tally — the decision is otherwise only evaluated at vote-cast time, so the
+// sheet never surfaces its Close & Apply action. Locked + status-guarded, so it
+// is idempotent and races safely with a real vote or admin override. Effects
+// stay DEFERRED to close (no character is materialized here). Returns the
+// decided status, or null if it stayed pending. Reviewer-gated by the caller.
+async function finalizeDecidedSheet(req: Request, id: number): Promise<"approved" | "rejected" | null> {
+  const result = await db.transaction(async (tx) => {
+    const [sheet] = await tx.select().from(characterSheets).where(eq(characterSheets.id, id)).for("update");
+    if (!sheet || sheet.status !== "pending") return null;
+    const tally = await tallyReviewVotes({ subjectType: "sheet", subjectId: id, submitterId: sheet.ownerId, conn: tx });
+    if (!tally.decided) return null;
+    // Attribute to the most recent matching voter (the closest thing to a
+    // deciding reviewer), not to whoever's queue load triggered this.
+    const deciderId =
+      (await latestVoterIdFor({
+        subjectType: "sheet",
+        subjectId: id,
+        vote: tally.decided === "approved" ? "approve" : "reject",
+        conn: tx,
+      })) ?? req.user!.id;
+    const summary = `${tally.approveCount} approve / ${tally.rejectCount} reject (threshold ${tally.threshold})`;
+    const [updated] = await tx
+      .update(characterSheets)
+      .set({ status: tally.decided, decisionBy: deciderId, decisionNote: summary, decidedAt: new Date() })
+      .where(eq(characterSheets.id, id))
+      .returning();
+    return { decided: tally.decided, sheet: updated, tally };
+  });
+  if (!result) return null;
+  await recordAudit({
+    req,
+    category: "sheet",
+    action: `sheet_auto_finalize_${result.decided}`,
+    targetType: "sheet",
+    targetId: id,
+    message: `Auto-finalized sheet "${result.sheet.name}" → ${result.decided} (majority reached after reviewer-pool change)`,
+    after: { decided: result.decided, approveCount: result.tally.approveCount, rejectCount: result.tally.rejectCount, autoFinalized: true },
+  });
+  return result.decided;
+}
 
 router.get("/sheets", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
@@ -118,12 +164,20 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
       })),
     };
   });
+  // Self-heal any sheet whose tally already passes the (possibly shrunk)
+  // majority but was left pending — see finalizeDecidedSheet.
+  for (const entry of out) {
+    if (entry.status !== "pending") continue;
+    if (entry.approveCount < entry.threshold && entry.rejectCount < entry.threshold) continue;
+    const decided = await finalizeDecidedSheet(req, entry.id);
+    if (decided) entry.status = decided;
+  }
   res.json(out);
 });
 
 router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const [s] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));
+  let [s] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));
   if (!s) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -140,6 +194,12 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const viewerIsReviewer = isReviewer(req.user!);
+  // Self-heal a sheet whose tally already passes the (possibly shrunk) majority
+  // but was left pending, then re-read it so the response reflects the decision.
+  if (viewerIsReviewer && s.status === "pending") {
+    const decided = await finalizeDecidedSheet(req, id);
+    if (decided) [s] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));
+  }
   // Only fixers / cs-approvers cast counted votes; a pure admin reviews via
   // OVERRIDE, not the vote/request-changes flow.
   const viewerCanVote = isEligibleReviewer(req.user!);
