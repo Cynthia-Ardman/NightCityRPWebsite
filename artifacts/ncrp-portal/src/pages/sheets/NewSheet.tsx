@@ -301,13 +301,18 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         const created = await createMut.mutateAsync({
           data: { name: draftName, data: data as any, status: "draft" } as any,
         });
+        // Track the new draft id internally so later saves use the update path.
+        // Deliberately DO NOT navigate to `/sheets/:id/edit` here: this runs from
+        // a silent autosave while the user is actively typing, and a route change
+        // would re-render NewSheet (params.id set), flash "LOADING DRAFT...", and
+        // change the SheetForm key — remounting the form, dropping focus/scroll,
+        // and making it look like the page was cleared. The draft is saved server
+        // side and listed under Drafts, so it stays recoverable.
         setDraftId(created.id);
         lastPersistedRef.current = JSON.stringify({ fullName: draftName, payload: data });
         invalidateLists();
         setAutoSaveStatus("saved");
         if (!opts?.silent) toast({ title: "Draft saved" });
-        // Update the URL so a refresh keeps editing the same draft.
-        setLocation(`/sheets/${created.id}/edit`, { replace: true });
         return created.id;
       }
     } catch (e: any) {

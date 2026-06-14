@@ -126,6 +126,13 @@ describe("NewSheet markdown editor", () => {
       expect(payload.data.name).toBe("Test Runner");
       expect(payload.data.data.background).toBe("**chrome heart**");
       expect(payload.data.status).toBe("draft");
+
+      // Regression: a silent autosave must NOT navigate. Routing to
+      // `/sheets/:id/edit` here would re-render the page, flash "LOADING
+      // DRAFT...", and remount the form — wiping the user's focus/scroll and
+      // making it look like the page was cleared. The draft id is tracked in
+      // component state instead, so the user stays put while they keep typing.
+      expect(setLocationMock).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
