@@ -467,45 +467,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </div>
       </div>
 
-      {/* Prominent, top-of-page rules call-out — PC creation only (NPC creation
-          is fixer-driven and doesn't need it). Character Creation Rules and
-          Rules & Restrictions are deliberately separate links: they cover
-          different things and the user wants both available up front. Open in a
-          new tab so the in-progress auto-saved draft is never lost. */}
-      {sheetType !== "NPC" && (
-        <Card className="rounded-none border-nc-cyan/60 bg-nc-cyan/10" data-testid="card-creation-rules">
-          <CardContent className="py-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex items-center gap-2 text-nc-cyan font-display tracking-widest text-sm shrink-0">
-                <BookMarked className="w-4 h-4" /> BEFORE YOU START, READ:
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={guidebookSectionHref("character_creation")}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 border border-nc-cyan bg-nc-cyan/15 px-3 py-1.5 font-mono text-xs font-bold text-nc-cyan hover:bg-nc-cyan/25 transition-colors"
-                  data-testid="link-creation-rules"
-                >
-                  Character Creation Rules
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </Link>
-                <Link
-                  href={guidebookSectionHref("rules")}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 border border-nc-cyan bg-nc-cyan/15 px-3 py-1.5 font-mono text-xs font-bold text-nc-cyan hover:bg-nc-cyan/25 transition-colors"
-                  data-testid="link-rules-restrictions"
-                >
-                  Rules &amp; Restrictions
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </Link>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Guidebook help: references a player building a character may need.
           Links open the Guidebook in a new tab so the in-progress (auto-saved)
           draft is never lost. */}

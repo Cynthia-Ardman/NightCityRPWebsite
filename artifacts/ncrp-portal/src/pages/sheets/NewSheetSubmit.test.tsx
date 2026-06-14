@@ -179,22 +179,19 @@ describe("NewSheet submit-and-resubmit journey", () => {
   });
 });
 
-describe("NewSheet top-of-page rules call-out", () => {
+describe("NewSheet top-of-page guidebook help", () => {
   beforeEach(() => {
     h.state.getSheetData = undefined;
     h.state.paramsId = undefined;
     h.state.me = { id: 1, isFixer: false, isAdmin: false };
   });
 
-  it("shows the Character Creation Rules and Rules & Restrictions links on PC creation", () => {
+  it("shows the guidebook help banner with character creation and rules links", () => {
     render(<NewSheet />);
 
-    const banner = screen.getByTestId("card-creation-rules");
+    const banner = screen.getByTestId("card-guidebook-help");
     expect(banner).toBeInTheDocument();
-    // The wouter Link is mocked as a bare <a href> (data-testid isn't
-    // forwarded), and "Rules & Restrictions" also appears in the bottom help
-    // card, so scope the lookups to the banner and assert by name + href.
-    expect(within(banner).getByRole("link", { name: /character creation rules/i })).toHaveAttribute(
+    expect(within(banner).getByRole("link", { name: /character creation help/i })).toHaveAttribute(
       "href",
       "/guidebook#character_creation",
     );
@@ -202,21 +199,5 @@ describe("NewSheet top-of-page rules call-out", () => {
       "href",
       "/guidebook#rules",
     );
-  });
-
-  it("hides the call-out on NPC creation (fixer-driven NPC sheet)", () => {
-    // A fixer editing an NPC draft: sheetType resolves to NPC and is not coerced
-    // back to PC, so the PC-only rules banner must not render.
-    h.state.me = { id: 1, isFixer: true, isAdmin: false };
-    h.state.paramsId = "90";
-    h.state.getSheetData = {
-      id: 90,
-      name: "NPC X",
-      status: "draft",
-      data: { sheetType: "NPC", fullName: "NPC X" },
-    };
-    render(<NewSheet />);
-
-    expect(screen.queryByTestId("card-creation-rules")).toBeNull();
   });
 });
