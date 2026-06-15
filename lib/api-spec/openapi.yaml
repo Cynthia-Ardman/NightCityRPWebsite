@@ -27,6 +27,8 @@ tags:
     description: Object storage upload and serving endpoints.
   - name: requests
     description: Off-catalog custom requests (off-map property, custom guns, custom cyberware).
+  - name: vrchat
+    description: Admin/fixer VRChat CyberPsycho control panel (drives each staffer's local agent).
 
 paths:
   /healthz:
@@ -3783,6 +3785,55 @@ paths:
                   error: { type: string }
                   cooldownEndsAt: { type: string, format: date-time, nullable: true }
         "502": { description: Wallet provider unavailable }
+  /vrchat/status:
+    get:
+      operationId: getVrchatStatus
+      tags: [vrchat]
+      summary: The requesting staffer's VRChat agent meta, latest status snapshot, and recent commands
+      responses:
+        "200":
+          description: Agent status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatStatusResponse" }
+        "401": { description: Not signed in }
+        "403": { description: Not an admin or fixer }
+  /vrchat/commands:
+    post:
+      operationId: queueVrchatCommand
+      tags: [vrchat]
+      summary: Queue a command for the staffer's own VRChat agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VrchatCommandRequest" }
+      responses:
+        "201":
+          description: Command queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatCommandCreated" }
+        "400": { description: Invalid command kind }
+        "401": { description: Not signed in }
+        "403": { description: Not an admin or fixer }
+  /vrchat/agent/revoke:
+    post:
+      operationId: revokeVrchatAgent
+      tags: [vrchat]
+      summary: Revoke the staffer's current agent token (the running agent stops working)
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "401": { description: Not signed in }
+        "403": { description: Not an admin or fixer }
   /me/wallet:
     get:
       operationId: getMyWallet
@@ -4935,6 +4986,85 @@ paths:
 
 components:
   schemas:
+    VrchatUserRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    VrchatOccupant:
+      type: object
+      required: [id, displayName]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+    VrchatAgentMeta:
+      type: object
+      required: [exists, online, tokenIssued, revoked, lastSeenAt, statusAt, label]
+      properties:
+        exists: { type: boolean, description: "Whether an agent row has ever been provisioned for this staffer." }
+        online: { type: boolean, description: "True if the agent has polled within the online window." }
+        tokenIssued: { type: boolean, description: "True while a non-revoked token exists." }
+        revoked: { type: boolean }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+        statusAt: { type: string, format: date-time, nullable: true }
+        label: { type: string, nullable: true, description: "Friendly label the agent reports (usually the VRChat display name)." }
+    VrchatAgentStatusSnapshot:
+      type: object
+      description: "Latest snapshot the agent reported. All fields optional; absent until the agent connects."
+      properties:
+        psycho_active: { type: boolean }
+        operation: { type: string, description: "Human-readable progress of the in-flight operation, empty when idle." }
+        session_expired: { type: boolean }
+        my_id: { type: string }
+        my_name: { type: string }
+        location: { type: string, nullable: true, description: "Current VRChat instance as world:instance, or null." }
+        patrol_interval: { type: integer }
+        agent_version: { type: string }
+        blocked_count: { type: integer }
+        blocked: { type: array, items: { $ref: "#/components/schemas/VrchatUserRef" } }
+        allowlist_count: { type: integer }
+        allowlist: { type: array, items: { $ref: "#/components/schemas/VrchatUserRef" } }
+        users: { type: array, items: { $ref: "#/components/schemas/VrchatOccupant" } }
+    VrchatCommandSummary:
+      type: object
+      required: [id, kind, status, error, createdAt, completedAt]
+      properties:
+        id: { type: integer }
+        kind: { type: string }
+        status: { type: string, description: "pending | claimed | done | error" }
+        error: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+    VrchatStatusResponse:
+      type: object
+      required: [agent, status, commands]
+      properties:
+        agent: { $ref: "#/components/schemas/VrchatAgentMeta" }
+        status:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/VrchatAgentStatusSnapshot"
+        commands: { type: array, items: { $ref: "#/components/schemas/VrchatCommandSummary" } }
+    VrchatCommandRequest:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [isolate, restore, refresh, snapshot, save_allowlist]
+        params:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: "Command-specific payload, e.g. { allowlist: [{ id, name }] } for save_allowlist."
+    VrchatCommandCreated:
+      type: object
+      required: [id, kind, status]
+      properties:
+        id: { type: integer }
+        kind: { type: string }
+        status: { type: string }
     BreachPos:
       type: object
       required: [r, c]

@@ -5,6 +5,95 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+export interface VrchatUserRef {
+  id: string;
+  name: string;
+}
+
+export interface VrchatOccupant {
+  id: string;
+  displayName: string;
+}
+
+export interface VrchatAgentMeta {
+  /** Whether an agent row has ever been provisioned for this staffer. */
+  exists: boolean;
+  /** True if the agent has polled within the online window. */
+  online: boolean;
+  /** True while a non-revoked token exists. */
+  tokenIssued: boolean;
+  revoked: boolean;
+  lastSeenAt: string | null;
+  statusAt: string | null;
+  /** Friendly label the agent reports (usually the VRChat display name). */
+  label: string | null;
+}
+
+/**
+ * Latest snapshot the agent reported. All fields optional; absent until the agent connects.
+ */
+export interface VrchatAgentStatusSnapshot {
+  psycho_active?: boolean;
+  /** Human-readable progress of the in-flight operation, empty when idle. */
+  operation?: string;
+  session_expired?: boolean;
+  my_id?: string;
+  my_name?: string;
+  /** Current VRChat instance as world:instance, or null. */
+  location?: string | null;
+  patrol_interval?: number;
+  agent_version?: string;
+  blocked_count?: number;
+  blocked?: VrchatUserRef[];
+  allowlist_count?: number;
+  allowlist?: VrchatUserRef[];
+  users?: VrchatOccupant[];
+}
+
+export interface VrchatCommandSummary {
+  id: number;
+  kind: string;
+  /** pending | claimed | done | error */
+  status: string;
+  error: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface VrchatStatusResponse {
+  agent: VrchatAgentMeta;
+  status: VrchatAgentStatusSnapshot | null;
+  commands: VrchatCommandSummary[];
+}
+
+export type VrchatCommandRequestKind = typeof VrchatCommandRequestKind[keyof typeof VrchatCommandRequestKind];
+
+
+export const VrchatCommandRequestKind = {
+  isolate: 'isolate',
+  restore: 'restore',
+  refresh: 'refresh',
+  snapshot: 'snapshot',
+  save_allowlist: 'save_allowlist',
+} as const;
+
+/**
+ * Command-specific payload, e.g. { allowlist: [{ id, name }] } for save_allowlist.
+ */
+export type VrchatCommandRequestParams = { [key: string]: unknown } | null;
+
+export interface VrchatCommandRequest {
+  kind: VrchatCommandRequestKind;
+  /** Command-specific payload, e.g. { allowlist: [{ id, name }] } for save_allowlist. */
+  params?: VrchatCommandRequestParams;
+}
+
+export interface VrchatCommandCreated {
+  id: number;
+  kind: string;
+  status: string;
+}
+
 export interface BreachPos {
   /** Row index in the code matrix (0-based). */
   r: number;
@@ -5919,6 +6008,10 @@ export type RunIncomeWork429 = {
 export type RunIncomeSlut429 = {
   error?: string;
   cooldownEndsAt?: string | null;
+};
+
+export type RevokeVrchatAgent200 = {
+  ok: boolean;
 };
 
 export type ListCustomRequestsParams = {

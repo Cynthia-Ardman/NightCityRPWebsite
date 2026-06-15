@@ -8583,6 +8583,71 @@ export const RunIncomeSlutResponse = zod.object({
 
 
 /**
+ * @summary The requesting staffer's VRChat agent meta, latest status snapshot, and recent commands
+ */
+export const GetVrchatStatusResponse = zod.object({
+  "agent": zod.object({
+  "exists": zod.boolean().describe('Whether an agent row has ever been provisioned for this staffer.'),
+  "online": zod.boolean().describe('True if the agent has polled within the online window.'),
+  "tokenIssued": zod.boolean().describe('True while a non-revoked token exists.'),
+  "revoked": zod.boolean(),
+  "lastSeenAt": zod.coerce.date().nullable(),
+  "statusAt": zod.coerce.date().nullable(),
+  "label": zod.string().nullable().describe('Friendly label the agent reports (usually the VRChat display name).')
+}),
+  "status": zod.object({
+  "psycho_active": zod.boolean().optional(),
+  "operation": zod.string().optional().describe('Human-readable progress of the in-flight operation, empty when idle.'),
+  "session_expired": zod.boolean().optional(),
+  "my_id": zod.string().optional(),
+  "my_name": zod.string().optional(),
+  "location": zod.string().nullish().describe('Current VRChat instance as world:instance, or null.'),
+  "patrol_interval": zod.number().optional(),
+  "agent_version": zod.string().optional(),
+  "blocked_count": zod.number().optional(),
+  "blocked": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})).optional(),
+  "allowlist_count": zod.number().optional(),
+  "allowlist": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})).optional(),
+  "users": zod.array(zod.object({
+  "id": zod.string(),
+  "displayName": zod.string()
+})).optional()
+}).describe('Latest snapshot the agent reported. All fields optional; absent until the agent connects.').nullable(),
+  "commands": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.string(),
+  "status": zod.string().describe('pending | claimed | done | error'),
+  "error": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "completedAt": zod.coerce.date().nullable()
+}))
+})
+
+
+/**
+ * @summary Queue a command for the staffer's own VRChat agent
+ */
+export const QueueVrchatCommandBody = zod.object({
+  "kind": zod.enum(['isolate', 'restore', 'refresh', 'snapshot', 'save_allowlist']),
+  "params": zod.record(zod.string(), zod.unknown()).nullish().describe('Command-specific payload, e.g. { allowlist: [{ id, name }] } for save_allowlist.')
+})
+
+
+/**
+ * @summary Revoke the staffer's current agent token (the running agent stops working)
+ */
+export const RevokeVrchatAgentResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary Per-user eddies balance from Unbelievaboat (account-level, not per-character)
  */
 export const GetMyWalletResponse = zod.object({

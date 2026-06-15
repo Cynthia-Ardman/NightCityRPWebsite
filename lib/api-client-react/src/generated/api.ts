@@ -234,6 +234,7 @@ import type {
   ReviewCommentInput,
   ReviewUnseenCounts,
   ReviewUnseenIds,
+  RevokeVrchatAgent200,
   Ripperdoc,
   RipperdocPublic,
   RipperdocUpdate,
@@ -269,7 +270,10 @@ import type {
   VenueAccountInput,
   VenueAccountResult,
   VenueStockRequestInput,
+  VrchatCommandCreated,
+  VrchatCommandRequest,
   VrchatScanResult,
+  VrchatStatusResponse,
   Wallet,
   WalletAdjustmentInput,
   WalletTransaction
@@ -16988,6 +16992,224 @@ export const useRunIncomeSlut = <TError = ErrorType<void | RunIncomeSlut429>,
         TContext
       > => {
       return useMutation(getRunIncomeSlutMutationOptions(options));
+    }
+
+export const getGetVrchatStatusUrl = () => {
+
+
+
+
+  return `/api/vrchat/status`
+}
+
+/**
+ * @summary The requesting staffer's VRChat agent meta, latest status snapshot, and recent commands
+ */
+export const getVrchatStatus = async ( options?: RequestInit): Promise<VrchatStatusResponse> => {
+
+  return customFetch<VrchatStatusResponse>(getGetVrchatStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVrchatStatusQueryKey = () => {
+    return [
+    `/api/vrchat/status`
+    ] as const;
+    }
+
+
+export const getGetVrchatStatusQueryOptions = <TData = Awaited<ReturnType<typeof getVrchatStatus>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVrchatStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVrchatStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVrchatStatus>>> = ({ signal }) => getVrchatStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVrchatStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVrchatStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getVrchatStatus>>>
+export type GetVrchatStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary The requesting staffer's VRChat agent meta, latest status snapshot, and recent commands
+ */
+
+export function useGetVrchatStatus<TData = Awaited<ReturnType<typeof getVrchatStatus>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVrchatStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVrchatStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getQueueVrchatCommandUrl = () => {
+
+
+
+
+  return `/api/vrchat/commands`
+}
+
+/**
+ * @summary Queue a command for the staffer's own VRChat agent
+ */
+export const queueVrchatCommand = async (vrchatCommandRequest: VrchatCommandRequest, options?: RequestInit): Promise<VrchatCommandCreated> => {
+
+  return customFetch<VrchatCommandCreated>(getQueueVrchatCommandUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vrchatCommandRequest,)
+  }
+);}
+
+
+
+
+export const getQueueVrchatCommandMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof queueVrchatCommand>>, TError,{data: BodyType<VrchatCommandRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof queueVrchatCommand>>, TError,{data: BodyType<VrchatCommandRequest>}, TContext> => {
+
+const mutationKey = ['queueVrchatCommand'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof queueVrchatCommand>>, {data: BodyType<VrchatCommandRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  queueVrchatCommand(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type QueueVrchatCommandMutationResult = NonNullable<Awaited<ReturnType<typeof queueVrchatCommand>>>
+    export type QueueVrchatCommandMutationBody = BodyType<VrchatCommandRequest>
+    export type QueueVrchatCommandMutationError = ErrorType<void>
+
+    /**
+ * @summary Queue a command for the staffer's own VRChat agent
+ */
+export const useQueueVrchatCommand = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof queueVrchatCommand>>, TError,{data: BodyType<VrchatCommandRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof queueVrchatCommand>>,
+        TError,
+        {data: BodyType<VrchatCommandRequest>},
+        TContext
+      > => {
+      return useMutation(getQueueVrchatCommandMutationOptions(options));
+    }
+
+export const getRevokeVrchatAgentUrl = () => {
+
+
+
+
+  return `/api/vrchat/agent/revoke`
+}
+
+/**
+ * @summary Revoke the staffer's current agent token (the running agent stops working)
+ */
+export const revokeVrchatAgent = async ( options?: RequestInit): Promise<RevokeVrchatAgent200> => {
+
+  return customFetch<RevokeVrchatAgent200>(getRevokeVrchatAgentUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRevokeVrchatAgentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVrchatAgent>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeVrchatAgent>>, TError,void, TContext> => {
+
+const mutationKey = ['revokeVrchatAgent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeVrchatAgent>>, void> = () => {
+
+
+          return  revokeVrchatAgent(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeVrchatAgentMutationResult = NonNullable<Awaited<ReturnType<typeof revokeVrchatAgent>>>
+
+    export type RevokeVrchatAgentMutationError = ErrorType<void>
+
+    /**
+ * @summary Revoke the staffer's current agent token (the running agent stops working)
+ */
+export const useRevokeVrchatAgent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVrchatAgent>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeVrchatAgent>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRevokeVrchatAgentMutationOptions(options));
     }
 
 export const getGetMyWalletUrl = () => {

@@ -1851,3 +1851,73 @@ export const breachPracticeClears = pgTable("breach_practice_clears", {
   userIdx: index("bpc_user_idx").on(t.userId),
 }));
 export type BreachPracticeClear = typeof breachPracticeClears.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// VRChat CyberPsycho control panel
+// ---------------------------------------------------------------------------
+// The portal is only a shared CONTROL PANEL. The actual VRChat work (reading the
+// VRCX auth cookie, parsing the VRChat log, mass-blocking / unblocking via the
+// playermoderations API) happens in a small local Python agent that each staffer
+// runs on their OWN PC against their OWN VRChat account. The portal never talks
+// to VRChat directly. There is exactly one agent per staff user.
+//
+// Auth between agent and portal is a bearer token: the agent downloads a
+// personalized script with a freshly-minted token baked in; the portal only ever
+// stores the sha256 hash of that token. Re-downloading supersedes the prior
+// token; Revoke clears it. The token is NOT a Discord session — agent requests
+// carry no cookie and are scoped purely to this one row.
+export const vrchatAgents = pgTable("vrchat_agents", {
+  // The staff user who owns this agent. One agent per user.
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  // sha256(token) hex. Null when never issued or after Revoke.
+  tokenHash: text("token_hash"),
+  tokenIssuedAt: timestamp("token_issued_at", { withTimezone: true }),
+  // Optional friendly label the agent reports (e.g. machine / VRChat name).
+  label: text("label"),
+  // Updated on every agent poll — drives the online/offline indicator.
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  // Latest full status snapshot the agent reported (psycho_active, blocked list,
+  // allowlist, current instance occupants, operation progress, session_expired…).
+  status: jsonb("status").$type<Record<string, unknown>>(),
+  statusAt: timestamp("status_at", { withTimezone: true }),
+  // Set by Revoke; while non-null the token (already cleared) cannot authenticate.
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type VrchatAgent = typeof vrchatAgents.$inferSelect;
+
+// Command queue from the portal to a staffer's agent. The portal inserts a
+// pending row; the agent claims it on its next poll, runs it locally, and reports
+// the outcome back (flipping status to done/error). Idempotency for re-delivered
+// stale-claimed rows is handled agent-side (block/unblock are tracked locally).
+export const vrchatAgentCommands = pgTable(
+  "vrchat_agent_commands",
+  {
+    id: serial("id").primaryKey(),
+    // The agent (= staff user) this command is for.
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // isolate | restore | refresh | snapshot | save_allowlist
+    kind: text("kind").notNull(),
+    // Command-specific payload, e.g. { allowlist: [{ id, name }] } for save_allowlist.
+    params: jsonb("params").$type<Record<string, unknown>>(),
+    // pending | claimed | done | error
+    status: text("status").notNull().default("pending"),
+    // Structured result the agent reported (e.g. counts, message).
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    error: text("error"),
+    // The staff user who issued the command (= userId for self-service, but kept
+    // separate so an admin-issued command stays attributable).
+    createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    queueIdx: index("vrchat_cmd_queue_idx").on(t.userId, t.status, t.id),
+  }),
+);
+export type VrchatAgentCommand = typeof vrchatAgentCommands.$inferSelect;

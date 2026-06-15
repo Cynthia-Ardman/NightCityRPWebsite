@@ -23,6 +23,7 @@ import reviewRouter from "./review";
 import breachRouter from "./breach";
 import eventsRouter from "./events";
 import economyCommandsRouter from "./economy-commands";
+import vrchatRouter from "./vrchat";
 
 import { requireVerified, requireSiteAccess } from "../middlewares/auth";
 
@@ -69,5 +70,6 @@ router.use(reviewRouter);
 router.use(breachRouter);
 router.use(eventsRouter);
 router.use(economyCommandsRouter);
+router.use(vrchatRouter);
 
 export default router;
