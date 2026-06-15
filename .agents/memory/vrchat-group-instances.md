@@ -46,7 +46,7 @@ Diagnosis that wasted time once — rule these OUT before blaming the secret:
 **Fix (BUILT): staff "Connect VRChat" flow.** Staff-only (ADMIN/FIXER) endpoints
 `GET /vrchat/session`, `POST /vrchat/session/connect`, `POST /vrchat/session/verify`
 (see `vrchatClient.beginManualLogin`/`completeEmailOtpLogin`/`finalizeSession` +
-the card on the `/live` page). `connect` POSTs Basic-auth creds to `/auth/user`
+the `VrchatConnectCard` in the System Admin → VRChat tab). `connect` POSTs Basic-auth creds to `/auth/user`
 — that request itself makes VRChat email the 6-digit code AND returns the `auth`
 cookie, which we stash in `vrchat_sessions.pending_auth_cookie`. `verify` posts
 the pasted code to `/auth/twofactorauth/emailotp/verify` with the pending cookie,

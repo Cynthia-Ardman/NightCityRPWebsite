@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
 import BecomeNpcButton from "@/components/BecomeNpcButton";
+import LiveInstances from "@/components/LiveInstances";
 import { useDismissNotificationPrompt, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Bell, X } from "lucide-react";
 import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
@@ -146,6 +147,8 @@ function Dashboard() {
       <NextMissionBanner />
 
       <NpcSessionBanner />
+
+      <LiveInstances />
 
       {/* Contextual top row: staff-only queue cards, the weekly attendance
           claim, and a per-character "open shop today" button all share ONE

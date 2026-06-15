@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useGetMyBreachPendingCount, getGetMyBreachPendingCountQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useGetMyBreachPendingCount, getGetMyBreachPendingCountQueryKey, useListVrchatInstances, getListVrchatInstancesQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
@@ -186,6 +186,14 @@ function SidebarContent() {
   });
   const hasIncomingBreach = (breachPending?.count ?? 0) > 0;
 
+  // Poll the live VRChat instances so the nav can surface a flashing "Live Now"
+  // alert above the Guidebook the moment a group instance opens. Public hook —
+  // every logged-in member sees it, not just staff.
+  const { data: vrchatInstances } = useListVrchatInstances({
+    query: { enabled: !!user, queryKey: getListVrchatInstancesQueryKey(), refetchInterval: 60000 },
+  });
+  const hasLiveInstance = (vrchatInstances?.instances?.length ?? 0) > 0;
+
   const NavItem = ({ href, icon: Icon, label, disabled, badge, alert, tone = "cyan" }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number, alert?: boolean, tone?: NavTone }) => {
     const isActive = location === href || location.startsWith(href + '/');
     if (disabled) return null;
@@ -234,6 +242,16 @@ function SidebarContent() {
       )}
 
       <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-1">
+        {hasLiveInstance && (
+          <Link
+            href="/"
+            className="group mx-2 mb-2 flex items-center gap-2 px-3 py-2 border border-nc-green bg-nc-green/10 text-nc-green animate-pulse hover:bg-nc-green/20 transition-colors"
+            data-testid="nav-live-now"
+          >
+            <Radio className="w-4 h-4 shrink-0" />
+            <span className="font-display uppercase tracking-widest text-sm">● Live Now</span>
+          </Link>
+        )}
         <NavItem href="/guidebook" icon={BookMarked} label="Guidebook" tone="cyan" />
 
         <div className={`px-4 text-xs font-mono ${NAV_TONES.cyan.heading} mb-2 mt-4 uppercase tracking-widest`}>Personal</div>
@@ -248,7 +266,6 @@ function SidebarContent() {
         <div className={`px-4 text-xs font-mono ${NAV_TONES.green.heading} mb-2 mt-6 uppercase tracking-widest`}>Directory</div>
         <NavItem href="/missions" icon={Briefcase} label="Missions" tone="green" />
         <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" tone="green" />
-        <NavItem href="/live" icon={Radio} label="Live Now" tone="green" />
         <NavItem href="/directory/stores" icon={Store} label="Stores" tone="green" />
         <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Ripperdocs" tone="green" />
         <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />

@@ -14,7 +14,6 @@ import CharacterDetail from "@/pages/CharacterDetail";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminUserDetail from "@/pages/admin/AdminUserDetail";
 import DiceRoller from "@/pages/DiceRoller";
-import VrchatInstances from "@/pages/VrchatInstances";
 import NewSheet from "@/pages/sheets/NewSheet";
 import SheetDetail from "@/pages/sheets/SheetDetail";
 import PendingSheets from "@/pages/sheets/PendingSheets";
@@ -276,7 +275,6 @@ function AppRoutes() {
           <Route path="/missions" component={Missions} />
           <Route path="/missions/:id" component={MissionDetail} />
           <Route path="/directory/calendar" component={DirectoryCalendar} />
-          <Route path="/live" component={VrchatInstances} />
           <Route path="/events/:id" component={EventDetail} />
           <Route path="/fixer/events">
             <FixerGuard><FixerEvents /></FixerGuard>
