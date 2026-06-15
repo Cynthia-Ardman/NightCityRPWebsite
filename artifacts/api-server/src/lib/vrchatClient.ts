@@ -55,7 +55,18 @@ function base32Decode(input: string): Buffer {
   return Buffer.from(out);
 }
 
-function totpCode(secret: string, atMs: number = Date.now()): string {
+// Accept a few shapes a user might paste for the 2FA secret: the bare base32
+// seed (ideal), or a full otpauth:// URL (extract its `secret=` param). Anything
+// else falls through to base32Decode which ignores non-alphabet chars.
+function normalizeTotpSecret(raw: string): string {
+  const trimmed = raw.trim();
+  const m = /[?&]secret=([^&\s]+)/i.exec(trimmed);
+  if (m) return decodeURIComponent(m[1]);
+  return trimmed;
+}
+
+function totpCode(rawSecret: string, atMs: number = Date.now()): string {
+  const secret = normalizeTotpSecret(rawSecret);
   const key = base32Decode(secret);
   const counter = Math.floor(atMs / 1000 / 30);
   const buf = Buffer.alloc(8);
@@ -152,7 +163,13 @@ async function login(): Promise<SessionCookies> {
   const required = data.requiresTwoFactorAuth ?? [];
   if (required.length > 0) {
     const totpSecret = process.env.VRCHAT_TOTP_SECRET;
-    const wantsTotp = required.includes("totp") || required.includes("otp");
+    const lc = required.map((r) => r.toLowerCase());
+    const wantsTotp = lc.includes("totp") || lc.includes("otp");
+    if (lc.includes("emailotp") && !wantsTotp) {
+      throw new Error(
+        "VRChat is requiring EMAIL one-time codes (emailOtp) for this account, which can't be automated. Switch the account to an authenticator app (TOTP) in VRChat settings, then provide VRCHAT_TOTP_SECRET.",
+      );
+    }
     if (!wantsTotp || !totpSecret) {
       throw new Error(
         `VRChat requires 2FA (${required.join(", ")}). Set VRCHAT_TOTP_SECRET (authenticator-app secret) on the account.`,
@@ -170,7 +187,9 @@ async function login(): Promise<SessionCookies> {
     });
     if (!verifyRes.ok) {
       const body = await verifyRes.text().catch(() => "");
-      throw new Error(`VRChat 2FA verify failed (${verifyRes.status}): ${body.slice(0, 200)}`);
+      throw new Error(
+        `VRChat 2FA verify failed (${verifyRes.status}) for methods [${required.join(", ")}]: ${body.slice(0, 200)}. The TOTP code was rejected — VRCHAT_TOTP_SECRET is likely not the account's authenticator seed.`,
+      );
     }
     twoFactorCookie = readSetCookie(verifyRes.headers.getSetCookie?.() ?? [], "twoFactorAuth") ?? twoFactorCookie;
   }
