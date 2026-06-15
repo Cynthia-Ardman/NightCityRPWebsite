@@ -273,9 +273,12 @@ import type {
   VenueStockRequestInput,
   VrchatCommandCreated,
   VrchatCommandRequest,
+  VrchatConnectResult,
   VrchatInstanceList,
   VrchatScanResult,
+  VrchatSessionInfo,
   VrchatStatusResponse,
+  VrchatVerifyRequest,
   Wallet,
   WalletAdjustmentInput,
   WalletTransaction
@@ -17359,6 +17362,224 @@ export const useRefreshVrchatInstances = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRefreshVrchatInstancesMutationOptions(options));
+    }
+
+export const getGetVrchatSessionUrl = () => {
+
+
+
+
+  return `/api/vrchat/session`
+}
+
+/**
+ * @summary Staff-only — VRChat poller session health (never returns cookie values)
+ */
+export const getVrchatSession = async ( options?: RequestInit): Promise<VrchatSessionInfo> => {
+
+  return customFetch<VrchatSessionInfo>(getGetVrchatSessionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVrchatSessionQueryKey = () => {
+    return [
+    `/api/vrchat/session`
+    ] as const;
+    }
+
+
+export const getGetVrchatSessionQueryOptions = <TData = Awaited<ReturnType<typeof getVrchatSession>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVrchatSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVrchatSessionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVrchatSession>>> = ({ signal }) => getVrchatSession({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVrchatSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVrchatSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getVrchatSession>>>
+export type GetVrchatSessionQueryError = ErrorType<void>
+
+
+/**
+ * @summary Staff-only — VRChat poller session health (never returns cookie values)
+ */
+
+export function useGetVrchatSession<TData = Awaited<ReturnType<typeof getVrchatSession>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVrchatSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVrchatSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getConnectVrchatSessionUrl = () => {
+
+
+
+
+  return `/api/vrchat/session/connect`
+}
+
+/**
+ * @summary Staff-only — begin a manual login (triggers VRChat to email a one-time code)
+ */
+export const connectVrchatSession = async ( options?: RequestInit): Promise<VrchatConnectResult> => {
+
+  return customFetch<VrchatConnectResult>(getConnectVrchatSessionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getConnectVrchatSessionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof connectVrchatSession>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof connectVrchatSession>>, TError,void, TContext> => {
+
+const mutationKey = ['connectVrchatSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof connectVrchatSession>>, void> = () => {
+
+
+          return  connectVrchatSession(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConnectVrchatSessionMutationResult = NonNullable<Awaited<ReturnType<typeof connectVrchatSession>>>
+
+    export type ConnectVrchatSessionMutationError = ErrorType<void>
+
+    /**
+ * @summary Staff-only — begin a manual login (triggers VRChat to email a one-time code)
+ */
+export const useConnectVrchatSession = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof connectVrchatSession>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof connectVrchatSession>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getConnectVrchatSessionMutationOptions(options));
+    }
+
+export const getVerifyVrchatSessionUrl = () => {
+
+
+
+
+  return `/api/vrchat/session/verify`
+}
+
+/**
+ * @summary Staff-only — finish a manual login with the 6-digit code VRChat emailed
+ */
+export const verifyVrchatSession = async (vrchatVerifyRequest: VrchatVerifyRequest, options?: RequestInit): Promise<VrchatConnectResult> => {
+
+  return customFetch<VrchatConnectResult>(getVerifyVrchatSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vrchatVerifyRequest,)
+  }
+);}
+
+
+
+
+export const getVerifyVrchatSessionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyVrchatSession>>, TError,{data: BodyType<VrchatVerifyRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyVrchatSession>>, TError,{data: BodyType<VrchatVerifyRequest>}, TContext> => {
+
+const mutationKey = ['verifyVrchatSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyVrchatSession>>, {data: BodyType<VrchatVerifyRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyVrchatSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyVrchatSessionMutationResult = NonNullable<Awaited<ReturnType<typeof verifyVrchatSession>>>
+    export type VerifyVrchatSessionMutationBody = BodyType<VrchatVerifyRequest>
+    export type VerifyVrchatSessionMutationError = ErrorType<void>
+
+    /**
+ * @summary Staff-only — finish a manual login with the 6-digit code VRChat emailed
+ */
+export const useVerifyVrchatSession = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyVrchatSession>>, TError,{data: BodyType<VrchatVerifyRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyVrchatSession>>,
+        TError,
+        {data: BodyType<VrchatVerifyRequest>},
+        TContext
+      > => {
+      return useMutation(getVerifyVrchatSessionMutationOptions(options));
     }
 
 export const getGetMyWalletUrl = () => {

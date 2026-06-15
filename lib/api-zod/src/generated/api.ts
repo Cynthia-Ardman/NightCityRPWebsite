@@ -8678,6 +8678,41 @@ export const RefreshVrchatInstancesResponse = zod.object({
 
 
 /**
+ * @summary Staff-only — VRChat poller session health (never returns cookie values)
+ */
+export const GetVrchatSessionResponse = zod.object({
+  "configured": zod.boolean().describe('Whether VRChat credentials are configured server-side.'),
+  "connected": zod.boolean().describe('Whether an authenticated VRChat session cookie is stored.'),
+  "pending": zod.boolean().describe('Whether a login is awaiting an emailed one-time code.'),
+  "displayName": zod.string().nullish().describe('Connected VRChat account display name.'),
+  "lastAuthAt": zod.coerce.date().nullish().describe('Last successful authenticated VRChat call.'),
+  "lastError": zod.string().nullish().describe('Last login\/poll error surfaced to staff.')
+})
+
+
+/**
+ * @summary Staff-only — begin a manual login (triggers VRChat to email a one-time code)
+ */
+export const ConnectVrchatSessionResponse = zod.object({
+  "status": zod.enum(['connected', 'needs_email_code']).describe('connected = session live; needs_email_code = VRChat emailed a code to enter.'),
+  "displayName": zod.string().nullish()
+})
+
+
+/**
+ * @summary Staff-only — finish a manual login with the 6-digit code VRChat emailed
+ */
+export const VerifyVrchatSessionBody = zod.object({
+  "code": zod.string().describe('The 6-digit one-time code VRChat emailed.')
+})
+
+export const VerifyVrchatSessionResponse = zod.object({
+  "status": zod.enum(['connected', 'needs_email_code']).describe('connected = session live; needs_email_code = VRChat emailed a code to enter.'),
+  "displayName": zod.string().nullish()
+})
+
+
+/**
  * @summary Per-user eddies balance from Unbelievaboat (account-level, not per-character)
  */
 export const GetMyWalletResponse = zod.object({

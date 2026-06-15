@@ -131,6 +131,43 @@ export interface VrchatInstanceList {
   configured: boolean;
 }
 
+export interface VrchatSessionInfo {
+  /** Whether VRChat credentials are configured server-side. */
+  configured: boolean;
+  /** Whether an authenticated VRChat session cookie is stored. */
+  connected: boolean;
+  /** Whether a login is awaiting an emailed one-time code. */
+  pending: boolean;
+  /** Connected VRChat account display name. */
+  displayName?: string | null;
+  /** Last successful authenticated VRChat call. */
+  lastAuthAt?: string | null;
+  /** Last login/poll error surfaced to staff. */
+  lastError?: string | null;
+}
+
+/**
+ * connected = session live; needs_email_code = VRChat emailed a code to enter.
+ */
+export type VrchatConnectResultStatus = typeof VrchatConnectResultStatus[keyof typeof VrchatConnectResultStatus];
+
+
+export const VrchatConnectResultStatus = {
+  connected: 'connected',
+  needs_email_code: 'needs_email_code',
+} as const;
+
+export interface VrchatConnectResult {
+  /** connected = session live; needs_email_code = VRChat emailed a code to enter. */
+  status: VrchatConnectResultStatus;
+  displayName?: string | null;
+}
+
+export interface VrchatVerifyRequest {
+  /** The 6-digit one-time code VRChat emailed. */
+  code: string;
+}
+
 export interface BreachPos {
   /** Row index in the code matrix (0-based). */
   r: number;

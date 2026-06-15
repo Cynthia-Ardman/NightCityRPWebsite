@@ -12,7 +12,12 @@ import {
 import { buildAgentBundle } from "../lib/vrchatAgentFiles";
 import { buildZip } from "../lib/zip";
 import { getCachedInstances, pollGroupInstances } from "../lib/vrchatInstances";
-import { vrchatCredsConfigured } from "../lib/vrchatClient";
+import {
+  vrchatCredsConfigured,
+  beginManualLogin,
+  completeEmailOtpLogin,
+  getSessionInfo,
+} from "../lib/vrchatClient";
 
 const router: IRouter = Router();
 
@@ -227,6 +232,46 @@ router.post("/vrchat/instances/refresh", ...staffOnly, async (_req: Request, res
     res.json({ ok: true, count });
   } catch (err) {
     res.status(502).json({ error: "vrchat_poll_failed", message: err instanceof Error ? err.message : "poll failed" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Staff VRChat session connect flow (one-time email-code handshake)
+// ---------------------------------------------------------------------------
+
+// GET /vrchat/session — connection health for the staff "Connect VRChat" card.
+// Never returns cookie values.
+router.get("/vrchat/session", ...staffOnly, async (_req: Request, res: Response): Promise<void> => {
+  res.json(await getSessionInfo());
+});
+
+// POST /vrchat/session/connect — begin a manual login. Triggers VRChat to email a
+// one-time code (or connects immediately if a remembered device/TOTP suffices).
+router.post("/vrchat/session/connect", ...staffOnly, async (_req: Request, res: Response): Promise<void> => {
+  if (!vrchatCredsConfigured()) {
+    res.status(400).json({ error: "vrchat_not_configured" });
+    return;
+  }
+  try {
+    const result = await beginManualLogin();
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: "vrchat_connect_failed", message: err instanceof Error ? err.message : "connect failed" });
+  }
+});
+
+// POST /vrchat/session/verify — finish a manual login with the emailed 6-digit code.
+router.post("/vrchat/session/verify", ...staffOnly, async (req: Request, res: Response): Promise<void> => {
+  const { code } = (req.body ?? {}) as { code?: unknown };
+  if (typeof code !== "string" || !code.trim()) {
+    res.status(400).json({ error: "invalid_code" });
+    return;
+  }
+  try {
+    const result = await completeEmailOtpLogin(code);
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: "vrchat_verify_failed", message: err instanceof Error ? err.message : "verify failed" });
   }
 });
 

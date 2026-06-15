@@ -3866,6 +3866,54 @@ paths:
         "401": { description: Not signed in }
         "403": { description: Not an admin or fixer }
         "502": { description: VRChat poll failed }
+  /vrchat/session:
+    get:
+      operationId: getVrchatSession
+      tags: [vrchat]
+      summary: Staff-only — VRChat poller session health (never returns cookie values)
+      responses:
+        "200":
+          description: Session status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatSessionInfo" }
+        "401": { description: Not signed in }
+        "403": { description: Not an admin or fixer }
+  /vrchat/session/connect:
+    post:
+      operationId: connectVrchatSession
+      tags: [vrchat]
+      summary: Staff-only — begin a manual login (triggers VRChat to email a one-time code)
+      responses:
+        "200":
+          description: Connect started or completed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatConnectResult" }
+        "400": { description: VRChat credentials not configured }
+        "401": { description: Not signed in }
+        "403": { description: Not an admin or fixer }
+        "502": { description: VRChat connect failed }
+  /vrchat/session/verify:
+    post:
+      operationId: verifyVrchatSession
+      tags: [vrchat]
+      summary: Staff-only — finish a manual login with the 6-digit code VRChat emailed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VrchatVerifyRequest" }
+      responses:
+        "200":
+          description: Connected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatConnectResult" }
+        "400": { description: Invalid or missing code }
+        "401": { description: Not signed in }
+        "403": { description: Not an admin or fixer }
+        "502": { description: VRChat verify failed }
   /me/wallet:
     get:
       operationId: getMyWallet
@@ -5120,6 +5168,30 @@ components:
       properties:
         instances: { type: array, items: { $ref: "#/components/schemas/VrchatInstance" } }
         configured: { type: boolean, description: "Whether VRChat credentials are configured server-side." }
+    VrchatSessionInfo:
+      type: object
+      required: [configured, connected, pending]
+      properties:
+        configured: { type: boolean, description: "Whether VRChat credentials are configured server-side." }
+        connected: { type: boolean, description: "Whether an authenticated VRChat session cookie is stored." }
+        pending: { type: boolean, description: "Whether a login is awaiting an emailed one-time code." }
+        displayName: { type: string, nullable: true, description: "Connected VRChat account display name." }
+        lastAuthAt: { type: string, format: date-time, nullable: true, description: "Last successful authenticated VRChat call." }
+        lastError: { type: string, nullable: true, description: "Last login/poll error surfaced to staff." }
+    VrchatConnectResult:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [connected, needs_email_code]
+          description: "connected = session live; needs_email_code = VRChat emailed a code to enter."
+        displayName: { type: string, nullable: true }
+    VrchatVerifyRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, description: "The 6-digit one-time code VRChat emailed." }
     BreachPos:
       type: object
       required: [r, c]

@@ -195,11 +195,19 @@ async function login(): Promise<SessionCookies> {
   }
 
   const cookies: SessionCookies = { auth: authCookie, twoFactor: twoFactorCookie };
-  if (!cookies.auth) throw new Error("VRChat login did not return an auth cookie.");
+  await finalizeSession(cookies, data);
+  return cookies;
+}
 
-  // Confirm + capture identity using the freshly-minted cookies.
-  let vrchatUserId = data.id ?? null;
-  let vrchatDisplayName = data.displayName ?? null;
+// Persist a freshly-established session: confirm + capture account identity using
+// the new cookies, store them, clear any pending-login state, and mark healthy.
+async function finalizeSession(
+  cookies: SessionCookies,
+  prelim: { id?: string; displayName?: string },
+): Promise<{ vrchatUserId: string | null; vrchatDisplayName: string | null }> {
+  if (!cookies.auth) throw new Error("VRChat login did not return an auth cookie.");
+  let vrchatUserId = prelim.id ?? null;
+  let vrchatDisplayName = prelim.displayName ?? null;
   if (!vrchatUserId) {
     const meRes = await fetch(`${API_BASE}/auth/user`, {
       headers: { ...baseHeaders(), Cookie: cookieHeader(cookies) },
@@ -211,17 +219,155 @@ async function login(): Promise<SessionCookies> {
       vrchatDisplayName = me.displayName ?? null;
     }
   }
-
   await persistSession({
     authCookie: cookies.auth,
     twoFactorCookie: cookies.twoFactor,
+    pendingAuthCookie: null,
     vrchatUserId,
     vrchatDisplayName,
     lastAuthAt: new Date(),
     lastError: null,
   });
   logger.info({ vrchatUserId }, "VRChat session established");
-  return cookies;
+  return { vrchatUserId, vrchatDisplayName };
+}
+
+export type ConnectStatus = "connected" | "needs_email_code";
+
+export interface ConnectResult {
+  status: ConnectStatus;
+  displayName: string | null;
+}
+
+// Begin a STAFF-DRIVEN manual login. Posts credentials to /auth/user, which both
+// tells us which 2FA method VRChat wants AND (for emailOtp) causes VRChat to send
+// the code email. If a remembered twoFactor cookie or a configured TOTP secret can
+// satisfy the challenge we finish immediately; otherwise we stash the auth cookie
+// and report that an email code is needed. This exists because VRChat forces
+// emailOtp on logins from this server's datacenter IP, which can't be automated.
+export async function beginManualLogin(): Promise<ConnectResult> {
+  const username = process.env.VRCHAT_USERNAME;
+  const password = process.env.VRCHAT_PASSWORD;
+  if (!username || !password) {
+    throw new Error("VRChat credentials not configured (VRCHAT_USERNAME / VRCHAT_PASSWORD).");
+  }
+  const basic = Buffer.from(
+    `${encodeURIComponent(username)}:${encodeURIComponent(password)}`,
+  ).toString("base64");
+
+  const prior = await loadSession();
+  const authRes = await fetch(`${API_BASE}/auth/user`, {
+    headers: {
+      ...baseHeaders(),
+      Authorization: `Basic ${basic}`,
+      ...(prior.twoFactor ? { Cookie: `twoFactorAuth=${prior.twoFactor}` } : {}),
+    },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!authRes.ok) {
+    const body = await authRes.text().catch(() => "");
+    throw new Error(`VRChat login failed (${authRes.status}): ${body.slice(0, 200)}`);
+  }
+  const authCookie = readSetCookie(authRes.headers.getSetCookie?.() ?? [], "auth") ?? prior.auth;
+  const data = (await authRes.json().catch(() => ({}))) as {
+    requiresTwoFactorAuth?: string[];
+    id?: string;
+    displayName?: string;
+  };
+  const required = (data.requiresTwoFactorAuth ?? []).map((r) => r.toLowerCase());
+
+  // No challenge — a remembered 2FA device (or a 2FA-free account) let us straight in.
+  if (required.length === 0) {
+    const res = await finalizeSession({ auth: authCookie, twoFactor: prior.twoFactor }, data);
+    return { status: "connected", displayName: res.vrchatDisplayName };
+  }
+
+  // Authenticator challenge we CAN satisfy headlessly when a secret is configured.
+  const totpSecret = process.env.VRCHAT_TOTP_SECRET;
+  if ((required.includes("totp") || required.includes("otp")) && totpSecret) {
+    const verifyRes = await fetch(`${API_BASE}/auth/twofactorauth/totp/verify`, {
+      method: "POST",
+      headers: {
+        ...baseHeaders(),
+        "Content-Type": "application/json",
+        ...(authCookie ? { Cookie: `auth=${authCookie}` } : {}),
+      },
+      body: JSON.stringify({ code: totpCode(totpSecret) }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (verifyRes.ok) {
+      const twoFactor = readSetCookie(verifyRes.headers.getSetCookie?.() ?? [], "twoFactorAuth");
+      const res = await finalizeSession({ auth: authCookie, twoFactor }, data);
+      return { status: "connected", displayName: res.vrchatDisplayName };
+    }
+    // Fall through to emailOtp if VRChat also offers it; else surface the error.
+  }
+
+  if (required.includes("emailotp")) {
+    if (!authCookie) throw new Error("VRChat login did not return an auth cookie.");
+    // VRChat already emailed the code as a side effect of the request above.
+    await persistSession({ pendingAuthCookie: authCookie, lastError: null });
+    return { status: "needs_email_code", displayName: null };
+  }
+
+  throw new Error(
+    `VRChat requires 2FA (${required.join(", ")}) and no usable code source is configured for it.`,
+  );
+}
+
+// Complete a manual login by submitting the 6-digit code VRChat emailed. Uses the
+// auth cookie stashed by beginManualLogin and promotes the session on success.
+export async function completeEmailOtpLogin(rawCode: string): Promise<ConnectResult> {
+  const code = (rawCode ?? "").replace(/\D/g, "");
+  if (code.length !== 6) {
+    throw new Error("Enter the 6-digit code VRChat emailed you.");
+  }
+  const [row] = await db.select().from(vrchatSessions).where(eq(vrchatSessions.id, SESSION_ID));
+  const pending = row?.pendingAuthCookie ?? null;
+  if (!pending) {
+    throw new Error('No pending VRChat login — click "Connect" to request a fresh email code first.');
+  }
+  const verifyRes = await fetch(`${API_BASE}/auth/twofactorauth/emailotp/verify`, {
+    method: "POST",
+    headers: {
+      ...baseHeaders(),
+      "Content-Type": "application/json",
+      Cookie: `auth=${pending}`,
+    },
+    body: JSON.stringify({ code }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!verifyRes.ok) {
+    const body = await verifyRes.text().catch(() => "");
+    throw new Error(
+      `VRChat rejected that email code (${verifyRes.status}): ${body.slice(0, 150)}. Codes expire quickly — request a new one and try again.`,
+    );
+  }
+  const twoFactor = readSetCookie(verifyRes.headers.getSetCookie?.() ?? [], "twoFactorAuth");
+  const res = await finalizeSession({ auth: pending, twoFactor }, {});
+  return { status: "connected", displayName: res.vrchatDisplayName };
+}
+
+// Session health for the staff control card. Never returns cookie values.
+export interface VrchatSessionInfo {
+  configured: boolean;
+  connected: boolean;
+  pending: boolean;
+  displayName: string | null;
+  lastAuthAt: string | null;
+  lastError: string | null;
+}
+
+export async function getSessionInfo(): Promise<VrchatSessionInfo> {
+  const [row] = await db.select().from(vrchatSessions).where(eq(vrchatSessions.id, SESSION_ID));
+  return {
+    configured: vrchatCredsConfigured(),
+    connected: !!row?.authCookie,
+    pending: !!row?.pendingAuthCookie,
+    displayName: row?.vrchatDisplayName ?? null,
+    lastAuthAt: row?.lastAuthAt?.toISOString() ?? null,
+    lastError: row?.lastError ?? null,
+  };
 }
 
 // Authenticated GET against the VRChat API. Uses stored cookies; on 401 it

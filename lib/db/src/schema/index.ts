@@ -1931,6 +1931,9 @@ export const vrchatSessions = pgTable("vrchat_sessions", {
   // Raw cookie VALUES (not name=value) replayed on each authenticated call.
   authCookie: text("auth_cookie"),
   twoFactorCookie: text("two_factor_cookie"),
+  // Auth cookie captured mid-login while waiting for a human to paste the email
+  // one-time code (emailOtp). Promoted to authCookie once verify succeeds.
+  pendingAuthCookie: text("pending_auth_cookie"),
   // Resolved account identity (diagnostic; surfaced to staff only).
   vrchatUserId: text("vrchat_user_id"),
   vrchatDisplayName: text("vrchat_display_name"),
