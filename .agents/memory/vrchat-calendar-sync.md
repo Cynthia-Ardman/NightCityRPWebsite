@@ -40,3 +40,17 @@ vrchat_synced_at / vrchat_sync_error) can exist in dev but be **missing in prod*
 to the dev schema don't reach prod until the next Publish. Enabling the flag
 before those columns exist crashes reconcile. Order: Publish first, confirm
 columns, then flip the flag.
+
+## "Still no events" diagnostic (verified 2026-06-15)
+Symptom: nothing on the VRChat group calendar despite a healthy session and many
+upcoming session/social rows. Root cause was the simplest gate: the
+`vrchat_calendar_sync_enabled` bot_config row **did not exist** in prod (never
+toggled). The reader is `row?.value === true`, so a MISSING row reads false —
+same as disabled. Confirm with prod `bot_config` (row present + jsonb `true`),
+`vrchat_sessions` (has auth+2fa cookies, null last_error), and `events`
+(qualifying rows, vrchat_calendar_id null, no vrchat_sync_error).
+**Fix without redeploy:** upsert the flag into the LIVE prod DB (jsonb `true`) —
+the deployed `discord_event_sync` cron (every 10 min) reads the flag live each
+tick and backfills ≤3 events/cycle (rate limit), so all rows populate over ~1h.
+Or hit admin Jobs "Run now" (`POST /admin/jobs/run` discord_event_sync) to fire
+immediately. The flag write is the only thing needed; no code change.
