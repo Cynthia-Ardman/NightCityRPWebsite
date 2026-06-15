@@ -271,6 +271,7 @@ import type {
   VenueAccountInput,
   VenueAccountResult,
   VenueStockRequestInput,
+  VrchatCalendarSyncState,
   VrchatCommandCreated,
   VrchatCommandRequest,
   VrchatConnectResult,
@@ -10608,6 +10609,154 @@ export const useAdminSetSiteAccess = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminSetSiteAccessMutationOptions(options));
+    }
+
+export const getAdminGetVrchatCalendarSyncUrl = () => {
+
+
+
+
+  return `/api/admin/vrchat-calendar-sync`
+}
+
+/**
+ * @summary Whether the VRChat group-calendar mirror kill-switch is on.
+ */
+export const adminGetVrchatCalendarSync = async ( options?: RequestInit): Promise<VrchatCalendarSyncState> => {
+
+  return customFetch<VrchatCalendarSyncState>(getAdminGetVrchatCalendarSyncUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetVrchatCalendarSyncQueryKey = () => {
+    return [
+    `/api/admin/vrchat-calendar-sync`
+    ] as const;
+    }
+
+
+export const getAdminGetVrchatCalendarSyncQueryOptions = <TData = Awaited<ReturnType<typeof adminGetVrchatCalendarSync>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetVrchatCalendarSync>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetVrchatCalendarSyncQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetVrchatCalendarSync>>> = ({ signal }) => adminGetVrchatCalendarSync({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetVrchatCalendarSync>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetVrchatCalendarSyncQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetVrchatCalendarSync>>>
+export type AdminGetVrchatCalendarSyncQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Whether the VRChat group-calendar mirror kill-switch is on.
+ */
+
+export function useAdminGetVrchatCalendarSync<TData = Awaited<ReturnType<typeof adminGetVrchatCalendarSync>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetVrchatCalendarSync>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetVrchatCalendarSyncQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminSetVrchatCalendarSyncUrl = () => {
+
+
+
+
+  return `/api/admin/vrchat-calendar-sync`
+}
+
+/**
+ * @summary Enable or disable cross-posting events to the VRChat group calendar.
+ */
+export const adminSetVrchatCalendarSync = async (vrchatCalendarSyncState: VrchatCalendarSyncState, options?: RequestInit): Promise<VrchatCalendarSyncState> => {
+
+  return customFetch<VrchatCalendarSyncState>(getAdminSetVrchatCalendarSyncUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vrchatCalendarSyncState,)
+  }
+);}
+
+
+
+
+export const getAdminSetVrchatCalendarSyncMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetVrchatCalendarSync>>, TError,{data: BodyType<VrchatCalendarSyncState>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSetVrchatCalendarSync>>, TError,{data: BodyType<VrchatCalendarSyncState>}, TContext> => {
+
+const mutationKey = ['adminSetVrchatCalendarSync'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSetVrchatCalendarSync>>, {data: BodyType<VrchatCalendarSyncState>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminSetVrchatCalendarSync(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSetVrchatCalendarSyncMutationResult = NonNullable<Awaited<ReturnType<typeof adminSetVrchatCalendarSync>>>
+    export type AdminSetVrchatCalendarSyncMutationBody = BodyType<VrchatCalendarSyncState>
+    export type AdminSetVrchatCalendarSyncMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Enable or disable cross-posting events to the VRChat group calendar.
+ */
+export const useAdminSetVrchatCalendarSync = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetVrchatCalendarSync>>, TError,{data: BodyType<VrchatCalendarSyncState>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSetVrchatCalendarSync>>,
+        TError,
+        {data: BodyType<VrchatCalendarSyncState>},
+        TContext
+      > => {
+      return useMutation(getAdminSetVrchatCalendarSyncMutationOptions(options));
     }
 
 export const getAdminScanVrchatLinksUrl = () => {

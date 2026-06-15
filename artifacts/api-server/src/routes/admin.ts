@@ -25,6 +25,7 @@ import { auditLog, classifyWalletCategory } from "@workspace/db";
 import { parseCwp, cwpForItem } from "../lib/cyberware";
 import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from "../lib/liveMode";
 import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
+import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsService";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
 import { getEconomyMode, reconcileOneUser } from "../lib/economy";
 
@@ -934,6 +935,41 @@ router.put("/admin/site-access", adminOnly, async (req, res): Promise<void> => {
     after: { loginRestricted },
   });
   res.json({ loginRestricted });
+});
+
+// ─── VRChat group-calendar mirror kill-switch ─────────────────────────────
+// When ON, qualifying website events (Main Sessions + social) are cross-posted
+// to the NCRP VRChat group calendar. Independent of the Test/Live switchboard
+// and additionally gated by the deployment write-gate + VRChat creds; defaults
+// OFF so a fresh environment never touches the VRChat API until opted in.
+router.get("/admin/vrchat-calendar-sync", adminOnly, async (_req, res): Promise<void> => {
+  res.json({ enabled: await isVrchatCalendarSyncEnabled() });
+});
+
+router.put("/admin/vrchat-calendar-sync", adminOnly, async (req, res): Promise<void> => {
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  if (typeof b.enabled !== "boolean") {
+    res.status(400).json({ error: "enabled (boolean) required" });
+    return;
+  }
+  const enabled = b.enabled;
+  await db
+    .insert(botConfig)
+    .values({ key: VRCHAT_SYNC_FLAG, value: enabled as never })
+    .onConflictDoUpdate({
+      target: botConfig.key,
+      set: { value: enabled as never, updatedAt: new Date() },
+    });
+  await recordAudit({
+    req,
+    category: "admin",
+    action: "vrchat_calendar_sync.change",
+    targetType: "config",
+    targetId: VRCHAT_SYNC_FLAG,
+    message: `VRChat calendar sync ${enabled ? "ENABLED" : "DISABLED"}`,
+    after: { enabled },
+  });
+  res.json({ enabled });
 });
 
 // Re-scrape the VRChat username channel and refresh Discord<->VRChat links.

@@ -2308,6 +2308,33 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SiteAccessState" }
 
+  /admin/vrchat-calendar-sync:
+    get:
+      operationId: adminGetVrchatCalendarSync
+      tags: [admin]
+      summary: "Whether the VRChat group-calendar mirror kill-switch is on."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatCalendarSyncState" }
+    put:
+      operationId: adminSetVrchatCalendarSync
+      tags: [admin]
+      summary: "Enable or disable cross-posting events to the VRChat group calendar."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VrchatCalendarSyncState" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatCalendarSyncState" }
+
   /admin/vrchat-links/scan:
     post:
       operationId: adminScanVrchatLinks
@@ -8464,6 +8491,8 @@ components:
         createdByName: { type: ["string", "null"] }
         hasDiscordEvent: { type: boolean, description: "True when a Discord scheduled event is linked." }
         discordSyncError: { type: ["string", "null"], description: "Last Discord sync error (managers only)." }
+        hasVrchatEvent: { type: boolean, description: "True when a VRChat group calendar event is linked." }
+        vrchatSyncError: { type: ["string", "null"], description: "Last VRChat calendar sync error (managers only)." }
         signupCount: { type: integer, description: "Number of active NPC sign-ups." }
         mySignup:
           oneOf:
@@ -8737,6 +8766,13 @@ components:
       description: "Staff-only login lockdown state. When loginRestricted is true, only ADMIN / FIXER / ARCHIVIST may sign in or use the portal."
       properties:
         loginRestricted: { type: boolean }
+
+    VrchatCalendarSyncState:
+      type: object
+      required: [enabled]
+      description: "VRChat group-calendar mirror kill-switch. When enabled is true, qualifying website events (Main Sessions + social) are cross-posted to the VRChat group calendar (subject to the deployment write-gate + creds)."
+      properties:
+        enabled: { type: boolean }
 
     VrchatScanResult:
       type: object

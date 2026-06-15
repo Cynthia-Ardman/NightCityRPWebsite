@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
@@ -1207,6 +1207,55 @@ export function LoginRestrictionCard() {
   );
 }
 
+// VRChat group-calendar mirror kill-switch. When ON, qualifying website events
+// (Main Sessions + social) are cross-posted to the NCRP VRChat group calendar so
+// Discord, the website, and VRChat all stay in sync. Independent of the Test/Live
+// switchboard; additionally gated server-side by the deployment write-gate + VRChat
+// creds. Mirrors the LoginRestrictionCard styling.
+export function VrchatCalendarSyncCard() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: state, isLoading } = useAdminGetVrchatCalendarSync();
+  const update = useAdminSetVrchatCalendarSync({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getAdminGetVrchatCalendarSyncQueryKey() });
+        toast({ title: "VRChat calendar sync updated" });
+      },
+      onError: (err: any) =>
+        toast({ title: "Update failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+    },
+  });
+  const enabled = state?.enabled === true;
+  return (
+    <div
+      className={`flex items-center justify-between gap-4 border p-4 ${enabled ? "border-nc-cyan bg-nc-cyan/10" : "border-border bg-card/30"}`}
+      data-testid="vrchat-calendar-sync"
+    >
+      <div>
+        <div className="font-display text-base tracking-widest">
+          VRCHAT CALENDAR SYNC:{" "}
+          <span className={enabled ? "text-nc-cyan" : "text-nc-yellow"}>
+            {isLoading ? "…" : enabled ? "ON" : "OFF"}
+          </span>
+        </div>
+        <div className="font-mono text-[11px] text-muted-foreground max-w-xl mt-1">
+          When ON, Main Sessions and social events are cross-posted to the NCRP VRChat group calendar (missions are never synced). The website stays the source of truth. Live cross-posting only happens in the deployed environment with VRChat credentials configured.
+        </div>
+      </div>
+      <Button
+        size="sm"
+        disabled={isLoading || update.isPending}
+        onClick={() => update.mutate({ data: { enabled: !enabled } })}
+        className={`rounded-none font-display text-xs ${enabled ? "bg-nc-yellow text-background" : "bg-nc-cyan text-background"}`}
+        data-testid="button-vrchat-calendar-sync"
+      >
+        {enabled ? "DISABLE" : "ENABLE"}
+      </Button>
+    </div>
+  );
+}
+
 // Admin kill switch for new player-character submissions. When DISABLED,
 // players cannot submit new PCs for review; editing existing characters and
 // creating NPCs (fixers/admins) stay available. Stored as a plain bot_config
@@ -1373,6 +1422,7 @@ export function JobsTab() {
       <CardContent className="space-y-8">
         <LiveModeSwitchboard />
         <LoginRestrictionCard />
+        <VrchatCalendarSyncCard />
         <CharacterSubmissionsCard />
         <VrchatScanButton />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

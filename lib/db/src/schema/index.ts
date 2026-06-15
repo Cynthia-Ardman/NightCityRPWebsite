@@ -1024,6 +1024,18 @@ export const events = pgTable("events", {
   // frequency (0=Y,1=M,2=W,3=D), interval, optional weekday set (0=Mon..6=Sun),
   // and an optional end via count or until.
   recurrenceRule: jsonb("recurrence_rule").$type<EventRecurrenceRule>(),
+  // VRChat group-calendar mirror (third downstream target beside Discord, gated
+  // by the `vrchat_calendar_sync_enabled` kill-switch + deployment write-gate).
+  // Only Main Sessions + social events are mirrored; missions never are.
+  // Linked VRChat calendar event id (cal_…); null if never synced / torn down.
+  vrchatCalendarId: text("vrchat_calendar_id"),
+  // Last VRChat sync failure surfaced to staff (cleared on success).
+  vrchatSyncError: text("vrchat_sync_error"),
+  // Hash of the last content pushed to VRChat (title/description/start/end);
+  // lets the sync skip a no-op write when nothing changed.
+  vrchatSyncedHash: text("vrchat_synced_hash"),
+  // When this row was last reconciled with its VRChat calendar event.
+  vrchatSyncedAt: timestamp("vrchat_synced_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({

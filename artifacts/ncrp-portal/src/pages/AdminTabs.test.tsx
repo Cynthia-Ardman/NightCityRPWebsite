@@ -78,6 +78,10 @@ vi.mock("@workspace/api-client-react", () => ({
   // Site-access / login restriction (rendered by JobsTab's LoginRestrictionCard)
   useAdminGetSiteAccess: () => ({ data: undefined, isLoading: false }),
   useAdminSetSiteAccess: () => ({ mutate: h.mutate, isPending: false }),
+  // VRChat calendar sync (rendered by JobsTab's VrchatCalendarSyncCard)
+  useAdminGetVrchatCalendarSync: () => ({ data: undefined, isLoading: false }),
+  useAdminSetVrchatCalendarSync: () => ({ mutate: h.mutate, isPending: false }),
+  getAdminGetVrchatCalendarSyncQueryKey: () => ["admin-vrchat-calendar-sync"],
 }));
 
 vi.mock("@/hooks/use-toast", () => ({

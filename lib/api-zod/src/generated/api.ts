@@ -5139,6 +5139,8 @@ export const ListEventsResponseItem = zod.object({
   "createdByName": zod.string().nullish(),
   "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
   "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "hasVrchatEvent": zod.boolean().optional().describe('True when a VRChat group calendar event is linked.'),
+  "vrchatSyncError": zod.string().nullish().describe('Last VRChat calendar sync error (managers only).'),
   "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
   "id": zod.number(),
@@ -5235,6 +5237,8 @@ export const GetEventResponse = zod.object({
   "createdByName": zod.string().nullish(),
   "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
   "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "hasVrchatEvent": zod.boolean().optional().describe('True when a VRChat group calendar event is linked.'),
+  "vrchatSyncError": zod.string().nullish().describe('Last VRChat calendar sync error (managers only).'),
   "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
   "id": zod.number(),
@@ -5304,6 +5308,8 @@ export const UpdateEventResponse = zod.object({
   "createdByName": zod.string().nullish(),
   "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
   "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "hasVrchatEvent": zod.boolean().optional().describe('True when a VRChat group calendar event is linked.'),
+  "vrchatSyncError": zod.string().nullish().describe('Last VRChat calendar sync error (managers only).'),
   "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
   "id": zod.number(),
@@ -5375,6 +5381,8 @@ export const SignUpAsEventNpcResponse = zod.object({
   "createdByName": zod.string().nullish(),
   "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
   "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "hasVrchatEvent": zod.boolean().optional().describe('True when a VRChat group calendar event is linked.'),
+  "vrchatSyncError": zod.string().nullish().describe('Last VRChat calendar sync error (managers only).'),
   "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
   "id": zod.number(),
@@ -5429,6 +5437,8 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "createdByName": zod.string().nullish(),
   "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
   "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "hasVrchatEvent": zod.boolean().optional().describe('True when a VRChat group calendar event is linked.'),
+  "vrchatSyncError": zod.string().nullish().describe('Last VRChat calendar sync error (managers only).'),
   "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
   "id": zod.number(),
@@ -5636,6 +5646,26 @@ export const AdminSetSiteAccessBody = zod.object({
 export const AdminSetSiteAccessResponse = zod.object({
   "loginRestricted": zod.boolean()
 }).describe('Staff-only login lockdown state. When loginRestricted is true, only ADMIN \/ FIXER \/ ARCHIVIST may sign in or use the portal.')
+
+
+/**
+ * @summary Whether the VRChat group-calendar mirror kill-switch is on.
+ */
+export const AdminGetVrchatCalendarSyncResponse = zod.object({
+  "enabled": zod.boolean()
+}).describe('VRChat group-calendar mirror kill-switch. When enabled is true, qualifying website events (Main Sessions + social) are cross-posted to the VRChat group calendar (subject to the deployment write-gate + creds).')
+
+
+/**
+ * @summary Enable or disable cross-posting events to the VRChat group calendar.
+ */
+export const AdminSetVrchatCalendarSyncBody = zod.object({
+  "enabled": zod.boolean()
+}).describe('VRChat group-calendar mirror kill-switch. When enabled is true, qualifying website events (Main Sessions + social) are cross-posted to the VRChat group calendar (subject to the deployment write-gate + creds).')
+
+export const AdminSetVrchatCalendarSyncResponse = zod.object({
+  "enabled": zod.boolean()
+}).describe('VRChat group-calendar mirror kill-switch. When enabled is true, qualifying website events (Main Sessions + social) are cross-posted to the VRChat group calendar (subject to the deployment write-gate + creds).')
 
 
 /**

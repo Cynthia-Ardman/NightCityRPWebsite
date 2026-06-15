@@ -6,7 +6,7 @@ import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
-import { reconcileDiscordEvents, backfillMainSessions } from "./eventsService";
+import { reconcileDiscordEvents, backfillMainSessions, reconcileVrchatCalendar } from "./eventsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode } from "./economy";
 import { pollGroupInstances } from "./vrchatInstances";
@@ -953,7 +953,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       const deferredNote = r.deferred
         ? `, deferred ${r.deferred} Discord write(s) (Test mode — set master + missions Live to push)`
         : "";
-      message = `discord events sync${live ? " [live]" : " [test: website only]"}: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}, completed ${r.completed}${deferredNote}${r.error ? `, error: ${r.error}` : ""}`;
+      // Mirror upcoming Main Sessions + social events to the VRChat group
+      // calendar. Self-gated (kill-switch + deployment gate); a no-op otherwise,
+      // and bounded per cycle to respect VRChat's write rate limit.
+      const vr = await reconcileVrchatCalendar();
+      affected += vr.synced;
+      const vrchatNote = vr.synced || vr.failed ? `; vrchat synced ${vr.synced}, failed ${vr.failed}` : "";
+      message = `discord events sync${live ? " [live]" : " [test: website only]"}: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}, completed ${r.completed}${deferredNote}${r.error ? `, error: ${r.error}` : ""}${vrchatNote}`;
     } else if (name === "main_session_backfill") {
       // Keep ~3 months of weekly Main Sessions on the calendar by cloning the
       // latest session forward to the horizon. Like discord_event_sync this is

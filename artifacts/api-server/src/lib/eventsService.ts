@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import {
   db,
+  botConfig,
   events,
   eventNpcSignups,
   missions,
@@ -11,6 +12,14 @@ import {
   type Event,
   type EventRecurrenceRule,
 } from "@workspace/db";
+import {
+  createGroupCalendarEvent,
+  updateGroupCalendarEvent,
+  deleteGroupCalendarEvent,
+  vrchatCredsConfigured,
+  recordSessionError,
+  type VrchatCalendarInput,
+} from "./vrchatClient";
 import {
   createGuildScheduledEvent,
   modifyGuildScheduledEvent,
@@ -124,6 +133,8 @@ export interface EventView {
   createdByName: string | null;
   hasDiscordEvent: boolean;
   discordSyncError: string | null;
+  hasVrchatEvent: boolean;
+  vrchatSyncError: string | null;
   signupCount: number;
   mySignup: EventSignupView | null;
   canManage: boolean;
@@ -291,6 +302,258 @@ async function applyEventSync(
   return updated ?? fallback;
 }
 
+// ===========================================================================
+// VRChat group-calendar mirror (third downstream target beside Discord).
+//
+// The website stays source of truth. Only Main Sessions + social events are
+// mirrored — missions live in a separate table and are never handled here, and
+// 'other' events are excluded. The mirror is double-gated, independent of the
+// missions Test/Live switch:
+//   1. `vrchat_calendar_sync_enabled` bot_config kill-switch (defaults OFF).
+//   2. The deployment write-gate (REPLIT_DEPLOYMENT=1 / ALLOW_EXTERNAL_WRITES=1)
+//      so dev and one-off scripts never touch the real VRChat API.
+// Plus VRChat creds must be configured. When any gate is closed every helper
+// here is a silent no-op that leaves the stored mirror state untouched.
+//
+// VRChat's calendar API is unofficial and rate-limited (~1 write/60s) with no
+// recurrence field, so recurring rows are mirrored as their single anchor
+// occurrence and past events are never backfilled on create.
+// ===========================================================================
+export const VRCHAT_SYNC_FLAG = "vrchat_calendar_sync_enabled";
+const VRCHAT_CATEGORY = "social";
+const VRCHAT_ACCESS_TYPE = "public" as const;
+// Cap VRChat writes per reconcile cycle to respect the ~1 write/60s rate limit;
+// remaining stale rows are picked up on later cycles.
+const MAX_VRCHAT_WRITES_PER_CYCLE = 3;
+
+function vrchatWritesAllowed(): boolean {
+  return (
+    process.env.REPLIT_DEPLOYMENT === "1" || process.env.ALLOW_EXTERNAL_WRITES === "1"
+  );
+}
+
+export async function isVrchatCalendarSyncEnabled(): Promise<boolean> {
+  try {
+    const [row] = await db.select().from(botConfig).where(eq(botConfig.key, VRCHAT_SYNC_FLAG));
+    return row?.value === true;
+  } catch (err) {
+    logger.warn({ err }, "vrchat calendar sync flag read failed; treating as off");
+    return false;
+  }
+}
+
+async function vrchatSyncEnabled(): Promise<boolean> {
+  return vrchatWritesAllowed() && vrchatCredsConfigured() && (await isVrchatCalendarSyncEnabled());
+}
+
+// Only Main Sessions + social events get a VRChat calendar entry. Cancelled or
+// retyped ('other') rows are torn down.
+function shouldHaveVrchatEntry(e: Event): boolean {
+  return e.status !== "cancelled" && (e.eventType === "session" || e.eventType === "social");
+}
+
+// Strip Discord mention/channel tokens so VRChat shows readable text, not raw
+// `<@123>` / `<#123>` noise. Read-time only — the stored description is left as
+// is so the Discord content hash stays stable.
+function sanitizeVrchatText(text: string | null): string {
+  if (!text) return "";
+  return text
+    .replace(/<@[!&]?\d+>/g, "")
+    .replace(/<#\d+>/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
+interface VrchatContent {
+  title: string;
+  description: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+function buildVrchatContent(e: Event): VrchatContent {
+  return {
+    title: e.title.trim().slice(0, 100) || "NCRP Event",
+    description: sanitizeVrchatText(e.description).slice(0, 1000),
+    startsAt: new Date(e.startAt).toISOString(),
+    endsAt: new Date(e.endAt).toISOString(),
+  };
+}
+
+// Fingerprint of everything we push to VRChat; lets the sync skip no-op writes.
+function vrchatContentHash(e: Event): string {
+  const c = buildVrchatContent(e);
+  return createHash("sha256")
+    .update(JSON.stringify([c.title, c.description, c.startsAt, c.endsAt, VRCHAT_ACCESS_TYPE, VRCHAT_CATEGORY]))
+    .digest("hex");
+}
+
+function toVrchatInput(c: VrchatContent, opts: { notify: boolean }): VrchatCalendarInput {
+  return {
+    title: c.title,
+    startsAt: c.startsAt,
+    endsAt: c.endsAt,
+    ...(c.description ? { description: c.description } : {}),
+    category: VRCHAT_CATEGORY,
+    accessType: VRCHAT_ACCESS_TYPE,
+    sendCreationNotification: opts.notify,
+  };
+}
+
+export interface VrchatEventSyncResult {
+  vrchatCalendarId: string | null;
+  vrchatSyncError: string | null;
+  // Only present when a write was attempted; undefined = leave hash/at untouched.
+  vrchatSyncedHash?: string | null;
+  vrchatSyncedAt?: Date | null;
+}
+
+// Mirror one website event to the VRChat group calendar. Self-gated and never
+// throws — failures are persisted to vrchatSyncError (and the shared session
+// lastError) and returned. `sendCreationNotification` fires only on first create
+// so reconcile updates never spam the group.
+export async function syncEventVrchatCalendar(event: Event): Promise<VrchatEventSyncResult> {
+  if (!(await vrchatSyncEnabled())) {
+    return { vrchatCalendarId: event.vrchatCalendarId, vrchatSyncError: null };
+  }
+
+  // Cancelled or no-longer-qualifying: tear down any linked calendar entry.
+  if (!shouldHaveVrchatEntry(event)) {
+    if (!event.vrchatCalendarId) return { vrchatCalendarId: null, vrchatSyncError: null };
+    try {
+      await deleteGroupCalendarEvent(event.vrchatCalendarId);
+      return { vrchatCalendarId: null, vrchatSyncError: null, vrchatSyncedHash: null, vrchatSyncedAt: new Date() };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await recordSessionError(msg);
+      return { vrchatCalendarId: event.vrchatCalendarId, vrchatSyncError: msg };
+    }
+  }
+
+  const content = buildVrchatContent(event);
+  const hash = vrchatContentHash(event);
+  try {
+    if (!event.vrchatCalendarId) {
+      // Never backfill past events on create (e.g. when the switch is first
+      // flipped on with historical rows present).
+      if (new Date(event.endAt).getTime() < Date.now()) {
+        return { vrchatCalendarId: null, vrchatSyncError: null };
+      }
+      const id = await createGroupCalendarEvent(toVrchatInput(content, { notify: true }));
+      return { vrchatCalendarId: id, vrchatSyncError: null, vrchatSyncedHash: hash, vrchatSyncedAt: new Date() };
+    }
+    if (event.vrchatSyncedHash === hash) {
+      return { vrchatCalendarId: event.vrchatCalendarId, vrchatSyncError: null };
+    }
+    await updateGroupCalendarEvent(event.vrchatCalendarId, toVrchatInput(content, { notify: false }));
+    return { vrchatCalendarId: event.vrchatCalendarId, vrchatSyncError: null, vrchatSyncedHash: hash, vrchatSyncedAt: new Date() };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await recordSessionError(msg);
+    // Keep the old id on failure so a later retry can still modify it.
+    return { vrchatCalendarId: event.vrchatCalendarId, vrchatSyncError: msg };
+  }
+}
+
+async function applyEventVrchatSync(
+  id: number,
+  fallback: Event,
+  sync: VrchatEventSyncResult,
+  executor: Executor = db,
+): Promise<Event> {
+  const set: Partial<typeof events.$inferInsert> = {
+    vrchatCalendarId: sync.vrchatCalendarId,
+    vrchatSyncError: sync.vrchatSyncError,
+  };
+  if (sync.vrchatSyncedHash !== undefined) set.vrchatSyncedHash = sync.vrchatSyncedHash;
+  if (sync.vrchatSyncedAt !== undefined) set.vrchatSyncedAt = sync.vrchatSyncedAt;
+
+  // Guard the create path against a concurrent writer: the CRUD paths and the
+  // cron reconcile can both mirror the same row, each having read
+  // vrchatCalendarId = null and each minting a NEW calendar id. Claim a freshly
+  // minted id only if the row still has none; if a concurrent path already
+  // claimed one, OUR VRChat event is an orphan — delete it to compensate and
+  // keep the winner's id rather than overwriting it (which would leak an event).
+  const isFreshCreate =
+    !sync.vrchatSyncError && !fallback.vrchatCalendarId && !!sync.vrchatCalendarId;
+  if (isFreshCreate) {
+    const [claimed] = await executor
+      .update(events)
+      .set(set)
+      .where(and(eq(events.id, id), isNull(events.vrchatCalendarId)))
+      .returning();
+    if (claimed) return claimed;
+    // Lost the race: tear down our orphaned calendar event, return the row as-is.
+    try {
+      await deleteGroupCalendarEvent(sync.vrchatCalendarId!);
+    } catch (err) {
+      logger.warn(
+        { err: err instanceof Error ? err.message : String(err), eventId: id },
+        "failed to delete orphaned VRChat event after losing a concurrent create race",
+      );
+    }
+    const [current] = await executor.select().from(events).where(eq(events.id, id));
+    return current ?? fallback;
+  }
+
+  const [updated] = await executor.update(events).set(set).where(eq(events.id, id)).returning();
+  return updated ?? fallback;
+}
+
+// Run the VRChat sync for a row and persist the result. Used by the website CRUD
+// paths after the Discord sync has been applied. Returns the updated row. When
+// any gate is closed this is a true no-op: the stored vrchat* columns (including
+// a previously-recorded vrchatSyncError) are left untouched.
+async function syncAndApplyVrchat(event: Event): Promise<Event> {
+  if (!(await vrchatSyncEnabled())) return event;
+  const sync = await syncEventVrchatCalendar(event);
+  return applyEventVrchatSync(event.id, event, sync);
+}
+
+// Bounded backfill/repair sweep for the VRChat mirror, run after the Discord
+// reconcile in the same cron. Mirrors upcoming qualifying rows whose entry is
+// missing or stale, capped per cycle to respect the rate limit. A no-op unless
+// the kill-switch + deployment gate are open.
+export async function reconcileVrchatCalendar(): Promise<{ synced: number; failed: number }> {
+  if (!(await vrchatSyncEnabled())) return { synced: 0, failed: 0 };
+
+  const now = Date.now();
+  // Two candidate sets: (1) upcoming qualifying rows (create/refresh) and
+  // (2) ANY row still carrying a vrchatCalendarId — so rows cancelled or retyped
+  // to mission/other (incl. while the switch was off) get torn down once sync is
+  // re-enabled, not just freshly-edited ones.
+  const rows = await db
+    .select()
+    .from(events)
+    .where(
+      or(
+        and(ne(events.status, "cancelled"), inArray(events.eventType, ["session", "social"])),
+        isNotNull(events.vrchatCalendarId),
+      ),
+    );
+
+  let synced = 0;
+  let failed = 0;
+  for (const row of rows) {
+    if (shouldHaveVrchatEntry(row)) {
+      // Never backfill past events; only create/refresh upcoming ones.
+      if (new Date(row.endAt).getTime() < now) continue;
+      const needs = !row.vrchatCalendarId || row.vrchatSyncedHash !== vrchatContentHash(row);
+      if (!needs) continue;
+    } else {
+      // Teardown candidate: only act if there is actually an entry to delete.
+      if (!row.vrchatCalendarId) continue;
+    }
+    const sync = await syncEventVrchatCalendar(row);
+    await applyEventVrchatSync(row.id, row, sync);
+    if (sync.vrchatSyncError) failed++;
+    else synced++;
+    if (synced + failed >= MAX_VRCHAT_WRITES_PER_CYCLE) break;
+  }
+  if (synced || failed) logger.info({ synced, failed }, "reconcileVrchatCalendar applied changes");
+  return { synced, failed };
+}
+
 // Reuse the mission conflict check (both share the same Discord guild events).
 // The conflict scan compares against Discord scheduled events by their snowflake
 // id, but callers pass our DB event id (e.g. editing event #12). Resolve the DB
@@ -377,6 +640,8 @@ function toView(
     createdByName: e.createdByName,
     hasDiscordEvent: !!e.discordEventId,
     discordSyncError: viewer.isManager ? e.discordSyncError : null,
+    hasVrchatEvent: !!e.vrchatCalendarId,
+    vrchatSyncError: viewer.isManager ? e.vrchatSyncError : null,
     signupCount: signups.length,
     mySignup,
     canManage: viewer.isManager,
@@ -521,7 +786,8 @@ export async function createEvent(input: EventInput, createdById: string): Promi
     .returning();
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(created, ctx.live);
-  return applyEventSync(created.id, created, sync);
+  const afterDiscord = await applyEventSync(created.id, created, sync);
+  return syncAndApplyVrchat(afterDiscord);
 }
 
 export async function updateEvent(id: number, patch: Partial<EventInput>): Promise<Event | null> {
@@ -544,7 +810,8 @@ export async function updateEvent(id: number, patch: Partial<EventInput>): Promi
     : [before];
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(updated, ctx.live);
-  return applyEventSync(id, updated, sync);
+  const afterDiscord = await applyEventSync(id, updated, sync);
+  return syncAndApplyVrchat(afterDiscord);
 }
 
 export async function cancelEvent(id: number): Promise<Event | null> {
@@ -557,7 +824,8 @@ export async function cancelEvent(id: number): Promise<Event | null> {
     .returning();
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(updated, ctx.live);
-  return applyEventSync(id, updated, sync);
+  const afterDiscord = await applyEventSync(id, updated, sync);
+  return syncAndApplyVrchat(afterDiscord);
 }
 
 // ---------------------------------------------------------------------------

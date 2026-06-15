@@ -5142,6 +5142,13 @@ export interface EventView {
      * @nullable
      */
   discordSyncError?: string | null;
+  /** True when a VRChat group calendar event is linked. */
+  hasVrchatEvent?: boolean;
+  /**
+     * Last VRChat calendar sync error (managers only).
+     * @nullable
+     */
+  vrchatSyncError?: string | null;
   /** Number of active NPC sign-ups. */
   signupCount: number;
   /** The caller's own active NPC sign-up; null if none. */
@@ -5555,6 +5562,13 @@ export interface LiveModeUpdate {
  */
 export interface SiteAccessState {
   loginRestricted: boolean;
+}
+
+/**
+ * VRChat group-calendar mirror kill-switch. When enabled is true, qualifying website events (Main Sessions + social) are cross-posted to the VRChat group calendar (subject to the deployment write-gate + creds).
+ */
+export interface VrchatCalendarSyncState {
+  enabled: boolean;
 }
 
 export interface VrchatScanResult {

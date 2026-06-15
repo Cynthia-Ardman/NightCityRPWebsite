@@ -414,6 +414,19 @@ function EventDetailView({ data }: { data: EventView }) {
               <Clock className="w-3.5 h-3.5 shrink-0" /> Linked to a Discord scheduled event.
             </span>
           )}
+          {data.vrchatSyncError && (
+            <span
+              className="font-mono text-xs text-nc-yellow inline-flex items-center gap-1"
+              data-testid="text-vrchat-sync-error"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> VRChat sync issue: {data.vrchatSyncError}
+            </span>
+          )}
+          {!data.vrchatSyncError && data.hasVrchatEvent && (
+            <span className="font-mono text-xs text-muted-foreground inline-flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 shrink-0" /> Linked to a VRChat group calendar event.
+            </span>
+          )}
         </div>
       )}
 

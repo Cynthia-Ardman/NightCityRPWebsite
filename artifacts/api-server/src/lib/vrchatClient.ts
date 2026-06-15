@@ -395,6 +395,90 @@ async function apiGet<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+// Authenticated write (POST/PUT/DELETE) against the VRChat API. Mirrors apiGet:
+// replays stored cookies, re-logs-in exactly once on a 401 and retries. Returns
+// parsed JSON (or null for empty bodies) and throws on any non-2xx so callers
+// can persist the error. Body is JSON-encoded when present.
+async function apiSend<T>(
+  method: "POST" | "PUT" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  let cookies = await loadSession();
+  if (!cookies.auth) cookies = await login();
+
+  const doFetch = (c: SessionCookies) =>
+    fetch(`${API_BASE}${path}`, {
+      method,
+      headers: {
+        ...baseHeaders(),
+        Cookie: cookieHeader(c),
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+  let res = await doFetch(cookies);
+  if (res.status === 401) {
+    cookies = await login();
+    res = await doFetch(cookies);
+  }
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    throw new Error(`VRChat ${method} ${path} failed (${res.status}): ${errBody.slice(0, 200)}`);
+  }
+  await persistSession({ lastAuthAt: new Date(), lastError: null });
+  const text = await res.text().catch(() => "");
+  return (text ? JSON.parse(text) : null) as T;
+}
+
+// --- Group calendar (VRChat 2025.3.1+) --------------------------------------
+// The dedicated account must hold the group permission that allows creating /
+// editing calendar entries, or these return 403. Rate-limited (~1 write/60s) —
+// callers must space writes. Endpoints are unofficial and may change.
+export interface VrchatCalendarInput {
+  title: string;
+  startsAt: string; // ISO 8601 UTC
+  endsAt: string; // ISO 8601 UTC
+  description?: string;
+  category?: string;
+  accessType?: "public" | "group" | "private";
+  sendCreationNotification?: boolean;
+}
+
+interface VrchatCalendarEventResponse {
+  id: string;
+}
+
+export async function createGroupCalendarEvent(
+  input: VrchatCalendarInput,
+  groupId: string = NCRP_GROUP_ID,
+): Promise<string> {
+  const res = await apiSend<VrchatCalendarEventResponse>(
+    "POST",
+    `/calendar/${groupId}/event`,
+    input,
+  );
+  if (!res?.id) throw new Error("VRChat calendar create returned no event id");
+  return res.id;
+}
+
+export async function updateGroupCalendarEvent(
+  calendarId: string,
+  input: VrchatCalendarInput,
+  groupId: string = NCRP_GROUP_ID,
+): Promise<void> {
+  await apiSend<unknown>("PUT", `/calendar/${groupId}/${calendarId}/event`, input);
+}
+
+export async function deleteGroupCalendarEvent(
+  calendarId: string,
+  groupId: string = NCRP_GROUP_ID,
+): Promise<void> {
+  await apiSend<unknown>("DELETE", `/calendar/${groupId}/${calendarId}/event`);
+}
+
 // Raw VRChat group instance shape (subset we use; the API returns more).
 export interface RawVrchatInstance {
   instanceId?: string;

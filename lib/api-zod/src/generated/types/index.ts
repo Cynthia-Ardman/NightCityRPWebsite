@@ -497,6 +497,7 @@ export * from './venueAccountResult';
 export * from './venueStockRequestInput';
 export * from './vrchatAgentMeta';
 export * from './vrchatAgentStatusSnapshot';
+export * from './vrchatCalendarSyncState';
 export * from './vrchatCommandCreated';
 export * from './vrchatCommandRequest';
 export * from './vrchatCommandRequestKind';
