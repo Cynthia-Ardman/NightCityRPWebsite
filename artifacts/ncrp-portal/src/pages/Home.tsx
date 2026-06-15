@@ -1046,7 +1046,7 @@ function ActivityHistoryDialog({
         ) : !data || data.entries.length === 0 ? (
           <div className="font-mono text-sm text-muted-foreground py-6 text-center">NO_HISTORY_RECORDED</div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0">
             <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
               {data.totalCount} TOTAL · {data.botCount} BOT-ERA · {data.portalCount} PORTAL
             </div>
