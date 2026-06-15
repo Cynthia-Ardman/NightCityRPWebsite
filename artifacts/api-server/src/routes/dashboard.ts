@@ -15,6 +15,7 @@ import {
   inventoryItems,
   botBalanceHistory,
   botRentPaymentEvents,
+  botCyberwareWeeklyRuns,
   stores,
   ripperdocs,
   classifyWalletCategory,
@@ -476,30 +477,80 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
 router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void> => {
   const discordId = req.user!.discordId;
 
-  const [ledgerRows, channelRows] = await Promise.all([
-    db
-      .select()
-      .from(botBalanceHistory)
-      .where(
-        and(
-          eq(botBalanceHistory.userId, discordId),
-          sql`${botBalanceHistory.reason} ILIKE 'Cyberware meds%'`,
-        ),
-      )
-      .orderBy(desc(botBalanceHistory.ts))
-      .limit(500),
-    db
-      .select()
-      .from(botRentPaymentEvents)
-      .where(
-        and(
-          eq(botRentPaymentEvents.userId, discordId),
-          eq(botRentPaymentEvents.kind, "cyberware_meds"),
-        ),
-      )
-      .orderBy(desc(botRentPaymentEvents.ts))
-      .limit(500),
-  ]);
+  // Characters owned by this player. Meds are billed per-PLAYER, but portal
+  // checkups are logged per-character in the audit log, so we resolve owned PCs
+  // once to gather their checkup rows and label them by character name.
+  const ownedChars = await db
+    .select({ id: characters.id, name: characters.name })
+    .from(characters)
+    .where(eq(characters.ownerId, req.user!.id));
+  const ownedCharIds = ownedChars.map((c) => c.id);
+  const charNameById = new Map(ownedChars.map((c) => [c.id, c.name]));
+
+  const [ledgerRows, channelRows, portalMedsRows, botRunRows, portalCheckupRows] =
+    await Promise.all([
+      db
+        .select()
+        .from(botBalanceHistory)
+        .where(
+          and(
+            eq(botBalanceHistory.userId, discordId),
+            sql`${botBalanceHistory.reason} ILIKE 'Cyberware meds%'`,
+          ),
+        )
+        .orderBy(desc(botBalanceHistory.ts))
+        .limit(500),
+      db
+        .select()
+        .from(botRentPaymentEvents)
+        .where(
+          and(
+            eq(botRentPaymentEvents.userId, discordId),
+            eq(botRentPaymentEvents.kind, "cyberware_meds"),
+          ),
+        )
+        .orderBy(desc(botRentPaymentEvents.ts))
+        .limit(500),
+      // Portal-native weekly meds (the cyberware cron writes kind='meds'). The
+      // legacy importer also copied the bot ledger into wallet_transactions as
+      // kind='historical' / category='cyberware'; those are EXCLUDED here because
+      // botBalanceHistory above already carries them — including both double-counts.
+      db
+        .select()
+        .from(walletTransactions)
+        .where(
+          and(
+            eq(walletTransactions.userId, discordId),
+            eq(walletTransactions.kind, "meds"),
+          ),
+        )
+        .orderBy(desc(walletTransactions.createdAt))
+        .limit(500),
+      // Bot-era checkups: one weekly-run row per sweep listing the Discord ids
+      // that had a checkup that week. Read every run this player appears in.
+      db
+        .select()
+        .from(botCyberwareWeeklyRuns)
+        .where(sql`${botCyberwareWeeklyRuns.checkupIds} @> ${JSON.stringify([discordId])}::jsonb`)
+        .orderBy(desc(botCyberwareWeeklyRuns.runAt))
+        .limit(500),
+      // Portal-era checkups: audit rows the ripperdoc-checkup endpoint writes
+      // (one per visit) for any character this player owns.
+      ownedCharIds.length
+        ? db
+            .select()
+            .from(auditLog)
+            .where(
+              and(
+                eq(auditLog.targetType, "character"),
+                eq(auditLog.action, "checkup"),
+                inArray(auditLog.targetId, ownedCharIds.map(String)),
+              ),
+            )
+            .orderBy(desc(auditLog.createdAt))
+            .limit(500)
+        : Promise.resolve([] as (typeof auditLog.$inferSelect)[]),
+    ]);
 
   // Boundary = this user's earliest ledger meds charge; channel rows at/after it
   // are superseded by the ledger and dropped to avoid double-counting.
@@ -507,10 +558,20 @@ router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void>
     ? Math.min(...ledgerRows.map((r) => new Date(r.ts).getTime()))
     : Infinity;
 
-  const ledgerEntries = ledgerRows.map((r) => {
+  type HistEntry = {
+    source: "bot" | "portal";
+    type: "meds" | "checkup";
+    date: string;
+    at: string;
+    amount: number | null;
+    label: string;
+  };
+
+  const ledgerEntries: HistEntry[] = ledgerRows.map((r) => {
     const at = new Date(r.ts);
     return {
-      source: "bot" as const,
+      source: "bot",
+      type: "meds",
       date: at.toISOString().slice(0, 10),
       at: at.toISOString(),
       // Ledger deltas are already negative for debits.
@@ -519,12 +580,13 @@ router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void>
     };
   });
 
-  const channelEntries = channelRows
+  const channelEntries: HistEntry[] = channelRows
     .filter((r) => new Date(r.ts).getTime() < boundary)
     .map((r) => {
       const at = new Date(r.ts);
       return {
-        source: "bot" as const,
+        source: "bot",
+        type: "meds",
         date: at.toISOString().slice(0, 10),
         at: at.toISOString(),
         amount: -(r.amount ?? 0),
@@ -532,14 +594,70 @@ router.get("/me/cyberware-history", requireAuth, async (req, res): Promise<void>
       };
     });
 
-  const entries = [...ledgerEntries, ...channelEntries]
+  // Portal meds. Only kind='meds' rows reach here — the legacy importer mirrored
+  // the bot ledger into wallet_transactions as kind='historical' (already filtered
+  // out by the query), and the bot never writes wallet_transactions, so these are
+  // exclusively portal-native charges that never duplicate the bot ledger. We keep
+  // a cheap memo guard against any stray legacy-tagged row but do NOT suppress by
+  // day, which would wrongly hide a genuine portal charge landing on a bot day.
+  const portalEntries: HistEntry[] = portalMedsRows
+    .filter((r) => !(r.memo ?? "").includes("[legacy-bal:"))
+    .map((r) => {
+      const at = r.createdAt ?? new Date();
+      return {
+        source: "portal",
+        type: "meds",
+        date: at.toISOString().slice(0, 10),
+        at: at.toISOString(),
+        amount: r.amount,
+        label: r.memo ?? "Weekly cyberware meds",
+      };
+    });
+
+  // Checkups carry no money (amount null) so the dialog renders them as plain
+  // dated markers showing which weeks a checkup happened.
+  const botCheckupEntries: HistEntry[] = botRunRows.map((r) => {
+    const at = new Date(r.runAt);
+    return {
+      source: "bot",
+      type: "checkup",
+      date: at.toISOString().slice(0, 10),
+      at: at.toISOString(),
+      amount: null,
+      label: "Ripperdoc checkup",
+    };
+  });
+
+  const portalCheckupEntries: HistEntry[] = portalCheckupRows.map((r) => {
+    const at = r.createdAt ?? new Date();
+    const name = charNameById.get(Number(r.targetId));
+    return {
+      source: "portal",
+      type: "checkup",
+      date: at.toISOString().slice(0, 10),
+      at: at.toISOString(),
+      amount: null,
+      label: name ? `Ripperdoc checkup — ${name}` : "Ripperdoc checkup",
+    };
+  });
+
+  const entries = [
+    ...ledgerEntries,
+    ...channelEntries,
+    ...portalEntries,
+    ...botCheckupEntries,
+    ...portalCheckupEntries,
+  ]
     .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))
     .slice(0, 500);
 
+  const botCount = entries.filter((e) => e.source === "bot").length;
+  const portalCount = entries.filter((e) => e.source === "portal").length;
+
   res.json({
     totalCount: entries.length,
-    portalCount: 0,
-    botCount: entries.length,
+    portalCount,
+    botCount,
     entries,
   });
 });

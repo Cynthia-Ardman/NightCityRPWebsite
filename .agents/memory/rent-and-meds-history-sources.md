@@ -61,6 +61,29 @@ player id.
   `bot_rent_payment_events kind='cyberware_meds'` rows STRICTLY BEFORE this user's
   earliest ledger meds ts (ledger owns the recent weeks, DM/channel the older).
 
+# Cyberware meds history ALSO merges portal-era + checkup markers
+After the bot stopped cyberware sweeps (~2026-05-25), the portal cron took over.
+`/me/cyberware-history` now also merges, on top of the bot ledger+channel:
+- **Portal meds:** `wallet_transactions WHERE userId=discordId AND kind='meds'`
+  tagged `source:"portal"`. CRITICAL dedup rule: the legacy importer mirrored the
+  bot ledger into `wallet_transactions` as `kind='historical'`/`category='cyberware'`
+  (memo `[legacy-bal:NNN] Cyberware meds week N`) — those ARE the ledger and would
+  double-count, so filter to `kind='meds'` ONLY. `kind='meds'` rows are exclusively
+  portal-native (the bot never writes wallet_transactions), so they NEVER duplicate
+  the ledger. Do NOT suppress portal rows by matching a bot DAY — a genuine portal
+  charge can land on a bot day; day-level dedup wrongly hides it. (kept a cheap
+  `[legacy-bal:` memo guard only.)
+- **Checkup markers** (user wanted to see which weeks a checkup happened): bot-era
+  from `bot_cyberware_weekly_runs WHERE checkup_ids @> [discordId]::jsonb` (runAt);
+  portal-era from `audit_log action='checkup'` for the user's OWNED characters
+  (per-character; there's no dedicated checkup table — the checkup endpoint only
+  stamps lastCheckupAt + writes an audit row). Checkups are emitted with
+  `amount:null` so the shared dialog renders them as money-less date markers.
+- Counts: `botCount`/`portalCount` derived from `source`; frontend already renders
+  a PORTAL vs BOT-ERA badge (don't hardcode portalCount:0). A real Jan–Apr gap in
+  one user's history can be genuine (they simply weren't charged) — check the
+  source rows before "fixing" a perceived data loss.
+
 **How to apply:** both rent AND meds history use the same ledger+channel boundary
 merge; debits are returned NEGATIVE so the shared `ActivityHistoryDialog`
 (showAmount) renders them red/outflow. ALL FINANCES (`/me/financial-history`) is
