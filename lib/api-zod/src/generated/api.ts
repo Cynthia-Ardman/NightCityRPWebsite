@@ -8648,6 +8648,36 @@ export const RevokeVrchatAgentResponse = zod.object({
 
 
 /**
+ * @summary Currently-open NCRP VRChat group instances (served from the poller cache)
+ */
+export const ListVrchatInstancesResponse = zod.object({
+  "instances": zod.array(zod.object({
+  "location": zod.string().describe('Full VRChat location id (worldId:instanceId).'),
+  "worldId": zod.string(),
+  "worldName": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "instanceShortId": zod.string(),
+  "accessType": zod.enum(['group_public', 'group_plus', 'group_members', 'invite_plus', 'friends_plus', 'invite', 'public', 'unknown']),
+  "region": zod.string().nullish(),
+  "userCount": zod.number(),
+  "capacity": zod.number().nullish(),
+  "firstSeenAt": zod.coerce.date().describe('When the poller first saw this instance open (used as an uptime proxy).'),
+  "launchUrl": zod.string().describe('Official vrchat.com launch link for this instance.')
+})),
+  "configured": zod.boolean().describe('Whether VRChat credentials are configured server-side.')
+})
+
+
+/**
+ * @summary Staff-only — force an immediate poll of the NCRP group's open instances
+ */
+export const RefreshVrchatInstancesResponse = zod.object({
+  "ok": zod.boolean(),
+  "count": zod.number()
+})
+
+
+/**
  * @summary Per-user eddies balance from Unbelievaboat (account-level, not per-character)
  */
 export const GetMyWalletResponse = zod.object({

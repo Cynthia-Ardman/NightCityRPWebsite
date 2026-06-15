@@ -224,6 +224,7 @@ import type {
   PublicCharacter,
   PublicCharacterSummary,
   ReactivateCharacter200,
+  RefreshVrchatInstances200,
   ReopenReviewTicket200,
   RequestChangesInput,
   RequestChangesPendingEdit200,
@@ -272,6 +273,7 @@ import type {
   VenueStockRequestInput,
   VrchatCommandCreated,
   VrchatCommandRequest,
+  VrchatInstanceList,
   VrchatScanResult,
   VrchatStatusResponse,
   Wallet,
@@ -17210,6 +17212,153 @@ export const useRevokeVrchatAgent = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRevokeVrchatAgentMutationOptions(options));
+    }
+
+export const getListVrchatInstancesUrl = () => {
+
+
+
+
+  return `/api/vrchat/instances`
+}
+
+/**
+ * @summary Currently-open NCRP VRChat group instances (served from the poller cache)
+ */
+export const listVrchatInstances = async ( options?: RequestInit): Promise<VrchatInstanceList> => {
+
+  return customFetch<VrchatInstanceList>(getListVrchatInstancesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVrchatInstancesQueryKey = () => {
+    return [
+    `/api/vrchat/instances`
+    ] as const;
+    }
+
+
+export const getListVrchatInstancesQueryOptions = <TData = Awaited<ReturnType<typeof listVrchatInstances>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVrchatInstances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVrchatInstancesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVrchatInstances>>> = ({ signal }) => listVrchatInstances({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVrchatInstances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVrchatInstancesQueryResult = NonNullable<Awaited<ReturnType<typeof listVrchatInstances>>>
+export type ListVrchatInstancesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Currently-open NCRP VRChat group instances (served from the poller cache)
+ */
+
+export function useListVrchatInstances<TData = Awaited<ReturnType<typeof listVrchatInstances>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVrchatInstances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVrchatInstancesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getRefreshVrchatInstancesUrl = () => {
+
+
+
+
+  return `/api/vrchat/instances/refresh`
+}
+
+/**
+ * @summary Staff-only — force an immediate poll of the NCRP group's open instances
+ */
+export const refreshVrchatInstances = async ( options?: RequestInit): Promise<RefreshVrchatInstances200> => {
+
+  return customFetch<RefreshVrchatInstances200>(getRefreshVrchatInstancesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRefreshVrchatInstancesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshVrchatInstances>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refreshVrchatInstances>>, TError,void, TContext> => {
+
+const mutationKey = ['refreshVrchatInstances'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshVrchatInstances>>, void> = () => {
+
+
+          return  refreshVrchatInstances(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefreshVrchatInstancesMutationResult = NonNullable<Awaited<ReturnType<typeof refreshVrchatInstances>>>
+
+    export type RefreshVrchatInstancesMutationError = ErrorType<void>
+
+    /**
+ * @summary Staff-only — force an immediate poll of the NCRP group's open instances
+ */
+export const useRefreshVrchatInstances = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshVrchatInstances>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refreshVrchatInstances>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRefreshVrchatInstancesMutationOptions(options));
     }
 
 export const getGetMyWalletUrl = () => {

@@ -5,7 +5,7 @@ import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffer
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -248,6 +248,7 @@ function SidebarContent() {
         <div className={`px-4 text-xs font-mono ${NAV_TONES.green.heading} mb-2 mt-6 uppercase tracking-widest`}>Directory</div>
         <NavItem href="/missions" icon={Briefcase} label="Missions" tone="green" />
         <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" tone="green" />
+        <NavItem href="/live" icon={Radio} label="Live Now" tone="green" />
         <NavItem href="/directory/stores" icon={Store} label="Stores" tone="green" />
         <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Ripperdocs" tone="green" />
         <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />

@@ -3834,6 +3834,38 @@ paths:
                   ok: { type: boolean }
         "401": { description: Not signed in }
         "403": { description: Not an admin or fixer }
+  /vrchat/instances:
+    get:
+      operationId: listVrchatInstances
+      tags: [vrchat]
+      summary: Currently-open NCRP VRChat group instances (served from the poller cache)
+      responses:
+        "200":
+          description: Live instances
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VrchatInstanceList" }
+        "401": { description: Not signed in }
+  /vrchat/instances/refresh:
+    post:
+      operationId: refreshVrchatInstances
+      tags: [vrchat]
+      summary: Staff-only — force an immediate poll of the NCRP group's open instances
+      responses:
+        "200":
+          description: Refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, count]
+                properties:
+                  ok: { type: boolean }
+                  count: { type: integer }
+        "400": { description: VRChat credentials not configured }
+        "401": { description: Not signed in }
+        "403": { description: Not an admin or fixer }
+        "502": { description: VRChat poll failed }
   /me/wallet:
     get:
       operationId: getMyWallet
@@ -5065,6 +5097,29 @@ components:
         id: { type: integer }
         kind: { type: string }
         status: { type: string }
+    VrchatInstance:
+      type: object
+      required: [location, worldId, worldName, instanceShortId, accessType, userCount, firstSeenAt, launchUrl]
+      properties:
+        location: { type: string, description: "Full VRChat location id (worldId:instanceId)." }
+        worldId: { type: string }
+        worldName: { type: string }
+        thumbnailUrl: { type: string, nullable: true }
+        instanceShortId: { type: string }
+        accessType:
+          type: string
+          enum: [group_public, group_plus, group_members, invite_plus, friends_plus, invite, public, unknown]
+        region: { type: string, nullable: true }
+        userCount: { type: integer }
+        capacity: { type: integer, nullable: true }
+        firstSeenAt: { type: string, format: date-time, description: "When the poller first saw this instance open (used as an uptime proxy)." }
+        launchUrl: { type: string, description: "Official vrchat.com launch link for this instance." }
+    VrchatInstanceList:
+      type: object
+      required: [instances, configured]
+      properties:
+        instances: { type: array, items: { $ref: "#/components/schemas/VrchatInstance" } }
+        configured: { type: boolean, description: "Whether VRChat credentials are configured server-side." }
     BreachPos:
       type: object
       required: [r, c]

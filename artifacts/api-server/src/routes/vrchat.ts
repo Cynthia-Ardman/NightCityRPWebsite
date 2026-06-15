@@ -11,6 +11,8 @@ import {
 } from "../lib/vrchatAgent";
 import { buildAgentBundle } from "../lib/vrchatAgentFiles";
 import { buildZip } from "../lib/zip";
+import { getCachedInstances, pollGroupInstances } from "../lib/vrchatInstances";
+import { vrchatCredsConfigured } from "../lib/vrchatClient";
 
 const router: IRouter = Router();
 
@@ -199,6 +201,33 @@ router.post("/vrchat/agent/download", ...staffOnly, async (req: Request, res: Re
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", 'attachment; filename="psychosis_agent.zip"');
   res.send(zip);
+});
+
+// ---------------------------------------------------------------------------
+// Member-facing live instance browser
+// ---------------------------------------------------------------------------
+
+// GET /vrchat/instances — the currently-open NCRP group instances, served from
+// the poller's cache so members never hit the VRChat API directly. Available to
+// any signed-in, verified member (no staff role required).
+router.get("/vrchat/instances", requireAuth, async (_req: Request, res: Response): Promise<void> => {
+  const instances = await getCachedInstances();
+  res.json({ instances, configured: vrchatCredsConfigured() });
+});
+
+// POST /vrchat/instances/refresh — staff-only manual poll. Useful for verifying
+// the integration on demand without waiting for the cron tick.
+router.post("/vrchat/instances/refresh", ...staffOnly, async (_req: Request, res: Response): Promise<void> => {
+  if (!vrchatCredsConfigured()) {
+    res.status(400).json({ error: "vrchat_not_configured" });
+    return;
+  }
+  try {
+    const count = await pollGroupInstances();
+    res.json({ ok: true, count });
+  } catch (err) {
+    res.status(502).json({ error: "vrchat_poll_failed", message: err instanceof Error ? err.message : "poll failed" });
+  }
 });
 
 export default router;

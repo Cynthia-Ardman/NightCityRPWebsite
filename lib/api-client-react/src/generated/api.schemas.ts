@@ -94,6 +94,43 @@ export interface VrchatCommandCreated {
   status: string;
 }
 
+export type VrchatInstanceAccessType = typeof VrchatInstanceAccessType[keyof typeof VrchatInstanceAccessType];
+
+
+export const VrchatInstanceAccessType = {
+  group_public: 'group_public',
+  group_plus: 'group_plus',
+  group_members: 'group_members',
+  invite_plus: 'invite_plus',
+  friends_plus: 'friends_plus',
+  invite: 'invite',
+  public: 'public',
+  unknown: 'unknown',
+} as const;
+
+export interface VrchatInstance {
+  /** Full VRChat location id (worldId:instanceId). */
+  location: string;
+  worldId: string;
+  worldName: string;
+  thumbnailUrl?: string | null;
+  instanceShortId: string;
+  accessType: VrchatInstanceAccessType;
+  region?: string | null;
+  userCount: number;
+  capacity?: number | null;
+  /** When the poller first saw this instance open (used as an uptime proxy). */
+  firstSeenAt: string;
+  /** Official vrchat.com launch link for this instance. */
+  launchUrl: string;
+}
+
+export interface VrchatInstanceList {
+  instances: VrchatInstance[];
+  /** Whether VRChat credentials are configured server-side. */
+  configured: boolean;
+}
+
 export interface BreachPos {
   /** Row index in the code matrix (0-based). */
   r: number;
@@ -6012,6 +6049,11 @@ export type RunIncomeSlut429 = {
 
 export type RevokeVrchatAgent200 = {
   ok: boolean;
+};
+
+export type RefreshVrchatInstances200 = {
+  ok: boolean;
+  count: number;
 };
 
 export type ListCustomRequestsParams = {

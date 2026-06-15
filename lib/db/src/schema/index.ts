@@ -1921,3 +1921,54 @@ export const vrchatAgentCommands = pgTable(
   }),
 );
 export type VrchatAgentCommand = typeof vrchatAgentCommands.$inferSelect;
+
+// Persisted VRChat API session for the dedicated 24/7 "instance browser"
+// account. The auth + twoFactorAuth cookies are reused across polls so we only
+// run the (rate-limited) login + 2FA flow rarely. A fixed sentinel id keeps at
+// most one row. Cookie values are NEVER logged or returned to clients.
+export const vrchatSessions = pgTable("vrchat_sessions", {
+  id: integer("id").primaryKey().default(1),
+  // Raw cookie VALUES (not name=value) replayed on each authenticated call.
+  authCookie: text("auth_cookie"),
+  twoFactorCookie: text("two_factor_cookie"),
+  // Resolved account identity (diagnostic; surfaced to staff only).
+  vrchatUserId: text("vrchat_user_id"),
+  vrchatDisplayName: text("vrchat_display_name"),
+  // Last successful authenticated call — drives a staff "session healthy" badge.
+  lastAuthAt: timestamp("last_auth_at", { withTimezone: true }),
+  // Last login/auth/poll error surfaced to staff (cleared on success).
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+export type VrchatSession = typeof vrchatSessions.$inferSelect;
+
+// Cache of currently-open NCRP VRChat group instances, refreshed by a poller so
+// members never hit the VRChat API directly (rate limits). A row exists only
+// while the instance is open; the poller prunes rows it no longer sees.
+export const vrchatInstances = pgTable("vrchat_instances", {
+  // Full VRChat location string ("wrld_xxx:12345~group(grp_..)~..."). Stable id.
+  location: text("location").primaryKey(),
+  worldId: text("world_id").notNull(),
+  worldName: text("world_name").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  // Short numeric instance id (part before the first '~'), for display.
+  instanceShortId: text("instance_short_id").notNull(),
+  // Full instanceId token (with access-type suffixes) for the launch URL.
+  instanceId: text("instance_id").notNull(),
+  // Normalised access type: group_public | group_plus | group_members |
+  // invite_plus | friends_plus | invite | public | unknown.
+  accessType: text("access_type").notNull().default("unknown"),
+  region: text("region"),
+  userCount: integer("user_count").notNull().default(0),
+  capacity: integer("capacity"),
+  // Server-side first-seen → uptime baseline (VRChat exposes no reliable
+  // instance creation time). Persisted across polls while the instance lives.
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  // Full normalised snapshot for debugging / future fields.
+  raw: jsonb("raw").$type<Record<string, unknown>>(),
+});
+export type VrchatInstance = typeof vrchatInstances.$inferSelect;

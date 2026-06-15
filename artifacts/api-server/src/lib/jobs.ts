@@ -9,6 +9,8 @@ import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService
 import { reconcileDiscordEvents, backfillMainSessions } from "./eventsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode } from "./economy";
+import { pollGroupInstances } from "./vrchatInstances";
+import { vrchatCredsConfigured } from "./vrchatClient";
 
 const EVICTION_CHANNEL_ID = process.env.EVICTION_CHANNEL_ID ?? "";
 const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
@@ -1054,6 +1056,24 @@ export function startCron() {
     cron.schedule("37 6 * * *", () => {
       runJob("main_session_backfill").catch((err) => logger.error({ err }, "main_session_backfill cron"));
     });
+    // Live VRChat instance browser poll, every 2 minutes. Reads the NCRP group's
+    // open instances and refreshes the member-facing cache. Gated to the
+    // deployed environment (or ALLOW_EXTERNAL_WRITES) AND to having credentials
+    // configured, so dev never burns the shared VRChat account's rate limit —
+    // dev simply serves whatever cache prod last wrote. Staff can still force a
+    // poll on demand via POST /vrchat/instances/refresh.
+    const vrchatPollAllowed =
+      process.env.REPLIT_DEPLOYMENT === "1" || process.env.ALLOW_EXTERNAL_WRITES === "1";
+    if (vrchatPollAllowed) {
+      cron.schedule("*/2 * * * *", async () => {
+        if (!vrchatCredsConfigured()) return;
+        try {
+          await pollGroupInstances();
+        } catch (err) {
+          logger.warn({ err }, "vrchat_instance_poll cron");
+        }
+      });
+    }
     logger.info("Cron jobs scheduled");
   });
 }
