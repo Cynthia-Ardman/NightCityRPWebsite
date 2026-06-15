@@ -131,6 +131,7 @@
 - [Discord thread mirror linkage](discord-thread-mirror-linkage.md) — thread-from-message id == message id; 400/160004 => return msgId (success), other non-ok => null; persist threadId only when non-null, never `?? msgId`; fix BOTH server lib + backfill helpers.
 - [Trial-fixer author-only tier](trial-fixer-tier.md) — exclude at isReviewer AND strip lingering fixer/coordinator names in applyRoleIdGrants; gating one surface lets stale roles vote.
 - [Discord announce/backfill URL parity](discord-announce-url-parity.md) — backfill posts must reuse live announce's `PUBLIC_BASE_URL ?? REPLIT_DOMAINS[0]` base, else deep links go relative/non-clickable.
+- [VRChat calendar sync](vrchat-calendar-sync.md) — session+social only (no missions); triple-gated; reconcile/backfill creates silent (notifyOnCreate:false), inline creates notify; events.vrchat_* cols reach prod only via Publish.
 - [VRChat group-instances browser](vrchat-group-instances.md) — group API only returns GROUP instances (private/invite+ rooms never listed); cron deployment-gated, dev serves prod's cache; never log creds.
 - [VRChat emailOtp datacenter blocker](vrchat-group-instances.md) — VRChat forces emailOtp from datacenter IPs; TOTP can't satisfy it so the poller can't log in unattended; rule out algo/clock/secret-shape before blaming the seed.
 - [Composite lib dist rebuild](api-client-codegen-dist.md) — `@workspace/db` (like api-client-react) is composite/emitDeclarationOnly; after schema edit + push, `tsc --build --force` the db pkg or api-server sees "no exported member".

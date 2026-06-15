@@ -410,9 +410,15 @@ export interface VrchatEventSyncResult {
 
 // Mirror one website event to the VRChat group calendar. Self-gated and never
 // throws — failures are persisted to vrchatSyncError (and the shared session
-// lastError) and returned. `sendCreationNotification` fires only on first create
-// so reconcile updates never spam the group.
-export async function syncEventVrchatCalendar(event: Event): Promise<VrchatEventSyncResult> {
+// lastError) and returned. The group is notified only on first create, and only
+// when notifyOnCreate is true: inline syncs (a brand-new event created/edited on
+// the site) notify, but the reconcile sweep — which backfills pre-existing rows —
+// passes false so a bulk backfill doesn't spam the group with one ping per event.
+export async function syncEventVrchatCalendar(
+  event: Event,
+  opts: { notifyOnCreate?: boolean } = {},
+): Promise<VrchatEventSyncResult> {
+  const notifyOnCreate = opts.notifyOnCreate ?? true;
   if (!(await vrchatSyncEnabled())) {
     return { vrchatCalendarId: event.vrchatCalendarId, vrchatSyncError: null };
   }
@@ -439,7 +445,7 @@ export async function syncEventVrchatCalendar(event: Event): Promise<VrchatEvent
       if (new Date(event.endAt).getTime() < Date.now()) {
         return { vrchatCalendarId: null, vrchatSyncError: null };
       }
-      const id = await createGroupCalendarEvent(toVrchatInput(content, { notify: true }));
+      const id = await createGroupCalendarEvent(toVrchatInput(content, { notify: notifyOnCreate }));
       return { vrchatCalendarId: id, vrchatSyncError: null, vrchatSyncedHash: hash, vrchatSyncedAt: new Date() };
     }
     if (event.vrchatSyncedHash === hash) {
@@ -544,7 +550,9 @@ export async function reconcileVrchatCalendar(): Promise<{ synced: number; faile
       // Teardown candidate: only act if there is actually an entry to delete.
       if (!row.vrchatCalendarId) continue;
     }
-    const sync = await syncEventVrchatCalendar(row);
+    // Backfill/reconcile sweep: never notify on create. A bulk backfill would
+    // otherwise ping the whole group once per event.
+    const sync = await syncEventVrchatCalendar(row, { notifyOnCreate: false });
     await applyEventVrchatSync(row.id, row, sync);
     if (sync.vrchatSyncError) failed++;
     else synced++;

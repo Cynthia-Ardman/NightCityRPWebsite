@@ -35,7 +35,7 @@ import {
   updateGroupCalendarEvent,
   deleteGroupCalendarEvent,
 } from "./vrchatClient";
-import { reconcileVrchatCalendar, updateEvent, VRCHAT_SYNC_FLAG } from "./eventsService";
+import { reconcileVrchatCalendar, createEvent, updateEvent, VRCHAT_SYNC_FLAG } from "./eventsService";
 import { truncateAll, createAdmin } from "../test/testDb";
 
 const mockCreate = vi.mocked(createGroupCalendarEvent);
@@ -119,11 +119,41 @@ describe("reconcileVrchatCalendar — backfill + teardown", () => {
     const res = await reconcileVrchatCalendar();
     expect(res.synced).toBe(1);
     expect(mockCreate).toHaveBeenCalledTimes(1);
+    // Backfill must be silent: a bulk reconcile would otherwise ping the whole
+    // group once per event.
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ sendCreationNotification: false }),
+    );
 
     const [after] = await db.select().from(events).where(eq(events.id, row.id));
     expect(after.vrchatCalendarId).toBe("cal-new");
     expect(after.vrchatSyncError).toBeNull();
     expect(after.vrchatSyncedHash).toBeTruthy();
+  });
+
+  it("notifies the group when a brand-new event is created inline (not a backfill)", async () => {
+    await setSyncFlag(true);
+    const admin = await createAdmin();
+
+    await createEvent(
+      {
+        title: "Fresh Social",
+        eventType: "social",
+        location: null,
+        description: null,
+        imageUrl: null,
+        startAt: future(48),
+        endAt: future(50),
+        needsNpcs: false,
+        npcBlurb: null,
+      },
+      admin.id,
+    );
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ sendCreationNotification: true }),
+    );
   });
 
   it("tears down a stale entry for a row cancelled while sync was disabled", async () => {
