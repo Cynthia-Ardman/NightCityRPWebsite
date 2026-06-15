@@ -214,7 +214,7 @@ function StaffConnectCard() {
             {connected ? "Reconnect" : pending ? "Resend code" : "Connect"}
           </Button>
         </div>
-        {pending && !connected ? (
+        {pending ? (
           <div className="flex flex-wrap items-end gap-2 pt-1">
             <div className="space-y-1">
               <label className="font-mono text-xs text-muted-foreground block">Email code</label>

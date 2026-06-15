@@ -43,7 +43,22 @@ Diagnosis that wasted time once — rule these OUT before blaming the secret:
 `requiresTwoFactorAuth` values: `totp`/`otp` (authenticator + recovery) vs
 `emailOtp` (email). `vrchatClient.login` throws a clear emailOtp-specific error.
 
-**Viable fix (not built — user chose to leave dormant):** a one-time staff
-"Connect VRChat" flow hitting `/auth/twofactorauth/emailotp/verify` with a
-human-pasted code, persisting the returned `auth`+`twoFactorAuth` cookies (good
-for weeks) so the poller reuses them. Only needs re-doing when the cookie expires.
+**Fix (BUILT): staff "Connect VRChat" flow.** Staff-only (ADMIN/FIXER) endpoints
+`GET /vrchat/session`, `POST /vrchat/session/connect`, `POST /vrchat/session/verify`
+(see `vrchatClient.beginManualLogin`/`completeEmailOtpLogin`/`finalizeSession` +
+the card on the `/live` page). `connect` POSTs Basic-auth creds to `/auth/user`
+— that request itself makes VRChat email the 6-digit code AND returns the `auth`
+cookie, which we stash in `vrchat_sessions.pending_auth_cookie`. `verify` posts
+the pasted code to `/auth/twofactorauth/emailotp/verify` with the pending cookie,
+then promotes `auth`+`twoFactorAuth` cookies (good for weeks) so the poller reuses
+them. Re-do only when the cookie expires.
+
+Gotchas:
+- `getSessionInfo().connected` is cookie-PRESENCE based, not validity — a stale
+  `authCookie` reads "connected" even when dead. So the verify-code input must be
+  gated on `pending`, NEVER `pending && !connected`, or the reconnect-after-expiry
+  path (old cookie still present) hides the input and you can't finish.
+- Basic-auth encoding MUST be `base64(encodeURIComponent(user):encodeURIComponent(pass))`
+  — identical to the existing `login()`. A `401 "Invalid Username/Email or Password"`
+  from `/auth/user` is a CREDENTIAL problem (wrong VRCHAT_USERNAME/PASSWORD), not
+  an encoding bug; don't chase the code.
