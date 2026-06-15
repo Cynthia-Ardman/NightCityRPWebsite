@@ -89,18 +89,34 @@ async function applyDiff(characterId: number, diff: EditableDiff, conn: DbConn =
 const COSMETIC_FIELDS = new Set(["portraitUrl", "portraitUrls", "background", "archetype"]);
 
 // True when every changed field in `diff` is cosmetic. `sheetData` is special:
-// it is cosmetic only when the stat `sections` are unchanged (i.e. only the
-// free-text `preamble`/formatting moved); any change to a stat section is
-// meaningful and must be reviewed.
+// it is cosmetic only when the ONLY thing that changed is the free-text
+// `preamble` (framing prose / formatting). Any change to the stat `sections`
+// OR to the discrete story fields the sheet/edit form stores at the top level
+// (physicalDescription, appearance, psychProfile, hooks, skills, plus
+// gear/guns/identity) is meaningful and must go through review.
 function isCosmeticOnlyDiff(diff: Record<string, unknown>, current: Record<string, unknown>): boolean {
   const keys = Object.keys(diff);
   if (keys.length === 0) return false;
   for (const key of keys) {
     if (COSMETIC_FIELDS.has(key)) continue;
     if (key === "sheetData") {
-      const before = (current.sheetData ?? {}) as { sections?: unknown };
-      const after = (diff.sheetData ?? {}) as { sections?: unknown };
-      if (JSON.stringify(before?.sections ?? {}) === JSON.stringify(after?.sections ?? {})) continue;
+      // Compare every key of the sheet blob EXCEPT `preamble`. Comparing only
+      // `sections` here was a silent bypass: a discrete story-field edit (e.g.
+      // physicalDescription/appearance/psychProfile/hooks/skills) left
+      // `sections` untouched, so it was wrongly treated as cosmetic and
+      // auto-applied with no review request ever created.
+      const before = (current.sheetData ?? {}) as Record<string, unknown>;
+      const after = (diff.sheetData ?? {}) as Record<string, unknown>;
+      const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
+      let meaningfulChange = false;
+      for (const k of allKeys) {
+        if (k === "preamble") continue;
+        if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) {
+          meaningfulChange = true;
+          break;
+        }
+      }
+      if (!meaningfulChange) continue;
       return false;
     }
     return false;

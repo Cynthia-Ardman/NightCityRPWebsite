@@ -1651,9 +1651,14 @@ function DossierTextCard({ title, body, testId }: { title: string; body: string;
 function ProfileDossier({ sheetData, background }: { sheetData: unknown; background?: string | null }) {
   const data = (sheetData ?? {}) as Record<string, unknown>;
   const sections = data.sections as Record<string, string> | undefined;
-  if (sections && Object.keys(sections).length > 0) {
-    return <SheetSections sections={sections} background={background} />;
-  }
+  // Legacy characters keep their bio in the free-form `sections` map, but they
+  // can ALSO have discrete story fields (added via the edit form's STORY tab).
+  // We must render BOTH — early-returning on sections silently hid every
+  // discrete field a player edited on a legacy character. Mirror SheetSections'
+  // own non-empty filter so an all-blank `sections` map doesn't render an empty
+  // "No background data recorded" card next to the discrete cards.
+  const hasSections =
+    !!sections && Object.values(sections).some((v) => typeof v === "string" && v.trim().length > 0);
 
   const str = (k: string) => (typeof data[k] === "string" ? (data[k] as string) : "");
   const nickname = str("nickname");
@@ -1664,6 +1669,7 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
   const physicalDescription = str("physicalDescription");
   const appearance = str("appearance");
   const psychProfile = str("psychProfile");
+  const hooks = str("hooks");
   const notes = str("notes");
   const skills =
     typeof data.skills === "string"
@@ -1689,19 +1695,24 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
     ["AGE", age],
   ] as Array<[string, string]>).filter(([, v]) => v && v.trim().length > 0);
 
-  const anything =
+  const hasDiscrete =
     vitals.length > 0 ||
     !!occupation.trim() ||
     !!physicalDescription.trim() ||
     !!appearance.trim() ||
     !!psychProfile.trim() ||
+    !!hooks.trim() ||
     !!notes.trim() ||
     !!skills.trim() ||
     gear.length > 0 ||
-    guns.length > 0 ||
-    !!cleanBg;
+    guns.length > 0;
 
-  if (!anything) {
+  // The free-form `sections` block (when present) is rendered by SheetSections,
+  // which already shows BACKGROUND — so only render the discrete BACKGROUND card
+  // when there are no sections, to avoid showing the bio twice.
+  const showDiscreteBackground = !hasSections && !!cleanBg;
+
+  if (!hasSections && !hasDiscrete && !cleanBg) {
     return (
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
@@ -1716,6 +1727,9 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
 
   return (
     <div className="space-y-4">
+      {hasSections && sections && (
+        <SheetSections sections={sections} background={background} />
+      )}
       {vitals.length > 0 && (
         <Card className="rounded-none border-border bg-card/50" data-testid="dossier-vitals">
           <CardHeader>
@@ -1735,7 +1749,10 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
       <DossierTextCard title="PHYSICAL DESCRIPTION" body={physicalDescription} testId="dossier-physical" />
       <DossierTextCard title="STYLE" body={appearance} testId="dossier-style" />
       <DossierTextCard title="PSYCHOLOGICAL PROFILE" body={psychProfile} testId="dossier-psych" />
-      <DossierTextCard title="BACKGROUND" body={cleanBg} testId="dossier-background" />
+      {showDiscreteBackground && (
+        <DossierTextCard title="BACKGROUND" body={cleanBg} testId="dossier-background" />
+      )}
+      <DossierTextCard title="HOOKS" body={hooks} testId="dossier-hooks" />
       <DossierTextCard title="SKILLS" body={skills} testId="dossier-skills" />
       {gear.length > 0 && (
         <Card className="rounded-none border-border bg-card/50" data-testid="dossier-gear">

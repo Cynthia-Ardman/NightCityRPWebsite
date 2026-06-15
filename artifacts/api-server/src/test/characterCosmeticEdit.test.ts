@@ -72,7 +72,7 @@ describe("cosmetic character edits auto-apply", () => {
     expect(await pendingCount(c.id)).toBe(0);
   });
 
-  it("auto-applies a merged sheetData blob and preserves non-story keys (gear/identity)", async () => {
+  it("queues a discrete story-field edit for review (preserving non-story keys in the diff)", async () => {
     const u = await createUser();
     const c = await ownedChar(u.id, {
       sheetData: {
@@ -85,7 +85,11 @@ describe("cosmetic character edits auto-apply", () => {
     });
 
     // The edit dialog sends the whole merged blob: edited story fields plus the
-    // untouched gear/identity it spread off the existing sheetData.
+    // untouched gear/identity it spread off the existing sheetData. A change to a
+    // discrete story field (physicalDescription/appearance/…) is MEANINGFUL — it
+    // must go through review, NOT auto-apply. (Regression: it previously slipped
+    // through as "cosmetic" because only `sections` was compared, so a player's
+    // edit silently applied with no review request.)
     const res = await patch(u.id, c.id, {
       sheetData: {
         preamble: "old",
@@ -99,18 +103,51 @@ describe("cosmetic character edits auto-apply", () => {
         identity: { handle: "Ghost" },
       },
     });
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("pending");
+    expect(await pendingCount(c.id)).toBe(1);
+
+    // The live row is untouched until a reviewer approves.
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect((row.sheetData as Record<string, unknown>).physicalDescription).toBe("tall");
+
+    // The proposed diff carries the full merged blob, including the non-story
+    // keys spread off the original sheetData (passthrough survives the parse).
+    const [edit] = await db
+      .select()
+      .from(pendingCharacterEdits)
+      .where(eq(pendingCharacterEdits.characterId, c.id));
+    const proposed = (edit.proposedDiff as { sheetData?: Record<string, unknown> }).sheetData ?? {};
+    expect(proposed.physicalDescription).toBe("taller now");
+    expect(proposed.appearance).toBe("neon jacket");
+    expect(proposed.gear).toEqual(["knife"]);
+    expect(proposed.identity).toEqual({ handle: "Ghost" });
+  });
+
+  it("still auto-applies a preamble-only change even when discrete story fields exist", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id, {
+      sheetData: {
+        preamble: "old framing",
+        sections: {},
+        physicalDescription: "tall",
+        appearance: "neon jacket",
+      },
+    });
+
+    // Only the free-text preamble moved — everything meaningful is unchanged, so
+    // this stays cosmetic and applies on the spot.
+    const res = await patch(u.id, c.id, {
+      sheetData: {
+        preamble: "new framing",
+        sections: {},
+        physicalDescription: "tall",
+        appearance: "neon jacket",
+      },
+    });
     expect(res.status).toBe(200);
     expect(res.body.autoApplied).toBe(true);
     expect(await pendingCount(c.id)).toBe(0);
-
-    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
-    const sheet = row.sheetData as Record<string, unknown>;
-    // Edited story fields landed...
-    expect(sheet.physicalDescription).toBe("taller now");
-    expect(sheet.appearance).toBe("neon jacket");
-    // ...and the non-story keys survived the round-trip (passthrough).
-    expect(sheet.gear).toEqual(["knife"]);
-    expect(sheet.identity).toEqual({ handle: "Ghost" });
   });
 
   it("auto-applies a cosmetic edit that carries an updateNote (note logged)", async () => {
