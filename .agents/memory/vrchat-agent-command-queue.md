@@ -35,6 +35,9 @@ a just-finished row could be immediately self-reclaimed. Stale-claim recovery wi
 (120s); agent online window AGENT_ONLINE_WINDOW_MS (30s).
 
 ## Agent script shipping
-Agent .py ships as a `String.raw` TS constant (build.mjs bundles only .ts) with `__AGENT_BASE_URL__` /
-`__AGENT_TOKEN__` placeholders; `buildAgentScript()` bakes per-staffer base URL + token. Portal fetches the
-download via raw `fetch(..., {method:"POST", credentials:"include"})` → blob save (not in orval codegen).
+Agent .py + launchers + README ship as TS string constants because the api-server build bundles ONLY .ts
+source (non-TS files never reach dist) — never add the agent as a loose .py/.txt file expecting it at runtime.
+Per-staffer secrets (base URL + token) are baked into placeholder strings at download time, not stored in the
+file at rest. The download is a zip built by a tiny in-house writer (no zip dependency) since the bundle is a
+few small text files; the staff endpoint stays out of the orval/OpenAPI spec on purpose (binary body) and the
+portal fetches it with raw `fetch({method:"POST", credentials:"include"})` → blob save.

@@ -9,7 +9,8 @@ import {
   AGENT_ONLINE_WINDOW_MS,
   COMMAND_CLAIM_STALE_MS,
 } from "../lib/vrchatAgent";
-import { buildAgentScript } from "../lib/vrchatAgentFiles";
+import { buildAgentBundle } from "../lib/vrchatAgentFiles";
+import { buildZip } from "../lib/zip";
 
 const router: IRouter = Router();
 
@@ -194,10 +195,10 @@ router.post("/vrchat/agent/download", ...staffOnly, async (req: Request, res: Re
       set: { tokenHash: hash, tokenIssuedAt: now, revokedAt: null },
     });
 
-  const script = buildAgentScript(publicApiBase(), token);
-  res.setHeader("Content-Type", "text/x-python; charset=utf-8");
-  res.setHeader("Content-Disposition", 'attachment; filename="psychosis_agent.py"');
-  res.send(script);
+  const zip = buildZip(buildAgentBundle(publicApiBase(), token));
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", 'attachment; filename="psychosis_agent.zip"');
+  res.send(zip);
 });
 
 export default router;

@@ -107,11 +107,11 @@ export default function CyberPsycho() {
         credentials: "include",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const url = URL.createObjectURL(new Blob([text], { type: "text/x-python" }));
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "psychosis_agent.py";
+      a.download = "psychosis_agent.zip";
       document.body.appendChild(a);
       a.click();
       a.remove();

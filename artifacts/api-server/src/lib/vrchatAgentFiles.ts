@@ -1068,7 +1068,29 @@ NOTES
     page — the old file stops working immediately.
 `;
 
+// Windows launcher — double-click convenience so staff never touch a terminal.
+export const RUN_AGENT_BAT: string = "@echo off\r\ncd /d \"%~dp0\"\r\npython psychosis_agent.py\r\npause\r\n";
+
+// macOS / Linux launcher.
+export const RUN_AGENT_SH: string = String.raw`#!/usr/bin/env bash
+cd "$(dirname "$0")"
+python3 psychosis_agent.py
+`;
+
 // Bake the per-staffer portal base URL + token into the agent script.
 export function buildAgentScript(baseUrl: string, token: string): string {
   return AGENT_PY.replace(BASE_URL_PLACEHOLDER, baseUrl).replace(TOKEN_PLACEHOLDER, token);
+}
+
+export type AgentBundleFile = { name: string; data: Buffer };
+
+// The full set of files a staffer downloads: personalized agent + launchers +
+// README. Returned as in-memory buffers ready to zip.
+export function buildAgentBundle(baseUrl: string, token: string): AgentBundleFile[] {
+  return [
+    { name: "psychosis_agent.py", data: Buffer.from(buildAgentScript(baseUrl, token), "utf-8") },
+    { name: "run_agent.bat", data: Buffer.from(RUN_AGENT_BAT, "utf-8") },
+    { name: "run_agent.sh", data: Buffer.from(RUN_AGENT_SH, "utf-8") },
+    { name: "README.txt", data: Buffer.from(AGENT_README, "utf-8") },
+  ];
 }
