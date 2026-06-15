@@ -881,6 +881,9 @@ const GunEditSchema = z
     fireMode: nullableText,
     notes: nullableText,
     imageUrl: nullableText,
+    cyberwareReq: nullableText,
+    wikiUrl: nullableText,
+    prefabThreadUrl: nullableText,
     status: gunStatus,
   })
   .strict();
@@ -922,6 +925,9 @@ router.post(
       fireMode: d.fireMode ?? null,
       notes: d.notes ?? null,
       imageUrl: d.imageUrl ?? null,
+      cyberwareReq: d.cyberwareReq ?? null,
+      wikiUrl: d.wikiUrl ?? null,
+      prefabThreadUrl: d.prefabThreadUrl ?? null,
       status: d.status ?? "draft",
     };
     const { ip, ua } = auditMeta(req);
@@ -959,6 +965,7 @@ const CustomGunSchema = z
     name: z.string().trim().min(1),
     description: nullableText,
     imageUrl: nullableText,
+    cyberwareReq: nullableText,
   })
   .strict();
 
@@ -1002,6 +1009,7 @@ router.post(
           category: "gun",
           quantity: 1,
           notes: description,
+          cyberwareReq: d.cyberwareReq ?? null,
         })
         .returning();
       const appliedRef = `inventory:${item.instanceUuid}`;
@@ -1116,6 +1124,10 @@ router.patch(
     if (edit.fireMode !== undefined) mark("fireMode", cur.fireMode, edit.fireMode);
     if (edit.notes !== undefined) mark("notes", cur.notes, edit.notes);
     if (edit.imageUrl !== undefined) mark("imageUrl", cur.imageUrl, edit.imageUrl);
+    if (edit.cyberwareReq !== undefined) mark("cyberwareReq", cur.cyberwareReq, edit.cyberwareReq);
+    if (edit.wikiUrl !== undefined) mark("wikiUrl", cur.wikiUrl, edit.wikiUrl);
+    if (edit.prefabThreadUrl !== undefined)
+      mark("prefabThreadUrl", cur.prefabThreadUrl, edit.prefabThreadUrl);
     if (edit.status !== undefined) mark("status", cur.status, edit.status);
 
     if (Object.keys(after).length === 0) {

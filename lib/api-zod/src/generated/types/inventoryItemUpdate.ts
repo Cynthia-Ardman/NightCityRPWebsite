@@ -16,5 +16,10 @@ export interface InventoryItemUpdate {
   /** @minimum 0 */
   quantity?: number;
   notes?: string;
+  /**
+     * Cyberware required to operate this item (guns). Staff-only.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
   equipped?: boolean;
 }

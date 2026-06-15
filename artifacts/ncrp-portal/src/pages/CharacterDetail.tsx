@@ -824,6 +824,8 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const [notes, setNotes] = useState("");
   // Weapon-only fields (mirror the gun catalog; packed into notes on save).
   const [gun, setGun] = useState({ manufacturer: "", category: "", weaponType: "", fireMode: "", powerLevel: "" });
+  // Required cyberware to operate a weapon — its own column, not packed in notes.
+  const [gunCyberReq, setGunCyberReq] = useState("");
   // Free-text overrides for the weapon Category / Weapon type dropdowns. When
   // on, the matching <Select> swaps to a text input so off-catalog values can
   // be entered.
@@ -840,6 +842,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
     setQuantity(1);
     setNotes("");
     setGun({ manufacturer: "", category: "", weaponType: "", fireMode: "", powerLevel: "" });
+    setGunCyberReq("");
     setCustomGunCategory(false);
     setCustomWeaponType(false);
     setCyber({ slot: "", cwp: "" });
@@ -883,7 +886,14 @@ function InventoryTab({ characterId }: { characterId: number }) {
     addItem.mutate(
       {
         id: characterId,
-        data: { name: name.trim(), category: finalCategory, quantity: Math.max(1, quantity), notes: finalNotes, equipped },
+        data: {
+          name: name.trim(),
+          category: finalCategory,
+          quantity: Math.max(1, quantity),
+          notes: finalNotes,
+          equipped,
+          ...(category === "Weapon" && gunCyberReq.trim() ? { cyberwareReq: gunCyberReq.trim() } : {}),
+        },
       },
       { onSuccess: resetForm },
     );
@@ -1035,6 +1045,21 @@ function InventoryTab({ characterId }: { characterId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="sm:col-span-12">
+                  <Label className="text-xs font-mono">REQUIRED CYBERWARE TO OPERATE</Label>
+                  <Input
+                    list="inventory-cyberware-req-options"
+                    value={gunCyberReq}
+                    onChange={(e) => setGunCyberReq(e.target.value)}
+                    placeholder="e.g. Smart Link (optional)"
+                    data-testid="input-gun-cyberreq"
+                  />
+                  <datalist id="inventory-cyberware-req-options">
+                    {(cyberCatalog ?? []).map((c) => (
+                      <option key={c.id} value={c.name} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
             )}
 
@@ -1109,7 +1134,12 @@ function InventoryTab({ characterId }: { characterId: number }) {
             <div className="space-y-2 font-mono text-sm" data-testid="list-inventory">
               {items.map((it) => (
                 <div key={it.id} className="grid grid-cols-12 gap-2 border border-border/40 p-2 items-center" data-testid={`row-item-${it.id}`}>
-                  <span className="col-span-3 text-foreground break-words">{it.name}</span>
+                  <span className="col-span-3 text-foreground break-words">
+                    {it.name}
+                    {it.cyberwareReq && (
+                      <span className="ml-2 text-nc-magenta uppercase text-[10px]" data-testid={`text-item-cyberreq-${it.id}`}>REQ: {it.cyberwareReq}</span>
+                    )}
+                  </span>
                   <span className="col-span-2 text-nc-cyan uppercase truncate">{it.category ?? "—"}</span>
                   <span className="col-span-1 text-right">x{it.quantity}</span>
                   <span className="col-span-2 truncate text-muted-foreground">{stripImportSentinel(it.notes)}</span>
@@ -1245,7 +1275,7 @@ function EditItemDialog({
   onDone,
 }: {
   characterId: number;
-  item: { id: number; name: string; category?: string | null; quantity: number; notes?: string | null } | null;
+  item: { id: number; name: string; category?: string | null; quantity: number; notes?: string | null; cyberwareReq?: string | null } | null;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -1253,8 +1283,11 @@ function EditItemDialog({
   const [category, setCategory] = useState(item?.category ?? "");
   const [quantity, setQuantity] = useState(item?.quantity ?? 1);
   const [notes, setNotes] = useState(stripImportSentinel(item?.notes));
+  const [cyberwareReq, setCyberwareReq] = useState(item?.cyberwareReq ?? "");
+  const { data: cyberCatalog } = useListCyberware();
   const update = useUpdateInventoryItem({ mutation: { onSuccess: onDone } });
   if (!item) return null;
+  const isCyberware = (category ?? "").trim().toLowerCase() === "cyberware";
   const STD_CATEGORIES = ["Misc", "Weapon", "Cyberware"];
   // A stored category may be lowercase ("cyberware") or some arbitrary legacy
   // value. Map known ones onto the standard options; preserve anything else.
@@ -1294,6 +1327,7 @@ function EditItemDialog({
                   category: category.toLowerCase() === "cyberware" ? "cyberware" : category.trim() || undefined,
                   quantity: Math.max(1, quantity),
                   notes: notes.trim() || undefined,
+                  ...(isCyberware ? {} : { cyberwareReq: cyberwareReq.trim() }),
                 },
               });
             }}
@@ -1334,6 +1368,23 @@ function EditItemDialog({
               <Label className="text-xs">NOTES</Label>
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="input-edit-item-notes" />
             </div>
+            {!isCyberware && (
+              <div>
+                <Label className="text-xs">REQUIRED CYBERWARE TO OPERATE</Label>
+                <Input
+                  list="edit-item-cyberware-req-options"
+                  value={cyberwareReq}
+                  onChange={(e) => setCyberwareReq(e.target.value)}
+                  placeholder="e.g. Smart Link (optional)"
+                  data-testid="input-edit-item-cyberreq"
+                />
+                <datalist id="edit-item-cyberware-req-options">
+                  {(cyberCatalog ?? []).map((c) => (
+                    <option key={c.id} value={c.name} />
+                  ))}
+                </datalist>
+              </div>
+            )}
             {errMsg && (
               <div className="text-destructive text-sm" data-testid="text-edit-item-error">
                 {errMsg}

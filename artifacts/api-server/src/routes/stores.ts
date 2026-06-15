@@ -573,7 +573,7 @@ router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> =>
     res.status(403).json({ error: "Gun store stock is managed by staff only" });
     return;
   }
-  const { name, category, price, quantity, notes, description, powerLevel } = req.body ?? {};
+  const { name, category, price, quantity, notes, description, powerLevel, cyberwareReq } = req.body ?? {};
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "name required" });
     return;
@@ -595,6 +595,8 @@ router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> =>
         notes: notes ?? null,
         description: typeof description === "string" && description.trim() ? description.trim() : null,
         powerLevel: typeof powerLevel === "string" && powerLevel.trim() ? powerLevel.trim() : null,
+        cyberwareReq:
+          typeof cyberwareReq === "string" && cyberwareReq.trim() ? cyberwareReq.trim() : null,
       })
       .returning();
     await tx.insert(auditLog).values({
@@ -623,7 +625,7 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
     return;
   }
   const stockId = parseInt(String(req.params.stockId), 10);
-  const { name, category, price, quantity, notes, description, powerLevel } = req.body ?? {};
+  const { name, category, price, quantity, notes, description, powerLevel, cyberwareReq } = req.body ?? {};
   const patch: Record<string, unknown> = {
     ...(name !== undefined ? { name } : {}),
     ...(category !== undefined ? { category } : {}),
@@ -633,6 +635,9 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
     ...(description !== undefined ? { description } : {}),
     ...(powerLevel !== undefined
       ? { powerLevel: typeof powerLevel === "string" && powerLevel.trim() ? powerLevel.trim() : null }
+      : {}),
+    ...(cyberwareReq !== undefined
+      ? { cyberwareReq: typeof cyberwareReq === "string" && cyberwareReq.trim() ? cyberwareReq.trim() : null }
       : {}),
   };
   if (Object.keys(patch).length === 0) {

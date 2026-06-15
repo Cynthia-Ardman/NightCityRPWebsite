@@ -19,4 +19,9 @@ export interface CustomGunInput {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * Cyberware required to operate the gun.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
 }

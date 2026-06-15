@@ -38,6 +38,21 @@ export interface CatalogGunUpdate {
   /** @nullable */
   imageUrl?: string | null;
   /**
+     * Cyberware required to operate this weapon.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
+  /**
+     * Link to the Cyberpunk wiki page.
+     * @nullable
+     */
+  wikiUrl?: string | null;
+  /**
+     * Link to the Discord prefab thread.
+     * @nullable
+     */
+  prefabThreadUrl?: string | null;
+  /**
      * Visibility status; only ADMIN/FIXER may set.
      * @nullable
      */

@@ -385,7 +385,7 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const { name, category, quantity, notes, equipped } = req.body ?? {};
+  const { name, category, quantity, notes, equipped, cyberwareReq } = req.body ?? {};
   if (!name) {
     res.status(400).json({ error: "name required" });
     return;
@@ -438,6 +438,8 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
       category: canonCategory ?? null,
       quantity: quantity ?? 1,
       notes: notes ?? null,
+      cyberwareReq:
+        typeof cyberwareReq === "string" && cyberwareReq.trim() ? cyberwareReq.trim() : null,
       equipped: !!equipped,
     })
     .returning();
@@ -468,7 +470,7 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const { name, category, quantity, notes, equipped } = req.body ?? {};
+  const { name, category, quantity, notes, equipped, cyberwareReq } = req.body ?? {};
   if (typeof name === "string" && name.length > 500) {
     res.status(400).json({ error: "name must be 500 characters or fewer" });
     return;
@@ -499,6 +501,9 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
       ...(category !== undefined ? { category } : {}),
       ...(quantity !== undefined ? { quantity } : {}),
       ...(notes !== undefined ? { notes } : {}),
+      ...(cyberwareReq !== undefined
+        ? { cyberwareReq: typeof cyberwareReq === "string" && cyberwareReq.trim() ? cyberwareReq.trim() : null }
+        : {}),
       ...(equipped !== undefined ? { equipped } : {}),
     })
     .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)))
@@ -533,6 +538,11 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
   if (equipped !== undefined && equipped !== before.equipped) diffs.push(equipped ? "equipped" : "unequipped");
   if (category !== undefined && category !== before.category) diffs.push(`category: ${before.category ?? "—"} → ${category ?? "—"}`);
   if (notes !== undefined && notes !== before.notes) diffs.push("notes updated");
+  {
+    const nextReq = typeof cyberwareReq === "string" && cyberwareReq.trim() ? cyberwareReq.trim() : null;
+    if (cyberwareReq !== undefined && nextReq !== (before.cyberwareReq ?? null))
+      diffs.push(`cyberware req: ${before.cyberwareReq ?? "—"} → ${nextReq ?? "—"}`);
+  }
   if (diffs.length) {
     await db.insert(characterUpdates).values({
       characterId: cid,

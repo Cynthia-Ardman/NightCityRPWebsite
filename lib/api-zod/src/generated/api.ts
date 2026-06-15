@@ -358,6 +358,7 @@ export const GetCharacterInventoryResponseItem = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 })
 export const GetCharacterInventoryResponse = zod.array(GetCharacterInventoryResponseItem)
@@ -377,6 +378,7 @@ export const AddInventoryItemBody = zod.object({
   "category": zod.string().optional(),
   "quantity": zod.number().min(1),
   "notes": zod.string().optional(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns). Staff-only.'),
   "equipped": zod.boolean().optional()
 })
 
@@ -397,6 +399,7 @@ export const UpdateInventoryItemBody = zod.object({
   "category": zod.string().optional(),
   "quantity": zod.number().min(updateInventoryItemBodyQuantityMin).optional(),
   "notes": zod.string().optional(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns). Staff-only.'),
   "equipped": zod.boolean().optional()
 })
 
@@ -408,6 +411,7 @@ export const UpdateInventoryItemResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 })
 
@@ -446,6 +450,7 @@ export const TransferInventoryItemResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 })
 
@@ -466,6 +471,7 @@ export const GetInventoryItemHistoryResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 }),zod.null()]),
   "currentCharacter": zod.object({
@@ -771,7 +777,10 @@ export const ListGunsResponseItem = zod.object({
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish(),
   "fireMode": zod.string().nullish(),
-  "imageUrl": zod.string().nullish()
+  "imageUrl": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this weapon.'),
+  "wikiUrl": zod.string().nullish().describe('Link to the Cyberpunk wiki page.'),
+  "prefabThreadUrl": zod.string().nullish().describe('Link to the Discord prefab thread.')
 })
 export const ListGunsResponse = zod.array(ListGunsResponseItem)
 
@@ -799,6 +808,9 @@ export const CreateGunBody = zod.object({
   "fireMode": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this weapon.'),
+  "wikiUrl": zod.string().nullish().describe('Link to the Cyberpunk wiki page.'),
+  "prefabThreadUrl": zod.string().nullish().describe('Link to the Discord prefab thread.'),
   "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().default(createGunBodyStatusDefault).describe('Visibility status; defaults to draft.')
 })
 
@@ -827,6 +839,9 @@ export const UpdateGunBody = zod.object({
   "fireMode": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this weapon.'),
+  "wikiUrl": zod.string().nullish().describe('Link to the Cyberpunk wiki page.'),
+  "prefabThreadUrl": zod.string().nullish().describe('Link to the Discord prefab thread.'),
   "status": zod.union([zod.literal('draft'),zod.literal('live'),zod.literal('retired'),zod.literal(null)]).nullish().describe('Visibility status; only ADMIN\/FIXER may set.')
 }).describe('Fixer\/admin patch. Any subset of these fields may be supplied; omitted\nfields are left unchanged.\n')
 
@@ -845,7 +860,10 @@ export const UpdateGunResponse = zod.object({
   "powerLevel": zod.string().nullish(),
   "weaponType": zod.string().nullish(),
   "fireMode": zod.string().nullish(),
-  "imageUrl": zod.string().nullish()
+  "imageUrl": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this weapon.'),
+  "wikiUrl": zod.string().nullish().describe('Link to the Cyberpunk wiki page.'),
+  "prefabThreadUrl": zod.string().nullish().describe('Link to the Discord prefab thread.')
 }).and(zod.object({
   "changed": zod.array(zod.string())
 })).describe('The updated weapon plus the list of fields that actually changed in\nthis edit (used for audit\/UX context).\n')
@@ -880,7 +898,8 @@ export const CreateCustomGunBody = zod.object({
   "characterId": zod.number().describe('Owning character id.'),
   "name": zod.string().describe('The bespoke gun\'s name.'),
   "description": zod.string().nullish(),
-  "imageUrl": zod.string().nullish()
+  "imageUrl": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun.')
 }).describe('Payload for granting a one-off CUSTOM gun to a character (staff action).\n')
 
 
@@ -1401,7 +1420,8 @@ export const ListMyStoresResponseItem = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).'),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun (gun-store stock).')
 }))
 })
 export const ListMyStoresResponse = zod.array(ListMyStoresResponseItem)
@@ -1442,7 +1462,8 @@ export const GetStoreResponse = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).'),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun (gun-store stock).')
 }))
 })
 
@@ -1493,7 +1514,8 @@ export const UpdateStoreResponse = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).'),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun (gun-store stock).')
 }))
 })
 
@@ -1622,6 +1644,7 @@ export const SellStoreItemResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 }).optional(),
   "commissionPaid": zod.number().optional(),
@@ -1801,7 +1824,8 @@ export const AddStoreStockBody = zod.object({
   "description": zod.string().optional(),
   "slot": zod.string().optional().describe('Cyberware slot (clinic stock). Encoded into notes alongside CWP.'),
   "cwp": zod.number().min(addStoreStockBodyCwpMin).optional().describe('Cyberware points (clinic stock). Encoded into notes as \'CWP <n>\'.'),
-  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.')
+  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.'),
+  "cyberwareReq": zod.string().optional().describe('Cyberware required to operate the gun (gun-store stock). Staff-only.')
 })
 
 
@@ -1842,7 +1866,8 @@ export const UpdateStoreStockBody = zod.object({
   "quantity": zod.number().min(updateStoreStockBodyQuantityMin).optional(),
   "notes": zod.string().optional(),
   "description": zod.string().optional(),
-  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.')
+  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.'),
+  "cyberwareReq": zod.string().optional().describe('Cyberware required to operate (gun-store stock). Staff-only.')
 })
 
 export const UpdateStoreStockResponse = zod.object({
@@ -1853,7 +1878,8 @@ export const UpdateStoreStockResponse = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).'),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun (gun-store stock).')
 })
 
 
@@ -1893,7 +1919,8 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).'),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun (gun-store stock).')
 }))
 })
 export const ListMyRipperdocsResponse = zod.array(ListMyRipperdocsResponseItem)
@@ -1933,7 +1960,8 @@ export const GetRipperdocResponse = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).'),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun (gun-store stock).')
 }))
 })
 
@@ -1982,7 +2010,8 @@ export const UpdateRipperdocResponse = zod.object({
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).')
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).'),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun (gun-store stock).')
 }))
 })
 
@@ -2178,6 +2207,7 @@ export const ApproveOfferResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 }).optional(),
   "commissionPaid": zod.number().optional(),
@@ -5854,6 +5884,7 @@ export const SellRipperdocItemResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 }).optional(),
   "commissionPaid": zod.number().optional(),
@@ -5929,6 +5960,7 @@ export const InstallRipperdocCyberwareResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 }).optional(),
   "commissionPaid": zod.number().optional(),
@@ -5998,6 +6030,7 @@ export const GiveRipperdocItemResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 }).optional(),
   "commissionPaid": zod.number().optional(),
@@ -6068,6 +6101,7 @@ export const RemoveRipperdocCyberwareResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 }).optional(),
   "commissionPaid": zod.number().optional(),
@@ -6218,7 +6252,8 @@ export const AddRipperdocStockBody = zod.object({
   "description": zod.string().optional(),
   "slot": zod.string().optional().describe('Cyberware slot (clinic stock). Encoded into notes alongside CWP.'),
   "cwp": zod.number().min(addRipperdocStockBodyCwpMin).optional().describe('Cyberware points (clinic stock). Encoded into notes as \'CWP <n>\'.'),
-  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.')
+  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.'),
+  "cyberwareReq": zod.string().optional().describe('Cyberware required to operate the gun (gun-store stock). Staff-only.')
 })
 
 
@@ -6391,6 +6426,7 @@ export const SearchInventoryByOwnerResponse = zod.object({
   "category": zod.string().nullish(),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate this item (guns).'),
   "equipped": zod.boolean().optional()
 }),zod.null()]).optional()
 }))

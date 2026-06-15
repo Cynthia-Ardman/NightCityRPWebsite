@@ -22,4 +22,9 @@ export interface StockItem {
      * @nullable
      */
   powerLevel?: string | null;
+  /**
+     * Cyberware required to operate the gun (gun-store stock).
+     * @nullable
+     */
+  cyberwareReq?: string | null;
 }

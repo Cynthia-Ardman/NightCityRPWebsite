@@ -1685,6 +1685,11 @@ export interface InventoryItem {
   quantity: number;
   /** @nullable */
   notes?: string | null;
+  /**
+     * Cyberware required to operate this item (guns).
+     * @nullable
+     */
+  cyberwareReq?: string | null;
   equipped?: boolean;
 }
 
@@ -1980,6 +1985,11 @@ export interface InventoryItemInput {
   /** @minimum 1 */
   quantity: number;
   notes?: string;
+  /**
+     * Cyberware required to operate this item (guns). Staff-only.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
   equipped?: boolean;
 }
 
@@ -1993,6 +2003,11 @@ export interface InventoryItemUpdate {
   /** @minimum 0 */
   quantity?: number;
   notes?: string;
+  /**
+     * Cyberware required to operate this item (guns). Staff-only.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
   equipped?: boolean;
 }
 
@@ -2228,6 +2243,11 @@ export interface StockItem {
      * @nullable
      */
   powerLevel?: string | null;
+  /**
+     * Cyberware required to operate the gun (gun-store stock).
+     * @nullable
+     */
+  cyberwareReq?: string | null;
 }
 
 export interface Store {
@@ -2492,6 +2512,8 @@ export interface StockInput {
   cwp?: number;
   /** Power level (gun-store stock). Staff-only. */
   powerLevel?: string;
+  /** Cyberware required to operate the gun (gun-store stock). Staff-only. */
+  cyberwareReq?: string;
 }
 
 /**
@@ -2720,6 +2742,8 @@ export interface StockUpdate {
   description?: string;
   /** Power level (gun-store stock). Staff-only. */
   powerLevel?: string;
+  /** Cyberware required to operate (gun-store stock). Staff-only. */
+  cyberwareReq?: string;
 }
 
 /**
@@ -2735,6 +2759,11 @@ export interface CustomGunInput {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * Cyberware required to operate the gun.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
 }
 
 export type CustomCatalogItemType = typeof CustomCatalogItemType[keyof typeof CustomCatalogItemType];
@@ -2799,6 +2828,21 @@ export interface CatalogGun {
   fireMode?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * Cyberware required to operate this weapon.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
+  /**
+     * Link to the Cyberpunk wiki page.
+     * @nullable
+     */
+  wikiUrl?: string | null;
+  /**
+     * Link to the Discord prefab thread.
+     * @nullable
+     */
+  prefabThreadUrl?: string | null;
 }
 
 /**
@@ -2844,6 +2888,21 @@ export interface CatalogGunUpdate {
   notes?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * Cyberware required to operate this weapon.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
+  /**
+     * Link to the Cyberpunk wiki page.
+     * @nullable
+     */
+  wikiUrl?: string | null;
+  /**
+     * Link to the Discord prefab thread.
+     * @nullable
+     */
+  prefabThreadUrl?: string | null;
   /**
      * Visibility status; only ADMIN/FIXER may set.
      * @nullable
@@ -2898,6 +2957,21 @@ export interface CatalogGunInput {
   notes?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * Cyberware required to operate this weapon.
+     * @nullable
+     */
+  cyberwareReq?: string | null;
+  /**
+     * Link to the Cyberpunk wiki page.
+     * @nullable
+     */
+  wikiUrl?: string | null;
+  /**
+     * Link to the Discord prefab thread.
+     * @nullable
+     */
+  prefabThreadUrl?: string | null;
   /**
      * Visibility status; defaults to draft.
      * @nullable

@@ -15,6 +15,7 @@ export type PickedItem = {
   category: string | null;
   price: number;
   powerLevel?: string | null;
+  cyberwareReq?: string | null;
 };
 
 type Props = {
@@ -43,6 +44,7 @@ export default function CatalogPicker({ kind, onPick, triggerLabel = "ADD FROM C
         category: g.category ?? null,
         price: g.price,
         powerLevel: g.powerLevel ?? null,
+        cyberwareReq: g.cyberwareReq ?? null,
       }));
     }
     return (cyberQuery.data ?? []).map((c) => ({

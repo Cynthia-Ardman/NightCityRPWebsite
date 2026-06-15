@@ -165,6 +165,7 @@ export default function MyStoreDetail() {
   const [stockPrice, setStockPrice] = useState(0);
   const [stockQty, setStockQty] = useState(1);
   const [stockPowerLevel, setStockPowerLevel] = useState("");
+  const [stockCyberReq, setStockCyberReq] = useState("");
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [stockReqOpen, setStockReqOpen] = useState(false);
@@ -441,6 +442,17 @@ export default function MyStoreDetail() {
                   />
                 )}
               </div>
+              {showPowerLevel && (
+                <div className="grid grid-cols-12 gap-2">
+                  <Input
+                    className="col-span-12 font-mono text-xs"
+                    defaultValue={s.cyberwareReq ?? ""}
+                    placeholder="Required cyberware to operate (optional)"
+                    onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { cyberwareReq: e.target.value } })}
+                    data-testid={`input-stock-cyberreq-${s.id}`}
+                  />
+                </div>
+              )}
             </div>
             );
           }
@@ -456,6 +468,9 @@ export default function MyStoreDetail() {
                 {s.category && <span className="text-nc-cyan uppercase text-xs">{s.category}</span>}
                 {showPowerLevel && s.powerLevel && (
                   <span className="text-nc-yellow uppercase text-xs" data-testid={`text-stock-power-${s.id}`}>PWR: {s.powerLevel}</span>
+                )}
+                {showPowerLevel && s.cyberwareReq && (
+                  <span className="text-nc-magenta uppercase text-xs" data-testid={`text-stock-cyberreq-${s.id}`}>REQ: {s.cyberwareReq}</span>
                 )}
                 <span className="text-muted-foreground text-xs">Qty {s.quantity}</span>
                 {s.description && <span className="text-muted-foreground text-xs">{s.description}</span>}
@@ -487,6 +502,7 @@ export default function MyStoreDetail() {
                       setStockCategory(item.category ?? "");
                       setStockPrice(item.price);
                       setStockPowerLevel(item.powerLevel ?? "");
+                      setStockCyberReq(item.cyberwareReq ?? "");
                       if (stockQty < 1) setStockQty(1);
                     }}
                   />
@@ -523,6 +539,7 @@ export default function MyStoreDetail() {
                         price: stockPrice,
                         quantity: stockQty,
                         ...(showPowerLevel && stockPowerLevel.trim() ? { powerLevel: stockPowerLevel.trim() } : {}),
+                        ...(showPowerLevel && stockCyberReq.trim() ? { cyberwareReq: stockCyberReq.trim() } : {}),
                       },
                     });
                     setStockName("");
@@ -531,6 +548,7 @@ export default function MyStoreDetail() {
                     setStockPrice(0);
                     setStockQty(1);
                     setStockPowerLevel("");
+                    setStockCyberReq("");
                   }}
                   data-testid="button-add-stock"
                 >
@@ -553,6 +571,15 @@ export default function MyStoreDetail() {
                     placeholder="Power level (optional)"
                     emptyLabel="— Power level —"
                     testId="input-add-stock-power"
+                  />
+                )}
+                {showPowerLevel && (
+                  <Input
+                    className="col-span-12 font-mono text-xs"
+                    placeholder="Required cyberware to operate (optional)"
+                    value={stockCyberReq}
+                    onChange={(e) => setStockCyberReq(e.target.value)}
+                    data-testid="input-add-stock-cyberreq"
                   />
                 )}
               </div>

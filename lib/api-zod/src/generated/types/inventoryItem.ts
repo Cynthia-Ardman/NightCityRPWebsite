@@ -18,5 +18,10 @@ export interface InventoryItem {
   quantity: number;
   /** @nullable */
   notes?: string | null;
+  /**
+     * Cyberware required to operate this item (guns).
+     * @nullable
+     */
+  cyberwareReq?: string | null;
   equipped?: boolean;
 }

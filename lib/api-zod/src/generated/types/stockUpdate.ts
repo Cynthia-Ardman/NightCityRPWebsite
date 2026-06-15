@@ -18,4 +18,6 @@ export interface StockUpdate {
   description?: string;
   /** Power level (gun-store stock). Staff-only. */
   powerLevel?: string;
+  /** Cyberware required to operate (gun-store stock). Staff-only. */
+  cyberwareReq?: string;
 }

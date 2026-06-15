@@ -6277,6 +6277,7 @@ components:
         category: { type: ["string", "null"] }
         quantity: { type: integer }
         notes: { type: ["string", "null"] }
+        cyberwareReq: { type: ["string", "null"], description: "Cyberware required to operate this item (guns)." }
         equipped: { type: boolean }
 
     InventoryEvent:
@@ -6531,6 +6532,7 @@ components:
         category: { type: string }
         quantity: { type: integer, minimum: 1 }
         notes: { type: string }
+        cyberwareReq: { type: ["string", "null"], description: "Cyberware required to operate this item (guns). Staff-only." }
         equipped: { type: boolean }
 
     InventoryItemUpdate:
@@ -6540,6 +6542,7 @@ components:
         category: { type: string }
         quantity: { type: integer, minimum: 0 }
         notes: { type: string }
+        cyberwareReq: { type: ["string", "null"], description: "Cyberware required to operate this item (guns). Staff-only." }
         equipped: { type: boolean }
 
     InventoryTransferInput:
@@ -6847,6 +6850,7 @@ components:
         notes: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         powerLevel: { type: ["string", "null"], description: "Power level (gun-store stock)." }
+        cyberwareReq: { type: ["string", "null"], description: "Cyberware required to operate the gun (gun-store stock)." }
 
     StockInput:
       type: object
@@ -6861,6 +6865,7 @@ components:
         slot: { type: string, description: "Cyberware slot (clinic stock). Encoded into notes alongside CWP." }
         cwp: { type: integer, minimum: 0, description: "Cyberware points (clinic stock). Encoded into notes as 'CWP <n>'." }
         powerLevel: { type: string, description: "Power level (gun-store stock). Staff-only." }
+        cyberwareReq: { type: string, description: "Cyberware required to operate the gun (gun-store stock). Staff-only." }
 
     StockOfferInput:
       type: object
@@ -7014,6 +7019,7 @@ components:
         notes: { type: string }
         description: { type: string }
         powerLevel: { type: string, description: "Power level (gun-store stock). Staff-only." }
+        cyberwareReq: { type: string, description: "Cyberware required to operate (gun-store stock). Staff-only." }
 
     CustomGunInput:
       type: object
@@ -7025,6 +7031,7 @@ components:
         name: { type: string, description: The bespoke gun's name. }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        cyberwareReq: { type: ["string", "null"], description: "Cyberware required to operate the gun." }
     CustomCatalogItem:
       type: object
       description: |
@@ -7063,6 +7070,9 @@ components:
         weaponType: { type: ["string", "null"] }
         fireMode: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        cyberwareReq: { type: ["string", "null"], description: "Cyberware required to operate this weapon." }
+        wikiUrl: { type: ["string", "null"], description: "Link to the Cyberpunk wiki page." }
+        prefabThreadUrl: { type: ["string", "null"], description: "Link to the Discord prefab thread." }
     CatalogGunUpdate:
       type: object
       description: |
@@ -7082,6 +7092,9 @@ components:
         fireMode: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        cyberwareReq: { type: ["string", "null"], description: "Cyberware required to operate this weapon." }
+        wikiUrl: { type: ["string", "null"], description: "Link to the Cyberpunk wiki page." }
+        prefabThreadUrl: { type: ["string", "null"], description: "Link to the Discord prefab thread." }
         status:
           type: ["string", "null"]
           enum: [draft, live, retired, null]
@@ -7117,6 +7130,9 @@ components:
         fireMode: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        cyberwareReq: { type: ["string", "null"], description: "Cyberware required to operate this weapon." }
+        wikiUrl: { type: ["string", "null"], description: "Link to the Cyberpunk wiki page." }
+        prefabThreadUrl: { type: ["string", "null"], description: "Link to the Discord prefab thread." }
         status:
           type: ["string", "null"]
           enum: [draft, live, retired, null]

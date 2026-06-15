@@ -16,6 +16,9 @@ export type Gun = {
   weaponType?: string | null;
   fireMode?: string | null;
   imageUrl?: string | null;
+  cyberwareReq?: string | null;
+  wikiUrl?: string | null;
+  prefabThreadUrl?: string | null;
 };
 
 // Common fire-mode presets offered in the editor. Stored as free text so the
@@ -108,6 +111,9 @@ export type GunFormState = {
   magSize: string;
   notes: string;
   imageUrl: string;
+  cyberwareReq: string;
+  wikiUrl: string;
+  prefabThreadUrl: string;
 };
 
 export function emptyForm(): GunFormState {
@@ -126,6 +132,9 @@ export function emptyForm(): GunFormState {
     magSize: "",
     notes: "",
     imageUrl: "",
+    cyberwareReq: "",
+    wikiUrl: "",
+    prefabThreadUrl: "",
   };
 }
 
@@ -148,6 +157,9 @@ export function formFromGun(g: Gun): GunFormState {
     magSize: g.magSize == null ? "" : String(g.magSize),
     notes: g.notes ?? "",
     imageUrl: g.imageUrl ?? "",
+    cyberwareReq: g.cyberwareReq ?? "",
+    wikiUrl: g.wikiUrl ?? "",
+    prefabThreadUrl: g.prefabThreadUrl ?? "",
   };
 }
 
@@ -183,6 +195,9 @@ export function formToCreatePayload(f: GunFormState) {
     magSize: intOrNull(f.magSize),
     notes: textOrNull(f.notes),
     imageUrl: textOrNull(f.imageUrl),
+    cyberwareReq: textOrNull(f.cyberwareReq),
+    wikiUrl: textOrNull(f.wikiUrl),
+    prefabThreadUrl: textOrNull(f.prefabThreadUrl),
   };
 }
 
@@ -206,6 +221,9 @@ export function formToPatch(f: GunFormState, original: Gun): Record<string, unkn
     magSize: original.magSize ?? null,
     notes: original.notes ?? null,
     imageUrl: original.imageUrl ?? null,
+    cyberwareReq: original.cyberwareReq ?? null,
+    wikiUrl: original.wikiUrl ?? null,
+    prefabThreadUrl: original.prefabThreadUrl ?? null,
   };
   const patch: Record<string, unknown> = {};
   for (const key of Object.keys(next) as Array<keyof typeof next>) {

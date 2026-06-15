@@ -186,6 +186,51 @@ export default function GunDetailDialog({
                 value={<span className="text-nc-yellow">{current.price.toLocaleString()} €$</span>}
               />
             )}
+            {current.cyberwareReq && current.cyberwareReq.trim() && (
+              <Row
+                label="Requires"
+                value={
+                  <Badge
+                    variant="outline"
+                    className="rounded-none border-nc-magenta text-nc-magenta text-[10px] tracking-widest"
+                  >
+                    {current.cyberwareReq}
+                  </Badge>
+                }
+              />
+            )}
+            {current.wikiUrl && current.wikiUrl.trim() && (
+              <Row
+                label="Wiki"
+                value={
+                  <a
+                    href={current.wikiUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-nc-cyan underline hover:text-nc-cyan/80"
+                    data-testid="link-gun-wiki"
+                  >
+                    Cyberpunk Wiki →
+                  </a>
+                }
+              />
+            )}
+            {current.prefabThreadUrl && current.prefabThreadUrl.trim() && (
+              <Row
+                label="Prefab"
+                value={
+                  <a
+                    href={current.prefabThreadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-nc-cyan underline hover:text-nc-cyan/80"
+                    data-testid="link-gun-prefab"
+                  >
+                    Discord Thread →
+                  </a>
+                }
+              />
+            )}
             {isStaff && (
               <Row label="Status" value={humanize(current.status)} />
             )}

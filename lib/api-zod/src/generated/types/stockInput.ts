@@ -25,4 +25,6 @@ export interface StockInput {
   cwp?: number;
   /** Power level (gun-store stock). Staff-only. */
   powerLevel?: string;
+  /** Cyberware required to operate the gun (gun-store stock). Staff-only. */
+  cyberwareReq?: string;
 }

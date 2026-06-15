@@ -1,3 +1,4 @@
+import { useListCyberware } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +44,14 @@ export default function GunFormFields({
 }) {
   const set = <K extends keyof GunFormState>(key: K, value: GunFormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  // Suggestions for the "required cyberware" field — pulled from the cyberware
+  // catalog so staff get a familiar name list, while the field stays free text
+  // (combos / off-catalog requirements are still allowed).
+  const { data: cyberware } = useListCyberware();
+  const cyberwareNames = Array.from(
+    new Set((cyberware ?? []).map((c) => c.name).filter((n): n is string => !!n)),
+  ).sort((a, b) => a.localeCompare(b));
 
   return (
     <div className="space-y-5">
@@ -154,6 +163,45 @@ export default function GunFormFields({
           data-testid="input-gun-notes"
         />
       </Field>
+
+      <Field label="Required Cyberware to Operate">
+        <Input
+          value={form.cyberwareReq}
+          onChange={(e) => set("cyberwareReq", e.target.value)}
+          list="gun-cyberware-req-options"
+          placeholder="e.g. Smart Link (leave blank if none)"
+          className="rounded-none font-mono"
+          data-testid="input-gun-cyberwareReq"
+        />
+        <datalist id="gun-cyberware-req-options">
+          {cyberwareNames.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+      </Field>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Cyberpunk Wiki Link">
+          <Input
+            type="url"
+            value={form.wikiUrl}
+            onChange={(e) => set("wikiUrl", e.target.value)}
+            placeholder="https://cyberpunk.fandom.com/…"
+            className="rounded-none font-mono"
+            data-testid="input-gun-wikiUrl"
+          />
+        </Field>
+        <Field label="Discord Prefab Thread Link">
+          <Input
+            type="url"
+            value={form.prefabThreadUrl}
+            onChange={(e) => set("prefabThreadUrl", e.target.value)}
+            placeholder="https://discord.com/channels/…"
+            className="rounded-none font-mono"
+            data-testid="input-gun-prefabThreadUrl"
+          />
+        </Field>
+      </div>
 
       <SingleImageField
         label="Image"

@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
@@ -222,16 +223,52 @@ export default function CatalogGuns() {
                   onClick={() => setSelected(g)}
                   data-testid={`row-gun-${g.id}`}
                 >
-                  <td className="p-3 font-bold flex items-center gap-2">
-                    {g.name}
-                    {isStaff && (g.status ?? "").toLowerCase() === "draft" && (
-                      <Badge
-                        variant="outline"
-                        className="rounded-none border-nc-yellow text-nc-yellow text-[9px] tracking-widest"
-                      >
-                        DRAFT
-                      </Badge>
-                    )}
+                  <td className="p-3 font-bold">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {g.imageUrl ? (
+                        <HoverCard openDelay={120} closeDelay={60}>
+                          <HoverCardTrigger asChild>
+                            <span
+                              className="text-nc-cyan underline decoration-dotted underline-offset-4 cursor-pointer"
+                              data-testid={`hover-gun-name-${g.id}`}
+                            >
+                              {g.name}
+                            </span>
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            className="rounded-none border-nc-cyan/40 bg-card p-2 w-64"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <img
+                              src={g.imageUrl}
+                              alt={g.name}
+                              className="w-full max-h-48 object-contain border border-border bg-black/40"
+                              data-testid={`img-gun-hover-${g.id}`}
+                            />
+                          </HoverCardContent>
+                        </HoverCard>
+                      ) : (
+                        g.name
+                      )}
+                      {isStaff && (g.status ?? "").toLowerCase() === "draft" && (
+                        <Badge
+                          variant="outline"
+                          className="rounded-none border-nc-yellow text-nc-yellow text-[9px] tracking-widest"
+                        >
+                          DRAFT
+                        </Badge>
+                      )}
+                      {g.cyberwareReq && g.cyberwareReq.trim() && (
+                        <Badge
+                          variant="outline"
+                          className="rounded-none border-nc-magenta text-nc-magenta text-[9px] tracking-widest"
+                          title={`Requires: ${g.cyberwareReq}`}
+                          data-testid={`badge-gun-req-${g.id}`}
+                        >
+                          REQ: {g.cyberwareReq}
+                        </Badge>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 text-muted-foreground">
                     {humanize(g.manufacturer)}

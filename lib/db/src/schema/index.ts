@@ -238,6 +238,9 @@ export const inventoryItems = pgTable("inventory_items", {
   category: text("category"),
   quantity: integer("quantity").notNull().default(1),
   notes: text("notes"),
+  // Free-text cyberware required to operate this item, when it is a gun
+  // (mirrors catalog_guns.cyberware_req). Null for non-guns / no requirement.
+  cyberwareReq: text("cyberware_req"),
   equipped: boolean("equipped").notNull().default(false),
   pricePaid: integer("price_paid"),
   acquiredAt: timestamp("acquired_at", { withTimezone: true }),
@@ -369,6 +372,9 @@ export const storeStock = pgTable("store_stock", {
   // meaningful for gun stores; staff-managed since gun-store owners can't edit
   // their own stock. Mirrors catalog_guns.power_level.
   powerLevel: text("power_level"),
+  // Free-text cyberware required to operate this gun (mirrors
+  // catalog_guns.cyberware_req). Only meaningful for gun-store stock.
+  cyberwareReq: text("cyberware_req"),
 });
 
 export const ripperdocs = pgTable("ripperdocs", {
@@ -475,6 +481,13 @@ export const catalogGuns = pgTable("catalog_guns", {
   notes: text("notes"),
   // Single optional product image, stored as a /api/storage/objects/<id> path.
   imageUrl: text("image_url"),
+  // Free-text name of the cyberware a character must have installed to operate
+  // this weapon (e.g. "Smartlink"). Null when the gun has no chrome requirement.
+  cyberwareReq: text("cyberware_req"),
+  // Optional external reference links: the Cyberpunk wiki page and the Discord
+  // prefab thread for this weapon.
+  wikiUrl: text("wiki_url"),
+  prefabThreadUrl: text("prefab_thread_url"),
 });
 
 export const catalogCyberware = pgTable("catalog_cyberware", {
