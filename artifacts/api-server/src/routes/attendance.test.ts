@@ -5,17 +5,21 @@ import { buildTestApp } from "../test/app";
 import { createUser } from "../test/testDb";
 
 // UB is fully mocked: tests assert on how the route credits/refunds without
-// touching the real economy. sessionWindow is mocked so the Sunday-only gate
-// is deterministic regardless of when the suite runs.
+// touching the real economy. Only the Sunday-only gate is mocked (so the suite
+// is deterministic regardless of when it runs) — the real sessionWeekKey /
+// legacySessionWeekKeys are kept so the week-keying logic is exercised.
 vi.mock("../lib/unbelievaboat", () => ({ patchBalance: vi.fn() }));
-vi.mock("../lib/sessionWindow", () => ({
-  SESSION_WINDOW_HINT: "Sundays 2:00pm–9:00pm Pacific",
-  isSessionWindowOpen: vi.fn(() => true),
-  nextSessionWindowStart: vi.fn(() => new Date("2099-01-01T00:00:00Z")),
-}));
+vi.mock("../lib/sessionWindow", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/sessionWindow")>();
+  return {
+    ...actual,
+    isSessionWindowOpen: vi.fn(() => true),
+    nextSessionWindowStart: vi.fn(() => new Date("2099-01-01T00:00:00Z")),
+  };
+});
 
 import { patchBalance } from "../lib/unbelievaboat";
-import { isSessionWindowOpen } from "../lib/sessionWindow";
+import { isSessionWindowOpen, legacySessionWeekKeys } from "../lib/sessionWindow";
 
 const app = buildTestApp();
 const mockPatch = vi.mocked(patchBalance);
@@ -79,6 +83,27 @@ describe("POST /attendance/claim", () => {
     expect(second.status).toBe(409);
     // Pre-check short-circuits before UB, so still only one credit total.
     expect(mockPatch).toHaveBeenCalledTimes(1);
+    const rows = await db.select().from(attendanceClaims);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("409s when a pre-cutover legacy-keyed claim already exists for this session", async () => {
+    const user = await createUser();
+    mockPatch.mockResolvedValue({ total: 1250 } as never);
+    // Simulate a claim made before the Pacific-Sunday key cutover: stored under
+    // the old UTC-Monday key but claimed inside the current session week. The
+    // claimedAt is what disambiguates it as "this week".
+    const [, legacyMondayKey] = legacySessionWeekKeys();
+    await db.insert(attendanceClaims).values({
+      userId: user.id,
+      weekStart: legacyMondayKey,
+      amount: 250,
+      claimedAt: new Date(),
+    });
+
+    const res = await request(app).post("/api/attendance/claim").set("x-test-user", user.id);
+    expect(res.status).toBe(409);
+    expect(mockPatch).not.toHaveBeenCalled();
     const rows = await db.select().from(attendanceClaims);
     expect(rows).toHaveLength(1);
   });

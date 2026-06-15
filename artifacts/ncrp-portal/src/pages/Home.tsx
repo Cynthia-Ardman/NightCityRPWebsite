@@ -746,16 +746,27 @@ function NpcSessionBanner() {
   const now = new Date();
   const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // two weeks out
 
-  let best: { id: number; title: string; start: Date } | null = null;
+  // Always target the SOONEST upcoming Main Session that needs NPCs —
+  // regardless of whether the viewer has signed up. We must NOT skip ahead to
+  // a later session just because the viewer already volunteered for the next
+  // one; the banner is about the *next* session only. Once the viewer has
+  // signed up for that soonest session, we hide the banner entirely.
+  let best: { id: number; title: string; start: Date; mySignup: EventView["mySignup"] } | null = null;
   for (const e of (events ?? []) as EventView[]) {
-    if (e.eventType !== "session" || e.needsNpcs !== true || e.mySignup != null) continue;
+    if (e.eventType !== "session" || e.needsNpcs !== true) continue;
     const base = new Date(e.startAt);
     if (Number.isNaN(base.getTime())) continue;
     const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
     if (!occ) continue;
-    if (!best || occ < best.start) best = { id: e.id, title: e.title, start: occ };
+    if (!best || occ < best.start) {
+      best = { id: e.id, title: e.title, start: occ, mySignup: e.mySignup };
+    } else if (occ.getTime() === best.start.getTime() && e.mySignup != null) {
+      // A single session can have duplicate rows (Discord + website). If the
+      // viewer signed up on either copy, treat the session as signed up.
+      best.mySignup = e.mySignup;
+    }
   }
-  if (!best) return null;
+  if (!best || best.mySignup != null) return null;
   const session = best;
 
   const diffMs = session.start.getTime() - now.getTime();

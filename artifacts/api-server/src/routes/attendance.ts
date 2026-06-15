@@ -1,37 +1,43 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
-import { db, attendanceClaims, activityEvents, botAttendanceLog } from "@workspace/db";
+import { eq, and, desc, inArray } from "drizzle-orm";
+import { db, attendanceClaims, activityEvents, botAttendanceLog, type AttendanceClaim } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { patchBalance } from "../lib/unbelievaboat";
 import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
-import { isSessionWindowOpen, nextSessionWindowStart, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
+import {
+  isSessionWindowOpen,
+  nextSessionWindowStart,
+  sessionWeekKey,
+  legacySessionWeekKeys,
+  SESSION_WINDOW_HINT,
+} from "../lib/sessionWindow";
 
 const WEEKLY_ATTEND_PAYOUT = 250;
 
-// ISO-week Monday 00:00 UTC for the date passed in. The `attendance_claims`
-// row stores this as a `date` (YYYY-MM-DD) so the UNIQUE index naturally
-// enforces one-claim-per-user-per-week without us having to do any range
-// math on read.
-function isoWeekStart(now: Date): string {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  // getUTCDay: 0=Sun..6=Sat. ISO week starts on Monday → shift Sunday to 7.
-  const dow = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() - (dow - 1));
-  return d.toISOString().slice(0, 10);
-}
-
 const router: IRouter = Router();
+
+// Find the user's claim for the CURRENT Pacific session week, if any. We look
+// up the new Pacific-Sunday key plus the legacy UTC-Monday keys it replaced,
+// then disambiguate legacy hits by re-deriving the session week from each
+// row's `claimedAt` (legacy keys overlap across weeks, so a bare key match can
+// be a different week's row). This keeps a pre-cutover claim from being
+// re-claimed under the new key during the rollout, without false-positives.
+async function findThisWeekClaim(userId: string, weekKey: string): Promise<AttendanceClaim | undefined> {
+  const candidateKeys = Array.from(new Set([weekKey, ...legacySessionWeekKeys()]));
+  const rows = await db
+    .select()
+    .from(attendanceClaims)
+    .where(and(eq(attendanceClaims.userId, userId), inArray(attendanceClaims.weekStart, candidateKeys)));
+  return rows.find((r) => r.weekStart === weekKey || sessionWeekKey(r.claimedAt) === weekKey);
+}
 
 // Returns this week's claim state for the signed-in user. The UI uses this
 // to decide whether to disable the CLAIM button.
 router.get("/attendance/me", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const weekStart = isoWeekStart(new Date());
-  const [row] = await db
-    .select()
-    .from(attendanceClaims)
-    .where(and(eq(attendanceClaims.userId, userId), eq(attendanceClaims.weekStart, weekStart)));
+  const weekStart = sessionWeekKey();
+  const row = await findThisWeekClaim(userId, weekStart);
   const recent = await db
     .select()
     .from(attendanceClaims)
@@ -64,7 +70,7 @@ router.get("/attendance/me", requireAuth, async (req, res): Promise<void> => {
 router.post("/attendance/claim", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
   const discordId = req.user!.discordId;
-  const weekStart = isoWeekStart(new Date());
+  const weekStart = sessionWeekKey();
 
   // Attendance is only claimable during the live session window
   // (Sundays 2-9pm PST). The frontend disables the button outside the
@@ -80,11 +86,9 @@ router.post("/attendance/claim", requireAuth, async (req, res): Promise<void> =>
 
   // Pre-check (race-safe with the unique index below — the index is the
   // source of truth, this is just to skip the UB roundtrip on the obvious
-  // already-claimed case).
-  const [existing] = await db
-    .select()
-    .from(attendanceClaims)
-    .where(and(eq(attendanceClaims.userId, userId), eq(attendanceClaims.weekStart, weekStart)));
+  // already-claimed case). Also covers legacy-keyed rows from before the
+  // Pacific-Sunday cutover so a pre-cutover claim can't be re-claimed.
+  const existing = await findThisWeekClaim(userId, weekStart);
   if (existing) {
     res.status(409).json({
       error: "Already claimed this week",
