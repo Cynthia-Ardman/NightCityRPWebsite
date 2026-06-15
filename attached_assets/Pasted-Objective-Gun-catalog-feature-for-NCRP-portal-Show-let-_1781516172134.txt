@@ -1,0 +1,67 @@
+Objective
+
+Gun catalog feature for NCRP portal:
+
+    Show + let FIXERS set a "required cyberware to operate" on a gun in three places: the gun catalog/gunlist, a gun in a gunstore (store_stock), and a gun in a player's inventory.
+    Catalog guns: pictures (image_url already exists), a Cyberpunk wiki link, and a Discord prefab-thread link — fixer-editable.
+    Hover a gun's name -> image popup preview (catalog gunlist).
+
+Decisions (chosen defaults, noted to user at end)
+
+    cyberware requirement = nullable free-text column cyberware_req on all 3 tables (catalog_guns, store_stock, inventory_items), with datalist suggestions from the cyberware catalog. Free text matches existing string conventions (power_level etc.) and allows combos / off-catalog names. Displayed as a "REQUIRES: X" badge everywhere.
+    pictures + wiki link + prefab link live on catalog_guns (the registry), mirroring property/housing. Store/inventory rows have no image column -> hover preview is catalog-scoped. (Offer to extend later.)
+    Hover preview uses existing shadcn HoverCard primitive on the gun name in the catalog list.
+
+Tasks
+T001: Schema — add columns
+
+    catalog_guns: cyberwareReq (cyberware_req), wikiUrl (wiki_url), prefabThreadUrl (prefab_thread_url)
+    store_stock: cyberwareReq
+    inventory_items: cyberwareReq
+    pnpm --filter @workspace/db run push; rebuild db dist (tsc --build --force the db pkg).
+    Acceptance: columns exist in dev DB, db package builds.
+
+T002: OpenAPI — add fields + codegen
+
+    CatalogGun, CatalogGunInput, CatalogGunUpdate, CatalogGunUpdateResult: add cyberwareReq, wikiUrl, prefabThreadUrl (all nullable/optional).
+    CustomGunInput: add cyberwareReq (grants to inventory).
+    store stock request/response schemas: add cyberwareReq.
+    inventory item create/patch + response schemas: add cyberwareReq.
+    pnpm --filter @workspace/api-spec run codegen; rebuild api-client-react dist.
+    Acceptance: codegen clean, new fields appear in generated client types.
+
+T003: API routes
+
+    directory.ts: GunEditSchema/GunCreateSchema + insert/update + changelog marks for cyberwareReq/wikiUrl/prefabThreadUrl; GET returns them (select *). CustomGunSchema -> set cyberware_req on inventory item.
+    stores.ts: POST/PATCH /stores/:id/stock accept + persist cyberwareReq.
+    characters.ts: POST/PATCH inventory accept + persist cyberwareReq.
+    Acceptance: tsc clean; curl/test round-trips the new fields.
+
+T004: Frontend catalog
+
+    gunTypes.ts: Gun type + GunFormState + formFromGun + formToPatch get the 3 new fields.
+    GunFormFields.tsx: inputs for cyberware requirement (with cyberware-name datalist), wiki URL, prefab thread URL.
+    GunDetailDialog.tsx: show REQUIRES badge, wiki link, prefab link.
+    CatalogGuns.tsx: REQUIRES indicator in row; HoverCard on name -> image popup.
+    Acceptance: catalog edit/create persists new fields; hover shows image.
+
+T005: Frontend store + inventory cyberware requirement
+
+    store mgmt (MyStoreDetail) + public (DirectoryStoreDetail): show + (staff) edit cyberwareReq on gun stock.
+    CharacterDetail InventoryTab: show + (fixer) edit cyberwareReq on gun items.
+    Acceptance: requirement persists + displays on both surfaces.
+
+T006: Verify
+
+    tsc --noEmit (api-server + ncrp-portal), run relevant api-server tests, app-preview screenshot of catalog, architect review.
+
+Key files
+
+    lib/db/src/schema/index.ts (catalogGuns 459, storeStock 359, inventoryItems 225)
+    lib/api-spec/openapi.yaml (CatalogGun* ~7047-7110, CustomGunInput 7018, store stock ~6849-7016)
+    artifacts/api-server/src/routes/directory.ts (gun routes 785-1180), stores.ts (stock 567-688), characters.ts (inventory 363-505)
+    artifacts/ncrp-portal/src/components/catalog/{gunTypes.ts,GunFormFields.tsx,GunDetailDialog.tsx,GunCreateDialog.tsx,SingleImageField.tsx}
+    artifacts/ncrp-portal/src/pages/catalog/CatalogGuns.tsx
+    artifacts/ncrp-portal/src/pages/stores/MyStoreDetail.tsx, pages/directory/DirectoryStoreDetail.tsx
+    artifacts/ncrp-portal/src/pages/CharacterDetail.tsx (InventoryTab)
+    UI: artifacts/ncrp-portal/src/components/ui/hover-card.tsx
