@@ -41,7 +41,7 @@ export const ROLE_NAMES = {
   ARCHIVIST: ["archivist"],
   CS_APPROVER: ["cs approver", "character approver", "cs-approver"],
   RIPPERDOC: ["ripperdoc"],
-  STORE_OWNER: ["store owner", "shop owner"],
+  STORE_OWNER: ["store owner", "shop owner", "gun store owner"],
   // Trial fixers are a NARROW staff tier: they can create/propose missions
   // (subject to the unchanged Archivist/Admin approval flow) but are gated out
   // of every other fixer tool. They are NOT granted the "fixer" name, so the
