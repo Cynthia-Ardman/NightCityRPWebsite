@@ -1,9 +1,10 @@
-import { useParams, Redirect } from "wouter";
+import { useParams, Redirect, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetStore,
   useUpdateStore,
+  useDeleteStore,
   useAddStoreEmployee,
   useUpdateStoreEmployee,
   useRemoveStoreEmployee,
@@ -194,12 +195,19 @@ export default function MyStoreDetail() {
     // Re-seed only when the underlying store identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store?.id]);
+  const [, navigate] = useLocation();
+  const deleteStore = useDeleteStore();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { data: me, viewAs } = useEffectiveMe();
   const canSetCost = !!me && (me.isFixer || me.isAdmin);
   // "Add from catalog" is an admin-only convenience for seeding stock from the
   // master gun catalog; owners/employees use the custom-stock + buy-stock flows.
   const isAdmin = !!me && me.isAdmin;
   const isStaff = !!me && (me.isAdmin || me.isFixer);
+  // The store's owner can delete their own venue (backend permits owner-or-staff).
+  // Staff get delete via StaffVenuePanel below, so this owner-only card is hidden
+  // for staff to avoid two delete controls.
+  const isOwner = !!me && !!store && store.ownerId === me.id;
   // Gun stores carry a regulated catalog: their OWNERS may only VIEW stock —
   // all editing (add/edit/delete + power level) is staff-only. This mirrors the
   // server gate in routes/stores.ts; the UI just avoids dead 403 controls.
@@ -553,6 +561,57 @@ export default function MyStoreDetail() {
         </CardContent>
       </Card>
       <VenueOffersPanel offers={offers ?? []} />
+      {isOwner && !isStaff && (
+        <Card className="rounded-none border-destructive/40 bg-card/50" data-testid="panel-owner-danger">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-destructive flex items-center gap-2">
+              <Trash2 className="w-4 h-4" /> DANGER ZONE
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!confirmingDelete ? (
+              <Button
+                variant="ghost"
+                onClick={() => setConfirmingDelete(true)}
+                className="text-destructive rounded-none"
+                data-testid="button-delete-store"
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> DELETE STORE
+              </Button>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-xs text-destructive">
+                  Permanently delete this store and all its stock &amp; staff?
+                </span>
+                <Button
+                  variant="destructive"
+                  disabled={deleteStore.isPending}
+                  onClick={() =>
+                    deleteStore.mutate(
+                      { id: storeId },
+                      {
+                        onSuccess: () => {
+                          toast({ title: "Store deleted" });
+                          navigate("/stores");
+                        },
+                        onError: () =>
+                          toast({ title: "Delete failed", description: "Could not delete store.", variant: "destructive" }),
+                      },
+                    )
+                  }
+                  className="rounded-none"
+                  data-testid="button-confirm-delete-store"
+                >
+                  {deleteStore.isPending ? "DELETING..." : "CONFIRM DELETE"}
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmingDelete(false)} className="rounded-none">
+                  CANCEL
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
       {!!me && (me.isAdmin || me.isFixer) && (
         <StaffVenuePanel kind="store" venueId={storeId} onChanged={invalidate} />
       )}
