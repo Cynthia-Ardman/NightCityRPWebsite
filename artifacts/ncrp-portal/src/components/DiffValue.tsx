@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { diffWords, diffLines, collapseContext, isDiffSafe, multisetDiff, type DiffOp } from "@/lib/textDiff";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 // Shared renderer for a single field's before -> after change on the review
 // screens. The default "unified" view highlights only what changed (red strike
@@ -11,6 +13,41 @@ const isUrl = (s: string) => /^https?:\/\//i.test(s) || s.startsWith("/");
 const isUrlArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && isUrl(x));
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
+
+// A single URL string is only treated as an *image* (clickable thumbnail) when
+// it looks like one — an image extension or a stored upload/object path.
+// Portrait URLs are extensionless storage paths (/api/storage/objects/uploads/…),
+// while other URL fields (wiki / Discord prefab links) must stay plain text so
+// they aren't rendered as broken images.
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i;
+const isImageUrl = (s: string) =>
+  isUrl(s) && (IMAGE_EXT.test(s) || /\/(storage\/)?objects\//i.test(s) || /\/uploads\//i.test(s));
+const isImageUrlVal = (v: unknown): v is string => typeof v === "string" && isImageUrl(v);
+
+// A thumbnail that opens a full-size, readable lightbox on click. Used for every
+// image surfaced in a field diff so reviewers can actually read text-heavy stat
+// sheet scans instead of squinting at a tiny thumbnail.
+function ZoomImg({ src, className }: { src: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="block w-full cursor-zoom-in"
+        aria-label="View full-size image"
+      >
+        <img src={src} alt="Diff image preview" className={`${className ?? ""} hover:border-nc-cyan transition`} />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-5xl w-full rounded-none border-border bg-background p-2">
+          <DialogTitle className="sr-only">Image preview</DialogTitle>
+          <img src={src} alt="Enlarged diff image" className="w-full max-h-[85vh] object-contain" />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 function toText(v: unknown): string {
   if (v === null || v === undefined) return "";
@@ -41,8 +78,15 @@ function renderPlain(v: unknown, compact?: boolean) {
     return (
       <div className="grid grid-cols-2 gap-2 p-2 border border-border/60 bg-card/30">
         {v.map((url, i) => (
-          <img key={i} src={url} className={`w-full ${compact ? "h-20" : "h-24"} object-contain border border-border bg-background`} />
+          <ZoomImg key={i} src={url} className={`w-full ${compact ? "h-20" : "h-24"} object-contain border border-border bg-background`} />
         ))}
+      </div>
+    );
+  }
+  if (isImageUrlVal(v)) {
+    return (
+      <div className="p-2 border border-border/60 bg-card/30">
+        <ZoomImg src={v} className={`w-full ${compact ? "h-24" : "h-32"} object-contain border border-border bg-background`} />
       </div>
     );
   }
@@ -179,7 +223,7 @@ export default function DiffValue({
             <div className={`font-mono ${compact ? "text-[10px]" : "text-xs"} text-destructive mb-1`}>— REMOVED</div>
             <div className="grid grid-cols-3 gap-2 p-2 border border-destructive/40 bg-destructive/5">
               {removed.map((url, i) => (
-                <img key={i} src={url} className={`w-full ${compact ? "h-16" : "h-20"} object-contain border border-border bg-background`} />
+                <ZoomImg key={i} src={url} className={`w-full ${compact ? "h-16" : "h-20"} object-contain border border-border bg-background`} />
               ))}
             </div>
           </div>
@@ -189,8 +233,38 @@ export default function DiffValue({
             <div className={`font-mono ${compact ? "text-[10px]" : "text-xs"} text-nc-green mb-1`}>+ ADDED</div>
             <div className="grid grid-cols-3 gap-2 p-2 border border-nc-green/40 bg-nc-green/5">
               {added.map((url, i) => (
-                <img key={i} src={url} className={`w-full ${compact ? "h-16" : "h-20"} object-contain border border-border bg-background`} />
+                <ZoomImg key={i} src={url} className={`w-full ${compact ? "h-16" : "h-20"} object-contain border border-border bg-background`} />
               ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Single image-URL string field (e.g. a singular portrait): show the old and
+  // new image as clickable thumbnails instead of word-diffing the raw path.
+  if (isImageUrlVal(before) || isImageUrlVal(after)) {
+    const b = isImageUrlVal(before) ? before : null;
+    const a = isImageUrlVal(after) ? after : null;
+    if (b === a) return <Empty text="(no image changes)" compact={compact} />;
+    const removedImg = b && b !== a ? b : null;
+    const addedImg = a && a !== b ? a : null;
+    return (
+      <div className="space-y-2">
+        {removedImg && (
+          <div>
+            <div className={`font-mono ${compact ? "text-[10px]" : "text-xs"} text-destructive mb-1`}>— REMOVED</div>
+            <div className="p-2 border border-destructive/40 bg-destructive/5">
+              <ZoomImg src={removedImg} className={`w-full ${compact ? "h-24" : "h-32"} object-contain border border-border bg-background`} />
+            </div>
+          </div>
+        )}
+        {addedImg && (
+          <div>
+            <div className={`font-mono ${compact ? "text-[10px]" : "text-xs"} text-nc-green mb-1`}>+ ADDED</div>
+            <div className="p-2 border border-nc-green/40 bg-nc-green/5">
+              <ZoomImg src={addedImg} className={`w-full ${compact ? "h-24" : "h-32"} object-contain border border-border bg-background`} />
             </div>
           </div>
         )}
