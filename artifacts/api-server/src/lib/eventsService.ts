@@ -320,7 +320,19 @@ async function applyEventSync(
 // occurrence and past events are never backfilled on create.
 // ===========================================================================
 export const VRCHAT_SYNC_FLAG = "vrchat_calendar_sync_enabled";
-const VRCHAT_CATEGORY = "social";
+// VRChat's calendar API only accepts a fixed category enum (music, gaming,
+// hangout, roleplaying, exploration, film_media, arts, wellness, education,
+// performance, avatars, dance, other) — our own event types ("session" /
+// "social") are NOT valid values and get rejected with a 400. Map them onto the
+// closest VRChat category instead.
+const VRCHAT_CATEGORY_BY_TYPE: Record<string, string> = {
+  session: "roleplaying",
+  social: "hangout",
+};
+const VRCHAT_CATEGORY_FALLBACK = "roleplaying";
+function vrchatCategoryFor(e: Event): string {
+  return VRCHAT_CATEGORY_BY_TYPE[e.eventType] ?? VRCHAT_CATEGORY_FALLBACK;
+}
 const VRCHAT_ACCESS_TYPE = "public" as const;
 // Cap VRChat writes per reconcile cycle to respect the ~1 write/60s rate limit;
 // remaining stale rows are picked up on later cycles.
@@ -369,6 +381,7 @@ interface VrchatContent {
   description: string;
   startsAt: string;
   endsAt: string;
+  category: string;
 }
 
 function buildVrchatContent(e: Event): VrchatContent {
@@ -377,6 +390,7 @@ function buildVrchatContent(e: Event): VrchatContent {
     description: sanitizeVrchatText(e.description).slice(0, 1000),
     startsAt: new Date(e.startAt).toISOString(),
     endsAt: new Date(e.endAt).toISOString(),
+    category: vrchatCategoryFor(e),
   };
 }
 
@@ -384,7 +398,7 @@ function buildVrchatContent(e: Event): VrchatContent {
 function vrchatContentHash(e: Event): string {
   const c = buildVrchatContent(e);
   return createHash("sha256")
-    .update(JSON.stringify([c.title, c.description, c.startsAt, c.endsAt, VRCHAT_ACCESS_TYPE, VRCHAT_CATEGORY]))
+    .update(JSON.stringify([c.title, c.description, c.startsAt, c.endsAt, VRCHAT_ACCESS_TYPE, c.category]))
     .digest("hex");
 }
 
@@ -394,7 +408,7 @@ function toVrchatInput(c: VrchatContent, opts: { notify: boolean }): VrchatCalen
     startsAt: c.startsAt,
     endsAt: c.endsAt,
     ...(c.description ? { description: c.description } : {}),
-    category: VRCHAT_CATEGORY,
+    category: c.category,
     accessType: VRCHAT_ACCESS_TYPE,
     sendCreationNotification: opts.notify,
   };

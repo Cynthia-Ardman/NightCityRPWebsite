@@ -54,3 +54,19 @@ the deployed `discord_event_sync` cron (every 10 min) reads the flag live each
 tick and backfills ≤3 events/cycle (rate limit), so all rows populate over ~1h.
 Or hit admin Jobs "Run now" (`POST /admin/jobs/run` discord_event_sync) to fire
 immediately. The flag write is the only thing needed; no code change.
+
+## VRChat category enum gotcha (verified 2026-06-15, second "still no events")
+After the flag was on, reconcile ran but logged `synced=0 failed=3` every cycle
+and `events.vrchat_sync_error` held: `POST /calendar/<grp>/event failed (400):
+category must be one of [music,gaming,hangout,roleplaying,exploration,
+film_media,arts,wellness,education,performance,avatars,dance,other], not
+"social"`. Root cause: the POST body's `category` was a single hardcoded
+`"social"` — VRChat's calendar API only accepts that FIXED enum, and our own
+event types ("session"/"social") are NOT valid values. Fix: map event type →
+VRChat category (`session`→`roleplaying`, `social`→`hangout`, fallback
+`roleplaying`) via `vrchatCategoryFor(e)`, threaded through buildVrchatContent /
+vrchatContentHash / toVrchatInput. Requires a redeploy (api-server code change);
+rows keep their null calendar_id + sync_error so the cron retries them all and
+they backfill once the new build is live.
+**Why:** unofficial VRChat API silently constrains category; passing arbitrary
+strings 400s every write, which surfaces as "nothing syncs" despite all gates open.
