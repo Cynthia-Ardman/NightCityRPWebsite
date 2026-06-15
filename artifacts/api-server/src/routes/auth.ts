@@ -55,10 +55,27 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
       token.access_token,
       discordUser.id,
     );
-    // Map id-gated grants (e.g. Trial Fixer → "fixer") onto the stored names so
-    // every downstream hasRole(..., "FIXER") check honors them.
-    const roles = applyRoleIdGrants(rawRoles, roleIds);
-    const verified18 = roleIds.includes(VERIFIED_18_ROLE_ID);
+    const id = discordUser.id;
+    const [existing] = await db.select().from(users).where(eq(users.id, id));
+    // The user-token guild-member fetch returns an EMPTY result on a transient
+    // Discord error (rate-limit / network / scope hiccup), which is
+    // indistinguishable from "this member genuinely has no roles". Adopting that
+    // empty result unconditionally would wipe a known member's roles — e.g.
+    // strip FIXER so they log in and aren't recognized as a fixer — until the
+    // next hourly sync. So only adopt the freshly-fetched roles when the read
+    // actually returned something; otherwise keep the roles we already have. The
+    // role_sync cron does a DEFINITE bulk read and reconciles genuine role
+    // losses / guild departures. Mirrors the cron's conservative per-user
+    // fallback. See memory: role-derived-flag-sync.
+    const sawDiscordRoles = rawRoles.length > 0 || roleIds.length > 0;
+    // Map id-gated grants (e.g. Trial Fixer → "trial-fixer") onto the stored
+    // names so every downstream hasRole(..., "FIXER") check honors them.
+    const roles = sawDiscordRoles
+      ? applyRoleIdGrants(rawRoles, roleIds)
+      : existing?.roles ?? [];
+    const verified18 = sawDiscordRoles
+      ? roleIds.includes(VERIFIED_18_ROLE_ID)
+      : existing?.verified18 ?? false;
     // Staff-only lockdown: when an admin has restricted login, only ADMIN /
     // FIXER (incl. coordinator) / ARCHIVIST may sign in. Everyone else is turned
     // away here — BEFORE any session is created — so a restricted player never
@@ -68,10 +85,8 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
       res.redirect(loginErrorRedirect("restricted"));
       return;
     }
-    const id = discordUser.id;
     const expiresAt = new Date(Date.now() + token.expires_in * 1000);
     const av = avatarUrl(discordUser.id, discordUser.avatar);
-    const [existing] = await db.select().from(users).where(eq(users.id, id));
     if (existing) {
       await db
         .update(users)
