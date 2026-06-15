@@ -131,6 +131,7 @@
 - [Trial-fixer author-only tier](trial-fixer-tier.md) — exclude at isReviewer AND strip lingering fixer/coordinator names in applyRoleIdGrants; gating one surface lets stale roles vote.
 - [Discord announce/backfill URL parity](discord-announce-url-parity.md) — backfill posts must reuse live announce's `PUBLIC_BASE_URL ?? REPLIT_DOMAINS[0]` base, else deep links go relative/non-clickable.
 - [VRChat group-instances browser](vrchat-group-instances.md) — group API only returns GROUP instances (private/invite+ rooms never listed); cron deployment-gated, dev serves prod's cache; never log creds.
+- [VRChat emailOtp datacenter blocker](vrchat-group-instances.md) — VRChat forces emailOtp from datacenter IPs; TOTP can't satisfy it so the poller can't log in unattended; rule out algo/clock/secret-shape before blaming the seed.
 - [Composite lib dist rebuild](api-client-codegen-dist.md) — `@workspace/db` (like api-client-react) is composite/emitDeclarationOnly; after schema edit + push, `tsc --build --force` the db pkg or api-server sees "no exported member".
 - [VRChat agent command queue](vrchat-agent-command-queue.md) — portal↔local-python-agent CyberPsycho queue; CLAIM must be a single atomic guarded UPDATE...RETURNING, never select-then-update.
 - [Meds refund forensics](meds-refund-forensics.md) — June-2026 probe: legacy meds charges were CORRECT (reset on checkup, scale with real gap); new cron never charged anyone; no refunds warranted.
