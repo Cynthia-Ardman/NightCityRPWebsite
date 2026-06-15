@@ -27,6 +27,7 @@
 - [Cyberware checkup grace test trap](cyberware-checkup-grace-test-trap.md) — createdAt = implicit first checkup (7-day grace); meds-charge/DM tests must backdate or pass vacuously; failure-branch must assert patchBalance was called.
 - [api-server dev no watcher](api-server-dev-no-watcher.md) — dev workflow is build+start, NO reload; new routes 404 until restart_workflow; curl :8080 expect 401 not 404.
 - [Cyberware band source](cyberware-band-source.md) — band is DERIVED from inventory_items CWP (sumCwpByCharacter+deriveCyberwareBand), NOT the empty characters.cyberwareLevel column; lifeStatus is all 'active' in prod.
+- [Legacy bot dual-billing](legacy-bot-dual-billing.md) — old NightCityBot still bills cyberware meds in prod alongside our live cron → double charges + divergent week counts; disable legacy job, don't match its math.
 - [Ripperdoc console medical](ripperdoc-console-medical.md) — staff /admin/characters/:id/medical exists b/c per-char history is owner-only; console install/remove preset+lock the existing dialogs, never fork the approval flow.
 - [Cyberware review-enforcement surfaces](cyberware-review-enforcement-surfaces.md) — non-staff cyberware lock spans inventory POST/PATCH/DELETE + EditCharacterDialog editor + UI rows; gating one is a bypass.
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
