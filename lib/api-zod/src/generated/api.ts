@@ -8651,6 +8651,7 @@ export const ListVrchatInstancesResponse = zod.object({
   "region": zod.string().nullish(),
   "userCount": zod.number(),
   "capacity": zod.number().nullish(),
+  "roleNames": zod.array(zod.string()).describe('Display names of the group roles allowed to join. Empty for open or non-role-gated instances.'),
   "firstSeenAt": zod.coerce.date().describe('When the poller first saw this instance open (used as an uptime proxy).'),
   "launchUrl": zod.string().describe('Official vrchat.com launch link for this instance.')
 })),

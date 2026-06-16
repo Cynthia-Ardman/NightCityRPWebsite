@@ -68,6 +68,14 @@ export function buildLaunchUrl(worldId: string, instanceId: string): string {
   )}&instanceId=${encodeURIComponent(instanceId)}`;
 }
 
+// Map a list of group role IDs to their display names. IDs that can't be resolved
+// (unknown role, or the role map was unavailable this poll) are DROPPED rather
+// than echoed back — roleNames is a strictly human-readable field, so we never
+// leak opaque grol_… IDs into it. roleIds stays the canonical raw field.
+export function resolveRoleNames(roleIds: string[], roleMap: Map<string, string>): string[] {
+  return roleIds.map((id) => roleMap.get(id)).filter((n): n is string => !!n);
+}
+
 interface NormalisedInstance {
   location: string;
   worldId: string;
@@ -127,13 +135,11 @@ export async function pollGroupInstances(): Promise<number> {
   // instance actually restricts by role.
   const anyRoles = live.some((i) => i.roleIds.length > 0);
   const roleMap = anyRoles ? await getGroupRoleMap() : new Map<string, string>();
-  const resolveRoleNames = (roleIds: string[]): string[] =>
-    roleIds.map((id) => roleMap.get(id) ?? id);
 
   for (const i of live) {
     if (seen.has(i.location)) continue;
     seen.add(i.location);
-    const roleNames = resolveRoleNames(i.roleIds);
+    const roleNames = resolveRoleNames(i.roleIds, roleMap);
     await db
       .insert(vrchatInstances)
       .values({

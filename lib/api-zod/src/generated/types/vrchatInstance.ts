@@ -18,6 +18,8 @@ export interface VrchatInstance {
   region?: string | null;
   userCount: number;
   capacity?: number | null;
+  /** Display names of the group roles allowed to join. Empty for open or non-role-gated instances. */
+  roleNames: string[];
   /** When the poller first saw this instance open (used as an uptime proxy). */
   firstSeenAt: Date;
   /** Official vrchat.com launch link for this instance. */

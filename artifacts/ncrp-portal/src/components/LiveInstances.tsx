@@ -10,7 +10,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Globe, Users, Radio } from "lucide-react";
+import { ExternalLink, Globe, Users, Radio, ShieldCheck } from "lucide-react";
 import { expandOccurrences } from "@/lib/eventRecurrence";
 
 // How VRChat access types map to the kind of in-character activity that tends to
@@ -189,6 +189,23 @@ export default function LiveInstances() {
                   >
                     ● {event.title}
                   </CardDescription>
+                ) : null}
+                {inst.roleNames.length > 0 ? (
+                  <div
+                    className="flex flex-wrap items-center gap-1 pt-2"
+                    data-testid={`roles-instance-${inst.instanceShortId}`}
+                  >
+                    <ShieldCheck className="w-3 h-3 text-nc-orange shrink-0" />
+                    {inst.roleNames.map((role) => (
+                      <Badge
+                        key={role}
+                        variant="outline"
+                        className="rounded-none border-nc-orange/60 text-nc-orange font-mono text-[10px] uppercase tracking-wide"
+                      >
+                        {role}
+                      </Badge>
+                    ))}
+                  </div>
                 ) : null}
               </CardHeader>
               <CardContent className="mt-auto flex items-center justify-between gap-2">
