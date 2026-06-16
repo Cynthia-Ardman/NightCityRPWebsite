@@ -171,9 +171,9 @@ export default function LiveInstances() {
                   <Globe className="w-10 h-10 text-muted-foreground opacity-30" />
                 </div>
               )}
-              <CardHeader>
+              <CardHeader className="items-center text-center">
                 <CardTitle className="font-display text-xl line-clamp-1">{inst.worldName}</CardTitle>
-                <CardDescription className="font-mono text-xs flex items-center gap-2">
+                <CardDescription className="font-mono text-xs flex items-center justify-center gap-2">
                   <span className="text-muted-foreground">#{inst.instanceShortId}</span>
                   <Badge
                     variant="outline"
@@ -192,7 +192,7 @@ export default function LiveInstances() {
                 ) : null}
                 {inst.roleNames.length > 0 ? (
                   <div
-                    className="flex flex-wrap items-center gap-1 pt-2"
+                    className="flex flex-wrap items-center justify-center gap-1 pt-2"
                     data-testid={`roles-instance-${inst.instanceShortId}`}
                   >
                     <ShieldCheck className="w-3 h-3 text-nc-orange shrink-0" />
@@ -208,18 +208,17 @@ export default function LiveInstances() {
                   </div>
                 ) : null}
               </CardHeader>
-              <CardContent className="mt-auto flex items-center justify-between gap-2">
+              <CardContent className="mt-auto flex flex-col items-center gap-4 text-center">
                 <span className="font-mono text-xs text-muted-foreground" data-testid={`text-instance-uptime-${inst.instanceShortId}`}>
                   UP {formatUptime(inst.firstSeenAt, now)}
                   {inst.region ? ` · ${inst.region.toUpperCase()}` : ""}
                 </span>
                 <a href={inst.launchUrl} target="_blank" rel="noopener noreferrer">
                   <Button
-                    size="sm"
-                    className="rounded-none bg-nc-green text-black hover:bg-nc-green/80 font-display uppercase"
+                    className="rounded-none h-16 px-12 text-2xl font-display uppercase tracking-wide bg-nc-green text-black hover:bg-nc-green/90 shadow-[0_0_28px_hsl(var(--nc-green)/0.6)] hover:shadow-[0_0_44px_hsl(var(--nc-green)/0.85)] transition-shadow"
                     data-testid={`button-join-${inst.instanceShortId}`}
                   >
-                    Join <ExternalLink className="w-3 h-3 ml-1" />
+                    Join <ExternalLink className="w-6 h-6 ml-2" />
                   </Button>
                 </a>
               </CardContent>
