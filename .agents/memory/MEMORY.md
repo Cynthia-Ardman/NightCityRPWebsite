@@ -153,3 +153,4 @@
 - [Mission board markdown preview](mission-board-markdown-preview.md) — color/markdown tags only render where descriptionPreview goes through <Markdown>; plain <p> on board cards shows raw `[c=..]`. Detail page already renders.
 - [Draft mission hard-delete](draft-mission-delete.md) — only workflowState='draft' is hard-deletable (owner-or-manager); anything further must be CANCELLED (preserve history/Discord); lock+re-check FOR UPDATE; FK children cascade.
 - [UB native commands uncontrollable](ub-native-commands.md) — Discord `!work`/`!slut` are UnbelievaBoat-native with no cooldown/config API; website cooldown can't dedupe against them; only fix is disabling them in the UB dashboard.
+- [Cyberware tab hook-order crash](cyberware-tab-hook-order.md) — React #310 on a char's Cyberware tab = a hook below CyberwareTab's loading/!char early returns; hoist all hooks above the guards. "Works after Retry" = cached, not data.
