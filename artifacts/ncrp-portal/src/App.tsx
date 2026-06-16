@@ -104,6 +104,18 @@ function FixerGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Like FixerGuard but also admits trial fixers, who are author-only: they reach
+// the Fixer hub and the mission log (to create/shepherd their own proposals) but
+// the API still gates the staff management tools (reports, pay actors, ...). Use
+// this for the author-capable fixer surfaces so plain players can't load the
+// shell while trial fixers keep their mission-authoring access.
+function FixerOrTrialGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useAuthMe();
+  if (isLoading) return null;
+  if (!user || !(user.isFixer || user.isAdmin || user.isTrialFixer)) return <Redirect to="/" />;
+  return <>{children}</>;
+}
+
 // The lore import pipeline is admin-only on the backend (drafts review +
 // publish). Fixers can propose entries but cannot run/clear the import queue,
 // so guard the route to admins and bounce everyone else home.
@@ -120,7 +132,9 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
 function StaffRequestsGuard({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useAuthMe();
   if (isLoading) return null;
-  if (!user || !(user.isFixer || user.isCsApprover || user.isAdmin)) return <Redirect to="/" />;
+  // Archivists approve mission proposals from the Misc tab, so they must reach
+  // the unified queue even though they don't vote on custom requests/sheets.
+  if (!user || !(user.isFixer || user.isCsApprover || user.isAdmin || user.isArchivist)) return <Redirect to="/" />;
   return <>{children}</>;
 }
 
@@ -189,10 +203,14 @@ function AppRoutes() {
           <Route path="/characters/:id" component={CharacterDetail} />
           <Route path="/sheets"><Redirect to="/characters" /></Route>
           <Route path="/sheets/new" component={NewSheet} />
-          <Route path="/sheets/pending" component={PendingSheets} />
+          <Route path="/sheets/pending">
+            <StaffRequestsGuard><PendingSheets /></StaffRequestsGuard>
+          </Route>
           <Route path="/sheets/:id/edit" component={NewSheet} />
           <Route path="/sheets/:id" component={SheetDetail} />
-          <Route path="/pending-edits"><PendingEditsList /></Route>
+          <Route path="/pending-edits">
+            <StaffRequestsGuard><PendingEditsList /></StaffRequestsGuard>
+          </Route>
           <Route path="/pending-edits/:id" component={PendingEditDetail} />
           <Route path="/requests/mine" component={MyRequests} />
           <Route path="/offers/mine" component={MyOffers} />
@@ -252,14 +270,24 @@ function AppRoutes() {
           <Route path="/clinics" component={MyClinics} />
           <Route path="/clinics/:id" component={MyClinicDetail} />
           <Route path="/ripperdoc" component={RipperdocConsole} />
-          <Route path="/fixer" component={FixerHub} />
+          <Route path="/fixer">
+            <FixerOrTrialGuard><FixerHub /></FixerOrTrialGuard>
+          </Route>
           <Route path="/fixer/characters/new">
             <FixerGuard><FixerCreateCharacter /></FixerGuard>
           </Route>
-          <Route path="/fixer/missions" component={FixerMissions} />
-          <Route path="/fixer/reports" component={FixerReports} />
-          <Route path="/fixer/pay-actors" component={PayActors} />
-          <Route path="/fixer/items" component={FixerInventorySearch} />
+          <Route path="/fixer/missions">
+            <FixerOrTrialGuard><FixerMissions /></FixerOrTrialGuard>
+          </Route>
+          <Route path="/fixer/reports">
+            <FixerGuard><FixerReports /></FixerGuard>
+          </Route>
+          <Route path="/fixer/pay-actors">
+            <FixerGuard><PayActors /></FixerGuard>
+          </Route>
+          <Route path="/fixer/items">
+            <FixerGuard><FixerInventorySearch /></FixerGuard>
+          </Route>
           <Route path="/fixer/players">
             <FixerGuard><FixerPlayerLookup /></FixerGuard>
           </Route>

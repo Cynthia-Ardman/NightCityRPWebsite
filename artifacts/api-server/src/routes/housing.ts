@@ -2,16 +2,9 @@ import { Router, type IRouter } from "express";
 import { and, eq, sql, ilike, inArray, desc } from "drizzle-orm";
 import { db, housing, characters, catalogRent, activityEvents, characterUpdates, housingRequests, users, walletTransactions } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
-
-function isAdmin(user: { roles: string[] }) {
-  return hasRole(user.roles, "ADMIN");
-}
-
-function isFixerOrAdmin(user: { roles: string[] }) {
-  return hasRole(user.roles, "ADMIN") || hasRole(user.roles, "FIXER");
-}
+import { endOfCurrentMonth } from "../lib/billingDates";
+import { isAdmin, isFixerOrAdmin } from "../lib/roleChecks";
 
 const router: IRouter = Router();
 
@@ -30,14 +23,6 @@ type LeaseRow = {
   delinquentSince: Date | null;
   createdAt: Date;
 };
-
-// End-of-current-month timestamp in UTC. Used to set initial paid_through
-// when a lease starts so the first full month is already "paid up" until
-// the monthly_rent cron rolls it forward.
-function endOfCurrentMonth(now: Date = new Date()): Date {
-  // First of next month at 00:00:00 UTC = end of current month exclusive.
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
-}
 
 const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
 

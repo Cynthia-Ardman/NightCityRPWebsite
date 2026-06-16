@@ -11,4 +11,9 @@ export interface TransferInput {
   /** @minimum 1 */
   amount: number;
   memo?: string;
+  /**
+     * Client-generated key (e.g. a UUID created once per submit) so a network retry / double-click of the same transfer doesn't move eddies twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
 }

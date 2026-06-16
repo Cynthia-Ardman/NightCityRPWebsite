@@ -1,37 +1,7 @@
 import { useMemo } from "react";
 import { type SaleOffer } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-
-function typeBadge(offer: SaleOffer) {
-  const t = offer.offerType ?? "sale";
-  if (t === "sale") return null;
-  const cls =
-    t === "install" ? "bg-nc-magenta text-background"
-    : t === "remove" ? "bg-destructive text-destructive-foreground"
-    : "bg-nc-cyan text-background";
-  return (
-    <Badge className={`rounded-none font-mono ${cls}`}>
-      {t.toUpperCase()}
-      {offer.cwp != null ? ` · ${offer.cwp} CWP` : ""}
-    </Badge>
-  );
-}
-
-function statusBadge(status: SaleOffer["status"]) {
-  switch (status) {
-    case "pending":
-      return <Badge className="rounded-none bg-nc-yellow text-background font-mono">PENDING</Badge>;
-    case "approved":
-      return <Badge className="rounded-none bg-nc-green text-background font-mono">APPROVED</Badge>;
-    case "denied":
-      return <Badge className="rounded-none bg-destructive text-destructive-foreground font-mono">DENIED</Badge>;
-    case "expired":
-      return <Badge variant="outline" className="rounded-none font-mono text-muted-foreground">EXPIRED</Badge>;
-    default:
-      return <Badge variant="outline" className="rounded-none font-mono">{String(status).toUpperCase()}</Badge>;
-  }
-}
+import { OfferTypeBadge, OfferStatusBadge } from "@/components/offers/offerBadges";
 
 export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
   const sorted = useMemo(
@@ -78,7 +48,7 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                           {o.itemName}
                           {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
                         </span>
-                        {typeBadge(o)}
+                        <OfferTypeBadge offer={o} />
                       </div>
                     </td>
                     <td className="p-3 text-muted-foreground whitespace-nowrap">{o.buyerName ?? "—"}</td>
@@ -101,7 +71,7 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                           ? new Date(o.createdAt).toLocaleDateString()
                           : "—"}
                     </td>
-                    <td className="p-3">{statusBadge(o.status)}</td>
+                    <td className="p-3"><OfferStatusBadge status={o.status} /></td>
                   </tr>
                 ))}
               </tbody>

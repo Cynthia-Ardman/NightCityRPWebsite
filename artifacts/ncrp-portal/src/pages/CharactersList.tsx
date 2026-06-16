@@ -45,7 +45,7 @@ export default function CharactersList() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex justify-between items-center border-t border-border/50 pt-3 text-xs font-mono">
-                    <span className="text-muted-foreground">Updated {new Date(s.createdAt).toLocaleDateString()}</span>
+                    <span className="text-muted-foreground">Created {new Date(s.createdAt).toLocaleDateString()}</span>
                     {s.status === "draft" ? (
                       <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow">
                         <FileText className="w-3 h-3 mr-1" /> DRAFT

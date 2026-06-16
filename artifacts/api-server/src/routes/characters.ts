@@ -23,6 +23,7 @@ import {
 import { gte } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
+import { recordSettledWalletMovement } from "../lib/economy";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import {
@@ -76,9 +77,21 @@ router.get("/characters", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/characters", requireAuth, async (req, res): Promise<void> => {
-  const { name, kind, archetype, background, portraitUrl } = req.body ?? {};
+  const { name: rawName, kind, archetype, background, portraitUrl } = req.body ?? {};
+  const name = typeof rawName === "string" ? rawName.trim() : "";
   if (!name || !kind) {
     res.status(400).json({ error: "name and kind required" });
+    return;
+  }
+  // Mirror the OpenAPI CharacterInput contract: name 1..64, kind ∈ {pc, npc}.
+  // Without this the column (unenforced text) accepts arbitrary kinds that break
+  // downstream PC/NPC assumptions (fixer roster, autobill, etc.).
+  if (name.length > 64) {
+    res.status(400).json({ error: "name must be 64 characters or fewer" });
+    return;
+  }
+  if (kind !== "pc" && kind !== "npc") {
+    res.status(400).json({ error: "kind must be 'pc' or 'npc'" });
     return;
   }
   const [c] = await db
@@ -693,24 +706,31 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
       res.status(502).json({ error: "Wallet provider rejected credit; recipient refunded" });
       return;
     }
-    await db.insert(walletTransactions).values([
-      {
-        characterId: cid,
-        counterpartyCharacterId: to.id,
-        counterpartyName: to.name,
-        amount,
-        kind: "shop",
-        memo: memo ?? `Sold ${item.name} x${qty}`,
-      },
-      {
-        characterId: to.id,
-        counterpartyCharacterId: cid,
-        counterpartyName: sender.name,
-        amount: -amount,
-        kind: "shop",
-        memo: memo ?? `Bought ${item.name} x${qty}`,
-      },
-    ]);
+    // Record both legs through recordSettledWalletMovement so each owner's
+    // website wallet balance advances immediately (instead of drifting until the
+    // next reconcile), matching the documented economy invariant.
+    await recordSettledWalletMovement({
+      userId: req.user!.id,
+      amount,
+      ubTotalAfter: credited.total,
+      source: "website",
+      kind: "shop",
+      memo: memo ?? `Sold ${item.name} x${qty}`,
+      characterId: cid,
+      counterpartyCharacterId: to.id,
+      counterpartyName: to.name,
+    });
+    await recordSettledWalletMovement({
+      userId: toOwner.id,
+      amount: -amount,
+      ubTotalAfter: debited.total,
+      source: "website",
+      kind: "shop",
+      memo: memo ?? `Bought ${item.name} x${qty}`,
+      characterId: to.id,
+      counterpartyCharacterId: cid,
+      counterpartyName: sender.name,
+    });
   }
 
   // Move the item. If sender keeps any (partial transfer) decrement and insert
@@ -905,7 +925,9 @@ router.get("/characters/:id/wallet", requireAuth, async (req, res): Promise<void
     res.status(502).json({ error: "Wallet provider unavailable" });
     return;
   }
-  res.json({ balance: ub.total, cash: ub.cash, bank: ub.bank, source: "unbelievaboat" });
+  // Conform to the OpenAPI Wallet schema (characterId + balance required); keep
+  // cash/bank for the detailed breakdown. `balance` is the UB total.
+  res.json({ characterId: id, balance: ub.total, cash: ub.cash, bank: ub.bank, source: "unbelievaboat" });
 });
 
 router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res): Promise<void> => {
@@ -969,6 +991,30 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     res.status(409).json({ error: "Recipient owner account missing" });
     return;
   }
+  // Idempotency: a client may pass a key (UUID generated once per submit) so a
+  // retry / double-click can't run the debit+credit twice. If we've already
+  // settled this exact transfer, return success without touching UB again.
+  const transferKey =
+    typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
+      ? `transfer:${req.body.idempotencyKey.trim().slice(0, 80)}`
+      : null;
+  if (transferKey) {
+    const [done] = await db
+      .select({ id: walletTransactions.id })
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.idempotencyKey, `${transferKey}:out`), eq(walletTransactions.syncStatus, "synced")));
+    if (done) {
+      const cur = await getBalance(req.user!.discordId);
+      res.json({
+        characterId: id,
+        balance: cur?.total ?? 0,
+        cash: cur?.cash ?? 0,
+        bank: cur?.bank ?? 0,
+        source: cur?.source ?? "unbelievaboat",
+      });
+      return;
+    }
+  }
   // UB is authoritative — require a successful balance read before attempting writes.
   const senderBal = await getBalance(req.user!.discordId);
   if (!senderBal) {
@@ -1003,25 +1049,34 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     res.status(502).json({ error: "Wallet provider rejected credit; sender refunded" });
     return;
   }
-  // Only after confirmed UB writes do we record local history.
-  await db.insert(walletTransactions).values([
-    {
-      characterId: id,
-      counterpartyCharacterId: to.id,
-      counterpartyName: to.name,
-      amount: -amount,
-      kind: "transfer_out",
-      memo: memo ?? null,
-    },
-    {
-      characterId: to.id,
-      counterpartyCharacterId: c.id,
-      counterpartyName: c.name,
-      amount,
-      kind: "transfer_in",
-      memo: memo ?? null,
-    },
-  ]);
+  // Only after confirmed UB writes do we record local history. Route both legs
+  // through recordSettledWalletMovement so each owner's website wallet balance
+  // (users.walletBalance) advances immediately instead of drifting until the
+  // next reconcile, and so a keyed retry never double-records.
+  await recordSettledWalletMovement({
+    userId: req.user!.id,
+    amount: -amount,
+    ubTotalAfter: debited.total,
+    source: "website",
+    kind: "transfer_out",
+    memo: memo ?? null,
+    characterId: id,
+    counterpartyCharacterId: to.id,
+    counterpartyName: to.name,
+    idempotencyKey: transferKey ? `${transferKey}:out` : null,
+  });
+  await recordSettledWalletMovement({
+    userId: toOwner.id,
+    amount,
+    ubTotalAfter: credited.total,
+    source: "website",
+    kind: "transfer_in",
+    memo: memo ?? null,
+    characterId: to.id,
+    counterpartyCharacterId: c.id,
+    counterpartyName: c.name,
+    idempotencyKey: transferKey ? `${transferKey}:in` : null,
+  });
   const ub = await getBalance(req.user!.discordId);
   await recordAudit({
     req,
@@ -1032,7 +1087,15 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     message: `${c.name} → ${to.name}: ${amount}`,
     after: { fromCharacterId: id, toCharacterId: to.id, amount, memo: memo ?? null },
   });
-  res.json(ub ?? { cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+  // Return the documented Wallet shape (characterId + balance) for the sender's
+  // post-transfer balance, instead of the raw UbBalance (which used `total`).
+  res.json({
+    characterId: id,
+    balance: ub?.total ?? 0,
+    cash: ub?.cash ?? 0,
+    bank: ub?.bank ?? 0,
+    source: ub?.source ?? "unbelievaboat",
+  });
 });
 
 // Status
@@ -1044,7 +1107,9 @@ router.get("/characters/:id/status", requireAuth, async (req, res): Promise<void
     return;
   }
   const [s] = await db.select().from(characterStatus).where(eq(characterStatus.characterId, id));
-  res.json(s ?? { characterId: id, loa: false, attending: false, openShop: false });
+  // Include updatedAt to satisfy the documented CharacterStatus schema even when
+  // no status row exists yet (first read for a character).
+  res.json(s ?? { characterId: id, loa: false, attending: false, openShop: false, updatedAt: new Date().toISOString() });
 });
 
 router.patch("/characters/:id/status", requireAuth, async (req, res): Promise<void> => {

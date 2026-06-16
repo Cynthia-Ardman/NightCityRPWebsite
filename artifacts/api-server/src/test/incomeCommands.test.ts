@@ -63,7 +63,9 @@ describe("income WORK command", () => {
 
     const u = await createUser();
     const res = await work(u.id);
-    expect(res.status).toBe(502);
+    // The economy-disabled case returns a specific 503 (Service Unavailable)
+    // with an admin-actionable message; other failures use 502.
+    expect(res.status).toBe(503);
 
     // Reservation must be rolled back so the player can retry once it's back on.
     const rows = await db

@@ -75,9 +75,9 @@ function renderPage() {
 }
 
 // Tabs that every authenticated user can always see.
-const PLAYER_TABS = ["open", "accepted", "applications", "history"] as const;
-// Tabs gated behind staff/approver roles.
-const STAFF_TABS = ["created", "all"] as const;
+const PLAYER_TABS = ["open", "active", "completed", "applications", "accepted", "acting"] as const;
+// Tabs gated behind staff/approver roles ("mine" = My Missions, "all" = All Missions).
+const STAFF_TABS = ["mine", "all"] as const;
 
 beforeEach(() => {
   state.me = null;
@@ -148,8 +148,8 @@ describe("Missions tabs — archivist (approver, not manager)", () => {
     }
     // Approvers need the staff-wide board to find proposals awaiting review...
     expect(screen.getByTestId("tab-all")).toBeInTheDocument();
-    // ...but they don't run missions, so "My Created" and Create stay hidden.
-    expect(screen.queryByTestId("tab-created")).toBeNull();
+    // ...but they don't run missions, so "My Missions" and Create stay hidden.
+    expect(screen.queryByTestId("tab-mine")).toBeNull();
     expect(screen.queryByTestId("button-create-mission")).toBeNull();
   });
 });

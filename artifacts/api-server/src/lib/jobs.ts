@@ -8,27 +8,18 @@ import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
 import { reconcileDiscordEvents, backfillMainSessions, reconcileVrchatCalendar } from "./eventsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
-import { runEconomyReconcile, getEconomyMode } from "./economy";
+import { runEconomyReconcile, getEconomyMode, advanceSettledWalletBalance } from "./economy";
 import { pollGroupInstances } from "./vrchatInstances";
 import { vrchatCredsConfigured } from "./vrchatClient";
+import {
+  DEFAULT_BASELINE_LIVING_COST,
+  DEFAULT_XANADU_GOLD_COST,
+  readConfigNumber,
+  readTraumaCosts,
+} from "./billingConfig";
 
 const EVICTION_CHANNEL_ID = process.env.EVICTION_CHANNEL_ID ?? "";
 const HOUSING_GRACE_DAYS = Number(process.env.HOUSING_GRACE_DAYS ?? 7);
-
-// Default monthly costs used when the corresponding bot_config row is missing
-// or malformed. Admins override these by writing to bot_config; the cron
-// always falls back here so a fresh deploy is internally consistent.
-const DEFAULT_BASELINE_LIVING_COST = 500;
-const DEFAULT_XANADU_GOLD_COST = 500;
-// Aligned with NightCityBot's trauma_team_costs config: 1k / 2k / 4k / 10k.
-// Admins can still override these by writing to bot_config["trauma_team_costs"];
-// these defaults are what a fresh deploy or a malformed config row falls back to.
-const DEFAULT_TRAUMA_TEAM_COSTS: Record<string, number> = {
-  silver: 1000,
-  gold: 2000,
-  platinum: 4000,
-  diamond: 10000,
-};
 
 // Cyberware meds caps by ripperdoc-assigned risk band. Matches the bot's
 // medium/high/extreme role tiers. The weekly charge for a non-"none"
@@ -136,38 +127,6 @@ function isShopTierZero(addr: string, leaseKind: string): boolean {
   return /\bT?0\b|micro/i.test(addr);
 }
 
-async function readConfigNumber(key: string, fallback: number): Promise<number> {
-  try {
-    const [row] = await db.select().from(botConfig).where(eq(botConfig.key, key));
-    const v = row?.value;
-    if (typeof v === "number" && Number.isFinite(v) && v >= 0) return Math.floor(v);
-    return fallback;
-  } catch (err) {
-    logger.warn({ err, key }, "readConfigNumber failed; using fallback");
-    return fallback;
-  }
-}
-
-async function readTraumaCosts(): Promise<Record<string, number>> {
-  try {
-    const [row] = await db.select().from(botConfig).where(eq(botConfig.key, "trauma_team_costs"));
-    const v = row?.value;
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      const out: Record<string, number> = { ...DEFAULT_TRAUMA_TEAM_COSTS };
-      for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
-        if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) {
-          out[k.toLowerCase()] = Math.floor(raw);
-        }
-      }
-      return out;
-    }
-    return { ...DEFAULT_TRAUMA_TEAM_COSTS };
-  } catch (err) {
-    logger.warn({ err }, "readTraumaCosts failed; using defaults");
-    return { ...DEFAULT_TRAUMA_TEAM_COSTS };
-  }
-}
-
 // Kill-switch flags stored in bot_config. Both default to OFF so freshly
 // deployed environments never silently start charging players until an
 // admin explicitly flips the switch in the System Flags / Jobs UI.
@@ -237,6 +196,10 @@ async function chargePersonalFeeWithReservation(opts: {
     opts.unreserve();
     return false;
   }
+  // Advance the website wallet balance in lockstep with the UB debit so it
+  // doesn't drift until the next reconcile (the ledger row was already written
+  // above). Best-effort: a failure here is folded by reconcile later.
+  await advanceSettledWalletBalance({ userId: opts.userId, amount: -opts.cost, ubTotalAfter: ub.total }).catch(() => {});
   void notifyAutoCharge({
     discordId: opts.discordId,
     amount: opts.cost,
@@ -249,7 +212,27 @@ async function chargePersonalFeeWithReservation(opts: {
 
 export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill";
 
+// Money-moving jobs guarded against overlapping in-process runs (see runJob).
+const MONEY_JOBS = new Set<JobName>(["monthly_rent", "cyberware_humanity"]);
+const inFlightMoneyJobs = new Set<JobName>();
+
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
+  // In-process guard for the money-moving jobs: stop a manual /admin/jobs/run
+  // from overlapping an in-flight cron tick (or vice versa) within this process.
+  // Two simultaneous runs can both pass the paid_through / billed-this-run
+  // guards before either commits, double-charging. The deployment is a single
+  // always-on VM, so an in-process mutex is reliable here (unlike pooled-
+  // connection Postgres advisory locks, which don't keep a stable session).
+  if (MONEY_JOBS.has(name) && inFlightMoneyJobs.has(name)) {
+    logger.warn({ job: name }, "money job already running in-process; skipping overlapping run to avoid double-charge");
+    const [skipped] = await db
+      .insert(jobRuns)
+      .values({ job: name, status: "skipped", finishedAt: new Date(), affectedCount: 0, message: "Skipped: another run of this job is already in progress." })
+      .returning();
+    return { id: skipped.id, status: "skipped", affectedCount: 0 };
+  }
+  const heldMoneyLock = MONEY_JOBS.has(name);
+  if (heldMoneyLock) inFlightMoneyJobs.add(name);
   const [run] = await db.insert(jobRuns).values({ job: name, status: "running" }).returning();
   let affected = 0;
   let status = "succeeded";
@@ -473,6 +456,8 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
             });
             if (ubCredit) {
               affected++;
+              // Keep the website wallet balance in lockstep with the UB credit.
+              await advanceSettledWalletBalance({ userId: owner.id, amount: income, ubTotalAfter: ubCredit.total }).catch(() => {});
             } else {
               // Clean UB failure (not a crash): roll the reservation back so a
               // later run can retry the payout.
@@ -506,6 +491,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           .insert(walletTransactions)
           .values({
             characterId: c.id,
+            userId: owner.id,
             amount: -rent,
             kind: isBusiness ? "business_rent" : "rent",
             memo: `${reasonLabel}: ${lease.address}`,
@@ -549,6 +535,8 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           }
           continue;
         }
+        // Keep the website wallet balance in lockstep with the UB debit.
+        await advanceSettledWalletBalance({ userId: owner.id, amount: -rent, ubTotalAfter: ub.total }).catch(() => {});
         // Clear delinquentSince on every successful debit — a paid month
         // resets the eviction clock, even if the lease had previously
         // entered the grace period.
@@ -635,6 +623,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           });
           if (ubCredit) {
             affected++;
+            await advanceSettledWalletBalance({ userId: owner.id, amount: income, ubTotalAfter: ubCredit.total }).catch(() => {});
           } else {
             await db.delete(walletTransactions).where(eq(walletTransactions.id, reservedIncome.id));
             unmarkBilled(c.id, "shop_income");
@@ -884,6 +873,8 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           logger.warn({ ownerId }, "cyberware_humanity UB debit failed; rolled back local ledger reservation");
           continue;
         }
+        // Keep the website wallet balance in lockstep with the UB debit.
+        await advanceSettledWalletBalance({ userId: ownerId, amount: -proj.charge, ubTotalAfter: ub.total }).catch(() => {});
         void notifyAutoCharge({
           discordId: owner.discordId,
           amount: proj.charge,
@@ -980,6 +971,8 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
     status = "failed";
     message = err instanceof Error ? err.message : String(err);
     logger.error({ err, job: name }, "Job failed");
+  } finally {
+    if (heldMoneyLock) inFlightMoneyJobs.delete(name);
   }
   await db
     .update(jobRuns)

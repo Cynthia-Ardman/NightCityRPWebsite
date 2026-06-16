@@ -227,7 +227,6 @@ import type {
   RefreshVrchatInstances200,
   ReopenReviewTicket200,
   RequestChangesInput,
-  RequestChangesPendingEdit200,
   ResubmitPendingEdit200,
   ReviewApplicationInput,
   ReviewCloseInput,
@@ -13476,12 +13475,13 @@ export const getRequestChangesSheetUrl = (id: number,) => {
 }
 
 /**
- * @summary A reviewer parks the sheet in changes_requested with a comment and DMs the owner. The owner resubmits via /sheets/{id}/submit.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block sheets in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const requestChangesSheet = async (id: number,
-    requestChangesInput: RequestChangesInput, options?: RequestInit): Promise<CharacterSheet> => {
+    requestChangesInput?: RequestChangesInput, options?: RequestInit): Promise<unknown> => {
 
-  return customFetch<CharacterSheet>(getRequestChangesSheetUrl(id),
+  return customFetch<unknown>(getRequestChangesSheetUrl(id),
   {
     ...options,
     method: 'POST',
@@ -13495,8 +13495,8 @@ export const requestChangesSheet = async (id: number,
 
 
 export const getRequestChangesSheetMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext> => {
 
 const mutationKey = ['requestChangesSheet'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -13508,7 +13508,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesSheet>>, {id: number;data: BodyType<RequestChangesInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesSheet>>, {id: number;data?: BodyType<RequestChangesInput>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  requestChangesSheet(id,data,requestOptions)
@@ -13522,18 +13522,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RequestChangesSheetMutationResult = NonNullable<Awaited<ReturnType<typeof requestChangesSheet>>>
-    export type RequestChangesSheetMutationBody = BodyType<RequestChangesInput>
+    export type RequestChangesSheetMutationBody = BodyType<RequestChangesInput> | undefined
     export type RequestChangesSheetMutationError = ErrorType<void>
 
     /**
- * @summary A reviewer parks the sheet in changes_requested with a comment and DMs the owner. The owner resubmits via /sheets/{id}/submit.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block sheets in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const useRequestChangesSheet = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesSheet>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof requestChangesSheet>>,
         TError,
-        {id: number;data: BodyType<RequestChangesInput>},
+        {id: number;data?: BodyType<RequestChangesInput>},
         TContext
       > => {
       return useMutation(getRequestChangesSheetMutationOptions(options));
@@ -13853,12 +13854,13 @@ export const getRequestChangesPendingEditUrl = (id: number,) => {
 }
 
 /**
- * @summary A reviewer parks the edit in changes_requested with a comment and DMs the submitter.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block edits in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const requestChangesPendingEdit = async (id: number,
-    requestChangesInput: RequestChangesInput, options?: RequestInit): Promise<RequestChangesPendingEdit200> => {
+    requestChangesInput?: RequestChangesInput, options?: RequestInit): Promise<unknown> => {
 
-  return customFetch<RequestChangesPendingEdit200>(getRequestChangesPendingEditUrl(id),
+  return customFetch<unknown>(getRequestChangesPendingEditUrl(id),
   {
     ...options,
     method: 'POST',
@@ -13872,8 +13874,8 @@ export const requestChangesPendingEdit = async (id: number,
 
 
 export const getRequestChangesPendingEditMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext> => {
 
 const mutationKey = ['requestChangesPendingEdit'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -13885,7 +13887,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesPendingEdit>>, {id: number;data: BodyType<RequestChangesInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesPendingEdit>>, {id: number;data?: BodyType<RequestChangesInput>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  requestChangesPendingEdit(id,data,requestOptions)
@@ -13899,18 +13901,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RequestChangesPendingEditMutationResult = NonNullable<Awaited<ReturnType<typeof requestChangesPendingEdit>>>
-    export type RequestChangesPendingEditMutationBody = BodyType<RequestChangesInput>
+    export type RequestChangesPendingEditMutationBody = BodyType<RequestChangesInput> | undefined
     export type RequestChangesPendingEditMutationError = ErrorType<void>
 
     /**
- * @summary A reviewer parks the edit in changes_requested with a comment and DMs the submitter.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block edits in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const useRequestChangesPendingEdit = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesPendingEdit>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof requestChangesPendingEdit>>,
         TError,
-        {id: number;data: BodyType<RequestChangesInput>},
+        {id: number;data?: BodyType<RequestChangesInput>},
         TContext
       > => {
       return useMutation(getRequestChangesPendingEditMutationOptions(options));
@@ -18277,12 +18280,13 @@ export const getRequestChangesCustomRequestUrl = (id: number,) => {
 }
 
 /**
- * @summary A reviewer parks the request in changes_requested with a comment and DMs the player.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block requests in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const requestChangesCustomRequest = async (id: number,
-    requestChangesInput: RequestChangesInput, options?: RequestInit): Promise<CustomRequest> => {
+    requestChangesInput?: RequestChangesInput, options?: RequestInit): Promise<unknown> => {
 
-  return customFetch<CustomRequest>(getRequestChangesCustomRequestUrl(id),
+  return customFetch<unknown>(getRequestChangesCustomRequestUrl(id),
   {
     ...options,
     method: 'POST',
@@ -18296,8 +18300,8 @@ export const requestChangesCustomRequest = async (id: number,
 
 
 export const getRequestChangesCustomRequestMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext> => {
 
 const mutationKey = ['requestChangesCustomRequest'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -18309,7 +18313,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesCustomRequest>>, {id: number;data: BodyType<RequestChangesInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestChangesCustomRequest>>, {id: number;data?: BodyType<RequestChangesInput>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  requestChangesCustomRequest(id,data,requestOptions)
@@ -18323,18 +18327,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RequestChangesCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof requestChangesCustomRequest>>>
-    export type RequestChangesCustomRequestMutationBody = BodyType<RequestChangesInput>
+    export type RequestChangesCustomRequestMutationBody = BodyType<RequestChangesInput> | undefined
     export type RequestChangesCustomRequestMutationError = ErrorType<void>
 
     /**
- * @summary A reviewer parks the request in changes_requested with a comment and DMs the player.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block requests in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const useRequestChangesCustomRequest = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestChangesCustomRequest>>, TError,{id: number;data?: BodyType<RequestChangesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof requestChangesCustomRequest>>,
         TError,
-        {id: number;data: BodyType<RequestChangesInput>},
+        {id: number;data?: BodyType<RequestChangesInput>},
         TContext
       > => {
       return useMutation(getRequestChangesCustomRequestMutationOptions(options));

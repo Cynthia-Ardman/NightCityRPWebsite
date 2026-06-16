@@ -26,12 +26,12 @@ import { hasRole } from "../lib/discord";
 import { isReviewer } from "../lib/review";
 import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand } from "../lib/jobs";
 import { sumCwpByCharacter } from "../lib/cyberware";
-
-// Baseline living cost the monthly_rent cron debits ONCE per player
-// (regardless of how many PCs they have). Per-lease housing rent is
-// listed separately in the Active Leases section. Keep this in sync
-// with DEFAULT_BASELINE_LIVING_COST in lib/jobs.ts.
-const BASELINE_LIVING_COST_PER_PLAYER = 500;
+import {
+  DEFAULT_BASELINE_LIVING_COST,
+  DEFAULT_XANADU_GOLD_COST,
+  readConfigNumber,
+  readTraumaCosts,
+} from "../lib/billingConfig";
 
 // monthly_rent cron runs 04:00 UTC on the 1st of every month.
 function nextMonthlyRunDate(now: Date = new Date()): Date {
@@ -151,15 +151,43 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   const rentDueAt = nextMonthlyRunDate(now).toISOString();
   const medsDueAt = nextWeeklyRunDate(now).toISOString();
 
+  // Fee config is read from bot_config (same source as the monthly_rent cron)
+  // so the projection reflects any admin override, not a hardcoded default.
+  const baselineCost = await readConfigNumber("baseline_living_cost", DEFAULT_BASELINE_LIVING_COST);
+  const xanaduCost = await readConfigNumber("xanadu_gold_cost", DEFAULT_XANADU_GOLD_COST);
+  const traumaCosts = await readTraumaCosts();
+
   // Baseline living cost = ONE charge per player (not per character),
   // matching the monthly_rent cron's per-owner baseline pass. Players
   // with 0 approved PCs owe nothing here.
-  const rent = billable.length === 0 ? [] : [{
-    characterId: billable[0].id,
-    characterName: "Flat household fee",
-    amount: BASELINE_LIVING_COST_PER_PLAYER,
-    dueAt: rentDueAt,
-  }];
+  const rent: Array<{ characterId: number; characterName: string; amount: number; dueAt: string }> =
+    billable.length === 0 || baselineCost <= 0
+      ? []
+      : [{ characterId: billable[0].id, characterName: "Flat household fee", amount: baselineCost, dueAt: rentDueAt }];
+
+  // Trauma Team + Xanadu Gold are billed PER PC by the monthly_rent cron, so
+  // include them here too — previously the projection omitted them entirely and
+  // under-reported the player's actual next bill.
+  for (const c of billable) {
+    const tier = (c.traumaTeamTier ?? "").toLowerCase();
+    const traumaCost = tier ? (traumaCosts[tier] ?? 0) : 0;
+    if (tier && traumaCost > 0) {
+      rent.push({
+        characterId: c.id,
+        characterName: `Trauma Team ${tier} — ${c.name}`,
+        amount: traumaCost,
+        dueAt: rentDueAt,
+      });
+    }
+    if (c.xanaduGold && xanaduCost > 0) {
+      rent.push({
+        characterId: c.id,
+        characterName: `Xanadu Gold — ${c.name}`,
+        amount: xanaduCost,
+        dueAt: rentDueAt,
+      });
+    }
+  }
 
   // Meds projection — one bill per PLAYER, not per character. The band
   // comes from the highest chrome count across the player's PCs
@@ -257,8 +285,8 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   }
   const lastCheckupAtIso = lastCheckupAt ? lastCheckupAt.toISOString() : null;
 
-  // Active leases (informational — automated rent currently charges the flat
-  // RENT_PER_PC_PER_MONTH per PC; per-lease billing is not yet wired up).
+  // Active leases. Per-lease monthly_rent IS billed by the cron (see jobs.ts
+  // lease billing) and is summed into the headline "Next Rent" total below.
   const charIds = myChars.map((c) => c.id);
   const leases = charIds.length === 0 ? [] : await db
     .select({

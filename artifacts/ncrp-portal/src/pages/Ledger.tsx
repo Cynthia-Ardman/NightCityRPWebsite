@@ -256,7 +256,7 @@ function TransferCard() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!canSubmit || !to?.id || !fromId) return;
-            transfer.mutate({ id: fromId, data: { toCharacterId: to.id, amount, memo: memo || undefined } });
+            transfer.mutate({ id: fromId, data: { toCharacterId: to.id, amount, memo: memo || undefined, idempotencyKey: crypto.randomUUID() } });
           }}
         >
           <div className="sm:col-span-3">

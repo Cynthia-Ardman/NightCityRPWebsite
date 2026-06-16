@@ -648,7 +648,9 @@ export const housingRequests = pgTable("housing_requests", {
 // so an approval can never be applied twice.
 export const customRequests = pgTable("custom_requests", {
   id: serial("id").primaryKey(),
-  // One of: property | gun | cyberware
+  // One of: property | gun | cyberware | store | ripperdoc | stock_cost |
+  // employee_invite | venue_stock | mission_participation (see REQUEST_TYPES in
+  // routes/requests.ts and the OpenAPI CustomRequest.type enum).
   type: text("type").notNull(),
   characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
   requestedById: text("requested_by_id").notNull().references(() => users.id),
@@ -659,9 +661,10 @@ export const customRequests = pgTable("custom_requests", {
   imageUrl: text("image_url"),
   // Optional type-specific payload captured at submit time.
   details: jsonb("details"),
-  // pending | approved | rejected | changes_requested. Reviewers cast majority
-  // votes (review_votes) to approve/reject; "request changes" parks it in
-  // changes_requested until the requester edits and resubmits.
+  // pending | approved | rejected | changes_requested | cancelled | closed.
+  // Reviewers cast majority votes (review_votes) to approve/reject; legacy
+  // changes_requested rows resubmit; cancelled/closed are terminal/archive
+  // states set by the requester or the review lifecycle.
   status: text("status").notNull().default("pending"),
   reviewedById: text("reviewed_by_id").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
@@ -1332,13 +1335,16 @@ export const shopOpens = pgTable("shop_opens", {
 export type ShopOpen = typeof shopOpens.$inferSelect;
 
 // Per-user weekly attendance claims. One row = "user collected their
-// €$250 weekly attend bonus for the ISO week starting Monday." The
+// €$250 weekly attend bonus for this session week." The week key is the
+// Pacific (session-timezone) SUNDAY date of the session week (see
+// sessionWeekKey in lib/sessionWindow.ts), not a Monday/ISO week. The
 // UNIQUE (userId, weekStart) index is the entire correctness story —
 // claim handler is just: insert, on conflict return 409.
 export const attendanceClaims = pgTable("attendance_claims", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  // Monday 00:00 UTC of the ISO week the claim applies to.
+  // Pacific (session-timezone) Sunday date of the session week the claim
+  // applies to (sessionWeekKey), stored as a YYYY-MM-DD date label.
   weekStart: date("week_start").notNull(),
   amount: integer("amount").notNull().default(250),
   claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),

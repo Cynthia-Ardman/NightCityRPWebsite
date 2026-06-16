@@ -19,6 +19,7 @@ import {
   useGetReviewUnseenCounts,
   useGetReviewUnseenIds,
   getGetReviewUnseenIdsQueryKey,
+  getGetReviewUnseenCountsQueryKey,
   getListCustomRequestsQueryKey,
   getListPendingSheetsQueryKey,
   getListPendingEditsQueryKey,
@@ -38,6 +39,7 @@ import {
   type MissionSummary,
 } from "@workspace/api-client-react";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
+import { formatEddies } from "@/lib/format";
 import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "./reviewSort";
 import { useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
@@ -391,7 +393,7 @@ function MissionApprovalSection({
                   {typeof m.playerPay === "number" ? (
                     <div>
                       <span className="text-nc-cyan uppercase tracking-widest">Player pay: </span>
-                      ${m.playerPay.toLocaleString()}
+                      {formatEddies(m.playerPay)}
                     </div>
                   ) : null}
                 </div>
@@ -771,6 +773,7 @@ function NewCharactersTab() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
   };
   const errMsg = (err: unknown, fallback: string) =>
     (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
@@ -1305,7 +1308,8 @@ function useTerminalItems() {
   const { data: me } = useEffectiveMe();
   const canMisc = !!(me?.isAdmin || me?.isFixer);
   const canEdits = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
-  const canSheets = !!(me?.isAdmin || me?.isCsApprover);
+  // Fixers review sheets too, so they see completed/denied sheet history.
+  const canSheets = !!(me?.isAdmin || me?.isCsApprover || me?.isFixer);
   const canLore = !!me?.isAdmin;
 
   const reqResolved = useListCustomRequests(
@@ -1562,6 +1566,7 @@ function TerminalTab({ which }: { which: TerminalDecision }) {
     qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
     qc.invalidateQueries({ queryKey: getListLoreEditsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
   };
   const actions = useReviewTicketActions(invalidate);
   const items = which === "completed" ? completed : denied;
@@ -1622,6 +1627,7 @@ function ReadyToApplyPanel() {
     qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
     qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
   };
 
   const close = useCloseReviewTicket({
@@ -1760,7 +1766,10 @@ export default function PendingRequests() {
   // Archivists approve mission proposals, which now live in the Misc tab, so
   // they must be able to reach it even though they don't vote on custom requests.
   const canSeeMisc = canMisc || !!me?.isArchivist;
-  const canNewChars = !!(me?.isAdmin || me?.isCsApprover);
+  // Fixers are sheet reviewers too (see NewCharactersTab.isReviewer/canVote and
+  // the sidebar badge, which counts unseen sheets for fixers), so they must see
+  // the Sheets tab — otherwise the badge sends them here to a tab that's hidden.
+  const canNewChars = !!(me?.isAdmin || me?.isCsApprover || me?.isFixer);
   const canLore = !!me?.isAdmin;
   // The terminal (Completed/Denied) tabs aggregate reviewer queues; only show
   // them to staff who can see at least one of those queues.

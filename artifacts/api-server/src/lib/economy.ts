@@ -32,6 +32,13 @@ export const ECONOMY_ENABLED_KEY = "economy_enabled";
 // the column and throw at write time, so applyWalletDelta rejects it cleanly
 // (status "exceeds_max") before any UB call or DB write.
 export const MAX_WALLET_BALANCE = 2_147_483_647;
+// Signed int4 minimum — the floor for the same wallet columns.
+export const MIN_WALLET_BALANCE = -2_147_483_648;
+
+// Clamp a balance to the int4 range so a write can never overflow the column.
+function clampInt4(n: number): number {
+  return Math.max(MIN_WALLET_BALANCE, Math.min(MAX_WALLET_BALANCE, Math.trunc(n)));
+}
 
 async function readBool(key: string): Promise<boolean> {
   try {
@@ -263,8 +270,12 @@ export interface SettledWalletMovementInput {
   kind: string;
   memo?: string | null;
   characterId?: number | null;
+  counterpartyCharacterId?: number | null;
+  counterpartyName?: string | null;
   relatedEntityType?: string | null;
   relatedEntityId?: number | null;
+  storeId?: number | null;
+  ripperdocId?: number | null;
   /** Idempotency key — a duplicate is a no-op that returns the existing row id. */
   idempotencyKey?: string | null;
 }
@@ -306,12 +317,26 @@ export async function recordSettledWalletMovement(
       .for("update");
     if (!u) return null;
     const prev = u.balance ?? 0;
-    const next = prev + input.amount;
+    const rawNext = prev + input.amount;
+    // walletBalance / previous/newBalance are int4 columns. UB already settled
+    // this movement (UB is source of truth); if the local mirror would exceed
+    // the int4 range we clamp the stored value rather than letting the DB write
+    // throw and drop the ledger row entirely. Reconcile corrects any drift.
+    const next = clampInt4(rawNext);
+    const prevStored = clampInt4(prev);
+    if (next !== rawNext) {
+      logger.warn(
+        { userId: input.userId, prev, amount: input.amount, rawNext, clamped: next },
+        "recordSettledWalletMovement: local balance clamped to int4 range; reconcile will correct",
+      );
+    }
     const inserted = await tx
       .insert(walletTransactions)
       .values({
         characterId: input.characterId ?? null,
         userId: input.userId,
+        counterpartyCharacterId: input.counterpartyCharacterId ?? null,
+        counterpartyName: input.counterpartyName ?? null,
         amount: input.amount,
         kind: input.kind,
         memo: input.memo ?? null,
@@ -320,7 +345,9 @@ export async function recordSettledWalletMovement(
         idempotencyKey: input.idempotencyKey ?? null,
         relatedEntityType: input.relatedEntityType ?? null,
         relatedEntityId: input.relatedEntityId ?? null,
-        previousBalance: prev,
+        storeId: input.storeId ?? null,
+        ripperdocId: input.ripperdocId ?? null,
+        previousBalance: prevStored,
         newBalance: next,
       })
       .onConflictDoNothing({ target: walletTransactions.idempotencyKey })
@@ -353,6 +380,46 @@ export async function recordSettledWalletMovement(
       })
       .where(eq(users.id, input.userId));
     return row.id;
+  });
+}
+
+/**
+ * Advance ONLY the website wallet balance for an already-settled UB movement
+ * whose ledger row the caller has ALREADY written itself (e.g. the autobill
+ * cron, which reserves its own wallet_transactions row BEFORE the UB call for
+ * crash safety). Mirrors the users-table update recordSettledWalletMovement
+ * performs — so users.walletBalance and the UB baseline advance in lockstep
+ * instead of drifting until the next reconcile — WITHOUT inserting a second
+ * ledger row. Idempotency is the caller's responsibility (its reserved row +
+ * billed-this-run guard already dedupes the charge).
+ */
+export async function advanceSettledWalletBalance(input: {
+  userId: string;
+  amount: number;
+  ubTotalAfter: number;
+}): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [u] = await tx
+      .select({ balance: users.walletBalance, lastSyncedUbBalance: users.lastSyncedUbBalance })
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .for("update");
+    if (!u) return;
+    const next = clampInt4((u.balance ?? 0) + input.amount);
+    await tx
+      .update(users)
+      .set({
+        walletBalance: next,
+        ...(u.lastSyncedUbBalance === null
+          ? {}
+          : {
+              lastSyncedUbBalance: input.ubTotalAfter,
+              lastSyncedAt: new Date(),
+              lastSyncStatus: "synced" as const,
+              lastSyncError: null,
+            }),
+      })
+      .where(eq(users.id, input.userId));
   });
 }
 

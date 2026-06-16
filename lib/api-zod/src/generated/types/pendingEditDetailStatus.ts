@@ -15,4 +15,5 @@ export const PendingEditDetailStatus = {
   rejected: 'rejected',
   cancelled: 'cancelled',
   changes_requested: 'changes_requested',
+  closed: 'closed',
 } as const;

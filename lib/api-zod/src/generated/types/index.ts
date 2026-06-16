@@ -425,7 +425,6 @@ export * from './reactivateCharacter200';
 export * from './refreshVrchatInstances200';
 export * from './reopenReviewTicket200';
 export * from './requestChangesInput';
-export * from './requestChangesPendingEdit200';
 export * from './resubmitPendingEdit200';
 export * from './reviewApplicationInput';
 export * from './reviewApplicationInputAction';

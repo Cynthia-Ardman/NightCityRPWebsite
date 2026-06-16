@@ -2104,6 +2104,20 @@ export async function payMissionPlayers(
       result.skipped++;
       continue;
     }
+    // Re-check cancellation AFTER claiming and BEFORE the irreversible UB
+    // payout: a mission cancelled mid-loop must not keep paying the remaining
+    // players. Release the claim back to its prior state and stop.
+    const [fresh] = await db
+      .select({ status: missions.status })
+      .from(missions)
+      .where(eq(missions.id, missionId));
+    if (fresh?.status === "cancelled") {
+      await db
+        .update(missionAssignments)
+        .set({ paymentStatus: a.paymentStatus })
+        .where(eq(missionAssignments.id, a.id));
+      break;
+    }
     const creditAttendance = a.attendanceCreditedAt ?? now;
 
     if (amount <= 0) {

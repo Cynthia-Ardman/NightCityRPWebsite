@@ -1007,7 +1007,7 @@ export interface Me {
   verified18?: boolean;
   isAdmin: boolean;
   isFixer: boolean;
-  /** Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers act as full fixers. */
+  /** Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers are author-only (they may create/propose missions) and do NOT get full fixer privileges; isFixer is false for them. */
   isTrialFixer?: boolean;
   isArchivist: boolean;
   isCoordinator?: boolean;
@@ -2072,6 +2072,11 @@ export interface TransferInput {
   /** @minimum 1 */
   amount: number;
   memo?: string;
+  /**
+     * Client-generated key (e.g. a UUID created once per submit) so a network retry / double-click of the same transfer doesn't move eddies twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
 }
 
 export interface WalletTransaction {
@@ -2659,6 +2664,11 @@ export interface VenueAccountInput {
      * @minimum 1
      */
   amount: number;
+  /**
+     * Client-generated key (e.g. a UUID created once per submit) so network retries / double-clicks of the same move don't debit or credit twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
 }
 
 export interface VenueAccountResult {
@@ -3254,6 +3264,8 @@ export const CustomRequestStatus = {
   approved: 'approved',
   rejected: 'rejected',
   changes_requested: 'changes_requested',
+  cancelled: 'cancelled',
+  closed: 'closed',
 } as const;
 
 /**
@@ -4103,6 +4115,7 @@ export const PendingEditSummaryStatus = {
   rejected: 'rejected',
   cancelled: 'cancelled',
   changes_requested: 'changes_requested',
+  closed: 'closed',
 } as const;
 
 export type PendingEditSummaryVotersItemVote = typeof PendingEditSummaryVotersItemVote[keyof typeof PendingEditSummaryVotersItemVote];
@@ -4194,6 +4207,7 @@ export const PendingEditDetailStatus = {
   rejected: 'rejected',
   cancelled: 'cancelled',
   changes_requested: 'changes_requested',
+  closed: 'closed',
 } as const;
 
 export type PendingEditDetailMyVote = null | {
@@ -5977,11 +5991,6 @@ export const ListPendingEditsBucket = {
 } as const;
 
 export type OverridePendingEdit200 = {
-  ok: boolean;
-  status: string;
-};
-
-export type RequestChangesPendingEdit200 = {
   ok: boolean;
   status: string;
 };

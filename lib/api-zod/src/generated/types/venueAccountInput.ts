@@ -12,4 +12,9 @@ export interface VenueAccountInput {
      * @minimum 1
      */
   amount: number;
+  /**
+     * Client-generated key (e.g. a UUID created once per submit) so network retries / double-clicks of the same move don't debit or credit twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
 }
