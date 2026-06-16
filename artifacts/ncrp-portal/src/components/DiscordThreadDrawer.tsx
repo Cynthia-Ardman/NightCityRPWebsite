@@ -13,10 +13,29 @@ type SubjectType = "edit" | "request" | "sheet";
 
 const seenKey = (t: SubjectType, id: number) => `discordThreadSeen:${t}:${id}`;
 
-// Newest message timestamp (ms) in a thread payload, 0 when empty/unlinked.
-function newestMs(messages: DiscordThreadMessage[]): number {
+// Read the persisted "seen" timestamp (ms). A missing/corrupt value must read
+// as 0 (everything unread-eligible), never NaN — `newest > NaN` is always false,
+// which would silently suppress the glow forever.
+function readSeen(t: SubjectType, id: number): number {
+  if (typeof window === "undefined") return 0;
+  const n = Number(window.localStorage.getItem(seenKey(t, id)) ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Newest HUMAN (non-bot) message timestamp (ms) in a thread payload; 0 when
+// there are no human messages (empty/unlinked, or only the bot's posts).
+//
+// The unread glow must reflect "a real reply a reviewer hasn't read yet", so
+// bot-authored posts are deliberately excluded:
+//   - the thread's INITIAL message is the bot's mirror post — a brand-new thread
+//     with only that message must NOT glow;
+//   - later bot status mirrors (website-originated) would otherwise bump the
+//     newest timestamp above the seen marker and re-trigger the glow on refresh
+//     even though nothing new was actually said in Discord.
+function newestHumanMs(messages: DiscordThreadMessage[]): number {
   let max = 0;
   for (const m of messages) {
+    if (m.authorIsBot) continue;
     const t = new Date(m.createdAt).getTime();
     if (Number.isFinite(t) && t > max) max = t;
   }
@@ -67,21 +86,17 @@ export default function DiscordThreadDrawer({
   });
 
   const newest = useMemo(
-    () => newestMs((watchData?.messages ?? []) as DiscordThreadMessage[]),
+    () => newestHumanMs((watchData?.messages ?? []) as DiscordThreadMessage[]),
     [watchData],
   );
 
-  const [seen, setSeen] = useState<number>(() => {
-    if (typeof window === "undefined") return 0;
-    return Number(window.localStorage.getItem(seenKey(subjectType, subjectId)) ?? 0);
-  });
+  const [seen, setSeen] = useState<number>(() => readSeen(subjectType, subjectId));
 
   // Reload the seen marker when the subject changes (route-param navigation
   // between tickets keeps this component mounted), so unread state doesn't leak
   // from the previously-viewed ticket.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    setSeen(Number(window.localStorage.getItem(seenKey(subjectType, subjectId)) ?? 0));
+    setSeen(readSeen(subjectType, subjectId));
   }, [subjectType, subjectId]);
 
   const unread = watchUnread && newest > 0 && newest > seen;

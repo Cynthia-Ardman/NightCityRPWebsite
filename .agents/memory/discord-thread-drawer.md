@@ -26,3 +26,17 @@ vs newest message ts) and polls every 30s. Per-card polling does NOT hit Discord
 limits because the server caches each thread ~8s keyed by threadId (shared across all
 cards/reviewers) — N cards collapse to ≤1 Discord fetch per thread per window. There is
 NO server-side seen state; unread is purely client-side per browser.
+
+**Unread is driven by HUMAN (non-bot) messages only** (`newestHumanMs` skips
+`m.authorIsBot`), NOT every message.
+
+**Why:** every thread's INITIAL message is the bot's mirror post, so counting all
+messages made a brand-new thread glow immediately; and later bot status-mirror posts
+(website-originated) bumped `newest` above the persisted `seen` marker and re-glowed on
+refresh even when no real reply happened. The glow must mean "an actual Discord reply you
+haven't read". Website review comments have their own on-site unread dots, so excluding
+bot-relayed content here is intentional, not a gap.
+
+**How to apply:** also guard the localStorage `seen` read against `NaN`
+(`Number.isFinite` → else 0); `newest > NaN` is always false and would silently suppress
+the glow forever.
