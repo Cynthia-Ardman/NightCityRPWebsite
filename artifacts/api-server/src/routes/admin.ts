@@ -2106,6 +2106,10 @@ router.post(
       // silently destroyed when the drop row was deleted below).
       repoint.custom_requests = (await tx.update(customRequests).set({ characterId: keepId }).where(eq(customRequests.characterId, dropId)).returning({ id: customRequests.id })).length;
       repoint.sale_offers = (await tx.update(saleOffers).set({ buyerCharacterId: keepId }).where(eq(saleOffers.buyerCharacterId, dropId)).returning({ id: saleOffers.id })).length;
+      // sellerCharacterId is a plain column (no FK, no cascade), so seller-side
+      // offers survive the drop's deletion but would dangle on the deleted id.
+      // Repoint them too. No unique on sellerCharacterId, so this can't collide.
+      repoint.sale_offers_seller = (await tx.update(saleOffers).set({ sellerCharacterId: keepId }).where(eq(saleOffers.sellerCharacterId, dropId)).returning({ id: saleOffers.id })).length;
       // mission_assignments.characterId is ON DELETE SET NULL (row survives but
       // loses its character link); repoint to preserve who was assigned. The
       // UNIQUE is on (missionId, userId) so changing characterId can't collide.

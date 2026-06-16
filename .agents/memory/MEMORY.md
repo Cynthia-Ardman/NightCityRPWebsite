@@ -23,6 +23,7 @@
 - [Drizzle ANY array spread](drizzle-any-array-spread.md) — `sql\`= ANY(${arr})\`` spreads into N params and 500s; use `inArray(col, arr)`.
 - [Discord CDN url expiry](discord-cdn-url-expiry.md) — cdn.discordapp.com URLs are signed and 401 after ~24h; always re-host via ObjectStorageService.uploadBuffer.
 - [Character name collisions](character-name-collisions.md) — same-name chars (e.g. "Bones") can be different people; only merge when owner_id AND backstory match.
+- [Character merge repoint](character-merge-repoint.md) — merge must repoint EVERY character-id column incl. non-FK plain integers (sale_offers.seller_character_id); non-FK cols don't cascade so a miss leaves dangling refs.
 - [api-server test harness](api-server-test-harness.md) — separate *_test DB, x-test-user auth shim runs real role mw; run per-file or redirect full suite to a file (>120s); never `--reporter=basic`.
 - [Cyberware checkup grace test trap](cyberware-checkup-grace-test-trap.md) — createdAt = implicit first checkup (7-day grace); meds-charge/DM tests must backdate or pass vacuously; failure-branch must assert patchBalance was called.
 - [api-server dev no watcher](api-server-dev-no-watcher.md) — dev workflow is build+start, NO reload; new routes 404 until restart_workflow; curl :8080 expect 401 not 404.

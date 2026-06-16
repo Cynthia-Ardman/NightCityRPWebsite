@@ -411,14 +411,20 @@ router.post("/events/:id/convert-to-mission", requireAuth, async (req, res): Pro
   // Re-sync the handed-off Discord scheduled event to mission format. The
   // conversion only moves the event id onto the mission; without this the
   // Discord event keeps its old event-formatted title/description until the
-  // next edit or reconcile pass.
-  const [newMission] = await db.select().from(missions).where(eq(missions.id, result.newId!));
-  if (newMission) {
-    const ctx = await getMissionContext();
-    const sync = await syncMissionDiscordEvent(newMission, ctx, newMission.imageUrl);
-    if (sync.discordEventId !== newMission.discordEventId || sync.discordSyncError !== newMission.discordSyncError) {
-      await db.update(missions).set(sync).where(eq(missions.id, newMission.id));
+  // next edit or reconcile pass. The conversion has already committed, so a
+  // resync failure must not 500 the request — log and self-heal on the next
+  // reconcile pass (mirrors the mission->event side in eventsService).
+  try {
+    const [newMission] = await db.select().from(missions).where(eq(missions.id, result.newId!));
+    if (newMission) {
+      const ctx = await getMissionContext();
+      const sync = await syncMissionDiscordEvent(newMission, ctx, newMission.imageUrl);
+      if (sync.discordEventId !== newMission.discordEventId || sync.discordSyncError !== newMission.discordSyncError) {
+        await db.update(missions).set(sync).where(eq(missions.id, newMission.id));
+      }
     }
+  } catch (err) {
+    logger.warn({ err, missionId: result.newId }, "convert-to-mission: Discord resync failed; reconcile cron will heal");
   }
   await recordAudit({
     req,
