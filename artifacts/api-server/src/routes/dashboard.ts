@@ -4,8 +4,6 @@ import {
   db,
   characters,
   characterStatus,
-  characterSheets,
-  reviewVotes,
   activityEvents,
   auditLog,
   fixerNpcs,
@@ -23,7 +21,6 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
 import { hasRole } from "../lib/discord";
-import { isReviewer } from "../lib/review";
 import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand } from "../lib/jobs";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import {
@@ -72,33 +69,12 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   }
   const ub = await getBalance(req.user!.discordId, { allowStale: true });
   const totalEddies = ub?.total ?? 0;
-  // Pending character sheets that THIS viewer can actually action. The count
-  // must mirror the review queue's semantics, not a raw global tally, on TWO
-  // axes:
-  //   1. A reviewer cannot vote on their OWN submission (canVote = !isOwner),
-  //      so own pending sheets are excluded. IS DISTINCT FROM treats a null
-  //      owner as "not me" so unowned sheets still surface.
-  //   2. A reviewer who has ALREADY cast a vote has nothing left to do on that
-  //      sheet — it sits below the majority threshold awaiting OTHER reviewers.
-  //      Counting it would leave the viewer staring at "1 pending sheet" right
-  //      after they clicked Approve, with nothing for them to action when they
-  //      click through. Excluding already-voted sheets mirrors the Pending
-  //      Requests card (which uses the unseen/actionable count) and keeps the
-  //      badge honest.
-  let pending = 0;
-  if (isReviewer(req.user!)) {
-    const [{ c }] = await db
-      .select({ c: sql<number>`count(*)::int` })
-      .from(characterSheets)
-      .where(
-        and(
-          eq(characterSheets.status, "pending"),
-          sql`${characterSheets.ownerId} IS DISTINCT FROM ${req.user!.id}`,
-          sql`NOT EXISTS (SELECT 1 FROM ${reviewVotes} WHERE ${reviewVotes.subjectType} = 'sheet' AND ${reviewVotes.subjectId} = ${characterSheets.id} AND ${reviewVotes.voterId} = ${req.user!.id})`,
-        ),
-      );
-    pending = c;
-  }
+  // NOTE: the dashboard's "Sheets to Review" / "Requests to Review" cards are
+  // driven entirely by GET /review/unseen-counts (the same source as the
+  // sidebar "Pending" badge), NOT by this summary. The summary deliberately
+  // does NOT compute a pending-sheets tally — a second, divergent count here
+  // is what produced the recurring phantom "Sheets to Review: N with nothing
+  // new" bug (it counted unvoted sheets the reviewer had already seen).
   const topFixers = await db
     .select({
       fixerId: fixerNpcs.fixerId,
@@ -136,7 +112,6 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     openShops,
     attendingCount,
     loaCount,
-    pendingSheets: pending,
     topFixers,
     recentArrivals,
   });

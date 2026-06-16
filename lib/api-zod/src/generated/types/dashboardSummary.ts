@@ -15,7 +15,6 @@ export interface DashboardSummary {
   openShops: number;
   attendingCount: number;
   loaCount: number;
-  pendingSheets: number;
   topFixers?: LeaderboardEntry[];
   /** Roster tile data only. Intentionally excludes sheet body fields
   (background, sheetData, ownerId, importedFromThreadId, …) because

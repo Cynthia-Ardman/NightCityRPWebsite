@@ -8033,7 +8033,7 @@ components:
 
     DashboardSummary:
       type: object
-      required: [characterCount, activeCharacterCount, totalEddies, openShops, attendingCount, loaCount, pendingSheets]
+      required: [characterCount, activeCharacterCount, totalEddies, openShops, attendingCount, loaCount]
       properties:
         characterCount: { type: integer }
         activeCharacterCount: { type: integer }
@@ -8041,7 +8041,6 @@ components:
         openShops: { type: integer }
         attendingCount: { type: integer }
         loaCount: { type: integer }
-        pendingSheets: { type: integer }
         topFixers:
           type: array
           items: { $ref: "#/components/schemas/LeaderboardEntry" }

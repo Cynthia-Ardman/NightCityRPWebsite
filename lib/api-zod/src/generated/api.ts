@@ -8392,7 +8392,6 @@ export const GetDashboardSummaryResponse = zod.object({
   "openShops": zod.number(),
   "attendingCount": zod.number(),
   "loaCount": zod.number(),
-  "pendingSheets": zod.number(),
   "topFixers": zod.array(zod.object({
   "name": zod.string(),
   "avatarUrl": zod.string().nullish(),

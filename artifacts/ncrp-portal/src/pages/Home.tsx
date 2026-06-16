@@ -82,23 +82,23 @@ function Dashboard() {
   // We'll skip recent activity if the hook isn't fully implemented or we just use characters
 
   // Contextual stat cards: only surface what's relevant to *this* viewer.
-  // The pending-review cards are staff-only (summary.pendingSheets is a GLOBAL
-  // queue count linking to the staff review page, and pending custom requests
-  // are staff-actioned too), so the request is only fired for staff and each
-  // card is hidden when its queue is empty. (Total Eddies was removed here —
-  // it's already shown in the top-right header.)
+  // The pending-review cards are staff-only, so the request is only fired for
+  // staff and each card is hidden when its queue is empty. (Total Eddies was
+  // removed here — it's already shown in the top-right header.)
   const isStaff = Boolean(user?.isAdmin || user?.isFixer || user?.isCsApprover);
-  // Count the ACTIONABLE staff review queue (unseen-by-me misc requests),
-  // matching the sidebar "Pending Requests" badge. The raw pending list would
-  // include the viewer's OWN submissions and already-seen items, so the
-  // dashboard could read "1 pending request" with nothing for the viewer to
-  // act on when they click through. unseen.requests excludes own submissions
-  // (server-side) so the number always corresponds to a reviewable ticket on
-  // the misc tab.
+  // BOTH review cards count the ACTIONABLE, UNSEEN-by-me queue from the single
+  // /review/unseen-counts source that also drives the sidebar "Pending" badge.
+  // "Unseen" (not "unvoted") is the right metric: it excludes the viewer's OWN
+  // submissions and any item they've already opened, so the card clears the
+  // moment they look — matching what the user perceives as "nothing new /
+  // unread". The old sheets card used a separate "pending sheets I haven't
+  // VOTED on" tally, which stayed lit after the reviewer had seen everything
+  // (the recurring phantom "Sheets to Review: N with nothing new" bug).
   const { data: reviewUnseen } = useGetReviewUnseenCounts({
     query: { enabled: isStaff, queryKey: getGetReviewUnseenCountsQueryKey() },
   });
   const pendingRequestCount = reviewUnseen?.requests ?? 0;
+  const pendingSheetCount = reviewUnseen?.sheets ?? 0;
 
   if (summaryLoading || charsLoading) {
     return <BrandedLoader label="SYNCING_DASHBOARD..." />;
@@ -106,8 +106,8 @@ function Dashboard() {
 
   const statCards = summary
     ? [
-        ...(isStaff && summary.pendingSheets > 0
-          ? [<StatCard key="sheets" icon={FileText} label="Sheets to Review" value={summary.pendingSheets} color="red" href="/requests?tab=sheets" />]
+        ...(isStaff && pendingSheetCount > 0
+          ? [<StatCard key="sheets" icon={FileText} label="Sheets to Review" value={pendingSheetCount} color="red" href="/requests?tab=sheets" />]
           : []),
         ...(isStaff && pendingRequestCount > 0
           ? [<StatCard key="requests" icon={ClipboardList} label="Requests to Review" value={pendingRequestCount} color="magenta" href="/requests" />]

@@ -54,3 +54,28 @@ voted-exclusion query.
 
 **Rule:** any review action that changes what a staff count surface should show
 must invalidate that surface's query key, not only the detail/list it lives on.
+
+## Fourth axis: UNSEEN vs UNVOTED — all review cards source from /review/unseen-counts
+
+The recurring "Sheets to Review: N but nothing new/unread" phantom came from the
+two dashboard review cards using DIFFERENT metrics: the "Requests to Review" card
+(and the sidebar badge) used `/review/unseen-counts` (UNSEEN = excludes own +
+already-opened, clears the moment the reviewer OPENS the item), while the "Sheets
+to Review" card used a separate `dashboard/summary.pendingSheets` tally that counted
+pending sheets the reviewer had NOT yet VOTED on (clears only on a cast vote). A
+reviewer who opened every pending sheet but abstained saw a permanent count with
+nothing they perceived as new. (Both items were legitimately below the majority
+threshold — NOT stranded; verify threshold = `majorityOf(eligibleReviewers)` before
+suspecting a finalize-on-read bug.)
+
+**Rule:** every dashboard review card AND the sidebar badge must source from the
+single `/review/unseen-counts` endpoint (which returns edits/requests/sheets).
+Never add a second divergent "pending/unvoted" tally for a review card. The
+dashboard `summary.pendingSheets` field was REMOVED for this reason; `Home.tsx`
+sheets card now reads `reviewUnseen.sheets`.
+
+**Why:** "unvoted" and "unseen" are different metrics; a "new/unread" nudge card
+must use unseen (which the user reads as "nothing new"), and a single source
+prevents the two cards from diverging again. This SUPERSEDES axis 3's note about
+invalidating `getGetDashboardSummaryQueryKey()` for the sheets card — the sheets
+card no longer reads the dashboard summary at all.
