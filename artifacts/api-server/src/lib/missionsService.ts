@@ -298,10 +298,21 @@ async function loadMyApplicationsForMissions(
       reviewedBy: missionApplications.reviewedBy,
       reviewedAt: missionApplications.reviewedAt,
       createdAt: missionApplications.createdAt,
+      // Roster membership — derive 'accepted' when on the roster even if the
+      // application row was never flipped (roster-editor add). See note in
+      // listApplicationViews / listMyApplications.
+      assignedId: missionAssignments.id,
     })
     .from(missionApplications)
     .leftJoin(users, eq(users.id, missionApplications.userId))
     .leftJoin(characters, eq(characters.id, missionApplications.characterId))
+    .leftJoin(
+      missionAssignments,
+      and(
+        eq(missionAssignments.missionId, missionApplications.missionId),
+        eq(missionAssignments.characterId, missionApplications.characterId),
+      ),
+    )
     .where(and(inArray(missionApplications.missionId, missionIds), eq(missionApplications.userId, userId)))
     .orderBy(missionApplications.createdAt);
 
@@ -323,7 +334,8 @@ async function loadMyApplicationsForMissions(
       characterName: r.characterName,
       characterPortraitUrl: r.characterPortraitUrl,
       comment: r.comment,
-      status: r.status,
+      // Self-heal: roster membership implies accepted (see assignedId note).
+      status: r.status === "pending" && r.assignedId != null ? "accepted" : r.status,
       reviewedBy: r.reviewedBy,
       reviewedAt: iso(r.reviewedAt),
       createdAt: r.createdAt.toISOString(),
@@ -999,10 +1011,23 @@ async function listApplicationViews(missionId: number, onlyUserId?: string) {
       reviewedBy: missionApplications.reviewedBy,
       reviewedAt: missionApplications.reviewedAt,
       createdAt: missionApplications.createdAt,
+      // Roster membership: a fixer can add a character via the roster editor,
+      // which raises a participation request + assignment but never flips the
+      // application row off 'pending'. Derive 'accepted' at read time when an
+      // assignment exists so the mission-detail "YOUR APPLICATION" badge and the
+      // fixer applicant list match the actual roster (and listMyApplications).
+      assignedId: missionAssignments.id,
     })
     .from(missionApplications)
     .leftJoin(users, eq(users.id, missionApplications.userId))
     .leftJoin(characters, eq(characters.id, missionApplications.characterId))
+    .leftJoin(
+      missionAssignments,
+      and(
+        eq(missionAssignments.missionId, missionApplications.missionId),
+        eq(missionAssignments.characterId, missionApplications.characterId),
+      ),
+    )
     .where(and(...filters))
     .orderBy(missionApplications.createdAt);
 
@@ -1024,7 +1049,9 @@ async function listApplicationViews(missionId: number, onlyUserId?: string) {
       characterName: r.characterName,
       characterPortraitUrl: r.characterPortraitUrl,
       comment: r.comment,
-      status: r.status,
+      // Self-heal: a pending application whose character is on the roster is
+      // effectively accepted (see assignedId note above).
+      status: r.status === "pending" && r.assignedId != null ? "accepted" : r.status,
       reviewedBy: r.reviewedBy,
       reviewedAt: iso(r.reviewedAt),
       createdAt: r.createdAt.toISOString(),

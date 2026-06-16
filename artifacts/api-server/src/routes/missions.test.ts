@@ -1461,6 +1461,17 @@ describe("Mission applications", () => {
     const mineAfter = await request(app).get("/api/missions/my-applications").set("x-test-user", player.id);
     expect(mineAfter.body.find((a: { id: number }) => a.id === appId)?.status).toBe("accepted");
 
+    // The mission-detail "YOUR APPLICATION" badge derives accepted too.
+    const detail = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", player.id);
+    expect(detail.status).toBe(200);
+    expect(detail.body.myApplication?.status).toBe("accepted");
+
+    // The Open-tab mission card (list summary) derives accepted too.
+    const list = await request(app).get("/api/missions?status=open").set("x-test-user", player.id);
+    expect(list.status).toBe(200);
+    const card = (list.body as Array<{ id: number; myApplication?: { status?: string } }>).find((x) => x.id === m.id);
+    expect(card?.myApplication?.status).toBe("accepted");
+
     // Confirming the participation request flips the canonical row to accepted.
     const reqRow = (
       await db.select().from(customRequests).where(eq(customRequests.characterId, char.id))

@@ -16,9 +16,14 @@ land on a roster:
    flips it. So the application sits on `pending` forever.
 
 **Rule:** Treat roster membership (`mission_assignments`) as authoritative for
-"accepted". `listMyApplications` derives `accepted` at read time when a matching
-assignment exists for `(missionId, characterId)` — only upgrading `pending`,
-never rejected/withdrawn. This self-heals legacy rows with no migration.
+"accepted". Every application-view producer derives `accepted` at read time when
+a matching assignment exists for `(missionId, characterId)` — only upgrading
+`pending`, never rejected/withdrawn. This self-heals legacy rows with no
+migration. There are THREE such producers that must stay in lockstep:
+`listMyApplications` (My Applications tab), `listApplicationViews` (mission-detail
+"YOUR APPLICATION" badge + fixer applicant list), and
+`loadMyApplicationsForMissions` (Open-tab mission cards). Healing only one leaves
+the others showing a stale "Pending".
 
 **Why:** matches the codebase's "roster/participation status is DERIVED" pattern
 (see roster-participation-status.md); the application table simply wasn't kept in
