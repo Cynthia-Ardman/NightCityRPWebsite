@@ -1998,6 +1998,12 @@ export const vrchatInstances = pgTable("vrchat_instances", {
   region: text("region"),
   userCount: integer("user_count").notNull().default(0),
   capacity: integer("capacity"),
+  // Group role IDs allowed to join (only populated for role-restricted group
+  // instances; empty/absent otherwise) and their resolved display names. Names
+  // are resolved at poll time from the group's roles so the read path never has
+  // to hit the rate-limited VRChat API.
+  roleIds: jsonb("role_ids").$type<string[]>(),
+  roleNames: jsonb("role_names").$type<string[]>(),
   // Server-side first-seen → uptime baseline (VRChat exposes no reliable
   // instance creation time). Persisted across polls while the instance lives.
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),

@@ -3,6 +3,7 @@ import { notInArray } from "drizzle-orm";
 import { logger } from "./logger";
 import {
   fetchGroupInstances,
+  getGroupRoleMap,
   recordSessionError,
   vrchatCredsConfigured,
   type RawVrchatInstance,
@@ -78,6 +79,7 @@ interface NormalisedInstance {
   region: string | null;
   userCount: number;
   capacity: number | null;
+  roleIds: string[];
 }
 
 function normalise(raw: RawVrchatInstance): NormalisedInstance | null {
@@ -97,6 +99,7 @@ function normalise(raw: RawVrchatInstance): NormalisedInstance | null {
     region: raw.region ?? parsed.region,
     userCount: raw.userCount ?? raw.n_users ?? raw.memberCount ?? 0,
     capacity: raw.capacity ?? raw.world?.capacity ?? null,
+    roleIds: Array.isArray(raw.roleIds) ? raw.roleIds.filter((r): r is string => !!r) : [],
   };
 }
 
@@ -120,9 +123,17 @@ export async function pollGroupInstances(): Promise<number> {
   const live = raws.map(normalise).filter((i): i is NormalisedInstance => i !== null);
   const seen = new Set<string>();
 
+  // Only pay the (cached) cost of resolving role names when at least one live
+  // instance actually restricts by role.
+  const anyRoles = live.some((i) => i.roleIds.length > 0);
+  const roleMap = anyRoles ? await getGroupRoleMap() : new Map<string, string>();
+  const resolveRoleNames = (roleIds: string[]): string[] =>
+    roleIds.map((id) => roleMap.get(id) ?? id);
+
   for (const i of live) {
     if (seen.has(i.location)) continue;
     seen.add(i.location);
+    const roleNames = resolveRoleNames(i.roleIds);
     await db
       .insert(vrchatInstances)
       .values({
@@ -136,6 +147,8 @@ export async function pollGroupInstances(): Promise<number> {
         region: i.region,
         userCount: i.userCount,
         capacity: i.capacity,
+        roleIds: i.roleIds,
+        roleNames,
         firstSeenAt: now,
         lastSeenAt: now,
         raw: i as unknown as Record<string, unknown>,
@@ -154,6 +167,8 @@ export async function pollGroupInstances(): Promise<number> {
           region: i.region,
           userCount: i.userCount,
           capacity: i.capacity,
+          roleIds: i.roleIds,
+          roleNames,
           lastSeenAt: now,
           raw: i as unknown as Record<string, unknown>,
         },
@@ -182,6 +197,9 @@ export interface VrchatInstanceView {
   region: string | null;
   userCount: number;
   capacity: number | null;
+  // Resolved display names of the group roles allowed to join this instance.
+  // Empty for open (public/plus) instances or any instance without a role gate.
+  roleNames: string[];
   firstSeenAt: string;
   launchUrl: string;
 }
@@ -199,6 +217,7 @@ export async function getCachedInstances(): Promise<VrchatInstanceView[]> {
       region: r.region,
       userCount: r.userCount,
       capacity: r.capacity,
+      roleNames: r.roleNames ?? [],
       firstSeenAt: r.firstSeenAt.toISOString(),
       launchUrl: buildLaunchUrl(r.worldId, r.instanceId),
     }))

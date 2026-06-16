@@ -5150,7 +5150,7 @@ components:
         status: { type: string }
     VrchatInstance:
       type: object
-      required: [location, worldId, worldName, instanceShortId, accessType, userCount, firstSeenAt, launchUrl]
+      required: [location, worldId, worldName, instanceShortId, accessType, userCount, roleNames, firstSeenAt, launchUrl]
       properties:
         location: { type: string, description: "Full VRChat location id (worldId:instanceId)." }
         worldId: { type: string }
@@ -5163,6 +5163,10 @@ components:
         region: { type: string, nullable: true }
         userCount: { type: integer }
         capacity: { type: integer, nullable: true }
+        roleNames:
+          type: array
+          items: { type: string }
+          description: "Display names of the group roles allowed to join. Empty for open or non-role-gated instances."
         firstSeenAt: { type: string, format: date-time, description: "When the poller first saw this instance open (used as an uptime proxy)." }
         launchUrl: { type: string, description: "Official vrchat.com launch link for this instance." }
     VrchatInstanceList:

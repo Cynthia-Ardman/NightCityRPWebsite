@@ -490,6 +490,10 @@ export interface RawVrchatInstance {
   n_users?: number;
   memberCount?: number;
   capacity?: number;
+  // Group role IDs allowed to join. VRChat only populates this for group
+  // instances that were created with the "Group Roles" restriction; open
+  // (public/plus) instances leave it empty/absent.
+  roleIds?: string[];
   world?: {
     id?: string;
     name?: string;
@@ -502,4 +506,50 @@ export interface RawVrchatInstance {
 export async function fetchGroupInstances(groupId: string = NCRP_GROUP_ID): Promise<RawVrchatInstance[]> {
   const data = await apiGet<RawVrchatInstance[]>(`/groups/${groupId}/instances`);
   return Array.isArray(data) ? data : [];
+}
+
+interface RawGroupRole {
+  id?: string;
+  name?: string;
+}
+
+// Fetch the group's roles (id -> name). Used to translate an instance's opaque
+// roleIds into human-readable role names for display.
+export async function fetchGroupRoles(
+  groupId: string = NCRP_GROUP_ID,
+): Promise<RawGroupRole[]> {
+  const data = await apiGet<RawGroupRole[]>(`/groups/${groupId}/roles`);
+  return Array.isArray(data) ? data : [];
+}
+
+// Group roles change very rarely, so cache the id->name map in-memory with a
+// short TTL to avoid hitting the rate-limited VRChat API on every poll.
+const ROLE_MAP_TTL_MS = 30 * 60 * 1000;
+let roleMapCache: { at: number; map: Map<string, string> } | null = null;
+
+// Resolve the group's roles to an id->name Map (best-effort: returns the last
+// good cache, or an empty map, if the fetch fails — callers fall back to
+// showing nothing rather than failing the whole poll).
+export async function getGroupRoleMap(
+  groupId: string = NCRP_GROUP_ID,
+): Promise<Map<string, string>> {
+  const now = Date.now();
+  if (roleMapCache && now - roleMapCache.at < ROLE_MAP_TTL_MS) {
+    return roleMapCache.map;
+  }
+  try {
+    const roles = await fetchGroupRoles(groupId);
+    const map = new Map<string, string>();
+    for (const r of roles) {
+      if (r.id && r.name) map.set(r.id, r.name);
+    }
+    roleMapCache = { at: now, map };
+    return map;
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "VRChat group roles fetch failed; role names unavailable this poll",
+    );
+    return roleMapCache?.map ?? new Map<string, string>();
+  }
 }
