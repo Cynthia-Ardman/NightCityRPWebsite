@@ -9620,6 +9620,10 @@ export const ApproveLoreImportDraftParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const ApproveLoreImportDraftBody = zod.object({
+  "force": zod.boolean().optional().describe('Set true to overwrite a merge target that was edited on-site since its last import (otherwise a 409 conflict is returned).')
+})
+
 export const ApproveLoreImportDraftResponse = zod.object({
   "id": zod.number(),
   "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
@@ -10719,11 +10723,25 @@ export const GetBreachPracticeLeaderboardResponse = zod.object({
 export const recordBreachPracticeAttemptBodyElapsedMsMin = 0;
 
 
+export const recordBreachPracticeAttemptBodySelectionItemRMin = 0;
+
+export const recordBreachPracticeAttemptBodySelectionItemCMin = 0;
+
+
 
 export const RecordBreachPracticeAttemptBody = zod.object({
   "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare']),
-  "success": zod.boolean(),
-  "elapsedMs": zod.number().min(recordBreachPracticeAttemptBodyElapsedMsMin).nullish().describe('Elapsed time of the run in ms. Only used (as the clear time) when success is true.')
+  "success": zod.boolean().optional().describe('Client-claimed outcome. IGNORED when puzzle + selection are provided — the server re-scores the selection against the puzzle and uses that result authoritatively.'),
+  "elapsedMs": zod.number().min(recordBreachPracticeAttemptBodyElapsedMsMin).nullish().describe('Elapsed time of the run in ms. Only used (as the clear time) when the attempt is a win.'),
+  "puzzle": zod.object({
+  "grid": zod.array(zod.array(zod.string())),
+  "daemons": zod.array(zod.array(zod.string())),
+  "bufferSize": zod.number().min(1)
+}).optional(),
+  "selection": zod.array(zod.object({
+  "r": zod.number().min(recordBreachPracticeAttemptBodySelectionItemRMin),
+  "c": zod.number().min(recordBreachPracticeAttemptBodySelectionItemCMin)
+})).optional().describe('The player\'s final selection path (grid cells, in order). Re-scored server-side.')
 })
 
 export const recordBreachPracticeAttemptResponseEasyAttemptsMin = 0;

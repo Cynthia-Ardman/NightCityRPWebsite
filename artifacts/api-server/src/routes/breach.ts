@@ -95,6 +95,8 @@ router.post("/breach/practice/record", requireAuth, async (req, res): Promise<vo
     req.body?.difficulty,
     req.body?.success === true,
     req.body?.elapsedMs,
+    req.body?.puzzle,
+    req.body?.selection,
   );
   res.status(result.status).json(result.body);
 });

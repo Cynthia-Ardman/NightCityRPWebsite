@@ -4407,6 +4407,11 @@ paths:
       operationId: approveLoreImportDraft
       tags: [lore]
       summary: Promote a draft into a published lore entry (create or merge) (admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreImportApproveInput" }
       responses:
         "200":
           description: Approved
@@ -4415,7 +4420,7 @@ paths:
               schema: { $ref: "#/components/schemas/LoreEntry" }
         "403": { description: Admin only }
         "404": { description: Not found }
-        "409": { description: Already decided }
+        "409": { description: "Already decided, or merge target edited on-site since import (retry with force)" }
   /directory/lore/import/drafts/{id}/discard:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -5350,14 +5355,33 @@ components:
         nightmare: { $ref: "#/components/schemas/BreachPracticeDifficultyStats" }
     BreachPracticeRecordInput:
       type: object
-      required: [difficulty, success]
+      required: [difficulty]
       properties:
         difficulty: { type: string, enum: [easy, medium, hard, very_hard, nightmare] }
-        success: { type: boolean }
+        success: { type: boolean, description: "Client-claimed outcome. IGNORED when puzzle + selection are provided — the server re-scores the selection against the puzzle and uses that result authoritatively." }
         elapsedMs:
           type: ["integer", "null"]
           minimum: 0
-          description: "Elapsed time of the run in ms. Only used (as the clear time) when success is true."
+          description: "Elapsed time of the run in ms. Only used (as the clear time) when the attempt is a win."
+        puzzle:
+          $ref: "#/components/schemas/BreachPracticePuzzle"
+        selection:
+          type: array
+          description: "The player's final selection path (grid cells, in order). Re-scored server-side."
+          items: { $ref: "#/components/schemas/BreachGridCell" }
+    BreachPracticePuzzle:
+      type: object
+      required: [grid, daemons, bufferSize]
+      properties:
+        grid: { type: array, items: { type: array, items: { type: string } } }
+        daemons: { type: array, items: { type: array, items: { type: string } } }
+        bufferSize: { type: integer, minimum: 1 }
+    BreachGridCell:
+      type: object
+      required: [r, c]
+      properties:
+        r: { type: integer, minimum: 0 }
+        c: { type: integer, minimum: 0 }
     BreachPracticeMergeInput:
       type: object
       required: [stats]
@@ -6550,6 +6574,11 @@ components:
         cash: { type: integer }
         bank: { type: integer }
         source: { type: string, enum: [unbelievaboat, local] }
+
+    LoreImportApproveInput:
+      type: object
+      properties:
+        force: { type: boolean, description: "Set true to overwrite a merge target that was edited on-site since its last import (otherwise a 409 conflict is returned)." }
 
     TransferInput:
       type: object

@@ -48,7 +48,12 @@ export type UsePracticeStats = {
   synced: boolean;
   // True while the first-sync merge is in flight.
   syncBusy: boolean;
-  recordAttempt: (difficulty: PracticeDifficulty, success: boolean, elapsedMs: number) => void;
+  recordAttempt: (
+    difficulty: PracticeDifficulty,
+    success: boolean,
+    elapsedMs: number,
+    scored?: { grid: string[][]; daemons: string[][]; bufferSize: number; selection: Array<{ r: number; c: number }> },
+  ) => void;
   resetStats: () => void;
   enableSync: () => Promise<void>;
   disableSync: () => void;
@@ -81,10 +86,30 @@ export function usePracticeStats(): UsePracticeStats {
     synced && statsQuery.data ? (statsQuery.data as PracticeStats) : localStats;
 
   const recordAttempt = useCallback(
-    (difficulty: PracticeDifficulty, success: boolean, elapsedMs: number) => {
+    (
+      difficulty: PracticeDifficulty,
+      success: boolean,
+      elapsedMs: number,
+      // Puzzle + final selection let the SERVER re-score a synced attempt
+      // authoritatively (the client `success` is not trusted for the account
+      // leaderboard). The local-only path still uses the client result.
+      scored?: { grid: string[][]; daemons: string[][]; bufferSize: number; selection: Array<{ r: number; c: number }> },
+    ) => {
       if (synced) {
         recordMut.mutate(
-          { data: { difficulty, success, elapsedMs } },
+          {
+            data: {
+              difficulty,
+              success,
+              elapsedMs,
+              ...(scored
+                ? {
+                    puzzle: { grid: scored.grid, daemons: scored.daemons, bufferSize: scored.bufferSize },
+                    selection: scored.selection,
+                  }
+                : {}),
+            },
+          },
           {
             onSuccess: (updated) => {
               qc.setQueryData(getGetBreachPracticeStatsQueryKey(), updated);

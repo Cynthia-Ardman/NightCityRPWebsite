@@ -57,9 +57,9 @@ describe("BreachPractice", () => {
   it("generates a puzzle, plays to a result, and replays — with no backend calls", async () => {
     renderWithClient(<BreachPractice />);
 
-    // Page shell: heading, the "not recorded" promise, and the local stats card.
+    // Page shell: heading, the "no rewards" promise, and the local stats card.
     expect(screen.getByText("BREACH PRACTICE")).toBeInTheDocument();
-    expect(screen.getByText(/not recorded/i)).toBeInTheDocument();
+    expect(screen.getByText(/carries no rewards/i)).toBeInTheDocument();
     expect(screen.getByTestId("practice-stats")).toBeInTheDocument();
 
     // Logged out: the opt-in account-sync toggle must not appear.

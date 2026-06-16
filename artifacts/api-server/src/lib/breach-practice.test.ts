@@ -35,6 +35,20 @@ describe("breach practice stats (opt-in account sync)", () => {
     expect(after.easy.fastestClearMs).toBe(3000); // best of 5000 / 3000
   });
 
+  it("re-scores server-side: a claimed success with a non-solving selection is NOT counted as a solve", async () => {
+    const user = await createUser();
+    // A real puzzle with one daemon that is NOT satisfied by an empty selection.
+    const puzzle = { grid: [["1A", "BD"], ["55", "E9"]], daemons: [["1A", "55"]], bufferSize: 4 };
+    const after = ok(
+      // Client claims success:true, but sends an empty selection that solves
+      // nothing — the server must score it as a loss.
+      await recordPracticeAttempt(user, "easy", true, 1000, puzzle, []),
+    );
+    expect(after.easy.attempts).toBe(1);
+    expect(after.easy.solves).toBe(0);
+    expect(after.easy.fastestClearMs).toBeNull();
+  });
+
   it("a slower later solve does not worsen the fastest clear", async () => {
     const user = await createUser();
     await recordPracticeAttempt(user, "hard", true, 2000);

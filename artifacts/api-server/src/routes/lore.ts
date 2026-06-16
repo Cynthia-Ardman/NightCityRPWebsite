@@ -372,7 +372,9 @@ async function applyProposal(
       .returning();
     return created;
   }
-  const set: Record<string, unknown> = { updatedById: actorId, updatedAt: new Date() };
+  // Applying an approved edit to a live entry is an on-site change: flag it so a
+  // later import merge-approve won't silently clobber it (see import approve).
+  const set: Record<string, unknown> = { updatedById: actorId, updatedAt: new Date(), editedSinceImport: true };
   if (diff.category !== undefined) set.category = diff.category;
   if (diff.name !== undefined) set.name = diff.name;
   if (diff.summary !== undefined) set.summary = diff.summary ?? null;
@@ -665,6 +667,10 @@ router.post("/directory/lore/import/drafts/:id/approve", requireAuth, async (req
     return;
   }
   const id = parseInt(String(req.params.id), 10);
+  // When the merge target was edited on-site since its last import, approving
+  // would overwrite those edits. Require an explicit force=true acknowledgement
+  // (the import-review UI surfaces this), mirroring guidebook's conflict-stash.
+  const force = req.body?.force === true;
 
   const result = await db.transaction(async (tx) => {
     const [draft] = await tx
@@ -688,6 +694,18 @@ router.post("/directory/lore/import/drafts/:id/approve", requireAuth, async (req
         // The merge target vanished — fall through to create instead.
         entry = await createFromDraft(tx, draft, req.user!.id);
       } else {
+        if (existing.editedSinceImport && !force) {
+          return {
+            error: {
+              status: 409,
+              body: {
+                error: "This entry was edited on-site since it was imported. Approving will overwrite those edits — re-approve with force to confirm, or discard this draft.",
+                conflict: "edited_since_import",
+                entryId: existing.id,
+              },
+            },
+          };
+        }
         const mergedAliases = Array.from(
           new Set([...(existing.aliases ?? []), ...(draft.aliases ?? []), existing.name].filter((a) => a !== draft.proposedName)),
         );
@@ -704,6 +722,9 @@ router.post("/directory/lore/import/drafts/:id/approve", requireAuth, async (req
             fixerBody: draft.fixerBody ?? existing.fixerBody,
             aliases: mergedAliases,
             sources: mergedSources as never,
+            // Re-materialized from import: reset the on-site-edit marker.
+            importedAt: new Date(),
+            editedSinceImport: false,
             updatedById: req.user!.id,
             updatedAt: new Date(),
           })
@@ -763,6 +784,8 @@ async function createFromDraft(
       publicBody: draft.publicBody ?? "",
       fixerBody: draft.fixerBody ?? null,
       sources: sourcesOf(draft.sources) as never,
+      importedAt: new Date(),
+      editedSinceImport: false,
       createdById: actorId,
       updatedById: actorId,
     })
@@ -878,7 +901,9 @@ router.patch("/directory/lore/:id", requireAuth, async (req, res): Promise<void>
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const set: Record<string, unknown> = { updatedById: req.user!.id, updatedAt: new Date() };
+  // Direct admin edit is an on-site change: flag it so a later import
+  // merge-approve won't silently clobber it.
+  const set: Record<string, unknown> = { updatedById: req.user!.id, updatedAt: new Date(), editedSinceImport: true };
   if (d.category !== undefined) set.category = d.category;
   if (d.name !== undefined) set.name = d.name;
   if (d.summary !== undefined) set.summary = d.summary ?? null;

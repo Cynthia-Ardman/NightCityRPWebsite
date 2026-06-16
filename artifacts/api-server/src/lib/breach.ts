@@ -816,21 +816,69 @@ export async function getPracticeStats(user: User): Promise<ServiceResult<Practi
 
 // Record a single practice attempt against the user's account. Atomic upsert:
 // attempts += 1, solves += (success ? 1 : 0), fastest = min(existing, elapsed).
+// Upper sanity bound on a recorded practice run (30 min). The client also caps
+// elapsed at the run's time limit; this is a server-side backstop.
+const MAX_PRACTICE_ELAPSED_MS = 30 * 60 * 1000;
+
+// Validate a client-supplied practice puzzle payload, with bounds so a crafted
+// request can't make the scorer do unbounded work.
+function parsePracticePuzzle(raw: unknown): { grid: string[][]; daemons: string[][]; bufferSize: number } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as { grid?: unknown; daemons?: unknown; bufferSize?: unknown };
+  const isStrMatrix = (v: unknown, maxOuter: number, maxInner: number): v is string[][] =>
+    Array.isArray(v) &&
+    v.length > 0 &&
+    v.length <= maxOuter &&
+    v.every((row) => Array.isArray(row) && row.length > 0 && row.length <= maxInner && row.every((c) => typeof c === "string"));
+  if (!isStrMatrix(o.grid, 12, 12)) return null;
+  if (!isStrMatrix(o.daemons, 12, 12)) return null;
+  if (typeof o.bufferSize !== "number" || !Number.isInteger(o.bufferSize) || o.bufferSize < 1 || o.bufferSize > 12) return null;
+  return { grid: o.grid, daemons: o.daemons, bufferSize: o.bufferSize };
+}
+
+function parseSelection(raw: unknown): Array<{ r: number; c: number }> | null {
+  if (!Array.isArray(raw) || raw.length > 64) return null;
+  const out: Array<{ r: number; c: number }> = [];
+  for (const cell of raw) {
+    if (!cell || typeof cell !== "object") return null;
+    const { r, c } = cell as { r?: unknown; c?: unknown };
+    if (typeof r !== "number" || typeof c !== "number" || !Number.isInteger(r) || !Number.isInteger(c) || r < 0 || c < 0) return null;
+    out.push({ r, c });
+  }
+  return out;
+}
+
 export async function recordPracticeAttempt(
   user: User,
   rawDifficulty: unknown,
   success: boolean,
   rawElapsedMs: unknown,
+  rawPuzzle?: unknown,
+  rawSelection?: unknown,
 ): Promise<ServiceResult<PracticeStatsView>> {
   if (!isPracticeDifficulty(rawDifficulty)) {
     return { status: 400, body: { error: "Invalid difficulty" } };
   }
   const difficulty = rawDifficulty;
-  const won = success === true;
-  const elapsedMs =
+  // Authoritative scoring: when the client sends the puzzle + its final
+  // selection, re-score it here and IGNORE the client-claimed `success` — that
+  // stops a logged-in player inflating the leaderboard by POSTing success:true
+  // with no real solve. Fall back to the client claim only when no puzzle /
+  // selection is supplied (older clients).
+  const puzzle = parsePracticePuzzle(rawPuzzle);
+  const selection = parseSelection(rawSelection);
+  let won: boolean;
+  if (puzzle && selection) {
+    const score = scoreSelection(puzzle.grid, puzzle.daemons, puzzle.bufferSize, selection);
+    won = score.valid && score.allSolved;
+  } else {
+    won = success === true;
+  }
+  const rawMs =
     typeof rawElapsedMs === "number" && Number.isFinite(rawElapsedMs) && rawElapsedMs >= 0
       ? Math.floor(rawElapsedMs)
       : null;
+  const elapsedMs = rawMs === null ? null : Math.min(rawMs, MAX_PRACTICE_ELAPSED_MS);
   // Only a winning attempt contributes a clear time.
   const clearMs = won ? elapsedMs : null;
   await db

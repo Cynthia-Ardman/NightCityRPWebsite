@@ -287,6 +287,45 @@ describe("Admin approval publishes a pending edit", () => {
     expect(live.imageUrl).toBe(img);
   });
 
+  it("merge-approve refuses to clobber an on-site-edited entry without force, then overwrites with force", async () => {
+    const admin = await createAdmin();
+    const entry = await seedEntry({
+      name: "Militech",
+      publicBody: "Hand-edited on-site body.",
+      editedSinceImport: true,
+    });
+    const [draft] = await db
+      .insert(loreImportDrafts)
+      .values({
+        groupKey: `militech-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        proposedName: "Militech",
+        proposedCategory: "corporation",
+        publicBody: "Fresh import body that would overwrite the on-site edit.",
+        suggestedMergeEntryId: entry.id,
+      })
+      .returning();
+
+    // Without force: 409 conflict, live body untouched.
+    const blocked = await request(app)
+      .post(`/api/directory/lore/import/drafts/${draft.id}/approve`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.conflict).toBe("edited_since_import");
+    const [stillEdited] = await db.select().from(loreEntries).where(eq(loreEntries.id, entry.id));
+    expect(stillEdited.publicBody).toBe("Hand-edited on-site body.");
+
+    // With force: overwrites and clears the on-site-edit marker.
+    const forced = await request(app)
+      .post(`/api/directory/lore/import/drafts/${draft.id}/approve`)
+      .set("x-test-user", admin.id)
+      .send({ force: true });
+    expect(forced.status).toBe(200);
+    const [overwritten] = await db.select().from(loreEntries).where(eq(loreEntries.id, entry.id));
+    expect(overwritten.publicBody).toBe("Fresh import body that would overwrite the on-site edit.");
+    expect(overwritten.editedSinceImport).toBe(false);
+  });
+
   it("admin approve of an edit-proposal applies the diff to the existing entry", async () => {
     const fixer = await createFixer();
     const admin = await createAdmin();

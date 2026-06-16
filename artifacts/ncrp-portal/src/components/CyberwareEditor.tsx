@@ -129,9 +129,12 @@ export function cwpFromNotes(notes: string | null | undefined): number {
 // a character's chrome load derives the band from real installed cyberware
 // (the billed source of truth) instead of the stale cyberwareLevel column.
 export function deriveCwpBand(totalCwp: number): "none" | "medium" | "high" | "extreme" {
-  if (totalCwp >= 13) return "extreme";
-  if (totalCwp >= 10) return "high";
-  if (totalCwp >= 7) return "medium";
+  // Floor to match the server's deriveCyberwareBand exactly, so a fractional
+  // total can't show a different band in the portal than billing computes.
+  const n = Math.max(0, Math.floor(totalCwp));
+  if (n >= 13) return "extreme";
+  if (n >= 10) return "high";
+  if (n >= 7) return "medium";
   return "none";
 }
 

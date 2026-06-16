@@ -197,10 +197,10 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // Calls the same helper the cyberware_humanity cron uses so the
   // displayed number is exactly what gets debited.
   // chromeCount is the per-character CWP TOTAL (sum of "CWP n" parsed from
-  // each cyberware item's notes), not a row count. "Fully Organic" items
-  // count as 0; un-tagged items fall back to 1 per piece. Bands (7-9
-  // medium, 10-12 high, 13+ extreme) are defined in CWP, so a player with
-  // 5 items totalling 10 CWP is correctly High, not None.
+  // each cyberware item's notes), not a row count. "Fully Organic" items and
+  // items with no parseable "CWP n" tag both count as 0 (see cwpForItem).
+  // Bands (7-9 medium, 10-12 high, 13+ extreme) are defined in CWP, so a player
+  // with 5 items totalling 10 CWP is correctly High, not None.
   const billableIds = billable.map((c) => c.id);
   const chromeCounts = await sumCwpByCharacter(billableIds);
   // Checkup state. Checkups are HOUSEHOLD-scoped: one ripperdoc visit on any
