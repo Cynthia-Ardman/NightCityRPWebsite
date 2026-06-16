@@ -147,3 +147,4 @@
 - [VRChat calendar mirror](vrchat-calendar-mirror.md) — events mirrored to VRChat group calendar (session/social only); triple gate; gate-closed CRUD is a true no-op; both CRUD + cron can create the same row (guard the claim).
 - [Dossier background rendering](dossier-background-rendering.md) — column `background` + a "Background" section coexist; render the column card independent of hasSections, dedup only on exact normalized-text match.
 - [Pending-edit empty-placeholder diff](pending-edit-empty-placeholder-diff.md) — char re-saves add empty top-level keys + reorder; diff must use canonicalForDiff/valuesDiffer (empty-/order-insensitive), never raw JSON.stringify.
+- [Cyberware vs general billing scope](cyberware-vs-general-billing-scope.md) — LOA/retired/dead excluded from cyberware household+meds ONLY (separate cyberBillable), not rent/trauma/baseline; free "corporate" trauma tier (cost 0, fixer-only via createPendingEdit forbidden gate).

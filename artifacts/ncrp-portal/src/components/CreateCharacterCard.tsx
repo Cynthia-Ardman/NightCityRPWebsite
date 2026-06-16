@@ -97,6 +97,7 @@ export default function CreateCharacterCard() {
           | "gold"
           | "platinum"
           | "diamond"
+          | "corporate"
           | null,
         xanaduGold,
         sheetData: hasSheet ? { preamble, sections } : undefined,
@@ -219,6 +220,7 @@ export default function CreateCharacterCard() {
                 <option value="gold">Gold</option>
                 <option value="platinum">Platinum</option>
                 <option value="diamond">Diamond</option>
+                <option value="corporate">Corporate (Comp)</option>
               </select>
             </div>
             <div className="space-y-1">

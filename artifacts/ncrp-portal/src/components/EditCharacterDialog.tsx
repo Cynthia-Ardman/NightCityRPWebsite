@@ -338,7 +338,7 @@ export default function EditCharacterDialog({
           skills,
         },
         lifeStatus: lifeStatus as "active" | "dead" | "missing" | "loa" | "retired",
-        traumaTeamTier: (traumaTeamTier || null) as "silver" | "gold" | "platinum" | "diamond" | null,
+        traumaTeamTier: (traumaTeamTier || null) as "silver" | "gold" | "platinum" | "diamond" | "corporate" | null,
         xanaduGold,
         updateNote: updateNote.trim() || undefined,
       },
@@ -524,6 +524,9 @@ export default function EditCharacterDialog({
                             <option value="gold">Gold</option>
                             <option value="platinum">Platinum</option>
                             <option value="diamond">Diamond</option>
+                            {(isStaff || traumaTeamTier === "corporate") && (
+                              <option value="corporate">Corporate (Comp)</option>
+                            )}
                           </select>
                           <p className="text-[10px] text-muted-foreground mt-1">
                             Billed monthly. Paused while on LOA.

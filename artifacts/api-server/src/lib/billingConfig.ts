@@ -15,6 +15,8 @@ export const DEFAULT_TRAUMA_TEAM_COSTS: Record<string, number> = {
   gold: 2000,
   platinum: 4000,
   diamond: 10000,
+  // Corporate-sponsorship comp tier — no monthly charge. Fixer-assignable only.
+  corporate: 0,
 };
 
 export async function readConfigNumber(key: string, fallback: number): Promise<number> {

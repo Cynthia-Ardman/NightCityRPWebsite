@@ -57,6 +57,17 @@ export function householdMultiplier(billableCharCount: number): number {
   return 1 + 0.25 * (billableCharCount - 1);
 }
 
+// Characters whose headline lifeStatus is one of these drop out of the
+// cyberware household the instant the status is set: they neither owe weekly
+// meds nor count toward the household multiplier that scales every other
+// member's bill. Keyed on lifeStatus (the LOA / Retired / Dead dropdown).
+// "missing" and "active" deliberately still count.
+export const CYBERWARE_EXCLUDED_LIFE_STATUSES = new Set(["dead", "retired", "loa"]);
+
+export function countsForCyberwareBilling(c: { lifeStatus?: string | null }): boolean {
+  return !CYBERWARE_EXCLUDED_LIFE_STATUSES.has((c.lifeStatus ?? "active").toLowerCase());
+}
+
 // Cap on how many weeks of skipped checkups the formula will compound.
 // At streak 8 the doubling already hits the cap; anything beyond is just
 // a safety bound on Math.pow.
@@ -782,10 +793,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .from(walletTransactions)
         .where(and(eq(walletTransactions.kind, "meds"), gte(walletTransactions.createdAt, sixDaysAgo)));
       const recentMedsSet = new Set(recentMeds.map((r) => r.characterId));
-      const approvedChars = await db
+      const approvedChars = (await db
         .select()
         .from(characters)
-        .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false)));
+        .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false))))
+        // LOA / retired / dead characters owe no meds and don't inflate the
+        // household multiplier — drop them before any household grouping.
+        .filter(countsForCyberwareBilling);
 
       // Per-character CWP totals (sum of "CWP n" parsed from each
       // cyberware item's notes, not a row count). Bands (7/10/13) are

@@ -52,7 +52,7 @@ const EditableSchema = z
       })
       .passthrough(),
     lifeStatus: z.enum(["active", "dead", "missing", "loa", "retired"]),
-    traumaTeamTier: z.enum(["silver", "gold", "platinum", "diamond"]).nullable(),
+    traumaTeamTier: z.enum(["silver", "gold", "platinum", "diamond", "corporate"]).nullable(),
     xanaduGold: z.boolean(),
   })
   .partial()
@@ -172,6 +172,7 @@ export type CreatePendingEditError =
   | { kind: "no_changes" }
   | { kind: "edit_already_pending"; editId: number }
   | { kind: "edit_already_decided"; editId: number }
+  | { kind: "forbidden"; message: string }
   | { kind: "invalid"; details: unknown };
 
 export async function createPendingEdit(opts: {
@@ -206,6 +207,23 @@ export async function createPendingEdit(opts: {
   if (Object.keys(diff).length === 0) {
     return { ok: false, error: { kind: "no_changes" } };
   }
+
+  // "Trauma Team Corporate" is a comped, corporate-sponsorship tier that only
+  // staff may grant — players cannot self-assign it. The diff above is already
+  // noop-stripped, so traumaTeamTier is only present here when it actually
+  // CHANGED; this blocks a player switching INTO corporate while still letting
+  // someone who already has it keep it (unchanged → not in the diff).
+  if (
+    diff.traumaTeamTier === "corporate" &&
+    !hasRole(opts.submitter.roles, "ADMIN") &&
+    !hasRole(opts.submitter.roles, "FIXER")
+  ) {
+    return {
+      ok: false,
+      error: { kind: "forbidden", message: "Only fixers can assign Trauma Team Corporate." },
+    };
+  }
+
   const updateNote = typeof noteRaw === "string" && noteRaw.trim().length > 0 ? noteRaw.trim().slice(0, 2000) : null;
 
   // NOTE: there is deliberately no admin/staff instant-apply path here. Every

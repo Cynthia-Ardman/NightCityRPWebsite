@@ -5907,7 +5907,7 @@ components:
             - { $ref: "#/components/schemas/LifestyleTier" }
         traumaTeamTier:
           type: ["string", "null"]
-          enum: [silver, gold, platinum, diamond, null]
+          enum: [silver, gold, platinum, diamond, corporate, null]
           description: "Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription."
         xanaduGold:
           type: boolean
@@ -6140,7 +6140,7 @@ components:
         lifeStatus: { type: string, enum: [active, dead, missing, loa, retired], default: active }
         traumaTeamTier:
           type: ["string", "null"]
-          enum: [silver, gold, platinum, diamond, null]
+          enum: [silver, gold, platinum, diamond, corporate, null]
           description: "Trauma Team subscription tier; omit/null for none."
         xanaduGold: { type: boolean, default: false, description: "Xanadu Gold flat monthly subscription flag." }
         portraitUrls:
@@ -6219,7 +6219,7 @@ components:
           enum: [active, dead, missing, loa, retired]
         traumaTeamTier:
           type: ["string", "null"]
-          enum: [silver, gold, platinum, diamond, null]
+          enum: [silver, gold, platinum, diamond, corporate, null]
         xanaduGold: { type: boolean }
         updateNote:
           type: string

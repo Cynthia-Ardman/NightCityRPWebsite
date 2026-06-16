@@ -328,7 +328,7 @@ router.post("/admin/characters", adminOrFixer, async (req, res): Promise<void> =
 
   // Trauma Team subscription tier — optional, validated against the same set the
   // edit dialog / autobiller use. Empty string or null clears it.
-  const TRAUMA_TIERS = new Set(["silver", "gold", "platinum", "diamond"]);
+  const TRAUMA_TIERS = new Set(["silver", "gold", "platinum", "diamond", "corporate"]);
   let traumaTeamTier: string | null = null;
   if (typeof b.traumaTeamTier === "string" && b.traumaTeamTier.trim()) {
     const t = b.traumaTeamTier.trim().toLowerCase();

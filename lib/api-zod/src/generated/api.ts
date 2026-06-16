@@ -127,7 +127,7 @@ export const ListMyCharactersResponseItem = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -192,7 +192,7 @@ export const GetCharacterResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -238,7 +238,7 @@ export const UpdateCharacterBody = zod.object({
   "skills": zod.string().optional()
 }).optional(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish(),
   "xanaduGold": zod.boolean().optional(),
   "updateNote": zod.string().min(1).max(updateCharacterBodyUpdateNoteMax).optional().describe('Optional commit-message-style note describing what changed. When non-empty, appended to the character\'s update log.')
 })
@@ -284,7 +284,7 @@ export const UpdateCharacterResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -658,7 +658,7 @@ export const SetCharacterLifestyleResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -7593,7 +7593,7 @@ export const AdminListUsersResponseItem = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -7661,7 +7661,7 @@ export const AdminGetUserResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -7745,7 +7745,7 @@ export const AdminSyncUserRolesResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -7823,7 +7823,7 @@ export const AdminCreateCharacterBody = zod.object({
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).default(adminCreateCharacterBodyLifeStatusDefault),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier; omit\/null for none.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier; omit\/null for none.'),
   "xanaduGold": zod.boolean().default(adminCreateCharacterBodyXanaduGoldDefault).describe('Xanadu Gold flat monthly subscription flag.'),
   "portraitUrls": zod.array(zod.string()).optional().describe('Already-uploaded object-storage paths from the presigned-URL flow.'),
   "statsImageUrls": zod.array(zod.string()).optional().describe('Already-uploaded stat\/sheet image paths from the presigned-URL flow.'),
@@ -7888,7 +7888,7 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -7942,7 +7942,7 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
@@ -8136,7 +8136,7 @@ export const GetPublicCharacterResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })]).optional(),
-  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
   "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
   "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
   "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),

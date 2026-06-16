@@ -1062,6 +1062,7 @@ export const CharacterTraumaTeamTier = {
   gold: 'gold',
   platinum: 'platinum',
   diamond: 'diamond',
+  corporate: 'corporate',
 } as const;
 
 /**
@@ -1516,6 +1517,7 @@ export const AdminCreateCharacterInputTraumaTeamTier = {
   gold: 'gold',
   platinum: 'platinum',
   diamond: 'diamond',
+  corporate: 'corporate',
 } as const;
 
 export type AdminCreateCharacterInputSheetDataSections = {[key: string]: string};
@@ -1633,6 +1635,7 @@ export const CharacterUpdateTraumaTeamTier = {
   gold: 'gold',
   platinum: 'platinum',
   diamond: 'diamond',
+  corporate: 'corporate',
 } as const;
 
 export interface CharacterUpdate {

@@ -21,7 +21,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { getBalance } from "../lib/unbelievaboat";
 import { hasRole } from "../lib/discord";
-import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand } from "../lib/jobs";
+import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand, countsForCyberwareBilling } from "../lib/jobs";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import {
   DEFAULT_BASELINE_LIVING_COST,
@@ -121,6 +121,11 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   const ownerId = req.user!.id;
   const myChars = await db.select().from(characters).where(eq(characters.ownerId, ownerId));
   const billable = myChars.filter((c) => c.kind === "pc" && c.approved && !c.archived);
+  // Cyberware household = billable PCs MINUS anyone on LOA / retired / dead.
+  // Switching a character to one of those statuses immediately removes them
+  // from the household multiplier AND the meds projection below. Rent, trauma
+  // and baseline fees keep using the full `billable` set above.
+  const cyberBillable = billable.filter(countsForCyberwareBilling);
 
   const now = new Date();
   const rentDueAt = nextMonthlyRunDate(now).toISOString();
@@ -176,7 +181,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // count as 0; un-tagged items fall back to 1 per piece. Bands (7-9
   // medium, 10-12 high, 13+ extreme) are defined in CWP, so a player with
   // 5 items totalling 10 CWP is correctly High, not None.
-  const billableIds = billable.map((c) => c.id);
+  const billableIds = cyberBillable.map((c) => c.id);
   const chromeCounts = await sumCwpByCharacter(billableIds);
   // Checkup state. Checkups are HOUSEHOLD-scoped: one ripperdoc visit on any
   // character resets the streak for every character that player owns. The
@@ -197,7 +202,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // brand-new chromed PC shouldn't be treated as if they'd skipped checkups
   // for the weeks before they existed (which would jump them straight to the
   // max streak). Effective date is the real last checkup, or creation if none.
-  const charLastCheckup = billable.reduce<Date | null>((acc, c) => {
+  const charLastCheckup = cyberBillable.reduce<Date | null>((acc, c) => {
     const eff = c.lastCheckupAt ?? c.createdAt;
     if (!eff) return acc;
     if (!acc || eff > acc) return eff;
@@ -206,13 +211,13 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   const nextRunDate = nextWeeklyRunDate(now);
   const lastCheckupAt: Date | null = charLastCheckup;
   const weeksUnpaid = weeksSinceLastCheckup(charLastCheckup, nextRunDate);
-  const maxChromeCount = billable.reduce((m, c) => Math.max(m, chromeCounts.get(c.id) ?? 0), 0);
-  const household = billable.filter((c) => (chromeCounts.get(c.id) ?? 0) >= 7).length;
+  const maxChromeCount = cyberBillable.reduce((m, c) => Math.max(m, chromeCounts.get(c.id) ?? 0), 0);
+  const household = cyberBillable.filter((c) => (chromeCounts.get(c.id) ?? 0) >= 7).length;
   // Anchor character = the one driving the band (highest chrome). Used so
   // the UI can link back to a relevant character page.
   let anchor: { id: number; name: string } | null = null;
   let anchorMax = -1;
-  for (const c of billable) {
+  for (const c of cyberBillable) {
     const n = chromeCounts.get(c.id) ?? 0;
     if (n > anchorMax) {
       anchorMax = n;
@@ -296,7 +301,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // every billable PC that has at least one piece of chrome, so the
   // player can see exactly which characters are driving their household
   // band and bill (Corpse with 7 vs. Korra with 5, etc.). Sorted hi→lo.
-  const breakdown = billable
+  const breakdown = cyberBillable
     .map((c) => {
       const count = chromeCounts.get(c.id) ?? 0;
       return {

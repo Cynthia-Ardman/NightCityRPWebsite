@@ -282,6 +282,9 @@ router.patch("/characters/:id", requireAuth, async (req, res): Promise<void> => 
       case "edit_already_decided":
         res.status(409).json({ error: "This review was just decided by a reviewer — refresh to see the result", pendingEditId: result.error.editId });
         return;
+      case "forbidden":
+        res.status(403).json({ error: result.error.message });
+        return;
       case "invalid":
         res.status(400).json({ error: "Invalid update", details: result.error.details });
         return;

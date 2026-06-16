@@ -18,4 +18,5 @@ export const CharacterTraumaTeamTier = {
   gold: 'gold',
   platinum: 'platinum',
   diamond: 'diamond',
+  corporate: 'corporate',
 } as const;
