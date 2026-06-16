@@ -16,7 +16,6 @@ import AdminUserDetail from "@/pages/admin/AdminUserDetail";
 import DiceRoller from "@/pages/DiceRoller";
 import NewSheet from "@/pages/sheets/NewSheet";
 import SheetDetail from "@/pages/sheets/SheetDetail";
-import PendingSheets from "@/pages/sheets/PendingSheets";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
 import PendingEditDetail from "@/pages/pending-edits/PendingEditDetail";
 import PendingRequests from "@/pages/requests/PendingRequests";
@@ -203,9 +202,9 @@ function AppRoutes() {
           <Route path="/characters/:id" component={CharacterDetail} />
           <Route path="/sheets"><Redirect to="/characters" /></Route>
           <Route path="/sheets/new" component={NewSheet} />
-          <Route path="/sheets/pending">
-            <StaffRequestsGuard><PendingSheets /></StaffRequestsGuard>
-          </Route>
+          {/* Retired: character-sheet review now lives in the unified /requests
+              queue ("New Characters" tab). Redirect old links/bookmarks there. */}
+          <Route path="/sheets/pending"><Redirect to="/requests?tab=sheets" /></Route>
           <Route path="/sheets/:id/edit" component={NewSheet} />
           <Route path="/sheets/:id" component={SheetDetail} />
           <Route path="/pending-edits">

@@ -107,7 +107,7 @@ function Dashboard() {
   const statCards = summary
     ? [
         ...(isStaff && summary.pendingSheets > 0
-          ? [<StatCard key="sheets" icon={FileText} label="Sheets to Review" value={summary.pendingSheets} color="red" href="/sheets/pending" />]
+          ? [<StatCard key="sheets" icon={FileText} label="Sheets to Review" value={summary.pendingSheets} color="red" href="/requests?tab=sheets" />]
           : []),
         ...(isStaff && pendingRequestCount > 0
           ? [<StatCard key="requests" icon={ClipboardList} label="Requests to Review" value={pendingRequestCount} color="magenta" href="/requests" />]
