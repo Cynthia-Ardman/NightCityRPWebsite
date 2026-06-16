@@ -548,6 +548,11 @@ function CyberwareTab({ characterId }: { characterId: number }) {
   const { data: char, isLoading: charLoading } = useGetCharacter(characterId);
   const { data: items, isLoading: itemsLoading } = useGetCharacterInventory(characterId);
   const me = useEffectiveMe();
+  // Must stay above the early returns below: hooks have to run in the same order
+  // on every render. On a fresh load the loading guard returns before the body,
+  // so calling this hook later (only once data arrives) changes the hook count
+  // between renders and crashes with React error #310.
+  const { data: cyberSlotCatalog } = useListCyberware();
 
   if (charLoading || itemsLoading) {
     return <div className="text-nc-cyan font-mono animate-pulse">Scanning chrome subnet...</div>;
@@ -573,8 +578,8 @@ function CyberwareTab({ characterId }: { characterId: number }) {
   // Parse each chrome item's stored notes once, using the cyberware catalog's
   // slot names to recognise the bulk importer's bare-slot format and to strip
   // its [cyberware-import:v1] sentinel. Reused for both slot grouping and the
-  // clean per-item note shown in the list below.
-  const { data: cyberSlotCatalog } = useListCyberware();
+  // clean per-item note shown in the list below. The catalog hook is called at
+  // the top of the component (above the loading guard) to keep hook order stable.
   const cyberSlotNames = (cyberSlotCatalog ?? []).map((c) => c.slot);
   const parsedNotesByItem = new Map<number, { slot: string; notes: string }>();
   for (const it of chromeItems) {
