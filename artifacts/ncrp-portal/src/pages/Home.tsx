@@ -115,7 +115,8 @@ function Dashboard() {
       ]
     : [];
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-12">
+    <div className="space-y-8 pb-12">
+      <div className="space-y-8 max-w-7xl mx-auto">
       <div className="relative overflow-hidden border border-nc-cyan/20">
         <img
           src={ncrpBanner}
@@ -147,9 +148,13 @@ function Dashboard() {
       <NextMissionBanner />
 
       <NpcSessionBanner />
+      </div>
 
+      {/* Live VRChat instances span the full dashboard width (not capped at
+          max-w-7xl) so the open-instance cards have room to breathe. */}
       <LiveInstances />
 
+      <div className="space-y-8 max-w-7xl mx-auto">
       {/* Contextual top row: staff-only queue cards, the weekly attendance
           claim, and a per-character "open shop today" button all share ONE
           responsive auto-fit grid. Every tile is conditional, so they pack
@@ -228,6 +233,7 @@ function Dashboard() {
           <UpcomingBillsCard />
           <SystemLogsCard />
         </div>
+      </div>
       </div>
     </div>
   );
