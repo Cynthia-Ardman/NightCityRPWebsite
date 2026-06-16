@@ -259,7 +259,7 @@ async function resolveBlock(
   // 1. Alias takes precedence. Always validate the target before mutating.
   if (alias) {
     const target = await resolveAliasTargetId(kind, block, alias);
-    if ("error" in target) return { tag: "alias_invalid", reason: target.reason ?? target.error };
+    if ("error" in target) return { tag: "alias_invalid", reason: target.error };
     if ("ambiguous" in target) return { tag: "ambiguous", ids: target.ambiguous };
     if ("missing" in target) return { tag: "missing" };
     if (alias.action === "organic") {

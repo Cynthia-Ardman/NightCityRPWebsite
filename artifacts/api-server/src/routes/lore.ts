@@ -10,10 +10,11 @@ import {
   type LoreEntry,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, sendDirectMessage } from "../lib/discord";
+import { sendDirectMessage } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { runLoreImport, type LoreSourceRef } from "../lib/loreImport";
+import { isAdmin, isFixerOrAdmin } from "../lib/roleChecks";
 
 // Lore Directory: public world-lore entries (Corporations / Gangs / Factions /
 // Miscellaneous) with a PUBLIC body for everyone plus a FIXER-ONLY body and
@@ -42,13 +43,6 @@ const entryInputSchema = z.object({
   sources: z.array(sourceSchema).optional(),
 });
 const entryUpdateSchema = entryInputSchema.partial();
-
-function isAdmin(user: { roles: string[] }): boolean {
-  return hasRole(user.roles, "ADMIN");
-}
-function isFixerOrAdmin(user: { roles: string[] }): boolean {
-  return hasRole(user.roles, "ADMIN") || hasRole(user.roles, "FIXER");
-}
 
 function slugify(s: string): string {
   return (

@@ -297,8 +297,8 @@ export default function MyStoreDetail() {
         balance={store.balance ?? 0}
         transactions={txns ?? []}
         busy={deposit.isPending || withdraw.isPending}
-        onDeposit={(amount) => deposit.mutateAsync({ id: storeId, data: { amount } })}
-        onWithdraw={(amount) => withdraw.mutateAsync({ id: storeId, data: { amount } })}
+        onDeposit={(amount) => deposit.mutateAsync({ id: storeId, data: { amount, idempotencyKey: crypto.randomUUID() } })}
+        onWithdraw={(amount) => withdraw.mutateAsync({ id: storeId, data: { amount, idempotencyKey: crypto.randomUUID() } })}
         accent="cyan"
         testIdPrefix="store"
       />

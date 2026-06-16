@@ -2957,21 +2957,15 @@ paths:
     post:
       operationId: requestChangesSheet
       tags: [sheets]
-      summary: A reviewer parks the sheet in changes_requested with a comment and DMs the owner. The owner resubmits via /sheets/{id}/submit.
+      deprecated: true
+      summary: "RETIRED. Reviewers no longer block sheets in changes_requested; use the /review comment thread instead. Always returns 410."
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema: { $ref: "#/components/schemas/RequestChangesInput" }
       responses:
-        "200":
-          description: Changes requested
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/CharacterSheet" }
-        "400": { description: A comment is required }
-        "403": { description: Reviewers only / cannot review own sheet }
-        "404": { description: Not found }
+        "410": { description: Retired. Use the /review comment thread; it never blocks approval. }
         "409": { description: Already decided }
 
   # ---------------- PENDING CHARACTER EDITS ----------------
@@ -3058,27 +3052,15 @@ paths:
     post:
       operationId: requestChangesPendingEdit
       tags: [pending-edits]
-      summary: A reviewer parks the edit in changes_requested with a comment and DMs the submitter.
+      deprecated: true
+      summary: "RETIRED. Reviewers no longer block edits in changes_requested; use the /review comment thread instead. Always returns 410."
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema: { $ref: "#/components/schemas/RequestChangesInput" }
       responses:
-        "200":
-          description: Changes requested
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ok, status]
-                properties:
-                  ok: { type: boolean }
-                  status: { type: string }
-        "400": { description: A comment is required }
-        "403": { description: Reviewers only / cannot review own edit }
-        "404": { description: Not found }
-        "409": { description: Already decided }
+        "410": { description: Retired. Use the /review comment thread; it never blocks approval. }
   /pending-edits/{id}/resubmit:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -4074,21 +4056,15 @@ paths:
     post:
       operationId: requestChangesCustomRequest
       tags: [requests]
-      summary: A reviewer parks the request in changes_requested with a comment and DMs the player.
+      deprecated: true
+      summary: "RETIRED. Reviewers no longer block requests in changes_requested; use the /review comment thread instead. Always returns 410."
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema: { $ref: "#/components/schemas/RequestChangesInput" }
       responses:
-        "200":
-          description: Changes requested
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/CustomRequest" }
-        "400": { description: A comment is required }
-        "403": { description: Reviewers only / cannot review own request }
-        "404": { description: Not found }
+        "410": { description: Retired. Use the /review comment thread; it never blocks approval. }
         "409": { description: Already decided }
   /requests/{id}/resubmit:
     parameters:
@@ -5865,7 +5841,7 @@ components:
           description: "True when the member holds the guild's Verified 18+ Discord role. When false, the portal is age-gated to the VRChat↔Discord linking guidebook page plus a link to the help channel."
         isAdmin: { type: boolean }
         isFixer: { type: boolean }
-        isTrialFixer: { type: boolean, description: "Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers act as full fixers." }
+        isTrialFixer: { type: boolean, description: "Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers are author-only (they may create/propose missions) and do NOT get full fixer privileges; isFixer is false for them." }
         isArchivist: { type: boolean }
         isCoordinator: { type: boolean }
         isCsApprover: { type: boolean }
@@ -6582,6 +6558,7 @@ components:
         toCharacterId: { type: integer }
         amount: { type: integer, minimum: 1 }
         memo: { type: string }
+        idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key (e.g. a UUID created once per submit) so a network retry / double-click of the same transfer doesn't move eddies twice." }
 
     WalletTransaction:
       type: object
@@ -6963,6 +6940,7 @@ components:
       required: [amount]
       properties:
         amount: { type: integer, minimum: 1, description: "Whole eddies to move between the owner's personal wallet and the venue account." }
+        idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key (e.g. a UUID created once per submit) so network retries / double-clicks of the same move don't debit or credit twice." }
 
     VenueAccountResult:
       type: object
@@ -7344,7 +7322,7 @@ components:
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], description: "Optional reference image the player attached." }
         details: { description: "Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }.", nullable: true }
-        status: { type: string, enum: [pending, approved, rejected, changes_requested] }
+        status: { type: string, enum: [pending, approved, rejected, changes_requested, cancelled, closed] }
         reviewedById: { type: ["string", "null"] }
         reviewedAt: { type: ["string", "null"], format: date-time }
         reviewerNote: { type: ["string", "null"], description: "On changes_requested this carries the reviewer's comment to the player." }
@@ -7852,7 +7830,7 @@ components:
           type: object
           additionalProperties: true
         updateNote: { type: ["string", "null"] }
-        status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested] }
+        status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested, closed] }
         decisionSummary: { type: ["string", "null"] }
         reviewComment: { type: ["string", "null"], description: "Reviewer's comment when changes were requested." }
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
@@ -7908,7 +7886,7 @@ components:
           type: object
           additionalProperties: true
         updateNote: { type: ["string", "null"] }
-        status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested] }
+        status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested, closed] }
         decisionSummary: { type: ["string", "null"] }
         reviewComment: { type: ["string", "null"], description: "Reviewer's comment when changes were requested." }
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }

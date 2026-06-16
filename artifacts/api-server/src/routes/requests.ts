@@ -24,6 +24,8 @@ import { hasRole, sendDirectMessage, postToChannel, startThreadFromMessage } fro
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
+import { endOfCurrentMonth } from "../lib/billingDates";
+import { isAdmin } from "../lib/roleChecks";
 import {
   isReviewer,
   isEligibleReviewer,
@@ -170,10 +172,6 @@ function auditCategoryFor(type: string): "housing" | "shop" | "inventory" {
   return "shop";
 }
 
-function isAdmin(user: { roles: string[] }): boolean {
-  return hasRole(user.roles, "ADMIN");
-}
-
 // Maps a lifecycle bucket name to the set of statuses it covers. Active =
 // awaiting a decision; Resolved = decided but not yet committed/archived;
 // Archive = closed. Unknown bucket falls back to pending.
@@ -186,13 +184,6 @@ function bucketStatuses(bucket: string): string[] {
 
 function bucketPredicate(bucket: string) {
   return inArray(customRequests.status, bucketStatuses(bucket));
-}
-
-// First-of-next-month at 00:00 UTC — initial paid_through so a new lease is
-// paid up for the current month until the monthly_rent cron rolls it forward.
-// Mirrors housing.ts endOfCurrentMonth.
-function endOfCurrentMonth(now: Date = new Date()): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

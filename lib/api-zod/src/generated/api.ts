@@ -68,7 +68,7 @@ export const GetMeResponse = zod.object({
   "verified18": zod.boolean().optional().describe('True when the member holds the guild\'s Verified 18+ Discord role. When false, the portal is age-gated to the VRChat↔Discord linking guidebook page plus a link to the help channel.'),
   "isAdmin": zod.boolean(),
   "isFixer": zod.boolean(),
-  "isTrialFixer": zod.boolean().optional().describe('Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers act as full fixers.'),
+  "isTrialFixer": zod.boolean().optional().describe('Display-only: true when this fixer is still on trial. Derived from the Trial Fixer Discord role id (not its name). Trial fixers are author-only (they may create\/propose missions) and do NOT get full fixer privileges; isFixer is false for them.'),
   "isArchivist": zod.boolean(),
   "isCoordinator": zod.boolean().optional(),
   "isCsApprover": zod.boolean(),
@@ -520,12 +520,15 @@ export const TransferEddiesParams = zod.object({
 })
 
 
+export const transferEddiesBodyIdempotencyKeyMax = 100;
+
 
 
 export const TransferEddiesBody = zod.object({
   "toCharacterId": zod.number(),
   "amount": zod.number().min(1),
-  "memo": zod.string().optional()
+  "memo": zod.string().optional(),
+  "idempotencyKey": zod.string().max(transferEddiesBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so a network retry \/ double-click of the same transfer doesn\'t move eddies twice.')
 })
 
 export const TransferEddiesResponse = zod.object({
@@ -1728,10 +1731,13 @@ export const DepositToStoreParams = zod.object({
 })
 
 
+export const depositToStoreBodyIdempotencyKeyMax = 100;
+
 
 
 export const DepositToStoreBody = zod.object({
-  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.')
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
+  "idempotencyKey": zod.string().max(depositToStoreBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.')
 })
 
 export const DepositToStoreResponse = zod.object({
@@ -1752,10 +1758,13 @@ export const WithdrawFromStoreParams = zod.object({
 })
 
 
+export const withdrawFromStoreBodyIdempotencyKeyMax = 100;
+
 
 
 export const WithdrawFromStoreBody = zod.object({
-  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.')
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
+  "idempotencyKey": zod.string().max(withdrawFromStoreBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.')
 })
 
 export const WithdrawFromStoreResponse = zod.object({
@@ -5753,10 +5762,13 @@ export const DepositToRipperdocParams = zod.object({
 })
 
 
+export const depositToRipperdocBodyIdempotencyKeyMax = 100;
+
 
 
 export const DepositToRipperdocBody = zod.object({
-  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.')
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
+  "idempotencyKey": zod.string().max(depositToRipperdocBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.')
 })
 
 export const DepositToRipperdocResponse = zod.object({
@@ -5777,10 +5789,13 @@ export const WithdrawFromRipperdocParams = zod.object({
 })
 
 
+export const withdrawFromRipperdocBodyIdempotencyKeyMax = 100;
+
 
 
 export const WithdrawFromRipperdocBody = zod.object({
-  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.')
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
+  "idempotencyKey": zod.string().max(withdrawFromRipperdocBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.')
 })
 
 export const WithdrawFromRipperdocResponse = zod.object({
@@ -7270,7 +7285,8 @@ export const OverrideSheetResponse = zod.object({
 
 
 /**
- * @summary A reviewer parks the sheet in changes_requested with a comment and DMs the owner. The owner resubmits via /sheets/{id}/submit.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block sheets in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const RequestChangesSheetParams = zod.object({
   "id": zod.coerce.number()
@@ -7282,93 +7298,6 @@ export const requestChangesSheetBodyCommentMax = 2000;
 
 export const RequestChangesSheetBody = zod.object({
   "comment": zod.string().min(1).max(requestChangesSheetBodyCommentMax)
-})
-
-export const requestChangesSheetResponseDataCyberwarePointsSpentMax = 6;
-
-
-
-export const RequestChangesSheetResponse = zod.object({
-  "id": zod.number(),
-  "ownerId": zod.string(),
-  "ownerName": zod.string().optional(),
-  "characterId": zod.number().nullish(),
-  "name": zod.string(),
-  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
-  "discordMessageId": zod.string().nullish(),
-  "decisionBy": zod.string().nullish(),
-  "decisionNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment.'),
-  "decidedAt": zod.coerce.date().nullish(),
-  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
-  "ownerAvatarUrl": zod.string().nullish(),
-  "createdAt": zod.coerce.date(),
-  "data": zod.object({
-  "sheetType": zod.enum(['PC', 'NPC']),
-  "fullName": zod.string(),
-  "nickname": zod.string().nullish(),
-  "pronouns": zod.string().nullable(),
-  "occupation": zod.string().nullable(),
-  "archetype": zod.string().optional(),
-  "age": zod.number(),
-  "gender": zod.string().optional(),
-  "physicalDescription": zod.string().nullable(),
-  "appearance": zod.string().optional(),
-  "psychProfile": zod.string().nullable(),
-  "background": zod.string(),
-  "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
-  "attributes": zod.record(zod.string(), zod.number()).optional(),
-  "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
-  "cyberware": zod.array(zod.object({
-  "slot": zod.string(),
-  "name": zod.string(),
-  "points": zod.number(),
-  "notes": zod.string().nullish()
-})).optional().describe('Optional list of installed cyberware. Each entry\'s `points` is the CWP\ncost auto-derived from the catalog. Empty for organic characters.\n'),
-  "cyberwareBySlot": zod.array(zod.object({
-  "slot": zod.string(),
-  "name": zod.string(),
-  "points": zod.number(),
-  "notes": zod.string().nullish()
-})).optional().describe('Deprecated. Legacy fixed-slot foundational chrome layout.'),
-  "cyberwareMisc": zod.array(zod.object({
-  "slot": zod.string(),
-  "name": zod.string(),
-  "points": zod.number(),
-  "notes": zod.string().nullish()
-})).optional().describe('Deprecated. Legacy unlimited misc chrome list.'),
-  "cyberwarePointsSpent": zod.number().max(requestChangesSheetResponseDataCyberwarePointsSpentMax).optional(),
-  "gear": zod.array(zod.string()),
-  "startingEddies": zod.number().optional(),
-  "notes": zod.string().nullish()
-}).describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
-  "votes": zod.array(zod.object({
-  "id": zod.number(),
-  "voterId": zod.string(),
-  "voterName": zod.string().nullish(),
-  "voterAvatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject']),
-  "note": zod.string().nullish(),
-  "votedAt": zod.coerce.date()
-})).optional(),
-  "eligibleReviewers": zod.array(zod.object({
-  "id": zod.string(),
-  "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish(),
-  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
-}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter). Present on GET \/sheets\/{id} only.'),
-  "eligibleVoterCount": zod.number().optional(),
-  "threshold": zod.number().optional(),
-  "approveCount": zod.number().optional(),
-  "rejectCount": zod.number().optional(),
-  "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']),
-  "note": zod.string().nullish(),
-  "votedAt": zod.coerce.date().optional()
-})]).optional(),
-  "canVote": zod.boolean().optional(),
-  "canRequestChanges": zod.boolean().optional(),
-  "canOverride": zod.boolean().optional(),
-  "canResubmit": zod.boolean().optional()
 })
 
 
@@ -7388,7 +7317,7 @@ export const ListPendingEditsResponseItem = zod.object({
   "submitterAvatarUrl": zod.string().nullish(),
   "proposedDiff": zod.record(zod.string(), zod.unknown()).optional(),
   "updateNote": zod.string().nullish(),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'changes_requested', 'closed']),
   "decisionSummary": zod.string().nullish(),
   "reviewComment": zod.string().nullish().describe('Reviewer\'s comment when changes were requested.'),
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
@@ -7437,7 +7366,7 @@ export const GetPendingEditResponse = zod.object({
   "proposedDiff": zod.record(zod.string(), zod.unknown()),
   "before": zod.record(zod.string(), zod.unknown()),
   "updateNote": zod.string().nullish(),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'changes_requested', 'closed']),
   "decisionSummary": zod.string().nullish(),
   "reviewComment": zod.string().nullish().describe('Reviewer\'s comment when changes were requested.'),
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
@@ -7519,7 +7448,8 @@ export const OverridePendingEditResponse = zod.object({
 
 
 /**
- * @summary A reviewer parks the edit in changes_requested with a comment and DMs the submitter.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block edits in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const RequestChangesPendingEditParams = zod.object({
   "id": zod.coerce.number()
@@ -7531,11 +7461,6 @@ export const requestChangesPendingEditBodyCommentMax = 2000;
 
 export const RequestChangesPendingEditBody = zod.object({
   "comment": zod.string().min(1).max(requestChangesPendingEditBodyCommentMax)
-})
-
-export const RequestChangesPendingEditResponse = zod.object({
-  "ok": zod.boolean(),
-  "status": zod.string()
 })
 
 
@@ -8840,7 +8765,7 @@ export const ListCustomRequestsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
@@ -8901,7 +8826,7 @@ export const ListMyCustomRequestsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
@@ -8972,7 +8897,7 @@ export const VoteCustomRequestResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
@@ -9042,7 +8967,7 @@ export const OverrideCustomRequestResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
@@ -9070,7 +8995,8 @@ export const OverrideCustomRequestResponse = zod.object({
 
 
 /**
- * @summary A reviewer parks the request in changes_requested with a comment and DMs the player.
+ * @deprecated
+ * @summary RETIRED. Reviewers no longer block requests in changes_requested; use the /review comment thread instead. Always returns 410.
  */
 export const RequestChangesCustomRequestParams = zod.object({
   "id": zod.coerce.number()
@@ -9082,43 +9008,6 @@ export const requestChangesCustomRequestBodyCommentMax = 2000;
 
 export const RequestChangesCustomRequestBody = zod.object({
   "comment": zod.string().min(1).max(requestChangesCustomRequestBodyCommentMax)
-})
-
-export const RequestChangesCustomRequestResponse = zod.object({
-  "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
-  "characterId": zod.number(),
-  "characterName": zod.string(),
-  "requestedById": zod.string(),
-  "requestedByName": zod.string().nullish(),
-  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
-  "description": zod.string().nullish(),
-  "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
-  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
-  "reviewedById": zod.string().nullish(),
-  "reviewedAt": zod.coerce.date().nullish(),
-  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
-  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
-  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
-  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
-  "rejectCount": zod.number().optional(),
-  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
-  "eligibleReviewers": zod.array(zod.object({
-  "id": zod.string(),
-  "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish(),
-  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
-}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
-  "voters": zod.array(zod.object({
-  "id": zod.string(),
-  "name": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
-})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
-  "createdAt": zod.coerce.date(),
-  "lastActivityAt": zod.coerce.date().optional()
 })
 
 
@@ -9140,7 +9029,7 @@ export const ResubmitCustomRequestResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
@@ -9193,7 +9082,7 @@ export const UpdateCustomRequestResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
@@ -9243,7 +9132,7 @@ export const DecideStockCostRequestResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
@@ -9292,7 +9181,7 @@ export const DecideEmployeeInviteResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
@@ -9341,7 +9230,7 @@ export const DecideMissionParticipationResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish().describe('Optional reference image the player attached.'),
   "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
-  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
   "reviewedById": zod.string().nullish(),
   "reviewedAt": zod.coerce.date().nullish(),
   "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),

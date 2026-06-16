@@ -26,16 +26,14 @@ import { applyWalletDelta } from "../lib/economy";
 import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwnedOffer } from "../lib/saleOffers";
 import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
+import { isStaffRoles as isStaff } from "../lib/roleChecks";
 
 const router: IRouter = Router();
 
 // ===== Shared management helpers =====
 // Stores and ripperdocs are near-identical siblings. Both are managed by their
-// owner OR by staff (fixers/admins). "Staff" is admin OR fixer — never trust a
-// client-sent role, always derive from the session user's roles.
-function isStaff(roles: string[]): boolean {
-  return hasRole(roles, "ADMIN") || hasRole(roles, "FIXER");
-}
+// owner OR by staff (fixers/admins). "Staff" is admin OR fixer (isStaffRoles) —
+// never trust a client-sent role, always derive from the session user's roles.
 
 function auditMeta(req: Request): { ip: string | null; ua: string | null } {
   const fwd = req.headers["x-forwarded-for"];
@@ -1407,6 +1405,7 @@ async function venueDepositWithdraw(opts: {
   venueId: number;
   direction: "deposit" | "withdraw";
   amount: number;
+  idempotencyKey?: string;
   req: Request;
   res: Response;
 }): Promise<void> {
@@ -1442,7 +1441,15 @@ async function venueDepositWithdraw(opts: {
     return;
   }
 
-  const idempotencyKey = `venue-${kind}-${venueId}-${direction}-${Date.now()}-${owner.id}`;
+  // Prefer the client-supplied idempotency token (a UUID generated once per
+  // submit and reused across React Query retries) so a network blip or
+  // double-click can't double-debit/credit. Fall back to a timestamp only when
+  // an older client sends none — a fresh key each call is the legacy behavior.
+  const clientKey =
+    typeof opts.idempotencyKey === "string" && opts.idempotencyKey.trim().length > 0
+      ? opts.idempotencyKey.trim().slice(0, 100)
+      : String(Date.now());
+  const idempotencyKey = `venue-${kind}-${venueId}-${direction}-${clientKey}-${owner.id}`;
   const result = await applyWalletDelta({
     userId: owner.id,
     discordId: owner.discordId,
@@ -1587,16 +1594,16 @@ async function venueDepositWithdraw(opts: {
 }
 
 router.post("/stores/:id/deposit", requireAuth, async (req, res): Promise<void> => {
-  await venueDepositWithdraw({ kind: "store", venueId: parseInt(String(req.params.id), 10), direction: "deposit", amount: Number(req.body?.amount), req, res });
+  await venueDepositWithdraw({ kind: "store", venueId: parseInt(String(req.params.id), 10), direction: "deposit", amount: Number(req.body?.amount), idempotencyKey: req.body?.idempotencyKey, req, res });
 });
 router.post("/stores/:id/withdraw", requireAuth, async (req, res): Promise<void> => {
-  await venueDepositWithdraw({ kind: "store", venueId: parseInt(String(req.params.id), 10), direction: "withdraw", amount: Number(req.body?.amount), req, res });
+  await venueDepositWithdraw({ kind: "store", venueId: parseInt(String(req.params.id), 10), direction: "withdraw", amount: Number(req.body?.amount), idempotencyKey: req.body?.idempotencyKey, req, res });
 });
 router.post("/ripperdocs/:id/deposit", requireAuth, async (req, res): Promise<void> => {
-  await venueDepositWithdraw({ kind: "ripperdoc", venueId: parseInt(String(req.params.id), 10), direction: "deposit", amount: Number(req.body?.amount), req, res });
+  await venueDepositWithdraw({ kind: "ripperdoc", venueId: parseInt(String(req.params.id), 10), direction: "deposit", amount: Number(req.body?.amount), idempotencyKey: req.body?.idempotencyKey, req, res });
 });
 router.post("/ripperdocs/:id/withdraw", requireAuth, async (req, res): Promise<void> => {
-  await venueDepositWithdraw({ kind: "ripperdoc", venueId: parseInt(String(req.params.id), 10), direction: "withdraw", amount: Number(req.body?.amount), req, res });
+  await venueDepositWithdraw({ kind: "ripperdoc", venueId: parseInt(String(req.params.id), 10), direction: "withdraw", amount: Number(req.body?.amount), idempotencyKey: req.body?.idempotencyKey, req, res });
 });
 
 // Per-venue transaction history (owner or staff only).

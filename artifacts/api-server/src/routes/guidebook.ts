@@ -9,13 +9,14 @@ import {
   type GuidebookPage,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, sendDirectMessage } from "../lib/discord";
+import { sendDirectMessage } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import {
   runGuidebookImport,
   type GuidebookSourceRef,
 } from "../lib/guidebookImport";
+import { isAdmin, isFixerOrAdmin } from "../lib/roleChecks";
 
 // Guidebook: browsable NCRP reference content grouped into fixed sections.
 // Mirrors the Lore system — admins create/edit/publish directly; fixers propose
@@ -56,13 +57,6 @@ const pageInputSchema = z.object({
   position: z.number().int().optional(),
 });
 const pageUpdateSchema = pageInputSchema.partial();
-
-function isAdmin(user: { roles: string[] }): boolean {
-  return hasRole(user.roles, "ADMIN");
-}
-function isFixerOrAdmin(user: { roles: string[] }): boolean {
-  return hasRole(user.roles, "ADMIN") || hasRole(user.roles, "FIXER");
-}
 
 function slugify(s: string): string {
   return (

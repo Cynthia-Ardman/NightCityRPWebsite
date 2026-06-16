@@ -7,57 +7,22 @@ import {
   useOverridePendingEdit,
   useGetReviewUnseenIds,
   getGetReviewUnseenIdsQueryKey,
+  getGetReviewUnseenCountsQueryKey,
   getListPendingEditsQueryKey,
   type PendingEditSummary,
 } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, CheckCircle2, XCircle, Clock, MessageSquareWarning } from "lucide-react";
+import { ShieldAlert, CheckCircle2, XCircle } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
+import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "../requests/reviewSort";
-
-function statusBadge(status: string) {
-  switch (status) {
-    case "pending":
-      return (
-        <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-xs animate-pulse">
-          <Clock className="w-3 h-3 mr-1" /> PENDING
-        </Badge>
-      );
-    case "approved":
-      return (
-        <Badge variant="outline" className="border-nc-green text-nc-green rounded-none font-mono text-xs">
-          <CheckCircle2 className="w-3 h-3 mr-1" /> APPROVED
-        </Badge>
-      );
-    case "rejected":
-      return (
-        <Badge variant="outline" className="border-destructive text-destructive rounded-none font-mono text-xs">
-          <XCircle className="w-3 h-3 mr-1" /> REJECTED
-        </Badge>
-      );
-    case "changes_requested":
-      return (
-        <Badge variant="outline" className="border-nc-magenta text-nc-magenta rounded-none font-mono text-xs">
-          <MessageSquareWarning className="w-3 h-3 mr-1" /> CHANGES REQ
-        </Badge>
-      );
-    case "cancelled":
-      return (
-        <Badge variant="outline" className="border-muted-foreground text-muted-foreground rounded-none font-mono text-xs">
-          CANCELLED
-        </Badge>
-      );
-    default:
-      return <Badge variant="outline" className="rounded-none font-mono text-xs">{status}</Badge>;
-  }
-}
 
 function EditRow({
   e,
@@ -134,7 +99,7 @@ function EditRow({
                 </div>
               )}
             </div>
-            <div className="shrink-0">{statusBadge(e.status)}</div>
+            <div className="shrink-0"><RequestStatusBadge status={e.status} /></div>
           </div>
         </a>
       </Link>
@@ -317,6 +282,7 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
   };
   const actions = useReviewTicketActions(invalidate);
   const errMsg = (err: unknown, fallback: string) =>

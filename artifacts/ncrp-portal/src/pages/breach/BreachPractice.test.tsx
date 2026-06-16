@@ -10,6 +10,17 @@ vi.mock("@/hooks/useAuthMe", () => ({
   useAuthMe: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 
+// The public practice leaderboard is a read-only fetch fired on mount; it is not
+// part of the play/record loop this test pins. Stub it so the "no backend during
+// a practice run" assertion stays focused on result-recording / reward calls.
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@workspace/api-client-react")>();
+  return {
+    ...actual,
+    useGetBreachPracticeLeaderboard: () => ({ data: [], isLoading: false }),
+  };
+});
+
 import BreachPractice from "./BreachPractice";
 
 // The practice page is deliberately 100% client-side: it generates puzzles
@@ -26,7 +37,10 @@ describe("BreachPractice", () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    localStorage.clear();
+    // Use jsdom's window.localStorage explicitly: under Node 24 the bare
+    // `localStorage` global resolves to Node's experimental Web Storage stub
+    // (which lacks a working clear()), not the jsdom one the component uses.
+    window.localStorage.clear();
     fetchSpy = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response),
     );

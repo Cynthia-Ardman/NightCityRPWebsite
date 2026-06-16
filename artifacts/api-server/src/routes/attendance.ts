@@ -98,74 +98,73 @@ router.post("/attendance/claim", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
+  // Reserve the claim row BEFORE crediting UB. The UNIQUE (userId, weekStart)
+  // index makes the insert the single source of truth: if it fails for any
+  // reason we never credit UB, so a retry can't double-pay. Crediting first
+  // (the old order) meant a non-unique insert failure left money in UB with no
+  // claim row, which a retry would pay again.
+  let row: AttendanceClaim;
+  try {
+    [row] = await db
+      .insert(attendanceClaims)
+      .values({ userId, weekStart, amount: WEEKLY_ATTEND_PAYOUT })
+      .returning();
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    if (code === "23505") {
+      res.status(409).json({ error: "Already claimed this week", weekStart });
+      return;
+    }
+    logger.error({ err, userId, weekStart }, "attendance/claim reservation insert failed");
+    res.status(500).json({ error: "Could not record attendance claim" });
+    return;
+  }
+
   const ub = await patchBalance(discordId, {
     cash: WEEKLY_ATTEND_PAYOUT,
     reason: `Weekly attendance bonus (${weekStart})`,
   });
   if (!ub) {
+    // UB credit failed — release the reservation so the user can retry cleanly.
+    // (No refund needed: no money was credited.)
+    try {
+      await db.delete(attendanceClaims).where(eq(attendanceClaims.id, row.id));
+    } catch (e) {
+      logger.error(
+        { err: e, userId, weekStart, claimId: row.id },
+        "attendance/claim: failed to release reservation after UB failure — manual cleanup may be needed",
+      );
+    }
     logger.warn({ userId, weekStart }, "attendance/claim UB credit failed");
     res.status(502).json({ error: "UnbelievaBoat unavailable, try again shortly" });
     return;
   }
 
-  try {
-    const [row] = await db
-      .insert(attendanceClaims)
-      .values({ userId, weekStart, amount: WEEKLY_ATTEND_PAYOUT })
-      .returning();
-    await db.insert(activityEvents).values({
-      kind: "attendance_claim",
-      actorId: userId,
-      actorName: req.user!.username,
-      actorAvatarUrl: req.user!.avatarUrl,
-      message: `${req.user!.username} claimed weekly attendance (+€$${WEEKLY_ATTEND_PAYOUT})`,
-    });
-    await recordAudit({
-      req,
-      category: "attendance",
-      action: "claim",
-      targetType: "user",
-      targetId: userId,
-      message: `Weekly attendance claimed (+${WEEKLY_ATTEND_PAYOUT})`,
-      after: { weekStart, amount: WEEKLY_ATTEND_PAYOUT },
-    });
-    res.json({
-      weekStart: row.weekStart,
-      amount: row.amount,
-      claimedAt: row.claimedAt,
-      newBalance: ub.total,
-    });
-  } catch (err: unknown) {
-    // Unique-violation: another tab raced us. Refund UB so the credit
-    // matches the (single) claim row and tell the caller the truth.
-    // If the refund itself fails we MUST NOT report a clean 409 — that
-    // would leave the user with an unreconciled extra €$250 and no
-    // record. Surface a 502 + structured log so an operator can refund
-    // by hand. (The 23505 still prevents a second DB row, so the
-    // ledger isn't corrupted — only UB drifted.)
-    const code = (err as { code?: string })?.code;
-    if (code === "23505") {
-      const refund = await patchBalance(discordId, {
-        cash: -WEEKLY_ATTEND_PAYOUT,
-        reason: `Refund: duplicate weekly attendance claim (${weekStart})`,
-      });
-      if (!refund) {
-        logger.error(
-          { userId, weekStart, discordId, amount: WEEKLY_ATTEND_PAYOUT },
-          "ATTENDANCE_REFUND_FAILED: duplicate claim could not be refunded — manual reconciliation required",
-        );
-        res.status(502).json({
-          error: "Duplicate claim detected but refund failed. Contact staff for reconciliation.",
-          weekStart,
-        });
-        return;
-      }
-      res.status(409).json({ error: "Already claimed this week", weekStart });
-      return;
-    }
-    logger.error({ err, userId, weekStart }, "attendance/claim insert failed after UB credit");
-    res.status(500).json({ error: "claim recorded in UB but ledger insert failed" });
-  }
+  // Money is credited and the claim row is durable. Activity/audit are
+  // best-effort: even if they throw, a retry hits the unique index (409) and
+  // cannot double-pay.
+  await db.insert(activityEvents).values({
+    kind: "attendance_claim",
+    actorId: userId,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${req.user!.username} claimed weekly attendance (+€$${WEEKLY_ATTEND_PAYOUT})`,
+  });
+  await recordAudit({
+    req,
+    category: "attendance",
+    action: "claim",
+    targetType: "user",
+    targetId: userId,
+    message: `Weekly attendance claimed (+${WEEKLY_ATTEND_PAYOUT})`,
+    after: { weekStart, amount: WEEKLY_ATTEND_PAYOUT },
+  });
+  res.json({
+    weekStart: row.weekStart,
+    amount: row.amount,
+    claimedAt: row.claimedAt,
+    newBalance: ub.total,
+  });
 });
 
 // Full attendance history for the signed-in user: portal-era weekly claims

@@ -108,7 +108,7 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const policy = await getObjectAclPolicy(objectFile);
     if (policy && policy.visibility !== "public") {
       const canAccess = await objectStorageService.canAccessObjectEntity({
-        userId: undefined,
+        userId: req.user?.id,
         objectFile,
         requestedPermission: ObjectPermission.READ,
       });

@@ -13,6 +13,8 @@ import {
   getListPendingEditsQueryKey,
   getGetCharacterPendingEditQueryKey,
   getGetCharacterQueryKey,
+  getGetReviewUnseenIdsQueryKey,
+  getGetReviewUnseenCountsQueryKey,
   type Character,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -37,15 +39,7 @@ import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewComm
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import DiffValue from "@/components/DiffValue";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
-
-function statusBadge(status: string) {
-  if (status === "pending") return <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-xs animate-pulse"><Clock className="w-3 h-3 mr-1" /> PENDING</Badge>;
-  if (status === "approved") return <Badge variant="outline" className="border-nc-green text-nc-green rounded-none font-mono text-xs"><CheckCircle2 className="w-3 h-3 mr-1" /> APPROVED</Badge>;
-  if (status === "rejected") return <Badge variant="outline" className="border-destructive text-destructive rounded-none font-mono text-xs"><XCircle className="w-3 h-3 mr-1" /> REJECTED</Badge>;
-  if (status === "changes_requested") return <Badge variant="outline" className="border-nc-magenta text-nc-magenta rounded-none font-mono text-xs"><MessageSquareWarning className="w-3 h-3 mr-1" /> CHANGES REQ</Badge>;
-  if (status === "cancelled") return <Badge variant="outline" className="border-muted-foreground text-muted-foreground rounded-none font-mono text-xs">CANCELLED</Badge>;
-  return <Badge variant="outline" className="rounded-none font-mono text-xs">{status}</Badge>;
-}
+import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
 // Render a single field's change. Defaults to the unified diff (only what
 // changed is highlighted); reviewers can flip the whole page to the classic
@@ -97,6 +91,10 @@ export default function PendingEditDetail() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getGetPendingEditQueryKey(editId) });
     qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
+    // Refresh the sidebar/nav unseen badges (ids + counts) after a vote/decision
+    // so the "Pending Requests" badge doesn't go stale until a full reload.
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
     if (edit?.characterId) {
       qc.invalidateQueries({ queryKey: getGetCharacterPendingEditQueryKey(edit.characterId) });
       qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(edit.characterId) });
@@ -202,7 +200,7 @@ export default function PendingEditDetail() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {statusBadge(edit.status)}
+          <RequestStatusBadge status={edit.status} />
         </div>
       </div>
 

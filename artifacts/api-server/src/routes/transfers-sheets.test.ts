@@ -155,6 +155,38 @@ describe("POST /characters/:id/wallet/transfer", () => {
     expect(inn[0].amount).toBe(50);
     expect(inn[0].characterId).toBe(to.id);
   });
+
+  it("is idempotent: a retry with the same idempotencyKey does not move eddies twice", async () => {
+    mockGet.mockResolvedValue(bal(500));
+    mockPatch.mockResolvedValue(bal(450));
+    const owner = await createUser();
+    const recipientOwner = await createUser();
+    const from = await createCharacter({ ownerId: owner.id });
+    const to = await createCharacter({ ownerId: recipientOwner.id });
+    const body = { toCharacterId: to.id, amount: 50, memo: "rent", idempotencyKey: "dup-key-1" };
+
+    const first = await request(app)
+      .post(`/api/characters/${from.id}/wallet/transfer`)
+      .set("x-test-user", owner.id)
+      .send(body);
+    expect(first.status).toBe(200);
+    const debitsAfterFirst = mockPatch.mock.calls.filter(([, p]) => (p as { cash: number }).cash < 0).length;
+
+    const second = await request(app)
+      .post(`/api/characters/${from.id}/wallet/transfer`)
+      .set("x-test-user", owner.id)
+      .send(body);
+    expect(second.status).toBe(200);
+
+    // The retry must short-circuit: no additional debit UB call, and still
+    // exactly one paired set of ledger rows.
+    const debitsAfterSecond = mockPatch.mock.calls.filter(([, p]) => (p as { cash: number }).cash < 0).length;
+    expect(debitsAfterSecond).toBe(debitsAfterFirst);
+    const out = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "transfer_out"));
+    const inn = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "transfer_in"));
+    expect(out).toHaveLength(1);
+    expect(inn).toHaveLength(1);
+  });
 });
 
 async function seedPendingSheet(ownerId: string, data: Record<string, unknown>) {

@@ -5,7 +5,9 @@ import { FileText, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export default function PendingSheets() {
-  const { data: sheets, isLoading } = useListPendingSheets();
+  // Use the same "active" bucket as the unified Pending Requests queue so this
+  // page also surfaces changes_requested sheets, not just brand-new pending ones.
+  const { data: sheets, isLoading } = useListPendingSheets({ bucket: "active" });
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">

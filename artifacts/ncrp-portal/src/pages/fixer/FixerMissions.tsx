@@ -10,6 +10,9 @@ import {
   useCheckMissionConflicts,
   getCheckMissionConflictsQueryKey,
   getListMissionsQueryKey,
+  getListCreatedMissionsQueryKey,
+  getListOwnedMissionsQueryKey,
+  getGetMissionQueryKey,
   type MissionCreateInputTier,
   type MissionCreateInputStatus,
   type MissionCreateInputJobType,
@@ -79,7 +82,11 @@ export default function FixerMissions() {
   })();
 
   const { data: missions, isLoading } = useListMissions();
-  const invalidateList = () => qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+  const invalidateList = () => {
+    qc.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListCreatedMissionsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListOwnedMissionsQueryKey() });
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -441,9 +448,12 @@ function MissionForm({
     setSubmitErr(null);
     if (!v.title.trim()) return;
     if (missionId != null) {
+      // The mutation-level onSuccess (onSaved) already refreshes the mission
+      // lists; here we just refresh this specific mission's detail, instead of
+      // the previous blanket qc.invalidateQueries() that refetched everything.
       update.mutate(
         { id: missionId, data: buildPayload() },
-        { onSuccess: () => qc.invalidateQueries() },
+        { onSuccess: () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(missionId) }) },
       );
     } else {
       saveDraft();

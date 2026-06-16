@@ -217,8 +217,8 @@ export default function MyClinicDetail() {
         balance={data.balance ?? 0}
         transactions={txns ?? []}
         busy={deposit.isPending || withdraw.isPending}
-        onDeposit={(amount) => deposit.mutateAsync({ id: rid, data: { amount } })}
-        onWithdraw={(amount) => withdraw.mutateAsync({ id: rid, data: { amount } })}
+        onDeposit={(amount) => deposit.mutateAsync({ id: rid, data: { amount, idempotencyKey: crypto.randomUUID() } })}
+        onWithdraw={(amount) => withdraw.mutateAsync({ id: rid, data: { amount, idempotencyKey: crypto.randomUUID() } })}
         accent="magenta"
         testIdPrefix="clinic"
       />

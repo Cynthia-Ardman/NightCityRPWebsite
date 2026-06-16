@@ -11,43 +11,8 @@ import {
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Check, X } from "lucide-react";
-
-function typeBadge(offer: SaleOffer) {
-  const t = offer.offerType ?? "sale";
-  if (t === "sale") return null;
-  const cls =
-    t === "install" || t === "install_owned" ? "bg-nc-magenta text-background"
-    : t === "remove" ? "bg-destructive text-destructive-foreground"
-    : t === "stock_add" ? "bg-nc-yellow text-background"
-    : "bg-nc-cyan text-background";
-  const label =
-    t === "stock_add" ? "STOCK ADD"
-    : t === "install_owned" ? "INSTALL (OWNED)"
-    : t.toUpperCase();
-  return (
-    <Badge className={`rounded-none font-mono ${cls}`}>
-      {label}
-      {offer.cwp != null ? ` · ${offer.cwp} CWP` : ""}
-    </Badge>
-  );
-}
-
-function statusBadge(status: SaleOffer["status"]) {
-  switch (status) {
-    case "pending":
-      return <Badge className="rounded-none bg-nc-yellow text-background font-mono">PENDING</Badge>;
-    case "approved":
-      return <Badge className="rounded-none bg-nc-green text-background font-mono">APPROVED</Badge>;
-    case "denied":
-      return <Badge className="rounded-none bg-destructive text-destructive-foreground font-mono">DENIED</Badge>;
-    case "expired":
-      return <Badge variant="outline" className="rounded-none font-mono text-muted-foreground">EXPIRED</Badge>;
-    default:
-      return <Badge variant="outline" className="rounded-none font-mono">{String(status).toUpperCase()}</Badge>;
-  }
-}
+import { OfferTypeBadge, OfferStatusBadge } from "@/components/offers/offerBadges";
 
 export default function MyOffers() {
   const { data: me } = useAuthMe();
@@ -131,7 +96,7 @@ export default function MyOffers() {
                         {o.itemName}
                         {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
                       </span>
-                      {typeBadge(o)}
+                      <OfferTypeBadge offer={o} />
                     </div>
                     <div className="font-mono text-xs text-muted-foreground">
                       {o.itemCategory ? `${o.itemCategory} · ` : ""}
@@ -220,7 +185,7 @@ export default function MyOffers() {
                             {o.itemName}
                             {o.quantity > 1 && <span className="text-muted-foreground"> ×{o.quantity}</span>}
                           </span>
-                          {typeBadge(o)}
+                          <OfferTypeBadge offer={o} />
                         </div>
                       </td>
                       <td className="p-3 text-muted-foreground whitespace-nowrap">
@@ -236,7 +201,7 @@ export default function MyOffers() {
                             ? new Date(o.createdAt).toLocaleDateString()
                             : "—"}
                       </td>
-                      <td className="p-3">{statusBadge(o.status)}</td>
+                      <td className="p-3"><OfferStatusBadge status={o.status} /></td>
                     </tr>
                   ))}
                 </tbody>

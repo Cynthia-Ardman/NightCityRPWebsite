@@ -27,7 +27,7 @@ import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from 
 import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsService";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
-import { getEconomyMode, reconcileOneUser } from "../lib/economy";
+import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement } from "../lib/economy";
 
 const router: IRouter = Router();
 
@@ -741,12 +741,24 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
     res.status(502).json({ error: "Wallet provider unavailable or rejected adjustment" });
     return;
   }
-  await db.insert(walletTransactions).values({
-    characterId,
+  // Record the settled movement through the shared bridge so the website wallet
+  // balance (users.walletBalance) advances immediately instead of drifting until
+  // the next reconcile. Optional client idempotencyKey dedupes accidental
+  // double-submits of the same adjustment.
+  const idempotencyKey =
+    typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
+      ? `admin_adjust:${req.body.idempotencyKey.trim().slice(0, 80)}`
+      : null;
+  await recordSettledWalletMovement({
+    userId: owner.id,
     amount,
+    ubTotalAfter: ubResult.total,
+    source: "admin",
     kind: "admin",
     memo: note,
+    characterId,
     counterpartyName: req.user!.username,
+    idempotencyKey,
   });
   await recordAudit({
     req,

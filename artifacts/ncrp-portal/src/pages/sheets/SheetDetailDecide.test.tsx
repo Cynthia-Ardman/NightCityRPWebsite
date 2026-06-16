@@ -69,6 +69,10 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetReviewUnseenCountsQueryKey: () => ["review", "unseen-counts"],
   useGetReviewDiscordThread: () => ({ data: { linked: false, threadId: null, webUrl: null, messages: [] }, isLoading: false }),
   getGetReviewDiscordThreadQueryKey: (t: string, id: number) => ["review", t, id, "discord-thread"],
+  useAdminSearchDiscordMembers: () => ({ data: [] }),
+  getAdminSearchDiscordMembersQueryKey: (params: unknown) => ["admin", "discord-members", params],
+  useAdminSearchDiscordChannels: () => ({ data: [] }),
+  getAdminSearchDiscordChannelsQueryKey: (params: unknown) => ["admin", "discord-channels", params],
 }));
 
 vi.mock("@/hooks/useAuthMe", () => ({
@@ -131,7 +135,7 @@ describe("SheetDetail review pipeline", () => {
     render(<SheetDetail />);
 
     fireEvent.click(screen.getByTestId("button-override"));
-    expect(h.overrideMutate).toHaveBeenLastCalledWith({ id: 7 });
+    expect(h.overrideMutate).toHaveBeenLastCalledWith({ id: 7, data: { decision: "approve" } });
   });
 
   it("lets the owner resubmit after changes were requested", () => {
