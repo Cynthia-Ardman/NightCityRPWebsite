@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { diffWords, diffLines, collapseContext, isDiffSafe, multisetDiff, type DiffOp } from "@/lib/textDiff";
+import { diffWords, diffLines, collapseContext, isDiffSafe, multisetDiff, valuesDiffer, type DiffOp } from "@/lib/textDiff";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 // Shared renderer for a single field's before -> after change on the review
@@ -162,7 +162,11 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> =>
 // re-added, which is what makes the unstructured line-diff hard to read.
 function ObjectDiff({ before, after, compact }: { before: Record<string, unknown>; after: Record<string, unknown>; compact?: boolean }) {
   const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
-  const changed = keys.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+  // Only surface keys that meaningfully changed. A raw JSON.stringify compare
+  // flags empty-placeholder additions (hooks:"" added on a re-save) and key
+  // reordering, which then render as blank "(no change)" rows — exactly the
+  // "Changes shows nothing but Side-by-side looks different" bug.
+  const changed = keys.filter((k) => valuesDiffer(before[k], after[k]));
   if (changed.length === 0) return <Empty text="(no change)" compact={compact} />;
   return (
     <div className="space-y-3">

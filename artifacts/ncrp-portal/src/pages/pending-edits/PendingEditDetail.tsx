@@ -38,6 +38,7 @@ import EditCharacterDialog from "@/components/EditCharacterDialog";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import DiffValue from "@/components/DiffValue";
+import { valuesDiffer } from "@/lib/textDiff";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
@@ -166,7 +167,11 @@ export default function PendingEditDetail() {
 
   const diff = (edit.proposedDiff ?? {}) as Record<string, unknown>;
   const before = (edit.before ?? {}) as Record<string, unknown>;
-  const fields = Object.keys(diff);
+  // Drop fields that didn't meaningfully change (empty placeholders the form
+  // added on re-save, reordered keys) so the count and the diff agree with what
+  // actually renders — otherwise a no-op edit reads "1 changed field" then shows
+  // "(no change)".
+  const fields = Object.keys(diff).filter((f) => valuesDiffer(before[f], diff[f]));
   // Pre-fill the edit dialog with the player's previously-proposed values
   // (live character merged with their pending diff) so they amend, not redo.
   const mergedCharacter = character ? ({ ...character, ...diff } as Character) : null;

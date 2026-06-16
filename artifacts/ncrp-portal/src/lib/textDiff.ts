@@ -139,3 +139,38 @@ export function collapseContext(ops: DiffOp[], context = 3): ContextRow[] {
   }
   return rows;
 }
+
+// Canonicalize a value for "did this *meaningfully* change?" comparisons on the
+// review screens. The submission-time diff snapshot often carries empty
+// placeholder keys (e.g. a re-saved sheet form adds hooks:"" / skills:"" that
+// weren't present before) and keys in a different order. Those are not real
+// edits — the leaf renderer already shows them as "(no change)" — but a naive
+// JSON.stringify compare flags them, producing phantom "changed" fields that
+// render blank. canonical() collapses every empty-ish value (null, undefined,
+// "", whitespace-only, empty array/object) to undefined, drops object keys whose
+// value canonicalizes away, and sorts object keys so ordering never registers as
+// a change.
+export function canonicalForDiff(v: unknown): unknown {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === "string") return v.trim() === "" ? undefined : v;
+  if (typeof v === "number" || typeof v === "boolean") return v;
+  if (Array.isArray(v)) {
+    const arr = v.map(canonicalForDiff).filter((x) => x !== undefined);
+    return arr.length ? arr : undefined;
+  }
+  if (typeof v === "object") {
+    const entries = Object.entries(v as Record<string, unknown>)
+      .map(([k, val]) => [k, canonicalForDiff(val)] as const)
+      .filter(([, c]) => c !== undefined)
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    return entries.length ? Object.fromEntries(entries) : undefined;
+  }
+  return v;
+}
+
+// True when `before` and `after` differ in a way a reviewer should actually see
+// (empty-/order-insensitive). Used to filter changed fields/keys so the unified
+// view never shows a field that the leaf renderer would call "(no change)".
+export function valuesDiffer(before: unknown, after: unknown): boolean {
+  return JSON.stringify(canonicalForDiff(before)) !== JSON.stringify(canonicalForDiff(after));
+}

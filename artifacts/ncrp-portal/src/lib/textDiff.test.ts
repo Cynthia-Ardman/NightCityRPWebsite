@@ -1,5 +1,41 @@
 import { describe, it, expect } from "vitest";
-import { diffWords, diffLines, collapseContext, isDiffSafe, multisetDiff, MAX_DIFF_CELLS } from "./textDiff";
+import { diffWords, diffLines, collapseContext, isDiffSafe, multisetDiff, valuesDiffer, MAX_DIFF_CELLS } from "./textDiff";
+
+describe("valuesDiffer", () => {
+  it("treats an added empty-string placeholder key as no change (the edit-64 bug)", () => {
+    const before = { preamble: "", sections: { Age: "*30*" } };
+    const after = { hooks: "", skills: "", preamble: "", sections: { Age: "*30*" }, appearance: "" };
+    expect(valuesDiffer(before, after)).toBe(false);
+  });
+
+  it("ignores key reordering", () => {
+    expect(valuesDiffer({ a: "1", b: "2" }, { b: "2", a: "1" })).toBe(false);
+  });
+
+  it("treats null / undefined / empty-string / whitespace as equivalent", () => {
+    expect(valuesDiffer(null, "")).toBe(false);
+    expect(valuesDiffer(undefined, "")).toBe(false);
+    expect(valuesDiffer("   ", "")).toBe(false);
+    expect(valuesDiffer({}, undefined)).toBe(false);
+    expect(valuesDiffer([], null)).toBe(false);
+  });
+
+  it("still flags a real nested content change", () => {
+    const before = { sections: { Backstory: "Vox grew up in Heywood." } };
+    const after = { sections: { Backstory: "Vox grew up in Watson." } };
+    expect(valuesDiffer(before, after)).toBe(true);
+  });
+
+  it("flags clearing a previously-populated field", () => {
+    expect(valuesDiffer({ note: "hello" }, { note: "" })).toBe(true);
+  });
+
+  it("preserves meaningful falsy primitives (0, false)", () => {
+    expect(valuesDiffer(0, "")).toBe(true);
+    expect(valuesDiffer(false, "")).toBe(true);
+    expect(valuesDiffer(0, 0)).toBe(false);
+  });
+});
 
 describe("diffWords", () => {
   it("marks a single changed word and keeps the rest equal", () => {

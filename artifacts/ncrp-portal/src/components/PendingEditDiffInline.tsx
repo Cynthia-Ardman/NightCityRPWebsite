@@ -1,5 +1,6 @@
 import { useGetPendingEdit } from "@workspace/api-client-react";
 import DiffValue from "@/components/DiffValue";
+import { valuesDiffer } from "@/lib/textDiff";
 
 // Fetches the full pending edit (which carries the `before` snapshot the list
 // summary lacks) and shows a per-field unified diff so a player can see exactly
@@ -14,7 +15,7 @@ export default function PendingEditDiffInline({ editId }: { editId: number }) {
   }
   const diff = (data.proposedDiff ?? {}) as Record<string, unknown>;
   const before = (data.before ?? {}) as Record<string, unknown>;
-  const fields = Object.keys(diff);
+  const fields = Object.keys(diff).filter((f) => valuesDiffer(before[f], diff[f]));
   if (fields.length === 0) {
     return <div className="font-mono text-[11px] text-muted-foreground italic">No changed fields recorded.</div>;
   }
