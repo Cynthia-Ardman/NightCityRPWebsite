@@ -125,7 +125,12 @@ function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entr
   const approve = useApproveLoreImportDraft({
     mutation: {
       onSuccess: () => { onChanged(); toast({ title: "Published to lore directory" }); },
-      onError: (err) => toast({ title: "Could not publish", description: m(err), variant: "destructive" }),
+      onError: (err) => {
+        // The edited-since-import conflict is handled inline (confirm + force),
+        // so don't surface a scary toast for it.
+        if ((err as { data?: { conflict?: string } })?.data?.conflict === "edited_since_import") return;
+        toast({ title: "Could not publish", description: m(err), variant: "destructive" });
+      },
     },
   });
   const discard = useDiscardLoreImportDraft({
@@ -234,7 +239,20 @@ function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entr
             disabled={busy}
             onClick={async () => {
               await update.mutateAsync({ id: draft.id, data: saveFirst() });
-              approve.mutate({ id: draft.id });
+              try {
+                await approve.mutateAsync({ id: draft.id, data: {} });
+              } catch (err) {
+                // Merge target was edited on-site since import — confirm before
+                // overwriting those edits, then retry with force.
+                if (
+                  (err as { data?: { conflict?: string } })?.data?.conflict === "edited_since_import" &&
+                  window.confirm(
+                    `"${mergeTarget?.name ?? "This entry"}" was edited on-site since it was imported. Publishing will OVERWRITE those on-site edits. Continue?`,
+                  )
+                ) {
+                  approve.mutate({ id: draft.id, data: { force: true } });
+                }
+              }
             }}
             data-testid={`button-draft-approve-${draft.id}`}
           >

@@ -1595,6 +1595,13 @@ export const loreEntries = pgTable("lore_entries", {
   // Staff-only source references: [{ label, url }]. Discord forum posts and
   // linked Google Docs the entry was sourced from.
   sources: jsonb("sources").notNull().default(sql`'[]'::jsonb`),
+  // When the entry was last (re)materialized from an import draft. Null for
+  // entries authored purely on-site.
+  importedAt: timestamp("imported_at", { withTimezone: true }),
+  // Flipped true on any on-site edit (admin direct edit or an approved fixer
+  // edit proposal) AFTER an import. Guards the import merge-approve from
+  // silently clobbering on-site edits — mirrors guidebook_pages.editedSinceImport.
+  editedSinceImport: boolean("edited_since_import").notNull().default(false),
   createdById: text("created_by_id").references(() => users.id),
   updatedById: text("updated_by_id").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

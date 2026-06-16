@@ -5,15 +5,21 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { BreachGridCell } from './breachGridCell';
+import type { BreachPracticePuzzle } from './breachPracticePuzzle';
 import type { BreachPracticeRecordInputDifficulty } from './breachPracticeRecordInputDifficulty';
 
 export interface BreachPracticeRecordInput {
   difficulty: BreachPracticeRecordInputDifficulty;
-  success: boolean;
+  /** Client-claimed outcome. IGNORED when puzzle + selection are provided — the server re-scores the selection against the puzzle and uses that result authoritatively. */
+  success?: boolean;
   /**
-     * Elapsed time of the run in ms. Only used (as the clear time) when success is true.
+     * Elapsed time of the run in ms. Only used (as the clear time) when the attempt is a win.
      * @minimum 0
      * @nullable
      */
   elapsedMs?: number | null;
+  puzzle?: BreachPracticePuzzle;
+  /** The player's final selection path (grid cells, in order). Re-scored server-side. */
+  selection?: BreachGridCell[];
 }

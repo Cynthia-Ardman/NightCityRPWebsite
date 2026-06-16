@@ -489,10 +489,29 @@ export async function runLoreImport(): Promise<LoreImportRunResult> {
     .where(eq(loreImportDrafts.status, "pending"));
   const pendingKeys = new Set(pendingDrafts.map((d) => d.groupKey));
 
+  // Idempotency against re-runs: a draft for this group whose EXACT source set
+  // was already approved (materialized into a live entry) shouldn't be recreated
+  // — that just spams the review queue with a duplicate of work already done.
+  // (A genuinely changed source set produces a different sourceKey and still
+  // creates a fresh merge-draft.)
+  const approvedDrafts = await db
+    .select({ groupKey: loreImportDrafts.groupKey, sourceKey: loreImportDrafts.sourceKey })
+    .from(loreImportDrafts)
+    .where(eq(loreImportDrafts.status, "approved"));
+  const approvedSourceKeys = new Set(
+    approvedDrafts.map((d) => `${d.groupKey}::${d.sourceKey ?? ""}`),
+  );
+
   let created = 0;
   let duplicates = 0;
   for (const c of grouped) {
     if (pendingKeys.has(c.groupKey)) {
+      duplicates++;
+      continue;
+    }
+    const sourceKey = c.sources.map((s) => s.url).join(",");
+    if (approvedSourceKeys.has(`${c.groupKey}::${sourceKey}`)) {
+      // Same source set already imported + approved for this group — skip.
       duplicates++;
       continue;
     }
@@ -514,7 +533,7 @@ export async function runLoreImport(): Promise<LoreImportRunResult> {
         fixerBody: c.fixerBody,
         sources: c.sources as never,
         suggestedMergeEntryId: mergeId,
-        sourceKey: c.sources.map((s) => s.url).join(","),
+        sourceKey,
       })
       .onConflictDoNothing({
         target: loreImportDrafts.groupKey,

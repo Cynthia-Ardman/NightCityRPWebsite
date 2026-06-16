@@ -191,6 +191,7 @@ import type {
   LoreEntryInput,
   LoreEntrySummary,
   LoreEntryUpdate,
+  LoreImportApproveInput,
   LoreImportDraft,
   LoreImportDraftUpdate,
   LoreImportRunResult,
@@ -19690,14 +19691,16 @@ export const getApproveLoreImportDraftUrl = (id: number,) => {
 /**
  * @summary Promote a draft into a published lore entry (create or merge) (admin only).
  */
-export const approveLoreImportDraft = async (id: number, options?: RequestInit): Promise<LoreEntry> => {
+export const approveLoreImportDraft = async (id: number,
+    loreImportApproveInput?: LoreImportApproveInput, options?: RequestInit): Promise<LoreEntry> => {
 
   return customFetch<LoreEntry>(getApproveLoreImportDraftUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreImportApproveInput,)
   }
 );}
 
@@ -19705,8 +19708,8 @@ export const approveLoreImportDraft = async (id: number, options?: RequestInit):
 
 
 export const getApproveLoreImportDraftMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number;data?: BodyType<LoreImportApproveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number;data?: BodyType<LoreImportApproveInput>}, TContext> => {
 
 const mutationKey = ['approveLoreImportDraft'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -19718,10 +19721,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLoreImportDraft>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLoreImportDraft>>, {id: number;data?: BodyType<LoreImportApproveInput>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  approveLoreImportDraft(id,requestOptions)
+          return  approveLoreImportDraft(id,data,requestOptions)
         }
 
 
@@ -19732,18 +19735,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ApproveLoreImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof approveLoreImportDraft>>>
-
+    export type ApproveLoreImportDraftMutationBody = BodyType<LoreImportApproveInput> | undefined
     export type ApproveLoreImportDraftMutationError = ErrorType<void>
 
     /**
  * @summary Promote a draft into a published lore entry (create or merge) (admin only).
  */
 export const useApproveLoreImportDraft = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreImportDraft>>, TError,{id: number;data?: BodyType<LoreImportApproveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof approveLoreImportDraft>>,
         TError,
-        {id: number},
+        {id: number;data?: BodyType<LoreImportApproveInput>},
         TContext
       > => {
       return useMutation(getApproveLoreImportDraftMutationOptions(options));

@@ -409,15 +409,33 @@ export const BreachPracticeRecordInputDifficulty = {
   nightmare: 'nightmare',
 } as const;
 
+export interface BreachPracticePuzzle {
+  grid: string[][];
+  daemons: string[][];
+  /** @minimum 1 */
+  bufferSize: number;
+}
+
+export interface BreachGridCell {
+  /** @minimum 0 */
+  r: number;
+  /** @minimum 0 */
+  c: number;
+}
+
 export interface BreachPracticeRecordInput {
   difficulty: BreachPracticeRecordInputDifficulty;
-  success: boolean;
+  /** Client-claimed outcome. IGNORED when puzzle + selection are provided — the server re-scores the selection against the puzzle and uses that result authoritatively. */
+  success?: boolean;
   /**
-     * Elapsed time of the run in ms. Only used (as the clear time) when success is true.
+     * Elapsed time of the run in ms. Only used (as the clear time) when the attempt is a win.
      * @minimum 0
      * @nullable
      */
   elapsedMs?: number | null;
+  puzzle?: BreachPracticePuzzle;
+  /** The player's final selection path (grid cells, in order). Re-scored server-side. */
+  selection?: BreachGridCell[];
 }
 
 export interface BreachPracticeMergeInput {
@@ -2065,6 +2083,11 @@ export interface UserWallet {
   cash?: number;
   bank?: number;
   source: UserWalletSource;
+}
+
+export interface LoreImportApproveInput {
+  /** Set true to overwrite a merge target that was edited on-site since its last import (otherwise a 409 conflict is returned). */
+  force?: boolean;
 }
 
 export interface TransferInput {

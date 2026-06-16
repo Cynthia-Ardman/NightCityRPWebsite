@@ -71,7 +71,7 @@ export default function BreachPractice() {
     });
   };
 
-  const handleFinish = (_sel: Pos[], result: BreachOutcome) => {
+  const handleFinish = (sel: Pos[], result: BreachOutcome) => {
     setOutcome(result);
     if (!session) return;
     // Clamp elapsed to the run's time limit so a backgrounded tab can't record
@@ -80,7 +80,14 @@ export default function BreachPractice() {
       Date.now() - session.startAt,
       session.timeLimitSeconds * 1000,
     );
-    recordAttempt(session.difficulty, result.success, elapsedMs);
+    // Pass the puzzle + final selection so a SYNCED attempt is re-scored on the
+    // server (the leaderboard can't be inflated with a fake success).
+    recordAttempt(session.difficulty, result.success, elapsedMs, {
+      grid: session.puzzle.grid,
+      daemons: session.puzzle.daemons,
+      bufferSize: session.puzzle.bufferSize,
+      selection: sel,
+    });
   };
 
   const handleSyncToggle = async (next: boolean) => {
@@ -123,8 +130,9 @@ export default function BreachPractice() {
       </div>
 
       <p className="font-mono text-sm text-muted-foreground">
-        Unlimited training runs. Generate a puzzle at any difficulty and breach it — results are
-        <span className="text-nc-yellow"> not recorded</span> and carry no rewards. Pure practice.
+        Unlimited training runs. Generate a puzzle at any difficulty and breach it — practice
+        <span className="text-nc-yellow"> carries no rewards</span> and never affects live missions.
+        (Logged in, you can opt to track your stats to your account below.)
       </p>
 
       <Card className="rounded-none border-border bg-card/50">

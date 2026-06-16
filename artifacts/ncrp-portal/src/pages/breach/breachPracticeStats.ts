@@ -1,8 +1,10 @@
 import { PRACTICE_DIFFICULTIES, type PracticeDifficulty } from "@workspace/breach";
 
-// Local-only practice progress. This NEVER touches the server, the economy, or
-// any reward path — it lives purely in the player's browser so the practice
-// page's "not recorded" contract stays intact.
+// Browser-local practice progress. This module never touches the server — it
+// lives purely in localStorage. (A logged-in player may separately OPT IN to
+// mirroring their stats to their account via usePracticeStats; even then the
+// practice run itself carries no economy/reward effect, only stat tracking, and
+// synced attempts are re-scored server-side.)
 
 export type DifficultyStats = {
   attempts: number;
