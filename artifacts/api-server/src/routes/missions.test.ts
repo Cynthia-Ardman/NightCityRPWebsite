@@ -1425,6 +1425,101 @@ describe("Mission applications", () => {
     expect(appAfter.status).toBe("accepted");
   });
 
+  // Regression: a player applied, but instead of "accept application" the fixer
+  // added the character via the roster editor. That raises a participation
+  // request and an assignment but never touches the application row, leaving
+  // "My Applications" stuck on PENDING even after the player is on the roster
+  // (and paid). My Applications must self-heal to ACCEPTED, and confirming the
+  // participation request must flip the canonical row too.
+  it("My Applications self-heals to accepted when added via the roster editor", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await postedMission();
+
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+
+    const mineBefore = await request(app).get("/api/missions/my-applications").set("x-test-user", player.id);
+    expect(mineBefore.status).toBe(200);
+    expect(mineBefore.body.find((a: { id: number }) => a.id === appId)?.status).toBe("pending");
+
+    // Fixer adds the character through the roster editor (NOT "accept application").
+    const edit = await request(app)
+      .patch(`/api/missions/${m.id}`)
+      .set("x-test-user", admin.id)
+      .send({ assignments: [{ characterId: char.id }] });
+    expect(edit.status).toBe(200);
+
+    // The stored row is still pending, but My Applications derives "accepted"
+    // because the character is now on the roster.
+    const [rawApp] = await db.select().from(missionApplications).where(eq(missionApplications.id, appId));
+    expect(rawApp.status).toBe("pending");
+    const mineAfter = await request(app).get("/api/missions/my-applications").set("x-test-user", player.id);
+    expect(mineAfter.body.find((a: { id: number }) => a.id === appId)?.status).toBe("accepted");
+
+    // Confirming the participation request flips the canonical row to accepted.
+    const reqRow = (
+      await db.select().from(customRequests).where(eq(customRequests.characterId, char.id))
+    ).find((r) => r.type === "mission_participation" && Number((r.details as { missionId?: number }).missionId) === m.id);
+    expect(reqRow).toBeTruthy();
+    const decision = await request(app)
+      .post(`/api/requests/${reqRow!.id}/participation-decision`)
+      .set("x-test-user", player.id)
+      .send({ decision: "accept" });
+    expect(decision.status).toBe(200);
+    const [appFinal] = await db.select().from(missionApplications).where(eq(missionApplications.id, appId));
+    expect(appFinal.status).toBe("accepted");
+  });
+
+  // Race guard: if the fixer removes the (unpaid) assignment before the player
+  // responds, the participation request goes stale. Accepting it must NOT
+  // canonicalize the application to accepted (no roster membership), and My
+  // Applications must not surface accepted either.
+  it("a stale participation accept (assignment removed) does not mark the application accepted", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await postedMission();
+
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id });
+    const appId = applied.body.myApplication.id as number;
+
+    // Fixer adds the character, then removes them again (unpaid → deleted).
+    await request(app)
+      .patch(`/api/missions/${m.id}`)
+      .set("x-test-user", admin.id)
+      .send({ assignments: [{ characterId: char.id }] });
+    await request(app)
+      .patch(`/api/missions/${m.id}`)
+      .set("x-test-user", admin.id)
+      .send({ assignments: [] });
+    const assigns = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
+    expect(assigns).toHaveLength(0);
+
+    // The (now stale) participation request still exists; player accepts it.
+    const reqRow = (
+      await db.select().from(customRequests).where(eq(customRequests.characterId, char.id))
+    ).find((r) => r.type === "mission_participation" && Number((r.details as { missionId?: number }).missionId) === m.id);
+    expect(reqRow).toBeTruthy();
+    await request(app)
+      .post(`/api/requests/${reqRow!.id}/participation-decision`)
+      .set("x-test-user", player.id)
+      .send({ decision: "accept" });
+
+    // No assignment ⇒ application stays pending, and My Applications shows pending.
+    const [appFinal] = await db.select().from(missionApplications).where(eq(missionApplications.id, appId));
+    expect(appFinal.status).toBe("pending");
+    const mine = await request(app).get("/api/missions/my-applications").set("x-test-user", player.id);
+    expect(mine.body.find((a: { id: number }) => a.id === appId)?.status).toBe("pending");
+  });
+
   it("rejecting an application does NOT create an assignment", async () => {
     const player = await createUser();
     const char = await createCharacter({ ownerId: player.id });

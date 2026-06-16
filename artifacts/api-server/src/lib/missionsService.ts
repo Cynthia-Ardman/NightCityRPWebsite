@@ -480,11 +480,26 @@ export async function listMyApplications(userId: string) {
       status: missionApplications.status,
       reviewedAt: missionApplications.reviewedAt,
       createdAt: missionApplications.createdAt,
+      // Whether this character is actually on the mission roster. A player can
+      // land on the roster two ways: the fixer "accepts" their application
+      // (which flips status to 'accepted'), OR the fixer adds the character via
+      // the roster editor — which raises a participation request but never
+      // touches the application row. In the latter case the stored status stays
+      // 'pending' forever even after the player confirms and gets paid, so we
+      // derive 'accepted' at read time when an assignment exists.
+      assignedId: missionAssignments.id,
     })
     .from(missionApplications)
     .innerJoin(missions, eq(missions.id, missionApplications.missionId))
     .leftJoin(fixerUser, eq(fixerUser.id, missions.fixerId))
     .leftJoin(characters, eq(characters.id, missionApplications.characterId))
+    .leftJoin(
+      missionAssignments,
+      and(
+        eq(missionAssignments.missionId, missionApplications.missionId),
+        eq(missionAssignments.characterId, missionApplications.characterId),
+      ),
+    )
     .where(eq(missionApplications.userId, userId))
     .orderBy(desc(missionApplications.createdAt));
   return rows.map((r) => ({
@@ -498,7 +513,9 @@ export async function listMyApplications(userId: string) {
     characterName: r.characterName,
     characterPortraitUrl: r.characterPortraitUrl,
     comment: r.comment,
-    status: r.status,
+    // Self-heal: a pending application whose character is on the roster is
+    // effectively accepted (see assignedId note above).
+    status: r.status === "pending" && r.assignedId != null ? "accepted" : r.status,
     reviewedAt: iso(r.reviewedAt),
     createdAt: r.createdAt.toISOString(),
   }));

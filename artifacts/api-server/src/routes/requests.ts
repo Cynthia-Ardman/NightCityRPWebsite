@@ -17,6 +17,7 @@ import {
   characterUpdates,
   activityEvents,
   missionAssignments,
+  missionApplications,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, postToChannel, startThreadFromMessage } from "../lib/discord";
@@ -1689,6 +1690,42 @@ router.post("/requests/:id/participation-decision", requireAuth, async (req, res
         appliedRef: `mission:${det.missionId}`,
       })
       .where(eq(customRequests.id, rid));
+    // Keep the player's mission application in sync: when a fixer added the
+    // character via the roster editor the application row is left 'pending', so
+    // flip it to 'accepted' on confirmation. Without this, "My Applications"
+    // shows pending even though the player is on the roster (and may be paid).
+    // Only do this when the character is STILL on the roster — a fixer can
+    // remove the (unpaid) assignment before the player responds, leaving this
+    // request stale; canonicalizing then would falsely mark them accepted with
+    // no roster membership (and diverge from the read-time derivation).
+    if (Number.isFinite(Number(det.missionId))) {
+      const [assignment] = await tx
+        .select({ id: missionAssignments.id })
+        .from(missionAssignments)
+        .where(
+          and(
+            eq(missionAssignments.missionId, Number(det.missionId)),
+            eq(missionAssignments.characterId, reqRow.characterId),
+          ),
+        );
+      if (assignment) {
+        await tx
+          .update(missionApplications)
+          .set({
+            status: "accepted",
+            reviewedBy: det.invitedById ?? null,
+            reviewedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(missionApplications.missionId, Number(det.missionId)),
+              eq(missionApplications.characterId, reqRow.characterId),
+              eq(missionApplications.status, "pending"),
+            ),
+          );
+      }
+    }
     return { ok: { reqRow, det, decision } };
   });
 
