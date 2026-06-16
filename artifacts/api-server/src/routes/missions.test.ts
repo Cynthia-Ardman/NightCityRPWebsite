@@ -972,8 +972,10 @@ describe("auto-pay kill switch", () => {
 const futureIso = () => new Date(Date.now() + 86_400_000).toISOString();
 
 // Only POSTED missions own a Discord event, so drive a fresh draft all the way
-// through the workflow (draft → proposal → approved → posted). The Discord sync
-// fires on the final /post. Returns the /post response (full MissionDetail).
+// through the workflow (draft → proposal → posted). Approval now PUBLISHES the
+// mission to the public board in one step (no separate manual /post), so the
+// Discord sync fires on /approve. Returns the /approve response (full
+// MissionDetail).
 async function createPostedMission(
   managerId: string,
   body: Record<string, unknown> = {},
@@ -984,8 +986,7 @@ async function createPostedMission(
     .send({ title: "Heist", tier: 2, jobType: "combat", ...body });
   const id = created.body.id;
   await request(app).post(`/api/missions/${id}/submit`).set("x-test-user", managerId);
-  await request(app).post(`/api/missions/${id}/approve`).set("x-test-user", managerId);
-  return request(app).post(`/api/missions/${id}/post`).set("x-test-user", managerId);
+  return request(app).post(`/api/missions/${id}/approve`).set("x-test-user", managerId);
 }
 
 describe("Discord scheduled-event sync", () => {
@@ -1195,7 +1196,7 @@ describe("Mission workflow transitions", () => {
     expect(res.body.workflowState).toBe("draft");
   });
 
-  it("submit → approve → post walks the full pipeline (admin can do all)", async () => {
+  it("submit → approve publishes the mission in one step (admin)", async () => {
     const admin = await createUser({ roles: ["admin"] });
     const m = await seedMission({ workflowState: "draft", status: "open" });
 
@@ -1203,13 +1204,15 @@ describe("Mission workflow transitions", () => {
     expect(submitted.status).toBe(200);
     expect(submitted.body.workflowState).toBe("proposal");
 
+    // Approval publishes to the public board in one step — workflowState jumps
+    // straight to "posted" (no separate manual /post action).
     const approved = await request(app).post(`/api/missions/${m.id}/approve`).set("x-test-user", admin.id);
     expect(approved.status).toBe(200);
-    expect(approved.body.workflowState).toBe("approved");
+    expect(approved.body.workflowState).toBe("posted");
 
+    // The mission is already posted, so a redundant /post is a no-op conflict.
     const posted = await request(app).post(`/api/missions/${m.id}/post`).set("x-test-user", admin.id);
-    expect(posted.status).toBe(200);
-    expect(posted.body.workflowState).toBe("posted");
+    expect(posted.status).toBe(409);
   });
 
   it("a fixer can submit but cannot approve (archivist/admin only)", async () => {
@@ -1224,12 +1227,12 @@ describe("Mission workflow transitions", () => {
     expect(approved.status).toBe(403);
   });
 
-  it("an archivist can approve a proposal", async () => {
+  it("an archivist can approve a proposal (which publishes it)", async () => {
     const archivist = await createUser({ roles: ["archivist"] });
     const m = await seedMission({ workflowState: "proposal" });
     const approved = await request(app).post(`/api/missions/${m.id}/approve`).set("x-test-user", archivist.id);
     expect(approved.status).toBe(200);
-    expect(approved.body.workflowState).toBe("approved");
+    expect(approved.body.workflowState).toBe("posted");
   });
 
   it("a plain user cannot drive any transition (403)", async () => {

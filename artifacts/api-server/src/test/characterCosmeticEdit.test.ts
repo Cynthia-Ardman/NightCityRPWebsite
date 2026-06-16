@@ -215,8 +215,8 @@ describe("cosmetic character edits auto-apply", () => {
   });
 });
 
-describe("admin character edits auto-apply (no review queue)", () => {
-  it("applies a stats-image change immediately for an admin (no review)", async () => {
+describe("staff (admin/fixer) character edits still go through review", () => {
+  it("queues an admin's stats-image change for review (no instant-apply)", async () => {
     const admin = await createAdmin();
     const owner = await createUser();
     const c = await ownedChar(owner.id);
@@ -224,18 +224,18 @@ describe("admin character edits auto-apply (no review queue)", () => {
     const res = await patch(admin.id, c.id, {
       statsImageUrls: ["/api/storage/objects/stats-1", "/api/storage/objects/stats-2"],
     });
-    expect(res.status).toBe(200);
-    expect(res.body.autoApplied).toBe(true);
-    expect(await pendingCount(c.id)).toBe(0);
+    // There is deliberately no admin instant-apply path: a meaningful edit by
+    // an admin is queued for fixer review like anyone else's.
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("pending");
+    expect(await pendingCount(c.id)).toBe(1);
 
+    // Live row untouched until a reviewer approves.
     const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
-    expect(row.statsImageUrls).toEqual([
-      "/api/storage/objects/stats-1",
-      "/api/storage/objects/stats-2",
-    ]);
+    expect(row.statsImageUrls ?? []).toEqual([]);
   });
 
-  it("applies a mixed name + stat-section + image edit immediately for an admin", async () => {
+  it("queues an admin's mixed name + stat-section + image edit for review", async () => {
     const admin = await createAdmin();
     const owner = await createUser();
     const c = await ownedChar(owner.id, {
@@ -248,20 +248,19 @@ describe("admin character edits auto-apply (no review queue)", () => {
       portraitUrls: ["/api/storage/objects/p"],
       statsImageUrls: ["/api/storage/objects/s"],
     });
-    expect(res.status).toBe(200);
-    expect(res.body.autoApplied).toBe(true);
-    expect(await pendingCount(c.id)).toBe(0);
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("pending");
+    expect(await pendingCount(c.id)).toBe(1);
 
+    // Nothing applied — the live row keeps its original values.
     const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
-    expect(row.name).toBe("Renamed By Admin");
+    expect(row.name).toBe("Edit Target");
     expect((row.sheetData as { sections?: Record<string, string> } | null)?.sections).toEqual({
-      Body: "9",
+      Body: "5",
     });
-    expect(row.portraitUrls).toEqual(["/api/storage/objects/p"]);
-    expect(row.statsImageUrls).toEqual(["/api/storage/objects/s"]);
   });
 
-  it("logs an updateNote when an admin edit carries one", async () => {
+  it("stores an updateNote on the queued edit when an admin edit carries one", async () => {
     const admin = await createAdmin();
     const owner = await createUser();
     const c = await ownedChar(owner.id);
@@ -270,15 +269,21 @@ describe("admin character edits auto-apply (no review queue)", () => {
       name: "Admin Rename",
       updateNote: "fixed their stat screenshot",
     });
-    expect(res.status).toBe(200);
-    expect(res.body.autoApplied).toBe(true);
+    expect(res.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
 
+    // The note rides on the pending edit row; it lands in the characterUpdates
+    // changelog only when a reviewer approves, not on submission.
+    const [edit] = await db
+      .select()
+      .from(pendingCharacterEdits)
+      .where(eq(pendingCharacterEdits.characterId, c.id));
+    expect(edit.updateNote).toBe("fixed their stat screenshot");
     const notes = await db
       .select()
       .from(characterUpdates)
       .where(eq(characterUpdates.characterId, c.id));
-    expect(notes.length).toBe(1);
-    expect(notes[0].note).toBe("fixed their stat screenshot");
+    expect(notes.length).toBe(0);
   });
 
   it("still queues a non-admin's stats-image change for review", async () => {
@@ -295,7 +300,7 @@ describe("admin character edits auto-apply (no review queue)", () => {
     expect(row.statsImageUrls ?? []).toEqual([]);
   });
 
-  it("supersedes an in-flight pending edit so it can't later clobber the admin change", async () => {
+  it("refuses a second user's edit while another's edit is still pending (409)", async () => {
     const owner = await createUser();
     const admin = await createAdmin();
     const c = await ownedChar(owner.id);
@@ -307,23 +312,29 @@ describe("admin character edits auto-apply (no review queue)", () => {
     expect(queued.status).toBe(202);
     expect(await pendingCount(c.id)).toBe(1);
 
-    // Admin directly applies a different stats image.
-    const applied = await patch(admin.id, c.id, {
+    // An admin's meaningful edit no longer instant-applies. Since a DIFFERENT
+    // user already holds the in-flight edit for this character, the admin's
+    // edit is refused rather than spawning a duplicate or clobbering it.
+    const blocked = await patch(admin.id, c.id, {
       statsImageUrls: ["/api/storage/objects/admin"],
     });
-    expect(applied.status).toBe(200);
-    expect(applied.body.autoApplied).toBe(true);
+    expect(blocked.status).toBe(409);
 
-    // The previously-pending edit is now cancelled (superseded), not pending.
+    // The original pending edit is untouched (still pending, original diff —
+    // the admin's value never overwrote the owner's queued payload).
     const [pending] = await db
       .select()
       .from(pendingCharacterEdits)
       .where(eq(pendingCharacterEdits.characterId, c.id));
-    expect(pending.status).toBe("cancelled");
+    expect(pending.status).toBe("pending");
+    expect((pending.proposedDiff as { statsImageUrls?: string[] }).statsImageUrls).toEqual([
+      "/api/storage/objects/stale",
+    ]);
+    expect(await pendingCount(c.id)).toBe(1);
 
-    // The admin's change is the live state.
+    // The live row was never modified.
     const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
-    expect(row.statsImageUrls).toEqual(["/api/storage/objects/admin"]);
+    expect(row.statsImageUrls ?? []).toEqual([]);
   });
 
   it("lets a fixer edit a non-owned character but still queues it for review", async () => {
