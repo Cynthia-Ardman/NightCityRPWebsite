@@ -233,9 +233,13 @@ router.get("/review/unseen-counts", requireAuth, async (req, res): Promise<void>
   const u = req.user!;
   const viewerId = u.id;
   const ACTIONABLE = ["pending", "changes_requested"] as const;
-  const isAdmin = hasRole(u.roles, "ADMIN");
-  const canMisc = hasRole(u.roles, "FIXER") || isAdmin;
-  const canSheets = hasRole(u.roles, "CS_APPROVER") || isAdmin;
+  // The reviewer pool is generic (FIXER / CS_APPROVER / ADMIN) for every review
+  // subject — sheets, custom requests, and character edits all draw from the
+  // same pool (see isReviewer / isEligibleReviewer). Count unseen items for all
+  // three queues off that single pool so badges match who can actually act
+  // (previously requests excluded CS_APPROVER and sheets excluded FIXER).
+  const canMisc = isReviewer(u as never);
+  const canSheets = isReviewer(u as never);
   const canEdits = isReviewer(u as never);
 
   let edits = 0;
@@ -379,9 +383,13 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
   const u = req.user!;
   const viewerId = u.id;
   const ACTIONABLE = ["pending", "changes_requested"] as const;
-  const isAdmin = hasRole(u.roles, "ADMIN");
-  const canMisc = hasRole(u.roles, "FIXER") || isAdmin;
-  const canSheets = hasRole(u.roles, "CS_APPROVER") || isAdmin;
+  // The reviewer pool is generic (FIXER / CS_APPROVER / ADMIN) for every review
+  // subject — sheets, custom requests, and character edits all draw from the
+  // same pool (see isReviewer / isEligibleReviewer). Count unseen items for all
+  // three queues off that single pool so badges match who can actually act
+  // (previously requests excluded CS_APPROVER and sheets excluded FIXER).
+  const canMisc = isReviewer(u as never);
+  const canSheets = isReviewer(u as never);
   const canEdits = isReviewer(u as never);
 
   let edit: number[] = [];

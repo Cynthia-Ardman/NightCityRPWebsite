@@ -14,16 +14,23 @@ router.post("/dice/roll", requireAuth, async (req, res): Promise<void> => {
   }
   try {
     const result = roll(expression);
+    // Only attribute the roll to a character the CALLER owns — otherwise ignore
+    // the supplied id (roll anonymously) so a crafted request can't stamp
+    // someone else's character name onto the roll history.
     let characterName: string | null = null;
+    let ownedCharacterId: number | null = null;
     if (characterId) {
       const [c] = await db.select().from(characters).where(eq(characters.id, characterId));
-      if (c) characterName = c.name;
+      if (c && c.ownerId === req.user!.id) {
+        characterName = c.name;
+        ownedCharacterId = c.id;
+      }
     }
     const [stored] = await db
       .insert(diceRolls)
       .values({
         userId: req.user!.id,
-        characterId: characterId ?? null,
+        characterId: ownedCharacterId,
         characterName,
         expression: result.expression,
         label: label ?? null,

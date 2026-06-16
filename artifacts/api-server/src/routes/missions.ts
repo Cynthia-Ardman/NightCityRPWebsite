@@ -408,6 +408,18 @@ router.post("/events/:id/convert-to-mission", requireAuth, async (req, res): Pro
     res.status(result.httpStatus ?? 400).json({ error: result.error ?? "Conversion failed" });
     return;
   }
+  // Re-sync the handed-off Discord scheduled event to mission format. The
+  // conversion only moves the event id onto the mission; without this the
+  // Discord event keeps its old event-formatted title/description until the
+  // next edit or reconcile pass.
+  const [newMission] = await db.select().from(missions).where(eq(missions.id, result.newId!));
+  if (newMission) {
+    const ctx = await getMissionContext();
+    const sync = await syncMissionDiscordEvent(newMission, ctx, newMission.imageUrl);
+    if (sync.discordEventId !== newMission.discordEventId || sync.discordSyncError !== newMission.discordSyncError) {
+      await db.update(missions).set(sync).where(eq(missions.id, newMission.id));
+    }
+  }
   await recordAudit({
     req,
     category: "mission",

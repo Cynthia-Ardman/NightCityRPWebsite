@@ -949,49 +949,65 @@ export async function convertMissionToEvent(
   createdById: string,
   f: MissionToEventFields,
 ): Promise<ConvertResult> {
-  return await db.transaction(async (tx) => {
-    const [m] = await tx.select().from(missions).where(eq(missions.id, missionId)).for("update");
-    if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
-    if (m.status === "cancelled") {
-      return { ok: false, error: "Mission is already cancelled", httpStatus: 409 };
-    }
-    if (!m.startAt) {
-      return { ok: false, error: "Mission has no start time; set one before converting", httpStatus: 409 };
-    }
-    const startAt = m.startAt;
-    const endAt = f.endAt ?? new Date(startAt.getTime() + m.durationMinutes * 60000);
-    if (endAt.getTime() <= startAt.getTime()) {
-      return { ok: false, error: "End time must be after start time", httpStatus: 400 };
-    }
-    const handoffDiscordId = m.discordEventId;
+  const txResult = await db.transaction(
+    async (tx): Promise<{ ok: false; error: string; httpStatus: number } | { ok: true; ev: Event }> => {
+      const [m] = await tx.select().from(missions).where(eq(missions.id, missionId)).for("update");
+      if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+      if (m.status === "cancelled") {
+        return { ok: false, error: "Mission is already cancelled", httpStatus: 409 };
+      }
+      if (!m.startAt) {
+        return { ok: false, error: "Mission has no start time; set one before converting", httpStatus: 409 };
+      }
+      const startAt = m.startAt;
+      const endAt = f.endAt ?? new Date(startAt.getTime() + m.durationMinutes * 60000);
+      if (endAt.getTime() <= startAt.getTime()) {
+        return { ok: false, error: "End time must be after start time", httpStatus: 400 };
+      }
+      const handoffDiscordId = m.discordEventId;
 
-    // Null the Discord id on the mission FIRST so the partial-unique index on
-    // events.discord_event_id can't collide when the new event claims it.
-    await tx
-      .update(missions)
-      .set({ status: "cancelled", discordEventId: null, updatedAt: new Date() })
-      .where(eq(missions.id, missionId));
+      // Null the Discord id on the mission FIRST so the partial-unique index on
+      // events.discord_event_id can't collide when the new event claims it.
+      await tx
+        .update(missions)
+        .set({ status: "cancelled", discordEventId: null, updatedAt: new Date() })
+        .where(eq(missions.id, missionId));
 
-    const [ev] = await tx
-      .insert(events)
-      .values({
-        title: m.title,
-        eventType: f.eventType,
-        location: m.location,
-        description: m.description,
-        imageUrl: m.imageUrl,
-        startAt,
-        endAt,
-        status: "scheduled",
-        needsNpcs: f.needsNpcs,
-        npcBlurb: f.needsNpcs ? f.npcBlurb : null,
-        createdById,
-        discordEventId: handoffDiscordId,
-      })
-      .returning();
+      const [ev] = await tx
+        .insert(events)
+        .values({
+          title: m.title,
+          eventType: f.eventType,
+          location: m.location,
+          description: m.description,
+          imageUrl: m.imageUrl,
+          startAt,
+          endAt,
+          status: "scheduled",
+          needsNpcs: f.needsNpcs,
+          npcBlurb: f.needsNpcs ? f.npcBlurb : null,
+          createdById,
+          discordEventId: handoffDiscordId,
+        })
+        .returning();
 
-    return { ok: true, newId: ev.id };
-  });
+      return { ok: true, ev };
+    },
+  );
+  if (!txResult.ok) return txResult;
+  // After commit, re-sync the handed-off Discord scheduled event to EVENT format
+  // (title/description/end) — matching createEvent. The conversion only moves the
+  // Discord id; without this the event keeps its old mission-formatted title
+  // until the discord_event_sync cron reconciles it. External call lives outside
+  // the transaction; a failure self-heals on the next reconcile pass.
+  try {
+    const ctx = await getMissionContext();
+    const sync = await syncEventDiscordEvent(txResult.ev, ctx.live);
+    await applyEventSync(txResult.ev.id, txResult.ev, sync);
+  } catch (err) {
+    logger.warn({ err, eventId: txResult.ev.id }, "convertMissionToEvent: Discord resync failed; reconcile cron will heal");
+  }
+  return { ok: true, newId: txResult.ev.id };
 }
 
 // ---------------------------------------------------------------------------
@@ -1421,11 +1437,15 @@ export async function signUpAsEventNpc(opts: {
   if (!event) return { ok: false, httpStatus: 404, error: "Event not found" };
   if (event.status === "cancelled") return { ok: false, httpStatus: 409, error: "Event is cancelled" };
   if (!eventNeedsNpcs(event)) return { ok: false, httpStatus: 409, error: "This event is not accepting NPC sign-ups" };
-  // Validate character ownership when supplied.
+  // Validate character ownership when supplied. Reject an unknown or
+  // not-owned character rather than silently signing the user up anonymously —
+  // the client believes the signup is tied to the chosen character.
   let characterId: number | null = null;
   if (opts.characterId != null) {
     const [c] = await db.select().from(characters).where(eq(characters.id, opts.characterId));
-    if (c && c.ownerId === opts.userId) characterId = c.id;
+    if (!c) return { ok: false, httpStatus: 404, error: "Character not found" };
+    if (c.ownerId !== opts.userId) return { ok: false, httpStatus: 403, error: "You can only sign up with a character you own" };
+    characterId = c.id;
   }
   // Idempotent: a partial unique index keeps at most one active sign-up per
   // (event, user). onConflictDoNothing avoids a 500 on a double-submit race.

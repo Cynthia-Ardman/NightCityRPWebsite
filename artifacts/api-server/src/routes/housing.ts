@@ -49,7 +49,11 @@ function shape(row: LeaseRow): Record<string, unknown> {
     paidThrough: row.paidThrough ? row.paidThrough.toISOString() : null,
     notes: row.notes,
     kind: row.kind,
-    delinquent: !!row.paidThrough && row.paidThrough.getTime() < Date.now(),
+    // Delinquent when rent is past due OR the autobill cron has already flagged
+    // it (delinquentSince is set even when paidThrough is null after a failed
+    // debit). Previously a null paidThrough left this false while the eviction
+    // clock (daysUntilEviction) was already ticking — a contradictory display.
+    delinquent: row.delinquentSince != null || (!!row.paidThrough && row.paidThrough.getTime() < Date.now()),
     delinquentSince: row.delinquentSince ? row.delinquentSince.toISOString() : null,
     daysUntilEviction,
     createdAt: row.createdAt.toISOString(),
@@ -674,7 +678,11 @@ router.post("/housing/requests/:id/approve", requireAuth, async (req, res): Prom
     if (!c.approved) {
       return { error: { status: 400, body: { error: "Character is not approved; cannot bill rent" } } };
     }
-    const [listing] = await tx.select().from(catalogRent).where(eq(catalogRent.id, reqRow.listingId));
+    // Lock the listing row (same as the direct /housing/lease path) so two
+    // concurrent approvals of DIFFERENT pending requests for the SAME listing
+    // serialize here — otherwise both could pass the occupancy check below and
+    // double-lease the unit (there is no DB unique constraint on listing_id).
+    const [listing] = await tx.select().from(catalogRent).where(eq(catalogRent.id, reqRow.listingId)).for("update");
     if (!listing) {
       return { error: { status: 400, body: { error: "Listing is missing" } } };
     }
