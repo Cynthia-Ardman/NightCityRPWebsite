@@ -100,6 +100,17 @@ function resolveAbsoluteImageUrl(raw: string | null | undefined): string | null 
   return `${base}${raw.startsWith("/") ? "" : "/"}${raw}`;
 }
 
+// Public, clickable URL for a mission's detail page. Mirrors the announce/breach
+// link pattern: prefer PUBLIC_BASE_URL, fall back to the first Replit domain, and
+// degrade to a relative path when neither is set so the post is still readable.
+function buildMissionUrl(missionId: number): string {
+  const base = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(
+    /^https?:\/\//,
+    "",
+  );
+  return base ? `https://${base}/missions/${missionId}` : `/missions/${missionId}`;
+}
+
 // ===========================================================================
 // VIEW BUILDERS
 // ===========================================================================
@@ -1878,12 +1889,22 @@ export async function postMission(missionId: number, viewer: MissionViewer, req?
   const nextStatus = m.status === "cancelled" ? "open" : m.status === "open" ? m.status : "open";
   const updated: Mission = { ...m, workflowState: "posted", status: nextStatus };
   const ctx = await getMissionContext();
+  // Atomically claim the approved→posted transition: the conditional WHERE
+  // guards against two concurrent post/approve requests both passing the read
+  // check above and each firing the Discord event + sign-up announcement. Only
+  // the request that flips the row proceeds with side effects.
+  const claimed = await db
+    .update(missions)
+    .set({ workflowState: "posted", status: nextStatus, updatedAt: new Date() })
+    .where(and(eq(missions.id, missionId), eq(missions.workflowState, "approved")))
+    .returning({ id: missions.id });
+  if (claimed.length === 0) {
+    return { ok: false, error: "Mission was already posted", httpStatus: 409 };
+  }
   const sync = await syncMissionDiscordEvent(updated, ctx, m.imageUrl);
   await db
     .update(missions)
     .set({
-      workflowState: "posted",
-      status: nextStatus,
       discordEventId: sync.discordEventId,
       discordSyncError: sync.discordSyncError,
       updatedAt: new Date(),
@@ -1898,6 +1919,26 @@ export async function postMission(missionId: number, viewer: MissionViewer, req?
     targetId: String(missionId),
     message: `Posted mission "${m.title}" to the public board`,
   });
+  // Announce the newly opened mission (with a link) to the sign-up channel so
+  // players know it's accepting PC applications. Live-gated and fail-safe: a
+  // delivery miss never blocks the post action (postToChannel also no-ops
+  // outside deployments). Only announce when the mission is actually open.
+  if (nextStatus === "open") {
+    const url = buildMissionUrl(missionId);
+    const content = `**New mission open for sign-ups — ${m.title}**\n${url}`;
+    try {
+      if (ctx.live) {
+        await postToChannel(ctx.signupChannelId, content);
+      } else {
+        logger.info(
+          { missionId, channel: ctx.signupChannelId },
+          "[test mode] would post mission sign-up announcement",
+        );
+      }
+    } catch (err) {
+      logger.error({ err, missionId }, "Mission sign-up announcement failed");
+    }
+  }
   return { ok: true };
 }
 
