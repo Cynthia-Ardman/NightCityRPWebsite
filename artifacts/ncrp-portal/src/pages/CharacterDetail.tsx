@@ -1707,10 +1707,25 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
     gear.length > 0 ||
     guns.length > 0;
 
-  // The free-form `sections` block (when present) is rendered by SheetSections,
-  // which already shows BACKGROUND — so only render the discrete BACKGROUND card
-  // when there are no sections, to avoid showing the bio twice.
-  const showDiscreteBackground = !hasSections && !!cleanBg;
+  // The character's bio can live in two places at once: the top-level
+  // `background` column (what the edit form's BACKGROUND tab writes) AND a
+  // free-form `sections` entry literally titled "Background" (legacy imports).
+  // SheetSections renders the section entries but NOT the column value, so we
+  // surface the column `background` as its own card whenever it has content.
+  // To avoid printing the bio twice we suppress the discrete card ONLY when a
+  // "Background" section already shows the exact same text — if they differ
+  // (e.g. an edited column bio next to a stale legacy section) we render both so
+  // newer column content is never hidden.
+  const sectionBackgroundRaw =
+    sections &&
+    Object.entries(sections).find(
+      ([heading]) => heading.trim().toLowerCase() === "background",
+    )?.[1];
+  const sectionBackgroundClean =
+    typeof sectionBackgroundRaw === "string"
+      ? sectionBackgroundRaw.replace(/\[legacy:[^\]]+\]/g, "").trim()
+      : "";
+  const showDiscreteBackground = !!cleanBg && sectionBackgroundClean !== cleanBg;
 
   if (!hasSections && !hasDiscrete && !cleanBg) {
     return (

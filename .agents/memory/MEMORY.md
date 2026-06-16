@@ -143,3 +143,4 @@
 - [Review queue gate parity](review-queue-gate-parity.md) — all 3 review queues must gate reads on isReviewer (FIXER/CS_APPROVER/ADMIN); requests once used FIXER/ADMIN-only, locking eligible CS_APPROVER voters out and stranding finalize-on-read.
 - [Stale-pool finalize-on-read](stale-pool-finalize-on-read.md) — review decisions evaluated only at vote-cast; a shrinking eligible pool drops the majorityOf threshold below cast approvals and strands tickets pending — re-evaluate+finalize (locked, idempotent) on reviewer reads.
 - [VRChat calendar mirror](vrchat-calendar-mirror.md) — events mirrored to VRChat group calendar (session/social only); triple gate; gate-closed CRUD is a true no-op; both CRUD + cron can create the same row (guard the claim).
+- [Dossier background rendering](dossier-background-rendering.md) — column `background` + a "Background" section coexist; render the column card independent of hasSections, dedup only on exact normalized-text match.

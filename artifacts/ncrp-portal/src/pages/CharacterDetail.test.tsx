@@ -6,6 +6,8 @@ const h = vi.hoisted(() => ({
   state: {
     isAdmin: false as boolean,
     pendingEdit: undefined as unknown,
+    sheetData: null as unknown,
+    background: "" as string,
   },
 }));
 
@@ -47,7 +49,8 @@ vi.mock("@workspace/api-client-react", () => {
   });
   return {
     // Reads
-    useGetCharacter: () => idleQuery(CHAR),
+    useGetCharacter: () =>
+      idleQuery({ ...CHAR, sheetData: h.state.sheetData, background: h.state.background }),
     useGetMe: () => idleQuery({ id: 1, isAdmin: h.state.isAdmin }),
     useGetCharacterPendingEdit: () => idleQuery(h.state.pendingEdit),
     useListCharacterUpdates: () => idleQuery([]),
@@ -189,6 +192,8 @@ describe("CharacterDetail: admin-only delete affordance", () => {
   beforeEach(() => {
     h.state.isAdmin = false;
     h.state.pendingEdit = undefined;
+    h.state.sheetData = null;
+    h.state.background = "";
   });
 
   it("does NOT expose the delete control in the edit dialog for a non-admin", () => {
@@ -233,5 +238,60 @@ describe("CharacterDetail: admin-only delete affordance", () => {
     render(<CharacterDetail />);
 
     expect(screen.getByTestId("button-edit-character")).toBeDisabled();
+  });
+});
+
+describe("CharacterDetail: dossier background rendering", () => {
+  beforeEach(() => {
+    h.state.isAdmin = false;
+    h.state.pendingEdit = undefined;
+    h.state.sheetData = null;
+    h.state.background = "";
+  });
+
+  it("renders the column background even when the character also has sections", () => {
+    // Regression: a character whose bio lives in the top-level `background`
+    // column AND who has a non-empty free-form `sections` map (e.g. Psychology,
+    // Skills) used to have the background silently dropped — the discrete card
+    // was suppressed whenever any section existed, and SheetSections never
+    // renders the column value.
+    h.state.background = "Grew up in Watson, ran with the Maelstrom.";
+    h.state.sheetData = {
+      sections: { Psychology: "Calm under fire.", Skills: "Netrunning" },
+    };
+    render(<CharacterDetail />);
+
+    expect(screen.getByTestId("dossier-background")).toHaveTextContent(
+      "Grew up in Watson, ran with the Maelstrom.",
+    );
+    // The free-form sections still render alongside it.
+    expect(screen.getByTestId("section-Psychology")).toBeInTheDocument();
+  });
+
+  it("does NOT duplicate the bio when a 'Background' section already shows it", () => {
+    h.state.background = "Grew up in Watson.";
+    h.state.sheetData = {
+      sections: { Background: "Grew up in Watson.", Skills: "Netrunning" },
+    };
+    render(<CharacterDetail />);
+
+    // The section card carries the bio; the discrete column card is suppressed.
+    expect(screen.getByTestId("section-Background")).toBeInTheDocument();
+    expect(screen.queryByTestId("dossier-background")).toBeNull();
+  });
+
+  it("renders both when the column bio differs from a stale 'Background' section", () => {
+    // The edit form rewrites the column but a legacy "Background" section may
+    // still hold older text — surface BOTH so the newer column bio is not hidden.
+    h.state.background = "Newly edited bio: now runs solo.";
+    h.state.sheetData = {
+      sections: { Background: "Old legacy bio.", Skills: "Netrunning" },
+    };
+    render(<CharacterDetail />);
+
+    expect(screen.getByTestId("dossier-background")).toHaveTextContent(
+      "Newly edited bio: now runs solo.",
+    );
+    expect(screen.getByTestId("section-Background")).toBeInTheDocument();
   });
 });
