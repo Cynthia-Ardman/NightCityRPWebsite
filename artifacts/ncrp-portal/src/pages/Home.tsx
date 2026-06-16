@@ -150,9 +150,12 @@ function Dashboard() {
       <NpcSessionBanner />
       </div>
 
-      {/* Live VRChat instances span the full dashboard width (not capped at
-          max-w-7xl) so the open-instance cards have room to breathe. */}
-      <LiveInstances />
+      {/* Live VRChat instances share the same max-w-7xl column as the rest of
+          the dashboard so the section lines up with SYS_OVERVIEW and the grids
+          below it. */}
+      <div className="max-w-7xl mx-auto">
+        <LiveInstances />
+      </div>
 
       <div className="space-y-8 max-w-7xl mx-auto">
       {/* Contextual top row: staff-only queue cards, the weekly attendance
