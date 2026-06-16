@@ -3184,6 +3184,14 @@ export const UpdateMissionResponse = zod.object({
 
 
 /**
+ * @summary Delete a draft mission. Owning fixer/admin only; drafts only.
+ */
+export const DeleteMissionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * @summary Non-mission actor payouts (sessions / open lobbies), grouped by event. Fixer/admin only.
  */
 export const GetActorPayoutsResponseItem = zod.object({

@@ -1719,6 +1719,15 @@ paths:
         "400": { description: Bad request }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
+    delete:
+      operationId: deleteMission
+      tags: [missions]
+      summary: "Delete a draft mission. Owning fixer/admin only; drafts only."
+      responses:
+        "204": { description: Deleted. }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+        "409": { description: Only draft missions can be deleted. }
   /missions/actor-payouts:
     get:
       operationId: getActorPayouts

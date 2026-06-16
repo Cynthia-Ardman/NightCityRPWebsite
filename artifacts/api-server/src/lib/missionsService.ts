@@ -1791,6 +1791,54 @@ export async function submitMissionProposal(missionId: number, viewer: MissionVi
   return { ok: true };
 }
 
+/**
+ * Permanently delete a DRAFT mission. Owning trial fixer or any manager; only
+ * drafts can be hard-deleted — anything further along its lifecycle must be
+ * cancelled (status='cancelled') instead so its history/Discord event survive.
+ * FK children (assignments, applications, NPC sign-ups, breach puzzles) cascade.
+ */
+export async function deleteMission(missionId: number, viewer: MissionViewer, req?: Request): Promise<TransitionResult> {
+  // Lock the row and re-check the draft gate inside the transaction so a
+  // concurrent submit (draft → proposal) can't slip past a stale read and let
+  // us hard-delete a mission that just advanced in its lifecycle.
+  let deletedTitle: string | null = null;
+  const result = await db.transaction(async (tx): Promise<TransitionResult> => {
+    const [m] = await tx
+      .select()
+      .from(missions)
+      .where(eq(missions.id, missionId))
+      .for("update");
+    if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+    // Trial fixers may only delete missions they personally own; full managers
+    // may delete any draft.
+    if (!viewer.isManager && m.fixerId !== viewer.id) {
+      return { ok: false, error: "You can only delete your own missions", httpStatus: 403 };
+    }
+    if (m.workflowState !== "draft") {
+      return {
+        ok: false,
+        error: `Only draft missions can be deleted (current: ${m.workflowState}). Cancel it instead.`,
+        httpStatus: 409,
+      };
+    }
+    await tx.delete(missions).where(eq(missions.id, missionId));
+    deletedTitle = m.title;
+    return { ok: true };
+  });
+  if (result.ok) {
+    await recordAudit({
+      req,
+      actorId: viewer.id,
+      action: "mission_deleted",
+      category: "mission",
+      targetType: "mission",
+      targetId: String(missionId),
+      message: `Deleted draft mission "${deletedTitle ?? missionId}"`,
+    });
+  }
+  return result;
+}
+
 /** Archivist/admin approves a proposal (proposal → approved). */
 export async function approveMission(missionId: number, viewer: MissionViewer, req?: Request): Promise<TransitionResult> {
   const [m] = await db.select().from(missions).where(eq(missions.id, missionId));

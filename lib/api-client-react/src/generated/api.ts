@@ -8041,6 +8041,76 @@ export const useUpdateMission = <TError = ErrorType<void>,
       return useMutation(getUpdateMissionMutationOptions(options));
     }
 
+export const getDeleteMissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}`
+}
+
+/**
+ * @summary Delete a draft mission. Owning fixer/admin only; drafts only.
+ */
+export const deleteMission = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteMissionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteMissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMission>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteMission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMission>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMission(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMissionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMission>>>
+
+    export type DeleteMissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a draft mission. Owning fixer/admin only; drafts only.
+ */
+export const useDeleteMission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMission>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMission>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteMissionMutationOptions(options));
+    }
+
 export const getGetActorPayoutsUrl = () => {
 
 

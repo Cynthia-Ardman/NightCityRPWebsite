@@ -38,6 +38,7 @@ import {
   isMissionStatus,
   isJobType,
   submitMissionProposal,
+  deleteMission,
   approveMission,
   postMission,
   applyToMission,
@@ -854,6 +855,23 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
 
   const detail = await getMissionDetail(id, viewerOf(req));
   res.json(detail);
+});
+
+// Hard-delete a draft mission. Owning fixer/admin only; drafts only (anything
+// further along must be cancelled via PATCH status instead).
+router.delete("/missions/:id", requireAuth, async (req, res): Promise<void> => {
+  if (!canAuthorMissions(req)) {
+    res.status(403).json({ error: "Fixer, trial fixer, or admin role required" });
+    return;
+  }
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  const result = await deleteMission(id, viewerOf(req), req);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.status(204).end();
 });
 
 // ---------------- PAYMENTS ----------------

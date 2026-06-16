@@ -9,6 +9,7 @@ import {
   useListMyApplications,
   useListMyActing,
   useSubmitMission,
+  useDeleteMission,
   usePostMission,
   useApplyToMission,
   useWithdrawApplication,
@@ -47,6 +48,7 @@ import {
   Clock,
   Banknote,
   Drama,
+  Trash2,
 } from "lucide-react";
 import {
   missionStatusClass,
@@ -65,6 +67,7 @@ import { MissionOutcomesBanner } from "@/components/MissionOutcomesBanner";
 import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
 import { TrialFixerBadge } from "@/components/TrialFixerBadge";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import Markdown from "@/components/Markdown";
 
 type TabKey =
   | "open"
@@ -828,7 +831,7 @@ function MissionCard({
       <CardContent className="space-y-4 font-mono text-sm">
         {/* 3. Description preview */}
         {m.descriptionPreview ? (
-          <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed">{m.descriptionPreview}</p>
+          <Markdown className="text-foreground/90 leading-relaxed">{m.descriptionPreview}</Markdown>
         ) : (
           <p className="text-muted-foreground italic">No description provided.</p>
         )}
@@ -1098,11 +1101,12 @@ function WorkflowActions({
   };
   const submit = useSubmitMission({ mutation: { onSuccess: invalidate } });
   const post = usePostMission({ mutation: { onSuccess: invalidate } });
-  const busy = submit.isPending || post.isPending;
+  const del = useDeleteMission({ mutation: { onSuccess: invalidate } });
+  const busy = submit.isPending || post.isPending || del.isPending;
 
   if (m.workflowState === "draft" && (canManage || canAuthor)) {
     return (
-      <div className="pt-1">
+      <div className="pt-1 flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           disabled={busy}
@@ -1111,6 +1115,25 @@ function WorkflowActions({
           data-testid={`button-submit-${m.id}`}
         >
           {submit.isPending ? "SUBMITTING..." : "SUBMIT FOR APPROVAL"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => {
+            if (
+              window.confirm(
+                `Delete draft mission "${m.title}"? This cannot be undone.`,
+              )
+            ) {
+              del.mutate({ id: m.id });
+            }
+          }}
+          className="rounded-none border-destructive/60 text-destructive hover:bg-destructive/10 font-display tracking-widest"
+          data-testid={`button-delete-${m.id}`}
+        >
+          <Trash2 className="w-4 h-4" />
+          {del.isPending ? "DELETING..." : "DELETE DRAFT"}
         </Button>
       </div>
     );
