@@ -1213,13 +1213,35 @@ router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
   // the votes are cleared by the separate resubmit step instead, so we only
   // reset here when the row hasn't left the queue.) clearReviewVotes is a no-op
   // for owner/player-decided types that never accrue votes.
+  //
+  // The UPDATE is guarded on the SAME status we read above so a concurrent vote
+  // that flips the ticket to approved/rejected between the read and the write
+  // can't be clobbered (and we don't clear votes on an already-decided row).
   if (reqRow.status === "pending") {
-    await db.transaction(async (tx) => {
-      await tx.update(customRequests).set(patch).where(eq(customRequests.id, rid));
+    const applied = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(customRequests)
+        .set(patch)
+        .where(and(eq(customRequests.id, rid), eq(customRequests.status, "pending")))
+        .returning({ id: customRequests.id });
+      if (rows.length === 0) return false;
       await clearReviewVotes({ subjectType: "request", subjectId: rid, conn: tx });
+      return true;
     });
+    if (!applied) {
+      res.status(409).json({ error: "This request was just decided by a reviewer — refresh to see the result" });
+      return;
+    }
   } else {
-    await db.update(customRequests).set(patch).where(eq(customRequests.id, rid));
+    const rows = await db
+      .update(customRequests)
+      .set(patch)
+      .where(and(eq(customRequests.id, rid), eq(customRequests.status, "changes_requested")))
+      .returning({ id: customRequests.id });
+    if (rows.length === 0) {
+      res.status(409).json({ error: "This request's status changed — refresh and try again" });
+      return;
+    }
   }
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));

@@ -37,6 +37,12 @@ export type BreachPuzzleView = BreachPuzzle & {
 
 export type ServiceResult<T> = { status: number; body: T | { error: string } };
 
+// Network grace (seconds) added to a puzzle's time limit before the server
+// treats a submission as expired. The client enforces the hard countdown and
+// auto-submits at the limit; this only absorbs request latency so a just-in-time
+// solve isn't rejected by lag. Kept small so it can't meaningfully extend play.
+const SUBMIT_GRACE_SECONDS = 3;
+
 const DIFFICULTIES: Difficulty[] = [
   "easy",
   "medium",
@@ -446,7 +452,13 @@ export async function submitResult(
   let expired = false;
   if (row.startedAt) {
     timeTakenSeconds = Math.round((now.getTime() - row.startedAt.getTime()) / 1000);
-    if (timeTakenSeconds > row.timeLimitSeconds) expired = true;
+    // The client board stops play and auto-submits the instant its countdown
+    // hits the limit. That final submission then has to travel to the server,
+    // so allow a small network grace before rejecting it as expired — otherwise
+    // a player who solved the puzzle just in time can lose the win purely to
+    // request latency. The player can't gain extra PLAY time from this: the
+    // client enforces the hard stop; the grace only covers transit.
+    if (timeTakenSeconds > row.timeLimitSeconds + SUBMIT_GRACE_SECONDS) expired = true;
   } else {
     expired = true;
   }

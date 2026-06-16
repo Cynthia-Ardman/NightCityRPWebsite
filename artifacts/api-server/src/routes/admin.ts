@@ -6,6 +6,7 @@ import {
   characterUpdates, inventoryItems, inventoryEvents,
   storeEmployees, stores, ripperdocs, ripperdocEmployees,
   housingRequests, traumaTeamCalls, missionLog,
+  customRequests, saleOffers, missionApplications, missionAssignments,
   pendingCharacterEdits, shopOpens, characterSheets, diceRolls,
   botActorAttendance, botAttendanceLog, botBalanceHistory, botCyberwareStatus,
   botCyberwareWeeklyRuns, botLastPayment, botPaymentLabels, botRentRuns,
@@ -493,6 +494,16 @@ router.put("/admin/characters/:id/owner", adminOrFixer, async (req, res): Promis
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${req.user!.username} assigned ${c.name} to ${u.username}`,
   });
+  await recordAudit({
+    req,
+    category: "character",
+    action: "owner_assign",
+    targetType: "character",
+    targetId: id,
+    message: `Assigned ${c.name} to ${u.username}`,
+    before: { ownerId: c.ownerId },
+    after: { ownerId, claimed: true },
+  });
   res.json(updated);
 });
 
@@ -514,6 +525,16 @@ router.delete("/admin/characters/:id/owner", adminOrFixer, async (req, res): Pro
     actorName: req.user!.username,
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${req.user!.username} cleared ownership of ${c.name}`,
+  });
+  await recordAudit({
+    req,
+    category: "character",
+    action: "owner_clear",
+    targetType: "character",
+    targetId: id,
+    message: `Cleared ownership of ${c.name}`,
+    before: { ownerId: c.ownerId },
+    after: { ownerId: null, claimed: false },
   });
   res.json(updated);
 });
@@ -1193,10 +1214,12 @@ router.post(
           // Preserve admin-assigned ownerId (never touched here). For other
           // fields, an explicit value in the export wins; otherwise keep what
           // prod already has, so admins editing in prod don't get clobbered.
-          const updateSet: Record<string, unknown> = {
-            approved: npc.approved ?? true,
-            claimed: npc.claimed ?? false,
-          };
+          // approved/claimed are preserve-first too (previously they were always
+          // overwritten with ?? true / ?? false, clobbering prod admin decisions
+          // whenever the export omitted them).
+          const updateSet: Record<string, unknown> = {};
+          if (npc.approved != null) updateSet.approved = npc.approved;
+          if (npc.claimed != null) updateSet.claimed = npc.claimed;
           if (npc.archetype != null) updateSet.archetype = npc.archetype;
           if (npc.lifeStatus != null) updateSet.lifeStatus = npc.lifeStatus;
           if (npc.legacyDiscordUsername != null) updateSet.legacyDiscordUsername = npc.legacyDiscordUsername;
@@ -1207,7 +1230,9 @@ router.post(
           if (npc.importedFromThreadId != null) updateSet.importedFromThreadId = npc.importedFromThreadId;
           if (npc.importedFromChannelName != null) updateSet.importedFromChannelName = npc.importedFromChannelName;
           if (npc.sheetData != null) updateSet.sheetData = npc.sheetData as never;
-          await db.update(characters).set(updateSet).where(eq(characters.id, existing[0].id));
+          if (Object.keys(updateSet).length > 0) {
+            await db.update(characters).set(updateSet).where(eq(characters.id, existing[0].id));
+          }
           updated++;
         }
       } catch (err) {
@@ -2076,6 +2101,22 @@ router.post(
       repoint.ripperdocs_owner = (await tx.update(ripperdocs).set({ ownerCharacterId: keepId }).where(eq(ripperdocs.ownerCharacterId, dropId)).returning({ id: ripperdocs.id })).length;
       repoint.character_sheets = (await tx.update(characterSheets).set({ characterId: keepId }).where(eq(characterSheets.characterId, dropId)).returning({ id: characterSheets.id })).length;
       repoint.dice_rolls = (await tx.update(diceRolls).set({ characterId: keepId }).where(eq(diceRolls.characterId, dropId)).returning({ id: diceRolls.id })).length;
+      // These cascade-delete on character removal with no unique-on-characterId
+      // constraint, so a plain repoint preserves them (previously they were
+      // silently destroyed when the drop row was deleted below).
+      repoint.custom_requests = (await tx.update(customRequests).set({ characterId: keepId }).where(eq(customRequests.characterId, dropId)).returning({ id: customRequests.id })).length;
+      repoint.sale_offers = (await tx.update(saleOffers).set({ buyerCharacterId: keepId }).where(eq(saleOffers.buyerCharacterId, dropId)).returning({ id: saleOffers.id })).length;
+      // mission_assignments.characterId is ON DELETE SET NULL (row survives but
+      // loses its character link); repoint to preserve who was assigned. The
+      // UNIQUE is on (missionId, userId) so changing characterId can't collide.
+      repoint.mission_assignments = (await tx.update(missionAssignments).set({ characterId: keepId }).where(eq(missionAssignments.characterId, dropId)).returning({ id: missionAssignments.id })).length;
+      // mission_applications: UNIQUE (missionId, characterId). Drop the drop's
+      // application on missions the keeper already applied to, then repoint the
+      // rest so the txn can't 23505 mid-merge.
+      await tx.execute(sql`delete from mission_applications d
+        where d.character_id = ${dropId}
+          and exists (select 1 from mission_applications k where k.character_id = ${keepId} and k.mission_id = d.mission_id)`);
+      repoint.mission_applications = (await tx.update(missionApplications).set({ characterId: keepId }).where(eq(missionApplications.characterId, dropId)).returning({ id: missionApplications.id })).length;
 
       // 3. Tables with a UNIQUE constraint on characterId: handle
       //    collisions explicitly so the txn doesn't 23505 mid-merge.
@@ -2178,6 +2219,10 @@ async function collectChildCounts(charId: number): Promise<Record<string, number
     character_sheets: await c(db.select({ n: count() }).from(characterSheets).where(eq(characterSheets.characterId, charId))),
     shop_opens: await c(db.select({ n: count() }).from(shopOpens).where(eq(shopOpens.characterId, charId))),
     pending_edits: await c(db.select({ n: count() }).from(pendingCharacterEdits).where(eq(pendingCharacterEdits.characterId, charId))),
+    custom_requests: await c(db.select({ n: count() }).from(customRequests).where(eq(customRequests.characterId, charId))),
+    sale_offers: await c(db.select({ n: count() }).from(saleOffers).where(eq(saleOffers.buyerCharacterId, charId))),
+    mission_assignments: await c(db.select({ n: count() }).from(missionAssignments).where(eq(missionAssignments.characterId, charId))),
+    mission_applications: await c(db.select({ n: count() }).from(missionApplications).where(eq(missionApplications.characterId, charId))),
   };
 }
 
@@ -2223,8 +2268,19 @@ router.post(
       }
       const ownerId = m.matchedUserIds[0];
       try {
-        await db.update(characters).set({ ownerId, claimed: true }).where(and(eq(characters.id, m.characterId), isNull(characters.ownerId)));
-        applied.push({ characterId: m.characterId, characterName: m.characterName, ownerId, matchedUsername: m.legacyDiscordUsername });
+        // Guard on still-unclaimed and check rows affected: if the character was
+        // claimed concurrently (or manually) the UPDATE matches 0 rows, so don't
+        // falsely report it as linked.
+        const updated = await db
+          .update(characters)
+          .set({ ownerId, claimed: true })
+          .where(and(eq(characters.id, m.characterId), isNull(characters.ownerId)))
+          .returning({ id: characters.id });
+        if (updated.length === 0) {
+          skipped.push({ characterId: m.characterId, characterName: m.characterName, reason: "already_claimed" });
+        } else {
+          applied.push({ characterId: m.characterId, characterName: m.characterName, ownerId, matchedUsername: m.legacyDiscordUsername });
+        }
       } catch (err) {
         skipped.push({ characterId: m.characterId, characterName: m.characterName, reason: (err as Error).message });
       }

@@ -1306,9 +1306,10 @@ function classifyEditOrSheet(status: string): TerminalDecision | null {
 // we never fetch (or 403 on) a queue the viewer can't see.
 function useTerminalItems() {
   const { data: me } = useEffectiveMe();
-  const canMisc = !!(me?.isAdmin || me?.isFixer);
+  // Unified reviewer pool (fixer / cs-approver / admin) for every queue's
+  // terminal (completed/denied) history, matching the server.
+  const canMisc = !!(me?.isAdmin || me?.isFixer || me?.isCsApprover);
   const canEdits = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
-  // Fixers review sheets too, so they see completed/denied sheet history.
   const canSheets = !!(me?.isAdmin || me?.isCsApprover || me?.isFixer);
   const canLore = !!me?.isAdmin;
 
@@ -1762,9 +1763,11 @@ function ReadyToApplyPanel() {
 
 export default function PendingRequests() {
   const { data: me } = useEffectiveMe();
-  const canMisc = !!(me?.isAdmin || me?.isFixer);
-  // Archivists approve mission proposals, which now live in the Misc tab, so
-  // they must be able to reach it even though they don't vote on custom requests.
+  // The custom-request reviewer pool is generic (fixer / cs-approver / admin),
+  // matching the server's isEligibleReviewer, so CS-Approvers can vote on misc
+  // requests and must see the tab + badges (they were previously hidden).
+  const canMisc = !!(me?.isAdmin || me?.isFixer || me?.isCsApprover);
+  // Archivists also reach the Misc tab to approve mission proposals.
   const canSeeMisc = canMisc || !!me?.isArchivist;
   // Fixers are sheet reviewers too (see NewCharactersTab.isReviewer/canVote and
   // the sidebar badge, which counts unseen sheets for fixers), so they must see

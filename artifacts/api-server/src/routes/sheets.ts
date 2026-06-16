@@ -429,6 +429,9 @@ router.patch("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
       return;
     }
   }
+  // Guard the UPDATE on the same editable-status set we checked above, so a
+  // concurrent vote/override that flips the sheet to approved/rejected between
+  // the read and the write can't be clobbered by a late edit.
   const [updated] = await db
     .update(characterSheets)
     .set({
@@ -436,8 +439,12 @@ router.patch("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
       ...(data && typeof data === "object" ? { data } : {}),
       ...(characterId !== undefined ? { characterId } : {}),
     })
-    .where(eq(characterSheets.id, id))
+    .where(and(eq(characterSheets.id, id), inArray(characterSheets.status, allowed)))
     .returning();
+  if (!updated) {
+    res.status(409).json({ error: "Sheet is locked (already approved/rejected) — refresh to see the latest." });
+    return;
+  }
   res.json(updated);
 });
 

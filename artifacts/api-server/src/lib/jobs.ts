@@ -304,7 +304,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           // Backfill it here for anyone who has accepted but is missing the role,
           // making eventual grant guaranteed without blocking the accept UX.
           if (u.rulesAccepted && roleIds !== null && !roleIds.includes(RULES_ROLE_ID)) {
-            await addGuildMemberRole(u.discordId, RULES_ROLE_ID);
+            const granted = await addGuildMemberRole(u.discordId, RULES_ROLE_ID);
+            if (!granted.ok) {
+              // Self-heals on the next hourly sync (the condition re-triggers),
+              // but surface the failure so a persistently-missing rules role
+              // isn't invisible.
+              logger.warn({ userId: u.id, discordId: u.discordId, error: granted.error }, "role sync: RULES_ROLE_ID backfill failed; will retry next sync");
+            }
           }
           // With a definite read, always write `roles` (even empty) so a member
           // who lost their last role or left the guild is reconciled instead of

@@ -1201,8 +1201,17 @@ router.delete(
   },
 );
 
-router.get("/catalog/cyberware", async (_req, res): Promise<void> => {
-  res.json(await db.select().from(catalogCyberware));
+router.get("/catalog/cyberware", async (req, res): Promise<void> => {
+  const all = await db.select().from(catalogCyberware);
+  const isStaff =
+    !!req.user && (hasRole(req.user.roles, "ADMIN") || hasRole(req.user.roles, "FIXER"));
+  if (isStaff) {
+    res.json(all);
+    return;
+  }
+  // Non-staff: scrub wholesalePrice (the fixer-only cost-basis / margin number),
+  // matching /catalog/guns. price + installCost are player-facing (what they pay).
+  res.json(all.map(({ wholesalePrice: _w, ...rest }) => rest));
 });
 
 const CyberwareEditSchema = z
