@@ -7842,6 +7842,10 @@ components:
         proposedDiff:
           type: object
           additionalProperties: true
+        changedFields:
+          type: array
+          description: "Field names that meaningfully changed (canonical compare vs the before-snapshot). Excludes no-op keys present in proposedDiff, so the count matches the detail page's diff."
+          items: { type: string }
         updateNote: { type: ["string", "null"] }
         status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested, closed] }
         decisionSummary: { type: ["string", "null"] }

@@ -35,7 +35,10 @@ function EditRow({
   showLifecycle: boolean;
   actions: ReturnType<typeof useReviewTicketActions>;
 }) {
-  const changed = e.proposedDiff ? Object.keys(e.proposedDiff) : [];
+  // Server-computed meaningful changes (canonical compare vs the before-
+  // snapshot); matches the detail page's diff. Falls back to raw diff keys only
+  // if an older payload omits it.
+  const changed = e.changedFields ?? (e.proposedDiff ? Object.keys(e.proposedDiff) : []);
   return (
     <div className="border border-border bg-card/30">
       <Link href={`/pending-edits/${e.id}`}>
@@ -133,7 +136,8 @@ function EditReviewCard({
   override: ReturnType<typeof useOverridePendingEdit>;
   busy: boolean;
 }) {
-  const changed = e.proposedDiff ? Object.keys(e.proposedDiff) : [];
+  // See EditRow: prefer server-computed meaningful changes over raw diff keys.
+  const changed = e.changedFields ?? (e.proposedDiff ? Object.keys(e.proposedDiff) : []);
   const my = e.myVote;
   return (
     <ReviewQueueCard

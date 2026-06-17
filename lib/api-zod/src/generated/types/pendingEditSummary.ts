@@ -21,6 +21,8 @@ export interface PendingEditSummary {
   /** @nullable */
   submitterAvatarUrl?: string | null;
   proposedDiff?: PendingEditSummaryProposedDiff;
+  /** Field names that meaningfully changed (canonical compare vs the before-snapshot). Excludes no-op keys present in proposedDiff, so the count matches the detail page's diff. */
+  changedFields?: string[];
   /** @nullable */
   updateNote?: string | null;
   status: PendingEditSummaryStatus;

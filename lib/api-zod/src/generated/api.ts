@@ -7324,6 +7324,7 @@ export const ListPendingEditsResponseItem = zod.object({
   "submitterName": zod.string().nullish(),
   "submitterAvatarUrl": zod.string().nullish(),
   "proposedDiff": zod.record(zod.string(), zod.unknown()).optional(),
+  "changedFields": zod.array(zod.string()).optional().describe('Field names that meaningfully changed (canonical compare vs the before-snapshot). Excludes no-op keys present in proposedDiff, so the count matches the detail page\'s diff.'),
   "updateNote": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'changes_requested', 'closed']),
   "decisionSummary": zod.string().nullish(),

@@ -27,3 +27,14 @@ what actually renders.
 and `PendingEditDiffInline.tsx`. Preserve meaningful falsy primitives (`0`,
 `false`) — only emptiness collapses. Any new pending-edit diff surface must reuse
 these helpers, not reinvent equality.
+
+**List-summary parity:** the queue cards (`PendingEditsList.tsx` EditRow +
+EditReviewCard) have NO `before` in the summary, so they can't run `valuesDiffer`
+client-side — they used raw `Object.keys(proposedDiff)` and over-counted (e.g.
+"3 fields: sheetData, …" while the detail diff showed 2). Fix lives server-side:
+`pending-edits.ts` ports `canonicalForDiff`/`valuesDiffer` and emits
+`changedFields` (proposedDiff vs `beforeSnapshot`) in `hydrateEdits()`; cards
+prefer `e.changedFields`. This also fixes ALREADY-submitted edits (stale
+over-inclusive proposedDiff) since it's computed at read time, not stored.
+NOTE the Discord announce text still prints raw `Object.keys(diff)` — not UI but
+a remaining parity gap if it ever matters.

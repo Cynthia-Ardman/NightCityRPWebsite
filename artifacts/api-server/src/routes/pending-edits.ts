@@ -60,6 +60,47 @@ const EditableSchema = z
 
 export type EditableDiff = z.infer<typeof EditableSchema>;
 
+// Canonicalize a value so empty-ish placeholders ("", whitespace, null, empty
+// array/object) collapse to undefined and object key order never registers as a
+// change. Mirrors the portal's canonicalForDiff (lib/textDiff.ts) so the
+// server-computed `changedFields` summary agrees exactly with the detail page's
+// diff renderer — otherwise a no-op `sheetData` re-save (the edit form whole-
+// replaces the blob, adding empty keys / reordering) shows up in the list card's
+// field count but renders nothing in the diff.
+function canonicalForDiff(v: unknown): unknown {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === "string") return v.trim() === "" ? undefined : v;
+  if (typeof v === "number" || typeof v === "boolean") return v;
+  if (Array.isArray(v)) {
+    const arr = v.map(canonicalForDiff).filter((x) => x !== undefined);
+    return arr.length ? arr : undefined;
+  }
+  if (typeof v === "object") {
+    const entries = Object.entries(v as Record<string, unknown>)
+      .map(([k, val]) => [k, canonicalForDiff(val)] as const)
+      .filter(([, c]) => c !== undefined)
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    return entries.length ? Object.fromEntries(entries) : undefined;
+  }
+  return v;
+}
+
+function valuesDiffer(before: unknown, after: unknown): boolean {
+  return JSON.stringify(canonicalForDiff(before)) !== JSON.stringify(canonicalForDiff(after));
+}
+
+// The meaningful changed fields for an edit: keys whose proposed value actually
+// differs from the before-snapshot once empty/order noise is collapsed. Used by
+// the list summary so queue cards and the detail diff never disagree.
+function meaningfulChangedFields(
+  proposedDiff: unknown,
+  beforeSnapshot: unknown,
+): string[] {
+  const diff = (proposedDiff ?? {}) as Record<string, unknown>;
+  const before = (beforeSnapshot ?? {}) as Record<string, unknown>;
+  return Object.keys(diff).filter((f) => valuesDiffer(before[f], diff[f]));
+}
+
 // Apply an approved diff to the characters row. Mirrors the legacy
 // PATCH /characters/:id apply logic so the eventual database state is
 // identical to what the player would have gotten pre-review.
@@ -432,6 +473,10 @@ async function hydrateEdits(
       submitterName: s?.username ?? null,
       submitterAvatarUrl: s?.avatarUrl ?? null,
       proposedDiff: r.proposedDiff,
+      // Only the fields that meaningfully changed (canonical compare vs the
+      // before-snapshot) so the queue card's field count matches the detail
+      // page's diff exactly — a no-op sheetData re-save is excluded.
+      changedFields: meaningfulChangedFields(r.proposedDiff, r.beforeSnapshot),
       updateNote: r.updateNote,
       status: r.status,
       decisionSummary: r.decisionSummary,
