@@ -125,20 +125,41 @@ export default function LiveInstances() {
   );
 
   const instances = data?.instances ?? [];
+  // Total players across every open group instance — surfaced big on the banner
+  // so members can see how busy the city is at a glance.
+  const totalPlayers = instances.reduce((sum, i) => sum + (i.userCount ?? 0), 0);
 
   // Core requirement: invisible when nothing is live.
   if (instances.length === 0) return null;
 
   return (
     <section className="space-y-4" data-testid="section-live-instances">
-      <div>
-        <h2 className="text-2xl font-display text-foreground flex items-center gap-3" data-testid="text-live-title">
-          <Radio className="w-6 h-6 text-nc-green animate-pulse" />
-          LIVE INSTANCES
-        </h2>
-        <p className="font-mono text-muted-foreground text-sm mt-1">
-          Night City RP VRChat group instances open right now. Jump straight in from your browser.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-display text-foreground flex items-center gap-3" data-testid="text-live-title">
+            <Radio className="w-6 h-6 text-nc-green animate-pulse" />
+            LIVE INSTANCES
+          </h2>
+          <p className="font-mono text-muted-foreground text-sm mt-1">
+            Night City RP VRChat group instances open right now. Jump straight in from your browser.
+          </p>
+        </div>
+        {totalPlayers > 0 && (
+          <div
+            className="flex items-center gap-3 border border-nc-green/40 bg-nc-green/5 px-5 py-2 shadow-[0_0_18px_hsl(var(--nc-green)/0.25)]"
+            data-testid="text-live-total-players"
+          >
+            <Users className="w-7 h-7 text-nc-green shrink-0" />
+            <div className="leading-none">
+              <div className="font-display text-4xl font-bold text-nc-green tabular-nums">
+                {totalPlayers.toLocaleString()}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-nc-green/70 mt-1">
+                {totalPlayers === 1 ? "Player in the city" : "Players in the city"}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
