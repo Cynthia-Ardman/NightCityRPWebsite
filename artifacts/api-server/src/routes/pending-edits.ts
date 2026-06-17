@@ -122,47 +122,101 @@ async function applyDiff(characterId: number, diff: EditableDiff, conn: DbConn =
   return updated;
 }
 
-// Fields that a player may change freely without staff review. Portraits,
-// background bio, archetype, and the sheet's free-text preamble are presentation
-// only — they never affect mechanics — so an edit touching ONLY these is applied
-// instantly. Everything else (name, stat sections, stat images, life status,
-// trauma tier, xanadu gold) still goes through the fixer review pipeline.
-const COSMETIC_FIELDS = new Set(["portraitUrl", "portraitUrls", "background", "archetype"]);
+// Auto-apply (skip review) is CONTENT-based, not field-based. An edit applies
+// instantly only when it changes nothing but presentation:
+//   1. portrait images (portraitUrl / portraitUrls) — pure chrome, always
+//      cosmetic; and/or
+//   2. prose — the `background` bio plus the free-text sheet fields (preamble,
+//      section bodies, physicalDescription/appearance/psychProfile/hooks/skills)
+//      — but ONLY when the exact same set of words survives the edit. Re-
+//      sectioning, moving text around, and markdown/whitespace reformatting are
+//      cosmetic; adding, removing, or changing any WORD is content and goes to
+//      review.
+// Everything else — name, archetype, stat images, life status, trauma tier,
+// xanadu gold, and any change to a non-prose sheetData sub-key (gear/guns/
+// identity/stat lines/…) — always goes through the fixer review pipeline.
+const COSMETIC_IMAGE_FIELDS = new Set(["portraitUrl", "portraitUrls"]);
 
-// True when every changed field in `diff` is cosmetic. `sheetData` is special:
-// it is cosmetic only when the ONLY thing that changed is the free-text
-// `preamble` (framing prose / formatting). Any change to the stat `sections`
-// OR to the discrete story fields the sheet/edit form stores at the top level
-// (physicalDescription, appearance, psychProfile, hooks, skills, plus
-// gear/guns/identity) is meaningful and must go through review.
+// sheetData sub-keys that hold free-text prose. Reorganizing/reformatting these
+// is cosmetic as long as the word-set is unchanged; everything else in sheetData
+// is mechanical and any change forces review.
+const PROSE_SHEET_KEYS = new Set([
+  "preamble",
+  "sections",
+  "physicalDescription",
+  "appearance",
+  "psychProfile",
+  "hooks",
+  "skills",
+]);
+
+// Collect every piece of prose from a character: the top-level `background`
+// column plus the prose keys of sheetData. `sections` is a {title: body} map —
+// we take the BODY values only, never the titles, so creating/renaming sections
+// counts as reorganization (structure), not content.
+function collectProse(char: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const push = (v: unknown) => {
+    if (typeof v === "string") out.push(v);
+  };
+  push(char.background);
+  const sd = (char.sheetData ?? {}) as Record<string, unknown>;
+  push(sd.preamble);
+  const sections = (sd.sections ?? {}) as Record<string, unknown>;
+  for (const v of Object.values(sections)) push(v);
+  push(sd.physicalDescription);
+  push(sd.appearance);
+  push(sd.psychProfile);
+  push(sd.hooks);
+  push(sd.skills);
+  return out;
+}
+
+// Word-level content signature: every alphanumeric word token across all prose,
+// lowercased and SORTED. Two states share a signature iff they hold the exact
+// same multiset of words — i.e. the edit only reordered, re-sectioned, or
+// reformatted existing text and added/removed/changed no word.
+function proseWordSignature(char: Record<string, unknown>): string {
+  const tokens = collectProse(char).join("\n").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  tokens.sort();
+  return tokens.join(" ");
+}
+
+// True when an edit changes nothing that requires review.
 function isCosmeticOnlyDiff(diff: Record<string, unknown>, current: Record<string, unknown>): boolean {
   const keys = Object.keys(diff);
   if (keys.length === 0) return false;
+  let touchesProse = false;
   for (const key of keys) {
-    if (COSMETIC_FIELDS.has(key)) continue;
+    if (COSMETIC_IMAGE_FIELDS.has(key)) continue;
+    if (key === "background") {
+      touchesProse = true;
+      continue;
+    }
     if (key === "sheetData") {
-      // Compare every key of the sheet blob EXCEPT `preamble`. Comparing only
-      // `sections` here was a silent bypass: a discrete story-field edit (e.g.
-      // physicalDescription/appearance/psychProfile/hooks/skills) left
-      // `sections` untouched, so it was wrongly treated as cosmetic and
-      // auto-applied with no review request ever created.
+      // Any change to a NON-prose sub-key (gear/guns/identity/stat lines/…) is
+      // mechanical and forces review. applyDiff whole-replaces sheetData, so the
+      // diff blob is the full post-edit sheet; compare sub-key by sub-key.
       const before = (current.sheetData ?? {}) as Record<string, unknown>;
       const after = (diff.sheetData ?? {}) as Record<string, unknown>;
       const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
-      let meaningfulChange = false;
       for (const k of allKeys) {
-        if (k === "preamble") continue;
-        if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) {
-          meaningfulChange = true;
-          break;
-        }
+        if (PROSE_SHEET_KEYS.has(k)) continue;
+        if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) return false;
       }
-      if (!meaningfulChange) continue;
-      return false;
+      touchesProse = true;
+      continue;
     }
+    // name, archetype, statsImageUrls, lifeStatus, traumaTeamTier, xanaduGold.
     return false;
   }
-  return true;
+  // Only image fields changed → cosmetic; no prose to compare.
+  if (!touchesProse) return true;
+  // Prose changed somewhere: cosmetic only if the word-set is unchanged (pure
+  // formatting / reorganization). applyDiff whole-replaces background/sheetData,
+  // so the after-state is current overlaid with the diff.
+  const after = { ...current, ...diff };
+  return proseWordSignature(current) === proseWordSignature(after);
 }
 
 // Posts the "new edit pending" message to the CS approval channel and
@@ -275,11 +329,11 @@ export async function createPendingEdit(opts: {
   // short-circuit below still applies to everyone (it is not a staff
   // privilege).
 
-  // Cosmetic-only edits (portraits, bio, archetype, sheet preamble/formatting)
+  // Cosmetic-only edits — portrait images, plus pure reformatting/reorganization
+  // of prose (background + sheet text) that leaves the exact same word-set —
   // bypass review entirely and apply on the spot. This runs BEFORE the
   // in-flight-edit logic so a player can always tweak presentation even while a
-  // meaningful edit of theirs is still queued for fixer review — the two never
-  // collide because cosmetic and meaningful fields are disjoint, and the queued
+  // meaningful edit of theirs is still queued for fixer review; the queued
   // edit's own diff still wins when it is approved and closed.
   if (isCosmeticOnlyDiff(diff, cur)) {
     const character = await db.transaction(async (tx) => {

@@ -39,33 +39,106 @@ describe("cosmetic character edits auto-apply", () => {
     expect(await pendingCount(c.id)).toBe(0);
   });
 
-  it("applies background + archetype + portraitUrls together without review", async () => {
+  it("applies a portraitUrls gallery change without review", async () => {
     const u = await createUser();
     const c = await ownedChar(u.id);
 
     const res = await patch(u.id, c.id, {
-      background: "A new bio.",
-      archetype: "Netrunner",
       portraitUrls: ["/api/storage/objects/a", "/api/storage/objects/b"],
     });
     expect(res.status).toBe(200);
     expect(res.body.autoApplied).toBe(true);
 
     const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
-    expect(row.background).toBe("A new bio.");
-    expect(row.archetype).toBe("Netrunner");
     expect(row.portraitUrls).toEqual(["/api/storage/objects/a", "/api/storage/objects/b"]);
     expect(await pendingCount(c.id)).toBe(0);
   });
 
-  it("applies a sheet preamble-only change without review", async () => {
+  it("queues a background CONTENT change for review", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id, { background: "Born in Heywood." });
+
+    const res = await patch(u.id, c.id, { background: "Born in Watson, not Heywood." });
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("pending");
+    expect(await pendingCount(c.id)).toBe(1);
+
+    // Live row untouched until a reviewer approves.
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.background).toBe("Born in Heywood.");
+  });
+
+  it("auto-applies a background reformat that keeps the same words", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id, { background: "Born in Heywood. Raised by nomads." });
+
+    // Same words, only markdown / whitespace / line-break formatting differs.
+    const reformatted = "**Born** in Heywood.\n\nRaised   by nomads.";
+    const res = await patch(u.id, c.id, { background: reformatted });
+    expect(res.status).toBe(200);
+    expect(res.body.autoApplied).toBe(true);
+    expect(await pendingCount(c.id)).toBe(0);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.background).toBe(reformatted);
+  });
+
+  it("queues an archetype change for review", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id, { archetype: "Solo" });
+
+    const res = await patch(u.id, c.id, { archetype: "Netrunner" });
+    expect(res.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.archetype).toBe("Solo");
+  });
+
+  it("queues a sheet preamble CONTENT change for review", async () => {
     const u = await createUser();
     const c = await ownedChar(u.id, {
-      sheetData: { preamble: "old", sections: { Body: "5" } },
+      sheetData: { preamble: "A quiet merc.", sections: { Body: "5" } },
     });
 
     const res = await patch(u.id, c.id, {
-      sheetData: { preamble: "new preamble", sections: { Body: "5" } },
+      sheetData: { preamble: "A loud, reckless merc.", sections: { Body: "5" } },
+    });
+    expect(res.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
+  });
+
+  it("auto-applies a sheet reformat that keeps the same words", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id, {
+      sheetData: { preamble: "A quiet merc from Heywood", sections: { Body: "5" } },
+    });
+
+    // Same words, only formatting / whitespace differs.
+    const res = await patch(u.id, c.id, {
+      sheetData: { preamble: "A *quiet* merc\nfrom Heywood", sections: { Body: "5" } },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.autoApplied).toBe(true);
+    expect(await pendingCount(c.id)).toBe(0);
+  });
+
+  it("auto-applies re-sectioning that moves prose around without changing words", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id, {
+      sheetData: {
+        preamble: "",
+        sections: { History: "Born in Heywood raised by nomads" },
+      },
+    });
+
+    // Player splits one section into two newly-named sections, redistributing the
+    // exact same words. Section titles are structure, so this stays cosmetic.
+    const res = await patch(u.id, c.id, {
+      sheetData: {
+        preamble: "",
+        sections: { Origins: "Born in Heywood", Family: "raised by nomads" },
+      },
     });
     expect(res.status).toBe(200);
     expect(res.body.autoApplied).toBe(true);
@@ -124,22 +197,22 @@ describe("cosmetic character edits auto-apply", () => {
     expect(proposed.identity).toEqual({ handle: "Ghost" });
   });
 
-  it("still auto-applies a preamble-only change even when discrete story fields exist", async () => {
+  it("auto-applies a preamble reformat (same words) even when discrete story fields exist", async () => {
     const u = await createUser();
     const c = await ownedChar(u.id, {
       sheetData: {
-        preamble: "old framing",
+        preamble: "a quiet framing",
         sections: {},
         physicalDescription: "tall",
         appearance: "neon jacket",
       },
     });
 
-    // Only the free-text preamble moved — everything meaningful is unchanged, so
-    // this stays cosmetic and applies on the spot.
+    // The preamble is only reformatted (same words) and every other field is
+    // unchanged, so this stays cosmetic and applies on the spot.
     const res = await patch(u.id, c.id, {
       sheetData: {
-        preamble: "new framing",
+        preamble: "**a** *quiet*\nframing",
         sections: {},
         physicalDescription: "tall",
         appearance: "neon jacket",
@@ -150,13 +223,38 @@ describe("cosmetic character edits auto-apply", () => {
     expect(await pendingCount(c.id)).toBe(0);
   });
 
+  it("queues a preamble CONTENT change for review when discrete story fields exist", async () => {
+    const u = await createUser();
+    const c = await ownedChar(u.id, {
+      sheetData: {
+        preamble: "a quiet framing",
+        sections: {},
+        physicalDescription: "tall",
+        appearance: "neon jacket",
+      },
+    });
+
+    // The preamble gains new words — that is content, so it goes to review even
+    // though nothing else changed.
+    const res = await patch(u.id, c.id, {
+      sheetData: {
+        preamble: "a quiet framing with a dark secret",
+        sections: {},
+        physicalDescription: "tall",
+        appearance: "neon jacket",
+      },
+    });
+    expect(res.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
+  });
+
   it("auto-applies a cosmetic edit that carries an updateNote (note logged)", async () => {
     const u = await createUser();
     const c = await ownedChar(u.id);
 
     const res = await patch(u.id, c.id, {
-      background: "Fresh bio.",
-      updateNote: "tidied up my backstory",
+      portraitUrl: "/api/storage/objects/fresh-portrait",
+      updateNote: "swapped my portrait",
     });
     expect(res.status).toBe(200);
     expect(res.body.autoApplied).toBe(true);
@@ -167,7 +265,7 @@ describe("cosmetic character edits auto-apply", () => {
       .from(characterUpdates)
       .where(eq(characterUpdates.characterId, c.id));
     expect(notes.length).toBe(1);
-    expect(notes[0].note).toBe("tidied up my backstory");
+    expect(notes[0].note).toBe("swapped my portrait");
   });
 
   it("queues a name change for review (202, pending edit created)", async () => {
