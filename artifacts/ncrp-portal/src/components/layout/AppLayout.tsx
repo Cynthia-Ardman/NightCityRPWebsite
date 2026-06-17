@@ -434,7 +434,21 @@ function TopBar() {
   const { data: user } = useEffectiveMe();
   // Eddies live on the Discord account via Unbelievaboat, not per-character —
   // so the pill is keyed off the user, not the active PC.
-  const { data: wallet } = useGetMyWallet({ query: { enabled: !!user, queryKey: getGetMyWalletQueryKey() } });
+  // Eddies change Discord-side (UnbelievaBoat economy commands) without the
+  // portal observing them, so a long-open tab drifts from the real balance.
+  // Refetch periodically and on focus so the pill self-heals; the server caches
+  // each UB read for 30s, so a 60s poll is cheap.
+  const { data: wallet } = useGetMyWallet({
+    query: {
+      enabled: !!user,
+      queryKey: getGetMyWalletQueryKey(),
+      refetchInterval: 60_000,
+      refetchOnWindowFocus: true,
+    },
+  });
+  // `source: "local"` means the live UnbelievaBoat read failed and we're showing
+  // the last value we synced from UB — it may be out of date.
+  const walletStale = wallet?.source === "local";
 
   return (
     <div className="h-16 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between px-4 md:px-8">
@@ -450,7 +464,16 @@ function TopBar() {
               {wallet.balance.toLocaleString()}
               <span className="text-nc-yellow/50 text-xs ml-1">€$</span>
             </div>
-            <div className="w-1.5 h-1.5 rounded-full bg-nc-yellow animate-pulse ml-2" title={`Source: ${wallet.source ?? "unknown"}`} />
+            <div
+              className={`w-1.5 h-1.5 rounded-full ml-2 ${
+                walletStale ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
+              }`}
+              title={
+                walletStale
+                  ? "Estimated balance — couldn't reach UnbelievaBoat, showing the last synced value. It may be out of date and will update automatically once UnbelievaBoat is reachable."
+                  : "Live balance from UnbelievaBoat"
+              }
+            />
           </div>
         )}
       </div>
