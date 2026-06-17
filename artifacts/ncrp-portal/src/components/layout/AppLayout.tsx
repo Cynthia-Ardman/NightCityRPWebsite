@@ -192,7 +192,11 @@ function SidebarContent() {
   const { data: vrchatInstances } = useListVrchatInstances({
     query: { enabled: !!user, queryKey: getListVrchatInstancesQueryKey(), refetchInterval: 60000 },
   });
-  const hasLiveInstance = (vrchatInstances?.instances?.length ?? 0) > 0;
+  const liveInstances = vrchatInstances?.instances ?? [];
+  const hasLiveInstance = liveInstances.length > 0;
+  // Total players across every open group instance, so the banner can show how
+  // busy the streets are at a glance.
+  const livePlayerCount = liveInstances.reduce((sum, i) => sum + (i.userCount ?? 0), 0);
 
   const NavItem = ({ href, icon: Icon, label, disabled, badge, alert, tone = "cyan" }: { href: string, icon: any, label: string, disabled?: boolean, badge?: number, alert?: boolean, tone?: NavTone }) => {
     const isActive = location === href || location.startsWith(href + '/');
@@ -250,6 +254,16 @@ function SidebarContent() {
           >
             <Radio className="w-4 h-4 shrink-0" />
             <span className="font-display uppercase tracking-widest text-sm">● Live Now</span>
+            {livePlayerCount > 0 && (
+              <span
+                className="ml-auto flex items-center gap-1 font-mono text-xs"
+                title={`${livePlayerCount} ${livePlayerCount === 1 ? "player" : "players"} in ${liveInstances.length === 1 ? "the lobby" : "lobbies"} right now`}
+                data-testid="nav-live-now-count"
+              >
+                <Users className="w-3 h-3" />
+                {livePlayerCount}
+              </span>
+            )}
           </Link>
         )}
         <NavItem href="/guidebook" icon={BookMarked} label="Guidebook" tone="cyan" />
