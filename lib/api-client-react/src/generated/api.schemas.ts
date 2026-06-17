@@ -2224,6 +2224,22 @@ export const StoreKind = {
   other: 'other',
 } as const;
 
+export interface BusinessLease {
+  id: number;
+  address: string;
+  monthlyRent: number;
+  /** @nullable */
+  listingId?: number | null;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+}
+
 export interface Employee {
   id: number;
   characterId: number;
@@ -2266,6 +2282,11 @@ export interface Store {
   ownerId: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /**
+     * Business lease this venue operates out of (null = off-map / unlinked).
+     * @nullable
+     */
+  housingId?: number | null;
   /** Website-only business account balance (eddies). */
   balance?: number;
   kind: StoreKind;
@@ -2277,6 +2298,7 @@ export interface Store {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
+  lease?: BusinessLease | null;
   employees: Employee[];
   stock: StockItem[];
 }
@@ -2306,6 +2328,11 @@ export interface StoreUpdate {
   ownerId?: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /**
+     * Staff-only: associate (or clear with null) the business lease this venue operates out of.
+     * @nullable
+     */
+  housingId?: number | null;
 }
 
 export interface Ripperdoc {
@@ -2314,6 +2341,11 @@ export interface Ripperdoc {
   ownerId: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /**
+     * Business lease this venue operates out of (null = off-map / unlinked).
+     * @nullable
+     */
+  housingId?: number | null;
   /** Website-only business account balance (eddies). */
   balance?: number;
   /** @nullable */
@@ -2324,6 +2356,7 @@ export interface Ripperdoc {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
+  lease?: BusinessLease | null;
   employees: Employee[];
   stock: StockItem[];
 }
@@ -2341,6 +2374,11 @@ export interface RipperdocUpdate {
   ownerId?: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /**
+     * Staff-only: associate (or clear with null) the business lease this venue operates out of.
+     * @nullable
+     */
+  housingId?: number | null;
 }
 
 export interface EmployeeInput {
@@ -3144,6 +3182,21 @@ export interface CatalogRentInput {
   kind?: CatalogRentInputKind;
 }
 
+/**
+ * A business building currently open for an on-map venue (no active lease,
+no live reservation). Used to populate the venue request "On Map" picker.
+
+ */
+export interface AvailableBusinessBuilding {
+  id: number;
+  name: string;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+  monthlyRent: number;
+}
+
 export interface TagOption {
   id: number;
   name: string;
@@ -3472,6 +3525,17 @@ export const CustomRequestInputType = {
   ripperdoc: 'ripperdoc',
 } as const;
 
+/**
+ * Store/ripperdoc requests: off_map uses free-text location; on_map reserves a business building (listingId). Defaults to off_map.
+ */
+export type CustomRequestInputLocationKind = typeof CustomRequestInputLocationKind[keyof typeof CustomRequestInputLocationKind];
+
+
+export const CustomRequestInputLocationKind = {
+  off_map: 'off_map',
+  on_map: 'on_map',
+} as const;
+
 export interface CustomRequestInput {
   type: CustomRequestInputType;
   characterId: number;
@@ -3482,8 +3546,12 @@ export interface CustomRequestInput {
   imageUrl?: string;
   /** Required for store/ripperdoc requests; what the venue is for. */
   purpose?: string;
-  /** Required for store/ripperdoc requests; in-world location. */
+  /** Required for off-map store/ripperdoc requests; free-text in-world location. */
   location?: string;
+  /** Store/ripperdoc requests: off_map uses free-text location; on_map reserves a business building (listingId). Defaults to off_map. */
+  locationKind?: CustomRequestInputLocationKind;
+  /** Required for on_map store/ripperdoc requests; the business catalog_rent building to reserve. */
+  listingId?: number;
   /** For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source. */
   source?: string;
 }

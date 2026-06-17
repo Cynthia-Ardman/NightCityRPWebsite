@@ -27,6 +27,7 @@ import { hasRole } from "../lib/discord";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import { deriveCyberwareBand } from "../lib/jobs";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
+import { loadReservedListingIds } from "../lib/listingReservations";
 
 const router: IRouter = Router();
 
@@ -1438,7 +1439,7 @@ router.get("/catalog/rent", async (req, res): Promise<void> => {
   // remove the occupant from the catalog; players never see the occupant.
   const isStaff =
     !!req.user && (hasRole(req.user.roles, "ADMIN") || hasRole(req.user.roles, "FIXER"));
-  const [listings, occupants] = await Promise.all([
+  const [listings, occupants, reservedIds] = await Promise.all([
     db.select().from(catalogRent),
     db
       .select({
@@ -1450,6 +1451,9 @@ router.get("/catalog/rent", async (req, res): Promise<void> => {
       .from(housing)
       .innerJoin(characters, eq(characters.id, housing.characterId))
       .where(isNotNull(housing.listingId)),
+    // Live on-map venue reservations also mark a building as taken so a second
+    // player can't request the same building before the first is decided.
+    loadReservedListingIds(),
   ]);
   const byListing = new Map<
     number,
@@ -1467,9 +1471,10 @@ router.get("/catalog/rent", async (req, res): Promise<void> => {
   res.json(
     listings.map((l) => {
       const occ = byListing.get(l.id);
+      const reserved = reservedIds.has(l.id);
       return {
         ...l,
-        occupied: !!occ,
+        occupied: !!occ || reserved,
         ...(isStaff && occ
           ? {
               occupantCharacterId: occ.characterId,
@@ -1479,6 +1484,33 @@ router.get("/catalog/rent", async (req, res): Promise<void> => {
           : {}),
       };
     }),
+  );
+});
+
+// On-map venue picker: business buildings that are unleased AND not held by a
+// live venue reservation. Returns the fields the dialog needs (id, name,
+// district, tier, monthly rent) so a player can choose where to open up shop.
+router.get("/catalog/rent/available-business", requireAuth, async (_req, res): Promise<void> => {
+  const [listings, occupants, reservedIds] = await Promise.all([
+    db.select().from(catalogRent).where(eq(catalogRent.kind, "business")),
+    db
+      .select({ listingId: housing.listingId })
+      .from(housing)
+      .where(isNotNull(housing.listingId)),
+    loadReservedListingIds(),
+  ]);
+  const leased = new Set<number>();
+  for (const o of occupants) if (o.listingId != null) leased.add(o.listingId);
+  res.json(
+    listings
+      .filter((l) => !leased.has(l.id) && !reservedIds.has(l.id))
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        district: l.district,
+        tier: l.tier,
+        monthlyRent: l.monthlyRent,
+      })),
   );
 });
 

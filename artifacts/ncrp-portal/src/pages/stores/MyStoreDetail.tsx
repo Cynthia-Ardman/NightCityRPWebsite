@@ -640,7 +640,13 @@ export default function MyStoreDetail() {
         </Card>
       )}
       {!!me && (me.isAdmin || me.isFixer) && (
-        <StaffVenuePanel kind="store" venueId={storeId} onChanged={invalidate} />
+        <StaffVenuePanel
+          kind="store"
+          venueId={storeId}
+          currentHousingId={store?.housingId ?? null}
+          currentLeaseLabel={store?.lease ? store.lease.address : null}
+          onChanged={invalidate}
+        />
       )}
       {sellTarget && (
         <SellStockDialog

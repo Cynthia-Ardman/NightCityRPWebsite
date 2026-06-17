@@ -18,6 +18,8 @@ import {
   catalogCyberware,
   inventoryItems,
   customRequests,
+  housing,
+  catalogRent,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage } from "../lib/discord";
@@ -164,6 +166,29 @@ async function loadManageableRipperdoc(req: Request, res: Response): Promise<Rip
   return r;
 }
 
+// The business lease a venue is associated with, hydrated with the catalog
+// building (district/tier) and tenant character name for display. Returns null
+// when the venue isn't linked to a lease (off-map / legacy venues).
+async function loadVenueLease(housingId: number | null | undefined) {
+  if (!housingId) return null;
+  const [row] = await db
+    .select({
+      id: housing.id,
+      address: housing.address,
+      monthlyRent: housing.monthlyRent,
+      listingId: housing.listingId,
+      characterId: housing.characterId,
+      characterName: characters.name,
+      district: catalogRent.district,
+      tier: catalogRent.tier,
+    })
+    .from(housing)
+    .leftJoin(characters, eq(characters.id, housing.characterId))
+    .leftJoin(catalogRent, eq(catalogRent.id, housing.listingId))
+    .where(eq(housing.id, housingId));
+  return row ?? null;
+}
+
 // Build a before/after diff for an edit. Only fields whose value actually
 // changes are recorded, so the audit log captures exactly what the editor
 // touched.
@@ -185,6 +210,32 @@ function buildDiff(
     after[field] = next ?? null;
   }
   return { patch, before, after };
+}
+
+// Resolve a staff "associate with lease" edit. When the PATCH changes housingId
+// to a non-null value, validate it points at a business lease and pin the
+// venue location to that lease's address (unless the same PATCH set location
+// explicitly). Mutates patch/before/after so the change is audited. Returns an
+// error message when the lease is invalid, else null. A null housingId clears
+// the association and is always allowed.
+async function resolveLeaseAssociation(
+  current: { location: string | null },
+  patch: Record<string, unknown>,
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): Promise<string | null> {
+  if (!("housingId" in patch)) return null;
+  const hid = patch.housingId;
+  if (hid == null) return null;
+  const [lease] = await db.select().from(housing).where(eq(housing.id, Number(hid)));
+  if (!lease || lease.kind !== "business") return "Not a valid business lease";
+  patch.housingId = lease.id;
+  if (!("location" in patch)) {
+    patch.location = lease.address;
+    before.location = current.location ?? null;
+    after.location = lease.address;
+  }
+  return null;
 }
 
 // Adding an employee no longer immediately employs them — it creates a pending
@@ -427,6 +478,32 @@ function shapeCustomRequest(row: {
   };
 }
 
+// Staff-only: every business lease, with its building and tenant, so a fixer/
+// admin can associate a venue with a specific lease from the management page.
+router.get("/business-leases", requireAuth, async (req, res): Promise<void> => {
+  if (!isStaff(req.user!.roles)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const rows = await db
+    .select({
+      id: housing.id,
+      address: housing.address,
+      monthlyRent: housing.monthlyRent,
+      listingId: housing.listingId,
+      characterId: housing.characterId,
+      characterName: characters.name,
+      district: catalogRent.district,
+      tier: catalogRent.tier,
+    })
+    .from(housing)
+    .leftJoin(characters, eq(characters.id, housing.characterId))
+    .leftJoin(catalogRent, eq(catalogRent.id, housing.listingId))
+    .where(eq(housing.kind, "business"))
+    .orderBy(housing.address);
+  res.json(rows);
+});
+
 // ===== Stores =====
 // Returns stores the user owns OR is an employee at (via any of their characters).
 router.get("/stores/mine", requireAuth, async (req, res): Promise<void> => {
@@ -462,7 +539,8 @@ router.get("/stores/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const stock = await db.select().from(storeStock).where(eq(storeStock.storeId, id));
-  res.json({ ...s, employees: emps.map(({ ownerId: _o, ...e }) => e), stock });
+  const lease = await loadVenueLease(s.housingId);
+  res.json({ ...s, employees: emps.map(({ ownerId: _o, ...e }) => e), stock, lease });
 });
 
 router.patch("/stores/:id", requireAuth, async (req, res): Promise<void> => {
@@ -472,10 +550,15 @@ router.patch("/stores/:id", requireAuth, async (req, res): Promise<void> => {
   // Only staff may reassign ownership (to another user). Owners cannot hand
   // their venue to someone else through the edit form.
   const fields = ["name", "kind", "purpose", "location", "description", "bannerUrl", "ownerCharacterId"];
-  if (isStaff(req.user!.roles)) fields.push("ownerId");
+  if (isStaff(req.user!.roles)) fields.push("ownerId", "housingId");
   const { patch, before, after } = buildDiff(s as unknown as Record<string, unknown>, body, fields);
+  const leaseErr = await resolveLeaseAssociation(s, patch, before, after);
+  if (leaseErr) {
+    res.status(400).json({ error: leaseErr });
+    return;
+  }
   if (Object.keys(patch).length === 0) {
-    res.json(s);
+    res.json({ ...s, lease: await loadVenueLease(s.housingId) });
     return;
   }
   const { ip, ua } = auditMeta(req);
@@ -496,7 +579,7 @@ router.patch("/stores/:id", requireAuth, async (req, res): Promise<void> => {
     });
     return u;
   });
-  res.json(updated);
+  res.json({ ...updated, lease: await loadVenueLease(updated.housingId) });
 });
 
 // Delete a store. Owner or staff. The FK cascade on store_employees /
@@ -1194,7 +1277,8 @@ router.get("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const stock = await db.select().from(ripperdocStock).where(eq(ripperdocStock.ripperdocId, id));
-  res.json({ ...r, employees: emps.map(({ ownerId: _o, ...e }) => e), stock });
+  const lease = await loadVenueLease(r.housingId);
+  res.json({ ...r, employees: emps.map(({ ownerId: _o, ...e }) => e), stock, lease });
 });
 
 router.patch("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => {
@@ -1202,10 +1286,15 @@ router.patch("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => 
   if (!r) return;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const fields = ["name", "purpose", "location", "description", "bannerUrl", "ownerCharacterId"];
-  if (isStaff(req.user!.roles)) fields.push("ownerId");
+  if (isStaff(req.user!.roles)) fields.push("ownerId", "housingId");
   const { patch, before, after } = buildDiff(r as unknown as Record<string, unknown>, body, fields);
+  const leaseErr = await resolveLeaseAssociation(r, patch, before, after);
+  if (leaseErr) {
+    res.status(400).json({ error: leaseErr });
+    return;
+  }
   if (Object.keys(patch).length === 0) {
-    res.json(r);
+    res.json({ ...r, lease: await loadVenueLease(r.housingId) });
     return;
   }
   const { ip, ua } = auditMeta(req);
@@ -1226,7 +1315,7 @@ router.patch("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => 
     });
     return u;
   });
-  res.json(updated);
+  res.json({ ...updated, lease: await loadVenueLease(updated.housingId) });
 });
 
 // Delete a ripperdoc. Owner or staff; cascades employees + stock.

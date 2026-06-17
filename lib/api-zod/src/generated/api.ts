@@ -1026,6 +1026,23 @@ export const CreateRentListingBody = zod.object({
 
 
 /**
+ * Returns the business-kind rent listings that currently have no lease and
+no live on-map venue reservation, for the venue request dialog's
+"On Map" building picker.
+
+ * @summary Business buildings open for an on-map venue (unleased & unreserved).
+ */
+export const ListAvailableBusinessBuildingsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number()
+}).describe('A business building currently open for an on-map venue (no active lease,\nno live reservation). Used to populate the venue request \"On Map\" picker.\n')
+export const ListAvailableBusinessBuildingsResponse = zod.array(ListAvailableBusinessBuildingsResponseItem)
+
+
+/**
  * @summary Fixer-managed district list for the property creator dropdown.
  */
 export const ListDistrictsResponseItem = zod.object({
@@ -1390,6 +1407,22 @@ export const GetListingHistoryResponse = zod.object({
 
 
 /**
+ * @summary Staff: all business leases (to associate with a venue)
+ */
+export const ListBusinessLeasesResponseItem = zod.object({
+  "id": zod.number(),
+  "address": zod.string(),
+  "monthlyRent": zod.number(),
+  "listingId": zod.number().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish()
+})
+export const ListBusinessLeasesResponse = zod.array(ListBusinessLeasesResponseItem)
+
+
+/**
  * @summary Stores I own or am employed at
  */
 export const listMyStoresResponseEmployeesItemCommissionPctMin = 0;
@@ -1402,12 +1435,23 @@ export const ListMyStoresResponseItem = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "housingId": zod.number().nullish().describe('Business lease this venue operates out of (null = off-map \/ unlinked).'),
   "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "lease": zod.union([zod.object({
+  "id": zod.number(),
+  "address": zod.string(),
+  "monthlyRent": zod.number(),
+  "listingId": zod.number().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish()
+}),zod.null()]).optional(),
   "employees": zod.array(zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
@@ -1444,12 +1488,23 @@ export const GetStoreResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "housingId": zod.number().nullish().describe('Business lease this venue operates out of (null = off-map \/ unlinked).'),
   "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "lease": zod.union([zod.object({
+  "id": zod.number(),
+  "address": zod.string(),
+  "monthlyRent": zod.number(),
+  "listingId": zod.number().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish()
+}),zod.null()]).optional(),
   "employees": zod.array(zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
@@ -1483,7 +1538,8 @@ export const UpdateStoreBody = zod.object({
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "ownerId": zod.string().optional(),
-  "ownerCharacterId": zod.number().nullish()
+  "ownerCharacterId": zod.number().nullish(),
+  "housingId": zod.number().nullish().describe('Staff-only: associate (or clear with null) the business lease this venue operates out of.')
 })
 
 export const updateStoreResponseEmployeesItemCommissionPctMin = 0;
@@ -1496,12 +1552,23 @@ export const UpdateStoreResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "housingId": zod.number().nullish().describe('Business lease this venue operates out of (null = off-map \/ unlinked).'),
   "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "lease": zod.union([zod.object({
+  "id": zod.number(),
+  "address": zod.string(),
+  "monthlyRent": zod.number(),
+  "listingId": zod.number().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish()
+}),zod.null()]).optional(),
   "employees": zod.array(zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
@@ -1908,11 +1975,22 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "housingId": zod.number().nullish().describe('Business lease this venue operates out of (null = off-map \/ unlinked).'),
   "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "lease": zod.union([zod.object({
+  "id": zod.number(),
+  "address": zod.string(),
+  "monthlyRent": zod.number(),
+  "listingId": zod.number().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish()
+}),zod.null()]).optional(),
   "employees": zod.array(zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
@@ -1949,11 +2027,22 @@ export const GetRipperdocResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "housingId": zod.number().nullish().describe('Business lease this venue operates out of (null = off-map \/ unlinked).'),
   "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "lease": zod.union([zod.object({
+  "id": zod.number(),
+  "address": zod.string(),
+  "monthlyRent": zod.number(),
+  "listingId": zod.number().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish()
+}),zod.null()]).optional(),
   "employees": zod.array(zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
@@ -1986,7 +2075,8 @@ export const UpdateRipperdocBody = zod.object({
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "ownerId": zod.string().optional(),
-  "ownerCharacterId": zod.number().nullish()
+  "ownerCharacterId": zod.number().nullish(),
+  "housingId": zod.number().nullish().describe('Staff-only: associate (or clear with null) the business lease this venue operates out of.')
 })
 
 export const updateRipperdocResponseEmployeesItemCommissionPctMin = 0;
@@ -1999,11 +2089,22 @@ export const UpdateRipperdocResponse = zod.object({
   "name": zod.string(),
   "ownerId": zod.string(),
   "ownerCharacterId": zod.number().nullish(),
+  "housingId": zod.number().nullish().describe('Business lease this venue operates out of (null = off-map \/ unlinked).'),
   "balance": zod.number().optional().describe('Website-only business account balance (eddies).'),
   "purpose": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "lease": zod.union([zod.object({
+  "id": zod.number(),
+  "address": zod.string(),
+  "monthlyRent": zod.number(),
+  "listingId": zod.number().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish()
+}),zod.null()]).optional(),
   "employees": zod.array(zod.object({
   "id": zod.number(),
   "characterId": zod.number(),
@@ -8812,7 +8913,9 @@ export const SubmitCustomRequestBody = zod.object({
   "description": zod.string().optional().describe('Required for store\/ripperdoc requests.'),
   "imageUrl": zod.string().optional().describe('Optional reference image object path.'),
   "purpose": zod.string().optional().describe('Required for store\/ripperdoc requests; what the venue is for.'),
-  "location": zod.string().optional().describe('Required for store\/ripperdoc requests; in-world location.'),
+  "location": zod.string().optional().describe('Required for off-map store\/ripperdoc requests; free-text in-world location.'),
+  "locationKind": zod.enum(['off_map', 'on_map']).optional().describe('Store\/ripperdoc requests: off_map uses free-text location; on_map reserves a business building (listingId). Defaults to off_map.'),
+  "listingId": zod.number().optional().describe('Required for on_map store\/ripperdoc requests; the business catalog_rent building to reserve.'),
   "source": zod.string().optional().describe('For gun\/cyberware requests: which store\/ripperdoc the player wants it from, or a free-text \'Custom\' source. Stored on details.source.')
 })
 

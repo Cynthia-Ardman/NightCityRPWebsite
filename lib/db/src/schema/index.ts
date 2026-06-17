@@ -13,6 +13,7 @@ import {
   primaryKey,
   uuid,
   date,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable(
@@ -340,6 +341,11 @@ export const stores = pgTable("stores", {
   kind: text("kind").notNull().default("mixed"),
   purpose: text("purpose"),
   location: text("location"),
+  // Optional link to the business `housing` lease this venue operates out of.
+  // Staff associate it from the venue management page (or it's set when an
+  // on-map venue request is approved). onDelete: set null so deleting/expiring
+  // the lease just unlinks the venue rather than cascading it away.
+  housingId: integer("housing_id").references((): AnyPgColumn => housing.id, { onDelete: "set null" }),
   description: text("description"),
   bannerUrl: text("banner_url"),
   // Website-only business account balance (eddies). Never synced to UB —
@@ -384,6 +390,9 @@ export const ripperdocs = pgTable("ripperdocs", {
   name: text("name").notNull(),
   purpose: text("purpose"),
   location: text("location"),
+  // Optional link to the business `housing` lease this venue operates out of.
+  // See stores.housingId.
+  housingId: integer("housing_id").references((): AnyPgColumn => housing.id, { onDelete: "set null" }),
   description: text("description"),
   bannerUrl: text("banner_url"),
   // Website-only business account balance (eddies). See stores.balance.
@@ -661,6 +670,14 @@ export const customRequests = pgTable("custom_requests", {
   imageUrl: text("image_url"),
   // Optional type-specific payload captured at submit time.
   details: jsonb("details"),
+  // On-map venue requests (store/ripperdoc) may reserve a real business
+  // building from the rent catalog. While the request is live (pending or
+  // approved-but-not-yet-closed) this holds the chosen catalog_rent id, which
+  // makes the building unavailable to everyone else (catalog occupancy, the
+  // on-map dropdown, and the housing self-lease / request flows all count it as
+  // occupied). On close a business lease is committed for the chosen building;
+  // on reject/cancel the row leaves the live set and the reservation is freed.
+  reservedListingId: integer("reserved_listing_id").references(() => catalogRent.id, { onDelete: "set null" }),
   // pending | approved | rejected | changes_requested | cancelled | closed.
   // Reviewers cast majority votes (review_votes) to approve/reject; legacy
   // changes_requested rows resubmit; cancelled/closed are terminal/archive
@@ -693,6 +710,14 @@ export const customRequests = pgTable("custom_requests", {
 }, (t) => ({
   statusIdx: index("custom_requests_status_idx").on(t.status),
   requesterIdx: index("custom_requests_requester_idx").on(t.requestedById),
+  // At most ONE live reservation per building. Partial-unique over the live
+  // statuses so two simultaneous on-map submits can't both reserve the same
+  // catalog building (the loser's insert hits this constraint). Released
+  // automatically once the request leaves the live set (closed/rejected/
+  // cancelled), letting the building be reserved again.
+  reservedListingLiveIdx: uniqueIndex("custom_requests_reserved_listing_live_idx")
+    .on(t.reservedListingId)
+    .where(sql`reserved_listing_id IS NOT NULL AND status IN ('pending', 'approved')`),
 }));
 export type CustomRequest = typeof customRequests.$inferSelect;
 

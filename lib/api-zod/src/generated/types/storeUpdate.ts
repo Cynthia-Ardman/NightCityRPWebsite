@@ -21,4 +21,9 @@ export interface StoreUpdate {
   ownerId?: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /**
+     * Staff-only: associate (or clear with null) the business lease this venue operates out of.
+     * @nullable
+     */
+  housingId?: number | null;
 }

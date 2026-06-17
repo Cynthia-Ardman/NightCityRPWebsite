@@ -44,6 +44,7 @@ import type {
   ArchiveUser,
   AssignOwnerInput,
   AuditLogRow,
+  AvailableBusinessBuilding,
   BotConfigEntry,
   BotConfigUpdate,
   BreachPracticeLeaderboard,
@@ -56,6 +57,7 @@ import type {
   BreachPuzzleInput,
   BreachResult,
   BreachResultInput,
+  BusinessLease,
   CancelEvent200,
   CancelPendingEdit200,
   CatalogCyberware,
@@ -3475,6 +3477,87 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getCreateRentListingMutationOptions(options));
     }
 
+export const getListAvailableBusinessBuildingsUrl = () => {
+
+
+
+
+  return `/api/catalog/rent/available-business`
+}
+
+/**
+ * Returns the business-kind rent listings that currently have no lease and
+no live on-map venue reservation, for the venue request dialog's
+"On Map" building picker.
+
+ * @summary Business buildings open for an on-map venue (unleased & unreserved).
+ */
+export const listAvailableBusinessBuildings = async ( options?: RequestInit): Promise<AvailableBusinessBuilding[]> => {
+
+  return customFetch<AvailableBusinessBuilding[]>(getListAvailableBusinessBuildingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAvailableBusinessBuildingsQueryKey = () => {
+    return [
+    `/api/catalog/rent/available-business`
+    ] as const;
+    }
+
+
+export const getListAvailableBusinessBuildingsQueryOptions = <TData = Awaited<ReturnType<typeof listAvailableBusinessBuildings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAvailableBusinessBuildings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAvailableBusinessBuildingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAvailableBusinessBuildings>>> = ({ signal }) => listAvailableBusinessBuildings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAvailableBusinessBuildings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAvailableBusinessBuildingsQueryResult = NonNullable<Awaited<ReturnType<typeof listAvailableBusinessBuildings>>>
+export type ListAvailableBusinessBuildingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Business buildings open for an on-map venue (unleased & unreserved).
+ */
+
+export function useListAvailableBusinessBuildings<TData = Awaited<ReturnType<typeof listAvailableBusinessBuildings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAvailableBusinessBuildings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAvailableBusinessBuildingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getListDistrictsUrl = () => {
 
 
@@ -4638,6 +4721,83 @@ export function useGetListingHistory<TData = Awaited<ReturnType<typeof getListin
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetListingHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListBusinessLeasesUrl = () => {
+
+
+
+
+  return `/api/business-leases`
+}
+
+/**
+ * @summary Staff: all business leases (to associate with a venue)
+ */
+export const listBusinessLeases = async ( options?: RequestInit): Promise<BusinessLease[]> => {
+
+  return customFetch<BusinessLease[]>(getListBusinessLeasesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBusinessLeasesQueryKey = () => {
+    return [
+    `/api/business-leases`
+    ] as const;
+    }
+
+
+export const getListBusinessLeasesQueryOptions = <TData = Awaited<ReturnType<typeof listBusinessLeases>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBusinessLeases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBusinessLeasesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBusinessLeases>>> = ({ signal }) => listBusinessLeases({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBusinessLeases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBusinessLeasesQueryResult = NonNullable<Awaited<ReturnType<typeof listBusinessLeases>>>
+export type ListBusinessLeasesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Staff: all business leases (to associate with a venue)
+ */
+
+export function useListBusinessLeases<TData = Awaited<ReturnType<typeof listBusinessLeases>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBusinessLeases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBusinessLeasesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

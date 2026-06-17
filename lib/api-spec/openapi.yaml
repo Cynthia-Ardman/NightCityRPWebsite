@@ -744,6 +744,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CatalogRent" }
         "400": { description: Invalid payload }
+  /catalog/rent/available-business:
+    get:
+      operationId: listAvailableBusinessBuildings
+      tags: [catalog]
+      summary: "Business buildings open for an on-map venue (unleased & unreserved)."
+      description: |
+        Returns the business-kind rent listings that currently have no lease and
+        no live on-map venue reservation, for the venue request dialog's
+        "On Map" building picker.
+      responses:
+        "200":
+          description: Available business buildings
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AvailableBusinessBuilding" }
   /catalog/districts:
     get:
       operationId: listDistricts
@@ -1014,6 +1031,19 @@ paths:
         "404": { description: Not found }
 
   # ---------------- STORE MANAGEMENT (owner/employee) ----------------
+  /business-leases:
+    get:
+      operationId: listBusinessLeases
+      tags: [stores]
+      summary: "Staff: all business leases (to associate with a venue)"
+      responses:
+        "200":
+          description: Business leases
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BusinessLease" }
   /stores/mine:
     get:
       operationId: listMyStores
@@ -6681,12 +6711,15 @@ components:
         name: { type: string }
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
+        housingId: { type: ["integer", "null"], description: "Business lease this venue operates out of (null = off-map / unlinked)." }
         balance: { type: integer, description: "Website-only business account balance (eddies)." }
         kind: { type: string, enum: [guns, gear, clothing, mixed, other] }
         purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         bannerUrl: { type: ["string", "null"] }
+        lease:
+          oneOf: [{ $ref: "#/components/schemas/BusinessLease" }, { type: "null" }]
         employees:
           type: array
           items: { $ref: "#/components/schemas/Employee" }
@@ -6705,6 +6738,7 @@ components:
         bannerUrl: { type: ["string", "null"] }
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
+        housingId: { type: ["integer", "null"], description: "Staff-only: associate (or clear with null) the business lease this venue operates out of." }
 
     Ripperdoc:
       type: object
@@ -6714,11 +6748,14 @@ components:
         name: { type: string }
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
+        housingId: { type: ["integer", "null"], description: "Business lease this venue operates out of (null = off-map / unlinked)." }
         balance: { type: integer, description: "Website-only business account balance (eddies)." }
         purpose: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         bannerUrl: { type: ["string", "null"] }
+        lease:
+          oneOf: [{ $ref: "#/components/schemas/BusinessLease" }, { type: "null" }]
         employees:
           type: array
           items: { $ref: "#/components/schemas/Employee" }
@@ -6736,6 +6773,20 @@ components:
         bannerUrl: { type: ["string", "null"] }
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
+        housingId: { type: ["integer", "null"], description: "Staff-only: associate (or clear with null) the business lease this venue operates out of." }
+
+    BusinessLease:
+      type: object
+      required: [id, address, monthlyRent]
+      properties:
+        id: { type: integer }
+        address: { type: string }
+        monthlyRent: { type: integer }
+        listingId: { type: ["integer", "null"] }
+        characterId: { type: ["integer", "null"] }
+        characterName: { type: ["string", "null"] }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
 
     Employee:
       type: object
@@ -7253,6 +7304,19 @@ components:
           default: residential
           description: "residential (player self-lease) or business (request-only)."
 
+    AvailableBusinessBuilding:
+      type: object
+      required: [id, name, monthlyRent]
+      description: |
+        A business building currently open for an on-map venue (no active lease,
+        no live reservation). Used to populate the venue request "On Map" picker.
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
+        monthlyRent: { type: integer }
+
     TagOption:
       type: object
       required: [id, name]
@@ -7409,7 +7473,12 @@ components:
         description: { type: string, description: "Required for store/ripperdoc requests." }
         imageUrl: { type: string, description: "Optional reference image object path." }
         purpose: { type: string, description: "Required for store/ripperdoc requests; what the venue is for." }
-        location: { type: string, description: "Required for store/ripperdoc requests; in-world location." }
+        location: { type: string, description: "Required for off-map store/ripperdoc requests; free-text in-world location." }
+        locationKind:
+          type: string
+          enum: [off_map, on_map]
+          description: "Store/ripperdoc requests: off_map uses free-text location; on_map reserves a business building (listingId). Defaults to off_map."
+        listingId: { type: integer, description: "Required for on_map store/ripperdoc requests; the business catalog_rent building to reserve." }
         source: { type: string, description: "For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source." }
 
     OverrideDecisionInput:

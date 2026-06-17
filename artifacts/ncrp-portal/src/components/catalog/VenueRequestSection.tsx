@@ -4,7 +4,9 @@ import {
   useListMyCharacters,
   useSubmitCustomRequest,
   useListMyCustomRequests,
+  useListAvailableBusinessBuildings,
   getListMyCustomRequestsQueryKey,
+  getListAvailableBusinessBuildingsQueryKey,
   type CustomRequest,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -58,8 +60,17 @@ export default function VenueRequestSection({
   const [characterId, setCharacterId] = useState<string>("");
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [locationKind, setLocationKind] = useState<"off_map" | "on_map">("off_map");
   const [location, setLocation] = useState("");
+  const [listingId, setListingId] = useState<string>("");
   const [description, setDescription] = useState("");
+
+  // Available on-map buildings only load while the dialog is open (and only
+  // matter for the On Map path).
+  const { data: buildings } = useListAvailableBusinessBuildings({
+    query: { enabled: open, queryKey: getListAvailableBusinessBuildingsQueryKey() },
+  });
+  const availableBuildings = buildings ?? [];
 
   // Only the player's own, non-archived characters can run a venue.
   const ownChars = (characters ?? []).filter((c) => !c.archived);
@@ -67,7 +78,9 @@ export default function VenueRequestSection({
   const reset = () => {
     setName("");
     setPurpose("");
+    setLocationKind("off_map");
     setLocation("");
+    setListingId("");
     setDescription("");
     setCharacterId("");
   };
@@ -76,6 +89,7 @@ export default function VenueRequestSection({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey({ type }) });
+        queryClient.invalidateQueries({ queryKey: getListAvailableBusinessBuildingsQueryKey() });
         toast({ title: "Request submitted", description: "Staff will review it shortly." });
         setOpen(false);
         reset();
@@ -90,11 +104,12 @@ export default function VenueRequestSection({
     },
   });
 
+  const locationOk = locationKind === "on_map" ? !!listingId : !!location.trim();
   const canSubmit =
     !!characterId &&
     !!name.trim() &&
     !!purpose.trim() &&
-    !!location.trim() &&
+    locationOk &&
     !!description.trim() &&
     !submit.isPending;
 
@@ -184,13 +199,61 @@ export default function VenueRequestSection({
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Location</Label>
-              <Input
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="In-world location / district"
-                className="rounded-none font-mono"
-                data-testid={`input-location-${type}`}
-              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={locationKind === "off_map" ? "default" : "outline"}
+                  className="rounded-none font-display text-xs tracking-widest flex-1"
+                  onClick={() => setLocationKind("off_map")}
+                  data-testid={`button-locationkind-off_map-${type}`}
+                >
+                  OFF MAP
+                </Button>
+                <Button
+                  type="button"
+                  variant={locationKind === "on_map" ? "default" : "outline"}
+                  className="rounded-none font-display text-xs tracking-widest flex-1"
+                  onClick={() => setLocationKind("on_map")}
+                  data-testid={`button-locationkind-on_map-${type}`}
+                >
+                  ON MAP
+                </Button>
+              </div>
+              {locationKind === "off_map" ? (
+                <Input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="In-world location / district"
+                  className="rounded-none font-mono"
+                  data-testid={`input-location-${type}`}
+                />
+              ) : (
+                <>
+                  <Select value={listingId} onValueChange={setListingId}>
+                    <SelectTrigger className="rounded-none font-mono" data-testid={`select-building-${type}`}>
+                      <SelectValue placeholder="Choose a building" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableBuildings.length === 0 ? (
+                        <SelectItem value="__none__" disabled>
+                          No buildings available
+                        </SelectItem>
+                      ) : (
+                        availableBuildings.map((b) => (
+                          <SelectItem key={b.id} value={String(b.id)}>
+                            {b.name}
+                            {b.district ? ` — ${b.district}` : ""}
+                            {b.tier ? ` · ${b.tier}` : ""} · €${b.monthlyRent.toLocaleString()}/mo
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="font-mono text-[10px] text-muted-foreground">
+                    On approval a business lease for this building is added to your character.
+                  </p>
+                </>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
@@ -222,7 +285,10 @@ export default function VenueRequestSection({
                     title: name.trim(),
                     description: description.trim(),
                     purpose: purpose.trim(),
-                    location: location.trim(),
+                    locationKind,
+                    ...(locationKind === "on_map"
+                      ? { listingId: parseInt(listingId, 10) }
+                      : { location: location.trim() }),
                   },
                 })
               }

@@ -18,10 +18,12 @@ import {
   activityEvents,
   missionAssignments,
   missionApplications,
+  catalogRent,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, postToChannel, startThreadFromMessage } from "../lib/discord";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
+import { isListingReserved } from "../lib/listingReservations";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { endOfCurrentMonth } from "../lib/billingDates";
@@ -353,7 +355,57 @@ async function materializeRequest(
     if (!c.ownerId) {
       return { error: { status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } } };
     }
-    const det = (reqRow.details ?? {}) as { purpose?: string; location?: string };
+    const det = (reqRow.details ?? {}) as {
+      purpose?: string;
+      location?: string;
+      locationKind?: "on_map" | "off_map";
+      listingId?: number;
+    };
+    // On-map venue: commit a business lease for the reserved building to the
+    // venue's owning character, and pin the venue location to the building. The
+    // lease is the side effect; appliedRef stays venue:<id> so a close→reopen
+    // never double-applies. We lock the listing FOR UPDATE and re-check that no
+    // lease exists (the reservation index prevents another live request, but a
+    // direct staff lease could have landed in the meantime).
+    let venueLocation = det.location ?? null;
+    let venueHousingId: number | null = null;
+    if (det.locationKind === "on_map") {
+      const lid = Number(reqRow.reservedListingId ?? det.listingId);
+      if (!Number.isInteger(lid) || lid <= 0) {
+        return { error: { status: 400, body: { error: "On-map venue request is missing its building" } } };
+      }
+      const [listing] = await tx
+        .select()
+        .from(catalogRent)
+        .where(eq(catalogRent.id, lid))
+        .for("update");
+      if (!listing || listing.kind !== "business") {
+        return { error: { status: 400, body: { error: "Reserved building no longer exists" } } };
+      }
+      const [existingLease] = await tx
+        .select({ id: housing.id })
+        .from(housing)
+        .where(eq(housing.listingId, lid))
+        .limit(1);
+      if (existingLease) {
+        return { error: { status: 409, body: { error: "Reserved building was leased by someone else" } } };
+      }
+      const address = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
+      const [lease] = await tx
+        .insert(housing)
+        .values({
+          characterId: reqRow.characterId,
+          listingId: lid,
+          address,
+          monthlyRent: listing.monthlyRent,
+          paidThrough: endOfCurrentMonth(),
+          notes: `Business lease via ${reqRow.type} request "${reqRow.title}"`,
+          kind: "business",
+        })
+        .returning({ id: housing.id });
+      venueLocation = address;
+      venueHousingId = lease.id;
+    }
     if (reqRow.type === "store") {
       const [s] = await tx
         .insert(stores)
@@ -362,7 +414,8 @@ async function materializeRequest(
           ownerCharacterId: reqRow.characterId,
           name: reqRow.title,
           purpose: det.purpose ?? null,
-          location: det.location ?? null,
+          location: venueLocation,
+          housingId: venueHousingId,
           description: reqRow.description ?? null,
         })
         .returning();
@@ -375,7 +428,8 @@ async function materializeRequest(
         ownerCharacterId: reqRow.characterId,
         name: reqRow.title,
         purpose: det.purpose ?? null,
-        location: det.location ?? null,
+        location: venueLocation,
+        housingId: venueHousingId,
         description: reqRow.description ?? null,
       })
       .returning();
@@ -743,7 +797,7 @@ async function notifyRequesterOfDecision(
 // Submit a custom request. Player picks one of their own characters and types
 // a free-text title (location / item name) and description.
 router.post("/requests", requireAuth, async (req, res): Promise<void> => {
-  const { type, characterId, title, description, imageUrl, purpose, location, source } = req.body ?? {};
+  const { type, characterId, title, description, imageUrl, purpose, location, source, locationKind, listingId } = req.body ?? {};
   const reqType = String(type) as RequestType;
   if (!REQUEST_TYPES.includes(reqType)) {
     res.status(400).json({ error: `type must be one of: ${REQUEST_TYPES.join(", ")}` });
@@ -775,15 +829,52 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
   // shared column.
   let details: Record<string, unknown> | null = null;
   let descToStore = typeof description === "string" && description.trim() ? description.trim() : null;
+  // On-map venue requests reserve a real catalog building; validated below and
+  // written to customRequests.reservedListingId so it can't be double-booked.
+  let reservedListingId: number | null = null;
   if (isVenueType(reqType)) {
     const p = typeof purpose === "string" ? purpose.trim() : "";
-    const l = typeof location === "string" ? location.trim() : "";
     const d = typeof description === "string" ? description.trim() : "";
-    if (!p || !l || !d) {
-      res.status(400).json({ error: "purpose, location, and description are required" });
-      return;
+    // "on_map" picks a business building from the rent catalog; "off_map" (the
+    // default / legacy behaviour) keeps the free-text location.
+    const kind = locationKind === "on_map" ? "on_map" : "off_map";
+    if (kind === "on_map") {
+      if (!p || !d) {
+        res.status(400).json({ error: "purpose and description are required" });
+        return;
+      }
+      const lid = Number(listingId);
+      if (!Number.isInteger(lid) || lid <= 0) {
+        res.status(400).json({ error: "listingId is required for an on-map venue" });
+        return;
+      }
+      const [listing] = await db.select().from(catalogRent).where(eq(catalogRent.id, lid));
+      if (!listing || listing.kind !== "business") {
+        res.status(400).json({ error: "Selected building is not an available business building" });
+        return;
+      }
+      // Reject up-front if the building already has a lease or a live reservation
+      // (the partial-unique index is the authoritative race guard below).
+      const [existingLease] = await db
+        .select({ id: housing.id })
+        .from(housing)
+        .where(eq(housing.listingId, lid))
+        .limit(1);
+      if (existingLease || (await isListingReserved(lid))) {
+        res.status(409).json({ error: "That building is no longer available" });
+        return;
+      }
+      const buildingLabel = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
+      details = { purpose: p, locationKind: "on_map", listingId: lid, location: buildingLabel };
+      reservedListingId = lid;
+    } else {
+      const l = typeof location === "string" ? location.trim() : "";
+      if (!p || !l || !d) {
+        res.status(400).json({ error: "purpose, location, and description are required" });
+        return;
+      }
+      details = { purpose: p, locationKind: "off_map", location: l };
     }
-    details = { purpose: p, location: l };
     descToStore = d;
   } else if ((reqType === "gun" || reqType === "cyberware") && typeof source === "string" && source.trim()) {
     // Optional "where do you want this from" source for gun/cyberware requests
@@ -792,18 +883,50 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
     details = { source: source.trim() };
   }
 
-  const [inserted] = await db
-    .insert(customRequests)
-    .values({
-      type: reqType,
-      characterId: cid,
-      requestedById: req.user!.id,
-      title: String(title).trim(),
-      description: descToStore,
-      imageUrl: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
-      details: details as never,
-    })
-    .returning();
+  const insertValues = {
+    type: reqType,
+    characterId: cid,
+    requestedById: req.user!.id,
+    title: String(title).trim(),
+    description: descToStore,
+    imageUrl: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
+    details: details as never,
+    reservedListingId,
+  };
+  let inserted: typeof customRequests.$inferSelect | undefined;
+  if (reservedListingId != null) {
+    // On-map: lock the building row FOR UPDATE so a concurrent /housing/lease or
+    // another on-map submit serializes here — otherwise a lease could land
+    // between our pre-check and insert and strand an approved request. Re-check
+    // lease + reservation under the lock; the partial-unique index remains the
+    // final guard (onConflictDoNothing → no row → 409).
+    const rid = reservedListingId;
+    await db.transaction(async (tx) => {
+      await tx.select({ id: catalogRent.id }).from(catalogRent).where(eq(catalogRent.id, rid)).for("update");
+      const [existingLease] = await tx
+        .select({ id: housing.id })
+        .from(housing)
+        .where(eq(housing.listingId, rid))
+        .limit(1);
+      if (existingLease || (await isListingReserved(rid, tx))) {
+        return;
+      }
+      [inserted] = await tx
+        .insert(customRequests)
+        .values(insertValues)
+        .onConflictDoNothing({
+          target: customRequests.reservedListingId,
+          where: sql`reserved_listing_id IS NOT NULL AND status IN ('pending', 'approved')`,
+        })
+        .returning();
+    });
+  } else {
+    [inserted] = await db.insert(customRequests).values(insertValues).returning();
+  }
+  if (!inserted) {
+    res.status(409).json({ error: "That building is no longer available" });
+    return;
+  }
   const [row] = await selectWhere(eq(customRequests.id, inserted.id));
   // Mirror sheets/edits: announce to cs-approver + open a thread, fire-and-forget.
   void announceRequest(inserted.id, reqType, String(title).trim(), c.name, req.user!.username);

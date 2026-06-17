@@ -5,6 +5,7 @@ import { requireAuth } from "../middlewares/auth";
 import { recordAudit } from "../lib/audit";
 import { endOfCurrentMonth } from "../lib/billingDates";
 import { isAdmin, isFixerOrAdmin } from "../lib/roleChecks";
+import { isListingReserved } from "../lib/listingReservations";
 
 const router: IRouter = Router();
 
@@ -332,7 +333,8 @@ router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
       .from(housing)
       .where(eq(housing.listingId, lid))
       .limit(1);
-    if (existingLease) {
+    // A live on-map venue reservation also blocks the unit.
+    if (existingLease || (await isListingReserved(lid, tx))) {
       occupied = true;
       return;
     }
@@ -601,7 +603,7 @@ router.post("/housing/requests", requireAuth, async (req, res): Promise<void> =>
     .from(housing)
     .where(eq(housing.listingId, lid))
     .limit(1);
-  if (occupant) {
+  if (occupant || (await isListingReserved(lid))) {
     res.status(409).json({ error: "Listing is already occupied" });
     return;
   }
@@ -693,7 +695,7 @@ router.post("/housing/requests/:id/approve", requireAuth, async (req, res): Prom
       .from(housing)
       .where(eq(housing.listingId, reqRow.listingId))
       .limit(1);
-    if (occupant) {
+    if (occupant || (await isListingReserved(reqRow.listingId, tx))) {
       return { error: { status: 409, body: { error: "Listing is already occupied by another lease" } } };
     }
     // One residential + one business per district per PLAYER (see /housing/lease).

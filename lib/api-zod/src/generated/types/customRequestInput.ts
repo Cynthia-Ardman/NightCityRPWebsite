@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CustomRequestInputLocationKind } from './customRequestInputLocationKind';
 import type { CustomRequestInputType } from './customRequestInputType';
 
 export interface CustomRequestInput {
@@ -17,8 +18,12 @@ export interface CustomRequestInput {
   imageUrl?: string;
   /** Required for store/ripperdoc requests; what the venue is for. */
   purpose?: string;
-  /** Required for store/ripperdoc requests; in-world location. */
+  /** Required for off-map store/ripperdoc requests; free-text in-world location. */
   location?: string;
+  /** Store/ripperdoc requests: off_map uses free-text location; on_map reserves a business building (listingId). Defaults to off_map. */
+  locationKind?: CustomRequestInputLocationKind;
+  /** Required for on_map store/ripperdoc requests; the business catalog_rent building to reserve. */
+  listingId?: number;
   /** For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source. */
   source?: string;
 }

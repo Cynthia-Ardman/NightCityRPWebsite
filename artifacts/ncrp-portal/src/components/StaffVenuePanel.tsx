@@ -7,11 +7,20 @@ import {
   useDeleteRipperdoc,
   useListArchiveUsers,
   getListArchiveUsersQueryKey,
+  useListBusinessLeases,
+  getListBusinessLeasesQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, UserCog } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Trash2, UserCog, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 
@@ -24,18 +33,23 @@ export default function StaffVenuePanel({
   venueId,
   currentOwnerName,
   currentOwnerCharacterName,
+  currentHousingId,
+  currentLeaseLabel,
   onChanged,
 }: {
   kind: "store" | "ripperdoc";
   venueId: number;
   currentOwnerName?: string | null;
   currentOwnerCharacterName?: string | null;
+  currentHousingId?: number | null;
+  currentLeaseLabel?: string | null;
   onChanged: () => void;
 }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [ownerSearch, setOwnerSearch] = useState("");
   const [ownerChar, setOwnerChar] = useState<CharacterPickerValue>(null);
+  const [leaseSel, setLeaseSel] = useState<string>("");
   const [confirming, setConfirming] = useState(false);
 
   const params = { q: ownerSearch || undefined };
@@ -44,6 +58,10 @@ export default function StaffVenuePanel({
       queryKey: getListArchiveUsersQueryKey(params),
       enabled: ownerSearch.trim().length > 0,
     },
+  });
+
+  const { data: leases } = useListBusinessLeases({
+    query: { queryKey: getListBusinessLeasesQueryKey() },
   });
 
   const updateStore = useUpdateStore();
@@ -76,6 +94,24 @@ export default function StaffVenuePanel({
     const onError = () =>
       toast({ title: "Update failed", description: "Could not set the owner character.", variant: "destructive" });
     const data = { ownerCharacterId: ownerChar.id };
+    if (kind === "store") updateStore.mutate({ id: venueId, data }, { onSuccess, onError });
+    else updateRipperdoc.mutate({ id: venueId, data }, { onSuccess, onError });
+  };
+
+  // Associate the venue with a business lease (or clear it with null). Pinning
+  // the venue location to the building is handled server-side.
+  const setLease = (housingId: number | null) => {
+    const onSuccess = () => {
+      toast({
+        title: housingId == null ? "Lease cleared" : "Lease associated",
+        description: housingId == null ? "Venue is no longer linked to a lease." : "Venue location pinned to the lease.",
+      });
+      setLeaseSel("");
+      onChanged();
+    };
+    const onError = () =>
+      toast({ title: "Update failed", description: "Could not update the lease.", variant: "destructive" });
+    const data = { housingId };
     if (kind === "store") updateStore.mutate({ id: venueId, data }, { onSuccess, onError });
     else updateRipperdoc.mutate({ id: venueId, data }, { onSuccess, onError });
   };
@@ -150,6 +186,54 @@ export default function StaffVenuePanel({
             >
               SET OWNER CHARACTER
             </Button>
+          </div>
+        </div>
+        <div className="space-y-2 pt-2 border-t border-border/30">
+          <p className="font-mono text-xs text-muted-foreground flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5" /> Lease:{" "}
+            <span className="text-foreground">{currentLeaseLabel ?? "—"}</span>
+          </p>
+          <p className="font-mono text-[11px] text-muted-foreground">
+            Associate this venue with an on-map business lease. The venue location is pinned to the building.
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[200px]">
+              <Select value={leaseSel} onValueChange={setLeaseSel}>
+                <SelectTrigger className="rounded-none font-mono" data-testid="select-lease">
+                  <SelectValue placeholder="Select a business lease..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {(leases ?? []).map((l) => (
+                    <SelectItem key={l.id} value={String(l.id)} data-testid={`option-lease-${l.id}`}>
+                      {l.address}
+                      {l.tier ? ` · ${l.tier}` : ""} · €${l.monthlyRent.toLocaleString()}/mo
+                      {l.characterName ? ` · ${l.characterName}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              onClick={() => leaseSel && setLease(Number(leaseSel))}
+              disabled={!leaseSel || updateStore.isPending || updateRipperdoc.isPending}
+              className="rounded-none bg-nc-cyan text-background font-display"
+              data-testid="button-associate-lease"
+            >
+              ASSOCIATE LEASE
+            </Button>
+            {currentHousingId != null && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setLease(null)}
+                disabled={updateStore.isPending || updateRipperdoc.isPending}
+                className="rounded-none"
+                data-testid="button-clear-lease"
+              >
+                CLEAR
+              </Button>
+            )}
           </div>
         </div>
         <div className="pt-2 border-t border-border/30">

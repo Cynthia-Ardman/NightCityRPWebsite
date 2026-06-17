@@ -10,7 +10,7 @@ vi.mock("../lib/discord", async (importActual) => {
   };
 });
 
-import { db, customRequests, stores, ripperdocs, housing, inventoryItems, auditLog, catalogGuns, storeStock } from "@workspace/db";
+import { db, customRequests, stores, ripperdocs, housing, inventoryItems, auditLog, catalogGuns, storeStock, catalogRent } from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
@@ -222,6 +222,127 @@ describe("POST /requests/:id/vote (venue materialization)", () => {
   });
 });
 
+// Staff associate a store/ripperdoc with an existing business lease from the
+// venue management page (PATCH housingId). The association validates the lease
+// is kind="business", pins the venue location to the lease address, and is
+// listed via GET /business-leases. A null housingId clears it.
+describe("Venue ↔ lease association (staff)", () => {
+  async function createBusinessLease(args: { characterId: number; address: string; monthlyRent?: number }) {
+    const [row] = await db
+      .insert(housing)
+      .values({
+        characterId: args.characterId,
+        address: args.address,
+        monthlyRent: args.monthlyRent ?? 1500,
+        kind: "business",
+      })
+      .returning();
+    return row;
+  }
+
+  async function createStore(ownerId: string, characterId: number) {
+    const [row] = await db
+      .insert(stores)
+      .values({ ownerId, ownerCharacterId: characterId, name: "Test Shop", location: "Old Address" })
+      .returning();
+    return row;
+  }
+
+  it("GET /business-leases lists business leases for staff and 403s players", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const char = await createCharacter({ ownerId: owner.id });
+    const lease = await createBusinessLease({ characterId: char.id, address: "Watson Plaza 12" });
+
+    const denied = await request(app).get("/api/business-leases").set("x-test-user", owner.id);
+    expect(denied.status).toBe(403);
+
+    const res = await request(app).get("/api/business-leases").set("x-test-user", fixer.id);
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number; address: string }>).map((l) => l.id);
+    expect(ids).toContain(lease.id);
+  });
+
+  it("associates a store with a business lease and pins its location", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const char = await createCharacter({ ownerId: owner.id });
+    const lease = await createBusinessLease({ characterId: char.id, address: "Kabuki Market 7" });
+    const store = await createStore(owner.id, char.id);
+
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ housingId: lease.id });
+    expect(res.status).toBe(200);
+
+    const [updated] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(updated.housingId).toBe(lease.id);
+    expect(updated.location).toBe("Kabuki Market 7");
+
+    expect(res.body.lease).toBeTruthy();
+    expect(res.body.lease.id).toBe(lease.id);
+  });
+
+  it("clears a store's lease association with null housingId", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const char = await createCharacter({ ownerId: owner.id });
+    const lease = await createBusinessLease({ characterId: char.id, address: "Heywood Row 3" });
+    const store = await createStore(owner.id, char.id);
+
+    await request(app).patch(`/api/stores/${store.id}`).set("x-test-user", fixer.id).send({ housingId: lease.id });
+    const clear = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ housingId: null });
+    expect(clear.status).toBe(200);
+
+    const [updated] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(updated.housingId).toBeNull();
+    // Location is left intact when clearing.
+    expect(updated.location).toBe("Heywood Row 3");
+  });
+
+  it("400s when the housingId is not a business lease", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const char = await createCharacter({ ownerId: owner.id });
+    const [residential] = await db
+      .insert(housing)
+      .values({ characterId: char.id, address: "Home Sweet Home", monthlyRent: 800, kind: "residential" })
+      .returning();
+    const store = await createStore(owner.id, char.id);
+
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ housingId: residential.id });
+    expect(res.status).toBe(400);
+
+    const [unchanged] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(unchanged.housingId).toBeNull();
+  });
+
+  it("ignores housingId from a non-staff caller (association is staff-only)", async () => {
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const lease = await createBusinessLease({ characterId: char.id, address: "Santo Domingo 5" });
+    const store = await createStore(owner.id, char.id);
+
+    // The owner may PATCH their own store, but housingId is not in their
+    // allowed field set — it is silently stripped, so no association happens.
+    const res = await request(app)
+      .patch(`/api/stores/${store.id}`)
+      .set("x-test-user", owner.id)
+      .send({ housingId: lease.id });
+    expect(res.status).toBe(200);
+
+    const [unchanged] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(unchanged.housingId).toBeNull();
+  });
+});
+
 // Regression guard for the approve-handler lock fix: the row was previously
 // locked with a raw `SELECT *` cast to the camelCase type, leaving characterId
 // undefined and 400-ing EVERY approve type. These exercise the legacy types so
@@ -324,6 +445,184 @@ describe("POST /requests/:id/vote reject (venue)", () => {
     expect(audits[0].category).toBe("shop");
 
     expect(mockDm).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("On-map venue requests (building reservation)", () => {
+  async function makeBusinessBuilding(name = "Watson Tower", rent = 2500) {
+    const [b] = await db
+      .insert(catalogRent)
+      .values({ name, district: "Watson", tier: "Tier 2", monthlyRent: rent, kind: "business" })
+      .returning();
+    return b;
+  }
+
+  it("lists only unleased, unreserved business buildings", async () => {
+    const owner = await createUser();
+    const free = await makeBusinessBuilding("Free Tower");
+    const residential = await db
+      .insert(catalogRent)
+      .values({ name: "Apt 1A", district: "Watson", monthlyRent: 800, kind: "residential" })
+      .returning();
+    const res = await request(app)
+      .get("/api/catalog/rent/available-business")
+      .set("x-test-user", owner.id);
+    expect(res.status).toBe(200);
+    const ids = (res.body as { id: number }[]).map((b) => b.id);
+    expect(ids).toContain(free.id);
+    expect(ids).not.toContain(residential[0].id);
+  });
+
+  it("rejects an on-map submit for a non-business building", async () => {
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const [res] = await db
+      .insert(catalogRent)
+      .values({ name: "Flat", district: "Watson", monthlyRent: 800, kind: "residential" })
+      .returning();
+    const submit = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", owner.id)
+      .send({ type: "store", characterId: char.id, title: "Shop", purpose: "Goods", description: "desc", locationKind: "on_map", listingId: res.id });
+    expect(submit.status).toBe(400);
+  });
+
+  it("reserves the building on submit and excludes it from availability", async () => {
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const building = await makeBusinessBuilding();
+    const submit = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", owner.id)
+      .send({ type: "store", characterId: char.id, title: "Shop", purpose: "Goods", description: "A store.", locationKind: "on_map", listingId: building.id });
+    expect(submit.status).toBe(201);
+    expect(submit.body.details).toMatchObject({ locationKind: "on_map", listingId: building.id });
+
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, submit.body.id));
+    expect(row.reservedListingId).toBe(building.id);
+
+    // No longer offered to anyone else.
+    const avail = await request(app).get("/api/catalog/rent/available-business").set("x-test-user", owner.id);
+    expect((avail.body as { id: number }[]).map((b) => b.id)).not.toContain(building.id);
+
+    // And marked occupied in the catalog.
+    const cat = await request(app).get("/api/catalog/rent").set("x-test-user", owner.id);
+    const catRow = (cat.body as { id: number; occupied: boolean }[]).find((l) => l.id === building.id);
+    expect(catRow?.occupied).toBe(true);
+  });
+
+  it("409s a second on-map submit for an already-reserved building", async () => {
+    const owner = await createUser();
+    const other = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const char2 = await createCharacter({ ownerId: other.id });
+    const building = await makeBusinessBuilding();
+    const first = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", owner.id)
+      .send({ type: "store", characterId: char.id, title: "Shop", purpose: "Goods", description: "A store.", locationKind: "on_map", listingId: building.id });
+    expect(first.status).toBe(201);
+    const second = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", other.id)
+      .send({ type: "ripperdoc", characterId: char2.id, title: "Clinic", purpose: "Health", description: "A clinic.", locationKind: "on_map", listingId: building.id });
+    expect(second.status).toBe(409);
+  });
+
+  it("commits a business lease and pins the venue location on close", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const char = await createCharacter({ ownerId: owner.id });
+    const building = await makeBusinessBuilding("Northside Plaza", 3200);
+    const submit = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", owner.id)
+      .send({ type: "store", characterId: char.id, title: "Plaza Goods", purpose: "Goods", description: "A store.", locationKind: "on_map", listingId: building.id });
+    const reqId = submit.body.id as number;
+
+    const vote = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    expect(vote.status).toBe(200);
+    // No lease yet — staged until close.
+    expect(await db.select().from(housing)).toHaveLength(0);
+
+    const close = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", fixer.id).send({});
+    expect(close.status).toBe(200);
+    expect(close.body.appliedRef).toMatch(/^store:\d+$/);
+
+    const leases = await db.select().from(housing);
+    expect(leases).toHaveLength(1);
+    expect(leases[0].characterId).toBe(char.id);
+    expect(leases[0].listingId).toBe(building.id);
+    expect(leases[0].kind).toBe("business");
+    expect(leases[0].monthlyRent).toBe(3200);
+
+    const [store] = await db.select().from(stores);
+    expect(store.location).toBe("Northside Plaza — Watson");
+  });
+
+  it("frees the reservation when the request is rejected", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const char = await createCharacter({ ownerId: owner.id });
+    const building = await makeBusinessBuilding();
+    const submit = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", owner.id)
+      .send({ type: "store", characterId: char.id, title: "Shop", purpose: "Goods", description: "A store.", locationKind: "on_map", listingId: building.id });
+    const reqId = submit.body.id as number;
+
+    const reject = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "reject", note: "no" });
+    expect(reject.status).toBe(200);
+    expect(reject.body.status).toBe("rejected");
+
+    // Building is available again and no lease was created.
+    const avail = await request(app).get("/api/catalog/rent/available-business").set("x-test-user", owner.id);
+    expect((avail.body as { id: number }[]).map((b) => b.id)).toContain(building.id);
+    expect(await db.select().from(housing)).toHaveLength(0);
+  });
+
+  it("rejects an on-map submit for an already-leased building", async () => {
+    const owner = await createUser();
+    const tenant = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const tenantChar = await createCharacter({ ownerId: tenant.id, approved: true });
+    const building = await makeBusinessBuilding();
+    const admin = await createAdmin();
+    const lease = await request(app)
+      .post("/api/housing/lease")
+      .set("x-test-user", admin.id)
+      .send({ catalogRentId: building.id, characterId: tenantChar.id });
+    expect(lease.status).toBe(201);
+
+    const avail = await request(app).get("/api/catalog/rent/available-business").set("x-test-user", owner.id);
+    expect((avail.body as { id: number }[]).map((b) => b.id)).not.toContain(building.id);
+
+    const submit = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", owner.id)
+      .send({ type: "store", characterId: char.id, title: "Shop", purpose: "Goods", description: "A store.", locationKind: "on_map", listingId: building.id });
+    expect(submit.status).toBe(409);
+  });
+
+  it("blocks a self-lease of a reserved building", async () => {
+    const owner = await createUser();
+    const other = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const char2 = await createCharacter({ ownerId: other.id, approved: true });
+    const building = await makeBusinessBuilding();
+    const submit = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", owner.id)
+      .send({ type: "store", characterId: char.id, title: "Shop", purpose: "Goods", description: "A store.", locationKind: "on_map", listingId: building.id });
+    expect(submit.status).toBe(201);
+
+    // A staff lease attempt on the reserved building is rejected as occupied.
+    const admin = await createAdmin();
+    const lease = await request(app)
+      .post("/api/housing/lease")
+      .set("x-test-user", admin.id)
+      .send({ catalogRentId: building.id, characterId: char2.id });
+    expect(lease.status).toBe(409);
   });
 });
 

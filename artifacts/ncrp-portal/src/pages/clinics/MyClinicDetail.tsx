@@ -484,7 +484,13 @@ export default function MyClinicDetail() {
       )}
       <VenueOffersPanel offers={offers ?? []} />
       {!!me && (me.isAdmin || me.isFixer) && (
-        <StaffVenuePanel kind="ripperdoc" venueId={rid} onChanged={invalidate} />
+        <StaffVenuePanel
+          kind="ripperdoc"
+          venueId={rid}
+          currentHousingId={data?.housingId ?? null}
+          currentLeaseLabel={data?.lease ? data.lease.address : null}
+          onChanged={invalidate}
+        />
       )}
       {sellTarget && (
         <CyberwareActionDialog

@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { BusinessLease } from './businessLease';
 import type { Employee } from './employee';
 import type { StockItem } from './stockItem';
 import type { StoreKind } from './storeKind';
@@ -15,6 +16,11 @@ export interface Store {
   ownerId: string;
   /** @nullable */
   ownerCharacterId?: number | null;
+  /**
+     * Business lease this venue operates out of (null = off-map / unlinked).
+     * @nullable
+     */
+  housingId?: number | null;
   /** Website-only business account balance (eddies). */
   balance?: number;
   kind: StoreKind;
@@ -26,6 +32,7 @@ export interface Store {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
+  lease?: BusinessLease | null;
   employees: Employee[];
   stock: StockItem[];
 }
