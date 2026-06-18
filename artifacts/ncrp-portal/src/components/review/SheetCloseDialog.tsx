@@ -55,8 +55,33 @@ type CustomGunRow = {
   manufacturer: string;
 };
 
+// Catalog matches are auto-resolved server-side; we render them read-only so the
+// closer can see what will be applied without being able to (or needing to) edit.
+type CatalogCyberRow = { name: string; cwp: number; slot: string };
+type CatalogGunRow = { name: string; detail: string };
+
 function norm(s: unknown): string {
   return String(s ?? "").trim().toLowerCase();
+}
+
+function gunDetail(a: {
+  manufacturer?: string | null;
+  category?: string | null;
+  weaponType?: string | null;
+  fireMode?: string | null;
+  powerLevel?: string | null;
+}): string {
+  return (
+    [
+      a.manufacturer ? `Manufacturer: ${a.manufacturer}` : null,
+      a.category ? `Category: ${a.category}` : null,
+      a.weaponType ? `Type: ${a.weaponType}` : null,
+      a.fireMode ? `Fire: ${a.fireMode}` : null,
+      a.powerLevel ? `Power: ${a.powerLevel}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "—"
+  );
 }
 
 export function SheetCloseDialog({
@@ -65,6 +90,7 @@ export function SheetCloseDialog({
   close,
   disabled,
   triggerClassName,
+  triggerLabel,
   onClosed,
 }: {
   id: number;
@@ -72,12 +98,15 @@ export function SheetCloseDialog({
   close: ReturnType<typeof useCloseReviewTicket>;
   disabled?: boolean;
   triggerClassName?: string;
+  triggerLabel?: string;
   onClosed?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [cyberRows, setCyberRows] = useState<CustomCyberRow[]>([]);
   const [gunRows, setGunRows] = useState<CustomGunRow[]>([]);
+  const [catalogCyberRows, setCatalogCyberRows] = useState<CatalogCyberRow[]>([]);
+  const [catalogGunRows, setCatalogGunRows] = useState<CatalogGunRow[]>([]);
   const pendingApply = status === "approved";
   const busy = close.isPending;
 
@@ -94,14 +123,31 @@ export function SheetCloseDialog({
     query: { enabled, queryKey: getListGunsQueryKey() },
   });
 
-  const cyberNameSet = useMemo(
-    () => new Set((cyberCatalog ?? []).map((c) => norm(c.name))),
-    [cyberCatalog],
-  );
-  const gunNameSet = useMemo(
-    () => new Set((gunCatalog ?? []).map((g) => norm(g.name))),
-    [gunCatalog],
-  );
+  // Highest-CWP wins on duplicate cyberware names — mirrors the server's
+  // loadCyberwareCatalogMap so the read-only preview matches what gets applied.
+  const cyberMap = useMemo(() => {
+    const m = new Map<string, { cwp: number; slot: string }>();
+    for (const c of cyberCatalog ?? []) {
+      const key = norm(c.name);
+      if (!key) continue;
+      const cwp = Number((c as { cwp?: number }).cwp ?? 0) || 0;
+      const slot = String((c as { slot?: string | null }).slot ?? "").trim();
+      const prev = m.get(key);
+      if (!prev || cwp > prev.cwp) m.set(key, { cwp, slot });
+    }
+    return m;
+  }, [cyberCatalog]);
+  // First-write-wins on duplicate gun names — mirrors the server's gun catalog
+  // map so the read-only preview matches what gets applied.
+  const gunMap = useMemo(() => {
+    const m = new Map<string, CatalogGunRow["detail"]>();
+    for (const g of gunCatalog ?? []) {
+      const key = norm(g.name);
+      if (!key || m.has(key)) continue;
+      m.set(key, gunDetail(g as Parameters<typeof gunDetail>[0]));
+    }
+    return m;
+  }, [gunCatalog]);
 
   // Derive the custom items from the sheet whenever the data (or catalogs) load.
   // Pre-fill cyberware CWP + slot from the player's typed values; guns have no
@@ -113,10 +159,18 @@ export function SheetCloseDialog({
     const guns = (Array.isArray(data.guns) ? data.guns : []) as unknown[];
 
     const customCyber: CustomCyberRow[] = [];
+    const resolvedCyber: CatalogCyberRow[] = [];
     cw.forEach((item, index) => {
       const name = String(item?.name ?? "").trim() || String(item?.slot ?? "").trim();
       if (!name) return;
-      if (cyberNameSet.has(norm(name))) return; // catalog → auto-resolves
+      const match = cyberMap.get(norm(name));
+      if (match) {
+        // catalog → auto-resolves; fall back to the sheet's typed slot if the
+        // catalog row has none, matching the server's slot fallback.
+        const slot = match.slot || String(item?.slot ?? "").trim();
+        resolvedCyber.push({ name, cwp: match.cwp, slot });
+        return;
+      }
       customCyber.push({
         index,
         name,
@@ -126,10 +180,15 @@ export function SheetCloseDialog({
     });
 
     const customGuns: CustomGunRow[] = [];
+    const resolvedGuns: CatalogGunRow[] = [];
     guns.forEach((raw, index) => {
       const name = String(raw ?? "").trim();
       if (!name) return;
-      if (gunNameSet.has(norm(name))) return; // catalog → auto-resolves
+      const detail = gunMap.get(norm(name));
+      if (detail !== undefined) {
+        resolvedGuns.push({ name, detail }); // catalog → auto-resolves
+        return;
+      }
       customGuns.push({
         index,
         name,
@@ -143,7 +202,9 @@ export function SheetCloseDialog({
 
     setCyberRows(customCyber);
     setGunRows(customGuns);
-  }, [enabled, sheet, cyberNameSet, gunNameSet]);
+    setCatalogCyberRows(resolvedCyber);
+    setCatalogGunRows(resolvedGuns);
+  }, [enabled, sheet, cyberMap, gunMap]);
 
   const hasCustom = cyberRows.length > 0 || gunRows.length > 0;
   const loading = enabled && (sheetLoading || !sheet);
@@ -169,6 +230,8 @@ export function SheetCloseDialog({
     setNote("");
     setCyberRows([]);
     setGunRows([]);
+    setCatalogCyberRows([]);
+    setCatalogGunRows([]);
   };
 
   const submit = () => {
@@ -222,7 +285,7 @@ export function SheetCloseDialog({
           disabled={disabled}
           data-testid={`button-close-sheet-${id}`}
         >
-          {pendingApply ? "CLOSE & APPLY" : "CLOSE TICKET"}
+          {triggerLabel ?? (pendingApply ? "CLOSE & APPLY" : "CLOSE TICKET")}
         </Button>
       </DialogTrigger>
       <DialogContent className="rounded-none border-border bg-background sm:max-w-lg max-h-[85vh] overflow-y-auto">
@@ -251,6 +314,36 @@ export function SheetCloseDialog({
             >
               This sheet has custom items not in the catalog. Set their attributes below before applying.
             </p>
+          ) : null}
+
+          {!loading && pendingApply && (catalogCyberRows.length > 0 || catalogGunRows.length > 0) ? (
+            <div
+              className="space-y-2 border border-nc-green/40 bg-nc-green/5 p-3"
+              data-testid="sheet-close-catalog"
+            >
+              <div className="font-display text-[10px] tracking-widest text-nc-green uppercase">
+                Auto-resolved from catalog
+              </div>
+              {catalogCyberRows.map((r, i) => (
+                <div
+                  key={`cat-cw-${i}`}
+                  className="font-mono text-[11px] text-muted-foreground"
+                  data-testid={`sheet-close-catalog-cyber-${i}`}
+                >
+                  <span className="text-foreground">{r.name}</span> — CWP {r.cwp}
+                  {r.slot ? ` · slot: ${r.slot}` : ""}
+                </div>
+              ))}
+              {catalogGunRows.map((r, i) => (
+                <div
+                  key={`cat-gun-${i}`}
+                  className="font-mono text-[11px] text-muted-foreground"
+                  data-testid={`sheet-close-catalog-gun-${i}`}
+                >
+                  <span className="text-foreground">{r.name}</span> — {r.detail}
+                </div>
+              ))}
+            </div>
           ) : null}
 
           {cyberRows.map((r) => (

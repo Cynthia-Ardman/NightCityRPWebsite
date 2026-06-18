@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { BUCKET_LABEL, type LifecycleBucket } from "@/lib/reviewLifecycle";
+import { SheetCloseDialog } from "@/components/review/SheetCloseDialog";
 
 // Prominent "NEW" pill flagging a ticket the current reviewer hasn't opened
 // since its last activity (a new comment or vote). Driven by /review/unseen-ids.
@@ -62,16 +63,7 @@ export function useReviewTicketActions(invalidate: () => void) {
 // audit trail only. The close mutation itself is owned by the caller (so its
 // onSuccess/onError + invalidation stay in one place) — we just gate it behind
 // a confirmation that collects the message.
-export function CloseTicketDialog({
-  subjectType,
-  id,
-  status,
-  close,
-  disabled,
-  triggerClassName,
-  triggerLabel,
-  onClosed,
-}: {
+type CloseTicketDialogProps = {
   subjectType: "edit" | "request" | "sheet";
   id: number;
   status: string;
@@ -80,7 +72,32 @@ export function CloseTicketDialog({
   triggerClassName?: string;
   triggerLabel?: string;
   onClosed?: () => void;
-}) {
+};
+
+// Dispatcher: sheets close through a dedicated dialog because closing an
+// approved sheet materializes the character, and custom (non-catalog)
+// cyberware/guns require mechanical attributes the generic note-only dialog
+// can't collect (the server 400s without them). Centralizing the routing here
+// means every sheet-close entry point (queue lifecycle, ready-to-apply panel)
+// gets the right dialog with no per-call-site branching.
+export function CloseTicketDialog(props: CloseTicketDialogProps) {
+  if (props.subjectType === "sheet") {
+    const { subjectType: _ignored, ...rest } = props;
+    return <SheetCloseDialog {...rest} />;
+  }
+  return <GenericCloseTicketDialog {...props} />;
+}
+
+function GenericCloseTicketDialog({
+  subjectType,
+  id,
+  status,
+  close,
+  disabled,
+  triggerClassName,
+  triggerLabel,
+  onClosed,
+}: CloseTicketDialogProps) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const pendingApply = status === "approved";
