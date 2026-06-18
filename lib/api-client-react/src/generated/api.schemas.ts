@@ -4359,12 +4359,40 @@ export interface PendingEditDetail {
   canClose?: boolean;
 }
 
+/**
+ * Custom request (property) only. Lease kind set at CLOSE & APPLY.
+ */
+export type ReviewCloseInputKind = typeof ReviewCloseInputKind[keyof typeof ReviewCloseInputKind];
+
+
+export const ReviewCloseInputKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
 export interface ReviewCloseInput {
   /**
-     * Optional reviewer note recorded with the close/apply action (edit tickets).
+     * Optional closing message recorded with the close/apply action. For custom requests it is also DM'd to the player along with the approve/reject decision (Tickety-style closing comment); for edits and sheets it is recorded in the audit trail only.
      * @maxLength 2000
      */
   note?: string;
+  /** Custom request (property) only. Monthly rent applied to the new lease at CLOSE & APPLY. */
+  monthlyRent?: number;
+  /** Custom request (property) only. Lease kind set at CLOSE & APPLY. */
+  kind?: ReviewCloseInputKind;
+  /**
+     * Custom request (property) only. Optional business/property name for the lease; falls back to the request title.
+     * @maxLength 200
+     */
+  businessName?: string;
+  /** Custom request (cyberware) only. Chrome points applied at CLOSE & APPLY. */
+  cwp?: number;
+  /** Custom request (venue_stock) only. Unit cost applied at CLOSE & APPLY. */
+  unitCost?: number;
+  /** Custom request (venue_stock) only. Retail price applied at CLOSE & APPLY. */
+  retail?: number;
+  /** Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY. */
+  qty?: number;
 }
 
 export type PendingEditVoteInputVote = typeof PendingEditVoteInputVote[keyof typeof PendingEditVoteInputVote];

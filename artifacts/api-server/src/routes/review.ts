@@ -451,18 +451,32 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
 // ticket was approved this is where its deferred effect (lease / inventory /
 // character materialization / diff) is finally committed. Dispatches to the
 // per-queue close handler which owns the materialize logic. Idempotent.
-const CloseBodySchema = z.object({ note: z.string().trim().max(2000).optional() });
+// Mechanical params (rent / cwp / stock price) are entered by the closer at this
+// CLOSE & APPLY step for custom requests — voting/override stays a single click.
+// They are optional here (edits/sheets ignore them; non-param request types need
+// none) and forwarded to closeRequest, which validates + applies them.
+const CloseBodySchema = z.object({
+  note: z.string().trim().max(2000).optional(),
+  monthlyRent: z.number().optional(),
+  kind: z.enum(["residential", "business"]).optional(),
+  businessName: z.string().trim().max(200).optional(),
+  cwp: z.number().optional(),
+  unitCost: z.number().optional(),
+  retail: z.number().optional(),
+  qty: z.number().optional(),
+});
 
 router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<void> => {
   const parsed = parseParams(req);
   if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
   if (!isReviewer(req.user!)) { res.status(403).json({ error: "Only fixers / approvers / admins can close tickets" }); return; }
   const bodyParsed = CloseBodySchema.safeParse(req.body ?? {});
-  if (!bodyParsed.success) { res.status(400).json({ error: "Invalid note" }); return; }
-  const note = bodyParsed.data.note || undefined;
+  if (!bodyParsed.success) { res.status(400).json({ error: "Invalid close payload" }); return; }
+  const { note: rawNote, ...closeParams } = bodyParsed.data;
+  const note = rawNote || undefined;
   let result: ReviewActionResult;
   if (parsed.type === "edit") result = await closeEdit(req, parsed.id, note);
-  else if (parsed.type === "request") result = await closeRequest(req, parsed.id, note);
+  else if (parsed.type === "request") result = await closeRequest(req, parsed.id, note, closeParams);
   else result = await closeSheet(req, parsed.id, note);
   res.status(result.status).json(result.body);
 });

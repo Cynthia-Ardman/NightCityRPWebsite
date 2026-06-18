@@ -37,6 +37,7 @@ export function ReviewQueueCard({
   awaitingVote = false,
   markSeenOnMount = false,
   initiallyExpanded = false,
+  tone = "default",
 }: {
   subjectType: ReviewSubjectType;
   id: number;
@@ -56,6 +57,10 @@ export function ReviewQueueCard({
   showThread?: boolean;
   awaitingVote?: boolean;
   markSeenOnMount?: boolean;
+  // Whole-card decision tint: a decided (approved/rejected) ticket that is
+  // awaiting CLOSE & APPLY / CLOSE & DENY turns green / red in the queue so
+  // staff can see its state at a glance. "default" keeps the neutral card.
+  tone?: "default" | "approved" | "rejected";
   // Seed the comment-thread section open on mount — used by ?focus= deep links
   // from the Discord CS-approver post so the linked ticket lands expanded.
   initiallyExpanded?: boolean;
@@ -67,10 +72,17 @@ export function ReviewQueueCard({
     actions != null ||
     showThread;
 
+  const toneClass =
+    tone === "approved"
+      ? "border-nc-green/70 bg-nc-green/5"
+      : tone === "rejected"
+        ? "border-destructive/70 bg-destructive/5"
+        : "border-border bg-card/50";
+
   return (
     <Card
       id={`review-${subjectType}-${id}`}
-      className={`rounded-none border-border bg-card/50 flex flex-col ${
+      className={`rounded-none flex flex-col ${toneClass} ${
         unseen ? "border-l-2 border-l-nc-magenta" : ""
       }`}
       data-testid={testId}

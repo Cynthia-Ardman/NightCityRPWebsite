@@ -16,6 +16,7 @@ import {
   useApproveGuidebookEdit,
   useRejectGuidebookEdit,
   useCloseReviewTicket,
+  useReopenReviewTicket,
   useGetReviewUnseenCounts,
   useGetReviewUnseenIds,
   getGetReviewUnseenIdsQueryKey,
@@ -38,7 +39,6 @@ import {
   type PendingSheetSummary,
   type MissionSummary,
 } from "@workspace/api-client-react";
-import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { formatEddies } from "@/lib/format";
 import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "./reviewSort";
 import { useReviewTicketActions, LifecycleActions, CloseTicketDialog } from "@/components/review/ReviewLifecycleUI";
@@ -106,14 +106,23 @@ function venueDetails(r: CustomRequest): { purpose?: string; location?: string }
 }
 
 function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
-  // Active-only tab: completed/denied requests live in the cross-cutting
-  // Completed/Denied tabs. We only fetch the active bucket here.
+  // The queue now holds both undecided (pending / changes_requested) AND decided
+  // -but-not-closed (approved / rejected) tickets. Decided tickets render as
+  // green / red "action" cards with CLOSE & APPLY / CLOSE & DENY so the closer
+  // enters mechanical params at close. We fetch the active bucket (pending +
+  // changes_requested) and the resolved bucket (approved + rejected + cancelled)
+  // and merge them; closed tickets live in the cross-cutting Completed/Denied
+  // tabs, cancelled ones are dropped from the queue.
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const { data: active, isLoading } = useListCustomRequests({ bucket: "active" });
+  const { data: resolved, isLoading: resolvedLoading } = useListCustomRequests(
+    { bucket: "resolved" },
+    { query: { queryKey: getListCustomRequestsQueryKey({ bucket: "resolved" }) } },
+  );
   const { data: unseenIds } = useGetReviewUnseenIds();
   const { data: me } = useEffectiveMe();
-  const [approveTarget, setApproveTarget] = useState<CustomRequest | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<CustomRequest | null>(null);
-  const [overrideTarget, setOverrideTarget] = useState<CustomRequest | null>(null);
+  const [closeTarget, setCloseTarget] = useState<{ request: CustomRequest; mode: "apply" | "deny" } | null>(null);
   const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
@@ -138,24 +147,96 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
 
   const unseen = new Set(unseenIds?.request ?? []);
 
-  const activeRequests = sortReviewItems(
-    (active ?? []) as CustomRequest[],
+  // Decided-but-not-closed tickets (approved / rejected) live in the resolved
+  // bucket alongside cancelled — keep only the two that still need a closer to
+  // CLOSE & APPLY / CLOSE & DENY.
+  const decided = ((resolved ?? []) as CustomRequest[]).filter(
+    (r) => r.status === "approved" || r.status === "rejected",
+  );
+  const queueItems = sortReviewItems(
+    [...((active ?? []) as CustomRequest[]), ...decided],
     sortMode,
     (r) => r.createdAt,
     (r) => r.lastActivityAt,
   );
 
+  const invalidateQueue = () => {
+    // Base key (no params) so every bucket variant — active / resolved / archive
+    // — refetches; a status-scoped key would not prefix-match the { bucket }
+    // fetches and would leave votes/decisions stale until a manual refresh.
+    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
+  };
+  const onMutationError = (title: string) => (err: unknown) => {
+    const msg =
+      (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+      (err instanceof Error ? err.message : "Please try again.");
+    toast({ title, description: msg, variant: "destructive" });
+  };
+
+  const voteMut = useVoteCustomRequest({
+    mutation: {
+      onSuccess: (res) => {
+        invalidateQueue();
+        const decidedAs = (res as { decided?: string })?.decided;
+        toast({
+          title:
+            decidedAs === "approved"
+              ? "Approved — majority reached"
+              : decidedAs === "rejected"
+                ? "Rejected — majority reached"
+                : "Vote recorded",
+        });
+      },
+      onError: onMutationError("Could not vote"),
+    },
+  });
+  const overrideMut = useOverrideCustomRequest({
+    mutation: {
+      onSuccess: (_res, vars) => {
+        invalidateQueue();
+        toast({
+          title:
+            (vars as { data?: { decision?: string } })?.data?.decision === "deny"
+              ? "Denied via override"
+              : "Approved via override",
+        });
+      },
+      onError: onMutationError("Could not override"),
+    },
+  });
+  const reopenMut = useReopenReviewTicket({
+    mutation: {
+      onSuccess: () => {
+        invalidateQueue();
+        toast({ title: "Reopened — back to pending" });
+      },
+      onError: onMutationError("Could not reopen"),
+    },
+  });
+
   // A ?focus=<id> deep link (from the Discord CS-approver post) scrolls the
-  // matching card into view once the active queue has rendered.
+  // matching card into view once the queue has rendered.
   useEffect(() => {
     if (focusId == null) return;
     const el = document.getElementById(`review-request-${focusId}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [focusId, activeRequests.length]);
+  }, [focusId, queueItems.length]);
 
-  const renderCard = (r: CustomRequest, bucket: LifecycleBucket) => {
+  const renderCard = (r: CustomRequest) => {
     const meta = TYPE_META[r.type] ?? { label: "REQUEST", Icon: Inbox };
     const det = venueDetails(r);
+    // pending / changes_requested are still "in vote"; approved / rejected are
+    // decided and awaiting a closer (green / red action cards).
+    const isVoting = r.status === "pending" || r.status === "changes_requested";
+    const isApproved = r.status === "approved";
+    const isRejected = r.status === "rejected";
+    const tone: "default" | "approved" | "rejected" = isApproved
+      ? "approved"
+      : isRejected
+        ? "rejected"
+        : "default";
     return (
       <ReviewQueueCard
         key={r.id}
@@ -168,16 +249,17 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
         title={r.title}
         subtitle={`${r.characterName} · by ${r.requestedByName || r.requestedById}`}
         date={r.createdAt}
-        showRoster={isReviewer && bucket === "active"}
+        tone={tone}
+        showRoster={isReviewer && isVoting}
         roster={{
           eligibleReviewers: r.eligibleReviewers ?? [],
           voters: (r.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
         }}
         markSeenOnMount={isReviewer}
         initiallyExpanded={r.id === focusId}
-        awaitingVote={canVote && bucket === "active" && r.status === "pending" && !r.myVote}
+        awaitingVote={canVote && r.status === "pending" && !r.myVote}
         tally={
-          bucket === "active" ? (
+          isVoting ? (
             <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
               <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
               <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
@@ -191,22 +273,25 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
               ) : null}
             </div>
           ) : (
-            <div className="font-mono text-xs text-muted-foreground" data-testid={`status-misc-${r.id}`}>
-              Status: <span className="text-foreground uppercase">{r.status.replace("_", " ")}</span>
-              {r.reviewerNote ? <span className="block italic mt-0.5">"{r.reviewerNote}"</span> : null}
+            <div className="font-mono text-xs" data-testid={`status-misc-${r.id}`}>
+              <span className={isApproved ? "text-nc-green font-display tracking-widest" : "text-destructive font-display tracking-widest"}>
+                {isApproved ? "APPROVED — AWAITING CLOSE & APPLY" : "REJECTED — AWAITING CLOSE & DENY"}
+              </span>
+              {r.reviewerNote ? <span className="block italic mt-0.5 text-muted-foreground">"{r.reviewerNote}"</span> : null}
             </div>
           )
         }
         actions={
           isReviewer ? (
             <div className="flex flex-wrap gap-2">
-              {bucket === "active" && r.status === "pending" && (
+              {isVoting && r.status === "pending" && (
                 <>
                   {canVote && (
                     <>
                       <Button
                         className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-                        onClick={() => setApproveTarget(r)}
+                        disabled={voteMut.isPending}
+                        onClick={() => voteMut.mutate({ id: r.id, data: { vote: "approve" } })}
                         data-testid={`button-approve-misc-${r.id}`}
                       >
                         {r.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
@@ -214,7 +299,8 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                       <Button
                         variant="outline"
                         className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                        onClick={() => setRejectTarget(r)}
+                        disabled={voteMut.isPending}
+                        onClick={() => voteMut.mutate({ id: r.id, data: { vote: "reject" } })}
                         data-testid={`button-reject-misc-${r.id}`}
                       >
                         {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
@@ -222,15 +308,68 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                     </>
                   )}
                   {isAdmin && (
-                    <Button
-                      variant="outline"
-                      className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
-                      onClick={() => setOverrideTarget(r)}
-                      data-testid={`button-override-misc-${r.id}`}
-                    >
-                      OVERRIDE
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                        disabled={overrideMut.isPending}
+                        onClick={() => overrideMut.mutate({ id: r.id, data: { decision: "approve" } })}
+                        data-testid={`button-override-approve-misc-${r.id}`}
+                      >
+                        OVERRIDE APPROVE
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                        disabled={overrideMut.isPending}
+                        onClick={() => overrideMut.mutate({ id: r.id, data: { decision: "deny" } })}
+                        data-testid={`button-override-deny-misc-${r.id}`}
+                      >
+                        OVERRIDE DENY
+                      </Button>
+                    </>
                   )}
+                </>
+              )}
+              {isApproved && (
+                <>
+                  <Button
+                    className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                    onClick={() => setCloseTarget({ request: r, mode: "apply" })}
+                    data-testid={`button-close-apply-misc-${r.id}`}
+                  >
+                    CLOSE & APPLY
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                    disabled={reopenMut.isPending}
+                    onClick={() => reopenMut.mutate({ subjectType: "request", id: r.id })}
+                    data-testid={`button-reopen-misc-${r.id}`}
+                  >
+                    REOPEN
+                  </Button>
+                </>
+              )}
+              {isRejected && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                    onClick={() => setCloseTarget({ request: r, mode: "deny" })}
+                    data-testid={`button-close-deny-misc-${r.id}`}
+                  >
+                    CLOSE & DENY
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                    disabled={reopenMut.isPending}
+                    onClick={() => reopenMut.mutate({ subjectType: "request", id: r.id })}
+                    data-testid={`button-reopen-misc-${r.id}`}
+                  >
+                    REOPEN
+                  </Button>
                 </>
               )}
               <DiscordThreadDrawer
@@ -286,11 +425,11 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
     );
   };
 
-  if (isLoading || (canSeeOwnedMissions && ownedMissions.isLoading)) {
+  if (isLoading || resolvedLoading || (canSeeOwnedMissions && ownedMissions.isLoading)) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
   }
 
-  if (activeRequests.length === 0 && missionProposals.length === 0) {
+  if (queueItems.length === 0 && missionProposals.length === 0) {
     return (
       <div className="py-20 text-center border border-dashed border-border bg-card/30">
         <Inbox className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
@@ -306,21 +445,259 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
         <MissionApprovalSection rows={missionProposals} canApprove={canApproveMissions} />
       )}
 
-      {activeRequests.length > 0 && (
+      {queueItems.length > 0 && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <ReviewSortDropdown value={sortMode} onChange={setSortMode} testId="select-sort-misc" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activeRequests.map((r) => renderCard(r, "active"))}
+            {queueItems.map((r) => renderCard(r))}
           </div>
         </div>
       )}
 
-      <ApproveDialog request={approveTarget} mode="vote" onClose={() => setApproveTarget(null)} />
-      <ApproveDialog request={overrideTarget} mode="override" onClose={() => setOverrideTarget(null)} />
-      <RejectDialog request={rejectTarget} onClose={() => setRejectTarget(null)} />
+      <RequestCloseDialog
+        target={closeTarget}
+        onClose={() => setCloseTarget(null)}
+        onDone={invalidateQueue}
+      />
     </div>
+  );
+}
+
+// CLOSE & APPLY / CLOSE & DENY for a decided custom request. Mechanical params
+// (rent / cwp / venue cost+retail+qty) are entered HERE by the closer — fixers
+// agree on the numbers in discussion first — and applied at close. In "deny"
+// mode only the optional note is shown (DM'd to the player at close).
+function RequestCloseDialog({
+  target,
+  onClose,
+  onDone,
+}: {
+  target: { request: CustomRequest; mode: "apply" | "deny" } | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const [note, setNote] = useState("");
+  const [monthlyRent, setMonthlyRent] = useState("");
+  const [kind, setKind] = useState<"residential" | "business">("residential");
+  const [businessName, setBusinessName] = useState("");
+  const [cwp, setCwp] = useState("");
+  const [unitCost, setUnitCost] = useState("");
+  const [retail, setRetail] = useState("");
+  const [qty, setQty] = useState("1");
+
+  // Re-seed local form state whenever a different request is opened.
+  const seedKey = target ? `${target.request.id}:${target.mode}` : "";
+  const [seededFor, setSeededFor] = useState("");
+  if (target && seededFor !== seedKey) {
+    setNote("");
+    setMonthlyRent("");
+    setKind("residential");
+    setBusinessName("");
+    setCwp("");
+    setUnitCost("");
+    setRetail("");
+    setQty("1");
+    setSeededFor(seedKey);
+  }
+
+  const close = useCloseReviewTicket({
+    mutation: {
+      onSuccess: () => {
+        onDone();
+        toast({ title: target?.mode === "deny" ? "Closed & denied" : "Closed & applied" });
+        onClose();
+      },
+      onError: (err) => {
+        const msg =
+          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+          (err instanceof Error ? err.message : "Please try again.");
+        toast({ title: "Could not close", description: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  if (!target) return null;
+  const { request, mode } = target;
+  const isApply = mode === "apply";
+  const isProperty = request.type === "property";
+  const isCyberware = request.type === "cyberware";
+  const isVenueStock = request.type === "venue_stock";
+
+  const rentNum = parseInt(monthlyRent, 10);
+  const cwpNum = parseInt(cwp, 10);
+  const unitCostNum = parseInt(unitCost, 10);
+  const retailNum = parseInt(retail, 10);
+  const qtyNum = parseInt(qty, 10);
+  const paramsValid =
+    !isApply ||
+    ((!isProperty || (Number.isFinite(rentNum) && rentNum >= 0)) &&
+      (!isCyberware || (Number.isFinite(cwpNum) && cwpNum >= 0)) &&
+      (!isVenueStock ||
+        (Number.isFinite(unitCostNum) &&
+          unitCostNum >= 0 &&
+          Number.isFinite(retailNum) &&
+          retailNum >= 0 &&
+          Number.isFinite(qtyNum) &&
+          qtyNum >= 1)));
+
+  const submit = () => {
+    const params = isApply
+      ? {
+          ...(isProperty
+            ? { monthlyRent: rentNum, kind, ...(businessName.trim() ? { businessName: businessName.trim() } : {}) }
+            : {}),
+          ...(isCyberware ? { cwp: cwpNum } : {}),
+          ...(isVenueStock ? { unitCost: unitCostNum, retail: retailNum, qty: qtyNum } : {}),
+        }
+      : {};
+    close.mutate({
+      subjectType: "request",
+      id: request.id,
+      data: { ...(note.trim() ? { note: note.trim() } : {}), ...params },
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className={`rounded-none bg-card sm:max-w-lg ${isApply ? "border-nc-green/40" : "border-destructive/40"}`}>
+        <DialogHeader>
+          <DialogTitle className={`font-display tracking-widest break-words ${isApply ? "text-nc-green" : "text-destructive"}`}>
+            {isApply ? "CLOSE & APPLY" : "CLOSE & DENY"} — {request.title.toUpperCase()}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs">
+            {isApply
+              ? `Enter the agreed mechanical numbers — they are applied to ${request.characterName} and the ticket is archived as completed.`
+              : `Denies and archives this request. Your note (if any) is DM'd to ${request.characterName}.`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {isApply && isProperty && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Monthly Rent (€$)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={monthlyRent}
+                  onChange={(e) => setMonthlyRent(e.target.value)}
+                  placeholder="e.g. 2500"
+                  className="rounded-none font-mono"
+                  data-testid="input-close-rent"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Business / Property Name</Label>
+                <Input
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="Leave blank to keep the requested name"
+                  className="rounded-none font-mono"
+                  data-testid="input-close-business-name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Kind</Label>
+                <Select value={kind} onValueChange={(v) => setKind(v as "residential" | "business")}>
+                  <SelectTrigger className="rounded-none font-mono" data-testid="select-close-kind">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="residential">Residential</SelectItem>
+                    <SelectItem value="business">Business</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+          {isApply && isCyberware && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">CWP (chrome point cost)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={cwp}
+                onChange={(e) => setCwp(e.target.value)}
+                placeholder="e.g. 2"
+                className="rounded-none font-mono"
+                data-testid="input-close-cwp"
+              />
+            </div>
+          )}
+          {isApply && isVenueStock && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Unit Cost (€$, owner pays)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                  placeholder="e.g. 5000"
+                  className="rounded-none font-mono"
+                  data-testid="input-close-unit-cost"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Retail Price (€$, customer pays)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={retail}
+                  onChange={(e) => setRetail(e.target.value)}
+                  placeholder="e.g. 8000"
+                  className="rounded-none font-mono"
+                  data-testid="input-close-retail"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Quantity</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  placeholder="e.g. 1"
+                  className="rounded-none font-mono"
+                  data-testid="input-close-qty"
+                />
+              </div>
+            </>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">
+              {isApply ? "Closing Note (optional)" : "Denial Note (optional)"}
+            </Label>
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={isApply ? "Visible to the player" : "Reason — DM'd to the player"}
+              className="rounded-none font-mono"
+              data-testid="input-close-note"
+            />
+          </div>
+        </div>
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
+          <Button variant="ghost" className="w-full rounded-none font-display sm:w-auto" onClick={onClose}>
+            CANCEL
+          </Button>
+          <Button
+            className={`w-full rounded-none font-display tracking-widest sm:w-auto ${
+              isApply
+                ? "bg-nc-green text-background hover:bg-nc-green/80"
+                : "border border-destructive bg-transparent text-destructive hover:bg-destructive/10"
+            }`}
+            disabled={!paramsValid || close.isPending}
+            onClick={submit}
+            data-testid="button-confirm-close"
+          >
+            {close.isPending ? "WORKING..." : isApply ? "CLOSE & APPLY" : "CLOSE & DENY"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -424,335 +801,6 @@ function MissionApprovalSection({
         })}
       </div>
     </div>
-  );
-}
-
-function ApproveDialog({
-  request,
-  mode,
-  onClose,
-}: {
-  request: CustomRequest | null;
-  mode: "vote" | "override";
-  onClose: () => void;
-}) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [reviewerNote, setReviewerNote] = useState("");
-  const [monthlyRent, setMonthlyRent] = useState("");
-  const [kind, setKind] = useState<"residential" | "business">("residential");
-  const [businessName, setBusinessName] = useState("");
-  const [cwp, setCwp] = useState("");
-  const [unitCost, setUnitCost] = useState("");
-  const [retail, setRetail] = useState("");
-  const [qty, setQty] = useState("1");
-
-  // Re-seed local form state whenever a different request is opened.
-  const seedKey = request?.id ?? -1;
-  const [seededFor, setSeededFor] = useState(-1);
-  if (request && seededFor !== seedKey) {
-    setReviewerNote("");
-    setMonthlyRent("");
-    setKind("residential");
-    setBusinessName("");
-    setCwp("");
-    setUnitCost("");
-    setRetail("");
-    setQty("1");
-    setSeededFor(seedKey);
-  }
-
-  const onDone = (title: string) => {
-    // Invalidate the base key (no params) so every bucket variant — active /
-    // resolved / archive — refetches. The list is fetched with { bucket } but a
-    // status-scoped key here would not prefix-match it, leaving votes stale
-    // until a manual refresh.
-    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
-    toast({ title });
-    onClose();
-  };
-  const onFail = (err: unknown) => {
-    const msg =
-      (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-      (err instanceof Error ? err.message : "Please try again.");
-    toast({ title: "Could not approve", description: msg, variant: "destructive" });
-  };
-
-  const voteApprove = useVoteCustomRequest({
-    mutation: {
-      onSuccess: (res) => onDone((res as { decided?: string })?.decided === "approved" ? "Request approved — majority reached" : "Approve vote recorded"),
-      onError: onFail,
-    },
-  });
-  const override = useOverrideCustomRequest({
-    mutation: {
-      onSuccess: (_res, vars) =>
-        onDone(
-          (vars as { data?: { decision?: string } })?.data?.decision === "deny"
-            ? "Request denied via override"
-            : "Request approved via override",
-        ),
-      onError: onFail,
-    },
-  });
-  const busy = voteApprove.isPending || override.isPending;
-
-  if (!request) return null;
-
-  const isProperty = request.type === "property";
-  const isCyberware = request.type === "cyberware";
-  const isVenueStock = request.type === "venue_stock";
-  const rentNum = parseInt(monthlyRent, 10);
-  const cwpNum = parseInt(cwp, 10);
-  const unitCostNum = parseInt(unitCost, 10);
-  const retailNum = parseInt(retail, 10);
-  const qtyNum = parseInt(qty, 10);
-  const valid =
-    (!isProperty || (Number.isFinite(rentNum) && rentNum >= 0)) &&
-    (!isCyberware || (Number.isFinite(cwpNum) && cwpNum >= 0)) &&
-    (!isVenueStock ||
-      (Number.isFinite(unitCostNum) && unitCostNum >= 0 &&
-        Number.isFinite(retailNum) && retailNum >= 0 &&
-        Number.isFinite(qtyNum) && qtyNum >= 1));
-
-  const submit = () => {
-    const params = {
-      ...(isProperty ? { monthlyRent: rentNum, kind, ...(businessName.trim() ? { businessName: businessName.trim() } : {}) } : {}),
-      ...(isCyberware ? { cwp: cwpNum } : {}),
-      ...(isVenueStock ? { unitCost: unitCostNum, retail: retailNum, qty: qtyNum } : {}),
-    };
-    if (mode === "override") {
-      override.mutate({ id: request.id, data: { decision: "approve", reviewerNote: reviewerNote.trim() || undefined, ...params } });
-    } else {
-      voteApprove.mutate({ id: request.id, data: { vote: "approve", note: reviewerNote.trim() || undefined, ...params } });
-    }
-  };
-
-  const heading = mode === "override" ? "OVERRIDE" : "VOTE APPROVE";
-  const cta = mode === "override" ? "OVERRIDE & APPLY" : "CAST APPROVE VOTE";
-
-  return (
-    <Dialog open={!!request} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="rounded-none border-nc-green/40 bg-card sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="font-display tracking-widest text-nc-green break-words">
-            {heading} — {request.title.toUpperCase()}
-          </DialogTitle>
-          <DialogDescription className="font-mono text-xs">
-            {mode === "override"
-              ? `Bypasses the vote and applies this to ${request.characterName} immediately.`
-              : `These mechanical params are used if your vote reaches majority and approves for ${request.characterName}.`}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          {isProperty && (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Monthly Rent (€$)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={monthlyRent}
-                  onChange={(e) => setMonthlyRent(e.target.value)}
-                  placeholder="e.g. 2500"
-                  className="rounded-none font-mono"
-                  data-testid="input-approve-rent"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Business / Property Name</Label>
-                <Input
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="Leave blank to keep the requested name"
-                  className="rounded-none font-mono"
-                  data-testid="input-approve-business-name"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Kind</Label>
-                <Select value={kind} onValueChange={(v) => setKind(v as "residential" | "business")}>
-                  <SelectTrigger className="rounded-none font-mono" data-testid="select-approve-kind">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="residential">Residential</SelectItem>
-                    <SelectItem value="business">Business</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-          {isCyberware && (
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">CWP (chrome point cost)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={cwp}
-                onChange={(e) => setCwp(e.target.value)}
-                placeholder="e.g. 2"
-                className="rounded-none font-mono"
-                data-testid="input-approve-cwp"
-              />
-            </div>
-          )}
-          {isVenueStock && (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Unit Cost (€$, owner pays)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={unitCost}
-                  onChange={(e) => setUnitCost(e.target.value)}
-                  placeholder="e.g. 5000"
-                  className="rounded-none font-mono"
-                  data-testid="input-approve-unit-cost"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Retail Price (€$, customer pays)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={retail}
-                  onChange={(e) => setRetail(e.target.value)}
-                  placeholder="e.g. 8000"
-                  className="rounded-none font-mono"
-                  data-testid="input-approve-retail"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Quantity</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                  placeholder="e.g. 1"
-                  className="rounded-none font-mono"
-                  data-testid="input-approve-qty"
-                />
-              </div>
-            </>
-          )}
-          <div className="space-y-1.5">
-            <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Reviewer Note (optional)</Label>
-            <Input
-              value={reviewerNote}
-              onChange={(e) => setReviewerNote(e.target.value)}
-              placeholder="Visible to the player"
-              className="rounded-none font-mono"
-              data-testid="input-approve-note"
-            />
-          </div>
-        </div>
-        <DialogFooter className="flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:space-x-0">
-          <Button
-            variant="ghost"
-            className="w-full rounded-none font-display sm:w-auto"
-            onClick={onClose}
-          >
-            CANCEL
-          </Button>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-            {mode === "override" && (
-              <Button
-                variant="outline"
-                className="w-full rounded-none font-display tracking-widest border-destructive text-destructive hover:bg-destructive/10 sm:w-auto"
-                disabled={busy}
-                onClick={() => override.mutate({ id: request.id, data: { decision: "deny", reviewerNote: reviewerNote.trim() || undefined } })}
-                data-testid="button-override-deny"
-              >
-                {busy ? "WORKING..." : "OVERRIDE & DENY"}
-              </Button>
-            )}
-            <Button
-              className="w-full rounded-none font-display tracking-widest bg-nc-green text-background hover:bg-nc-green/80 sm:w-auto"
-              disabled={!valid || busy}
-              onClick={submit}
-              data-testid="button-confirm-approve"
-            >
-              {busy ? "WORKING..." : cta}
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function RejectDialog({ request, onClose }: { request: CustomRequest | null; onClose: () => void }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [reviewerNote, setReviewerNote] = useState("");
-
-  const seedKey = request?.id ?? -1;
-  const [seededFor, setSeededFor] = useState(-1);
-  if (request && seededFor !== seedKey) {
-    setReviewerNote("");
-    setSeededFor(seedKey);
-  }
-
-  const voteReject = useVoteCustomRequest({
-    mutation: {
-      onSuccess: (res) => {
-        // Base key (no params) so every bucket variant refetches — see onDone.
-        qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
-        toast({
-          title: (res as { decided?: string })?.decided === "rejected" ? "Request rejected — majority reached" : "Reject vote recorded",
-        });
-        onClose();
-      },
-      onError: (err) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-          (err instanceof Error ? err.message : "Please try again.");
-        toast({ title: "Could not vote", description: msg, variant: "destructive" });
-      },
-    },
-  });
-
-  if (!request) return null;
-
-  return (
-    <Dialog open={!!request} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="rounded-none border-destructive/40 bg-card sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-display tracking-widest text-destructive">
-            VOTE REJECT — {request.title.toUpperCase()}
-          </DialogTitle>
-          <DialogDescription className="font-mono text-xs">
-            A reject majority declines this request. To send it back for edits instead, use Request Changes.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-1.5 py-2">
-          <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Reviewer Note (optional)</Label>
-          <Input
-            value={reviewerNote}
-            onChange={(e) => setReviewerNote(e.target.value)}
-            placeholder="Reason for rejection"
-            className="rounded-none font-mono"
-            data-testid="input-reject-note"
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" className="rounded-none font-display" onClick={onClose}>
-            CANCEL
-          </Button>
-          <Button
-            variant="outline"
-            className="rounded-none font-display tracking-widest border-destructive text-destructive hover:bg-destructive/10"
-            disabled={voteReject.isPending}
-            onClick={() => voteReject.mutate({ id: request.id, data: { vote: "reject", note: reviewerNote.trim() || undefined } })}
-            data-testid="button-confirm-reject"
-          >
-            {voteReject.isPending ? "VOTING..." : "CAST REJECT VOTE"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1288,8 +1336,10 @@ interface TerminalItem {
 
 function classifyRequest(r: CustomRequest): TerminalDecision | null {
   const status = String(r.status);
-  if (status === "approved") return "completed";
-  if (status === "rejected" || status === "cancelled") return "denied";
+  // approved / rejected are NOT terminal anymore — they live in the Misc queue
+  // as green / red action cards awaiting CLOSE & APPLY / CLOSE & DENY. Only a
+  // closed (or cancelled) request is truly done and belongs in the history tabs.
+  if (status === "cancelled") return "denied";
   if (status === "closed") return r.appliedRef ? "completed" : "denied";
   return null;
 }
@@ -1372,8 +1422,6 @@ function useTerminalItems() {
     ...((reqResolved.data ?? []) as CustomRequest[]),
     ...((reqArchive.data ?? []) as CustomRequest[]),
   ];
-  const requestsById = new Map<number, CustomRequest>();
-  for (const r of requests) requestsById.set(r.id, r);
   for (const r of requests) {
     const status = String(r.status);
     push(classifyRequest(r), {
@@ -1495,7 +1543,7 @@ function useTerminalItems() {
   );
   readyToApply.sort(byDateDesc);
 
-  return { completed, denied, readyToApply, requestsById, isLoading };
+  return { completed, denied, readyToApply, isLoading };
 }
 
 function TerminalCard({
@@ -1616,11 +1664,8 @@ function TabCount({ n }: { n: number }) {
 function ReadyToApplyPanel() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: me } = useEffectiveMe();
-  const isAdmin = !!me?.isAdmin;
-  const { readyToApply, requestsById } = useTerminalItems();
+  const { readyToApply } = useTerminalItems();
   const [applyingAll, setApplyingAll] = useState(false);
-  const [editRequest, setEditRequest] = useState<CustomRequest | null>(null);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
@@ -1693,13 +1738,6 @@ function ReadyToApplyPanel() {
         <div className="space-y-2">
           {readyToApply.map((item) => {
             const Icon = item.Icon;
-            // Only request tickets carry editable mechanical params (rent / CWP /
-            // stock pricing). An admin can correct a bad staged value in place by
-            // re-overriding before the ticket is closed/applied.
-            const req = item.subjectType === "request" ? requestsById.get(item.id) : undefined;
-            const canEdit =
-              isAdmin && !!req &&
-              (req.type === "property" || req.type === "cyberware" || req.type === "venue_stock");
             return (
               <div
                 key={item.key}
@@ -1716,17 +1754,6 @@ function ReadyToApplyPanel() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {canEdit && (
-                    <Button
-                      variant="outline"
-                      className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
-                      disabled={busy}
-                      onClick={() => setEditRequest(req!)}
-                      data-testid={`button-edit-ready-${item.kind}-${item.id}`}
-                    >
-                      EDIT
-                    </Button>
-                  )}
                   {item.subjectType ? (
                     <CloseTicketDialog
                       subjectType={item.subjectType}
@@ -1747,7 +1774,6 @@ function ReadyToApplyPanel() {
           })}
         </div>
       </CardContent>
-      <ApproveDialog request={editRequest} mode="override" onClose={() => setEditRequest(null)} />
     </Card>
   );
 }

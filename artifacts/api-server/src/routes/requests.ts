@@ -451,9 +451,24 @@ async function materializeRequest(
     if (!Number.isFinite(venueId) || venueId <= 0) {
       return { error: { status: 400, body: { error: "Stock request is missing its venue" } } };
     }
-    const unitCost = Math.max(0, Math.round(Number(params.unitCost) || 0));
-    const retail = Math.max(0, Math.round(Number(params.retail) || 0));
-    const qty = Math.max(1, Math.round(Number(params.qty) || 1));
+    // Hard-validate the closer-supplied mechanical params (no permissive
+    // defaults): a CLOSE & APPLY with missing/invalid numbers must 400, matching
+    // the property/cyberware branches and normalizeApprovalParams.
+    const rawUnitCost = parseInt(String(params.unitCost), 10);
+    const rawRetail = parseInt(String(params.retail), 10);
+    const rawQty = parseInt(String(params.qty), 10);
+    if (!Number.isFinite(rawUnitCost) || rawUnitCost < 0) {
+      return { error: { status: 400, body: { error: "unitCost (>= 0) required to approve a stock request" } } };
+    }
+    if (!Number.isFinite(rawRetail) || rawRetail < 0) {
+      return { error: { status: 400, body: { error: "retail (>= 0) required to approve a stock request" } } };
+    }
+    if (!Number.isFinite(rawQty) || rawQty < 1) {
+      return { error: { status: 400, body: { error: "qty (>= 1) required to approve a stock request" } } };
+    }
+    const unitCost = Math.min(rawUnitCost, MAX_MONEY);
+    const retail = Math.min(rawRetail, MAX_MONEY);
+    const qty = rawQty;
     const totalCost = unitCost * qty;
     const [stockReq] = await tx
       .insert(customRequests)
@@ -1023,17 +1038,16 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
   }
   const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
 
-  // Validate approve params BEFORE entering the txn so a malformed approve is
-  // rejected without locking the row.
-  let approvalToStore: Record<string, number | string> | null = null;
+  // Mechanical params (rent / cwp / stock price) are NO LONGER collected at
+  // vote time — voting is a single click for every request type. The values
+  // are entered by the closer at the CLOSE & APPLY step (see closeRequest),
+  // after the fixers have agreed on them. A param-type approve therefore stages
+  // with decisionParams=null; close supplies (and validates) the numbers.
   if (vote === "approve") {
     const [pre] = await db.select({ type: customRequests.type }).from(customRequests).where(eq(customRequests.id, rid));
     if (!pre) { res.status(404).json({ error: "Request not found" }); return; }
     const preBlocked = ownerDecidedError(pre.type);
     if (preBlocked) { res.status(preBlocked.status).json(preBlocked.body); return; }
-    const norm = normalizeApprovalParams(pre.type, body);
-    if ("error" in norm) { res.status(400).json({ error: norm.error }); return; }
-    approvalToStore = norm.ok;
   }
 
   const txResult = await db.transaction(async (tx) => {
@@ -1046,13 +1060,6 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
     }
     if (reqRow.requestedById === req.user!.id) {
       return { error: { status: 403, body: { error: "You cannot vote on a request you submitted" } } };
-    }
-
-    // Persist this reviewer's approval params onto details.approval so the
-    // deciding approve can materialize from them.
-    if (vote === "approve" && approvalToStore) {
-      const merged = { ...((reqRow.details ?? {}) as Record<string, unknown>), approval: approvalToStore };
-      await tx.update(customRequests).set({ details: merged as never }).where(eq(customRequests.id, rid));
     }
 
     await castReviewVote({ subjectType: "request", subjectId: rid, voterId: req.user!.id, vote, note, conn: tx });
@@ -1069,10 +1076,11 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
 
     // Decided approve — STAGE the decision only. Under the deferred-effects
     // lifecycle the effect (lease / inventory / venue) is NOT applied here; it
-    // is committed when a fixer closes the ticket. We persist the reviewer's
-    // mechanical params on `decisionParams` so close can materialize from them
-    // without re-prompting.
-    const storedApproval = approvalToStore ?? ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? null;
+    // is committed when a fixer closes the ticket. Mechanical params are entered
+    // by the closer at CLOSE & APPLY, so decisionParams is normally null here;
+    // a legacy details.approval (from before params moved to close) is still
+    // honored as a fallback so older staged tickets keep working.
+    const storedApproval = ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? null;
     await tx
       .update(customRequests)
       .set({ status: "approved", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note, decisionParams: storedApproval as never })
@@ -1172,11 +1180,10 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
         .where(eq(customRequests.id, rid));
       return { ok: { reqRow } };
     }
-    // Validate (but do not yet apply) the mechanical params, then STAGE the
-    // approval. The effect is committed when the ticket is closed, reading the
-    // params back from decisionParams.
-    const norm = normalizeApprovalParams(reqRow.type, body);
-    if ("error" in norm) return { error: { status: 400, body: { error: norm.error } } };
+    // STAGE the approval only — like a single-click vote, override no longer
+    // collects mechanical params. The effect is committed when the ticket is
+    // closed, where the closer supplies (and validates) rent / cwp / stock
+    // price. decisionParams stays null here.
     await tx
       .update(customRequests)
       .set({
@@ -1184,7 +1191,7 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
         reviewedById: req.user!.id,
         reviewedAt: new Date(),
         reviewerNote: note,
-        decisionParams: norm.ok as never,
+        decisionParams: null,
         overriddenBy: req.user!.id,
       })
       .where(eq(customRequests.id, rid));
@@ -1217,7 +1224,7 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
 // locked txn so apply + status flip are atomic; the player DM / character note /
 // inventory ledger / activity feed run after commit. The caller (review.ts) has
 // already verified the actor is a reviewer.
-export async function closeRequest(req: Request, id: number, note?: string): Promise<ReviewActionResult> {
+export async function closeRequest(req: Request, id: number, note?: string, closeParams?: ApprovalParams): Promise<ReviewActionResult> {
   const u = req.user!;
   const result = await db.transaction(async (tx) => {
     const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, id)).for("update");
@@ -1232,7 +1239,16 @@ export async function closeRequest(req: Request, id: number, note?: string): Pro
       const [c] = await tx.select().from(characters).where(eq(characters.id, reqRow.characterId));
       if (!c || c.archived) return { kind: "error" as const, status: 400, body: { error: "Character is missing or archived" } };
       if (!c.ownerId) return { kind: "error" as const, status: 400, body: { error: "Character is unclaimed (no owner) — cannot apply" } };
-      const params = (reqRow.decisionParams ?? ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? {}) as ApprovalParams;
+      // Mechanical params are entered by the closer at this CLOSE & APPLY step.
+      // When supplied they are validated and take precedence; otherwise we fall
+      // back to anything staged at vote/override time (legacy tickets). The
+      // materializeRequest call below re-validates and 400s if still missing.
+      let params = (reqRow.decisionParams ?? ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? {}) as ApprovalParams;
+      if (closeParams && Object.values(closeParams).some((v) => v !== undefined)) {
+        const norm = normalizeApprovalParams(reqRow.type, closeParams);
+        if ("error" in norm) return { kind: "error" as const, status: 400, body: { error: norm.error } };
+        params = norm.ok as ApprovalParams;
+      }
       const mat = await materializeRequest(tx, reqRow, c, params);
       if ("error" in mat) return { kind: "error" as const, status: mat.error.status, body: mat.error.body };
       await tx

@@ -8067,6 +8067,13 @@ components:
       type: object
       properties:
         note: { type: string, maxLength: 2000, description: "Optional closing message recorded with the close/apply action. For custom requests it is also DM'd to the player along with the approve/reject decision (Tickety-style closing comment); for edits and sheets it is recorded in the audit trail only." }
+        monthlyRent: { type: integer, description: "Custom request (property) only. Monthly rent applied to the new lease at CLOSE & APPLY." }
+        kind: { type: string, enum: [residential, business], description: "Custom request (property) only. Lease kind set at CLOSE & APPLY." }
+        businessName: { type: string, maxLength: 200, description: "Custom request (property) only. Optional business/property name for the lease; falls back to the request title." }
+        cwp: { type: integer, description: "Custom request (cyberware) only. Chrome points applied at CLOSE & APPLY." }
+        unitCost: { type: integer, description: "Custom request (venue_stock) only. Unit cost applied at CLOSE & APPLY." }
+        retail: { type: integer, description: "Custom request (venue_stock) only. Retail price applied at CLOSE & APPLY." }
+        qty: { type: integer, description: "Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY." }
 
     PendingEditVoteInput:
       type: object

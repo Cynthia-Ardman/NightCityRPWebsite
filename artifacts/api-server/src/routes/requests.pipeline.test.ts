@@ -338,20 +338,30 @@ describe("property rent overflow guard", () => {
     return { char, reqId: res.body.id as number };
   }
 
-  it("clamps an over-cap monthlyRent down to the ceiling at approve time (override)", async () => {
+  it("clamps an over-cap monthlyRent down to the ceiling at close time", async () => {
     const owner = await createUser();
     const admin = await createAdmin();
     const { reqId } = await submitPropertyRequest(owner.id);
 
+    // Override only STAGES the approval (no mechanical params); decisionParams
+    // stays null until the closer supplies the rent at CLOSE & APPLY.
     const res = await request(app)
       .post(`/api/requests/${reqId}/override`)
       .set("x-test-user", admin.id)
-      .send({ monthlyRent: OVER_CAP, kind: "residential" });
+      .send({});
     expect(res.status).toBe(200);
-
     const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
     expect(row.status).toBe("approved");
-    expect((row.decisionParams as { monthlyRent?: number }).monthlyRent).toBe(MAX_MONEY);
+    expect(row.decisionParams).toBeNull();
+
+    // The over-cap rent supplied at close is clamped down to the ceiling.
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", admin.id)
+      .send({ monthlyRent: OVER_CAP, kind: "residential" });
+    expect(close.status).toBe(200);
+    const [lease] = await db.select().from(housing);
+    expect(lease.monthlyRent).toBe(MAX_MONEY);
   });
 
   it("fails an already-staged over-cap request with a clean 400 on close, not a 500, and creates no lease", async () => {
@@ -383,36 +393,35 @@ describe("property rent overflow guard", () => {
     expect(row.appliedRef).toBeNull();
   });
 
-  it("lets an admin re-override an already-approved (not yet applied) request to correct staged params", async () => {
+  it("lets an admin re-override an already-approved (not yet applied) request; params supplied at close", async () => {
     const owner = await createUser();
     const admin = await createAdmin();
     const { reqId } = await submitPropertyRequest(owner.id);
 
-    // First override stages a (wrong) rent.
+    // First override stages the approval (no params).
     const first = await request(app)
       .post(`/api/requests/${reqId}/override`)
       .set("x-test-user", admin.id)
-      .send({ monthlyRent: 99999, kind: "residential" });
+      .send({});
     expect(first.status).toBe(200);
     expect(first.body.status).toBe("approved");
 
-    // Re-override with the corrected rent — must be accepted, not 409'd.
+    // Re-override of an approved-but-unapplied ticket must be accepted, not 409'd.
     const second = await request(app)
       .post(`/api/requests/${reqId}/override`)
       .set("x-test-user", admin.id)
-      .send({ monthlyRent: 2500, kind: "business" });
+      .send({});
     expect(second.status).toBe(200);
 
     const [staged] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
     expect(staged.status).toBe("approved");
-    expect((staged.decisionParams as { monthlyRent?: number }).monthlyRent).toBe(2500);
-    expect((staged.decisionParams as { kind?: string }).kind).toBe("business");
+    expect(staged.decisionParams).toBeNull();
 
-    // Closing applies the corrected value to the materialized lease.
+    // The closer supplies the mechanical params at CLOSE & APPLY.
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", admin.id)
-      .send({});
+      .send({ monthlyRent: 2500, kind: "business" });
     expect(close.status).toBe(200);
     const [lease] = await db.select().from(housing);
     expect(lease.monthlyRent).toBe(2500);
@@ -426,12 +435,12 @@ describe("property rent overflow guard", () => {
     const ok = await request(app)
       .post(`/api/requests/${reqId}/override`)
       .set("x-test-user", admin.id)
-      .send({ monthlyRent: 2500, kind: "residential" });
+      .send({});
     expect(ok.status).toBe(200);
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", admin.id)
-      .send({});
+      .send({ monthlyRent: 2500, kind: "residential" });
     expect(close.status).toBe(200);
 
     const after = await request(app)

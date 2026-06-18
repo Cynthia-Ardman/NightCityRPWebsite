@@ -10489,10 +10489,19 @@ export const CloseReviewTicketParams = zod.object({
 
 export const closeReviewTicketBodyNoteMax = 2000;
 
+export const closeReviewTicketBodyBusinessNameMax = 200;
+
 
 
 export const CloseReviewTicketBody = zod.object({
-  "note": zod.string().max(closeReviewTicketBodyNoteMax).optional().describe('Optional reviewer note recorded with the close\/apply action (edit tickets).')
+  "note": zod.string().max(closeReviewTicketBodyNoteMax).optional().describe('Optional closing message recorded with the close\/apply action. For custom requests it is also DM\'d to the player along with the approve\/reject decision (Tickety-style closing comment); for edits and sheets it is recorded in the audit trail only.'),
+  "monthlyRent": zod.number().optional().describe('Custom request (property) only. Monthly rent applied to the new lease at CLOSE & APPLY.'),
+  "kind": zod.enum(['residential', 'business']).optional().describe('Custom request (property) only. Lease kind set at CLOSE & APPLY.'),
+  "businessName": zod.string().max(closeReviewTicketBodyBusinessNameMax).optional().describe('Custom request (property) only. Optional business\/property name for the lease; falls back to the request title.'),
+  "cwp": zod.number().optional().describe('Custom request (cyberware) only. Chrome points applied at CLOSE & APPLY.'),
+  "unitCost": zod.number().optional().describe('Custom request (venue_stock) only. Unit cost applied at CLOSE & APPLY.'),
+  "retail": zod.number().optional().describe('Custom request (venue_stock) only. Retail price applied at CLOSE & APPLY.'),
+  "qty": zod.number().optional().describe('Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY.')
 })
 
 export const CloseReviewTicketResponse = zod.record(zod.string(), zod.unknown())

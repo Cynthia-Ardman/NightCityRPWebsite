@@ -15,7 +15,7 @@ The review pipeline (sheets, character edits, misc requests) has TWO distinct
   Applies across ALL THREE queues (sheets, edits, AND misc requests like venue
   stock / gun templates — those are no longer "fixer-voted").
 
-**Why:** "Cs Approver" (Discord role id 1358852796623098127) is a SEPARATE role
+**Why:** "Cs Approver" (a distinct Discord role, name-mapped in role config) is a SEPARATE role
 from "Fixer". Being a fixer must NOT make you an approver, and not being a fixer
 must NOT exclude you. Fixers keep STAFF ACCESS (see queues/roster/thread via
 `isReviewer`) but cannot cast a counted vote anywhere. Pure ADMINs likewise are

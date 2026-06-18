@@ -434,6 +434,7 @@ export * from './resubmitPendingEdit200';
 export * from './reviewApplicationInput';
 export * from './reviewApplicationInputAction';
 export * from './reviewCloseInput';
+export * from './reviewCloseInputKind';
 export * from './reviewComment';
 export * from './reviewCommentInput';
 export * from './reviewCommentSubjectType';

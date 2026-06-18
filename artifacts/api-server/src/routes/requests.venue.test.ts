@@ -360,18 +360,21 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     return { char, reqId: res.body.id as number, status: res.status };
   }
 
-  it("materializes a housing lease on close, carrying decision params from the vote", async () => {
+  it("materializes a housing lease on close, using params supplied at close", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "property");
     const vote = await request(app)
       .post(`/api/requests/${reqId}/vote`)
       .set("x-test-user", fixer.id)
-      .send({ vote: "approve", monthlyRent: 1500 });
+      .send({ vote: "approve" });
     expect(vote.status).toBe(200);
     expect(await db.select().from(housing)).toHaveLength(0);
 
-    const res = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", fixer.id).send({});
+    const res = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({ monthlyRent: 1500 });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^housing:\d+$/);
     const leases = await db.select().from(housing);
@@ -402,11 +405,14 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "cyberware");
-    const vote = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve", cwp: 4 });
+    const vote = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
     expect(vote.status).toBe(200);
     expect(await db.select().from(inventoryItems)).toHaveLength(0);
 
-    const res = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", fixer.id).send({});
+    const res = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({ cwp: 4 });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^inventory:/);
     const items = await db.select().from(inventoryItems);
@@ -414,6 +420,59 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     expect(items[0].category).toBe("cyberware");
     expect(items[0].characterId).toBe(char.id);
     expect(items[0].notes).toMatch(/CWP 4/);
+  });
+});
+
+describe("close param-bypass guard (params now entered at close)", () => {
+  async function submitApproved(ownerId: string, fixerId: string, type: string) {
+    const char = await createCharacter({ ownerId });
+    const submit = await request(app)
+      .post("/api/requests")
+      .set("x-test-user", ownerId)
+      .send({ type, characterId: char.id, title: `${type} item`, description: "desc" });
+    const reqId = submit.body.id as number;
+    const vote = await request(app)
+      .post(`/api/requests/${reqId}/vote`)
+      .set("x-test-user", fixerId)
+      .send({ vote: "approve" });
+    expect(vote.status).toBe(200);
+    return { char, reqId };
+  }
+
+  it("400s closing an approved property request with no params, and creates no lease", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const { reqId } = await submitApproved(owner.id, fixer.id, "property");
+
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({});
+    expect(close.status).toBe(400);
+    expect(close.body.error).toMatch(/monthlyRent/i);
+    expect(await db.select().from(housing)).toHaveLength(0);
+
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(row.status).toBe("approved");
+    expect(row.appliedRef).toBeNull();
+  });
+
+  it("400s closing an approved cyberware request with no params, and creates no inventory item", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const { reqId } = await submitApproved(owner.id, fixer.id, "cyberware");
+
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({});
+    expect(close.status).toBe(400);
+    expect(close.body.error).toMatch(/cwp/i);
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+
+    const [row] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(row.status).toBe("approved");
+    expect(row.appliedRef).toBeNull();
   });
 });
 
