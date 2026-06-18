@@ -45,10 +45,10 @@ async function makeStore(ownerId: string, name = "Chrome Bazaar") {
   const [s] = await db.insert(stores).values({ ownerId, name }).returning();
   return s;
 }
-async function makeStock(storeId: number, opts: { price?: number; quantity?: number; name?: string } = {}) {
+async function makeStock(storeId: number, opts: { price?: number; cost?: number; quantity?: number; name?: string } = {}) {
   const [it] = await db
     .insert(storeStock)
-    .values({ storeId, name: opts.name ?? "Militech Pistol", price: opts.price ?? 100, quantity: opts.quantity ?? 5 })
+    .values({ storeId, name: opts.name ?? "Militech Pistol", price: opts.price ?? 100, cost: opts.cost ?? 0, quantity: opts.quantity ?? 5 })
     .returning();
   return it;
 }
@@ -559,13 +559,15 @@ describe("PATCH /stores/:id/stock/:stockId (manual stock edit is audited)", () =
     const res = await request(app)
       .patch(`/api/stores/${store.id}/stock/${stock.id}`)
       .set("x-test-user", owner.id)
-      .send({ price: 250, quantity: 3 });
+      .send({ price: 250, cost: 120, quantity: 3 });
     expect(res.status).toBe(200);
     expect(res.body.price).toBe(250);
+    expect(res.body.cost).toBe(120);
     expect(res.body.quantity).toBe(3);
 
     const [row] = await db.select().from(storeStock).where(eq(storeStock.id, stock.id));
     expect(row.price).toBe(250);
+    expect(row.cost).toBe(120);
     expect(row.quantity).toBe(3);
 
     const audits = await db.select().from(auditLog).where(eq(auditLog.action, "store_stock_edit"));
@@ -600,5 +602,76 @@ describe("PATCH /stores/:id/stock/:stockId (manual stock edit is audited)", () =
     expect(res.status).toBe(200);
     expect(res.body.price).toBe(0);
     expect(res.body.quantity).toBe(0);
+  });
+});
+
+describe("PATCH /ripperdocs/:id/stock/:stockId (manual clinic stock edit is audited)", () => {
+  it("403s when the actor is not the owner or staff", async () => {
+    const owner = await createUser();
+    const stranger = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    const [stock] = await db
+      .insert(ripperdocStock)
+      .values({ ripperdocId: rip.id, name: "Kiroshi Optics", price: 500, quantity: 3 })
+      .returning();
+    const res = await request(app)
+      .patch(`/api/ripperdocs/${rip.id}/stock/${stock.id}`)
+      .set("x-test-user", stranger.id)
+      .send({ cost: 300 });
+    expect(res.status).toBe(403);
+    const [row] = await db.select().from(ripperdocStock).where(eq(ripperdocStock.id, stock.id));
+    expect(row.cost).toBe(0);
+  });
+
+  it("404s for an unknown stock row", async () => {
+    const owner = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    const res = await request(app)
+      .patch(`/api/ripperdocs/${rip.id}/stock/999999`)
+      .set("x-test-user", owner.id)
+      .send({ cost: 1 });
+    expect(res.status).toBe(404);
+  });
+
+  it("applies a cost edit and writes a ripperdoc_stock_edit audit row with before/after", async () => {
+    const owner = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    const [stock] = await db
+      .insert(ripperdocStock)
+      .values({ ripperdocId: rip.id, name: "Kiroshi Optics", price: 500, cost: 0, quantity: 3 })
+      .returning();
+
+    const res = await request(app)
+      .patch(`/api/ripperdocs/${rip.id}/stock/${stock.id}`)
+      .set("x-test-user", owner.id)
+      .send({ cost: 300 });
+    expect(res.status).toBe(200);
+    expect(res.body.cost).toBe(300);
+
+    const [row] = await db.select().from(ripperdocStock).where(eq(ripperdocStock.id, stock.id));
+    expect(row.cost).toBe(300);
+
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "ripperdoc_stock_edit"));
+    expect(audits.length).toBe(1);
+    expect(audits[0].category).toBe("shop");
+    expect(audits[0].targetId).toBe(String(rip.id));
+    expect((audits[0].beforeJson as Record<string, unknown>).cost).toBe(0);
+    expect((audits[0].afterJson as Record<string, unknown>).cost).toBe(300);
+  });
+
+  it("400s on a no-op edit and writes no audit row", async () => {
+    const owner = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    const [stock] = await db
+      .insert(ripperdocStock)
+      .values({ ripperdocId: rip.id, name: "Kiroshi Optics", price: 500, quantity: 3 })
+      .returning();
+    const res = await request(app)
+      .patch(`/api/ripperdocs/${rip.id}/stock/${stock.id}`)
+      .set("x-test-user", owner.id)
+      .send({});
+    expect(res.status).toBe(400);
+    const audits = await db.select().from(auditLog).where(eq(auditLog.action, "ripperdoc_stock_edit"));
+    expect(audits.length).toBe(0);
   });
 });

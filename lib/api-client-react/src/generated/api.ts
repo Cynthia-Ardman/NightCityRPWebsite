@@ -12233,6 +12233,80 @@ export const useRequestRipperdocStock = <TError = ErrorType<void>,
       return useMutation(getRequestRipperdocStockMutationOptions(options));
     }
 
+export const getUpdateRipperdocStockUrl = (id: number,
+    stockId: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/stock/${stockId}`
+}
+
+/**
+ * @summary Edit a clinic stock item (price, cost, quantity, etc.). Owner/staff only.
+ */
+export const updateRipperdocStock = async (id: number,
+    stockId: number,
+    stockUpdate: StockUpdate, options?: RequestInit): Promise<StockItem> => {
+
+  return customFetch<StockItem>(getUpdateRipperdocStockUrl(id,stockId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      stockUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateRipperdocStockMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRipperdocStock>>, TError,{id: number;stockId: number;data: BodyType<StockUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRipperdocStock>>, TError,{id: number;stockId: number;data: BodyType<StockUpdate>}, TContext> => {
+
+const mutationKey = ['updateRipperdocStock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRipperdocStock>>, {id: number;stockId: number;data: BodyType<StockUpdate>}> = (props) => {
+          const {id,stockId,data} = props ?? {};
+
+          return  updateRipperdocStock(id,stockId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRipperdocStockMutationResult = NonNullable<Awaited<ReturnType<typeof updateRipperdocStock>>>
+    export type UpdateRipperdocStockMutationBody = BodyType<StockUpdate>
+    export type UpdateRipperdocStockMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a clinic stock item (price, cost, quantity, etc.). Owner/staff only.
+ */
+export const useUpdateRipperdocStock = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRipperdocStock>>, TError,{id: number;stockId: number;data: BodyType<StockUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRipperdocStock>>,
+        TError,
+        {id: number;stockId: number;data: BodyType<StockUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateRipperdocStockMutationOptions(options));
+    }
+
 export const getRemoveRipperdocStockUrl = (id: number,
     stockId: number,) => {
 

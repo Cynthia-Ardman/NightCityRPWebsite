@@ -47,13 +47,13 @@ async function fund(userId: string, amount: number) {
 }
 
 // Build a store + claimed buyer + a pending offer, returning the pieces.
-async function seedStoreOffer(opts: { price?: number; qty?: number; stockQty?: number; commissionPct?: number } = {}) {
+async function seedStoreOffer(opts: { price?: number; cost?: number; qty?: number; stockQty?: number; commissionPct?: number } = {}) {
   const owner = await createUser();
   const buyerUser = await createUser();
   const [store] = await db.insert(stores).values({ ownerId: owner.id, name: "Chrome Bazaar", balance: 0 }).returning();
   const [stock] = await db
     .insert(storeStock)
-    .values({ storeId: store.id, name: "Militech Pistol", price: opts.price ?? 100, quantity: opts.stockQty ?? 5 })
+    .values({ storeId: store.id, name: "Militech Pistol", price: opts.price ?? 100, cost: opts.cost ?? 0, quantity: opts.stockQty ?? 5 })
     .returning();
   const buyer = await createCharacter({ ownerId: buyerUser.id });
 
@@ -88,6 +88,7 @@ async function seedStoreOffer(opts: { price?: number; qty?: number; stockQty?: n
       unitPrice,
       quantity: qty,
       totalPrice: unitPrice * qty,
+      costBasis: (opts.cost ?? 0) * qty,
       buyerCharacterId: buyer.id,
       buyerUserId: buyerUser.id,
       sellerCharacterId,
@@ -183,14 +184,58 @@ describe("POST /offers/:id/approve", () => {
     expect(bu.walletBalance).toBe(800);
   });
 
-  it("pays the selling employee's commission exactly once and nets it from the store", async () => {
+  it("takes commission from PROFIT (price − cost), not the full sale price", async () => {
+    await setEconomyMode("enabled");
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    // User's example: cost 4000, sells 5000, 50% commission.
+    // profit = 1000 → commission = 500; store nets 5000 − 500 = 4500.
+    const { offer, buyerUser, store, clerkUser } = await seedStoreOffer({ price: 5000, cost: 4000, qty: 1, commissionPct: 50 });
+    await fund(buyerUser.id, 10000);
+    const res = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
+    expect(res.status).toBe(200);
+    expect(res.body.commissionPaid).toBe(500);
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(4500);
+    const [offerRow] = await db.select().from(saleOffers).where(eq(saleOffers.id, offer.id));
+    expect(offerRow.commissionAmount).toBe(500);
+    const [cu] = await db.select().from(users).where(eq(users.id, clerkUser!.id));
+    expect(cu.walletBalance).toBe(500);
+  });
+
+  it("floors the commission down to the nearest integer on fractional profit", async () => {
+    await setEconomyMode("enabled");
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    // profit = 13 − 10 = 3, 50% → 1.5 → floor 1; store nets 13 − 1 = 12.
+    const { offer, buyerUser, store } = await seedStoreOffer({ price: 13, cost: 10, qty: 1, commissionPct: 50 });
+    await fund(buyerUser.id, 1000);
+    const res = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
+    expect(res.status).toBe(200);
+    expect(res.body.commissionPaid).toBe(1);
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(12);
+  });
+
+  it("pays no commission when the item sells at or below cost (profit floored at zero)", async () => {
+    await setEconomyMode("enabled");
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    // cost 100 == price 100 → zero profit → zero commission, store keeps full price.
+    const { offer, buyerUser, store } = await seedStoreOffer({ price: 100, cost: 100, qty: 2, commissionPct: 25 });
+    await fund(buyerUser.id, 1000);
+    const res = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
+    expect(res.status).toBe(200);
+    expect(res.body.commissionPaid).toBe(0);
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(200);
+  });
+
+  it("pays the selling employee's commission exactly once and nets it from the store (zero cost → full price is profit)", async () => {
     await setEconomyMode("enabled");
     mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
     const { offer, buyerUser, store, clerkUser } = await seedStoreOffer({ price: 100, qty: 2, commissionPct: 25 });
     await fund(buyerUser.id, 1000);
     const res = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
     expect(res.status).toBe(200);
-    // total 200, commission 25% = 50
+    // total 200, cost 0 → profit 200, commission 25% = 50
     expect(res.body.commissionPaid).toBe(50);
     // store keeps total minus commission
     const [s] = await db.select().from(stores).where(eq(stores.id, store.id));

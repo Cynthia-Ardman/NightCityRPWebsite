@@ -10,7 +10,7 @@ import CharacterPicker, { type CharacterPickerValue } from "@/components/Charact
 type Props = {
   kind: "store" | "ripperdoc";
   venueId: number;
-  stock: { id: number; name: string; price: number; quantity: number };
+  stock: { id: number; name: string; price: number; quantity: number; cost?: number };
   onClose: () => void;
   onDone: () => void;
 };
@@ -25,7 +25,10 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
   const errMsg =
     (m.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
     (m.error ? "Offer failed" : null);
-  const total = stock.price * Math.max(1, qty || 1);
+  const q = Math.max(1, qty || 1);
+  const total = stock.price * q;
+  const hasCost = typeof stock.cost === "number" && stock.cost > 0;
+  const profit = Math.max(0, (stock.price - (stock.cost ?? 0)) * q);
   const accent = kind === "store" ? "nc-cyan" : "nc-magenta";
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-sell">
@@ -78,6 +81,17 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
               <span>TOTAL</span>
               <span className="text-nc-yellow">€${total.toLocaleString()}</span>
             </div>
+            {hasCost && (
+              <div className="space-y-0.5" data-testid="text-sell-profit">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>PROFIT (price − cost)</span>
+                  <span className="text-nc-green">€${profit.toLocaleString()}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  If sold by an employee, their commission is a % of this profit, not the full price.
+                </p>
+              </div>
+            )}
             {errMsg && (
               <div className="text-destructive text-xs" data-testid="text-sell-error">{errMsg}</div>
             )}

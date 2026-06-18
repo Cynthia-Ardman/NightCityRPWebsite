@@ -12,6 +12,11 @@ export interface StockInput {
   category?: string;
   /** @minimum 0 */
   price: number;
+  /**
+     * Per-unit cost the shop paid. Commission is taken from profit (price - cost). Defaults to 0.
+     * @minimum 0
+     */
+  cost?: number;
   /** @minimum 0 */
   quantity: number;
   notes?: string;

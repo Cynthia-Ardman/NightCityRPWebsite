@@ -654,12 +654,13 @@ router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> =>
     res.status(403).json({ error: "Gun store stock is managed by staff only" });
     return;
   }
-  const { name, category, price, quantity, notes, description, powerLevel, cyberwareReq } = req.body ?? {};
+  const { name, category, price, cost, quantity, notes, description, powerLevel, cyberwareReq } = req.body ?? {};
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "name required" });
     return;
   }
   const cleanPrice = Math.max(0, Math.round(Number(price) || 0));
+  const cleanCost = Math.max(0, Math.round(Number(cost) || 0));
   const cleanQty = Math.max(0, Math.round(Number(quantity) || 0));
   const { ip, ua } = auditMeta(req);
   // Insert + audit atomically so a manual stock add can never land without an
@@ -672,6 +673,7 @@ router.post("/stores/:id/stock", requireAuth, async (req, res): Promise<void> =>
         name: name.trim(),
         category: category ?? null,
         price: cleanPrice,
+        cost: cleanCost,
         quantity: cleanQty,
         notes: notes ?? null,
         description: typeof description === "string" && description.trim() ? description.trim() : null,
@@ -706,11 +708,12 @@ router.patch("/stores/:id/stock/:stockId", requireAuth, async (req, res): Promis
     return;
   }
   const stockId = parseInt(String(req.params.stockId), 10);
-  const { name, category, price, quantity, notes, description, powerLevel, cyberwareReq } = req.body ?? {};
+  const { name, category, price, cost, quantity, notes, description, powerLevel, cyberwareReq } = req.body ?? {};
   const patch: Record<string, unknown> = {
     ...(name !== undefined ? { name } : {}),
     ...(category !== undefined ? { category } : {}),
     ...(price !== undefined ? { price: Math.max(0, Math.round(Number(price) || 0)) } : {}),
+    ...(cost !== undefined ? { cost: Math.max(0, Math.round(Number(cost) || 0)) } : {}),
     ...(quantity !== undefined ? { quantity: Math.max(0, Math.round(Number(quantity) || 0)) } : {}),
     ...(notes !== undefined ? { notes } : {}),
     ...(description !== undefined ? { description } : {}),
@@ -1382,7 +1385,7 @@ router.delete("/ripperdocs/:id/employees/:employeeId", requireAuth, async (req, 
 router.post("/ripperdocs/:id/stock", requireAuth, async (req, res): Promise<void> => {
   const r = await loadManageableRipperdoc(req, res);
   if (!r) return;
-  const { name, category, price, quantity, notes, slot, cwp, description } = req.body ?? {};
+  const { name, category, price, cost, quantity, notes, slot, cwp, description } = req.body ?? {};
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "name required" });
     return;
@@ -1392,6 +1395,7 @@ router.post("/ripperdocs/:id/stock", requireAuth, async (req, res): Promise<void
     return;
   }
   const cleanPrice = Math.max(0, Math.round(Number(price) || 0));
+  const cleanCost = Math.max(0, Math.round(Number(cost) || 0));
   const cleanQty = Math.max(0, Math.round(Number(quantity) || 0));
   // Encode cyberware slot + CWP into notes using the importer/parseCwp
   // convention ("CWP <n> · Slot: <slot>") so downstream CWP derivation keeps
@@ -1415,6 +1419,7 @@ router.post("/ripperdocs/:id/stock", requireAuth, async (req, res): Promise<void
         name: name.trim(),
         category: typeof category === "string" && category.trim() ? category.trim() : null,
         price: cleanPrice,
+        cost: cleanCost,
         quantity: cleanQty,
         notes: finalNotes,
         description: typeof description === "string" && description.trim() ? description.trim() : null,
@@ -1435,6 +1440,60 @@ router.post("/ripperdocs/:id/stock", requireAuth, async (req, res): Promise<void
     return row;
   });
   res.status(201).json(it);
+});
+
+router.patch("/ripperdocs/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {
+  const r = await loadManageableRipperdoc(req, res);
+  if (!r) return;
+  const stockId = parseInt(String(req.params.stockId), 10);
+  const { name, category, price, cost, quantity, notes, description } = req.body ?? {};
+  const patch: Record<string, unknown> = {
+    ...(name !== undefined ? { name } : {}),
+    ...(category !== undefined ? { category } : {}),
+    ...(price !== undefined ? { price: Math.max(0, Math.round(Number(price) || 0)) } : {}),
+    ...(cost !== undefined ? { cost: Math.max(0, Math.round(Number(cost) || 0)) } : {}),
+    ...(quantity !== undefined ? { quantity: Math.max(0, Math.round(Number(quantity) || 0)) } : {}),
+    ...(notes !== undefined ? { notes } : {}),
+    ...(description !== undefined ? { description } : {}),
+  };
+  if (Object.keys(patch).length === 0) {
+    res.status(400).json({ error: "No changes" });
+    return;
+  }
+  const { ip, ua } = auditMeta(req);
+  // Capture the before-row and write the audit in the same transaction so a
+  // manual stock edit can never land without a trail (mirrors the store path).
+  const result = await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select()
+      .from(ripperdocStock)
+      .where(and(eq(ripperdocStock.id, stockId), eq(ripperdocStock.ripperdocId, r.id)));
+    if (!before) return null;
+    const [u] = await tx
+      .update(ripperdocStock)
+      .set(patch)
+      .where(and(eq(ripperdocStock.id, stockId), eq(ripperdocStock.ripperdocId, r.id)))
+      .returning();
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "ripperdoc_stock_edit",
+      actorId: req.user?.id ?? null,
+      actorName: req.user?.username ?? null,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "ripperdoc",
+      targetId: String(r.id),
+      message: `Edited cyberware stock "${u.name}" in ${r.name}`,
+      beforeJson: before as never,
+      afterJson: u as never,
+    });
+    return u;
+  });
+  if (!result) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(result);
 });
 
 router.delete("/ripperdocs/:id/stock/:stockId", requireAuth, async (req, res): Promise<void> => {

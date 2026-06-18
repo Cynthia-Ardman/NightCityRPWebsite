@@ -120,6 +120,20 @@ async function resolveSeller(
   return { sellerCharacterId: emp.charId, sellerEmployeeId: emp.empId, commissionPct: emp.pct };
 }
 
+// Employee commission is a percentage of PROFIT (sale price minus the shop's
+// acquisition cost), not the full sale price. The shop recovers its cost first;
+// the commission comes out of what's left. costBasis is null for service-fee
+// offers (removals/owned-installs) where there's no cost to recover, so the
+// whole fee is profit. Never negative (selling below cost pays no commission).
+function computeCommissionAmount(offer: {
+  totalPrice: number;
+  costBasis: number | null;
+  commissionPct: number;
+}): number {
+  const profit = Math.max(0, offer.totalPrice - (offer.costBasis ?? 0));
+  return Math.floor((profit * offer.commissionPct) / 100);
+}
+
 // Build the absolute portal URL for an offer's approval page. Mirrors sheets.ts.
 function offerLink(): string {
   const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
@@ -199,6 +213,10 @@ export async function createOffer(opts: {
   const seller = await resolveSeller(kind, venue, venueId, actor);
   const unitPrice = offerType === "give" ? 0 : priceOverride != null ? Math.max(0, priceOverride) : item.price;
   const totalPrice = unitPrice * qty;
+  // Snapshot the shop's total acquisition cost so commission is taken from the
+  // profit (price - cost) only. Fixed at offer time so a later stock-cost edit
+  // can't retroactively change a pending offer's commission.
+  const costBasis = Math.max(0, (item as { cost?: number | null }).cost ?? 0) * qty;
   const expiresAt = new Date(Date.now() + OFFER_TTL_DAYS * 24 * 60 * 60 * 1000);
 
   const verb = offerType === "install" ? "install" : offerType === "give" ? "give" : "sell";
@@ -217,6 +235,7 @@ export async function createOffer(opts: {
       unitPrice,
       quantity: qty,
       totalPrice,
+      costBasis,
       buyerCharacterId: buyer.id,
       buyerUserId: buyer.ownerId,
       sellerCharacterId: seller.sellerCharacterId,
@@ -788,7 +807,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
   }
   if (mode === "test") {
     // Dry-run: report what would happen, move nothing, leave the offer pending.
-    const commissionAmount = Math.floor((offer.totalPrice * offer.commissionPct) / 100);
+    const commissionAmount = computeCommissionAmount(offer);
     return {
       status: 200,
       body: { dryRun: true, offer, wouldDebitBuyer: offer.totalPrice, wouldCreditStore: offer.totalPrice, wouldPayCommission: commissionAmount },
@@ -1160,7 +1179,7 @@ async function settleCommission(
   if (!offer.sellerEmployeeId || offer.commissionPct <= 0 || !offer.sellerCharacterId) {
     return { commissionPaid: 0, venueBalanceAfter };
   }
-  const commissionAmount = Math.floor((offer.totalPrice * offer.commissionPct) / 100);
+  const commissionAmount = computeCommissionAmount(offer);
   if (commissionAmount <= 0) return { commissionPaid: 0, venueBalanceAfter };
 
   // Already paid? A synced ledger row for this key is the source of truth.

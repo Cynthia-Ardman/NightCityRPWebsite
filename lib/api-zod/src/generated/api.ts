@@ -1464,6 +1464,7 @@ export const ListMyStoresResponseItem = zod.object({
   "name": zod.string(),
   "category": zod.string().nullish(),
   "price": zod.number(),
+  "cost": zod.number().optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit.'),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1517,6 +1518,7 @@ export const GetStoreResponse = zod.object({
   "name": zod.string(),
   "category": zod.string().nullish(),
   "price": zod.number(),
+  "cost": zod.number().optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit.'),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1581,6 +1583,7 @@ export const UpdateStoreResponse = zod.object({
   "name": zod.string(),
   "category": zod.string().nullish(),
   "price": zod.number(),
+  "cost": zod.number().optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit.'),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1690,6 +1693,7 @@ export const SellStoreItemResponse = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -1771,6 +1775,7 @@ export const ListStoreOffersResponseItem = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -1885,6 +1890,8 @@ export const AddStoreStockParams = zod.object({
 
 export const addStoreStockBodyPriceMin = 0;
 
+export const addStoreStockBodyCostMin = 0;
+
 export const addStoreStockBodyQuantityMin = 0;
 
 export const addStoreStockBodyCwpMin = 0;
@@ -1895,6 +1902,7 @@ export const AddStoreStockBody = zod.object({
   "name": zod.string().min(1),
   "category": zod.string().optional(),
   "price": zod.number().min(addStoreStockBodyPriceMin),
+  "cost": zod.number().min(addStoreStockBodyCostMin).optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost). Defaults to 0.'),
   "quantity": zod.number().min(addStoreStockBodyQuantityMin),
   "notes": zod.string().optional(),
   "description": zod.string().optional(),
@@ -1931,6 +1939,8 @@ export const UpdateStoreStockParams = zod.object({
 
 export const updateStoreStockBodyPriceMin = 0;
 
+export const updateStoreStockBodyCostMin = 0;
+
 export const updateStoreStockBodyQuantityMin = 0;
 
 
@@ -1939,6 +1949,7 @@ export const UpdateStoreStockBody = zod.object({
   "name": zod.string().min(1).optional(),
   "category": zod.string().optional(),
   "price": zod.number().min(updateStoreStockBodyPriceMin).optional(),
+  "cost": zod.number().min(updateStoreStockBodyCostMin).optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost).'),
   "quantity": zod.number().min(updateStoreStockBodyQuantityMin).optional(),
   "notes": zod.string().optional(),
   "description": zod.string().optional(),
@@ -1951,6 +1962,7 @@ export const UpdateStoreStockResponse = zod.object({
   "name": zod.string(),
   "category": zod.string().nullish(),
   "price": zod.number(),
+  "cost": zod.number().optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit.'),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -2003,6 +2015,7 @@ export const ListMyRipperdocsResponseItem = zod.object({
   "name": zod.string(),
   "category": zod.string().nullish(),
   "price": zod.number(),
+  "cost": zod.number().optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit.'),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -2055,6 +2068,7 @@ export const GetRipperdocResponse = zod.object({
   "name": zod.string(),
   "category": zod.string().nullish(),
   "price": zod.number(),
+  "cost": zod.number().optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit.'),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -2117,6 +2131,7 @@ export const UpdateRipperdocResponse = zod.object({
   "name": zod.string(),
   "category": zod.string().nullish(),
   "price": zod.number(),
+  "cost": zod.number().optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit.'),
   "quantity": zod.number(),
   "notes": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -2211,6 +2226,7 @@ export const ListMyOffersResponseItem = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -2252,6 +2268,7 @@ export const GetOfferResponse = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -2293,6 +2310,7 @@ export const ApproveOfferResponse = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -2352,6 +2370,7 @@ export const DenyOfferResponse = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -6041,6 +6060,7 @@ export const SellRipperdocItemResponse = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -6117,6 +6137,7 @@ export const InstallRipperdocCyberwareResponse = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -6187,6 +6208,7 @@ export const GiveRipperdocItemResponse = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -6258,6 +6280,7 @@ export const RemoveRipperdocCyberwareResponse = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -6392,6 +6415,7 @@ export const ListRipperdocOffersResponseItem = zod.object({
   "unitPrice": zod.number(),
   "quantity": zod.number(),
   "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
   "buyerCharacterId": zod.number(),
   "buyerUserId": zod.string(),
   "sellerCharacterId": zod.number().nullish(),
@@ -6418,6 +6442,8 @@ export const AddRipperdocStockParams = zod.object({
 
 export const addRipperdocStockBodyPriceMin = 0;
 
+export const addRipperdocStockBodyCostMin = 0;
+
 export const addRipperdocStockBodyQuantityMin = 0;
 
 export const addRipperdocStockBodyCwpMin = 0;
@@ -6428,6 +6454,7 @@ export const AddRipperdocStockBody = zod.object({
   "name": zod.string().min(1),
   "category": zod.string().optional(),
   "price": zod.number().min(addRipperdocStockBodyPriceMin),
+  "cost": zod.number().min(addRipperdocStockBodyCostMin).optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost). Defaults to 0.'),
   "quantity": zod.number().min(addRipperdocStockBodyQuantityMin),
   "notes": zod.string().optional(),
   "description": zod.string().optional(),
@@ -6453,6 +6480,49 @@ export const RequestRipperdocStockBody = zod.object({
   "category": zod.string().optional().describe('Optional stock category.'),
   "description": zod.string().optional().describe('Optional notes for the fixers reviewing the request.'),
   "source": zod.string().optional().describe('Optional free-text source\/notes carried on details.source.')
+})
+
+
+/**
+ * @summary Edit a clinic stock item (price, cost, quantity, etc.). Owner/staff only.
+ */
+export const UpdateRipperdocStockParams = zod.object({
+  "id": zod.coerce.number(),
+  "stockId": zod.coerce.number()
+})
+
+
+export const updateRipperdocStockBodyPriceMin = 0;
+
+export const updateRipperdocStockBodyCostMin = 0;
+
+export const updateRipperdocStockBodyQuantityMin = 0;
+
+
+
+export const UpdateRipperdocStockBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "category": zod.string().optional(),
+  "price": zod.number().min(updateRipperdocStockBodyPriceMin).optional(),
+  "cost": zod.number().min(updateRipperdocStockBodyCostMin).optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost).'),
+  "quantity": zod.number().min(updateRipperdocStockBodyQuantityMin).optional(),
+  "notes": zod.string().optional(),
+  "description": zod.string().optional(),
+  "powerLevel": zod.string().optional().describe('Power level (gun-store stock). Staff-only.'),
+  "cyberwareReq": zod.string().optional().describe('Cyberware required to operate (gun-store stock). Staff-only.')
+})
+
+export const UpdateRipperdocStockResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string().nullish(),
+  "price": zod.number(),
+  "cost": zod.number().optional().describe('Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit.'),
+  "quantity": zod.number(),
+  "notes": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "powerLevel": zod.string().nullish().describe('Power level (gun-store stock).'),
+  "cyberwareReq": zod.string().nullish().describe('Cyberware required to operate the gun (gun-store stock).')
 })
 
 

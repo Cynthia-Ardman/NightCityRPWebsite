@@ -163,10 +163,11 @@ export default function MyStoreDetail() {
   const [stockCategory, setStockCategory] = useState("");
   const [stockDescription, setStockDescription] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
+  const [stockCost, setStockCost] = useState(0);
   const [stockQty, setStockQty] = useState(1);
   const [stockPowerLevel, setStockPowerLevel] = useState("");
   const [stockCyberReq, setStockCyberReq] = useState("");
-  const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
+  const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number; cost?: number } | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [stockReqOpen, setStockReqOpen] = useState(false);
   const [stockReqName, setStockReqName] = useState("");
@@ -394,9 +395,10 @@ export default function MyStoreDetail() {
             return (
             <div key={s.id} className="space-y-1 border-b border-border/30 py-2" data-testid={`row-stock-${s.id}`}>
               <div className="grid grid-cols-12 gap-2 items-center">
-                <Input className="col-span-4" defaultValue={s.name} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { name: e.target.value } })} />
-                <Input className="col-span-2" type="number" defaultValue={s.price} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { price: Number(e.target.value) } })} />
-                <Input className="col-span-2" type="number" defaultValue={s.quantity} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { quantity: Number(e.target.value) } })} />
+                <Input className="col-span-3" defaultValue={s.name} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { name: e.target.value } })} />
+                <Input className="col-span-2" type="number" title="Sale price" placeholder="Price" defaultValue={s.price} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { price: Number(e.target.value) } })} data-testid={`input-stock-price-${s.id}`} />
+                <Input className="col-span-2" type="number" title="Shop cost (commission comes out of price − cost)" placeholder="Cost" defaultValue={s.cost ?? 0} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { cost: Number(e.target.value) } })} data-testid={`input-stock-cost-${s.id}`} />
+                <Input className="col-span-1" type="number" title="Quantity" placeholder="Qty" defaultValue={s.quantity} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { quantity: Number(e.target.value) } })} />
                 {isGunStore ? (
                   <StockRowField
                     className="col-span-2"
@@ -412,7 +414,7 @@ export default function MyStoreDetail() {
                 )}
                 <Button
                   size="sm"
-                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
+                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity, cost: s.cost ?? 0 })}
                   disabled={s.quantity <= 0}
                   className="col-span-1 rounded-none bg-nc-cyan text-background font-display text-xs"
                   data-testid={`button-sell-${s.id}`}
@@ -473,13 +475,16 @@ export default function MyStoreDetail() {
                   <span className="text-nc-magenta uppercase text-xs" data-testid={`text-stock-cyberreq-${s.id}`}>REQ: {s.cyberwareReq}</span>
                 )}
                 <span className="text-muted-foreground text-xs">Qty {s.quantity}</span>
+                {canEditStock && (s.cost ?? 0) > 0 && (
+                  <span className="text-muted-foreground text-xs" data-testid={`text-stock-cost-${s.id}`}>Cost {s.cost!.toLocaleString()} €$</span>
+                )}
                 {s.description && <span className="text-muted-foreground text-xs">{s.description}</span>}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-nc-yellow">{s.price.toLocaleString()} €$</span>
                 <Button
                   size="sm"
-                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
+                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity, cost: s.cost ?? 0 })}
                   disabled={s.quantity <= 0}
                   className="rounded-none bg-nc-cyan text-background font-display text-xs"
                   data-testid={`button-sell-${s.id}`}
@@ -509,10 +514,10 @@ export default function MyStoreDetail() {
                 </div>
               )}
               <div className="grid grid-cols-12 gap-2">
-                <Input className="col-span-4" placeholder="Item name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-stock-name" />
+                <Input className="col-span-3" placeholder="Item name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-stock-name" />
                 {isGunStore ? (
                   <SelectOrCustom
-                    className="col-span-3"
+                    className="col-span-2"
                     value={stockCategory}
                     onChange={setStockCategory}
                     options={GUN_CATEGORIES}
@@ -521,10 +526,11 @@ export default function MyStoreDetail() {
                     testId="input-add-stock-category"
                   />
                 ) : (
-                  <Input className="col-span-3" placeholder="Category / type" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
+                  <Input className="col-span-2" placeholder="Category / type" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
                 )}
-                <Input className="col-span-2" type="number" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
-                <Input className="col-span-1" type="number" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
+                <Input className="col-span-2" type="number" title="Sale price" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
+                <Input className="col-span-2" type="number" title="Shop cost (commission comes out of price − cost)" placeholder="Cost" value={stockCost} onChange={(e) => setStockCost(Number(e.target.value))} data-testid="input-add-stock-cost" />
+                <Input className="col-span-1" type="number" title="Quantity" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
                 <Button
                   className="col-span-2 rounded-none bg-nc-cyan text-background font-display"
                   disabled={!stockName.trim() || stockPrice < 0 || addStock.isPending}
@@ -537,6 +543,7 @@ export default function MyStoreDetail() {
                         category: stockCategory || undefined,
                         description: stockDescription || undefined,
                         price: stockPrice,
+                        cost: stockCost,
                         quantity: stockQty,
                         ...(showPowerLevel && stockPowerLevel.trim() ? { powerLevel: stockPowerLevel.trim() } : {}),
                         ...(showPowerLevel && stockCyberReq.trim() ? { cyberwareReq: stockCyberReq.trim() } : {}),
@@ -546,6 +553,7 @@ export default function MyStoreDetail() {
                     setStockCategory("");
                     setStockDescription("");
                     setStockPrice(0);
+                    setStockCost(0);
                     setStockQty(1);
                     setStockPowerLevel("");
                     setStockCyberReq("");

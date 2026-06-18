@@ -8,6 +8,7 @@ import {
   useUpdateRipperdocEmployee,
   useRemoveRipperdocEmployee,
   useAddRipperdocStock,
+  useUpdateRipperdocStock,
   useRemoveRipperdocStock,
   useCreateRipperdocStockOffer,
   useDepositToRipperdoc,
@@ -94,6 +95,7 @@ export default function MyClinicDetail() {
   const updateEmp = useUpdateRipperdocEmployee({ mutation: { onSuccess: invalidate } });
   const removeEmp = useRemoveRipperdocEmployee({ mutation: { onSuccess: invalidate } });
   const addStock = useAddRipperdocStock({ mutation: { onSuccess: invalidate } });
+  const updateStock = useUpdateRipperdocStock({ mutation: { onSuccess: invalidate } });
   const removeStock = useRemoveRipperdocStock({ mutation: { onSuccess: invalidate } });
   const { data: txns } = useGetRipperdocTransactions(rid);
   const { data: offers } = useListRipperdocOffers(rid);
@@ -122,7 +124,8 @@ export default function MyClinicDetail() {
   const [stockCwp, setStockCwp] = useState(0);
   const [stockDescription, setStockDescription] = useState("");
   const [stockPrice, setStockPrice] = useState(0);
-  const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number } | null>(null);
+  const [stockCost, setStockCost] = useState(0);
+  const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number; quantity: number; cost?: number } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [stockReqOpen, setStockReqOpen] = useState(false);
@@ -325,9 +328,21 @@ export default function MyClinicDetail() {
                 {s.description && <div className="text-muted-foreground text-xs mt-0.5 whitespace-pre-wrap">{s.description}</div>}
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                <div className="flex flex-col items-end">
+                  <Input
+                    className="w-24 h-8 text-xs"
+                    type="number"
+                    min={0}
+                    title="Shop cost (commission comes out of price − cost)"
+                    placeholder="Cost"
+                    defaultValue={s.cost ?? 0}
+                    onBlur={(e) => updateStock.mutate({ id: rid, stockId: s.id, data: { cost: Number(e.target.value) } })}
+                    data-testid={`input-stock-cost-${s.id}`}
+                  />
+                </div>
                 <Button
                   size="sm"
-                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity })}
+                  onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity, cost: s.cost ?? 0 })}
                   disabled={s.quantity <= 0}
                   className="rounded-none bg-nc-magenta text-background font-display text-xs"
                   data-testid={`button-install-${s.id}`}
@@ -366,8 +381,9 @@ export default function MyClinicDetail() {
                 customPlaceholder="Custom slot"
                 testId="input-add-cyber-slot"
               />
-              <Input className="col-span-3" type="number" min={0} placeholder="CWP" value={stockCwp || ""} onChange={(e) => setStockCwp(Number(e.target.value))} data-testid="input-add-cyber-cwp" />
-              <Input className="col-span-3" type="number" min={0} placeholder="Price" value={stockPrice || ""} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
+              <Input className="col-span-4" type="number" min={0} placeholder="CWP" value={stockCwp || ""} onChange={(e) => setStockCwp(Number(e.target.value))} data-testid="input-add-cyber-cwp" />
+              <Input className="col-span-4" type="number" min={0} title="Sale price" placeholder="Price" value={stockPrice || ""} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
+              <Input className="col-span-4" type="number" min={0} title="Shop cost (commission comes out of price − cost)" placeholder="Cost" value={stockCost || ""} onChange={(e) => setStockCost(Number(e.target.value))} data-testid="input-add-cyber-cost" />
               <Input className="col-span-6" placeholder="Description (optional)" value={stockDescription} onChange={(e) => setStockDescription(e.target.value)} data-testid="input-add-cyber-description" />
               <Button
                 disabled={!stockName.trim() || !stockSlot.trim() || stockPrice < 0 || addStock.isPending}
@@ -381,6 +397,7 @@ export default function MyClinicDetail() {
                       cwp: stockCwp > 0 ? Math.floor(stockCwp) : undefined,
                       description: stockDescription.trim() || undefined,
                       price: stockPrice,
+                      cost: stockCost,
                       quantity: 1,
                     },
                   });
@@ -389,6 +406,7 @@ export default function MyClinicDetail() {
                   setStockCwp(0);
                   setStockDescription("");
                   setStockPrice(0);
+                  setStockCost(0);
                 }}
                 className="col-span-12 rounded-none bg-nc-magenta text-background font-display"
                 data-testid="button-add-cyber"

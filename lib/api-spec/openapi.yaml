@@ -2698,6 +2698,24 @@ paths:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
       - { in: path, name: stockId, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateRipperdocStock
+      tags: [ripperdocs]
+      summary: "Edit a clinic stock item (price, cost, quantity, etc.). Owner/staff only."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StockUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockItem" }
+        "400": { description: "No changes" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
     delete:
       operationId: removeRipperdocStock
       tags: [ripperdocs]
@@ -6862,6 +6880,7 @@ components:
         unitPrice: { type: integer }
         quantity: { type: integer }
         totalPrice: { type: integer }
+        costBasis: { type: ["integer", "null"], description: "Shop's total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis)." }
         buyerCharacterId: { type: integer }
         buyerUserId: { type: string }
         sellerCharacterId: { type: ["integer", "null"] }
@@ -6899,6 +6918,7 @@ components:
         name: { type: string }
         category: { type: ["string", "null"] }
         price: { type: integer }
+        cost: { type: integer, description: "Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit." }
         quantity: { type: integer }
         notes: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
@@ -6912,6 +6932,7 @@ components:
         name: { type: string, minLength: 1 }
         category: { type: string }
         price: { type: integer, minimum: 0 }
+        cost: { type: integer, minimum: 0, description: "Per-unit cost the shop paid. Commission is taken from profit (price - cost). Defaults to 0." }
         quantity: { type: integer, minimum: 0 }
         notes: { type: string }
         description: { type: string }
@@ -7069,6 +7090,7 @@ components:
         name: { type: string, minLength: 1 }
         category: { type: string }
         price: { type: integer, minimum: 0 }
+        cost: { type: integer, minimum: 0, description: "Per-unit cost the shop paid. Commission is taken from profit (price - cost)." }
         quantity: { type: integer, minimum: 0 }
         notes: { type: string }
         description: { type: string }

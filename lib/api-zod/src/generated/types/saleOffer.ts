@@ -41,6 +41,11 @@ export interface SaleOffer {
   unitPrice: number;
   quantity: number;
   totalPrice: number;
+  /**
+     * Shop's total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).
+     * @nullable
+     */
+  costBasis?: number | null;
   buyerCharacterId: number;
   buyerUserId: string;
   /** @nullable */

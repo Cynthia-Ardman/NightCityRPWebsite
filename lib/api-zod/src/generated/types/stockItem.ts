@@ -12,6 +12,8 @@ export interface StockItem {
   /** @nullable */
   category?: string | null;
   price: number;
+  /** Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit. */
+  cost?: number;
   quantity: number;
   /** @nullable */
   notes?: string | null;

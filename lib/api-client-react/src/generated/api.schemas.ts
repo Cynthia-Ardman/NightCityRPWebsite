@@ -2259,6 +2259,8 @@ export interface StockItem {
   /** @nullable */
   category?: string | null;
   price: number;
+  /** Per-unit cost the shop paid. Commission is taken from profit (price - cost), not the full price. 0 => whole sale is profit. */
+  cost?: number;
   quantity: number;
   /** @nullable */
   notes?: string | null;
@@ -2501,6 +2503,11 @@ export interface SaleOffer {
   unitPrice: number;
   quantity: number;
   totalPrice: number;
+  /**
+     * Shop's total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).
+     * @nullable
+     */
+  costBasis?: number | null;
   buyerCharacterId: number;
   buyerUserId: string;
   /** @nullable */
@@ -2547,6 +2554,11 @@ export interface StockInput {
   category?: string;
   /** @minimum 0 */
   price: number;
+  /**
+     * Per-unit cost the shop paid. Commission is taken from profit (price - cost). Defaults to 0.
+     * @minimum 0
+     */
+  cost?: number;
   /** @minimum 0 */
   quantity: number;
   notes?: string;
@@ -2789,6 +2801,11 @@ export interface StockUpdate {
   category?: string;
   /** @minimum 0 */
   price?: number;
+  /**
+     * Per-unit cost the shop paid. Commission is taken from profit (price - cost).
+     * @minimum 0
+     */
+  cost?: number;
   /** @minimum 0 */
   quantity?: number;
   notes?: string;
