@@ -464,7 +464,7 @@ export default function MyRequests() {
                 type="button"
                 size="sm"
                 className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
-                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "resubmit" })}
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "resubmit", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "" })}
                 data-testid={`button-edit-resubmit-${r.customId}`}
               >
                 <Pencil className="w-3 h-3 mr-1" /> EDIT & RESUBMIT
@@ -530,7 +530,7 @@ export default function MyRequests() {
                 type="button"
                 size="sm"
                 className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
-                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "save" })}
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "save", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "" })}
                 data-testid={`button-edit-pending-${r.customId}`}
               >
                 <Pencil className="w-3 h-3 mr-1" /> EDIT
