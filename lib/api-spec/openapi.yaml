@@ -4814,12 +4814,12 @@ paths:
               schema: { $ref: "#/components/schemas/ReviewUnseenIds" }
   /review/{subjectType}/{id}/discord-thread:
     parameters:
-      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet, mission] } }
       - { in: path, name: id, required: true, schema: { type: integer } }
     get:
       operationId: getReviewDiscordThread
       tags: [review]
-      summary: The ticket's cs-approver Discord thread, displayed READ-ONLY on the detail page. Reviewers only. The portal never posts to Discord. Returns linked:false with an empty list when no thread is linked yet.
+      summary: The subject's Discord discussion thread, displayed READ-ONLY on the detail page. Reviewers/staff only. The portal never posts to Discord. Serves review tickets (edit/request/sheet) and missions. Returns linked:false with an empty list when no thread is linked yet.
       responses:
         "200":
           description: Discord thread mirror
@@ -8820,12 +8820,13 @@ components:
 
     MissionConfig:
       type: object
-      required: [live, bankingChannelId, npcSpendingChannelId, npcAnnouncementChannelId, autopayDelayHours]
+      required: [live, bankingChannelId, npcSpendingChannelId, npcAnnouncementChannelId, threadChannelId, autopayDelayHours]
       properties:
         live: { type: boolean }
         bankingChannelId: { type: string }
         npcSpendingChannelId: { type: string }
         npcAnnouncementChannelId: { type: string }
+        threadChannelId: { type: string, description: "Channel the per-mission discussion thread is posted to at creation time." }
         defaultImageUrl: { type: ["string", "null"] }
         autopayDelayHours: { type: number }
 
@@ -8836,6 +8837,7 @@ components:
         bankingChannelId: { type: string }
         npcSpendingChannelId: { type: string }
         npcAnnouncementChannelId: { type: string }
+        threadChannelId: { type: string }
         defaultImageUrl: { type: string }
         autopayDelayHours: { type: number }
 

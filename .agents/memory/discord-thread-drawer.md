@@ -40,3 +40,22 @@ bot-relayed content here is intentional, not a gap.
 **How to apply:** also guard the localStorage `seen` read against `NaN`
 (`Number.isFinite` → else 0); `newest > NaN` is always false and would silently suppress
 the glow forever.
+
+## Missions also use this endpoint (not just review tickets)
+
+The same `GET /review/:type/:id/discord-thread` endpoint + `DiscordThreadDrawer`
+serve MISSIONS (`subjectType="mission"`), surfaced via a `canManage`-gated "SEE
+THREAD" button on `MissionDetail.tsx`. Mission threads are created at mission
+CREATION time (`announceMissionThread` in `routes/missions.ts`), to a configurable
+channel (`missions.threadChannelId` config, default the #missions channel).
+
+**Rule:** "mission" lives in a SEPARATE `THREAD_SUBJECT_TYPES` set in
+`routes/review.ts`, NOT the shared `SUBJECT_TYPES`. Only the discord-thread route
+parses with `parseThreadSubjectType`; comment/seen/close/vote routes keep
+`parseParams`/`SUBJECT_TYPES` (edit|request|sheet).
+
+**Why:** missions have a discussion thread but are NOT in the majority-vote review
+pipeline. Adding "mission" to the shared `SUBJECT_TYPES` would let it fall through
+into comment/close/reopen handlers (which assume a review subject) and break them.
+`resolveSubject`/`resolveThreadId` take the wider `ThreadSubjectType` param so only
+the thread path reaches the missions-table branch.

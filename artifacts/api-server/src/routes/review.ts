@@ -9,6 +9,7 @@ import {
   customRequests,
   characterSheets,
   characters,
+  missions,
   users,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
@@ -41,6 +42,18 @@ function parseSubjectType(v: unknown): SubjectType | null {
   return SUBJECT_TYPES.includes(v as SubjectType) ? (v as SubjectType) : null;
 }
 
+// The read-only Discord thread mirror also serves MISSIONS, which have a
+// discussion thread but are NOT part of the majority-vote review pipeline
+// (comments / seen / votes / close stay edit|request|sheet only). Keep the
+// extra type scoped to the thread endpoint so the vote-pipeline routes never
+// accept it.
+const THREAD_SUBJECT_TYPES = ["edit", "request", "sheet", "mission"] as const;
+type ThreadSubjectType = (typeof THREAD_SUBJECT_TYPES)[number];
+
+function parseThreadSubjectType(v: unknown): ThreadSubjectType | null {
+  return THREAD_SUBJECT_TYPES.includes(v as ThreadSubjectType) ? (v as ThreadSubjectType) : null;
+}
+
 type ResolvedSubject = {
   submitterId: string;
   status: string;
@@ -51,7 +64,15 @@ type ResolvedSubject = {
 // Resolve a review subject to its submitter + status (and a label for DMs),
 // regardless of which queue it lives in. Returns null when the subject does
 // not exist.
-async function resolveSubject(type: SubjectType, id: number): Promise<ResolvedSubject | null> {
+async function resolveSubject(type: ThreadSubjectType, id: number): Promise<ResolvedSubject | null> {
+  if (type === "mission") {
+    const [row] = await db
+      .select({ submitterId: missions.fixerId, status: missions.workflowState, title: missions.title })
+      .from(missions)
+      .where(eq(missions.id, id));
+    if (!row) return null;
+    return { submitterId: row.submitterId ?? "", status: row.status, label: `the mission "${row.title}"` };
+  }
   if (type === "edit") {
     const [row] = await db
       .select({ submitterId: pendingCharacterEdits.submittedBy, status: pendingCharacterEdits.status, name: characters.name })
@@ -470,7 +491,11 @@ router.post("/review/:type/:id/reopen", requireAuth, async (req, res): Promise<v
 // ---------------------------------------------------------------------------
 
 // Look up the Discord thread id stored on a subject's row.
-async function resolveThreadId(type: SubjectType, id: number): Promise<string | null> {
+async function resolveThreadId(type: ThreadSubjectType, id: number): Promise<string | null> {
+  if (type === "mission") {
+    const [row] = await db.select({ t: missions.discordThreadId }).from(missions).where(eq(missions.id, id));
+    return row?.t ?? null;
+  }
   if (type === "edit") {
     const [row] = await db.select({ t: pendingCharacterEdits.discordThreadId }).from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
     return row?.t ?? null;
@@ -503,8 +528,10 @@ async function getThreadMessagesCached(threadId: string): Promise<DiscordThreadM
 // (dev env, or a ticket created before backfill) returns linked:false with an
 // empty message list instead of erroring.
 router.get("/review/:type/:id/discord-thread", requireAuth, async (req, res): Promise<void> => {
-  const parsed = parseParams(req);
-  if (!parsed) { res.status(400).json({ error: "Bad subject" }); return; }
+  const type = parseThreadSubjectType(String(req.params.type));
+  const id = parseInt(String(req.params.id), 10);
+  if (!type || !Number.isFinite(id) || id <= 0) { res.status(400).json({ error: "Bad subject" }); return; }
+  const parsed = { type, id };
   if (!isReviewer(req.user!)) { res.status(403).json({ error: "Reviewers only" }); return; }
   const subject = await resolveSubject(parsed.type, parsed.id);
   if (!subject) { res.status(404).json({ error: "Not found" }); return; }

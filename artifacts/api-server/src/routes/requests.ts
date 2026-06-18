@@ -983,7 +983,7 @@ router.get("/requests", requireAuth, async (req, res): Promise<void> => {
 // the tally reaches majority the request is decided in the same locked txn.
 router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> => {
   if (!isEligibleReviewer(req.user!)) {
-    res.status(403).json({ error: "Only fixers / approvers can vote. Admins use override." });
+    res.status(403).json({ error: "Only Cs Approvers can vote. Admins use override." });
     return;
   }
   const rid = parseInt(String(req.params.id), 10);

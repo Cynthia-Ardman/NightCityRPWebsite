@@ -200,8 +200,8 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     const decided = await finalizeDecidedSheet(req, id);
     if (decided) [s] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));
   }
-  // Only fixers / cs-approvers cast counted votes; a pure admin reviews via
-  // OVERRIDE, not the vote/request-changes flow.
+  // Only cs-approvers cast counted votes. Fixers retain staff view access but
+  // can't vote; admins review via OVERRIDE, not the vote/request-changes flow.
   const viewerCanVote = isEligibleReviewer(req.user!);
   const votes = await listReviewVotes({ subjectType: "sheet", subjectId: id });
   const eligibleReviewers = await listEligibleReviewers(s.ownerId);
@@ -679,7 +679,7 @@ router.post("/sheets/:id/vote", requireAuth, async (req, res): Promise<void> => 
   const id = parseInt(String(req.params.id), 10);
   const u = req.user!;
   if (!isEligibleReviewer(u)) {
-    res.status(403).json({ error: "Only fixers / approvers can vote. Admins use override." });
+    res.status(403).json({ error: "Only Cs Approvers can vote. Admins use override." });
     return;
   }
   const { vote, note } = req.body ?? {};

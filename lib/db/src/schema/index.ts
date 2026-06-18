@@ -877,6 +877,14 @@ export const missions = pgTable("missions", {
   discordEventId: text("discord_event_id"),
   // Last Discord sync failure surfaced to staff (cleared on success).
   discordSyncError: text("discord_sync_error"),
+  // Discord discussion thread for this mission, mirrored read-only into the
+  // portal (separate from the scheduled-event integration above). discordMessageId
+  // is the channel post the thread hangs off; discordThreadId == that message id
+  // once a thread is started. Persisted only when the write succeeds so a later
+  // backfill can recover from the stored message id. Null in dev/test (writes
+  // suppressed) or for missions created before this feature.
+  discordThreadId: text("discord_thread_id"),
+  discordMessageId: text("discord_message_id"),
   // Set once the auto-pay cron has processed this mission (idempotency guard).
   autoPayProcessedAt: timestamp("auto_pay_processed_at", { withTimezone: true }),
   // Set once the pre-mission NPC announcement was posted (idempotency guard).

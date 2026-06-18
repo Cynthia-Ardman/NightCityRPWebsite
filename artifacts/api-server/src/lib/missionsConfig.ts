@@ -20,6 +20,7 @@ export const MISSION_CONFIG_KEYS = {
   npcSpendingChannel: "missions_npc_spending_channel_id",
   npcAnnouncementChannel: "missions_npc_announcement_channel_id",
   signupChannel: "missions_signup_channel_id",
+  threadChannel: "missions_thread_channel_id",
   defaultImage: "missions_default_image_url",
   autopayDelayHours: "missions_autopay_delay_hours",
 } as const;
@@ -34,6 +35,9 @@ export const MISSION_DEFAULTS = {
   // Channel that receives a "new mission open for sign-ups" post (with a link
   // to the mission) when an approved mission is posted to the public board.
   signupChannelId: "1516438594728886415",
+  // #missions discussion channel — receives the full mission brief at creation
+  // time, off which a per-mission discussion thread is started.
+  threadChannelId: "1353897076534153216",
   autopayDelayHours: 3.5,
   defaultImageUrl: "",
 } as const;
@@ -77,19 +81,21 @@ export interface MissionExternalContext {
   npcSpendingChannelId: string;
   npcAnnouncementChannelId: string;
   signupChannelId: string;
+  threadChannelId: string;
   defaultImageUrl: string;
   autopayDelayMs: number;
 }
 
 /** Resolve the full external-effects context for a mission action. */
 export async function getMissionContext(): Promise<MissionExternalContext> {
-  const [live, bankingChannelId, npcSpendingChannelId, npcAnnouncementChannelId, signupChannelId, defaultImageUrl, hours] =
+  const [live, bankingChannelId, npcSpendingChannelId, npcAnnouncementChannelId, signupChannelId, threadChannelId, defaultImageUrl, hours] =
     await Promise.all([
       isMissionsLiveMode(),
       readString(MISSION_CONFIG_KEYS.bankingChannel, MISSION_DEFAULTS.bankingChannelId),
       readString(MISSION_CONFIG_KEYS.npcSpendingChannel, MISSION_DEFAULTS.npcSpendingChannelId),
       readString(MISSION_CONFIG_KEYS.npcAnnouncementChannel, MISSION_DEFAULTS.npcAnnouncementChannelId),
       readString(MISSION_CONFIG_KEYS.signupChannel, MISSION_DEFAULTS.signupChannelId),
+      readString(MISSION_CONFIG_KEYS.threadChannel, MISSION_DEFAULTS.threadChannelId),
       readString(MISSION_CONFIG_KEYS.defaultImage, MISSION_DEFAULTS.defaultImageUrl),
       readNumber(MISSION_CONFIG_KEYS.autopayDelayHours, MISSION_DEFAULTS.autopayDelayHours),
     ]);
@@ -99,6 +105,7 @@ export async function getMissionContext(): Promise<MissionExternalContext> {
     npcSpendingChannelId,
     npcAnnouncementChannelId,
     signupChannelId,
+    threadChannelId,
     defaultImageUrl,
     autopayDelayMs: Math.round(hours * 60 * 60 * 1000),
   };

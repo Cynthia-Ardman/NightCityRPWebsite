@@ -25,30 +25,35 @@ type DbConn = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 //                        staff dashboard counts). FIXER, CS_APPROVER, or ADMIN.
 //   isEligibleReviewer → APPROVER POOL: who may cast a *counted* vote, appears
 //                        in the eligible-reviewer roster, and is counted in the
-//                        majority threshold. FIXER or CS_APPROVER only.
+//                        majority threshold. CS_APPROVER ONLY.
 //
-// Admins are intentionally NOT in the approver pool. An admin who does not also
-// hold a fixer/cs-approver role does not appear as an eligible approver and
-// cannot vote — they act through the separate admin-only OVERRIDE path instead
-// (per-type `/override` endpoints, gated on hasRole ADMIN). This stops a pure
-// admin from showing up as a reviewer for character sheets, edits, or misc
-// requests while still letting the operator team unilaterally unstick a queue.
+// The approver pool is CS_APPROVER only — across ALL three review queues
+// (character sheets, character edits, AND misc/custom requests like venue stock
+// or gun templates). "Cs Approver" is a SEPARATE Discord role from "Fixer":
+// holding a fixer role does NOT make you an approver, and you can be an approver
+// without being a fixer. So fixers retain STAFF ACCESS (they still see the
+// queues, the roster, comments, and the Discord thread via isReviewer) but can
+// no longer cast a counted vote anywhere.
+//
+// Admins are likewise NOT in the approver pool — they act through the separate
+// admin-only OVERRIDE path instead (per-type `/override` endpoints, gated on
+// hasRole ADMIN), which unilaterally unsticks a queue without being counted as
+// an approver.
 //
 // Trial fixers are a NARROW mission-author tier — they never review/vote on
-// anything. We exclude them up front so a lingering or dual "fixer" role name
-// (e.g. stored roles not yet re-synced after the trial-fixer rollout) can't
-// leak them into either pool. The marker is id-derived, so this never wrongly
-// excludes a real admin/cs-approver.
+// anything. They are excluded from staff access up front so a lingering or dual
+// "fixer" role name (e.g. stored roles not yet re-synced after the trial-fixer
+// rollout) can't leak them into the reviewer pool.
 export function isReviewer(u: User): boolean {
   if (hasRole(u.roles, "TRIAL_FIXER")) return false;
   return hasRole(u.roles, "FIXER") || hasRole(u.roles, "CS_APPROVER") || hasRole(u.roles, "ADMIN");
 }
 
 // The approver pool: who may cast a counted vote and is counted in the majority
-// threshold. FIXER or CS_APPROVER only — admins are excluded (they override).
+// threshold. CS_APPROVER ONLY — fixers (staff, but not approvers) and admins
+// (who override) are both excluded.
 export function isEligibleReviewer(u: User): boolean {
-  if (hasRole(u.roles, "TRIAL_FIXER")) return false;
-  return hasRole(u.roles, "FIXER") || hasRole(u.roles, "CS_APPROVER");
+  return hasRole(u.roles, "CS_APPROVER");
 }
 
 // A reviewer's public identity, surfaced on detail responses so the UI can

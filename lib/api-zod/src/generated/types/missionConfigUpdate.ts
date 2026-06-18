@@ -11,6 +11,7 @@ export interface MissionConfigUpdate {
   bankingChannelId?: string;
   npcSpendingChannelId?: string;
   npcAnnouncementChannelId?: string;
+  threadChannelId?: string;
   defaultImageUrl?: string;
   autopayDelayHours?: number;
 }

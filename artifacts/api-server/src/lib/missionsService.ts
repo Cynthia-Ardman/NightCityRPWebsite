@@ -103,7 +103,7 @@ function resolveAbsoluteImageUrl(raw: string | null | undefined): string | null 
 // Public, clickable URL for a mission's detail page. Mirrors the announce/breach
 // link pattern: prefer PUBLIC_BASE_URL, fall back to the first Replit domain, and
 // degrade to a relative path when neither is set so the post is still readable.
-function buildMissionUrl(missionId: number): string {
+export function buildMissionUrl(missionId: number): string {
   const base = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(
     /^https?:\/\//,
     "",

@@ -2893,6 +2893,7 @@ export const GetMissionConfigResponse = zod.object({
   "bankingChannelId": zod.string(),
   "npcSpendingChannelId": zod.string(),
   "npcAnnouncementChannelId": zod.string(),
+  "threadChannelId": zod.string().describe('Channel the per-mission discussion thread is posted to at creation time.'),
   "defaultImageUrl": zod.string().nullish(),
   "autopayDelayHours": zod.number()
 })
@@ -2906,6 +2907,7 @@ export const UpdateMissionConfigBody = zod.object({
   "bankingChannelId": zod.string().optional(),
   "npcSpendingChannelId": zod.string().optional(),
   "npcAnnouncementChannelId": zod.string().optional(),
+  "threadChannelId": zod.string().optional(),
   "defaultImageUrl": zod.string().optional(),
   "autopayDelayHours": zod.number().optional()
 })
@@ -2915,6 +2917,7 @@ export const UpdateMissionConfigResponse = zod.object({
   "bankingChannelId": zod.string(),
   "npcSpendingChannelId": zod.string(),
   "npcAnnouncementChannelId": zod.string(),
+  "threadChannelId": zod.string().describe('Channel the per-mission discussion thread is posted to at creation time.'),
   "defaultImageUrl": zod.string().nullish(),
   "autopayDelayHours": zod.number()
 })
@@ -10329,10 +10332,10 @@ export const GetReviewUnseenIdsResponse = zod.object({
 
 
 /**
- * @summary The ticket's cs-approver Discord thread, displayed READ-ONLY on the detail page. Reviewers only. The portal never posts to Discord. Returns linked:false with an empty list when no thread is linked yet.
+ * @summary The subject's Discord discussion thread, displayed READ-ONLY on the detail page. Reviewers/staff only. The portal never posts to Discord. Serves review tickets (edit/request/sheet) and missions. Returns linked:false with an empty list when no thread is linked yet.
  */
 export const GetReviewDiscordThreadParams = zod.object({
-  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "subjectType": zod.enum(['edit', 'request', 'sheet', 'mission']),
   "id": zod.coerce.number()
 })
 

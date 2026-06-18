@@ -94,6 +94,7 @@ import {
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
 import { TrialFixerBadge } from "@/components/TrialFixerBadge";
+import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import Markdown from "@/components/Markdown";
 
 function errOf(e: unknown): string | null {
@@ -402,6 +403,9 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
             </Link>
           )}
           {data.canManage && data.status !== "cancelled" && <ConvertToEventDialog mission={data} />}
+          {data.canManage && (
+            <DiscordThreadDrawer subjectType="mission" subjectId={data.id} buttonLabel="SEE THREAD" />
+          )}
           {data.completedAt && (
             <span
               className="font-mono text-xs text-muted-foreground inline-flex items-center gap-1"

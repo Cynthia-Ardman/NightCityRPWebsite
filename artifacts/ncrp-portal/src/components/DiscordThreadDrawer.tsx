@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { Hash } from "lucide-react";
 import DiscordThreadPanel from "@/components/DiscordThreadPanel";
 
-type SubjectType = "edit" | "request" | "sheet";
+type SubjectType = "edit" | "request" | "sheet" | "mission";
 
 const seenKey = (t: SubjectType, id: number) => `discordThreadSeen:${t}:${id}`;
 

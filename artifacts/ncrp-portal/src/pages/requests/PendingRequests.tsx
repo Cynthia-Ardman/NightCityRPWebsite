@@ -117,10 +117,10 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
-  // Approver pool: only fixers / cs-approvers cast counted votes. A pure admin
-  // (no fixer role) is staff (sees the queue + roster + override) but is NOT an
-  // approver — they use OVERRIDE, not the vote buttons.
-  const canVote = !!(me?.isFixer || me?.isCsApprover);
+  // Approver pool: only Cs Approvers cast counted votes. Fixers and admins are
+  // staff (see the queue + roster + override) but are NOT approvers — admins use
+  // OVERRIDE, not the vote buttons.
+  const canVote = !!me?.isCsApprover;
   const isAdmin = !!me?.isAdmin;
   const isArchivist = !!me?.isArchivist;
   const isFixer = !!me?.isFixer;
@@ -766,8 +766,8 @@ function NewCharactersTab() {
   const { data: me } = useEffectiveMe();
   const unseen = new Set(unseenIds?.sheet ?? []);
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
-  // Only fixers / cs-approvers cast counted votes; a pure admin uses OVERRIDE.
-  const canVote = !!(me?.isFixer || me?.isCsApprover);
+  // Only Cs Approvers cast counted votes; fixers/admins are staff (admins use OVERRIDE).
+  const canVote = !!me?.isCsApprover;
   const isAdmin = !!me?.isAdmin;
 
   const invalidate = () => {
@@ -1763,15 +1763,16 @@ function ReadyToApplyPanel() {
 
 export default function PendingRequests() {
   const { data: me } = useEffectiveMe();
-  // The custom-request reviewer pool is generic (fixer / cs-approver / admin),
-  // matching the server's isEligibleReviewer, so CS-Approvers can vote on misc
-  // requests and must see the tab + badges (they were previously hidden).
+  // STAFF VIEW access to the queues is broad (fixer / cs-approver / admin),
+  // matching the server's isReviewer. Casting a counted vote is narrower —
+  // CS_APPROVER only (see canVote above). Fixers and admins see the tab + badges
+  // and the roster, but can't vote (admins use OVERRIDE).
   const canMisc = !!(me?.isAdmin || me?.isFixer || me?.isCsApprover);
   // Archivists also reach the Misc tab to approve mission proposals.
   const canSeeMisc = canMisc || !!me?.isArchivist;
-  // Fixers are sheet reviewers too (see NewCharactersTab.isReviewer/canVote and
-  // the sidebar badge, which counts unseen sheets for fixers), so they must see
-  // the Sheets tab — otherwise the badge sends them here to a tab that's hidden.
+  // Fixers still have staff access to the Sheets queue (sidebar badge counts
+  // unseen sheets for them), so they must see the Sheets tab — they just can't
+  // cast counted votes there anymore.
   const canNewChars = !!(me?.isAdmin || me?.isCsApprover || me?.isFixer);
   const canLore = !!me?.isAdmin;
   // The terminal (Completed/Denied) tabs aggregate reviewer queues; only show

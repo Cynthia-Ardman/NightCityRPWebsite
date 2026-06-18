@@ -24,8 +24,11 @@ beforeEach(() => {
   mockDm.mockResolvedValue("dm-id");
 });
 
+// Test reviewers hold the cs-approver role (the approver pool that casts counted
+// votes — only CS_APPROVERs are eligible) plus the fixer role for staff-view
+// paths.
 function createFixer() {
-  return createUser({ roles: ["fixer"] });
+  return createUser({ roles: ["fixer", "cs approver"] });
 }
 
 // Seed a pending edit directly: a character plus a proposed background change.

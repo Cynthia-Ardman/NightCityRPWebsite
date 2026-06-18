@@ -11,6 +11,8 @@ export interface MissionConfig {
   bankingChannelId: string;
   npcSpendingChannelId: string;
   npcAnnouncementChannelId: string;
+  /** Channel the per-mission discussion thread is posted to at creation time. */
+  threadChannelId: string;
   /** @nullable */
   defaultImageUrl?: string | null;
   autopayDelayHours: number;

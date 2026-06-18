@@ -667,8 +667,8 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
   }
   const u = req.user!;
   const isStaff = isReviewer(u);
-  // Only fixers / cs-approvers cast counted votes; a pure admin reviews via
-  // OVERRIDE, not the vote/request-changes flow.
+  // Only cs-approvers cast counted votes. Fixers retain staff view access but
+  // can't vote; admins review via OVERRIDE, not the vote/request-changes flow.
   const canCast = isEligibleReviewer(u);
   const isSubmitter = row.submittedBy === u.id;
   if (!isStaff && !isSubmitter) {
@@ -765,7 +765,7 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
   const id = parseInt(String(req.params.id), 10);
   const u = req.user!;
   if (!isEligibleReviewer(u)) {
-    res.status(403).json({ error: "Only fixers / approvers can vote. Admins use override." });
+    res.status(403).json({ error: "Only Cs Approvers can vote. Admins use override." });
     return;
   }
   const parsed = VoteSchema.safeParse(req.body ?? {});

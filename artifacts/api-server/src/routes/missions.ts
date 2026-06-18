@@ -10,7 +10,7 @@ import {
   customRequests,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, sendDirectMessage, searchGuildMembers } from "../lib/discord";
+import { hasRole, sendDirectMessage, searchGuildMembers, postToChannel, startThreadFromMessage } from "../lib/discord";
 import { getMissionContext, MISSION_CONFIG_KEYS } from "../lib/missionsConfig";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -48,8 +48,10 @@ import {
   removeAssignedPlayer,
   listApplicantOutcomes,
   checkDiscordEventConflict,
+  buildMissionUrl,
   type MissionViewer,
 } from "../lib/missionsService";
+import type { Mission } from "@workspace/db";
 import { convertEventToMission } from "../lib/eventsService";
 
 const router: IRouter = Router();
@@ -72,6 +74,75 @@ function viewerOf(req: Request): MissionViewer {
 function canApprove(req: Request): boolean {
   const roles = req.user?.roles ?? [];
   return hasRole(roles, "ADMIN") || hasRole(roles, "ARCHIVIST");
+}
+
+const TIER_NAMES: Record<number, string> = {
+  1: "Street Work",
+  2: "Contract Work",
+  3: "High Risk Operation",
+  4: "Extreme",
+};
+
+function jobTypeName(jt: string | null): string {
+  if (jt === "combat") return "Combat";
+  if (jt === "non_combat") return "Non-Combat";
+  if (jt === "mixed") return "Mixed";
+  return jt ?? "—";
+}
+
+// Post the full mission brief to the #missions discussion channel and start a
+// per-mission thread off it, then persist the linkage on the row. Mirrors the
+// edit/request/sheet thread pattern: deployment-gated (postToChannel /
+// startThreadFromMessage no-op outside deployments), the message id is always
+// persisted on a successful post so a later backfill can recover, and
+// discordThreadId is set ONLY when the thread helper returns non-null (never
+// `threadId ?? msgId`). Fail-safe — a Discord miss never blocks mission
+// creation.
+async function announceMissionThread(m: Mission, channelId: string): Promise<void> {
+  if (!channelId) return;
+  try {
+    const startUnix = m.startAt ? Math.floor(m.startAt.getTime() / 1000) : null;
+    const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+      { name: "Tier", value: `${m.tier} — ${TIER_NAMES[m.tier] ?? "Unknown"}`, inline: true },
+      { name: "Job Type", value: jobTypeName(m.jobType), inline: true },
+      { name: "Client", value: m.client || "—", inline: true },
+      { name: "Location", value: m.location || "—", inline: true },
+      {
+        name: "Start / Duration",
+        value: `${startUnix ? `<t:${startUnix}:F>` : "Not scheduled"} · ${m.durationMinutes}m`,
+        inline: true,
+      },
+      { name: "Player Pay", value: `€$${m.playerPay.toLocaleString()}`, inline: true },
+      { name: "NPC Pay", value: `€$${m.npcPayAmount.toLocaleString()}`, inline: true },
+      {
+        name: "Slots / Max Players",
+        value: `${m.slots || "—"} slots · ${m.maxPlayers > 0 ? `${m.maxPlayers} max` : "unlimited"}`,
+        inline: true,
+      },
+      { name: "Requested Skills", value: m.requestedSkills || "—", inline: false },
+    ];
+    if (m.worldLink) fields.push({ name: "World Link", value: m.worldLink, inline: false });
+    if (m.notesForPlayers) fields.push({ name: "Notes for Players", value: m.notesForPlayers.slice(0, 1024), inline: false });
+    fields.push({ name: "Mission", value: buildMissionUrl(m.id), inline: false });
+
+    const msgId = await postToChannel(channelId, `**New mission created — ${m.title}**`, [
+      {
+        title: m.title,
+        description: m.description ? m.description.slice(0, 4096) : undefined,
+        fields,
+        ...(m.imageUrl ? { image: { url: m.imageUrl } } : {}),
+      },
+    ]);
+    if (msgId) {
+      const threadId = await startThreadFromMessage(channelId, msgId, m.title);
+      await db
+        .update(missions)
+        .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
+        .where(eq(missions.id, m.id));
+    }
+  } catch (err) {
+    logger.warn({ err, missionId: m.id }, "announceMissionThread failed");
+  }
 }
 
 function isManager(req: Request): boolean {
@@ -355,6 +426,10 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
     await db.update(missions).set(sync).where(eq(missions.id, created.id));
   }
 
+  // Post the mission brief to the #missions channel + start a discussion thread
+  // staff can follow. Deployment-gated inside the helper; never blocks creation.
+  await announceMissionThread(created, ctx.threadChannelId);
+
   await recordAudit({
     req,
     category: "mission",
@@ -540,6 +615,7 @@ router.get("/missions/config", requireAuth, async (req, res): Promise<void> => {
     bankingChannelId: ctx.bankingChannelId,
     npcSpendingChannelId: ctx.npcSpendingChannelId,
     npcAnnouncementChannelId: ctx.npcAnnouncementChannelId,
+    threadChannelId: ctx.threadChannelId,
     defaultImageUrl: ctx.defaultImageUrl || null,
     autopayDelayHours: Math.round((ctx.autopayDelayMs / 3_600_000) * 100) / 100,
   });
@@ -556,6 +632,7 @@ router.put("/missions/config", requireAuth, async (req, res): Promise<void> => {
   if (typeof b.bankingChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.bankingChannel, value: b.bankingChannelId.trim() });
   if (typeof b.npcSpendingChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.npcSpendingChannel, value: b.npcSpendingChannelId.trim() });
   if (typeof b.npcAnnouncementChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.npcAnnouncementChannel, value: b.npcAnnouncementChannelId.trim() });
+  if (typeof b.threadChannelId === "string") updates.push({ key: MISSION_CONFIG_KEYS.threadChannel, value: b.threadChannelId.trim() });
   if (typeof b.defaultImageUrl === "string") updates.push({ key: MISSION_CONFIG_KEYS.defaultImage, value: b.defaultImageUrl.trim() });
   if (Number.isFinite(Number(b.autopayDelayHours)) && Number(b.autopayDelayHours) > 0) {
     updates.push({ key: MISSION_CONFIG_KEYS.autopayDelayHours, value: Number(b.autopayDelayHours) });
@@ -583,6 +660,7 @@ router.put("/missions/config", requireAuth, async (req, res): Promise<void> => {
     bankingChannelId: ctx.bankingChannelId,
     npcSpendingChannelId: ctx.npcSpendingChannelId,
     npcAnnouncementChannelId: ctx.npcAnnouncementChannelId,
+    threadChannelId: ctx.threadChannelId,
     defaultImageUrl: ctx.defaultImageUrl || null,
     autopayDelayHours: Math.round((ctx.autopayDelayMs / 3_600_000) * 100) / 100,
   });

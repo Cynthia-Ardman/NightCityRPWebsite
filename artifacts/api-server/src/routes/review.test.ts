@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import request from "supertest";
 import { eq } from "drizzle-orm";
-import { db, customRequests } from "@workspace/db";
+import { db, customRequests, missions } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createCharacter } from "../test/testDb";
 
@@ -204,5 +204,46 @@ describe("GET /review/:type/:id/discord-thread", () => {
       .get(`/api/review/bogus/1/discord-thread`)
       .set("x-test-user", fixer.id);
     expect(badType.status).toBe(400);
+  });
+
+  it("serves a mission's thread (linked:false until a thread id is stored, then linked:true)", async () => {
+    const fixer = await createUser({ roles: ["fixer"] });
+    const [m] = await db
+      .insert(missions)
+      .values({ title: "Smoke a corpo", fixerId: fixer.id })
+      .returning();
+
+    const unlinked = await request(app)
+      .get(`/api/review/mission/${m.id}/discord-thread`)
+      .set("x-test-user", fixer.id);
+    expect(unlinked.status).toBe(200);
+    expect(unlinked.body.linked).toBe(false);
+    expect(unlinked.body.threadId).toBeNull();
+    expect(unlinked.body.messages).toEqual([]);
+
+    await db.update(missions).set({ discordThreadId: "987654321098765432" }).where(eq(missions.id, m.id));
+    const linked = await request(app)
+      .get(`/api/review/mission/${m.id}/discord-thread`)
+      .set("x-test-user", fixer.id);
+    expect(linked.status).toBe(200);
+    expect(linked.body.linked).toBe(true);
+    expect(linked.body.threadId).toBe("987654321098765432");
+  });
+
+  it("forbids a non-reviewer on a mission thread, and 404s an unknown mission", async () => {
+    const player = await createUser();
+    const fixer = await createUser({ roles: ["fixer"] });
+    const [m] = await db
+      .insert(missions)
+      .values({ title: "Heist", fixerId: fixer.id })
+      .returning();
+    const forbidden = await request(app)
+      .get(`/api/review/mission/${m.id}/discord-thread`)
+      .set("x-test-user", player.id);
+    expect(forbidden.status).toBe(403);
+    const notFound = await request(app)
+      .get(`/api/review/mission/999999/discord-thread`)
+      .set("x-test-user", fixer.id);
+    expect(notFound.status).toBe(404);
   });
 });

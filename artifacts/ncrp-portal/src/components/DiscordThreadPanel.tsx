@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Hash, ExternalLink } from "lucide-react";
 import { handleDiscordLinkClick } from "@/lib/discordDeepLink";
 
-type SubjectType = "edit" | "request" | "sheet";
+type SubjectType = "edit" | "request" | "sheet" | "mission";
 
 // READ-ONLY mirror of a ticket's cs-approver Discord thread, shown on the
 // review detail page. STAFF ONLY — gate the mount on the reviewer flags, this

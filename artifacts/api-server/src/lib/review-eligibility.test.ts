@@ -29,27 +29,34 @@ describe("isReviewer (Trial Fixer exclusion)", () => {
   });
 });
 
-describe("isEligibleReviewer (approver pool — admins excluded)", () => {
-  it("includes a fixer / cs-approver", () => {
-    expect(isEligibleReviewer(userWith(["fixer"]))).toBe(true);
+describe("isEligibleReviewer (approver pool — CS_APPROVER only)", () => {
+  it("includes a cs-approver", () => {
     expect(isEligibleReviewer(userWith(["cs approver"]))).toBe(true);
   });
 
-  it("excludes a pure admin (no fixer/cs-approver role)", () => {
-    // The bug: an admin-without-fixer must NOT appear as an eligible approver
-    // or be able to cast a counted vote. They act through OVERRIDE instead.
+  it("excludes a fixer who is not a cs-approver", () => {
+    // Holding a fixer role does NOT make you an approver. Fixers retain staff
+    // view access (isReviewer) but can no longer cast a counted vote anywhere.
+    expect(isEligibleReviewer(userWith(["fixer"]))).toBe(false);
+  });
+
+  it("excludes a pure admin (no cs-approver role)", () => {
+    // An admin without the cs-approver role must NOT appear as an eligible
+    // approver or be able to cast a counted vote. They act through OVERRIDE.
     expect(isEligibleReviewer(userWith(["admin"]))).toBe(false);
   });
 
-  it("still includes an admin who ALSO holds the fixer role", () => {
-    expect(isEligibleReviewer(userWith(["admin", "fixer"]))).toBe(true);
+  it("excludes an admin/fixer combo lacking cs-approver", () => {
+    expect(isEligibleReviewer(userWith(["admin", "fixer"]))).toBe(false);
+  });
+
+  it("includes anyone holding cs-approver regardless of other roles", () => {
+    // Not being a fixer must not exclude you; being a fixer must not add you.
+    expect(isEligibleReviewer(userWith(["cs approver", "fixer"]))).toBe(true);
+    expect(isEligibleReviewer(userWith(["cs approver", "admin"]))).toBe(true);
   });
 
   it("excludes a plain player", () => {
     expect(isEligibleReviewer(userWith(["member"]))).toBe(false);
-  });
-
-  it("excludes a trial fixer even with a lingering fixer name", () => {
-    expect(isEligibleReviewer(userWith(["fixer", "trial-fixer"]))).toBe(false);
   });
 });

@@ -21700,7 +21700,7 @@ export function useGetReviewUnseenIds<TData = Awaited<ReturnType<typeof getRevie
 
 
 
-export const getGetReviewDiscordThreadUrl = (subjectType: 'edit' | 'request' | 'sheet',
+export const getGetReviewDiscordThreadUrl = (subjectType: 'edit' | 'request' | 'sheet' | 'mission',
     id: number,) => {
 
 
@@ -21710,9 +21710,9 @@ export const getGetReviewDiscordThreadUrl = (subjectType: 'edit' | 'request' | '
 }
 
 /**
- * @summary The ticket's cs-approver Discord thread, displayed READ-ONLY on the detail page. Reviewers only. The portal never posts to Discord. Returns linked:false with an empty list when no thread is linked yet.
+ * @summary The subject's Discord discussion thread, displayed READ-ONLY on the detail page. Reviewers/staff only. The portal never posts to Discord. Serves review tickets (edit/request/sheet) and missions. Returns linked:false with an empty list when no thread is linked yet.
  */
-export const getReviewDiscordThread = async (subjectType: 'edit' | 'request' | 'sheet',
+export const getReviewDiscordThread = async (subjectType: 'edit' | 'request' | 'sheet' | 'mission',
     id: number, options?: RequestInit): Promise<DiscordThreadView> => {
 
   return customFetch<DiscordThreadView>(getGetReviewDiscordThreadUrl(subjectType,id),
@@ -21728,7 +21728,7 @@ export const getReviewDiscordThread = async (subjectType: 'edit' | 'request' | '
 
 
 
-export const getGetReviewDiscordThreadQueryKey = (subjectType: 'edit' | 'request' | 'sheet',
+export const getGetReviewDiscordThreadQueryKey = (subjectType: 'edit' | 'request' | 'sheet' | 'mission',
     id: number,) => {
     return [
     `/api/review/${subjectType}/${id}/discord-thread`
@@ -21736,7 +21736,7 @@ export const getGetReviewDiscordThreadQueryKey = (subjectType: 'edit' | 'request
     }
 
 
-export const getGetReviewDiscordThreadQueryOptions = <TData = Awaited<ReturnType<typeof getReviewDiscordThread>>, TError = ErrorType<void>>(subjectType: 'edit' | 'request' | 'sheet',
+export const getGetReviewDiscordThreadQueryOptions = <TData = Awaited<ReturnType<typeof getReviewDiscordThread>>, TError = ErrorType<void>>(subjectType: 'edit' | 'request' | 'sheet' | 'mission',
     id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewDiscordThread>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -21760,11 +21760,11 @@ export type GetReviewDiscordThreadQueryError = ErrorType<void>
 
 
 /**
- * @summary The ticket's cs-approver Discord thread, displayed READ-ONLY on the detail page. Reviewers only. The portal never posts to Discord. Returns linked:false with an empty list when no thread is linked yet.
+ * @summary The subject's Discord discussion thread, displayed READ-ONLY on the detail page. Reviewers/staff only. The portal never posts to Discord. Serves review tickets (edit/request/sheet) and missions. Returns linked:false with an empty list when no thread is linked yet.
  */
 
 export function useGetReviewDiscordThread<TData = Awaited<ReturnType<typeof getReviewDiscordThread>>, TError = ErrorType<void>>(
- subjectType: 'edit' | 'request' | 'sheet',
+ subjectType: 'edit' | 'request' | 'sheet' | 'mission',
     id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewDiscordThread>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {

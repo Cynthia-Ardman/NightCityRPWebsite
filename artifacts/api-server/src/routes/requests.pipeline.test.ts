@@ -23,8 +23,12 @@ beforeEach(() => {
   mockDm.mockResolvedValue("dm-id");
 });
 
+// Test reviewers hold BOTH the fixer role (staff view access) and the
+// cs-approver role (the approver pool that casts counted votes). Only
+// CS_APPROVERs are eligible voters, so reviewers used to cast votes must carry
+// it; the fixer role is kept so staff-view paths still resolve.
 function createFixer() {
-  return createUser({ roles: ["fixer"] });
+  return createUser({ roles: ["fixer", "cs approver"] });
 }
 function createCsApprover() {
   return createUser({ roles: ["cs approver"] });
