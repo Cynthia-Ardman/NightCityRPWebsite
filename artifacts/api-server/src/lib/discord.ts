@@ -1171,7 +1171,12 @@ export async function listGuildScheduledEvents(): Promise<ListScheduledEventsRes
   }
 }
 
-export async function postToChannel(channelId: string, content: string, embeds?: unknown[]): Promise<string | null> {
+export async function postToChannel(
+  channelId: string,
+  content: string,
+  embeds?: unknown[],
+  allowedMentions?: unknown,
+): Promise<string | null> {
   if (!DISCORD_BOT_TOKEN) {
     logger.warn("No bot token; cannot post to Discord channel");
     return null;
@@ -1186,7 +1191,11 @@ export async function postToChannel(channelId: string, content: string, embeds?:
       Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ content, embeds }),
+    body: JSON.stringify({
+      content,
+      embeds,
+      ...(allowedMentions !== undefined ? { allowed_mentions: allowedMentions } : {}),
+    }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {

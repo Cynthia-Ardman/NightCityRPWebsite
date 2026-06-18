@@ -98,6 +98,11 @@ function jobTypeName(jt: string | null): string {
 // discordThreadId is set ONLY when the thread helper returns non-null (never
 // `threadId ?? msgId`). Fail-safe — a Discord miss never blocks mission
 // creation.
+// Role pinged when a new mission is announced to #fix-your-job-announcements so
+// players are notified the job is open. Pinging requires the role id in both the
+// message content (`<@&id>`) and allowed_mentions.roles.
+const CHOOM_ROLE_ID = "1348642753554288640";
+
 async function announceMissionThread(m: Mission, channelId: string): Promise<void> {
   if (!channelId) return;
   try {
@@ -125,14 +130,19 @@ async function announceMissionThread(m: Mission, channelId: string): Promise<voi
     if (m.notesForPlayers) fields.push({ name: "Notes for Players", value: m.notesForPlayers.slice(0, 1024), inline: false });
     fields.push({ name: "Mission", value: buildMissionUrl(m.id), inline: false });
 
-    const msgId = await postToChannel(channelId, `**New mission created — ${m.title}**`, [
-      {
-        title: m.title,
-        description: m.description ? m.description.slice(0, 4096) : undefined,
-        fields,
-        ...(m.imageUrl ? { image: { url: m.imageUrl } } : {}),
-      },
-    ]);
+    const msgId = await postToChannel(
+      channelId,
+      `<@&${CHOOM_ROLE_ID}> **New mission created — ${m.title}**`,
+      [
+        {
+          title: m.title,
+          description: m.description ? m.description.slice(0, 4096) : undefined,
+          fields,
+          ...(m.imageUrl ? { image: { url: m.imageUrl } } : {}),
+        },
+      ],
+      { roles: [CHOOM_ROLE_ID] },
+    );
     if (msgId) {
       const threadId = await startThreadFromMessage(channelId, msgId, m.title);
       await db
