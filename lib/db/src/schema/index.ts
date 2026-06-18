@@ -631,6 +631,12 @@ export const housing = pgTable("housing", {
   characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
   listingId: integer("listing_id"),
   address: text("address").notNull(),
+  // District + tier for OFF-MAP leases (listingId null). On-map leases inherit
+  // these from the joined catalog_rent listing; these columns let a fixer-decided
+  // off-map property (approved via a custom request) carry the same classification
+  // the properties page shows. Serializers coalesce(catalog, housing).
+  district: text("district"),
+  tier: text("tier"),
   monthlyRent: integer("monthly_rent").notNull().default(0),
   // Lease kind: "residential" (default — personal home, skipped while on LOA)
   // or "business" (storefront/venue — billed even on LOA, matching the

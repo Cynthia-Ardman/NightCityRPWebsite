@@ -69,8 +69,10 @@ async function selectLeasesWhere(predicate: ReturnType<typeof and> | ReturnType<
       characterName: characters.name,
       listingId: housing.listingId,
       address: housing.address,
-      district: catalogRent.district,
-      tier: catalogRent.tier,
+      // On-map leases inherit district/tier from the joined catalog listing;
+      // off-map leases (listingId null) carry their own fixer-decided copy.
+      district: sql<string | null>`coalesce(${catalogRent.district}, ${housing.district})`,
+      tier: sql<string | null>`coalesce(${catalogRent.tier}, ${housing.tier})`,
       monthlyRent: housing.monthlyRent,
       paidThrough: housing.paidThrough,
       notes: housing.notes,

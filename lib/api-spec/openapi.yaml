@@ -8070,7 +8070,15 @@ components:
         monthlyRent: { type: integer, description: "Custom request (property) only. Monthly rent applied to the new lease at CLOSE & APPLY." }
         kind: { type: string, enum: [residential, business], description: "Custom request (property) only. Lease kind set at CLOSE & APPLY." }
         businessName: { type: string, maxLength: 200, description: "Custom request (property) only. Optional business/property name for the lease; falls back to the request title." }
+        district: { type: string, maxLength: 120, description: "Custom request (property) only. District applied to the off-map lease at CLOSE & APPLY (fixer-decided, mirrors the properties page)." }
+        tier: { type: string, maxLength: 60, description: "Custom request (property) only. Tier applied to the off-map lease at CLOSE & APPLY (fixer-decided, mirrors the properties page)." }
         cwp: { type: integer, description: "Custom request (cyberware) only. Chrome points applied at CLOSE & APPLY." }
+        slot: { type: string, maxLength: 120, description: "Custom request (cyberware) only. Body-system slot (catalog category) applied at CLOSE & APPLY (fixer-decided)." }
+        category: { type: string, maxLength: 60, description: "Custom request (gun) only. Firing category (Power/Tech/Smart) applied at CLOSE & APPLY (fixer-decided)." }
+        weaponType: { type: string, maxLength: 60, description: "Custom request (gun) only. Weapon type (Pistol/SMG/…) applied at CLOSE & APPLY (fixer-decided)." }
+        fireMode: { type: string, maxLength: 60, description: "Custom request (gun) only. Fire mode (Semi-Auto/Burst/Full-Auto) applied at CLOSE & APPLY (fixer-decided)." }
+        powerLevel: { type: string, maxLength: 60, description: "Custom request (gun) only. Weight/power class (L/M/H) applied at CLOSE & APPLY (fixer-decided)." }
+        manufacturer: { type: string, maxLength: 120, description: "Custom request (gun) only. Optional manufacturer applied at CLOSE & APPLY (fixer-decided)." }
         unitCost: { type: integer, description: "Custom request (venue_stock) only. Unit cost applied at CLOSE & APPLY." }
         retail: { type: integer, description: "Custom request (venue_stock) only. Retail price applied at CLOSE & APPLY." }
         qty: { type: integer, description: "Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY." }

@@ -4385,8 +4385,48 @@ export interface ReviewCloseInput {
      * @maxLength 200
      */
   businessName?: string;
+  /**
+     * Custom request (property) only. District applied to the off-map lease at CLOSE & APPLY (fixer-decided, mirrors the properties page).
+     * @maxLength 120
+     */
+  district?: string;
+  /**
+     * Custom request (property) only. Tier applied to the off-map lease at CLOSE & APPLY (fixer-decided, mirrors the properties page).
+     * @maxLength 60
+     */
+  tier?: string;
   /** Custom request (cyberware) only. Chrome points applied at CLOSE & APPLY. */
   cwp?: number;
+  /**
+     * Custom request (cyberware) only. Body-system slot (catalog category) applied at CLOSE & APPLY (fixer-decided).
+     * @maxLength 120
+     */
+  slot?: string;
+  /**
+     * Custom request (gun) only. Firing category (Power/Tech/Smart) applied at CLOSE & APPLY (fixer-decided).
+     * @maxLength 60
+     */
+  category?: string;
+  /**
+     * Custom request (gun) only. Weapon type (Pistol/SMG/…) applied at CLOSE & APPLY (fixer-decided).
+     * @maxLength 60
+     */
+  weaponType?: string;
+  /**
+     * Custom request (gun) only. Fire mode (Semi-Auto/Burst/Full-Auto) applied at CLOSE & APPLY (fixer-decided).
+     * @maxLength 60
+     */
+  fireMode?: string;
+  /**
+     * Custom request (gun) only. Weight/power class (L/M/H) applied at CLOSE & APPLY (fixer-decided).
+     * @maxLength 60
+     */
+  powerLevel?: string;
+  /**
+     * Custom request (gun) only. Optional manufacturer applied at CLOSE & APPLY (fixer-decided).
+     * @maxLength 120
+     */
+  manufacturer?: string;
   /** Custom request (venue_stock) only. Unit cost applied at CLOSE & APPLY. */
   unitCost?: number;
   /** Custom request (venue_stock) only. Retail price applied at CLOSE & APPLY. */

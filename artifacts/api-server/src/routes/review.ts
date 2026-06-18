@@ -457,10 +457,22 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
 // none) and forwarded to closeRequest, which validates + applies them.
 const CloseBodySchema = z.object({
   note: z.string().trim().max(2000).optional(),
+  // property
   monthlyRent: z.number().optional(),
   kind: z.enum(["residential", "business"]).optional(),
   businessName: z.string().trim().max(200).optional(),
+  district: z.string().trim().max(120).optional(),
+  tier: z.string().trim().max(60).optional(),
+  // cyberware
   cwp: z.number().optional(),
+  slot: z.string().trim().max(120).optional(),
+  // gun
+  category: z.string().trim().max(60).optional(),
+  weaponType: z.string().trim().max(60).optional(),
+  fireMode: z.string().trim().max(60).optional(),
+  powerLevel: z.string().trim().max(60).optional(),
+  manufacturer: z.string().trim().max(120).optional(),
+  // venue_stock
   unitCost: z.number().optional(),
   retail: z.number().optional(),
   qty: z.number().optional(),

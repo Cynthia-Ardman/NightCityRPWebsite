@@ -10491,6 +10491,22 @@ export const closeReviewTicketBodyNoteMax = 2000;
 
 export const closeReviewTicketBodyBusinessNameMax = 200;
 
+export const closeReviewTicketBodyDistrictMax = 120;
+
+export const closeReviewTicketBodyTierMax = 60;
+
+export const closeReviewTicketBodySlotMax = 120;
+
+export const closeReviewTicketBodyCategoryMax = 60;
+
+export const closeReviewTicketBodyWeaponTypeMax = 60;
+
+export const closeReviewTicketBodyFireModeMax = 60;
+
+export const closeReviewTicketBodyPowerLevelMax = 60;
+
+export const closeReviewTicketBodyManufacturerMax = 120;
+
 
 
 export const CloseReviewTicketBody = zod.object({
@@ -10498,7 +10514,15 @@ export const CloseReviewTicketBody = zod.object({
   "monthlyRent": zod.number().optional().describe('Custom request (property) only. Monthly rent applied to the new lease at CLOSE & APPLY.'),
   "kind": zod.enum(['residential', 'business']).optional().describe('Custom request (property) only. Lease kind set at CLOSE & APPLY.'),
   "businessName": zod.string().max(closeReviewTicketBodyBusinessNameMax).optional().describe('Custom request (property) only. Optional business\/property name for the lease; falls back to the request title.'),
+  "district": zod.string().max(closeReviewTicketBodyDistrictMax).optional().describe('Custom request (property) only. District applied to the off-map lease at CLOSE & APPLY (fixer-decided, mirrors the properties page).'),
+  "tier": zod.string().max(closeReviewTicketBodyTierMax).optional().describe('Custom request (property) only. Tier applied to the off-map lease at CLOSE & APPLY (fixer-decided, mirrors the properties page).'),
   "cwp": zod.number().optional().describe('Custom request (cyberware) only. Chrome points applied at CLOSE & APPLY.'),
+  "slot": zod.string().max(closeReviewTicketBodySlotMax).optional().describe('Custom request (cyberware) only. Body-system slot (catalog category) applied at CLOSE & APPLY (fixer-decided).'),
+  "category": zod.string().max(closeReviewTicketBodyCategoryMax).optional().describe('Custom request (gun) only. Firing category (Power\/Tech\/Smart) applied at CLOSE & APPLY (fixer-decided).'),
+  "weaponType": zod.string().max(closeReviewTicketBodyWeaponTypeMax).optional().describe('Custom request (gun) only. Weapon type (Pistol\/SMG\/…) applied at CLOSE & APPLY (fixer-decided).'),
+  "fireMode": zod.string().max(closeReviewTicketBodyFireModeMax).optional().describe('Custom request (gun) only. Fire mode (Semi-Auto\/Burst\/Full-Auto) applied at CLOSE & APPLY (fixer-decided).'),
+  "powerLevel": zod.string().max(closeReviewTicketBodyPowerLevelMax).optional().describe('Custom request (gun) only. Weight\/power class (L\/M\/H) applied at CLOSE & APPLY (fixer-decided).'),
+  "manufacturer": zod.string().max(closeReviewTicketBodyManufacturerMax).optional().describe('Custom request (gun) only. Optional manufacturer applied at CLOSE & APPLY (fixer-decided).'),
   "unitCost": zod.number().optional().describe('Custom request (venue_stock) only. Unit cost applied at CLOSE & APPLY.'),
   "retail": zod.number().optional().describe('Custom request (venue_stock) only. Retail price applied at CLOSE & APPLY.'),
   "qty": zod.number().optional().describe('Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY.')

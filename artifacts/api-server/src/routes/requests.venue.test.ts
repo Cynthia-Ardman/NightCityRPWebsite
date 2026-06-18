@@ -374,16 +374,33 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     const res = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", fixer.id)
-      .send({ monthlyRent: 1500 });
+      .send({ monthlyRent: 1500, district: "Watson", tier: "T2" });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^housing:\d+$/);
     const leases = await db.select().from(housing);
     expect(leases).toHaveLength(1);
     expect(leases[0].characterId).toBe(char.id);
     expect(leases[0].monthlyRent).toBe(1500);
+    // District + tier (fixer-decided at close) persist on the off-map lease.
+    expect(leases[0].district).toBe("Watson");
+    expect(leases[0].tier).toBe("T2");
   });
 
-  it("materializes a gun inventory item on close", async () => {
+  it("400s closing a property request without district/tier, and creates no lease", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const { reqId } = await submit(owner.id, "property");
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({ monthlyRent: 1500 });
+    expect(close.status).toBe(400);
+    expect(close.body.error).toMatch(/district/i);
+    expect(await db.select().from(housing)).toHaveLength(0);
+  });
+
+  it("materializes a gun inventory item on close, packing the fixer-decided classification into notes", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "gun");
@@ -391,7 +408,10 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     expect(vote.status).toBe(200);
     expect(await db.select().from(inventoryItems)).toHaveLength(0);
 
-    const res = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", fixer.id).send({});
+    const res = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({ category: "Power", weaponType: "Pistol", fireMode: "Semi-Auto", powerLevel: "M", manufacturer: "Militech" });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^inventory:/);
     const items = await db.select().from(inventoryItems);
@@ -399,9 +419,29 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     expect(items[0].category).toBe("gun");
     expect(items[0].characterId).toBe(char.id);
     expect(items[0].ownerId).toBe(owner.id);
+    // Mechanical classification packed with the staff editor's " · " convention.
+    expect(items[0].notes).toMatch(/Manufacturer: Militech/);
+    expect(items[0].notes).toMatch(/Category: Power/);
+    expect(items[0].notes).toMatch(/Type: Pistol/);
+    expect(items[0].notes).toMatch(/Fire: Semi-Auto/);
+    expect(items[0].notes).toMatch(/Power: M/);
   });
 
-  it("materializes a cyberware inventory item with a CWP token on close", async () => {
+  it("400s closing a gun request without its classification, and creates no inventory item", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const { reqId } = await submit(owner.id, "gun");
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({ category: "Power" });
+    expect(close.status).toBe(400);
+    expect(close.body.error).toMatch(/weaponType/i);
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+  });
+
+  it("materializes a cyberware inventory item with a CWP + slot token on close", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const { char, reqId } = await submit(owner.id, "cyberware");
@@ -412,7 +452,7 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     const res = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", fixer.id)
-      .send({ cwp: 4 });
+      .send({ cwp: 4, slot: "Neural" });
     expect(res.status).toBe(200);
     expect(res.body.appliedRef).toMatch(/^inventory:/);
     const items = await db.select().from(inventoryItems);
@@ -420,6 +460,22 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
     expect(items[0].category).toBe("cyberware");
     expect(items[0].characterId).toBe(char.id);
     expect(items[0].notes).toMatch(/CWP 4/);
+    // Slot (fixer-decided) appended in the parseable "· slot: <x>" form.
+    expect(items[0].notes).toMatch(/slot: Neural/);
+  });
+
+  it("400s closing a cyberware request without a slot, and creates no inventory item", async () => {
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const { reqId } = await submit(owner.id, "cyberware");
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({ cwp: 4 });
+    expect(close.status).toBe(400);
+    expect(close.body.error).toMatch(/slot/i);
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
   });
 });
 

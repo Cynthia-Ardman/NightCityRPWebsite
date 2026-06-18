@@ -197,7 +197,19 @@ type CharacterRow = typeof characters.$inferSelect;
 // Other types need nothing. These are validated up-front when an approve vote
 // (or override) is cast and persisted on `details.approval`, so the deciding
 // approve can materialize from the stored values without re-prompting.
-type ApprovalParams = { monthlyRent?: unknown; kind?: unknown; businessName?: unknown; cwp?: unknown; unitCost?: unknown; retail?: unknown; qty?: unknown };
+type ApprovalParams = {
+  monthlyRent?: unknown; kind?: unknown; businessName?: unknown; district?: unknown; tier?: unknown;
+  cwp?: unknown; slot?: unknown;
+  category?: unknown; weaponType?: unknown; fireMode?: unknown; powerLevel?: unknown; manufacturer?: unknown;
+  unitCost?: unknown; retail?: unknown; qty?: unknown;
+};
+
+// Trim an arbitrary param into a non-empty string, or null when absent/blank.
+function reqStr(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return t ? t : null;
+}
 
 // Monetary fields here land in Postgres `integer` (int4) columns, which max out
 // at 2,147,483,647. Cap well under that so a fat-fingered value is rejected with
@@ -221,7 +233,14 @@ function normalizeApprovalParams(
     // staff typo of an enormous number is silently corrected rather than erroring.
     const monthlyRent = Math.min(raw, MAX_MONEY);
     const kind = params.kind === "business" ? "business" : "residential";
-    const out: Record<string, number | string> = { monthlyRent, kind };
+    // District + tier are fixer-decided at close (mirroring the properties page)
+    // and required so an off-map lease carries the same classification on-map
+    // listings do.
+    const district = reqStr(params.district);
+    if (!district) return { error: "district required to approve a property request" };
+    const tier = reqStr(params.tier);
+    if (!tier) return { error: "tier required to approve a property request" };
+    const out: Record<string, number | string> = { monthlyRent, kind, district, tier };
     // Optional: staff may set/replace the leased business/property name at
     // approval time. When omitted the request title is used as-is.
     if (typeof params.businessName === "string" && params.businessName.trim()) {
@@ -234,7 +253,27 @@ function normalizeApprovalParams(
     if (!Number.isFinite(cwp) || cwp < 0) {
       return { error: "cwp (>= 0) required to approve a cyberware request" };
     }
-    return { ok: { cwp } };
+    // Slot (the catalog "category") is fixer-decided and required so the chrome
+    // lands in the right body-system group and counts toward the 1-per-slot cap.
+    const slot = reqStr(params.slot);
+    if (!slot) return { error: "slot required to approve a cyberware request" };
+    return { ok: { cwp, slot } };
+  }
+  if (type === "gun") {
+    // Mechanical classification is fixer-decided at close, mirroring the gun
+    // catalog. All four are required; manufacturer is optional.
+    const category = reqStr(params.category);
+    if (!category) return { error: "category (Power/Tech/Smart) required to approve a gun request" };
+    const weaponType = reqStr(params.weaponType);
+    if (!weaponType) return { error: "weaponType required to approve a gun request" };
+    const fireMode = reqStr(params.fireMode);
+    if (!fireMode) return { error: "fireMode required to approve a gun request" };
+    const powerLevel = reqStr(params.powerLevel);
+    if (!powerLevel) return { error: "powerLevel (L/M/H) required to approve a gun request" };
+    const out: Record<string, number | string> = { category, weaponType, fireMode, powerLevel };
+    const manufacturer = reqStr(params.manufacturer);
+    if (manufacturer) out.manufacturer = manufacturer;
+    return { ok: out };
   }
   if (type === "venue_stock") {
     const rawUnitCost = parseInt(String(params.unitCost), 10);
@@ -287,21 +326,51 @@ async function materializeRequest(
       typeof params.businessName === "string" && params.businessName.trim()
         ? params.businessName.trim()
         : reqRow.title;
+    // District + tier are fixer-decided at close and required (off-map leases
+    // carry their own copy since there is no catalog listing to join).
+    const district = reqStr(params.district);
+    if (!district) return { error: { status: 400, body: { error: "district required to approve a property request" } } };
+    const tier = reqStr(params.tier);
+    if (!tier) return { error: { status: 400, body: { error: "tier required to approve a property request" } } };
     const [lease] = await tx
       .insert(housing)
       .values({
         characterId: reqRow.characterId,
         listingId: null,
         address: businessName,
+        district,
+        tier,
         monthlyRent,
         paidThrough: endOfCurrentMonth(),
         notes: reqRow.description ?? null,
         kind,
       })
       .returning();
-    return { ok: { appliedRef: `housing:${lease.id}`, summary: `Off-map property approved: ${businessName} (€$${monthlyRent.toLocaleString()}/mo, ${kind})` } };
+    return { ok: { appliedRef: `housing:${lease.id}`, summary: `Off-map property approved: ${businessName} (${tier} · ${district} · €$${monthlyRent.toLocaleString()}/mo, ${kind})` } };
   }
   if (reqRow.type === "gun") {
+    // Mechanical classification (fixer-decided at close, mirroring the gun
+    // catalog) is packed into notes with the same " · " convention the staff
+    // inventory gun editor uses, so the inventory view renders it identically.
+    const category = reqStr(params.category);
+    if (!category) return { error: { status: 400, body: { error: "category (Power/Tech/Smart) required to approve a gun request" } } };
+    const weaponType = reqStr(params.weaponType);
+    if (!weaponType) return { error: { status: 400, body: { error: "weaponType required to approve a gun request" } } };
+    const fireMode = reqStr(params.fireMode);
+    if (!fireMode) return { error: { status: 400, body: { error: "fireMode required to approve a gun request" } } };
+    const powerLevel = reqStr(params.powerLevel);
+    if (!powerLevel) return { error: { status: 400, body: { error: "powerLevel (L/M/H) required to approve a gun request" } } };
+    const manufacturer = reqStr(params.manufacturer);
+    const notes = [
+      manufacturer ? `Manufacturer: ${manufacturer}` : null,
+      `Category: ${category}`,
+      `Type: ${weaponType}`,
+      `Fire: ${fireMode}`,
+      `Power: ${powerLevel}`,
+      reqStr(reqRow.description),
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const [item] = await tx
       .insert(inventoryItems)
       .values({
@@ -310,10 +379,10 @@ async function materializeRequest(
         name: reqRow.title,
         category: "gun",
         quantity: 1,
-        notes: reqRow.description ?? null,
+        notes,
       })
       .returning();
-    return { ok: { appliedRef: `inventory:${item.instanceUuid}`, summary: `Custom gun approved: ${reqRow.title}` } };
+    return { ok: { appliedRef: `inventory:${item.instanceUuid}`, summary: `Custom gun approved: ${reqRow.title} (${category} · ${weaponType} · ${powerLevel})` } };
   }
   if (reqRow.type === "item") {
     // Freeform off-catalog item (anything that is not a gun or cyberware).
@@ -337,7 +406,12 @@ async function materializeRequest(
     if (!Number.isFinite(cwp) || cwp < 0) {
       return { error: { status: 400, body: { error: "cwp (>= 0) required to approve a cyberware request" } } };
     }
-    const notes = `CWP ${cwp}${reqRow.description ? ` · ${reqRow.description}` : ""}`;
+    // Slot (the catalog "category") is fixer-decided and required. Appended as a
+    // trailing "· slot: <x>" segment so slotFromNotes / the cyberware tab pick it
+    // up and the chrome counts toward the 1-per-slot cap.
+    const slot = reqStr(params.slot);
+    if (!slot) return { error: { status: 400, body: { error: "slot required to approve a cyberware request" } } };
+    const notes = `CWP ${cwp}${reqRow.description ? ` · ${reqRow.description}` : ""} · slot: ${slot}`;
     const [item] = await tx
       .insert(inventoryItems)
       .values({
@@ -349,7 +423,7 @@ async function materializeRequest(
         notes,
       })
       .returning();
-    return { ok: { appliedRef: `inventory:${item.instanceUuid}`, summary: `Custom cyberware approved: ${reqRow.title} (CWP ${cwp})` } };
+    return { ok: { appliedRef: `inventory:${item.instanceUuid}`, summary: `Custom cyberware approved: ${reqRow.title} (CWP ${cwp} · ${slot})` } };
   }
   if (reqRow.type === "store" || reqRow.type === "ripperdoc") {
     if (!c.ownerId) {

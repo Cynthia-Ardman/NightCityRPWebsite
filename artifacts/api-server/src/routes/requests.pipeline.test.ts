@@ -75,11 +75,12 @@ describe("custom request voting — majority threshold", () => {
     // Staged lifecycle: approval no longer applies effects.
     expect(await db.select().from(inventoryItems)).toHaveLength(0);
 
-    // Close commits the deferred effect and archives the ticket.
+    // Close commits the deferred effect and archives the ticket. The gun's
+    // mechanical classification is fixer-decided and supplied here.
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", f3.id)
-      .send({});
+      .send({ category: "Power", weaponType: "Pistol", fireMode: "Semi-Auto", powerLevel: "M" });
     expect(close.status).toBe(200);
     expect(close.body.status).toBe("closed");
     expect(await db.select().from(inventoryItems)).toHaveLength(1);
@@ -127,7 +128,7 @@ describe("custom request override", () => {
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", admin.id)
-      .send({});
+      .send({ category: "Power", weaponType: "Pistol", fireMode: "Semi-Auto", powerLevel: "M" });
     expect(close.status).toBe(200);
     expect(close.body.status).toBe("closed");
     expect(await db.select().from(inventoryItems)).toHaveLength(1);
@@ -196,7 +197,7 @@ describe("close/reopen authorization", () => {
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", f1.id)
-      .send({});
+      .send({ category: "Power", weaponType: "Pistol", fireMode: "Semi-Auto", powerLevel: "M" });
     expect(close.status).toBe(200);
     expect(close.body.status).toBe("closed");
     expect(await db.select().from(inventoryItems)).toHaveLength(1);
@@ -358,7 +359,7 @@ describe("property rent overflow guard", () => {
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", admin.id)
-      .send({ monthlyRent: OVER_CAP, kind: "residential" });
+      .send({ monthlyRent: OVER_CAP, kind: "residential", district: "Watson", tier: "T2" });
     expect(close.status).toBe(200);
     const [lease] = await db.select().from(housing);
     expect(lease.monthlyRent).toBe(MAX_MONEY);
@@ -421,7 +422,7 @@ describe("property rent overflow guard", () => {
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", admin.id)
-      .send({ monthlyRent: 2500, kind: "business" });
+      .send({ monthlyRent: 2500, kind: "business", district: "Watson", tier: "T1" });
     expect(close.status).toBe(200);
     const [lease] = await db.select().from(housing);
     expect(lease.monthlyRent).toBe(2500);
@@ -440,7 +441,7 @@ describe("property rent overflow guard", () => {
     const close = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", admin.id)
-      .send({ monthlyRent: 2500, kind: "residential" });
+      .send({ monthlyRent: 2500, kind: "residential", district: "Watson", tier: "T2" });
     expect(close.status).toBe(200);
 
     const after = await request(app)
@@ -495,7 +496,10 @@ describe("auto-finalize on staff-queue read after reviewer pool shrinks", () => 
     expect(audits).toHaveLength(1);
 
     // Close & Apply now works and materializes exactly one item.
-    const close = await request(app).post(`/api/review/request/${reqId}/close`).set("x-test-user", f3.id).send({});
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", f3.id)
+      .send({ category: "Power", weaponType: "Pistol", fireMode: "Semi-Auto", powerLevel: "M" });
     expect(close.status).toBe(200);
     expect(close.body.status).toBe("closed");
     expect(await db.select().from(inventoryItems)).toHaveLength(1);

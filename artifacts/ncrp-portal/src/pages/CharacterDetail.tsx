@@ -1583,6 +1583,7 @@ function HousingCard({ characterId, characterName }: { characterId: number; char
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {l.tier ? <span className="text-nc-magenta uppercase mr-2">{l.tier}</span> : null}
+                      {l.district ? <span className="text-nc-cyan mr-2">{l.district}</span> : null}
                       <span className="text-nc-yellow">€${l.monthlyRent.toLocaleString()}/mo</span>
                       {paid ? (
                         <span className={`ml-3 ${l.delinquent ? "text-destructive" : ""}`}>

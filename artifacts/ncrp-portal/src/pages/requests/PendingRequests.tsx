@@ -17,6 +17,7 @@ import {
   useRejectGuidebookEdit,
   useCloseReviewTicket,
   useReopenReviewTicket,
+  useListDistricts,
   useGetReviewUnseenCounts,
   useGetReviewUnseenIds,
   getGetReviewUnseenIdsQueryKey,
@@ -40,6 +41,16 @@ import {
   type MissionSummary,
 } from "@workspace/api-client-react";
 import { formatEddies } from "@/lib/format";
+import SelectOrCustom from "@/components/SelectOrCustom";
+import {
+  GUN_CATEGORIES,
+  GUN_WEAPON_TYPES,
+  GUN_POWER_LEVELS,
+  FIRE_MODES,
+  GUN_WEAPON_TYPE_ALIASES,
+  GUN_POWER_LEVEL_ALIASES,
+} from "@/components/catalog/gunTypes";
+import { CYBERWARE_SLOTS } from "@/lib/cyberwareOptions";
 import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "./reviewSort";
 import { useReviewTicketActions, LifecycleActions, CloseTicketDialog } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
@@ -483,10 +494,22 @@ function RequestCloseDialog({
   const [monthlyRent, setMonthlyRent] = useState("");
   const [kind, setKind] = useState<"residential" | "business">("residential");
   const [businessName, setBusinessName] = useState("");
+  const [district, setDistrict] = useState("");
+  const [tier, setTier] = useState("");
   const [cwp, setCwp] = useState("");
+  const [slot, setSlot] = useState("");
+  const [gunCategory, setGunCategory] = useState("");
+  const [weaponType, setWeaponType] = useState("");
+  const [fireMode, setFireMode] = useState("");
+  const [powerLevel, setPowerLevel] = useState("");
+  const [manufacturer, setManufacturer] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [retail, setRetail] = useState("");
   const [qty, setQty] = useState("1");
+
+  // Districts mirror the properties page; offered as presets with a custom escape.
+  const { data: districts } = useListDistricts();
+  const districtNames = (districts ?? []).map((d) => d.name);
 
   // Re-seed local form state whenever a different request is opened.
   const seedKey = target ? `${target.request.id}:${target.mode}` : "";
@@ -496,7 +519,15 @@ function RequestCloseDialog({
     setMonthlyRent("");
     setKind("residential");
     setBusinessName("");
+    setDistrict("");
+    setTier("");
     setCwp("");
+    setSlot("");
+    setGunCategory("");
+    setWeaponType("");
+    setFireMode("");
+    setPowerLevel("");
+    setManufacturer("");
     setUnitCost("");
     setRetail("");
     setQty("1");
@@ -525,16 +556,25 @@ function RequestCloseDialog({
   const isProperty = request.type === "property";
   const isCyberware = request.type === "cyberware";
   const isVenueStock = request.type === "venue_stock";
+  const isGun = request.type === "gun";
 
   const rentNum = parseInt(monthlyRent, 10);
   const cwpNum = parseInt(cwp, 10);
   const unitCostNum = parseInt(unitCost, 10);
   const retailNum = parseInt(retail, 10);
   const qtyNum = parseInt(qty, 10);
+  // Tier presets mirror the properties page (kind-dependent); custom is allowed.
+  const tierOptions = kind === "business" ? ["T0", "T1", "T2", "T3"] : ["T1", "T2", "T3"];
   const paramsValid =
     !isApply ||
-    ((!isProperty || (Number.isFinite(rentNum) && rentNum >= 0)) &&
-      (!isCyberware || (Number.isFinite(cwpNum) && cwpNum >= 0)) &&
+    ((!isProperty ||
+      (Number.isFinite(rentNum) && rentNum >= 0 && district.trim() !== "" && tier.trim() !== "")) &&
+      (!isCyberware || (Number.isFinite(cwpNum) && cwpNum >= 0 && slot.trim() !== "")) &&
+      (!isGun ||
+        (gunCategory.trim() !== "" &&
+          weaponType.trim() !== "" &&
+          fireMode.trim() !== "" &&
+          powerLevel.trim() !== "")) &&
       (!isVenueStock ||
         (Number.isFinite(unitCostNum) &&
           unitCostNum >= 0 &&
@@ -547,9 +587,24 @@ function RequestCloseDialog({
     const params = isApply
       ? {
           ...(isProperty
-            ? { monthlyRent: rentNum, kind, ...(businessName.trim() ? { businessName: businessName.trim() } : {}) }
+            ? {
+                monthlyRent: rentNum,
+                kind,
+                district: district.trim(),
+                tier: tier.trim(),
+                ...(businessName.trim() ? { businessName: businessName.trim() } : {}),
+              }
             : {}),
-          ...(isCyberware ? { cwp: cwpNum } : {}),
+          ...(isCyberware ? { cwp: cwpNum, slot: slot.trim() } : {}),
+          ...(isGun
+            ? {
+                category: gunCategory.trim(),
+                weaponType: weaponType.trim(),
+                fireMode: fireMode.trim(),
+                powerLevel: powerLevel.trim(),
+                ...(manufacturer.trim() ? { manufacturer: manufacturer.trim() } : {}),
+              }
+            : {}),
           ...(isVenueStock ? { unitCost: unitCostNum, retail: retailNum, qty: qtyNum } : {}),
         }
       : {};
@@ -610,21 +665,123 @@ function RequestCloseDialog({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">District</Label>
+                <SelectOrCustom
+                  value={district}
+                  onChange={setDistrict}
+                  options={districtNames}
+                  allowEmpty={false}
+                  placeholder="Select a district…"
+                  customPlaceholder="Off-map / custom district"
+                  testId="select-close-district"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Tier</Label>
+                <SelectOrCustom
+                  value={tier}
+                  onChange={setTier}
+                  options={tierOptions}
+                  allowEmpty={false}
+                  placeholder="Select a tier…"
+                  customPlaceholder="Custom tier"
+                  testId="select-close-tier"
+                />
+              </div>
             </>
           )}
           {isApply && isCyberware && (
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">CWP (chrome point cost)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={cwp}
-                onChange={(e) => setCwp(e.target.value)}
-                placeholder="e.g. 2"
-                className="rounded-none font-mono"
-                data-testid="input-close-cwp"
-              />
-            </div>
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">CWP (chrome point cost)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={cwp}
+                  onChange={(e) => setCwp(e.target.value)}
+                  placeholder="e.g. 2"
+                  className="rounded-none font-mono"
+                  data-testid="input-close-cwp"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Slot (body system)</Label>
+                <SelectOrCustom
+                  value={slot}
+                  onChange={setSlot}
+                  options={CYBERWARE_SLOTS}
+                  allowEmpty={false}
+                  placeholder="Select a slot…"
+                  customPlaceholder="Custom slot"
+                  testId="select-close-slot"
+                />
+              </div>
+            </>
+          )}
+          {isApply && isGun && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Category</Label>
+                <SelectOrCustom
+                  value={gunCategory}
+                  onChange={setGunCategory}
+                  options={GUN_CATEGORIES}
+                  allowEmpty={false}
+                  placeholder="Power / Tech / Smart…"
+                  customPlaceholder="Custom category"
+                  testId="select-close-gun-category"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Weapon Type</Label>
+                <SelectOrCustom
+                  value={weaponType}
+                  onChange={setWeaponType}
+                  options={GUN_WEAPON_TYPES}
+                  aliases={GUN_WEAPON_TYPE_ALIASES}
+                  allowEmpty={false}
+                  placeholder="Pistol / SMG / …"
+                  customPlaceholder="Custom weapon type"
+                  testId="select-close-gun-type"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Fire Mode</Label>
+                <SelectOrCustom
+                  value={fireMode}
+                  onChange={setFireMode}
+                  options={FIRE_MODES}
+                  allowEmpty={false}
+                  placeholder="Semi-Auto / Burst / Full-Auto…"
+                  customPlaceholder="Custom fire mode"
+                  testId="select-close-gun-fire"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Power Level (L/M/H)</Label>
+                <SelectOrCustom
+                  value={powerLevel}
+                  onChange={setPowerLevel}
+                  options={GUN_POWER_LEVELS}
+                  aliases={GUN_POWER_LEVEL_ALIASES}
+                  allowEmpty={false}
+                  placeholder="L / M / H…"
+                  customPlaceholder="Custom power level"
+                  testId="select-close-gun-power"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Manufacturer (optional)</Label>
+                <Input
+                  value={manufacturer}
+                  onChange={(e) => setManufacturer(e.target.value)}
+                  placeholder="e.g. Militech"
+                  className="rounded-none font-mono"
+                  data-testid="input-close-gun-manufacturer"
+                />
+              </div>
+            </>
           )}
           {isApply && isVenueStock && (
             <>
