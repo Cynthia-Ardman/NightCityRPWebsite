@@ -11,6 +11,8 @@ import {
   useDecideMissionParticipation,
   useUpdateCustomRequest,
   useResubmitCustomRequest,
+  useSubmitDraftCustomRequest,
+  useDeleteDraftCustomRequest,
   useGetMyUnseen,
   getListMyCustomRequestsQueryKey,
   getListPendingEditsQueryKey,
@@ -35,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
-import { ClipboardList, RotateCcw, Pencil, MessageSquare, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { ClipboardList, RotateCcw, Pencil, Trash2, MessageSquare, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import ReviewCommentThread from "@/components/ReviewCommentThread";
 import PendingEditDiffInline from "@/components/PendingEditDiffInline";
 
@@ -68,6 +70,10 @@ type HistoryRow = {
   // Set for custom requests the owner can act on directly (stock-cost).
   customId?: number;
   customType?: CustomRequest["type"];
+  // Venue (store/ripperdoc) request content, surfaced so the draft editor can
+  // resume an incomplete venue draft (these are required to submit it).
+  purpose?: string | null;
+  location?: string | null;
   // Review-subject identity for the discussion thread + unread dots. Housing
   // leases aren't part of the review pipeline, so they leave these unset.
   subjectType?: "request" | "edit" | "sheet";
@@ -202,7 +208,7 @@ export default function MyRequests() {
   const { toast } = useToast();
   // mode "resubmit" = changes_requested flow (edit then send back to queue);
   // mode "save" = still-pending in-queue edit (save only, votes reset server-side).
-  const [editing, setEditing] = useState<{ id: number; title: string; description: string; mode: "save" | "resubmit" } | null>(null);
+  const [editing, setEditing] = useState<{ id: number; title: string; description: string; mode: "save" | "resubmit"; isVenue?: boolean; purpose?: string; location?: string } | null>(null);
   const [discussing, setDiscussing] = useState<string | null>(null);
   // Per-queue ids of the player's own submissions with unseen activity. Drives
   // the per-row unread dot; opening a row's discussion clears it server-side.
@@ -261,6 +267,18 @@ export default function MyRequests() {
       onError: (err) => toast({ title: "Resubmit failed", description: errMsg(err, "Resubmit failed"), variant: "destructive" }),
     },
   });
+  const submitDraft = useSubmitDraftCustomRequest({
+    mutation: {
+      onSuccess: () => { toast({ title: "Submitted for review" }); invalidateMine(); },
+      onError: (err) => toast({ title: "Could not submit", description: errMsg(err, "Submit failed"), variant: "destructive" }),
+    },
+  });
+  const deleteDraft = useDeleteDraftCustomRequest({
+    mutation: {
+      onSuccess: () => { toast({ title: "Draft deleted" }); invalidateMine(); },
+      onError: (err) => toast({ title: "Could not delete", description: errMsg(err, "Delete failed"), variant: "destructive" }),
+    },
+  });
 
   // Save the edited title/description. In "resubmit" mode (changes_requested) we
   // also send it back to the queue; resubmit is allowed even with no edits. In
@@ -269,7 +287,12 @@ export default function MyRequests() {
   const saveEditing = async () => {
     if (!editing) return;
     try {
-      await update.mutateAsync({ id: editing.id, data: { title: editing.title, description: editing.description } });
+      const data: Record<string, unknown> = { title: editing.title, description: editing.description };
+      if (editing.isVenue) {
+        data.purpose = editing.purpose ?? "";
+        data.location = editing.location ?? "";
+      }
+      await update.mutateAsync({ id: editing.id, data });
       if (editing.mode === "resubmit") {
         await resubmit.mutateAsync({ id: editing.id });
       } else {
@@ -289,7 +312,10 @@ export default function MyRequests() {
         role?: string | null;
         commissionPct?: number | null;
         venueName?: string | null;
+        purpose?: string | null;
+        location?: string | null;
       };
+      const isVenue = r.type === "store" || r.type === "ripperdoc";
       out.push({
         key: `custom-${r.id}`,
         category: CUSTOM_LABEL[r.type] ?? "Property",
@@ -302,6 +328,8 @@ export default function MyRequests() {
         description: r.description,
         customId: r.id,
         customType: r.type,
+        purpose: isVenue ? det.purpose ?? null : null,
+        location: isVenue ? det.location ?? null : null,
         subjectType: "request",
         subjectId: r.id,
         inviteRole: r.type === "employee_invite" ? det.role ?? null : null,
@@ -451,6 +479,44 @@ export default function MyRequests() {
                 data-testid={`button-resubmit-${r.customId}`}
               >
                 <RotateCcw className="w-3 h-3 mr-1" /> RESUBMIT
+              </Button>
+            </div>
+          ) : null}
+          {/* Draft: the player's private work-in-progress. Submit promotes it to
+              the review queue (server re-validates), Edit amends title/description
+              in place, Delete discards it. */}
+          {r.status === "draft" && r.customId != null ? (
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={submitDraft.isPending}
+                className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
+                onClick={() => submitDraft.mutate({ id: r.customId! })}
+                data-testid={`button-submit-draft-${r.customId}`}
+              >
+                <RotateCcw className="w-3 h-3 mr-1" /> SUBMIT
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "save", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "" })}
+                data-testid={`button-edit-draft-${r.customId}`}
+              >
+                <Pencil className="w-3 h-3 mr-1" /> EDIT
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={deleteDraft.isPending}
+                className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
+                onClick={() => deleteDraft.mutate({ id: r.customId! })}
+                data-testid={`button-delete-draft-${r.customId}`}
+              >
+                <Trash2 className="w-3 h-3 mr-1" /> DELETE
               </Button>
             </div>
           ) : null}
@@ -743,6 +809,28 @@ export default function MyRequests() {
                   data-testid="input-edit-description"
                 />
               </div>
+              {editing.isVenue && (
+                <>
+                  <div>
+                    <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Purpose</label>
+                    <Input
+                      value={editing.purpose ?? ""}
+                      onChange={(e) => setEditing({ ...editing, purpose: e.target.value })}
+                      className="rounded-none mt-1"
+                      data-testid="input-edit-purpose"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Location</label>
+                    <Input
+                      value={editing.location ?? ""}
+                      onChange={(e) => setEditing({ ...editing, location: e.target.value })}
+                      className="rounded-none mt-1"
+                      data-testid="input-edit-location"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
           <DialogFooter>

@@ -797,7 +797,11 @@ async function notifyRequesterOfDecision(
 // Submit a custom request. Player picks one of their own characters and types
 // a free-text title (location / item name) and description.
 router.post("/requests", requireAuth, async (req, res): Promise<void> => {
-  const { type, characterId, title, description, imageUrl, purpose, location, source, locationKind, listingId } = req.body ?? {};
+  const { type, characterId, title, description, imageUrl, purpose, location, source, locationKind, listingId, asDraft } = req.body ?? {};
+  // A draft is the requester's private work-in-progress: it is NOT announced to
+  // the cs-approver queue, holds no building reservation, and is invisible to
+  // reviewers until the player submits it (POST /requests/:id/submit).
+  const isDraft = asDraft === true;
   const reqType = String(type) as RequestType;
   if (!REQUEST_TYPES.includes(reqType)) {
     res.status(400).json({ error: `type must be one of: ${REQUEST_TYPES.join(", ")}` });
@@ -838,44 +842,54 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
     // "on_map" picks a business building from the rent catalog; "off_map" (the
     // default / legacy behaviour) keeps the free-text location.
     const kind = locationKind === "on_map" ? "on_map" : "off_map";
+    // Drafts skip the required-field gates (mirrors the sheet draft→submit flow):
+    // a player can stash partial work and finish it later. The full check runs at
+    // POST /requests/:id/submit before the row ever reaches reviewers.
     if (kind === "on_map") {
-      if (!p || !d) {
+      if (!isDraft && (!p || !d)) {
         res.status(400).json({ error: "purpose and description are required" });
         return;
       }
       const lid = Number(listingId);
-      if (!Number.isInteger(lid) || lid <= 0) {
+      if (Number.isInteger(lid) && lid > 0) {
+        const [listing] = await db.select().from(catalogRent).where(eq(catalogRent.id, lid));
+        if (!listing || listing.kind !== "business") {
+          res.status(400).json({ error: "Selected building is not an available business building" });
+          return;
+        }
+        // Reject up-front if the building already has a lease or a live reservation
+        // (the partial-unique index is the authoritative race guard below). Drafts
+        // hold no reservation, so they skip this — availability is re-checked when
+        // the draft is submitted.
+        if (!isDraft) {
+          const [existingLease] = await db
+            .select({ id: housing.id })
+            .from(housing)
+            .where(eq(housing.listingId, lid))
+            .limit(1);
+          if (existingLease || (await isListingReserved(lid))) {
+            res.status(409).json({ error: "That building is no longer available" });
+            return;
+          }
+        }
+        const buildingLabel = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
+        details = { purpose: p, locationKind: "on_map", listingId: lid, location: buildingLabel };
+        reservedListingId = lid;
+      } else if (!isDraft) {
         res.status(400).json({ error: "listingId is required for an on-map venue" });
         return;
+      } else {
+        details = { purpose: p, locationKind: "on_map" };
       }
-      const [listing] = await db.select().from(catalogRent).where(eq(catalogRent.id, lid));
-      if (!listing || listing.kind !== "business") {
-        res.status(400).json({ error: "Selected building is not an available business building" });
-        return;
-      }
-      // Reject up-front if the building already has a lease or a live reservation
-      // (the partial-unique index is the authoritative race guard below).
-      const [existingLease] = await db
-        .select({ id: housing.id })
-        .from(housing)
-        .where(eq(housing.listingId, lid))
-        .limit(1);
-      if (existingLease || (await isListingReserved(lid))) {
-        res.status(409).json({ error: "That building is no longer available" });
-        return;
-      }
-      const buildingLabel = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
-      details = { purpose: p, locationKind: "on_map", listingId: lid, location: buildingLabel };
-      reservedListingId = lid;
     } else {
       const l = typeof location === "string" ? location.trim() : "";
-      if (!p || !l || !d) {
+      if (!isDraft && (!p || !l || !d)) {
         res.status(400).json({ error: "purpose, location, and description are required" });
         return;
       }
       details = { purpose: p, locationKind: "off_map", location: l };
     }
-    descToStore = d;
+    descToStore = d || null;
   } else if ((reqType === "gun" || reqType === "cyberware") && typeof source === "string" && source.trim()) {
     // Optional "where do you want this from" source for gun/cyberware requests
     // (a store/ripperdoc name or a free-text "Custom" value). Carried on
@@ -892,9 +906,13 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
     imageUrl: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
     details: details as never,
     reservedListingId,
+    status: isDraft ? "draft" : "pending",
   };
   let inserted: typeof customRequests.$inferSelect | undefined;
-  if (reservedListingId != null) {
+  // Drafts never hold a reservation (the partial-unique index only covers
+  // pending/approved rows), so they always take the plain insert path; the
+  // building is re-validated and reserved when the draft is submitted.
+  if (reservedListingId != null && !isDraft) {
     // On-map: lock the building row FOR UPDATE so a concurrent /housing/lease or
     // another on-map submit serializes here — otherwise a lease could land
     // between our pre-check and insert and strand an approved request. Re-check
@@ -929,7 +947,10 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
   }
   const [row] = await selectWhere(eq(customRequests.id, inserted.id));
   // Mirror sheets/edits: announce to cs-approver + open a thread, fire-and-forget.
-  void announceRequest(inserted.id, reqType, String(title).trim(), c.name, req.user!.username);
+  // Drafts stay private until the player submits them, so skip the announce.
+  if (!isDraft) {
+    void announceRequest(inserted.id, reqType, String(title).trim(), c.name, req.user!.username);
+  }
   res.status(201).json(shape(row));
 });
 
@@ -1307,7 +1328,7 @@ router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Only the requester can edit this request" });
     return;
   }
-  if (reqRow.status !== "pending" && reqRow.status !== "changes_requested") {
+  if (reqRow.status !== "pending" && reqRow.status !== "changes_requested" && reqRow.status !== "draft") {
     res.status(409).json({ error: `Request is ${reqRow.status} and can no longer be edited` });
     return;
   }
@@ -1356,10 +1377,12 @@ router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
       return;
     }
   } else {
+    // changes_requested OR draft: no votes to clear; guard on the exact status we
+    // read so a concurrent submit/resubmit can't be clobbered.
     const rows = await db
       .update(customRequests)
       .set(patch)
-      .where(and(eq(customRequests.id, rid), eq(customRequests.status, "changes_requested")))
+      .where(and(eq(customRequests.id, rid), eq(customRequests.status, reqRow.status)))
       .returning({ id: customRequests.id });
     if (rows.length === 0) {
       res.status(409).json({ error: "This request's status changed — refresh and try again" });
@@ -1402,6 +1425,103 @@ router.post("/requests/:id/resubmit", requireAuth, async (req, res): Promise<voi
   if (!ok) { res.status(409).json({ error: "Request is no longer awaiting changes" }); return; }
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));
+});
+
+// POST /requests/:id/submit — the requester promotes their own draft into the
+// review queue. Mirrors the sheet draft→submit flow: flips status to pending,
+// re-reserves the on-map building (if any) under a FOR UPDATE lock, and fires
+// the cs-approver announce.
+router.post("/requests/:id/submit", requireAuth, async (req, res): Promise<void> => {
+  const rid = parseInt(String(req.params.id), 10);
+  const [reqRow] = await db.select().from(customRequests).where(eq(customRequests.id, rid));
+  if (!reqRow) { res.status(404).json({ error: "Request not found" }); return; }
+  if (reqRow.requestedById !== req.user!.id && !isAdmin(req.user!)) {
+    res.status(403).json({ error: "Only the requester can submit this request" });
+    return;
+  }
+  if (reqRow.status !== "draft") {
+    res.status(409).json({ error: `Request is ${reqRow.status}, not a draft` });
+    return;
+  }
+  // Re-run the content gates the create path skipped for drafts, reading the
+  // STORED row so an incomplete draft can never reach reviewers (mirrors the
+  // sheet submit re-validation).
+  if (!reqRow.title?.trim()) {
+    res.status(400).json({ error: "Add a title before submitting" });
+    return;
+  }
+  if (isVenueType(reqRow.type)) {
+    const det = (reqRow.details ?? {}) as Record<string, unknown>;
+    const p = typeof det.purpose === "string" ? det.purpose.trim() : "";
+    const d = reqRow.description?.trim() ?? "";
+    if (!p || !d) {
+      res.status(400).json({ error: "Add a purpose and description before submitting" });
+      return;
+    }
+    if (det.locationKind === "on_map") {
+      if (reqRow.reservedListingId == null) {
+        res.status(400).json({ error: "Select a building before submitting" });
+        return;
+      }
+    } else {
+      const l = typeof det.location === "string" ? det.location.trim() : "";
+      if (!l) {
+        res.status(400).json({ error: "Add a location before submitting" });
+        return;
+      }
+    }
+  }
+  if (reqRow.reservedListingId != null) {
+    // On-map venue: re-validate + claim the building under a lock exactly like
+    // the create path, so a draft submitted late can't double-book a building
+    // that was leased/reserved while it sat in drafts.
+    const lid = reqRow.reservedListingId;
+    const ok = await db.transaction(async (tx) => {
+      await tx.select({ id: catalogRent.id }).from(catalogRent).where(eq(catalogRent.id, lid)).for("update");
+      const [existingLease] = await tx
+        .select({ id: housing.id })
+        .from(housing)
+        .where(eq(housing.listingId, lid))
+        .limit(1);
+      if (existingLease || (await isListingReserved(lid, tx))) return false;
+      const [changed] = await tx
+        .update(customRequests)
+        .set({ status: "pending" })
+        .where(and(eq(customRequests.id, rid), eq(customRequests.status, "draft")))
+        .returning({ id: customRequests.id });
+      return !!changed;
+    });
+    if (!ok) { res.status(409).json({ error: "That building is no longer available" }); return; }
+  } else {
+    const [changed] = await db
+      .update(customRequests)
+      .set({ status: "pending" })
+      .where(and(eq(customRequests.id, rid), eq(customRequests.status, "draft")))
+      .returning({ id: customRequests.id });
+    if (!changed) { res.status(409).json({ error: "Request is no longer a draft" }); return; }
+  }
+  const [row] = await selectWhere(eq(customRequests.id, rid));
+  const [c] = await db.select().from(characters).where(eq(characters.id, reqRow.characterId));
+  void announceRequest(rid, reqRow.type, reqRow.title, c?.name ?? "(unknown)", req.user!.username);
+  res.json(shape(row));
+});
+
+// DELETE /requests/:id — the requester discards their own draft. Only drafts can
+// be deleted; submitted requests are cancelled/closed through the review flow.
+router.delete("/requests/:id", requireAuth, async (req, res): Promise<void> => {
+  const rid = parseInt(String(req.params.id), 10);
+  const [reqRow] = await db.select().from(customRequests).where(eq(customRequests.id, rid));
+  if (!reqRow) { res.status(404).json({ error: "Request not found" }); return; }
+  if (reqRow.requestedById !== req.user!.id && !isAdmin(req.user!)) {
+    res.status(403).json({ error: "Only the requester can delete this request" });
+    return;
+  }
+  if (reqRow.status !== "draft") {
+    res.status(409).json({ error: "Only draft requests can be deleted" });
+    return;
+  }
+  await db.delete(customRequests).where(and(eq(customRequests.id, rid), eq(customRequests.status, "draft")));
+  res.status(204).end();
 });
 
 // Venue-owner decision on a fixer/admin-proposed `stock_cost` request. Unlike

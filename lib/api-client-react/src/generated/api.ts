@@ -18797,6 +18797,76 @@ export const useResubmitCustomRequest = <TError = ErrorType<void>,
       return useMutation(getResubmitCustomRequestMutationOptions(options));
     }
 
+export const getSubmitDraftCustomRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/submit`
+}
+
+/**
+ * @summary The requester promotes their own draft into the review queue. Re-reserves the on-map building (if any) and announces to reviewers.
+ */
+export const submitDraftCustomRequest = async (id: number, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getSubmitDraftCustomRequestUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSubmitDraftCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitDraftCustomRequest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitDraftCustomRequest>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['submitDraftCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitDraftCustomRequest>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  submitDraftCustomRequest(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitDraftCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof submitDraftCustomRequest>>>
+
+    export type SubmitDraftCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary The requester promotes their own draft into the review queue. Re-reserves the on-map building (if any) and announces to reviewers.
+ */
+export const useSubmitDraftCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitDraftCustomRequest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitDraftCustomRequest>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitDraftCustomRequestMutationOptions(options));
+    }
+
 export const getUpdateCustomRequestUrl = (id: number,) => {
 
 
@@ -18806,7 +18876,7 @@ export const getUpdateCustomRequestUrl = (id: number,) => {
 }
 
 /**
- * @summary The requester (or admin) edits a request while it is pending or changes_requested.
+ * @summary The requester (or admin) edits a request while it is a draft, pending, or changes_requested.
  */
 export const updateCustomRequest = async (id: number,
     customRequestPatchInput: CustomRequestPatchInput, options?: RequestInit): Promise<CustomRequest> => {
@@ -18856,7 +18926,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateCustomRequestMutationError = ErrorType<void>
 
     /**
- * @summary The requester (or admin) edits a request while it is pending or changes_requested.
+ * @summary The requester (or admin) edits a request while it is a draft, pending, or changes_requested.
  */
 export const useUpdateCustomRequest = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomRequest>>, TError,{id: number;data: BodyType<CustomRequestPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -18867,6 +18937,76 @@ export const useUpdateCustomRequest = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateCustomRequestMutationOptions(options));
+    }
+
+export const getDeleteDraftCustomRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}`
+}
+
+/**
+ * @summary The requester discards their own draft. Only draft requests can be deleted.
+ */
+export const deleteDraftCustomRequest = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteDraftCustomRequestUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteDraftCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDraftCustomRequest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDraftCustomRequest>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteDraftCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDraftCustomRequest>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteDraftCustomRequest(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDraftCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDraftCustomRequest>>>
+
+    export type DeleteDraftCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary The requester discards their own draft. Only draft requests can be deleted.
+ */
+export const useDeleteDraftCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDraftCustomRequest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDraftCustomRequest>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteDraftCustomRequestMutationOptions(options));
     }
 
 export const getDecideStockCostRequestUrl = (id: number,) => {

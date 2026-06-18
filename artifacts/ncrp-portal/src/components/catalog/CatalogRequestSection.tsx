@@ -90,9 +90,13 @@ export default function CatalogRequestSection({
 
   const submit = useSubmitCustomRequest({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         queryClient.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey({ type }) });
-        toast({ title: "Request submitted", description: "Staff will review it shortly." });
+        toast(
+          variables?.data?.asDraft
+            ? { title: "Draft saved", description: "Find it under Your Requests to finish and submit." }
+            : { title: "Request submitted", description: "Staff will review it shortly." },
+        );
         setOpen(false);
         setTitle("");
         setDescription("");
@@ -114,6 +118,18 @@ export default function CatalogRequestSection({
   const resolvedSource =
     !hasSource || !source ? "" : source === CUSTOM_SOURCE ? customSource.trim() : source;
   const canSubmit = !!effectiveCharacterId && !!title.trim() && !submit.isPending;
+  // A draft only needs a character + title; the rest can be filled in later.
+  const canSaveDraft = !!effectiveCharacterId && !!title.trim() && !submit.isPending;
+
+  const buildData = (asDraft: boolean) => ({
+    type,
+    characterId: parseInt(effectiveCharacterId, 10),
+    title: title.trim(),
+    description: description.trim() || undefined,
+    imageUrl: imageUrl || undefined,
+    source: resolvedSource || undefined,
+    ...(asDraft ? { asDraft: true } : {}),
+  });
 
   const myRequests = (mine ?? []) as CustomRequest[];
 
@@ -251,20 +267,18 @@ export default function CatalogRequestSection({
               CANCEL
             </Button>
             <Button
+              variant="outline"
+              className="rounded-none font-display tracking-widest"
+              disabled={!canSaveDraft}
+              onClick={() => submit.mutate({ data: buildData(true) })}
+              data-testid={`button-save-draft-${type}`}
+            >
+              {submit.isPending ? "SAVING..." : "SAVE DRAFT"}
+            </Button>
+            <Button
               className="rounded-none font-display tracking-widest bg-nc-cyan text-background hover:bg-nc-cyan/80"
               disabled={!canSubmit}
-              onClick={() =>
-                submit.mutate({
-                  data: {
-                    type,
-                    characterId: parseInt(effectiveCharacterId, 10),
-                    title: title.trim(),
-                    description: description.trim() || undefined,
-                    imageUrl: imageUrl || undefined,
-                    source: resolvedSource || undefined,
-                  },
-                })
-              }
+              onClick={() => submit.mutate({ data: buildData(false) })}
               data-testid={`button-submit-${type}`}
             >
               {submit.isPending ? "SUBMITTING..." : "SUBMIT"}

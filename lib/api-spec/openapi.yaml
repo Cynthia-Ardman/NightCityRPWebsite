@@ -4151,13 +4151,29 @@ paths:
         "403": { description: Only the requester can resubmit }
         "404": { description: Not found }
         "409": { description: Not awaiting changes }
+  /requests/{id}/submit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: submitDraftCustomRequest
+      tags: [requests]
+      summary: The requester promotes their own draft into the review queue. Re-reserves the on-map building (if any) and announces to reviewers.
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "403": { description: Only the requester can submit }
+        "404": { description: Not found }
+        "409": { description: "Not a draft, or the reserved building is no longer available" }
   /requests/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     patch:
       operationId: updateCustomRequest
       tags: [requests]
-      summary: The requester (or admin) edits a request while it is pending or changes_requested.
+      summary: The requester (or admin) edits a request while it is a draft, pending, or changes_requested.
       requestBody:
         required: true
         content:
@@ -4172,6 +4188,15 @@ paths:
         "403": { description: Only the requester can edit }
         "404": { description: Not found }
         "409": { description: No longer editable }
+    delete:
+      operationId: deleteDraftCustomRequest
+      tags: [requests]
+      summary: The requester discards their own draft. Only draft requests can be deleted.
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Only the requester can delete }
+        "404": { description: Not found }
+        "409": { description: Only draft requests can be deleted }
   /requests/{id}/stock-decision:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -7433,7 +7458,7 @@ components:
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], description: "Optional reference image the player attached." }
         details: { description: "Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }.", nullable: true }
-        status: { type: string, enum: [pending, approved, rejected, changes_requested, cancelled, closed] }
+        status: { type: string, enum: [draft, pending, approved, rejected, changes_requested, cancelled, closed] }
         reviewedById: { type: ["string", "null"] }
         reviewedAt: { type: ["string", "null"], format: date-time }
         reviewerNote: { type: ["string", "null"], description: "On changes_requested this carries the reviewer's comment to the player." }
@@ -7514,6 +7539,7 @@ components:
           description: "Store/ripperdoc requests: off_map uses free-text location; on_map reserves a business building (listingId). Defaults to off_map."
         listingId: { type: integer, description: "Required for on_map store/ripperdoc requests; the business catalog_rent building to reserve." }
         source: { type: string, description: "For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source." }
+        asDraft: { type: boolean, description: "When true the request is saved as a private draft (status=draft): not announced to reviewers and holding no building reservation until submitted via /requests/{id}/submit." }
 
     OverrideDecisionInput:
       type: object

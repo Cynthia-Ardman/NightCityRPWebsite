@@ -87,10 +87,14 @@ export default function VenueRequestSection({
 
   const submit = useSubmitCustomRequest({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         queryClient.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey({ type }) });
         queryClient.invalidateQueries({ queryKey: getListAvailableBusinessBuildingsQueryKey() });
-        toast({ title: "Request submitted", description: "Staff will review it shortly." });
+        toast(
+          variables?.data?.asDraft
+            ? { title: "Draft saved", description: "Find it under Your Requests to finish and submit." }
+            : { title: "Request submitted", description: "Staff will review it shortly." },
+        );
         setOpen(false);
         reset();
       },
@@ -112,6 +116,23 @@ export default function VenueRequestSection({
     locationOk &&
     !!description.trim() &&
     !submit.isPending;
+  // A draft only needs a character + name; everything else can be filled in later.
+  const canSaveDraft = !!characterId && !!name.trim() && !submit.isPending;
+
+  const buildData = (asDraft: boolean) => ({
+    type,
+    characterId: parseInt(characterId, 10),
+    title: name.trim(),
+    description: description.trim(),
+    purpose: purpose.trim(),
+    locationKind,
+    ...(locationKind === "on_map"
+      ? listingId
+        ? { listingId: parseInt(listingId, 10) }
+        : {}
+      : { location: location.trim() }),
+    ...(asDraft ? { asDraft: true } : {}),
+  });
 
   const myRequests = (mine ?? []) as CustomRequest[];
 
@@ -275,23 +296,18 @@ export default function VenueRequestSection({
               CANCEL
             </Button>
             <Button
+              variant="outline"
+              className="rounded-none font-display tracking-widest"
+              disabled={!canSaveDraft}
+              onClick={() => submit.mutate({ data: buildData(true) })}
+              data-testid={`button-save-draft-${type}`}
+            >
+              {submit.isPending ? "SAVING..." : "SAVE DRAFT"}
+            </Button>
+            <Button
               className="rounded-none font-display tracking-widest bg-nc-cyan text-background hover:bg-nc-cyan/80"
               disabled={!canSubmit}
-              onClick={() =>
-                submit.mutate({
-                  data: {
-                    type,
-                    characterId: parseInt(characterId, 10),
-                    title: name.trim(),
-                    description: description.trim(),
-                    purpose: purpose.trim(),
-                    locationKind,
-                    ...(locationKind === "on_map"
-                      ? { listingId: parseInt(listingId, 10) }
-                      : { location: location.trim() }),
-                  },
-                })
-              }
+              onClick={() => submit.mutate({ data: buildData(false) })}
               data-testid={`button-submit-${type}`}
             >
               {submit.isPending ? "SUBMITTING..." : "SUBMIT"}

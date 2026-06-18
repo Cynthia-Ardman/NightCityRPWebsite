@@ -3335,6 +3335,7 @@ export type CustomRequestStatus = typeof CustomRequestStatus[keyof typeof Custom
 
 
 export const CustomRequestStatus = {
+  draft: 'draft',
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
@@ -3571,6 +3572,8 @@ export interface CustomRequestInput {
   listingId?: number;
   /** For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source. */
   source?: string;
+  /** When true the request is saved as a private draft (status=draft): not announced to reviewers and holding no building reservation until submitted via /requests/{id}/submit. */
+  asDraft?: boolean;
 }
 
 /**

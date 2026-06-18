@@ -10,6 +10,7 @@ export type CustomRequestStatus = typeof CustomRequestStatus[keyof typeof Custom
 
 
 export const CustomRequestStatus = {
+  draft: 'draft',
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',

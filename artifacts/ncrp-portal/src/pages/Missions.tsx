@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,6 +16,8 @@ import {
   useSignUpAsNpc,
   useWithdrawNpcSignup,
   useListMyCharacters,
+  useGetDefaultAvailability,
+  getGetDefaultAvailabilityQueryKey,
   getListMissionsQueryKey,
   getListOwnedMissionsQueryKey,
   getListCreatedMissionsQueryKey,
@@ -68,6 +70,14 @@ import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
 import { TrialFixerBadge } from "@/components/TrialFixerBadge";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Markdown from "@/components/Markdown";
+import {
+  AvailabilityGrid,
+  buildDayColumns,
+  expandPattern,
+  patternFromInstants,
+  type AvailabilitySlot,
+} from "@/components/AvailabilityGrid";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type TabKey =
   | "open"
@@ -913,6 +923,24 @@ function InlineMissionActions({ m, npcOnly }: { m: MissionSummary; npcOnly?: boo
   const [dialogOpen, setDialogOpen] = useState(false);
   const [characterId, setCharacterId] = useState<number | "">("");
   const [comment, setComment] = useState("");
+  const [slots, setSlots] = useState<string[]>([]);
+  const [makeDefault, setMakeDefault] = useState(false);
+
+  // Pre-fill the availability picker from the player's saved weekly default the
+  // first time they open the dialog (re-projected onto the current rolling
+  // window so stale instants don't carry over). Mirrors the detail-page form.
+  const days = useMemo(() => buildDayColumns(), []);
+  const def = useGetDefaultAvailability({ query: { enabled: dialogOpen, queryKey: getGetDefaultAvailabilityQueryKey() } });
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (!dialogOpen || prefilled.current) return;
+    if (def.data && def.data.pattern.length > 0) {
+      setSlots(expandPattern(def.data.pattern, days));
+      prefilled.current = true;
+    } else if (!def.isLoading && def.isFetched) {
+      prefilled.current = true;
+    }
+  }, [dialogOpen, def.data, def.isLoading, def.isFetched, days]);
 
   const appErr = errOf(apply.error) ?? errOf(withdrawApp.error);
   const npcErr = errOf(signUp.error) ?? errOf(removeNpc.error);
@@ -1051,6 +1079,19 @@ function InlineMissionActions({ m, npcOnly }: { m: MissionSummary; npcOnly?: boo
               placeholder="Why your character is a good fit…"
               data-testid={`input-apply-comment-${m.id}`}
             />
+            <div className="space-y-2 pt-1">
+              <Label className="text-xs">YOUR AVAILABILITY (optional)</Label>
+              <AvailabilityGrid mode="edit" value={slots} onChange={setSlots} />
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <Checkbox
+                  checked={makeDefault}
+                  onCheckedChange={(v) => setMakeDefault(v === true)}
+                  className="rounded-none"
+                  data-testid={`checkbox-make-default-availability-${m.id}`}
+                />
+                Make this my default availability
+              </label>
+            </div>
             {appErr && <div className="text-destructive text-xs">{appErr}</div>}
           </div>
           <DialogFooter>
@@ -1059,7 +1100,17 @@ function InlineMissionActions({ m, npcOnly }: { m: MissionSummary; npcOnly?: boo
               disabled={apply.isPending || characterId === ""}
               onClick={() =>
                 apply.mutate(
-                  { id: m.id, data: { characterId: Number(characterId), comment: comment || null } },
+                  {
+                    id: m.id,
+                    data: {
+                      characterId: Number(characterId),
+                      comment: comment || null,
+                      availability: slots,
+                      makeDefault,
+                      defaultPattern: makeDefault ? patternFromInstants(slots) : undefined,
+                      timezone: makeDefault ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined,
+                    },
+                  },
                   {
                     onSuccess: () => {
                       setDialogOpen(false);
