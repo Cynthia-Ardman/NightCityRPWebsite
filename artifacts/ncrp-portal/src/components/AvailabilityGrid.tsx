@@ -128,7 +128,7 @@ const GRID_SHELL =
 
 function TimeColHeader() {
   return (
-    <div className="sticky left-0 top-0 z-30 bg-card border-r border-b border-border/60 w-[52px] shrink-0" />
+    <div className="sticky left-0 top-0 z-30 bg-card border-r border-b border-border/60 w-[58px] shrink-0" />
   );
 }
 
@@ -154,9 +154,9 @@ function DayHeaders({ days }: { days: Date[] }) {
 function RowTimeLabel({ row }: { row: number }) {
   const onHour = rowMinutes(row) % 60 === 0;
   return (
-    <div className="sticky left-0 z-10 bg-card border-r border-border/60 w-[52px] shrink-0 h-[13px] flex items-start justify-end pr-1">
+    <div className="sticky left-0 z-10 bg-card border-r border-border/60 w-[58px] shrink-0 h-[13px] flex items-start justify-end pr-1">
       {onHour && (
-        <span className="text-[9px] text-muted-foreground leading-none -translate-y-[1px]">{rowLabel(row)}</span>
+        <span className="text-[9px] text-muted-foreground leading-none -translate-y-[1px] whitespace-nowrap">{rowLabel(row)}</span>
       )}
     </div>
   );
@@ -213,7 +213,7 @@ function EditGrid({
         onPointerLeave={endDrag}
         data-testid="availability-grid-edit"
       >
-        <div className="grid" style={{ gridTemplateColumns: `52px repeat(${days.length}, minmax(40px, 1fr))` }}>
+        <div className="grid" style={{ gridTemplateColumns: `58px repeat(${days.length}, minmax(40px, 1fr))` }}>
           <TimeColHeader />
           <DayHeaders days={days} />
           {rows.map((row) => (
@@ -320,7 +320,7 @@ function HeatmapGrid({
         </div>
       </div>
       <div className={GRID_SHELL} data-testid="availability-grid-heatmap">
-        <div className="grid" style={{ gridTemplateColumns: `52px repeat(${days.length}, minmax(40px, 1fr))` }}>
+        <div className="grid" style={{ gridTemplateColumns: `58px repeat(${days.length}, minmax(40px, 1fr))` }}>
           <TimeColHeader />
           <DayHeaders days={days} />
           {rows.map((row) => (

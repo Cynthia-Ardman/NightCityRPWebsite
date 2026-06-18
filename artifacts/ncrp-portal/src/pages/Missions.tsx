@@ -1046,7 +1046,7 @@ function InlineMissionActions({ m, npcOnly }: { m: MissionSummary; npcOnly?: boo
 
       {!npcOnly && (
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="rounded-none border-border bg-background" data-testid={`dialog-apply-${m.id}`}>
+        <DialogContent className="rounded-none border-border bg-background sm:max-w-3xl max-h-[90vh] overflow-y-auto" data-testid={`dialog-apply-${m.id}`}>
           <DialogHeader>
             <DialogTitle className="font-display tracking-widest text-nc-cyan uppercase">
               Apply to {m.title}
