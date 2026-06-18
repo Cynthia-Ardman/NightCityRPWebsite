@@ -483,7 +483,7 @@ const CloseBodySchema = z.object({
     .array(
       z.object({
         index: z.number().int().min(0),
-        cwp: z.number(),
+        cwp: z.number().int(),
         slot: z.string().trim().max(120),
       }),
     )
