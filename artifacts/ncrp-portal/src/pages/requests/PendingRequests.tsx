@@ -41,7 +41,7 @@ import {
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { formatEddies } from "@/lib/format";
 import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "./reviewSort";
-import { useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
+import { useReviewTicketActions, LifecycleActions, CloseTicketDialog } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import DiffValue from "@/components/DiffValue";
@@ -1620,7 +1620,6 @@ function ReadyToApplyPanel() {
   const isAdmin = !!me?.isAdmin;
   const { readyToApply, requestsById } = useTerminalItems();
   const [applyingAll, setApplyingAll] = useState(false);
-  const [applyingId, setApplyingId] = useState<string | null>(null);
   const [editRequest, setEditRequest] = useState<CustomRequest | null>(null);
 
   const invalidate = () => {
@@ -1643,21 +1642,7 @@ function ReadyToApplyPanel() {
   });
 
   if (readyToApply.length === 0) return null;
-  const busy = applyingAll || applyingId !== null;
-
-  const applyOne = async (item: TerminalItem) => {
-    if (!item.subjectType) return;
-    setApplyingId(item.key);
-    try {
-      await close.mutateAsync({ subjectType: item.subjectType, id: item.id });
-      invalidate();
-      toast({ title: `Applied "${item.title}"` });
-    } catch {
-      /* error toast handled by mutation onError */
-    } finally {
-      setApplyingId(null);
-    }
-  };
+  const busy = applyingAll || close.isPending;
 
   const applyAll = async () => {
     setApplyingAll(true);
@@ -1742,14 +1727,20 @@ function ReadyToApplyPanel() {
                       EDIT
                     </Button>
                   )}
-                  <Button
-                    className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
-                    disabled={busy}
-                    onClick={() => applyOne(item)}
-                    data-testid={`button-apply-ready-${item.kind}-${item.id}`}
-                  >
-                    {applyingId === item.key ? "APPLYING..." : "CLOSE & APPLY"}
-                  </Button>
+                  {item.subjectType ? (
+                    <CloseTicketDialog
+                      subjectType={item.subjectType}
+                      id={item.id}
+                      status="approved"
+                      close={close}
+                      disabled={busy}
+                      triggerClassName="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
+                      onClosed={() => {
+                        invalidate();
+                        toast({ title: `Applied "${item.title}"` });
+                      }}
+                    />
+                  ) : null}
                 </div>
               </div>
             );

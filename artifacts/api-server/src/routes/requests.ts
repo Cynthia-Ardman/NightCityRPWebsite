@@ -737,7 +737,8 @@ async function finalizeDecidedRequest(
       message: `Auto-finalized ${out.reqRow.type} request → rejected (majority reached after reviewer-pool change): ${out.reqRow.title}`,
       after: { autoFinalized: true },
     });
-    await notifyRequesterOfDecision(row, null, false);
+    // The player is NOT DM'd here — rejection is communicated at close (with an
+    // optional staff message), giving staff a window to reconsider first.
   }
   return out.decided;
 }
@@ -768,6 +769,7 @@ async function notifyRequesterOfDecision(
   row: RequestRow,
   summary: string | null,
   approved: boolean,
+  closingMessage?: string | null,
 ): Promise<void> {
   try {
     const [u] = await db
@@ -778,15 +780,20 @@ async function notifyRequesterOfDecision(
     const typeLabel = typeLabelFor(row.type);
     const who = row.characterName ?? "your character";
     let content: string;
-    // Decision is passed in explicitly: the approve DM fires from closeRequest
-    // AFTER the row's status has already been flipped to "closed", so we can't
-    // infer approved-vs-rejected from row.status here.
+    // Decision is passed in explicitly: both the approve AND the reject DM now
+    // fire from closeRequest AFTER the row's status has been flipped to
+    // "closed", so we can't infer approved-vs-rejected from row.status here.
+    // `closingMessage` is the staff member's optional note from the close dialog
+    // (Tickety-style) — for an approval it is appended after the effect summary;
+    // for a rejection it IS the reason (falling back to the deciding vote note).
     if (approved) {
       content = `Your ${typeLabel} request "${row.title}" for ${who} was approved.`;
       if (summary) content += `\n${summary}`;
+      if (closingMessage) content += `\n${closingMessage}`;
     } else {
       content = `Your ${typeLabel} request "${row.title}" for ${who} was rejected.`;
-      if (row.reviewerNote) content += `\nReason: ${row.reviewerNote}`;
+      const reason = closingMessage ?? row.reviewerNote;
+      if (reason) content += `\nReason: ${reason}`;
     }
     await sendDirectMessage(u.discordId, content);
   } catch (err) {
@@ -1113,7 +1120,9 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
       targetId: rid,
       message: `Rejected ${out.reqRow.type} request: ${out.reqRow.title}`,
     });
-    await notifyRequesterOfDecision(row, null, false);
+    // No player DM here — the rejection is communicated at close (with an
+    // optional staff message), so reaching the reject threshold no longer
+    // instantly notifies the player. Staff can change votes / reopen first.
   }
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json({ ...shape(row), decided: out.decided, approveCount: out.tally.approveCount, rejectCount: out.tally.rejectCount, threshold: out.tally.threshold });
@@ -1208,7 +1217,7 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
 // locked txn so apply + status flip are atomic; the player DM / character note /
 // inventory ledger / activity feed run after commit. The caller (review.ts) has
 // already verified the actor is a reviewer.
-export async function closeRequest(req: Request, id: number): Promise<ReviewActionResult> {
+export async function closeRequest(req: Request, id: number, note?: string): Promise<ReviewActionResult> {
   const u = req.user!;
   const result = await db.transaction(async (tx) => {
     const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, id)).for("update");
@@ -1244,7 +1253,7 @@ export async function closeRequest(req: Request, id: number): Promise<ReviewActi
   if (result.kind === "applied") {
     await afterApprove(req as never, result.reqRow, result.c, result.appliedRef, result.summary, result.reqRow.overriddenBy ? "override" : "vote");
     const [row] = await selectWhere(eq(customRequests.id, id));
-    await notifyRequesterOfDecision(row, result.summary, true);
+    await notifyRequesterOfDecision(row, result.summary, true, note ?? null);
   } else if (result.kind === "archived") {
     await recordAudit({
       req,
@@ -1252,8 +1261,17 @@ export async function closeRequest(req: Request, id: number): Promise<ReviewActi
       action: "request_closed",
       targetType: "custom_request",
       targetId: id,
-      message: `Closed ${result.reqRow.type} request (${result.reqRow.status}): ${result.reqRow.title}`,
+      message: `Closed ${result.reqRow.type} request (${result.reqRow.status}): ${result.reqRow.title}${note ? ` — note: ${note}` : ""}`,
     });
+    // The player is told of a REJECTION here, at close — not the moment the vote
+    // tally tipped — so staff can attach an optional closing message and still
+    // reconsider (change votes / reopen) before the player ever hears. A
+    // player-cancelled ticket (status "cancelled") is the player's own action,
+    // so it never DMs them "rejected".
+    if (result.reqRow.status === "rejected") {
+      const [row] = await selectWhere(eq(customRequests.id, id));
+      await notifyRequesterOfDecision(row, null, false, note ?? null);
+    }
   }
   const [row] = await selectWhere(eq(customRequests.id, id));
   return { status: 200, body: shape(row) };

@@ -418,7 +418,7 @@ describe("POST /requests/:id/vote (legacy types regression)", () => {
 });
 
 describe("POST /requests/:id/vote reject (venue)", () => {
-  it("records the reviewer note, creates no venue, and DMs", async () => {
+  it("records the reviewer note, creates no venue, and defers the player DM to close", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const char = await createCharacter({ ownerId: owner.id });
@@ -447,7 +447,21 @@ describe("POST /requests/:id/vote reject (venue)", () => {
     expect(audits).toHaveLength(1);
     expect(audits[0].category).toBe("shop");
 
+    // Reaching the reject threshold no longer instantly notifies the player —
+    // staff can still reopen / change votes. The DM fires only at close, with
+    // the optional closing message taking priority over the vote note.
+    expect(mockDm).not.toHaveBeenCalled();
+
+    const close = await request(app)
+      .post(`/api/review/request/${reqId}/close`)
+      .set("x-test-user", fixer.id)
+      .send({ note: "Try a spot further from the competition." });
+    expect(close.status).toBe(200);
+    expect(close.body.status).toBe("closed");
     expect(mockDm).toHaveBeenCalledTimes(1);
+    const dmBody = mockDm.mock.calls[0][1] as string;
+    expect(dmBody).toContain("rejected");
+    expect(dmBody).toContain("Try a spot further from the competition.");
   });
 });
 

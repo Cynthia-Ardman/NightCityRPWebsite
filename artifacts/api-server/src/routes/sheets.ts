@@ -789,7 +789,7 @@ router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void>
 // archives it. Idempotent: re-closing an already-closed sheet is a 200 no-op.
 // Materialize runs inside the locked txn so apply + status flip are atomic.
 // Caller has already verified the actor is a reviewer.
-export async function closeSheet(req: Request, id: number): Promise<ReviewActionResult> {
+export async function closeSheet(req: Request, id: number, note?: string): Promise<ReviewActionResult> {
   const u = req.user!;
   const result = await db.transaction(async (tx) => {
     const [sheet] = await tx.select().from(characterSheets).where(eq(characterSheets.id, id)).for("update");
@@ -829,7 +829,7 @@ export async function closeSheet(req: Request, id: number): Promise<ReviewAction
       action: "sheet_closed_applied",
       targetType: "sheet",
       targetId: id,
-      message: `Closed & materialized sheet "${result.sheet.name}"`,
+      message: `Closed & materialized sheet "${result.sheet.name}"${note ? ` — note: ${note}` : ""}`,
     });
     // Grant the "Approved Character" Discord role to the submitter. The portal
     // user id IS the Discord snowflake. Fire-and-forget + gated/idempotent in
@@ -855,7 +855,7 @@ export async function closeSheet(req: Request, id: number): Promise<ReviewAction
       action: "sheet_closed",
       targetType: "sheet",
       targetId: id,
-      message: `Closed sheet "${result.sheet.name}" (${result.sheet.status})`,
+      message: `Closed sheet "${result.sheet.name}" (${result.sheet.status})${note ? ` — note: ${note}` : ""}`,
     });
   }
   const [row] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));

@@ -1,9 +1,20 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   useCloseReviewTicket,
   useReopenReviewTicket,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { BUCKET_LABEL, type LifecycleBucket } from "@/lib/reviewLifecycle";
 
@@ -44,6 +55,133 @@ export function useReviewTicketActions(invalidate: () => void) {
   return { close, reopen, busy: close.isPending || reopen.isPending };
 }
 
+// Close-with-message dialog (Tickety-style). Opens from the CLOSE & APPLY /
+// CLOSE TICKET button and lets the reviewer attach an OPTIONAL note before the
+// ticket is finalized. For custom requests that note is DM'd to the player
+// along with the approve/reject decision; for edits/sheets it's recorded in the
+// audit trail only. The close mutation itself is owned by the caller (so its
+// onSuccess/onError + invalidation stay in one place) — we just gate it behind
+// a confirmation that collects the message.
+export function CloseTicketDialog({
+  subjectType,
+  id,
+  status,
+  close,
+  disabled,
+  triggerClassName,
+  triggerLabel,
+  onClosed,
+}: {
+  subjectType: "edit" | "request" | "sheet";
+  id: number;
+  status: string;
+  close: ReturnType<typeof useCloseReviewTicket>;
+  disabled?: boolean;
+  triggerClassName?: string;
+  triggerLabel?: string;
+  onClosed?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const pendingApply = status === "approved";
+  const notifiesPlayer = subjectType === "request";
+  const defaultLabel = pendingApply ? "CLOSE & APPLY" : "CLOSE TICKET";
+  const busy = close.isPending;
+
+  const submit = () => {
+    const trimmed = note.trim();
+    close.mutate(
+      { subjectType, id, data: trimmed ? { note: trimmed } : undefined },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setNote("");
+          onClosed?.();
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (busy) return;
+        setOpen(o);
+        if (!o) setNote("");
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          className={
+            triggerClassName ??
+            "rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
+          }
+          disabled={disabled}
+          data-testid={`button-close-${subjectType}-${id}`}
+        >
+          {triggerLabel ?? defaultLabel}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="rounded-none border-border bg-background sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display tracking-widest text-nc-cyan uppercase">
+            {pendingApply ? "Close & apply" : "Close ticket"}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs leading-snug">
+            {pendingApply
+              ? "Finalizes the request and creates the lease / item / character."
+              : "Archives this ticket as resolved."}
+            {notifiesPlayer
+              ? " Your message below is DM'd to the player with the decision."
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor={`close-note-${subjectType}-${id}`} className="text-xs font-mono tracking-widest">
+            {notifiesPlayer ? "MESSAGE TO PLAYER (OPTIONAL)" : "CLOSING NOTE (OPTIONAL)"}
+          </Label>
+          <Textarea
+            id={`close-note-${subjectType}-${id}`}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={2000}
+            rows={4}
+            className="rounded-none font-mono text-sm"
+            placeholder={
+              pendingApply
+                ? "e.g. Approved — welcome to your new place!"
+                : notifiesPlayer
+                  ? "e.g. Rejected because ..."
+                  : "Optional note for the audit trail"
+            }
+            data-testid={`input-close-note-${subjectType}-${id}`}
+          />
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            className="rounded-none font-display text-xs tracking-widest"
+            disabled={busy}
+            onClick={() => setOpen(false)}
+            data-testid={`button-cancel-close-${subjectType}-${id}`}
+          >
+            CANCEL
+          </Button>
+          <Button
+            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
+            disabled={busy}
+            onClick={submit}
+            data-testid={`button-confirm-close-${subjectType}-${id}`}
+          >
+            {busy ? "WORKING..." : defaultLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Footer actions for resolved tickets: always offer Close; offer Reopen only
 // for approved/rejected (cancelled is terminal-but-closeable, never reopenable).
 export function LifecycleActions({
@@ -73,14 +211,13 @@ export function LifecycleActions({
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button
-          className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
+        <CloseTicketDialog
+          subjectType={subjectType}
+          id={id}
+          status={status}
+          close={actions.close}
           disabled={actions.busy}
-          onClick={() => actions.close.mutate({ subjectType, id })}
-          data-testid={`button-close-${subjectType}-${id}`}
-        >
-          {pendingApply ? "CLOSE & APPLY" : "CLOSE TICKET"}
-        </Button>
+        />
         {(status === "approved" || status === "rejected") && (
         <Button
           variant="outline"

@@ -462,8 +462,8 @@ router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<vo
   const note = bodyParsed.data.note || undefined;
   let result: ReviewActionResult;
   if (parsed.type === "edit") result = await closeEdit(req, parsed.id, note);
-  else if (parsed.type === "request") result = await closeRequest(req, parsed.id);
-  else result = await closeSheet(req, parsed.id);
+  else if (parsed.type === "request") result = await closeRequest(req, parsed.id, note);
+  else result = await closeSheet(req, parsed.id, note);
   res.status(result.status).json(result.body);
 });
 
