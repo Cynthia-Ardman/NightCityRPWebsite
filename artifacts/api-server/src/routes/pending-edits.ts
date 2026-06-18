@@ -862,7 +862,7 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
         });
       }
     }
-    return { kind: "ok" as const, decided, approves, rejects, threshold, eligibleVoterCount: eligibleIds.length };
+    return { kind: "ok" as const, decided, approves, rejects, threshold, eligibleVoterCount: eligibleIds.length, cleared };
   });
 
   if (result.kind === "not_found") {
@@ -876,6 +876,7 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
   res.json({
     ok: true,
     status: result.decided ?? "pending",
+    cleared: result.cleared,
     approveCount: result.approves,
     rejectCount: result.rejects,
     threshold: result.threshold,

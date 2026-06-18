@@ -414,3 +414,38 @@ describe("pending edit auto-finalize on reviewer read after pool shrinks", () =>
     expect(events.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+// Re-casting the SAME vote clears the approval row (un-vote); switching updates.
+describe("pending edit voting — toggle (un-vote)", () => {
+  it("clears the approval on a repeat click and switches when the other value is chosen", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    await createFixer();
+    await createFixer(); // pool 3 → threshold 2
+    const { edit } = await seedPendingEdit({ submitterId: owner.id });
+    const countVotes = async () =>
+      (await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id))).length;
+
+    const v1 = await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(v1.body.approveCount).toBe(1);
+    expect(v1.body.cleared).toBe(false);
+    expect(await countVotes()).toBe(1);
+
+    const v2 = await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(v2.status).toBe(200);
+    expect(v2.body.cleared).toBe(true);
+    expect(v2.body.approveCount).toBe(0);
+    expect(v2.body.status).toBe("pending");
+    expect(await countVotes()).toBe(0);
+
+    // Switching approve → reject updates in place.
+    await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const v3 = await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "reject" });
+    expect(v3.body.cleared).toBe(false);
+    expect(v3.body.approveCount).toBe(0);
+    expect(v3.body.rejectCount).toBe(1);
+    const rows = await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].vote).toBe("reject");
+  });
+});

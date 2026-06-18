@@ -17,9 +17,9 @@ ticket was reopened. Preserving is SAFE because every type has finalize-on-read
 (`finalizeDecidedRequest/Sheet/Edit` + `*InPlace` on queue AND detail reads):
 a reopened ticket lands `pending` with votes intact, then the next reviewer read
 re-evaluates them against the live eligible pool/threshold and auto-finalizes
-back to approved/rejected — no stranding. `castReviewVote` is an upsert
-(onConflictDoUpdate on subjectType+subjectId+voterId), so any later same-voter
-re-vote stays idempotent.
+back to approved/rejected — no stranding. NOTE: `castReviewVote` is TOGGLE, not a
+plain upsert (see [Vote toggle](vote-toggle.md)) — re-casting the same value
+CLEARS it; switching updates in place.
 
 **How to apply:** in reopen paths, keep votes. In paths where the *content
 changed by the submitter* — resubmit and edit-while-pending PATCH — votes/approvals

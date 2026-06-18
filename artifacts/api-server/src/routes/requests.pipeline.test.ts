@@ -566,3 +566,42 @@ describe("auto-finalize on staff-queue read after reviewer pool shrinks", () => 
     expect(row.appliedRef).toBeNull();
   });
 });
+
+// Re-casting the SAME vote you already hold clears it (un-vote); switching to
+// the other value updates in place. Single-click toggle for reviewers.
+describe("custom request voting — toggle (un-vote)", () => {
+  it("clears the vote on a repeat click and switches when the other value is chosen", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    await createFixer();
+    await createFixer(); // pool 3 → threshold 2, so one vote never decides
+    const { reqId } = await submitGunRequest(owner.id);
+    const countVotes = async () =>
+      (await db.select().from(reviewVotes).where(and(eq(reviewVotes.subjectType, "request"), eq(reviewVotes.subjectId, reqId)))).length;
+
+    const v1 = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(v1.body.approveCount).toBe(1);
+    expect(await countVotes()).toBe(1);
+
+    // Re-casting approve clears it.
+    const v2 = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(v2.status).toBe(200);
+    expect(v2.body.approveCount).toBe(0);
+    expect(v2.body.status).toBe("pending");
+    expect(await countVotes()).toBe(0);
+
+    // A fresh reject, then a repeat reject clears it again.
+    expect((await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "reject" })).body.rejectCount).toBe(1);
+    expect((await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "reject" })).body.rejectCount).toBe(0);
+    expect(await countVotes()).toBe(0);
+
+    // Switching approve → reject updates in place (no clear).
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const v5 = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "reject" });
+    expect(v5.body.approveCount).toBe(0);
+    expect(v5.body.rejectCount).toBe(1);
+    const rows = await db.select().from(reviewVotes).where(and(eq(reviewVotes.subjectType, "request"), eq(reviewVotes.subjectId, reqId)));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].vote).toBe("reject");
+  });
+});

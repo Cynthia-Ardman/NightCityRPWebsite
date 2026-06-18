@@ -408,3 +408,35 @@ describe("sheet reopen preserves votes", () => {
     expect(refinalized.characterId).toBeNull();
   });
 });
+
+// Re-casting the SAME vote clears it (un-vote); switching updates in place.
+describe("sheet voting — toggle (un-vote)", () => {
+  it("clears the vote on a repeat click and switches when the other value is chosen", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    await createFixer();
+    await createFixer(); // pool 3 → threshold 2
+    const sheet = await createPendingSheet(owner.id, "Toggle Subject");
+    const countVotes = async () =>
+      (await db.select().from(reviewVotes).where(and(eq(reviewVotes.subjectType, "sheet"), eq(reviewVotes.subjectId, sheet.id)))).length;
+
+    const v1 = await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(v1.body.approveCount).toBe(1);
+    expect(await countVotes()).toBe(1);
+
+    const v2 = await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(v2.status).toBe(200);
+    expect(v2.body.approveCount).toBe(0);
+    expect(v2.body.status).toBe("pending");
+    expect(await countVotes()).toBe(0);
+
+    // Switching approve → reject updates in place.
+    await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const v3 = await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "reject" });
+    expect(v3.body.approveCount).toBe(0);
+    expect(v3.body.rejectCount).toBe(1);
+    const rows = await db.select().from(reviewVotes).where(and(eq(reviewVotes.subjectType, "sheet"), eq(reviewVotes.subjectId, sheet.id)));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].vote).toBe("reject");
+  });
+});
