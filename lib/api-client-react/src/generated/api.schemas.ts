@@ -4784,6 +4784,8 @@ export interface MissionApplicationView {
   characterPortraitUrl?: string | null;
   /** @nullable */
   comment?: string | null;
+  /** When2Meet availability for this applicant: absolute UTC instant strings (30-min blocks). Optional — empty when none supplied. */
+  availability?: string[];
   status: MissionApplicationViewStatus;
   /** @nullable */
   reviewedBy?: string | null;
@@ -5172,10 +5174,34 @@ export interface MissionApplicationListItem {
   createdAt: string;
 }
 
+export interface AvailabilitySlot {
+  /** 0 = Sunday … 6 = Saturday. */
+  weekday: number;
+  /** Minutes from local midnight (0-1410, 30-min steps). */
+  minutes: number;
+}
+
 export interface ApplyToMissionInput {
   characterId: number;
   /** @nullable */
   comment?: string | null;
+  /** When2Meet availability: absolute UTC instant strings, one per selected 30-minute block. */
+  availability?: string[];
+  /** Persist the supplied weekly pattern + timezone as this player's saved default. */
+  makeDefault?: boolean;
+  /** Weekly availability pattern (only stored when makeDefault is true). */
+  defaultPattern?: AvailabilitySlot[];
+  /**
+     * IANA timezone the pattern was captured in.
+     * @nullable
+     */
+  timezone?: string | null;
+}
+
+export interface DefaultAvailability {
+  pattern: AvailabilitySlot[];
+  /** @nullable */
+  timezone: string | null;
 }
 
 export type ReviewApplicationInputAction = typeof ReviewApplicationInputAction[keyof typeof ReviewApplicationInputAction];

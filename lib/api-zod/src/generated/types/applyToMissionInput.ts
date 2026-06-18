@@ -5,9 +5,21 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { AvailabilitySlot } from './availabilitySlot';
 
 export interface ApplyToMissionInput {
   characterId: number;
   /** @nullable */
   comment?: string | null;
+  /** When2Meet availability: absolute UTC instant strings, one per selected 30-minute block. */
+  availability?: Date[];
+  /** Persist the supplied weekly pattern + timezone as this player's saved default. */
+  makeDefault?: boolean;
+  /** Weekly availability pattern (only stored when makeDefault is true). */
+  defaultPattern?: AvailabilitySlot[];
+  /**
+     * IANA timezone the pattern was captured in.
+     * @nullable
+     */
+  timezone?: string | null;
 }

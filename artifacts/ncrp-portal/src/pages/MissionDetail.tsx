@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,6 +12,7 @@ import {
   useApproveMission,
   usePostMission,
   useApplyToMission,
+  useGetDefaultAvailability,
   useWithdrawApplication,
   useReviewApplication,
   useRemoveAssignedPlayer,
@@ -37,6 +38,14 @@ import {
   type MissionToEventConvertInputEventType,
 } from "@workspace/api-client-react";
 import { statusBadge as breachStatusBadge, difficultyBadge as breachDifficultyBadge } from "./breach/breachUtils";
+import {
+  AvailabilityGrid,
+  buildDayColumns,
+  expandPattern,
+  patternFromInstants,
+  type AvailabilitySlot,
+} from "@/components/AvailabilityGrid";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -644,8 +653,34 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
 
   const [characterId, setCharacterId] = useState<number | "">("");
   const [comment, setComment] = useState("");
+  const [slots, setSlots] = useState<string[]>([]);
+  const [makeDefault, setMakeDefault] = useState(false);
 
   const existing = data.myApplication;
+
+  // Pre-fill the availability picker once: prefer the player's own picks from a
+  // withdrawn application they're re-submitting, otherwise their saved weekly
+  // default. Both are re-projected onto the current rolling window via the
+  // local weekly pattern so stale (now-past) instants don't carry over.
+  const days = useMemo(() => buildDayColumns(), []);
+  const def = useGetDefaultAvailability();
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current) return;
+    let pattern: AvailabilitySlot[] | null = null;
+    if (existing?.availability && existing.availability.length > 0) {
+      pattern = patternFromInstants(existing.availability);
+    } else if (def.data && def.data.pattern.length > 0) {
+      pattern = def.data.pattern;
+    } else if (!def.isLoading && def.isFetched) {
+      prefilled.current = true;
+      return;
+    }
+    if (pattern) {
+      setSlots(expandPattern(pattern, days));
+      prefilled.current = true;
+    }
+  }, [def.data, def.isLoading, def.isFetched, existing, days]);
   const applyErr = errOf(apply.error) ?? errOf(withdraw.error);
   // Applications are only accepted on missions that are publicly posted AND
   // still Open for play (server enforces the same rule).
@@ -731,12 +766,35 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
             data-testid="input-apply-comment"
           />
         </div>
+        <div className="space-y-2">
+          <Label className="text-xs">YOUR AVAILABILITY (optional)</Label>
+          <AvailabilityGrid mode="edit" value={slots} onChange={setSlots} />
+          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+            <Checkbox
+              checked={makeDefault}
+              onCheckedChange={(v) => setMakeDefault(v === true)}
+              className="rounded-none"
+              data-testid="checkbox-make-default-availability"
+            />
+            Make this my default availability
+          </label>
+        </div>
         <Button
           type="button"
           disabled={apply.isPending || characterId === ""}
           onClick={() =>
             apply.mutate(
-              { id: data.id, data: { characterId: Number(characterId), comment: comment || null } },
+              {
+                id: data.id,
+                data: {
+                  characterId: Number(characterId),
+                  comment: comment || null,
+                  availability: slots,
+                  makeDefault,
+                  defaultPattern: makeDefault ? patternFromInstants(slots) : undefined,
+                  timezone: makeDefault ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined,
+                },
+              },
               { onSuccess: () => setComment("") },
             )
           }
@@ -1130,6 +1188,16 @@ function ApplicationsPanel({ data }: { data: MissionDetailModel }) {
   const pending = data.applications.filter((a) => a.status === "pending");
   const decided = data.applications.filter((a) => a.status !== "pending");
 
+  // Availability overlap heatmap: every applicant still in the running (not
+  // withdrawn/rejected) who supplied availability. Each cell counts how many of
+  // them are free; the fixer can eyeball the densest blocks to schedule the run.
+  const availApplicants = data.applications
+    .filter((a) => a.status !== "withdrawn" && a.status !== "rejected" && (a.availability?.length ?? 0) > 0)
+    .map((a) => ({
+      name: a.characterName ?? a.userName ?? "(unknown)",
+      slots: a.availability ?? [],
+    }));
+
   return (
     <Card className="rounded-none border-border bg-card/50">
       <CardHeader>
@@ -1138,6 +1206,14 @@ function ApplicationsPanel({ data }: { data: MissionDetailModel }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 font-mono text-sm">
+        {availApplicants.length > 0 && (
+          <div className="space-y-2 border border-border/60 bg-background/30 p-3" data-testid="availability-overlap">
+            <div className="font-display tracking-widest text-[11px] uppercase text-muted-foreground">
+              Availability Overlap
+            </div>
+            <AvailabilityGrid mode="heatmap" heatmap={availApplicants} />
+          </div>
+        )}
         {data.applications.length === 0 ? (
           <p className="text-muted-foreground italic">No applications yet.</p>
         ) : (

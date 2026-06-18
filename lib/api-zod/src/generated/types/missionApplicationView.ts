@@ -21,6 +21,8 @@ export interface MissionApplicationView {
   characterPortraitUrl?: string | null;
   /** @nullable */
   comment?: string | null;
+  /** When2Meet availability for this applicant: absolute UTC instant strings (30-min blocks). Optional — empty when none supplied. */
+  availability?: Date[];
   status: MissionApplicationViewStatus;
   /** @nullable */
   reviewedBy?: string | null;

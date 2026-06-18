@@ -305,6 +305,7 @@ async function loadMyApplicationsForMissions(
       characterName: characters.name,
       characterPortraitUrl: characters.portraitUrl,
       comment: missionApplications.comment,
+      availability: missionApplications.availability,
       status: missionApplications.status,
       reviewedBy: missionApplications.reviewedBy,
       reviewedAt: missionApplications.reviewedAt,
@@ -345,6 +346,7 @@ async function loadMyApplicationsForMissions(
       characterName: r.characterName,
       characterPortraitUrl: r.characterPortraitUrl,
       comment: r.comment,
+      availability: normalizeAvailability(r.availability),
       // Self-heal: roster membership implies accepted (see assignedId note).
       status: r.status === "pending" && r.assignedId != null ? "accepted" : r.status,
       reviewedBy: r.reviewedBy,
@@ -1018,6 +1020,7 @@ async function listApplicationViews(missionId: number, onlyUserId?: string) {
       characterName: characters.name,
       characterPortraitUrl: characters.portraitUrl,
       comment: missionApplications.comment,
+      availability: missionApplications.availability,
       status: missionApplications.status,
       reviewedBy: missionApplications.reviewedBy,
       reviewedAt: missionApplications.reviewedAt,
@@ -1060,6 +1063,7 @@ async function listApplicationViews(missionId: number, onlyUserId?: string) {
       characterName: r.characterName,
       characterPortraitUrl: r.characterPortraitUrl,
       comment: r.comment,
+      availability: normalizeAvailability(r.availability),
       // Self-heal: a pending application whose character is on the roster is
       // effectively accepted (see assignedId note above).
       status: r.status === "pending" && r.assignedId != null ? "accepted" : r.status,
@@ -1123,6 +1127,15 @@ export async function applyToMission(opts: {
   userId: string;
   characterId: number;
   comment?: string | null;
+  // When2Meet availability (Task #244): absolute UTC ISO instants, one per
+  // selected 30-minute block. Normalized to [] when omitted, so re-applying
+  // always writes the current picker state (the apply form always sends it).
+  availability?: string[] | null;
+  // When true, persist the supplied weekly pattern + tz as the player's saved
+  // default so future apply forms pre-fill from it.
+  makeDefault?: boolean;
+  defaultPattern?: { weekday: number; minutes: number }[] | null;
+  timezone?: string | null;
 }): Promise<ApplyResult> {
   const [m] = await db.select().from(missions).where(eq(missions.id, opts.missionId));
   if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
@@ -1138,8 +1151,9 @@ export async function applyToMission(opts: {
     return { ok: false, error: "That character isn't yours", httpStatus: 403 };
   }
   const comment = opts.comment?.trim() || null;
+  const availability = normalizeAvailability(opts.availability);
   // Dedupe on (mission, character): re-applying re-opens a withdrawn/rejected
-  // application back to pending and refreshes the comment.
+  // application back to pending and refreshes the comment + availability.
   await db
     .insert(missionApplications)
     .values({
@@ -1147,6 +1161,7 @@ export async function applyToMission(opts: {
       userId: opts.userId,
       characterId: opts.characterId,
       comment,
+      availability,
       status: "pending",
     })
     .onConflictDoUpdate({
@@ -1154,13 +1169,75 @@ export async function applyToMission(opts: {
       set: {
         userId: opts.userId,
         comment,
+        availability,
         status: "pending",
         reviewedBy: null,
         reviewedAt: null,
         updatedAt: new Date(),
       },
     });
+  // Optionally remember this as the player's weekly default for next time.
+  if (opts.makeDefault) {
+    await db
+      .update(users)
+      .set({
+        defaultAvailability: normalizeDefaultPattern(opts.defaultPattern),
+        availabilityTimezone: opts.timezone?.trim() || null,
+      })
+      .where(eq(users.id, opts.userId));
+  }
   return { ok: true };
+}
+
+/** Dedupe + sort UTC ISO availability instants; drop invalid entries. */
+function normalizeAvailability(input: string[] | null | undefined): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  for (const v of input) {
+    if (typeof v !== "string") continue;
+    const t = Date.parse(v);
+    if (Number.isNaN(t)) continue;
+    seen.add(new Date(t).toISOString());
+  }
+  return [...seen].sort();
+}
+
+/** Validate + dedupe a weekly availability pattern (weekday 0-6, 30-min blocks). */
+function normalizeDefaultPattern(
+  input: { weekday: number; minutes: number }[] | null | undefined,
+): { weekday: number; minutes: number }[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: { weekday: number; minutes: number }[] = [];
+  for (const v of input) {
+    const weekday = Number(v?.weekday);
+    const minutes = Number(v?.minutes);
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) continue;
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1410) continue;
+    const key = `${weekday}:${minutes}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ weekday, minutes });
+  }
+  return out;
+}
+
+/** Load the player's saved weekly availability default (for picker pre-fill). */
+export async function getDefaultAvailability(userId: string): Promise<{
+  pattern: { weekday: number; minutes: number }[];
+  timezone: string | null;
+}> {
+  const [u] = await db
+    .select({
+      defaultAvailability: users.defaultAvailability,
+      availabilityTimezone: users.availabilityTimezone,
+    })
+    .from(users)
+    .where(eq(users.id, userId));
+  return {
+    pattern: normalizeDefaultPattern(u?.defaultAvailability ?? null),
+    timezone: u?.availabilityTimezone ?? null,
+  };
 }
 
 /** Player withdraws their own application. */

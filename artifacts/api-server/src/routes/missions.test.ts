@@ -1766,6 +1766,119 @@ describe("Mission applications", () => {
 });
 
 // ===========================================================================
+// AVAILABILITY (When2Meet) — applicants attach absolute UTC instants; fixers
+// read them back per-application; players can persist a weekly default.
+// ===========================================================================
+describe("Mission application availability", () => {
+  async function postedMission() {
+    return seedMission({ workflowState: "posted", status: "open" });
+  }
+
+  const A = "2026-06-21T20:00:00.000Z";
+  const B = "2026-06-21T20:30:00.000Z";
+
+  it("persists availability on the application and the fixer reads it back", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await postedMission();
+
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: [B, A, B] });
+    expect(applied.status).toBe(200);
+
+    // Stored normalized: deduped + sorted ascending.
+    const [row] = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
+    expect(row.availability).toEqual([A, B]);
+
+    // The fixer sees availability on the application view.
+    const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
+    expect(asAdmin.body.applications[0].availability).toEqual([A, B]);
+  });
+
+  it("drops invalid instants and an absent availability field defaults to empty", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+
+    const withJunk = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: [A, "not-a-date", 42] });
+    expect(withJunk.status).toBe(200);
+    const [row] = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
+    expect(row.availability).toEqual([A]);
+  });
+
+  it("re-applying refreshes the availability slots", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+
+    await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: [A] });
+    await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: [B] });
+
+    const rows = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].availability).toEqual([B]);
+  });
+
+  it("saves and loads the player's weekly default when makeDefault is set", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+
+    const before = await request(app).get("/api/me/availability-default").set("x-test-user", player.id);
+    expect(before.status).toBe(200);
+    expect(before.body.pattern).toEqual([]);
+    expect(before.body.timezone).toBeNull();
+
+    const pattern = [
+      { weekday: 0, minutes: 1200 },
+      { weekday: 0, minutes: 1200 }, // dupe, should collapse
+      { weekday: 9, minutes: 100 }, // invalid weekday, dropped
+    ];
+    const applied = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({
+        characterId: char.id,
+        availability: [A],
+        makeDefault: true,
+        defaultPattern: pattern,
+        timezone: "America/Los_Angeles",
+      });
+    expect(applied.status).toBe(200);
+
+    const after = await request(app).get("/api/me/availability-default").set("x-test-user", player.id);
+    expect(after.body.pattern).toEqual([{ weekday: 0, minutes: 1200 }]);
+    expect(after.body.timezone).toBe("America/Los_Angeles");
+  });
+
+  it("does not persist a default when makeDefault is omitted", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+
+    await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: [A], defaultPattern: [{ weekday: 0, minutes: 1200 }] });
+
+    const after = await request(app).get("/api/me/availability-default").set("x-test-user", player.id);
+    expect(after.body.pattern).toEqual([]);
+  });
+});
+
+// ===========================================================================
 // RECENCY WARNING — non-blocking flag when an applicant's character played a
 // mission within the last 21 days.
 // ===========================================================================

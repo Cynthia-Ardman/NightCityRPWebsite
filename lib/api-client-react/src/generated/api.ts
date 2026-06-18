@@ -103,6 +103,7 @@ import type {
   CyberwareViolation,
   DashboardSummary,
   DeactivateCharacter200,
+  DefaultAvailability,
   DeleteCyberware200,
   DeleteGun200,
   DeleteRentListing200,
@@ -9140,6 +9141,83 @@ export const useApplyToMission = <TError = ErrorType<void>,
       > => {
       return useMutation(getApplyToMissionMutationOptions(options));
     }
+
+export const getGetDefaultAvailabilityUrl = () => {
+
+
+
+
+  return `/api/me/availability-default`
+}
+
+/**
+ * @summary The signed-in player's saved weekly availability default (pre-fills the apply picker).
+ */
+export const getDefaultAvailability = async ( options?: RequestInit): Promise<DefaultAvailability> => {
+
+  return customFetch<DefaultAvailability>(getGetDefaultAvailabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDefaultAvailabilityQueryKey = () => {
+    return [
+    `/api/me/availability-default`
+    ] as const;
+    }
+
+
+export const getGetDefaultAvailabilityQueryOptions = <TData = Awaited<ReturnType<typeof getDefaultAvailability>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDefaultAvailability>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDefaultAvailabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDefaultAvailability>>> = ({ signal }) => getDefaultAvailability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDefaultAvailability>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDefaultAvailabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getDefaultAvailability>>>
+export type GetDefaultAvailabilityQueryError = ErrorType<void>
+
+
+/**
+ * @summary The signed-in player's saved weekly availability default (pre-fills the apply picker).
+ */
+
+export function useGetDefaultAvailability<TData = Awaited<ReturnType<typeof getDefaultAvailability>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDefaultAvailability>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDefaultAvailabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getWithdrawApplicationUrl = (id: number,
     appId: number,) => {

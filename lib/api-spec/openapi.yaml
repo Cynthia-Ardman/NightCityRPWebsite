@@ -1970,6 +1970,18 @@ paths:
         "400": { description: Bad request }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
+  /me/availability-default:
+    get:
+      operationId: getDefaultAvailability
+      tags: [missions]
+      summary: "The signed-in player's saved weekly availability default (pre-fills the apply picker)."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DefaultAvailability" }
+        "401": { description: Not authenticated. }
   /missions/{id}/applications/{appId}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -8414,6 +8426,10 @@ components:
         characterName: { type: ["string", "null"] }
         characterPortraitUrl: { type: ["string", "null"] }
         comment: { type: ["string", "null"] }
+        availability:
+          type: array
+          description: "When2Meet availability for this applicant: absolute UTC instant strings (30-min blocks). Optional — empty when none supplied."
+          items: { type: string, format: date-time }
         status: { type: string, enum: [pending, accepted, withdrawn, rejected] }
         reviewedBy: { type: ["string", "null"] }
         reviewedAt: { type: ["string", "null"], format: date-time }
@@ -8459,6 +8475,34 @@ components:
       properties:
         characterId: { type: integer }
         comment: { type: ["string", "null"] }
+        availability:
+          type: array
+          description: "When2Meet availability: absolute UTC instant strings, one per selected 30-minute block."
+          items: { type: string, format: date-time }
+        makeDefault:
+          type: boolean
+          description: "Persist the supplied weekly pattern + timezone as this player's saved default."
+        defaultPattern:
+          type: array
+          description: "Weekly availability pattern (only stored when makeDefault is true)."
+          items: { $ref: "#/components/schemas/AvailabilitySlot" }
+        timezone: { type: ["string", "null"], description: "IANA timezone the pattern was captured in." }
+
+    AvailabilitySlot:
+      type: object
+      required: [weekday, minutes]
+      properties:
+        weekday: { type: integer, description: "0 = Sunday … 6 = Saturday." }
+        minutes: { type: integer, description: "Minutes from local midnight (0-1410, 30-min steps)." }
+
+    DefaultAvailability:
+      type: object
+      required: [pattern, timezone]
+      properties:
+        pattern:
+          type: array
+          items: { $ref: "#/components/schemas/AvailabilitySlot" }
+        timezone: { type: ["string", "null"] }
 
     ReviewApplicationInput:
       type: object

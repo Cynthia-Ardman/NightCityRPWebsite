@@ -42,6 +42,7 @@ import {
   approveMission,
   postMission,
   applyToMission,
+  getDefaultAvailability,
   withdrawApplication,
   reviewApplication,
   removeAssignedPlayer,
@@ -1007,12 +1008,35 @@ router.post("/missions/:id/applications", requireAuth, async (req, res): Promise
     return;
   }
   const comment = typeof b.comment === "string" ? b.comment : null;
-  const result = await applyToMission({ missionId: id, userId: req.user!.id, characterId, comment });
+  const availability = Array.isArray(b.availability)
+    ? (b.availability as unknown[]).filter((v): v is string => typeof v === "string")
+    : undefined;
+  const makeDefault = b.makeDefault === true;
+  const defaultPattern = Array.isArray(b.defaultPattern)
+    ? (b.defaultPattern as unknown[])
+        .map((v) => ({ weekday: Number((v as any)?.weekday), minutes: Number((v as any)?.minutes) }))
+    : undefined;
+  const timezone = typeof b.timezone === "string" ? b.timezone : undefined;
+  const result = await applyToMission({
+    missionId: id,
+    userId: req.user!.id,
+    characterId,
+    comment,
+    availability,
+    makeDefault,
+    defaultPattern,
+    timezone,
+  });
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
     return;
   }
   res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Player's saved weekly availability default — pre-fills the apply-form picker.
+router.get("/me/availability-default", requireAuth, async (req, res): Promise<void> => {
+  res.json(await getDefaultAvailability(req.user!.id));
 });
 
 // Player withdraws their own application.

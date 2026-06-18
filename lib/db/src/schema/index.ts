@@ -69,6 +69,17 @@ export const users = pgTable(
     // pending. Surfaced in the admin sync dashboard. Null = never attempted.
     lastSyncStatus: text("last_sync_status"),
     lastSyncError: text("last_sync_error"),
+    // ---- Mission availability defaults (Task #244) ----
+    // The player's saved weekly availability pattern, used to pre-fill the
+    // mission-application availability picker. An array of { weekday: 0-6 (Sun=0),
+    // minutes: 0-1410 } half-hour blocks expressed in the player's LOCAL clock,
+    // re-projected onto concrete dates each time the picker opens. Null = none saved.
+    defaultAvailability: jsonb("default_availability").$type<
+      { weekday: number; minutes: number }[]
+    >(),
+    // IANA timezone the default pattern was captured in (informational; the
+    // picker re-projects in the viewer's current local time). Null = none saved.
+    availabilityTimezone: text("availability_timezone"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -970,6 +981,11 @@ export const missionApplications = pgTable("mission_applications", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
   comment: text("comment"),
+  // When2Meet-style availability (Task #244): an array of UTC ISO instant
+  // strings, one per selected 30-minute block, stored as ABSOLUTE instants so
+  // a fixer can overlap applicants who picked in different time zones. Null /
+  // empty = the applicant didn't supply availability.
+  availability: jsonb("availability").$type<string[]>(),
   // pending | accepted | withdrawn | rejected.
   status: text("status").notNull().default("pending"),
   reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
