@@ -382,6 +382,10 @@ export const storeStock = pgTable("store_stock", {
   name: text("name").notNull(),
   category: text("category"),
   price: integer("price").notNull().default(0),
+  // Per-unit cost the shop paid to acquire this item. Recovered by the shop
+  // before commission: employee commission is a % of (price - cost) profit, not
+  // the full sale price. Default 0 => entire sale is profit (legacy behavior).
+  cost: integer("cost").notNull().default(0),
   quantity: integer("quantity").notNull().default(0),
   notes: text("notes"),
   description: text("description"),
@@ -426,6 +430,9 @@ export const ripperdocStock = pgTable("ripperdoc_stock", {
   name: text("name").notNull(),
   category: text("category"),
   price: integer("price").notNull().default(0),
+  // Per-unit acquisition cost. See storeStock.cost — commission is a % of the
+  // (price - cost) profit, so the clinic recovers its cost before paying out.
+  cost: integer("cost").notNull().default(0),
   quantity: integer("quantity").notNull().default(0),
   notes: text("notes"),
   description: text("description"),
@@ -776,6 +783,11 @@ export const saleOffers = pgTable("sale_offers", {
   unitPrice: integer("unit_price").notNull(),
   quantity: integer("quantity").notNull().default(1),
   totalPrice: integer("total_price").notNull(),
+  // Snapshot of the shop's total acquisition cost for this offer (unit cost ×
+  // quantity), captured at offer time so commission stays fixed even if stock
+  // cost changes later. Null for service-fee offers (remove/install_owned/
+  // stock_add) which have no cost basis => commission falls back to full price.
+  costBasis: integer("cost_basis"),
   // Buyer (must be a claimed character so we can debit a wallet).
   buyerCharacterId: integer("buyer_character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
   buyerUserId: text("buyer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
