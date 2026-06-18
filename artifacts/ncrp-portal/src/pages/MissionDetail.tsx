@@ -716,6 +716,43 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
           )}
           {existing.comment && <p className="text-muted-foreground whitespace-pre-wrap">{existing.comment}</p>}
           {existing.status === "pending" && open && (
+            <div className="space-y-2 border-t border-border/50 pt-3">
+              <Label className="text-xs">YOUR AVAILABILITY (optional)</Label>
+              <AvailabilityGrid mode="edit" value={slots} onChange={setSlots} />
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <Checkbox
+                  checked={makeDefault}
+                  onCheckedChange={(v) => setMakeDefault(v === true)}
+                  className="rounded-none"
+                  data-testid="checkbox-make-default-availability"
+                />
+                Make this my default availability
+              </label>
+              <Button
+                type="button"
+                size="sm"
+                disabled={apply.isPending}
+                onClick={() =>
+                  apply.mutate({
+                    id: data.id,
+                    data: {
+                      characterId: existing.characterId,
+                      comment: existing.comment ?? null,
+                      availability: slots,
+                      makeDefault,
+                      defaultPattern: makeDefault ? patternFromInstants(slots) : undefined,
+                      timezone: makeDefault ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined,
+                    },
+                  })
+                }
+                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                data-testid="button-save-availability"
+              >
+                {apply.isPending ? "SAVING..." : "SAVE AVAILABILITY"}
+              </Button>
+            </div>
+          )}
+          {existing.status === "pending" && open && (
             <Button
               type="button"
               variant="outline"
