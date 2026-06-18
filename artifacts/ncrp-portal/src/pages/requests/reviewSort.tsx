@@ -44,6 +44,21 @@ export function sortReviewItems<T>(
   return copy;
 }
 
+// Pin decided-but-not-closed tickets (approved / rejected) to the top of a
+// queue, preserving the relative order produced by sortReviewItems within each
+// group. Decided tickets still need a closer to CLOSE & APPLY / CLOSE & DENY,
+// so surfacing them first replaces the old "Ready to apply" banner.
+export function decidedFirst<T>(items: T[], statusOf: (item: T) => string): T[] {
+  const decided: T[] = [];
+  const rest: T[] = [];
+  for (const it of items) {
+    const s = statusOf(it);
+    if (s === "approved" || s === "rejected") decided.push(it);
+    else rest.push(it);
+  }
+  return [...decided, ...rest];
+}
+
 export function ReviewSortDropdown({
   value,
   onChange,

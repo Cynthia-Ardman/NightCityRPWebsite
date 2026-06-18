@@ -51,8 +51,8 @@ import {
   GUN_POWER_LEVEL_ALIASES,
 } from "@/components/catalog/gunTypes";
 import { CYBERWARE_SLOTS } from "@/lib/cyberwareOptions";
-import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "./reviewSort";
-import { useReviewTicketActions, LifecycleActions, CloseTicketDialog } from "@/components/review/ReviewLifecycleUI";
+import { ReviewSortDropdown, sortReviewItems, decidedFirst, type ReviewSortMode } from "./reviewSort";
+import { useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import DiffValue from "@/components/DiffValue";
@@ -962,11 +962,20 @@ function MissionApprovalSection({
 }
 
 function NewCharactersTab() {
-  // Active-only tab: resolved/closed sheets live in the cross-cutting
-  // Completed/Denied tabs.
+  // The queue holds both undecided (pending / changes_requested) AND decided-
+  // but-not-closed (approved / rejected) sheets. Decided sheets render as green /
+  // red glow cards with CLOSE & APPLY / CLOSE TICKET + REOPEN so the closer
+  // materializes the character (and enters custom cyberware/gun attrs) in place.
+  // We fetch the active bucket and the resolved bucket and merge them; closed
+  // sheets live in the cross-cutting Completed/Denied tabs, cancelled ones are
+  // dropped from the queue.
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: active, isLoading } = useListPendingSheets({ bucket: "active" });
+  const { data: resolved, isLoading: resolvedLoading } = useListPendingSheets(
+    { bucket: "resolved" },
+    { query: { queryKey: getListPendingSheetsQueryKey({ bucket: "resolved" }) } },
+  );
   const { data: unseenIds } = useGetReviewUnseenIds();
   const { data: me } = useEffectiveMe();
   const unseen = new Set(unseenIds?.sheet ?? []);
@@ -1012,16 +1021,26 @@ function NewCharactersTab() {
     },
   });
   const busy = vote.isPending || override.isPending;
+  const actions = useReviewTicketActions(invalidate);
   const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
 
-  const sheets = sortReviewItems(
-    (active ?? []) as PendingSheetSummary[],
-    sortMode,
-    (s) => s.createdAt,
-    (s) => s.lastActivityAt,
+  // Decided-but-not-closed sheets (approved / rejected) live in the resolved
+  // bucket alongside cancelled — keep only the two that still need a closer to
+  // CLOSE & APPLY / CLOSE TICKET. Pin them above the undecided queue.
+  const decided = ((resolved ?? []) as PendingSheetSummary[]).filter(
+    (s) => s.status === "approved" || s.status === "rejected",
+  );
+  const sheets = decidedFirst(
+    sortReviewItems(
+      [...((active ?? []) as PendingSheetSummary[]), ...decided],
+      sortMode,
+      (s) => s.createdAt,
+      (s) => s.lastActivityAt,
+    ),
+    (s) => String(s.status),
   );
 
-  if (isLoading) {
+  if (isLoading || resolvedLoading) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
   }
 
@@ -1037,6 +1056,8 @@ function NewCharactersTab() {
 
   const renderCard = (sheet: PendingSheetSummary) => {
     const my = sheet.myVote;
+    const isDecided = sheet.status === "approved" || sheet.status === "rejected";
+    const tone = sheet.status === "approved" ? "approved" : sheet.status === "rejected" ? "rejected" : "default";
     return (
       <ReviewQueueCard
         key={sheet.id}
@@ -1050,6 +1071,7 @@ function NewCharactersTab() {
         title={sheet.name}
         subtitle={`By ${sheet.ownerName || sheet.ownerId}`}
         date={sheet.createdAt}
+        tone={tone}
         showRoster={isReviewer}
         roster={{
           eligibleReviewers: sheet.eligibleReviewers ?? [],
@@ -1058,21 +1080,35 @@ function NewCharactersTab() {
         markSeenOnMount={isReviewer}
         awaitingVote={canVote && sheet.status === "pending" && !my}
         tally={
-          <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-sheet-${sheet.id}`}>
-            <span className="text-nc-green">{sheet.approveCount ?? 0}</span>/{sheet.threshold ?? "?"} approve ·{" "}
-            <span className="text-destructive">{sheet.rejectCount ?? 0}</span> reject
-            {my ? (
-              <span className="ml-2">
-                · you voted{" "}
-                <span className={my.vote === "approve" ? "text-nc-green" : "text-destructive"}>
-                  {my.vote.toUpperCase()}
+          isDecided ? (
+            <div
+              className={`font-mono text-xs ${sheet.status === "approved" ? "text-nc-green" : "text-destructive"}`}
+              data-testid={`status-sheet-${sheet.id}`}
+            >
+              {sheet.status === "approved"
+                ? "APPROVED — awaiting Close & Apply"
+                : "REJECTED — awaiting Close"}
+            </div>
+          ) : (
+            <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-sheet-${sheet.id}`}>
+              <span className="text-nc-green">{sheet.approveCount ?? 0}</span>/{sheet.threshold ?? "?"} approve ·{" "}
+              <span className="text-destructive">{sheet.rejectCount ?? 0}</span> reject
+              {my ? (
+                <span className="ml-2">
+                  · you voted{" "}
+                  <span className={my.vote === "approve" ? "text-nc-green" : "text-destructive"}>
+                    {my.vote.toUpperCase()}
+                  </span>
                 </span>
-              </span>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          )
         }
         actions={
           <div className="space-y-2">
+            {isReviewer && isDecided && (
+              <LifecycleActions subjectType="sheet" id={sheet.id} status={sheet.status} actions={actions} />
+            )}
             {isReviewer && (
               <div className="flex flex-wrap gap-2">
                 {sheet.status === "pending" && (
@@ -1814,127 +1850,6 @@ function TabCount({ n }: { n: number }) {
   );
 }
 
-// Pinned panel surfacing every approved-but-not-yet-applied ticket so staff can
-// finalize them in place (per-item CLOSE & APPLY) or clear them all at once
-// (APPLY ALL), without switching to the Completed tab. Applying still routes
-// through the same idempotent close endpoint that materializes staged effects.
-function ReadyToApplyPanel() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const { readyToApply } = useTerminalItems();
-  const [applyingAll, setApplyingAll] = useState(false);
-
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
-    qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
-    qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
-    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
-    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
-  };
-
-  const close = useCloseReviewTicket({
-    mutation: {
-      onError: (err) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-          (err instanceof Error ? err.message : "Please try again.");
-        toast({ title: "Could not apply", description: msg, variant: "destructive" });
-      },
-    },
-  });
-
-  if (readyToApply.length === 0) return null;
-  const busy = applyingAll || close.isPending;
-
-  const applyAll = async () => {
-    setApplyingAll(true);
-    let ok = 0;
-    let failed = 0;
-    // Sequential so a mid-batch failure doesn't fire a flood of parallel
-    // requests; each close is independently idempotent.
-    for (const item of readyToApply) {
-      if (!item.subjectType) continue;
-      try {
-        await close.mutateAsync({ subjectType: item.subjectType, id: item.id });
-        ok += 1;
-      } catch {
-        failed += 1;
-      }
-    }
-    invalidate();
-    setApplyingAll(false);
-    toast({
-      title: `Applied ${ok} approved request${ok === 1 ? "" : "s"}${failed ? ` · ${failed} failed` : ""}`,
-      variant: failed ? "destructive" : undefined,
-    });
-  };
-
-  return (
-    <Card className="rounded-none border-nc-yellow/60 bg-nc-yellow/5" data-testid="panel-ready-to-apply">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-lg font-display tracking-widest text-nc-yellow">
-              READY TO APPLY ({readyToApply.length})
-            </CardTitle>
-            <CardDescription className="font-mono text-xs">
-              Approved — finalize to create the lease / item / character.
-            </CardDescription>
-          </div>
-          <Button
-            className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display text-xs tracking-widest"
-            disabled={busy}
-            onClick={applyAll}
-            data-testid="button-apply-all-approved"
-          >
-            {applyingAll ? "APPLYING..." : `APPLY ALL (${readyToApply.length})`}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {readyToApply.map((item) => {
-            const Icon = item.Icon;
-            return (
-              <div
-                key={item.key}
-                className="flex flex-wrap items-center justify-between gap-3 border border-border/60 bg-card/60 px-3 py-2"
-                data-testid={`row-ready-${item.kind}-${item.id}`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px] shrink-0">
-                    <Icon className="w-3 h-3 mr-1" /> {item.badgeLabel}
-                  </Badge>
-                  <div className="min-w-0">
-                    <div className="font-display text-sm truncate">{item.title}</div>
-                    <div className="font-mono text-[11px] text-muted-foreground truncate">{item.subtitle}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {item.subjectType ? (
-                    <CloseTicketDialog
-                      subjectType={item.subjectType}
-                      id={item.id}
-                      status="approved"
-                      close={close}
-                      disabled={busy}
-                      triggerClassName="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
-                      onClosed={() => {
-                        invalidate();
-                        toast({ title: `Applied "${item.title}"` });
-                      }}
-                    />
-                  ) : null}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function PendingRequests() {
   const { data: me } = useEffectiveMe();
   // STAFF VIEW access to the queues is broad (fixer / cs-approver / admin),
@@ -2024,10 +1939,6 @@ export default function PendingRequests() {
         </h1>
         <p className="text-muted-foreground font-mono mt-2">Review player submissions across the server.</p>
       </div>
-
-      {isReviewer && (
-        <ErrorBoundary><ReadyToApplyPanel /></ErrorBoundary>
-      )}
 
       <Tabs value={tab} onValueChange={setActiveTab}>
         <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">

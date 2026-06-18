@@ -22,7 +22,7 @@ import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } fr
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
-import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "../requests/reviewSort";
+import { ReviewSortDropdown, sortReviewItems, decidedFirst, type ReviewSortMode } from "../requests/reviewSort";
 
 function EditRow({
   e,
@@ -126,6 +126,7 @@ function EditReviewCard({
   vote,
   override,
   busy,
+  actions,
 }: {
   e: PendingEditSummary;
   unseen: boolean;
@@ -135,10 +136,13 @@ function EditReviewCard({
   vote: ReturnType<typeof useVotePendingEdit>;
   override: ReturnType<typeof useOverridePendingEdit>;
   busy: boolean;
+  actions: ReturnType<typeof useReviewTicketActions>;
 }) {
   // See EditRow: prefer server-computed meaningful changes over raw diff keys.
   const changed = e.changedFields ?? (e.proposedDiff ? Object.keys(e.proposedDiff) : []);
   const my = e.myVote;
+  const isDecided = e.status === "approved" || e.status === "rejected";
+  const tone = e.status === "approved" ? "approved" : e.status === "rejected" ? "rejected" : "default";
   return (
     <ReviewQueueCard
       subjectType="edit"
@@ -151,6 +155,7 @@ function EditReviewCard({
       title={e.characterName}
       subtitle={`by ${e.submitterName ?? "(unknown)"}`}
       date={e.submittedAt}
+      tone={tone}
       showRoster={isReviewer}
       roster={{
         eligibleReviewers: e.eligibleReviewers ?? [],
@@ -159,21 +164,33 @@ function EditReviewCard({
       markSeenOnMount={isReviewer}
       awaitingVote={canVote && e.status === "pending" && !my}
       tally={
-        <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-edit-${e.id}`}>
-          <span className="text-nc-green">{e.approveCount}</span>/{e.threshold} approve ·{" "}
-          <span className="text-destructive">{e.rejectCount}</span> reject
-          {my ? (
-            <span className="ml-2">
-              · you voted{" "}
-              <span className={my.vote === "approve" ? "text-nc-green" : "text-destructive"}>
-                {my.vote.toUpperCase()}
+        isDecided ? (
+          <div
+            className={`font-mono text-xs ${e.status === "approved" ? "text-nc-green" : "text-destructive"}`}
+            data-testid={`status-edit-${e.id}`}
+          >
+            {e.status === "approved" ? "APPROVED — awaiting Close & Apply" : "REJECTED — awaiting Close"}
+          </div>
+        ) : (
+          <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-edit-${e.id}`}>
+            <span className="text-nc-green">{e.approveCount}</span>/{e.threshold} approve ·{" "}
+            <span className="text-destructive">{e.rejectCount}</span> reject
+            {my ? (
+              <span className="ml-2">
+                · you voted{" "}
+                <span className={my.vote === "approve" ? "text-nc-green" : "text-destructive"}>
+                  {my.vote.toUpperCase()}
+                </span>
               </span>
-            </span>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        )
       }
       actions={
         <div className="space-y-2">
+          {isReviewer && isDecided && (
+            <LifecycleActions subjectType="edit" id={e.id} status={e.status} actions={actions} />
+          )}
           {isReviewer && (
             <div className="flex flex-wrap gap-2">
               {e.status === "pending" && (
@@ -267,9 +284,12 @@ export default function PendingEditsList({
 function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean; activeOnly?: boolean }) {
   const qc = useQueryClient();
   const { data: active, isLoading: la } = useListPendingEdits({ bucket: "active" });
+  // Resolved is always fetched: in full mode it backs the Resolved bucket
+  // section; in activeOnly (embedded queue) mode its decided rows are merged
+  // into the active grid as green/red glow cards awaiting Close & Apply.
   const { data: resolved, isLoading: lr } = useListPendingEdits(
     { bucket: "resolved" },
-    { query: { enabled: !activeOnly, queryKey: getListPendingEditsQueryKey({ bucket: "resolved" }) } },
+    { query: { queryKey: getListPendingEditsQueryKey({ bucket: "resolved" }) } },
   );
   const { data: archive, isLoading: lar } = useListPendingEdits(
     { bucket: "archive" },
@@ -281,7 +301,7 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
   const isAdmin = !!me?.isAdmin;
   // Only fixers / cs-approvers cast counted votes; a pure admin uses OVERRIDE.
   const canVote = !!(me?.isFixer || me?.isCsApprover);
-  const isLoading = la || (!activeOnly && (lr || lar));
+  const isLoading = la || lr || (!activeOnly && lar);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
@@ -323,12 +343,24 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
   const unseen = new Set(unseenIds?.edit ?? []);
   const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
 
+  // In the embedded queue (activeOnly), merge decided-but-not-closed edits
+  // (approved / rejected) into the active grid as glow cards, pinned to the top
+  // — mirroring the Misc Requests tab. In the full standalone page they stay in
+  // their own Resolved bucket section, so the active grid is pending-only.
+  const decidedEdits = activeOnly
+    ? ((resolved ?? []) as PendingEditSummary[]).filter(
+        (e) => e.status === "approved" || e.status === "rejected",
+      )
+    : [];
   const buckets: Record<LifecycleBucket, PendingEditSummary[]> = {
-    active: sortReviewItems(
-      (active ?? []) as PendingEditSummary[],
-      sortMode,
-      (e) => e.submittedAt,
-      (e) => e.lastActivityAt,
+    active: decidedFirst(
+      sortReviewItems(
+        [...((active ?? []) as PendingEditSummary[]), ...decidedEdits],
+        sortMode,
+        (e) => e.submittedAt,
+        (e) => e.lastActivityAt,
+      ),
+      (e) => String(e.status),
     ),
     resolved: (resolved ?? []) as PendingEditSummary[],
     archive: (archive ?? []) as PendingEditSummary[],
@@ -362,6 +394,7 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
                       vote={vote}
                       override={override}
                       busy={voteBusy}
+                      actions={actions}
                     />
                   ))}
                 </div>
