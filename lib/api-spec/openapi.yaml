@@ -8082,6 +8082,29 @@ components:
         unitCost: { type: integer, description: "Custom request (venue_stock) only. Unit cost applied at CLOSE & APPLY." }
         retail: { type: integer, description: "Custom request (venue_stock) only. Retail price applied at CLOSE & APPLY." }
         qty: { type: integer, description: "Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY." }
+        sheetCyberware:
+          type: array
+          description: "Character sheet (close) only. Per-item mechanical attributes for CUSTOM (non-catalog) cyberware, keyed by index in the sheet's cyberware array. Catalog cyberware auto-resolves from the catalog and must be omitted."
+          items:
+            type: object
+            required: [index, cwp, slot]
+            properties:
+              index: { type: integer, minimum: 0, description: "0-based index into the sheet's cyberware array." }
+              cwp: { type: integer, description: "Chrome points applied at CLOSE & APPLY." }
+              slot: { type: string, maxLength: 120, description: "Body-system slot applied at CLOSE & APPLY." }
+        sheetGuns:
+          type: array
+          description: "Character sheet (close) only. Per-item mechanical attributes for CUSTOM (non-catalog) guns, keyed by index in the sheet's guns array. Catalog guns auto-resolve from the catalog and must be omitted."
+          items:
+            type: object
+            required: [index, category, weaponType, fireMode, powerLevel]
+            properties:
+              index: { type: integer, minimum: 0, description: "0-based index into the sheet's guns array." }
+              category: { type: string, maxLength: 60, description: "Firing category (Power/Tech/Smart) applied at CLOSE & APPLY." }
+              weaponType: { type: string, maxLength: 60, description: "Weapon type (Pistol/SMG/…) applied at CLOSE & APPLY." }
+              fireMode: { type: string, maxLength: 60, description: "Fire mode (Semi-Auto/Burst/Full-Auto) applied at CLOSE & APPLY." }
+              powerLevel: { type: string, maxLength: 60, description: "Weight/power class (L/M/H) applied at CLOSE & APPLY." }
+              manufacturer: { type: string, maxLength: 120, description: "Optional manufacturer applied at CLOSE & APPLY." }
 
     PendingEditVoteInput:
       type: object

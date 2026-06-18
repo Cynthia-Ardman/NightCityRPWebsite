@@ -11,7 +11,17 @@ vi.mock("../lib/discord", async (importActual) => {
   };
 });
 
-import { db, characterSheets, characters, reviewVotes, auditLog, inventoryItems, users } from "@workspace/db";
+import {
+  db,
+  characterSheets,
+  characters,
+  reviewVotes,
+  auditLog,
+  inventoryItems,
+  users,
+  catalogCyberware,
+  catalogGuns,
+} from "@workspace/db";
 import { sendDirectMessage } from "../lib/discord";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
@@ -276,11 +286,12 @@ describe("sheet close — materialize-once idempotency", () => {
       .where(eq(characterSheets.id, sheet.id));
     expect(decided.status).toBe("approved");
 
-    // First close: materialize character + seed inventory.
+    // First close: materialize character + seed inventory. "Cyberarm" is a
+    // CUSTOM (non-catalog) item so its mechanical attributes must be supplied.
     const c1 = await request(app)
       .post(`/api/review/sheet/${sheet.id}/close`)
       .set("x-test-user", f1.id)
-      .send({});
+      .send({ sheetCyberware: [{ index: 0, cwp: 2, slot: "arms" }] });
     expect(c1.status).toBe(200);
 
     const charsAfter1 = await db
@@ -316,6 +327,139 @@ describe("sheet close — materialize-once idempotency", () => {
       .set("x-test-user", f1.id)
       .send({});
     expect(reopen.status).toBe(409);
+  });
+});
+
+// Closing a sheet that carries CUSTOM (non-catalog) cyberware/guns must require
+// the closer to supply their mechanical attributes — reaching parity with the
+// standalone custom cyberware/gun request close flow. Catalog items auto-resolve
+// from the catalog and are never prompted.
+describe("sheet close — custom item attribute resolution", () => {
+  async function seedSheet(ownerId: string, data: Record<string, unknown>) {
+    const [s] = await db
+      .insert(characterSheets)
+      .values({ ownerId, name: "Chrome Subject", status: "pending", data: { sheetType: "PC", ...data } })
+      .returning();
+    return s;
+  }
+
+  async function approveSheet(sheetId: number, reviewers: { id: string }[]) {
+    for (const f of reviewers) {
+      const v = await request(app)
+        .post(`/api/sheets/${sheetId}/vote`)
+        .set("x-test-user", f.id)
+        .send({ vote: "approve" });
+      expect(v.status).toBe(200);
+    }
+  }
+
+  it("rejects the close with 400 when a custom cyberware item has no attributes", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer();
+    const sheet = await seedSheet(owner.id, {
+      cyberware: [{ name: "Frankenarm", slot: "arms", points: 3 }],
+    });
+    await approveSheet(sheet.id, [f1, f2]);
+
+    const close = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(close.status).toBe(400);
+    // No character is materialized on the failed close.
+    expect(await db.select().from(characters).where(eq(characters.ownerId, owner.id))).toHaveLength(0);
+    const [still] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(still.status).toBe("approved");
+  });
+
+  it("rejects the close with 400 when a custom gun has no attributes", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer();
+    const sheet = await seedSheet(owner.id, { guns: ["Homemade Slugthrower"] });
+    await approveSheet(sheet.id, [f1, f2]);
+
+    const close = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(close.status).toBe(400);
+    expect(await db.select().from(characters).where(eq(characters.ownerId, owner.id))).toHaveLength(0);
+  });
+
+  it("materializes custom cyberware + gun with the supplied attributes", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer();
+    const sheet = await seedSheet(owner.id, {
+      cyberware: [{ name: "Frankenarm", slot: "arms", points: 3, notes: "rusty" }],
+      guns: ["Homemade Slugthrower"],
+    });
+    await approveSheet(sheet.id, [f1, f2]);
+
+    const close = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", f1.id)
+      .send({
+        sheetCyberware: [{ index: 0, cwp: 3, slot: "arms" }],
+        sheetGuns: [
+          {
+            index: 0,
+            category: "Power",
+            weaponType: "Pistol",
+            fireMode: "Semi-Auto",
+            powerLevel: "M",
+            manufacturer: "Scav Built",
+          },
+        ],
+      });
+    expect(close.status).toBe(200);
+
+    const [char] = await db.select().from(characters).where(eq(characters.ownerId, owner.id));
+    expect(char).toBeTruthy();
+    const inv = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, char.id));
+    const cyber = inv.find((i) => i.category === "cyberware");
+    expect(cyber?.notes).toBe("CWP 3 · rusty · slot: arms");
+    const gun = inv.find((i) => i.category === "gun");
+    expect(gun?.notes).toBe("Manufacturer: Scav Built · Category: Power · Type: Pistol · Fire: Semi-Auto · Power: M");
+  });
+
+  it("auto-resolves catalog cyberware + gun without requiring attributes", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer();
+    await db.insert(catalogCyberware).values({ name: "Kerenzikov", slot: "nervous system", cwp: "2" });
+    await db
+      .insert(catalogGuns)
+      .values({ name: "Militech M-10AF Lexington", category: "Power", weaponType: "Pistol", fireMode: "Semi-Auto", powerLevel: "M", manufacturer: "Militech" });
+
+    const sheet = await seedSheet(owner.id, {
+      cyberware: [{ name: "Kerenzikov", slot: "ignored", points: 99 }],
+      guns: ["Militech M-10AF Lexington"],
+    });
+    await approveSheet(sheet.id, [f1, f2]);
+
+    // No sheetCyberware/sheetGuns params — catalog resolves them.
+    const close = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(close.status).toBe(200);
+
+    const [char] = await db.select().from(characters).where(eq(characters.ownerId, owner.id));
+    const inv = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, char.id));
+    const cyber = inv.find((i) => i.category === "cyberware");
+    // Catalog CWP (2) + slot win over the player's typed values.
+    expect(cyber?.notes).toBe("CWP 2 · slot: nervous system");
+    const gun = inv.find((i) => i.category === "gun");
+    expect(gun?.notes).toBe(
+      "Manufacturer: Militech · Category: Power · Type: Pistol · Fire: Semi-Auto · Power: M",
+    );
   });
 });
 

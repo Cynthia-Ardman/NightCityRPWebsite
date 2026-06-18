@@ -435,6 +435,8 @@ export * from './reviewApplicationInput';
 export * from './reviewApplicationInputAction';
 export * from './reviewCloseInput';
 export * from './reviewCloseInputKind';
+export * from './reviewCloseInputSheetCyberwareItem';
+export * from './reviewCloseInputSheetGunsItem';
 export * from './reviewComment';
 export * from './reviewCommentInput';
 export * from './reviewCommentSubjectType';

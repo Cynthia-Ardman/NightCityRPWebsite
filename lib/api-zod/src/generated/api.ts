@@ -10507,6 +10507,22 @@ export const closeReviewTicketBodyPowerLevelMax = 60;
 
 export const closeReviewTicketBodyManufacturerMax = 120;
 
+export const closeReviewTicketBodySheetCyberwareItemIndexMin = 0;
+
+export const closeReviewTicketBodySheetCyberwareItemSlotMax = 120;
+
+export const closeReviewTicketBodySheetGunsItemIndexMin = 0;
+
+export const closeReviewTicketBodySheetGunsItemCategoryMax = 60;
+
+export const closeReviewTicketBodySheetGunsItemWeaponTypeMax = 60;
+
+export const closeReviewTicketBodySheetGunsItemFireModeMax = 60;
+
+export const closeReviewTicketBodySheetGunsItemPowerLevelMax = 60;
+
+export const closeReviewTicketBodySheetGunsItemManufacturerMax = 120;
+
 
 
 export const CloseReviewTicketBody = zod.object({
@@ -10525,7 +10541,20 @@ export const CloseReviewTicketBody = zod.object({
   "manufacturer": zod.string().max(closeReviewTicketBodyManufacturerMax).optional().describe('Custom request (gun) only. Optional manufacturer applied at CLOSE & APPLY (fixer-decided).'),
   "unitCost": zod.number().optional().describe('Custom request (venue_stock) only. Unit cost applied at CLOSE & APPLY.'),
   "retail": zod.number().optional().describe('Custom request (venue_stock) only. Retail price applied at CLOSE & APPLY.'),
-  "qty": zod.number().optional().describe('Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY.')
+  "qty": zod.number().optional().describe('Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY.'),
+  "sheetCyberware": zod.array(zod.object({
+  "index": zod.number().min(closeReviewTicketBodySheetCyberwareItemIndexMin).describe('0-based index into the sheet\'s cyberware array.'),
+  "cwp": zod.number().describe('Chrome points applied at CLOSE & APPLY.'),
+  "slot": zod.string().max(closeReviewTicketBodySheetCyberwareItemSlotMax).describe('Body-system slot applied at CLOSE & APPLY.')
+})).optional().describe('Character sheet (close) only. Per-item mechanical attributes for CUSTOM (non-catalog) cyberware, keyed by index in the sheet\'s cyberware array. Catalog cyberware auto-resolves from the catalog and must be omitted.'),
+  "sheetGuns": zod.array(zod.object({
+  "index": zod.number().min(closeReviewTicketBodySheetGunsItemIndexMin).describe('0-based index into the sheet\'s guns array.'),
+  "category": zod.string().max(closeReviewTicketBodySheetGunsItemCategoryMax).describe('Firing category (Power\/Tech\/Smart) applied at CLOSE & APPLY.'),
+  "weaponType": zod.string().max(closeReviewTicketBodySheetGunsItemWeaponTypeMax).describe('Weapon type (Pistol\/SMG\/…) applied at CLOSE & APPLY.'),
+  "fireMode": zod.string().max(closeReviewTicketBodySheetGunsItemFireModeMax).describe('Fire mode (Semi-Auto\/Burst\/Full-Auto) applied at CLOSE & APPLY.'),
+  "powerLevel": zod.string().max(closeReviewTicketBodySheetGunsItemPowerLevelMax).describe('Weight\/power class (L\/M\/H) applied at CLOSE & APPLY.'),
+  "manufacturer": zod.string().max(closeReviewTicketBodySheetGunsItemManufacturerMax).optional().describe('Optional manufacturer applied at CLOSE & APPLY.')
+})).optional().describe('Character sheet (close) only. Per-item mechanical attributes for CUSTOM (non-catalog) guns, keyed by index in the sheet\'s guns array. Catalog guns auto-resolve from the catalog and must be omitted.')
 })
 
 export const CloseReviewTicketResponse = zod.record(zod.string(), zod.unknown())

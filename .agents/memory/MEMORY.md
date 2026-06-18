@@ -156,3 +156,4 @@
 - [Venue lease association](venue-lease-association.md) — staff PATCH housingId on store/ripperdoc links a kind=business lease; non-staff housingId silently stripped (not 403); pins location; GET+PATCH return computed `lease`.
 - [Commission from profit](commission-profit-basis.md) — employee commission = % of (sale total − snapshotted costBasis), one helper, cost frozen at offer creation; service-fee offers null→full-fee.
 - [Custom-request drafts](custom-request-drafts.md) — venue (store/ripperdoc) drafts: submit re-validates purpose/location from stored row, so MyRequests editor MUST expose purpose+location or venue drafts saved name-only get stuck; submit+delete allow owner OR admin.
+- [Sheet close custom-attrs](sheet-close-custom-attrs.md) — closing a NEW sheet w/ non-catalog cyberware/guns 400s unless closer supplies attrs (CWP+slot / category·type·fire·power); catalog auto-resolves; params keyed by FULL-array index; fresh-insert path only.

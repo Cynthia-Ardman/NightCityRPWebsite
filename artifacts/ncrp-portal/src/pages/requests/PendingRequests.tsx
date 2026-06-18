@@ -53,6 +53,7 @@ import {
 import { CYBERWARE_SLOTS } from "@/lib/cyberwareOptions";
 import { ReviewSortDropdown, sortReviewItems, type ReviewSortMode } from "./reviewSort";
 import { useReviewTicketActions, LifecycleActions, CloseTicketDialog } from "@/components/review/ReviewLifecycleUI";
+import { SheetCloseDialog } from "@/components/review/SheetCloseDialog";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import DiffValue from "@/components/DiffValue";
@@ -1911,7 +1912,19 @@ function ReadyToApplyPanel() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {item.subjectType ? (
+                  {item.subjectType === "sheet" ? (
+                    <SheetCloseDialog
+                      id={item.id}
+                      status="approved"
+                      close={close}
+                      disabled={busy}
+                      triggerClassName="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display text-xs tracking-widest"
+                      onClosed={() => {
+                        invalidate();
+                        toast({ title: `Applied "${item.title}"` });
+                      }}
+                    />
+                  ) : item.subjectType ? (
                     <CloseTicketDialog
                       subjectType={item.subjectType}
                       id={item.id}

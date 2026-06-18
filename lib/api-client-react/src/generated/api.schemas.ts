@@ -4370,6 +4370,54 @@ export const ReviewCloseInputKind = {
   business: 'business',
 } as const;
 
+export type ReviewCloseInputSheetCyberwareItem = {
+  /**
+     * 0-based index into the sheet's cyberware array.
+     * @minimum 0
+     */
+  index: number;
+  /** Chrome points applied at CLOSE & APPLY. */
+  cwp: number;
+  /**
+     * Body-system slot applied at CLOSE & APPLY.
+     * @maxLength 120
+     */
+  slot: string;
+};
+
+export type ReviewCloseInputSheetGunsItem = {
+  /**
+     * 0-based index into the sheet's guns array.
+     * @minimum 0
+     */
+  index: number;
+  /**
+     * Firing category (Power/Tech/Smart) applied at CLOSE & APPLY.
+     * @maxLength 60
+     */
+  category: string;
+  /**
+     * Weapon type (Pistol/SMG/…) applied at CLOSE & APPLY.
+     * @maxLength 60
+     */
+  weaponType: string;
+  /**
+     * Fire mode (Semi-Auto/Burst/Full-Auto) applied at CLOSE & APPLY.
+     * @maxLength 60
+     */
+  fireMode: string;
+  /**
+     * Weight/power class (L/M/H) applied at CLOSE & APPLY.
+     * @maxLength 60
+     */
+  powerLevel: string;
+  /**
+     * Optional manufacturer applied at CLOSE & APPLY.
+     * @maxLength 120
+     */
+  manufacturer?: string;
+};
+
 export interface ReviewCloseInput {
   /**
      * Optional closing message recorded with the close/apply action. For custom requests it is also DM'd to the player along with the approve/reject decision (Tickety-style closing comment); for edits and sheets it is recorded in the audit trail only.
@@ -4433,6 +4481,10 @@ export interface ReviewCloseInput {
   retail?: number;
   /** Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY. */
   qty?: number;
+  /** Character sheet (close) only. Per-item mechanical attributes for CUSTOM (non-catalog) cyberware, keyed by index in the sheet's cyberware array. Catalog cyberware auto-resolves from the catalog and must be omitted. */
+  sheetCyberware?: ReviewCloseInputSheetCyberwareItem[];
+  /** Character sheet (close) only. Per-item mechanical attributes for CUSTOM (non-catalog) guns, keyed by index in the sheet's guns array. Catalog guns auto-resolve from the catalog and must be omitted. */
+  sheetGuns?: ReviewCloseInputSheetGunsItem[];
 }
 
 export type PendingEditVoteInputVote = typeof PendingEditVoteInputVote[keyof typeof PendingEditVoteInputVote];

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
-import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, type User } from "@workspace/db";
+import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, catalogGuns, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { postToChannel, startThreadFromMessage, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID } from "../lib/discord";
 import { logger } from "../lib/logger";
@@ -244,6 +244,101 @@ async function loadCyberwareCostMap(): Promise<Map<string, number>> {
     .select({ name: catalogCyberware.name, cwp: catalogCyberware.cwp })
     .from(catalogCyberware);
   return buildCyberwareCostMap(rows);
+}
+
+// Mechanical attributes a reviewer supplies at CLOSE & APPLY for CUSTOM
+// (non-catalog) sheet items, indexed into the sheet's `cyberware` / `guns`
+// arrays. Catalog items are auto-resolved from the catalog and never prompted.
+export type SheetCyberwareCloseParam = { index: number; cwp: number; slot: string };
+export type SheetGunCloseParam = {
+  index: number;
+  category: string;
+  weaponType: string;
+  fireMode: string;
+  powerLevel: string;
+  manufacturer?: string;
+};
+export type SheetCloseParams = {
+  sheetCyberware?: SheetCyberwareCloseParam[];
+  sheetGuns?: SheetGunCloseParam[];
+};
+
+type GunAttrs = {
+  category: string | null;
+  weaponType: string | null;
+  fireMode: string | null;
+  powerLevel: string | null;
+  manufacturer: string | null;
+};
+
+// Name-keyed (lower-cased) catalog cyberware map for close-time auto-resolution.
+// Mirrors the cap's "highest CWP wins on duplicate name" rule so the seeded CWP
+// matches what creation validation enforced against, and carries the catalog's
+// authoritative slot.
+async function loadCyberwareCatalogMap(): Promise<Map<string, { cwp: number; slot: string }>> {
+  const rows = await db
+    .select({ name: catalogCyberware.name, cwp: catalogCyberware.cwp, slot: catalogCyberware.slot })
+    .from(catalogCyberware);
+  const map = new Map<string, { cwp: number; slot: string }>();
+  for (const r of rows) {
+    const key = String(r.name ?? "").trim().toLowerCase();
+    if (!key) continue;
+    const cost = Number(r.cwp) || 0;
+    const prev = map.get(key);
+    if (prev === undefined || cost > prev.cwp) {
+      map.set(key, { cwp: cost, slot: String(r.slot ?? "").trim() });
+    }
+  }
+  return map;
+}
+
+// Name-keyed (lower-cased) catalog gun map for close-time auto-resolution.
+// First entry per name wins (catalog names are effectively unique).
+async function loadGunCatalogMap(): Promise<Map<string, GunAttrs>> {
+  const rows = await db
+    .select({
+      name: catalogGuns.name,
+      category: catalogGuns.category,
+      weaponType: catalogGuns.weaponType,
+      fireMode: catalogGuns.fireMode,
+      powerLevel: catalogGuns.powerLevel,
+      manufacturer: catalogGuns.manufacturer,
+    })
+    .from(catalogGuns);
+  const map = new Map<string, GunAttrs>();
+  for (const r of rows) {
+    const key = String(r.name ?? "").trim().toLowerCase();
+    if (!key || map.has(key)) continue;
+    map.set(key, {
+      category: r.category,
+      weaponType: r.weaponType,
+      fireMode: r.fireMode,
+      powerLevel: r.powerLevel,
+      manufacturer: r.manufacturer,
+    });
+  }
+  return map;
+}
+
+// Build the " · "-joined gun note in the SAME field order as the standalone
+// custom-gun request close flow (requests.ts), so a sheet-seeded gun reads
+// identically to one created via the request pipeline. Null/blank parts are
+// dropped; returns null when nothing is known.
+function buildGunNotes(a: {
+  manufacturer?: string | null;
+  category?: string | null;
+  weaponType?: string | null;
+  fireMode?: string | null;
+  powerLevel?: string | null;
+}): string | null {
+  const parts = [
+    a.manufacturer ? `Manufacturer: ${a.manufacturer}` : null,
+    a.category ? `Category: ${a.category}` : null,
+    a.weaponType ? `Type: ${a.weaponType}` : null,
+    a.fireMode ? `Fire: ${a.fireMode}` : null,
+    a.powerLevel ? `Power: ${a.powerLevel}` : null,
+  ].filter(Boolean) as string[];
+  return parts.length ? parts.join(" · ") : null;
 }
 
 // Runs full submission validation. Returns null on success, error message on failure.
@@ -564,23 +659,55 @@ function characterFieldsFromSheet(sheet: SheetRow) {
 // the band derivation and the per-slot grouping in CharacterDetail both work.
 // Only ever called on the fresh-insert path so re-approval of a resubmitted
 // edit can't duplicate items or clobber inventory the player has since changed.
-async function seedInventoryFromSheet(
-  tx: Executor,
-  characterId: number,
-  ownerId: string | null,
+type SeededRow = { name: string; category: string; notes: string | null; equipped: boolean };
+
+// PURE: resolve the sheet's cyberware / gear / guns into inventory rows to seed.
+//
+// Catalog items (name matches a catalog entry) AUTO-RESOLVE their mechanical
+// attributes from the catalog and never need reviewer input. CUSTOM (non-catalog)
+// cyberware and guns HARD-REQUIRE the closer to supply attributes at CLOSE & APPLY
+// (cyberware: CWP + slot; gun: category/weaponType/fireMode/powerLevel, optional
+// manufacturer) — reaching parity with the standalone custom-request close flow.
+// Missing/invalid params return an `{ error }` string so the close 400s before
+// any character is created.
+function buildSheetInventoryRows(
   rawData: unknown,
-): Promise<void> {
+  cyberCatalog: Map<string, { cwp: number; slot: string }>,
+  gunCatalog: Map<string, GunAttrs>,
+  params: SheetCloseParams,
+): { error: string } | { rows: SeededRow[] } {
   const data = (rawData ?? {}) as Record<string, unknown>;
-  const rows: Array<{ name: string; category: string; notes: string | null; equipped: boolean }> = [];
+  const rows: SeededRow[] = [];
+
+  const cwParams = new Map<number, SheetCyberwareCloseParam>();
+  for (const p of params.sheetCyberware ?? []) cwParams.set(p.index, p);
+  const gunParams = new Map<number, SheetGunCloseParam>();
+  for (const p of params.sheetGuns ?? []) gunParams.set(p.index, p);
 
   if (Array.isArray(data.cyberware)) {
-    for (const raw of data.cyberware) {
-      const cw = (raw ?? {}) as Record<string, unknown>;
+    for (let i = 0; i < data.cyberware.length; i++) {
+      const cw = (data.cyberware[i] ?? {}) as Record<string, unknown>;
       const name = String(cw.name ?? "").trim() || String(cw.slot ?? "").trim();
       if (!name) continue;
-      const points = Number(cw.points) || 0;
-      const slot = String(cw.slot ?? "").trim();
       const userNotes = String(cw.notes ?? "").trim();
+      const catalog = cyberCatalog.get(name.toLowerCase());
+      let points: number;
+      let slot: string;
+      if (catalog) {
+        // Catalog install: authoritative CWP + slot, no prompt.
+        points = catalog.cwp;
+        slot = catalog.slot || String(cw.slot ?? "").trim();
+      } else {
+        const p = cwParams.get(i);
+        if (!p) return { error: `Enter CWP and slot for custom cyberware "${name}" before closing.` };
+        if (!Number.isFinite(p.cwp) || p.cwp < 0) {
+          return { error: `A CWP value of 0 or more is required for custom cyberware "${name}".` };
+        }
+        const s = String(p.slot ?? "").trim();
+        if (!s) return { error: `A slot is required for custom cyberware "${name}".` };
+        points = p.cwp;
+        slot = s;
+      }
       const parts = [`CWP ${points}`];
       if (userNotes) parts.push(userNotes);
       // Keep "slot: <x>" LAST — CharacterDetail's slot regex captures up to the
@@ -602,13 +729,49 @@ async function seedInventoryFromSheet(
   // Firearms picked at creation (catalog name or free-text). Seeded as their own
   // "gun" category so they group separately from generic gear in inventory.
   if (Array.isArray(data.guns)) {
-    for (const raw of data.guns) {
-      const name = String(raw ?? "").trim();
+    for (let i = 0; i < data.guns.length; i++) {
+      const name = String(data.guns[i] ?? "").trim();
       if (!name) continue;
-      rows.push({ name, category: "gun", notes: null, equipped: false });
+      const catalog = gunCatalog.get(name.toLowerCase());
+      let notes: string | null;
+      if (catalog) {
+        // Catalog gun: auto-resolve mechanical attributes, no prompt.
+        notes = buildGunNotes(catalog);
+      } else {
+        const p = gunParams.get(i);
+        if (!p) return { error: `Enter the mechanical attributes for custom gun "${name}" before closing.` };
+        const category = String(p.category ?? "").trim();
+        const weaponType = String(p.weaponType ?? "").trim();
+        const fireMode = String(p.fireMode ?? "").trim();
+        const powerLevel = String(p.powerLevel ?? "").trim();
+        if (!category) return { error: `A firing category is required for custom gun "${name}".` };
+        if (!weaponType) return { error: `A weapon type is required for custom gun "${name}".` };
+        if (!fireMode) return { error: `A fire mode is required for custom gun "${name}".` };
+        if (!powerLevel) return { error: `A power level is required for custom gun "${name}".` };
+        notes = buildGunNotes({
+          manufacturer: String(p.manufacturer ?? "").trim() || null,
+          category,
+          weaponType,
+          fireMode,
+          powerLevel,
+        });
+      }
+      rows.push({ name, category: "gun", notes, equipped: false });
     }
   }
 
+  return { rows };
+}
+
+// Inserts the pre-resolved inventory rows + their creation events. Only ever
+// called on the fresh-insert path so re-approval of a resubmitted edit can't
+// duplicate items or clobber inventory the player has since changed.
+async function insertSeededInventory(
+  tx: Executor,
+  characterId: number,
+  ownerId: string | null,
+  rows: SeededRow[],
+): Promise<void> {
   if (rows.length === 0) return;
 
   const inserted = await tx
@@ -638,7 +801,13 @@ async function seedInventoryFromSheet(
   );
 }
 
-async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Promise<number> {
+async function materializeCharacterFromSheet(
+  tx: Executor,
+  sheet: SheetRow,
+  cyberCatalog: Map<string, { cwp: number; slot: string }>,
+  gunCatalog: Map<string, GunAttrs>,
+  params: SheetCloseParams,
+): Promise<number | { error: string }> {
   const fields = characterFieldsFromSheet(sheet);
 
   if (sheet.characterId) {
@@ -648,6 +817,8 @@ async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Pro
       .where(eq(characters.id, sheet.characterId))
       .for("update");
     if (linked && linked.ownerId === sheet.ownerId) {
+      // Linked-character path only updates fields — it never seeds inventory,
+      // so it needs no item params and skips the custom-attribute requirement.
       await tx
         .update(characters)
         .set({ ...fields, approved: true, lifeStatus: "active" })
@@ -655,6 +826,11 @@ async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Pro
       return sheet.characterId;
     }
   }
+
+  // Fresh-insert path → seed inventory. Validate/resolve the rows BEFORE any
+  // write so a missing custom attribute 400s without creating a character.
+  const built = buildSheetInventoryRows(sheet.data, cyberCatalog, gunCatalog, params);
+  if ("error" in built) return { error: built.error };
 
   const [c] = await tx
     .insert(characters)
@@ -667,7 +843,7 @@ async function materializeCharacterFromSheet(tx: Executor, sheet: SheetRow): Pro
     })
     .returning();
   await tx.insert(characterStatus).values({ characterId: c.id });
-  await seedInventoryFromSheet(tx, c.id, sheet.ownerId, sheet.data);
+  await insertSeededInventory(tx, c.id, sheet.ownerId, built.rows);
   return c.id;
 }
 
@@ -792,8 +968,19 @@ router.post("/sheets/:id/override", requireAuth, async (req, res): Promise<void>
 // archives it. Idempotent: re-closing an already-closed sheet is a 200 no-op.
 // Materialize runs inside the locked txn so apply + status flip are atomic.
 // Caller has already verified the actor is a reviewer.
-export async function closeSheet(req: Request, id: number, note?: string): Promise<ReviewActionResult> {
+export async function closeSheet(
+  req: Request,
+  id: number,
+  note?: string,
+  sheetParams: SheetCloseParams = {},
+): Promise<ReviewActionResult> {
   const u = req.user!;
+  // Catalog reference data for auto-resolving known cyberware/guns at close.
+  // Loaded outside the txn (read-only, no lock needed).
+  const [cyberCatalog, gunCatalog] = await Promise.all([
+    loadCyberwareCatalogMap(),
+    loadGunCatalogMap(),
+  ]);
   const result = await db.transaction(async (tx) => {
     const [sheet] = await tx.select().from(characterSheets).where(eq(characterSheets.id, id)).for("update");
     if (!sheet) return { kind: "error" as const, status: 404, body: { error: "Not found" } };
@@ -802,7 +989,11 @@ export async function closeSheet(req: Request, id: number, note?: string): Promi
       return { kind: "error" as const, status: 409, body: { error: `Only a resolved sheet can be closed (this one is ${sheet.status})` } };
     }
     if (sheet.status === "approved") {
-      const characterId = await materializeCharacterFromSheet(tx, sheet);
+      const mat = await materializeCharacterFromSheet(tx, sheet, cyberCatalog, gunCatalog, sheetParams);
+      if (typeof mat !== "number") {
+        return { kind: "error" as const, status: 400, body: { error: mat.error } };
+      }
+      const characterId = mat;
       const [updated] = await tx
         .update(characterSheets)
         .set({ status: "closed", closedAt: new Date(), closedBy: u.id, characterId })

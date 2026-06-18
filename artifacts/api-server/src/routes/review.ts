@@ -476,6 +476,30 @@ const CloseBodySchema = z.object({
   unitCost: z.number().optional(),
   retail: z.number().optional(),
   qty: z.number().optional(),
+  // character sheet (close): per-item mechanical attributes for CUSTOM
+  // (non-catalog) cyberware / guns, keyed by index in the sheet's arrays.
+  // Catalog items auto-resolve and are omitted.
+  sheetCyberware: z
+    .array(
+      z.object({
+        index: z.number().int().min(0),
+        cwp: z.number(),
+        slot: z.string().trim().max(120),
+      }),
+    )
+    .optional(),
+  sheetGuns: z
+    .array(
+      z.object({
+        index: z.number().int().min(0),
+        category: z.string().trim().max(60),
+        weaponType: z.string().trim().max(60),
+        fireMode: z.string().trim().max(60),
+        powerLevel: z.string().trim().max(60),
+        manufacturer: z.string().trim().max(120).optional(),
+      }),
+    )
+    .optional(),
 });
 
 router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<void> => {
@@ -484,12 +508,12 @@ router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<vo
   if (!isReviewer(req.user!)) { res.status(403).json({ error: "Only fixers / approvers / admins can close tickets" }); return; }
   const bodyParsed = CloseBodySchema.safeParse(req.body ?? {});
   if (!bodyParsed.success) { res.status(400).json({ error: "Invalid close payload" }); return; }
-  const { note: rawNote, ...closeParams } = bodyParsed.data;
+  const { note: rawNote, sheetCyberware, sheetGuns, ...closeParams } = bodyParsed.data;
   const note = rawNote || undefined;
   let result: ReviewActionResult;
   if (parsed.type === "edit") result = await closeEdit(req, parsed.id, note);
   else if (parsed.type === "request") result = await closeRequest(req, parsed.id, note, closeParams);
-  else result = await closeSheet(req, parsed.id, note);
+  else result = await closeSheet(req, parsed.id, note, { sheetCyberware, sheetGuns });
   res.status(result.status).json(result.body);
 });
 

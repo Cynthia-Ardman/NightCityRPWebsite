@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ReviewCloseInputKind } from './reviewCloseInputKind';
+import type { ReviewCloseInputSheetCyberwareItem } from './reviewCloseInputSheetCyberwareItem';
+import type { ReviewCloseInputSheetGunsItem } from './reviewCloseInputSheetGunsItem';
 
 export interface ReviewCloseInput {
   /**
@@ -70,4 +72,8 @@ export interface ReviewCloseInput {
   retail?: number;
   /** Custom request (venue_stock) only. Quantity applied at CLOSE & APPLY. */
   qty?: number;
+  /** Character sheet (close) only. Per-item mechanical attributes for CUSTOM (non-catalog) cyberware, keyed by index in the sheet's cyberware array. Catalog cyberware auto-resolves from the catalog and must be omitted. */
+  sheetCyberware?: ReviewCloseInputSheetCyberwareItem[];
+  /** Character sheet (close) only. Per-item mechanical attributes for CUSTOM (non-catalog) guns, keyed by index in the sheet's guns array. Catalog guns auto-resolve from the catalog and must be omitted. */
+  sheetGuns?: ReviewCloseInputSheetGunsItem[];
 }
