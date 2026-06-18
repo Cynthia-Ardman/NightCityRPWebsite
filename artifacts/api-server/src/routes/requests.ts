@@ -1400,7 +1400,11 @@ export async function reopenRequest(req: Request, id: number): Promise<ReviewAct
         details: det as never,
       })
       .where(eq(customRequests.id, id));
-    await clearReviewVotes({ subjectType: "request", subjectId: id, conn: tx });
+    // Votes are deliberately PRESERVED across a reopen so reviewers don't have
+    // to re-cast the same decision. The "decided" markers are wiped above, so
+    // the next staff-queue read (finalize-on-read) re-evaluates the carried-over
+    // votes and auto-finalizes the ticket back to approved/rejected if they
+    // still meet the (possibly changed) threshold.
     return { ok: { reqRow } };
   });
   if ("error" in result && result.error) return result.error;

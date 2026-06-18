@@ -1101,7 +1101,8 @@ export async function reopenEdit(req: Request, id: number): Promise<ReviewAction
       .update(pendingCharacterEdits)
       .set({ status: "pending", decidedAt: null, decisionSummary: null, reviewComment: null, overriddenBy: null, submittedAt: new Date() })
       .where(eq(pendingCharacterEdits.id, id));
-    await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, id));
+    // Approvals are deliberately PRESERVED across a reopen so reviewers don't
+    // have to re-cast the same decision; finalize-on-read re-evaluates them.
     return { ok: true as const };
   });
   if ("error" in result && result.error) return result.error;

@@ -214,20 +214,23 @@ describe("close/reopen authorization", () => {
     expect(reopen.body.status).toBe("pending");
 
     // appliedRef is preserved (effect not orphaned); closed/decision fields wiped;
-    // votes cleared so the next round starts fresh.
+    // but the prior-round votes are PRESERVED so reviewers needn't re-vote.
     const [reopened] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
     expect(reopened.appliedRef).toBe(closedRow.appliedRef);
     expect(reopened.closedAt).toBeNull();
     expect(reopened.closedBy).toBeNull();
     expect(reopened.reviewedAt).toBeNull();
-    expect(await db.select().from(reviewVotes).where(eq(reviewVotes.subjectId, reqId))).toHaveLength(0);
+    expect(await db.select().from(reviewVotes).where(eq(reviewVotes.subjectId, reqId))).toHaveLength(2);
 
-    // Re-approve the freshly-reopened ticket, then close again. Because
-    // appliedRef is preserved, the second close only archives — it never
+    // No re-voting needed: a staff-queue read re-evaluates the carried-over
+    // votes (finalize-on-read) and auto-finalizes the ticket back to approved.
+    const queue = await request(app).get("/api/requests").set("x-test-user", f1.id);
+    expect(queue.body.find((r: { id: number }) => r.id === reqId).status).toBe("approved");
+    const [reapproved] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(reapproved.status).toBe("approved");
+
+    // Because appliedRef is preserved, the second close only archives — it never
     // materializes a second inventory item.
-    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
-    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
-
     const reClose = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", f1.id)

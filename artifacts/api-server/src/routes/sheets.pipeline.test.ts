@@ -366,3 +366,45 @@ describe("sheet auto-finalize on reviewer read after pool shrinks", () => {
     expect(closed.characterId).not.toBeNull();
   });
 });
+
+// Reopening an approved (but not-yet-closed) sheet must PRESERVE the prior-round
+// votes so reviewers don't have to re-cast the same decision. The next reviewer
+// read re-evaluates the carried-over votes and auto-finalizes back to approved.
+describe("sheet reopen preserves votes", () => {
+  it("keeps prior votes when an approved sheet is reopened so reviewers needn't re-vote", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // pool 3 → threshold 2
+    const sheet = await createPendingSheet(owner.id, "Reopen Keep Votes");
+
+    await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    const [approved] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(approved.status).toBe("approved");
+
+    const reopen = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/reopen`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(reopen.status).toBe(200);
+    expect(reopen.body.status).toBe("pending");
+
+    // Votes survive the reopen.
+    expect(
+      await db
+        .select()
+        .from(reviewVotes)
+        .where(and(eq(reviewVotes.subjectType, "sheet"), eq(reviewVotes.subjectId, sheet.id))),
+    ).toHaveLength(2);
+
+    // No re-vote needed: a reviewer detail read re-evaluates the carried-over
+    // votes (finalize-on-read) and auto-finalizes the sheet back to approved.
+    const detail = await request(app).get(`/api/sheets/${sheet.id}`).set("x-test-user", f1.id);
+    expect(detail.body.status).toBe("approved");
+    const [refinalized] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(refinalized.status).toBe("approved");
+    // Materialization stays deferred to close — no character yet.
+    expect(refinalized.characterId).toBeNull();
+  });
+});

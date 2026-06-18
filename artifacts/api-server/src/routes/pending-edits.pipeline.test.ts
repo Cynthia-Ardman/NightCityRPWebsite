@@ -311,6 +311,37 @@ describe("pending edit request-changes (retired) + resubmit", () => {
     // Approvals wiped — the fresh round starts from zero.
     expect(await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id))).toHaveLength(0);
   });
+
+  it("preserves prior approvals when an approved edit is reopened so reviewers needn't re-vote", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // pool 3 → threshold 2
+    const { edit } = await seedPendingEdit({ submitterId: owner.id });
+
+    await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    const [approved] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
+    expect(approved.status).toBe("approved");
+
+    const reopen = await request(app)
+      .post(`/api/review/edit/${edit.id}/reopen`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(reopen.status).toBe(200);
+
+    // Approvals survive the reopen.
+    expect(
+      await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id)),
+    ).toHaveLength(2);
+
+    // No re-vote needed: a reviewer detail read re-evaluates the carried-over
+    // approvals (finalize-on-read) and auto-finalizes the edit back to approved.
+    const detail = await request(app).get(`/api/pending-edits/${edit.id}`).set("x-test-user", f1.id);
+    expect(detail.body.status).toBe("approved");
+    const [refinalized] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
+    expect(refinalized.status).toBe("approved");
+  });
 });
 
 // An edit can pass majority only AFTER the eligible reviewer pool shrinks (a
