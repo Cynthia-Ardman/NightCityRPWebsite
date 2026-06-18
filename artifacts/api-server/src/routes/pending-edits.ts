@@ -802,18 +802,32 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
     if (!locked) return { kind: "not_found" as const };
     if (locked.status !== "pending") return { kind: "already_decided" as const, status: locked.status };
 
-    await tx
-      .insert(pendingEditApprovals)
-      .values({
-        editId: id,
-        voterId: u.id,
-        vote: parsed.data.vote,
-        note: parsed.data.note ?? null,
-      })
-      .onConflictDoUpdate({
-        target: [pendingEditApprovals.editId, pendingEditApprovals.voterId],
-        set: { vote: parsed.data.vote, note: parsed.data.note ?? null, votedAt: new Date() },
-      });
+    // Toggle semantics: re-casting the SAME vote you already have CLEARS it so a
+    // second click on approve/reject un-votes. Switching values updates in place.
+    const [existing] = await tx
+      .select({ vote: pendingEditApprovals.vote })
+      .from(pendingEditApprovals)
+      .where(and(eq(pendingEditApprovals.editId, id), eq(pendingEditApprovals.voterId, u.id)));
+    let cleared = false;
+    if (existing && existing.vote === parsed.data.vote) {
+      await tx
+        .delete(pendingEditApprovals)
+        .where(and(eq(pendingEditApprovals.editId, id), eq(pendingEditApprovals.voterId, u.id)));
+      cleared = true;
+    } else {
+      await tx
+        .insert(pendingEditApprovals)
+        .values({
+          editId: id,
+          voterId: u.id,
+          vote: parsed.data.vote,
+          note: parsed.data.note ?? null,
+        })
+        .onConflictDoUpdate({
+          target: [pendingEditApprovals.editId, pendingEditApprovals.voterId],
+          set: { vote: parsed.data.vote, note: parsed.data.note ?? null, votedAt: new Date() },
+        });
+    }
 
     const allVotes = await tx.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, id));
     const eligibleIds = await listEligibleReviewerIds(locked.submitted_by);

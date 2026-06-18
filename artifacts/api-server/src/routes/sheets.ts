@@ -696,10 +696,10 @@ router.post("/sheets/:id/vote", requireAuth, async (req, res): Promise<void> => 
     if (sheet.ownerId === u.id) {
       return { error: { status: 403, body: { error: "You cannot review a character sheet you submitted." } } };
     }
-    await castReviewVote({ subjectType: "sheet", subjectId: id, voterId: u.id, vote, note: note ?? null, conn: tx });
+    const finalVote = await castReviewVote({ subjectType: "sheet", subjectId: id, voterId: u.id, vote, note: note ?? null, conn: tx });
     const tally = await tallyReviewVotes({ subjectType: "sheet", subjectId: id, submitterId: sheet.ownerId, conn: tx });
     if (!tally.decided) {
-      return { ok: { decided: null as "approved" | "rejected" | null, sheet, tally } };
+      return { ok: { decided: null as "approved" | "rejected" | null, sheet, tally, finalVote } };
     }
 
     // Effects DEFERRED: a majority approve STAGES the decision only; the
@@ -711,21 +711,24 @@ router.post("/sheets/:id/vote", requireAuth, async (req, res): Promise<void> => 
       .set({ status: tally.decided, decisionBy: u.id, decisionNote: summary, decidedAt: new Date() })
       .where(eq(characterSheets.id, id))
       .returning();
-    return { ok: { decided: tally.decided, sheet: updated, tally } };
+    return { ok: { decided: tally.decided, sheet: updated, tally, finalVote } };
   });
   if (result.error) {
     res.status(result.error.status).json(result.error.body);
     return;
   }
-  const { decided, sheet, tally } = result.ok;
+  const { decided, sheet, tally, finalVote } = result.ok;
+  const cleared = finalVote === null;
   await recordAudit({
     req,
     category: "sheet",
-    action: decided ? `vote_decided_${decided}` : "vote",
+    action: decided ? `vote_decided_${decided}` : cleared ? "vote_cleared" : "vote",
     targetType: "sheet",
     targetId: id,
-    message: `${u.username} voted ${vote} on sheet "${sheet.name}"${decided ? ` → ${decided}` : ""}`,
-    after: { vote, decided, approveCount: tally.approveCount, rejectCount: tally.rejectCount },
+    message: cleared
+      ? `${u.username} cleared their ${vote} vote on sheet "${sheet.name}"`
+      : `${u.username} voted ${vote} on sheet "${sheet.name}"${decided ? ` → ${decided}` : ""}`,
+    after: { vote, cleared, decided, approveCount: tally.approveCount, rejectCount: tally.rejectCount },
   });
   res.json({ status: sheet.status, decided, approveCount: tally.approveCount, rejectCount: tally.rejectCount, threshold: tally.threshold });
 });

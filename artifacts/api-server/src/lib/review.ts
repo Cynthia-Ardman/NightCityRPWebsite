@@ -167,7 +167,11 @@ export async function latestVoterIdFor(opts: {
   return row?.voterId ?? null;
 }
 
-// Upsert one reviewer's vote (last write wins). Use inside the decision txn.
+// Cast one reviewer's vote with TOGGLE semantics. Use inside the decision txn.
+// If the reviewer re-casts the SAME vote they already have, the vote is CLEARED
+// (deleted) so a second click on "approve"/"reject" un-votes. Switching to the
+// other value just updates in place. Returns the reviewer's resulting vote, or
+// null if it was cleared.
 export async function castReviewVote(opts: {
   subjectType: ReviewSubjectType;
   subjectId: number;
@@ -175,8 +179,30 @@ export async function castReviewVote(opts: {
   vote: "approve" | "reject";
   note: string | null;
   conn?: DbConn;
-}): Promise<void> {
+}): Promise<"approve" | "reject" | null> {
   const conn = opts.conn ?? db;
+  const [existing] = await conn
+    .select({ vote: reviewVotes.vote })
+    .from(reviewVotes)
+    .where(
+      and(
+        eq(reviewVotes.subjectType, opts.subjectType),
+        eq(reviewVotes.subjectId, opts.subjectId),
+        eq(reviewVotes.voterId, opts.voterId),
+      ),
+    );
+  if (existing && existing.vote === opts.vote) {
+    await conn
+      .delete(reviewVotes)
+      .where(
+        and(
+          eq(reviewVotes.subjectType, opts.subjectType),
+          eq(reviewVotes.subjectId, opts.subjectId),
+          eq(reviewVotes.voterId, opts.voterId),
+        ),
+      );
+    return null;
+  }
   await conn
     .insert(reviewVotes)
     .values({
@@ -190,6 +216,7 @@ export async function castReviewVote(opts: {
       target: [reviewVotes.subjectType, reviewVotes.subjectId, reviewVotes.voterId],
       set: { vote: opts.vote, note: opts.note, votedAt: new Date() },
     });
+  return opts.vote;
 }
 
 // Delete every vote for a subject — called when an item is resubmitted so the
