@@ -143,7 +143,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   const rent: Array<{ characterId: number; characterName: string; amount: number; dueAt: string }> =
     billable.length === 0 || baselineCost <= 0
       ? []
-      : [{ characterId: billable[0].id, characterName: "Flat household fee", amount: baselineCost, dueAt: rentDueAt }];
+      : [{ characterId: billable[0].id, characterName: "Cost of Living", amount: baselineCost, dueAt: rentDueAt }];
 
   // Trauma Team + Xanadu Gold are billed PER PC by the monthly_rent cron, so
   // include them here too — previously the projection omitted them entirely and
