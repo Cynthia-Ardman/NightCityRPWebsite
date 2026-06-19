@@ -3,12 +3,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListReviewComments,
   usePostReviewComment,
-  useMarkReviewSeen,
   getListReviewCommentsQueryKey,
+  getGetReviewUnseenIdsQueryKey,
   getGetReviewUnseenCountsQueryKey,
   getGetMyUnseenQueryKey,
   type ReviewComment,
 } from "@workspace/api-client-react";
+import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import MentionTextarea from "@/components/MentionTextarea";
@@ -46,24 +47,16 @@ export default function ReviewCommentThread({
     query: { queryKey: getListReviewCommentsQueryKey(subjectType, subjectId) },
   });
 
-  const seen = useMarkReviewSeen({
-    mutation: {
-      onSuccess: () => {
-        // Refresh BOTH unread surfaces: the staff "Pending Requests" counts and
-        // the player-facing "My Requests" badge/dots. Without the my-unseen
-        // invalidation a submitter who opens their own ticket keeps seeing a
-        // stale "1" until the cache naturally refetches.
-        qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
-        qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
-      },
-    },
-  });
+  // Optimistic, all-surfaces clear (per-card line/dot, staff counts + sidebar,
+  // player My-Requests dots/badge) so the unread markers vanish the instant the
+  // thread opens instead of after a refetch.
+  const markSeen = useMarkReviewSeenInstant();
 
   // Mark seen once when the thread opens. Run on id change so re-using the
   // component for a different subject re-marks correctly.
   useEffect(() => {
     if (!markSeenOnMount) return;
-    seen.mutate({ subjectType, id: subjectId });
+    markSeen(subjectType, subjectId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectType, subjectId, markSeenOnMount]);
 
@@ -72,6 +65,7 @@ export default function ReviewCommentThread({
       onSuccess: () => {
         setBody("");
         qc.invalidateQueries({ queryKey: getListReviewCommentsQueryKey(subjectType, subjectId) });
+        qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
       },

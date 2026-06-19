@@ -67,6 +67,8 @@ vi.mock("@workspace/api-client-react", () => ({
   useMarkReviewSeen: () => ({ mutate: vi.fn(), isPending: false }),
   getListReviewCommentsQueryKey: (t: string, id: number) => ["review", t, id, "comments"],
   getGetReviewUnseenCountsQueryKey: () => ["review", "unseen-counts"],
+  getGetReviewUnseenIdsQueryKey: () => ["review", "unseen-ids"],
+  getGetMyUnseenQueryKey: () => ["review", "my-unseen"],
   useGetReviewDiscordThread: () => ({ data: { linked: false, threadId: null, webUrl: null, messages: [] }, isLoading: false }),
   getGetReviewDiscordThreadQueryKey: (t: string, id: number) => ["review", t, id, "discord-thread"],
   useAdminSearchDiscordMembers: () => ({ data: [] }),
@@ -86,7 +88,7 @@ vi.mock("wouter", () => ({
 
 vi.mock("@tanstack/react-query", async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn() }) };
 });
 
 import SheetDetail from "./SheetDetail";

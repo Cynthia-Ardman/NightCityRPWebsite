@@ -1,24 +1,34 @@
 ---
-name: Review unread badges have two independent query keys
-description: Why marking a review ticket seen must invalidate both the staff and player unread caches.
+name: Review unread badges have THREE independent query keys
+description: Why marking a review ticket seen must clear all three unread caches, optimistically, from every read entrypoint.
 ---
 
-The portal has TWO separate unread surfaces backed by TWO React Query keys:
-- Staff "Pending Requests" badge/counts → `getGetReviewUnseenCountsQueryKey()` (GET /review/unseen-counts), reviewer-gated, excludes own.
-- Player "My Requests" badge + per-row unread dots → `getGetMyUnseenQueryKey()` (GET /review/my-unseen), the submitter's OWN rows.
+The portal has THREE separate unread surfaces backed by THREE React Query keys:
+- Per-card magenta line + NEW dot + "New" landing tab → `getGetReviewUnseenIdsQueryKey()` (GET /review/unseen-ids), reviewer-gated, returns `{edit,request,sheet}` id arrays.
+- Staff "Pending Requests" tab counts + sidebar nav badge → `getGetReviewUnseenCountsQueryKey()` (GET /review/unseen-counts), reviewer-gated, returns `{edits,requests,sheets,total}` (PLURAL keys).
+- Player "My Requests" badge + per-row unread dots → `getGetMyUnseenQueryKey()` (GET /review/my-unseen), submitter's OWN rows, `{edit,request,sheet,total}`.
 
-**Rule:** Any mutation that changes `review_seen` state — `useMarkReviewSeen` (fired by
-ReviewCommentThread's markSeenOnMount) and `usePostReviewComment` — must invalidate BOTH
-keys, not just one.
+**Rule:** Any change to `review_seen` state must clear ALL THREE keys, and clearing must be
+OPTIMISTIC (not refetch-driven) to feel instant. Use the shared `useMarkReviewSeenInstant()`
+hook (artifacts/ncrp-portal/src/hooks/useReviewSeen.ts): it removes the id / decrements the
+counts in all three caches up front, then fires `useMarkReviewSeen` and invalidates all
+three on settle. Decrement counts only when the id was actually present in the ids/my-unseen
+cache, so re-reading is a no-op and badges never go negative.
 
-**Why:** ReviewCommentThread is shared by staff and submitters. It originally invalidated
-only the staff counts key, so a submitter who opened their own ticket wrote the seen row
-server-side but the my-unseen cache never refetched → a stale "1" badge that never cleared
-until a natural refetch/reload. (Symptom in live data: every unseen row showed seen=NEVER.)
+**Why:** markSeen originally invalidated only counts + my-unseen — NOT unseen-ids — so the
+per-card line/dot never cleared on read (the recurring "I opened it but the line stays"
+bug). And invalidation alone waits on a refetch, so nothing cleared "instantly".
 
-**How to apply:** When adding any new unread/seen-driven badge, check which query key its
-mutation invalidates; invalidate every consumer key of the seen state. Don't branch on
-role — invalidating both is cheap and avoids context-specific drift.
+**Read entrypoints (BOTH must mark seen):** opening the inline "View & Respond" discussion
+(ReviewCommentThread mount) AND opening the "See Thread" Discord drawer (DiscordThreadDrawer
+onOpen) — the drawer is a primary read action. The drawer also serves missions, which have
+NO server unread state; gate the server markSeen on subjectType ∈ {edit,request,sheet}. The
+Discord gold-glow is a SEPARATE localStorage marker (`discordThreadSeen:*`) tracking unread
+Discord replies; it clears on drawer open and is intentionally independent of server seen.
+
+**How to apply:** When adding any new unread/seen-driven badge, route its clear through
+`useMarkReviewSeenInstant`; don't branch on role — clearing all three is cheap and avoids
+context-specific drift.
 
 **Out of scope (separate concern):** my-unseen counts a submission as unseen from creation
 (no seen row is written at submit time), so a freshly submitted ticket lights the player's

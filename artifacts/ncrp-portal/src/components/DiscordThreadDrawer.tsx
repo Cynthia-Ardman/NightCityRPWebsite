@@ -8,8 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Hash } from "lucide-react";
 import DiscordThreadPanel from "@/components/DiscordThreadPanel";
+import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
 
 type SubjectType = "edit" | "request" | "sheet" | "mission";
+
+// The server tracks "seen" only for review subjects; missions have no review
+// unread state, so opening a mission thread never marks anything seen.
+const REVIEW_SUBJECTS = ["edit", "request", "sheet"] as const;
+function isReviewSubject(t: SubjectType): t is "edit" | "request" | "sheet" {
+  return (REVIEW_SUBJECTS as readonly string[]).includes(t);
+}
 
 const seenKey = (t: SubjectType, id: number) => `discordThreadSeen:${t}:${id}`;
 
@@ -74,6 +82,16 @@ export default function DiscordThreadDrawer({
   watchUnread?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const markSeen = useMarkReviewSeenInstant();
+
+  // Opening "See Thread" is a reviewer's "I read this" action, so it must clear
+  // the SERVER unread state (per-card line/dot, queue counts, sidebar badge) the
+  // same way expanding the inline discussion does — not just the localStorage
+  // Discord glow below. Missions have no review unread state, so they no-op.
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next && isReviewSubject(subjectType)) markSeen(subjectType, subjectId);
+  };
 
   // Background poll (shares the panel's query key, so when the drawer is open
   // there is still only one in-flight request). Disabled unless opted in.
@@ -119,7 +137,7 @@ export default function DiscordThreadDrawer({
     : "";
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
         <Button
           variant="outline"
