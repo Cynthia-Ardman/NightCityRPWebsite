@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Markdown from "@/components/Markdown";
-import { BookMarked, Plus, Download, FileEdit, FileText } from "lucide-react";
+import { BookMarked, Plus, Download, FileEdit, FileText, Crosshair } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 function snippet(body: string): string {
@@ -30,6 +30,12 @@ export default function DirectoryGuidebook() {
     () => (data?.sections ?? []).reduce((n, s) => n + s.pages.length, 0),
     [data],
   );
+
+  // The Weapons reference is a code-defined page (not a DB row), so it isn't in
+  // the API sections. Surface it as a static "Reference" card, hidden only when
+  // an active search clearly doesn't match it.
+  const term = q.trim().toLowerCase();
+  const showWeaponsRef = !term || /gun|weapon|power|tech|smart|caliber|ammo|fire/.test(term);
 
   // Deep-link support: when arriving at /guidebook#<section-key> (e.g. from the
   // onboarding banner or the new-character help links), scroll the matching
@@ -88,10 +94,11 @@ export default function DirectoryGuidebook() {
 
       {isLoading ? (
         <div className="text-nc-cyan font-display animate-pulse">LOADING GUIDEBOOK...</div>
-      ) : sections.length === 0 ? (
+      ) : sections.length === 0 && !showWeaponsRef ? (
         <Empty searching={!!q.trim()} />
       ) : (
         <div className="space-y-8">
+          {showWeaponsRef && <ReferenceSection />}
           {sections.map((s) => (
             <section key={s.key} id={`guidebook-section-${s.key}`} className="scroll-mt-20" data-testid={`section-guidebook-${s.key}`}>
               <div className="border-l-2 border-nc-cyan pl-4 mb-4">
@@ -144,6 +151,36 @@ function PageCard({ page, isStaff }: { page: GuidebookPage; isStaff: boolean }) 
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+function ReferenceSection() {
+  return (
+    <section id="guidebook-section-reference" className="scroll-mt-20" data-testid="section-guidebook-reference">
+      <div className="border-l-2 border-nc-cyan pl-4 mb-4">
+        <h2 className="font-display text-2xl tracking-widest text-foreground">REFERENCE</h2>
+        <p className="font-mono text-xs text-muted-foreground mt-1">Quick-reference guides for in-game systems.</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link href="/guidebook/weapons">
+          <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full flex flex-col" data-testid="card-guidebook-weapons">
+            <CardHeader>
+              <CardTitle className="font-display text-lg flex items-center gap-2">
+                <Crosshair className="w-5 h-5 text-nc-cyan" /> Weapons &amp; Guns
+              </CardTitle>
+              <CardDescription className="font-mono text-xs">
+                Gun types, power tiers, restrictions and calibers explained.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="mt-auto">
+              <p className="text-xs font-mono text-muted-foreground line-clamp-3">
+                How Power, Tech and Smart guns behave, what each power level means, and how to acquire restricted weapons.
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+    </section>
   );
 }
 

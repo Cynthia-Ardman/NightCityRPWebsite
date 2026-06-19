@@ -31,6 +31,11 @@ import {
   GUN_WEAPON_TYPES,
   GUN_WEAPON_TYPE_ALIASES,
 } from "@/components/catalog/gunTypes";
+import {
+  categoryInfo,
+  powerInfo,
+  powerColor,
+} from "@/components/catalog/gunMechanics";
 
 const ALL = "__all__";
 
@@ -273,13 +278,13 @@ export default function CatalogGuns() {
                   <td className="p-3 text-muted-foreground">
                     {humanize(g.manufacturer)}
                   </td>
-                  <td className="p-3">{canonicalLabel(g.category, GUN_CATEGORIES)}</td>
+                  <td className="p-3"><GunCategoryCell gun={g} /></td>
                   <td className="p-3">
                     {canonicalLabel(g.weaponType, GUN_WEAPON_TYPES, GUN_WEAPON_TYPE_ALIASES)}
                   </td>
                   <td className="p-3">{canonicalLabel(g.fireMode, FIRE_MODES)}</td>
                   <td className="p-3">
-                    {canonicalLabel(g.powerLevel, GUN_POWER_LEVELS, GUN_POWER_LEVEL_ALIASES)}
+                    <GunPowerCell gun={g} />
                   </td>
                   <td className="p-3 text-nc-magenta">
                     {canonicalLabel(g.restriction, GUN_RESTRICTIONS)}
@@ -327,5 +332,72 @@ export default function CatalogGuns() {
         />
       )}
     </div>
+  );
+}
+
+// Category cell with a hover explanation of how that gun type behaves. Falls
+// back to plain text for custom/off-list categories we have no copy for. The
+// blurbs come from the shared gunMechanics module (same source as the Weapons
+// guidebook page), so wording can never drift.
+function GunCategoryCell({ gun }: { gun: Gun }) {
+  const label = canonicalLabel(gun.category, GUN_CATEGORIES);
+  const info = categoryInfo(gun.category);
+  if (!info) return <span>{label}</span>;
+  return (
+    <HoverCard openDelay={120} closeDelay={60}>
+      <HoverCardTrigger asChild>
+        <span
+          className="cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-4"
+          data-testid={`gun-category-${gun.id}`}
+        >
+          {label}
+        </span>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-72 rounded-none border-nc-cyan/40 bg-card">
+        <div className="font-display text-sm text-nc-cyan tracking-widest mb-1">
+          {info.label.toUpperCase()}
+        </div>
+        <p className="font-mono text-xs text-foreground/90">{info.blurb}</p>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+// Power-level cell: a tier swatch tinted by the gun's category family (Power vs
+// Tech/Smart) plus a hover explanation of what that tier means.
+function GunPowerCell({ gun }: { gun: Gun }) {
+  const label = canonicalLabel(gun.powerLevel, GUN_POWER_LEVELS, GUN_POWER_LEVEL_ALIASES);
+  const info = powerInfo(gun.powerLevel);
+  const color = powerColor(gun.category, gun.powerLevel);
+  return (
+    <span className="inline-flex items-center gap-2">
+      {color && (
+        <span
+          className="inline-block w-2.5 h-2.5 rounded-full border border-border/60 shrink-0"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        />
+      )}
+      {info ? (
+        <HoverCard openDelay={120} closeDelay={60}>
+          <HoverCardTrigger asChild>
+            <span
+              className="cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-4"
+              data-testid={`gun-power-${gun.id}`}
+            >
+              {label}
+            </span>
+          </HoverCardTrigger>
+          <HoverCardContent className="w-72 rounded-none border-nc-cyan/40 bg-card">
+            <div className="font-display text-sm text-nc-cyan tracking-widest mb-1">
+              {info.label.toUpperCase()}
+            </div>
+            <p className="font-mono text-xs text-foreground/90">{info.blurb}</p>
+          </HoverCardContent>
+        </HoverCard>
+      ) : (
+        <span>{label}</span>
+      )}
+    </span>
   );
 }
