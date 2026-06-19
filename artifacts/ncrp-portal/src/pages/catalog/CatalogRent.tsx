@@ -32,6 +32,7 @@ import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import RentCreateDialog from "@/components/catalog/RentCreateDialog";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
+import { useSort, sortRows, SortableTh } from "@/components/catalog/sortableTable";
 
 const ALL = "__all__";
 
@@ -116,6 +117,10 @@ export default function CatalogRent() {
   // The listing whose history/admin modal is open (staff click on a row).
   const [historyTarget, setHistoryTarget] = useState<Listing | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  // Two independent sorts: the flat Business table, and the per-building Housing
+  // unit tables (one shared sort applied within every building group).
+  const bizSort = useSort<string>();
+  const unitSort = useSort<string>();
 
   // Staff-only: remove the current occupant from a listing (ends their lease).
   const vacate = useVacateHousing({
@@ -171,10 +176,26 @@ export default function CatalogRent() {
     );
   });
 
-  const businesses = useMemo(
-    () => filtered.filter(isBusinessListing).sort((a, b) => a.name.localeCompare(b.name)),
-    [filtered],
-  );
+  const businesses = useMemo(() => {
+    const base = filtered.filter(isBusinessListing).sort((a, b) => a.name.localeCompare(b.name));
+    // Default order is alphabetical by name; a header click overrides it.
+    return sortRows(base, bizSort.sortKey, bizSort.sortDir, (r, key) => {
+      switch (key) {
+        case "name":
+          return r.name;
+        case "building":
+          return businessBuilding(r.description) ?? "";
+        case "district":
+          return r.district ?? "";
+        case "tier":
+          return tierLabel(r.tier) ?? "";
+        case "monthlyRent":
+          return r.monthlyRent;
+        default:
+          return null;
+      }
+    });
+  }, [filtered, bizSort.sortKey, bizSort.sortDir]);
 
   // Every housing unit id per building, computed from the FULL (unfiltered)
   // list. A building image is shared across its units, so uploading/removing
@@ -213,14 +234,28 @@ export default function CatalogRent() {
       g.rows.push(r);
     }
     for (const g of map.values()) {
+      // Default unit order is by apartment number; a unit-table header click
+      // re-sorts every building's rows by the chosen column.
       g.rows.sort((a, b) =>
         (splitName(a.name).unit ?? "").localeCompare(splitName(b.name).unit ?? "", undefined, {
           numeric: true,
         }),
       );
+      g.rows = sortRows(g.rows, unitSort.sortKey, unitSort.sortDir, (r, key) => {
+        switch (key) {
+          case "unit":
+            return splitName(r.name).unit ?? "";
+          case "tier":
+            return tierLabel(r.tier) ?? "";
+          case "monthlyRent":
+            return r.monthlyRent;
+          default:
+            return null;
+        }
+      });
     }
     return Array.from(map.values()).sort((a, b) => a.building.localeCompare(b.building));
-  }, [filtered]);
+  }, [filtered, unitSort.sortKey, unitSort.sortDir]);
 
   // The lease/availability control shared by both sections.
   const renderAction = (r: Listing) => {
@@ -380,11 +415,11 @@ export default function CatalogRent() {
                 <thead className="border-b border-border bg-card">
                   <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
                     <th className="text-left p-3 w-0">Image</th>
-                    <th className="text-left p-3">Business Name</th>
-                    <th className="text-left p-3">Building</th>
-                    <th className="text-left p-3">District</th>
-                    <th className="text-left p-3">Tier</th>
-                    <th className="text-right p-3">Rent/mo</th>
+                    <SortableTh label="Business Name" columnKey="name" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} />
+                    <SortableTh label="Building" columnKey="building" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} />
+                    <SortableTh label="District" columnKey="district" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} />
+                    <SortableTh label="Tier" columnKey="tier" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} />
+                    <SortableTh label="Rent/mo" columnKey="monthlyRent" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} align="right" />
                     <th className="p-3 w-0"></th>
                   </tr>
                 </thead>
@@ -478,9 +513,9 @@ export default function CatalogRent() {
                         <table className="w-full font-mono text-sm min-w-[600px]">
                           <thead className="border-b border-border/60">
                             <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
-                              <th className="text-left p-3">Apt #</th>
-                              <th className="text-left p-3">Tier</th>
-                              <th className="text-right p-3">Rent/mo</th>
+                              <SortableTh label="Apt #" columnKey="unit" activeKey={unitSort.sortKey} dir={unitSort.sortDir} onSort={unitSort.toggle} />
+                              <SortableTh label="Tier" columnKey="tier" activeKey={unitSort.sortKey} dir={unitSort.sortDir} onSort={unitSort.toggle} />
+                              <SortableTh label="Rent/mo" columnKey="monthlyRent" activeKey={unitSort.sortKey} dir={unitSort.sortDir} onSort={unitSort.toggle} align="right" />
                               <th className="p-3 w-0"></th>
                             </tr>
                           </thead>

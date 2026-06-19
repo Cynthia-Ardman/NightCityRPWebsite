@@ -38,6 +38,10 @@ type RequestType = "property" | "gun" | "cyberware" | "item";
 
 const CUSTOM_SOURCE = "__custom__";
 
+// Resolved/terminal request states hidden from the per-catalog "Your Requests"
+// banner — the banner only tracks requests that still need attention.
+const TERMINAL_REQUEST_STATUSES = new Set(["approved", "rejected", "closed", "cancelled"]);
+
 export default function CatalogRequestSection({
   type,
   buttonLabel,
@@ -131,7 +135,13 @@ export default function CatalogRequestSection({
     ...(asDraft ? { asDraft: true } : {}),
   });
 
-  const myRequests = (mine ?? []) as CustomRequest[];
+  // Only surface still-actionable requests in the per-catalog banner: drafts
+  // (unsubmitted), pending review, and changes-requested. Terminal outcomes
+  // (approved/rejected/closed/cancelled) drop off so the banner stays a live
+  // to-do list, not a permanent history. The full history lives on My Requests.
+  const myRequests = ((mine ?? []) as CustomRequest[]).filter(
+    (r) => !TERMINAL_REQUEST_STATUSES.has((r.status ?? "").toLowerCase()),
+  );
 
   return (
     <div className="space-y-4">

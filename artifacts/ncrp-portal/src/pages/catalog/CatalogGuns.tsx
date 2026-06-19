@@ -36,6 +36,7 @@ import {
   powerInfo,
   powerColor,
 } from "@/components/catalog/gunMechanics";
+import { useSort, sortRows, SortableTh } from "@/components/catalog/sortableTable";
 
 const ALL = "__all__";
 
@@ -80,6 +81,7 @@ export default function CatalogGuns() {
   const [selected, setSelected] = useState<Gun | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [tab, setTab] = useState("catalog");
+  const { sortKey, sortDir, toggle } = useSort<string>();
 
   const rows = (data ?? []) as Gun[];
 
@@ -117,6 +119,31 @@ export default function CatalogGuns() {
       humanize(g.weaponType).toLowerCase().includes(needle) ||
       humanize(g.category).toLowerCase().includes(needle)
     );
+  });
+
+  // Sort on the SAME text shown in each cell so the alphabetical order matches
+  // what the player reads. Price sorts numerically.
+  const sorted = sortRows(filtered, sortKey, sortDir, (g, key) => {
+    switch (key) {
+      case "name":
+        return g.name;
+      case "manufacturer":
+        return humanize(g.manufacturer);
+      case "category":
+        return canonicalLabel(g.category, GUN_CATEGORIES);
+      case "weaponType":
+        return canonicalLabel(g.weaponType, GUN_WEAPON_TYPES, GUN_WEAPON_TYPE_ALIASES);
+      case "fireMode":
+        return canonicalLabel(g.fireMode, FIRE_MODES);
+      case "powerLevel":
+        return canonicalLabel(g.powerLevel, GUN_POWER_LEVELS, GUN_POWER_LEVEL_ALIASES);
+      case "restriction":
+        return canonicalLabel(g.restriction, GUN_RESTRICTIONS);
+      case "price":
+        return g.price;
+      default:
+        return null;
+    }
   });
 
   return (
@@ -210,18 +237,20 @@ export default function CatalogGuns() {
           <table className="w-full font-mono text-sm min-w-[800px]">
             <thead className="border-b border-border bg-card">
               <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
-                <th className="text-left p-3">Name</th>
-                <th className="text-left p-3">Manufacturer</th>
-                <th className="text-left p-3">Category</th>
-                <th className="text-left p-3">Weapon Type</th>
-                <th className="text-left p-3">Fire Mode</th>
-                <th className="text-left p-3">Power Level</th>
-                <th className="text-left p-3">Restriction</th>
-                {canSeePrice && <th className="text-right p-3">Price</th>}
+                <SortableTh label="Name" columnKey="name" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                <SortableTh label="Manufacturer" columnKey="manufacturer" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                <SortableTh label="Category" columnKey="category" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                <SortableTh label="Weapon Type" columnKey="weaponType" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                <SortableTh label="Fire Mode" columnKey="fireMode" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                <SortableTh label="Power Level" columnKey="powerLevel" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                <SortableTh label="Restriction" columnKey="restriction" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                {canSeePrice && (
+                  <SortableTh label="Price" columnKey="price" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                )}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((g) => (
+              {sorted.map((g) => (
                 <tr
                   key={g.id}
                   className="border-b border-border/30 hover:bg-nc-cyan/5 cursor-pointer"

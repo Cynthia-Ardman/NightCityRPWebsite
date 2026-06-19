@@ -11,6 +11,7 @@ import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import CyberwareDetailDialog, { type Cyber } from "@/components/catalog/CyberwareDetailDialog";
 import CyberwareCreateDialog from "@/components/catalog/CyberwareCreateDialog";
+import { useSort, sortRows, SortableTh } from "@/components/catalog/sortableTable";
 
 const ALL = "__all__";
 
@@ -67,6 +68,7 @@ export default function CatalogCyberware() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Cyber | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const { sortKey, sortDir, toggle } = useSort<string>();
 
   const rows = (data ?? []) as Cyber[];
 
@@ -107,6 +109,25 @@ export default function CatalogCyberware() {
       if (sa !== sb) return sa.localeCompare(sb);
       return a.name.localeCompare(b.name);
     });
+
+  // When the user picks a column header, override the default slot-grouped
+  // ordering. CWP/Price sort numerically; the rest alphabetically.
+  const sorted = sortRows(filtered, sortKey, sortDir, (c, key) => {
+    switch (key) {
+      case "name":
+        return c.name;
+      case "slot":
+        return c.slot;
+      case "cwp":
+        return Number(c.cwp);
+      case "description":
+        return c.description ?? "";
+      case "price":
+        return c.price;
+      default:
+        return null;
+    }
+  });
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-12 px-2">
@@ -183,15 +204,17 @@ export default function CatalogCyberware() {
           <table className="w-full font-mono text-sm">
             <thead className="border-b border-border bg-card">
               <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
-                <th className="text-left p-3 w-[18%]">Name</th>
-                <th className="text-left p-3 w-[10%]">Slot</th>
-                <th className="text-left p-3 w-[8%]">CWP</th>
-                <th className="text-left p-3">Description</th>
-                {canSeePrice && <th className="text-right p-3 w-[10%]">Price</th>}
+                <SortableTh label="Name" columnKey="name" activeKey={sortKey} dir={sortDir} onSort={toggle} className="w-[18%]" />
+                <SortableTh label="Slot" columnKey="slot" activeKey={sortKey} dir={sortDir} onSort={toggle} className="w-[10%]" />
+                <SortableTh label="CWP" columnKey="cwp" activeKey={sortKey} dir={sortDir} onSort={toggle} className="w-[8%]" />
+                <SortableTh label="Description" columnKey="description" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                {canSeePrice && (
+                  <SortableTh label="Price" columnKey="price" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" className="w-[10%]" />
+                )}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
+              {sorted.map((c) => (
                 <tr
                   key={c.id}
                   className={`border-b border-border/30 hover:bg-card/80 ${isStaff ? "cursor-pointer" : ""}`}
