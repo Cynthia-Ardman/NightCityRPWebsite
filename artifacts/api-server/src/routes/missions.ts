@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { and, eq, inArray, or, ilike, asc, isNotNull } from "drizzle-orm";
 import {
   db,
@@ -49,6 +49,8 @@ import {
   listApplicantOutcomes,
   checkDiscordEventConflict,
   buildMissionUrl,
+  getMissionManageAuth,
+  viewerHasManageableMission,
   type MissionViewer,
 } from "../lib/missionsService";
 import type { Mission } from "@workspace/db";
@@ -174,6 +176,28 @@ function isTrialAuthor(req: Request): boolean {
 // manager-gated.
 function canAuthorMissions(req: Request): boolean {
   return isManager(req) || isTrialAuthor(req);
+}
+
+// Per-mission management gate (roster / post / pay). Full managers may manage
+// any mission; a trial fixer may manage a mission they own once it's approved.
+// Loads the mission to decide, so it also serves as the existence (404) check.
+// Returns true only when the caller may proceed; otherwise it has already sent
+// the 404/403 response.
+async function ensureCanManageMission(
+  req: Request,
+  res: Response,
+  id: number,
+): Promise<boolean> {
+  const auth = await getMissionManageAuth(id, viewerOf(req));
+  if (!auth.found) {
+    res.status(404).json({ error: "Mission not found" });
+    return false;
+  }
+  if (!auth.canManage) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return false;
+  }
+  return true;
 }
 
 function parseTier(v: unknown): number | null {
@@ -711,9 +735,17 @@ router.get("/missions/actor-history", requireAuth, async (req, res): Promise<voi
 // actor/NPC. Not limited to assigned players. Mirrors the archive owner-picker.
 // MUST be registered before "/missions/:id" or that param route shadows it.
 router.get("/missions/actor-search", requireAuth, async (req, res): Promise<void> => {
+  // Read-only actor picker for the actor-payout flow. Full managers always have
+  // it. A trial fixer gets it ONLY while they own an approved/posted mission
+  // (so they can pay its actors) — NOT every trial fixer, keeping this off the
+  // global cross-mission tooling that stays manager-only.
   if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
-    return;
+    const viewer = viewerOf(req);
+    const allowed = viewer.isTrialAuthor && (await viewerHasManageableMission(viewer.id));
+    if (!allowed) {
+      res.status(403).json({ error: "Fixer or admin role required" });
+      return;
+    }
   }
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   if (q.length === 0) {
@@ -965,15 +997,12 @@ router.delete("/missions/:id", requireAuth, async (req, res): Promise<void> => {
 
 // ---------------- PAYMENTS ----------------
 router.post("/missions/:id/pay-actors", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
-    return;
-  }
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isInteger(id)) {
     res.status(404).json({ error: "Not found" });
     return;
   }
+  if (!(await ensureCanManageMission(req, res, id))) return;
   const b = req.body ?? {};
   const userIds = Array.isArray(b.userIds) ? b.userIds.filter((x: unknown): x is string => typeof x === "string" && !!x) : [];
   const amount = Math.trunc(Number(b.amount));
@@ -1070,12 +1099,9 @@ router.post("/missions/:id/approve", requireAuth, async (req, res): Promise<void
 
 // Post an approved mission to the public board (manager).
 router.post("/missions/:id/post", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
-    return;
-  }
   const id = missionIdParam(req, res);
   if (id == null) return;
+  if (!(await ensureCanManageMission(req, res, id))) return;
   const result = await postMission(id, viewerOf(req), req);
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
@@ -1146,12 +1172,9 @@ router.delete("/missions/:id/applications/:appId", requireAuth, async (req, res)
 
 // Fixer/admin accepts or rejects an application.
 router.post("/missions/:id/applications/:appId/review", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
-    return;
-  }
   const id = missionIdParam(req, res);
   if (id == null) return;
+  if (!(await ensureCanManageMission(req, res, id))) return;
   const appId = parseInt(String(req.params.appId), 10);
   if (!Number.isInteger(appId)) {
     res.status(404).json({ error: "Not found" });
@@ -1179,12 +1202,9 @@ router.post("/missions/:id/applications/:appId/review", requireAuth, async (req,
 // Fixer/admin removes an accepted player from a mission's roster. Reverts the
 // player's attendance + frees their application; blocked if they were paid.
 router.delete("/missions/:id/assignments/:userId", requireAuth, async (req, res): Promise<void> => {
-  if (!isManager(req)) {
-    res.status(403).json({ error: "Fixer or admin role required" });
-    return;
-  }
   const id = missionIdParam(req, res);
   if (id == null) return;
+  if (!(await ensureCanManageMission(req, res, id))) return;
   const userId = String(req.params.userId);
   if (!userId) {
     res.status(404).json({ error: "Not found" });

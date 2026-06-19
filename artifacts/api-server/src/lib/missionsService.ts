@@ -663,14 +663,74 @@ function ownsMissionApplications(viewer: MissionViewer, fixerId: string | null):
   return viewer.isAdmin || (fixerId != null && fixerId === viewer.id);
 }
 
+/**
+ * Per-mission management permission (roster / post / pay). Full managers
+ * (fixer/admin) may manage ANY mission. A trial fixer may FULLY manage a mission
+ * they OWN, but only once it has been approved (workflowState approved or
+ * posted) — before approval they stay author-only (view + edit/submit). The
+ * cross-mission tools (global actor lookup, breach control) remain
+ * full-manager-only and are NOT covered by this check.
+ */
+function canManageMissionRow(
+  m: { fixerId: string | null; workflowState: string },
+  viewer: MissionViewer,
+): boolean {
+  if (viewer.isManager) return true;
+  return (
+    viewer.isTrialAuthor &&
+    m.fixerId != null &&
+    m.fixerId === viewer.id &&
+    (m.workflowState === "approved" || m.workflowState === "posted")
+  );
+}
+
+/**
+ * Route-guard helper: load just the columns needed to decide management
+ * permission for a single mission. `found` is false when the mission row does
+ * not exist (so callers can 404 before 403).
+ */
+export async function getMissionManageAuth(
+  missionId: number,
+  viewer: MissionViewer,
+): Promise<{ found: boolean; canManage: boolean }> {
+  const [m] = await db
+    .select({ fixerId: missions.fixerId, workflowState: missions.workflowState })
+    .from(missions)
+    .where(eq(missions.id, missionId));
+  if (!m) return { found: false, canManage: false };
+  return { found: true, canManage: canManageMissionRow(m, viewer) };
+}
+
+/**
+ * True when this viewer OWNS at least one approved/posted mission — i.e. a
+ * mission they are entitled to manage (roster / post / pay). Used to scope the
+ * otherwise-global read-only actor search to trial fixers who are actually
+ * running an approved mission, instead of opening it to every trial fixer.
+ */
+export async function viewerHasManageableMission(viewerId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: missions.id })
+    .from(missions)
+    .where(
+      and(
+        eq(missions.fixerId, viewerId),
+        inArray(missions.workflowState, ["approved", "posted"]),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
 export async function getMissionDetail(missionId: number, viewer: MissionViewer) {
   const rows = await loadMissions(eq(missions.id, missionId));
   const m = rows[0];
   if (!m) return null;
   const isOwnerFixer = m.fixerId != null && m.fixerId === viewer.id;
-  const canManage = viewer.isManager;
-  // Trial fixers are author-only: they get NO management tools (payments, post,
-  // complete, roster money) but CAN view + edit/submit a mission they own.
+  const canManage = canManageMissionRow(m, viewer);
+  // Trial fixers may view + edit/submit a mission they own at any stage. Once it
+  // is approved they additionally get full management (roster / post / pay) via
+  // canManageMissionRow above; before approval `isTrialOwner` keeps them in the
+  // author-only tier (edit/submit + view of their own non-posted mission).
   const isTrialOwner = viewer.isTrialAuthor && isOwnerFixer;
   const canEdit = canManage || isTrialOwner;
   // Visibility: regular players only see Posted missions (the draft pipeline is

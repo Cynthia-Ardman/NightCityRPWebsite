@@ -328,6 +328,12 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
   const uncomplete = useUncompleteMission({ mutation: { onSuccess: invalidateMission } });
   const completionBusy = complete.isPending || uncomplete.isPending;
   const completionErr = errOf(complete.error) ?? errOf(uncomplete.error);
+  // `data.canManage` is now true for a trial fixer managing their OWN approved
+  // mission (roster / post / pay). Convert-to-event and the cs-approver thread
+  // drawer hit full-manager/reviewer-only endpoints, so gate THOSE on the real
+  // role to avoid showing trial owners a button that just 403s.
+  const { data: me } = useAuthMe();
+  const isFullManager = !!(me?.isFixer || me?.isAdmin);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -402,8 +408,8 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
               <Pencil className="w-4 h-4" /> EDIT MISSION
             </Link>
           )}
-          {data.canManage && data.status !== "cancelled" && <ConvertToEventDialog mission={data} />}
-          {data.canManage && (
+          {isFullManager && data.status !== "cancelled" && <ConvertToEventDialog mission={data} />}
+          {isFullManager && (
             <DiscordThreadDrawer subjectType="mission" subjectId={data.id} buttonLabel="SEE THREAD" />
           )}
           {data.completedAt && (
@@ -1359,6 +1365,12 @@ function ApplicationReviewRow({
 }
 
 function FixerView({ data }: { data: MissionDetailModel }) {
+  // Trial fixers may fully manage their OWN approved missions (roster / post /
+  // pay), but the cross-player acting lookup and breach control are
+  // full-manager-only tools, so hide them for the trial tier. The server still
+  // enforces this — these panels just avoid showing dead UI / 403s.
+  const { data: me } = useAuthMe();
+  const isFullManager = !!(me?.isFixer || me?.isAdmin);
   return (
     <>
       {data.discordSyncError && (
@@ -1372,9 +1384,9 @@ function FixerView({ data }: { data: MissionDetailModel }) {
 
       <ApplicationsPanel data={data} />
 
-      <PlayerActingLookup />
+      {isFullManager && <PlayerActingLookup />}
 
-      <BreachesPanel missionId={data.id} />
+      {isFullManager && <BreachesPanel missionId={data.id} />}
     </>
   );
 }

@@ -21,3 +21,28 @@ same failure mode as the cyberware/audit "enforcement surfaces" entries.
 **How to apply:** any new review/eligibility path must run through `isReviewer`; any new
 role-derivation path must respect the strip. The marker is display-only and does not
 confer COORDINATOR access.
+
+## Trial fixers self-manage their OWN approved mission (roster/post/pay only)
+
+A trial fixer may FULLY run a mission they personally authored once it reaches
+`workflowState ∈ {approved, posted}` — roster (accept/reject/remove), post-to-board,
+and pay-actors — but nothing else. Per-mission manage auth is centralized:
+`canManageMissionRow(m, viewer) = isManager OR (isTrialAuthor && owns m && approved/posted)`,
+surfaced via `getMissionManageAuth`/`getMissionDetail.canManage` and enforced on write
+routes through `ensureCanManageMission`.
+
+**Two recurring leak classes when widening `canManage` to trial owners:**
+1. **Global cross-mission tools** (e.g. `actor-search`) must NOT key off `canAuthorMissions`
+   — that opens them to EVERY trial fixer. Scope to actual owners via
+   `viewerHasManageableMission(viewerId)` (owns ≥1 approved/posted mission).
+2. **`canManage`-gated UI that hits manager/reviewer-only endpoints** (convert-to-event is
+   `isManager`-only; `/review/:type/:id/discord-thread` is `isReviewer`-only — and trial
+   fixers are NOT reviewers) becomes dead-UI/403 for trial owners. Gate those on a
+   frontend `isFullManager = me.isFixer || me.isAdmin` (useAuthMe), NOT on `canManage`.
+
+**Why:** widening `canManage` is invisible to every sibling that trusted it to mean
+"full manager"; each must be re-classified as roster/post/pay (allow owner) vs
+full-manager/reviewer (keep restricted). Completion stays on `canComplete` (excluded).
+
+**How to apply:** before reusing `canManage` for a new control, check the target
+endpoint's real auth; if it's manager/reviewer-only, gate the UI on `isFullManager`.
