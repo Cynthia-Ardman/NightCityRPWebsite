@@ -346,12 +346,13 @@ function GunCategoryCell({ gun }: { gun: Gun }) {
   return (
     <HoverCard openDelay={120} closeDelay={60}>
       <HoverCardTrigger asChild>
-        <span
-          className="cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-4"
+        <button
+          type="button"
+          className="cursor-help bg-transparent p-0 text-left underline decoration-dotted decoration-muted-foreground/50 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nc-cyan/60 focus-visible:ring-offset-0"
           data-testid={`gun-category-${gun.id}`}
         >
           {label}
-        </span>
+        </button>
       </HoverCardTrigger>
       <HoverCardContent className="w-72 rounded-none border-nc-cyan/40 bg-card">
         <div className="font-display text-sm text-nc-cyan tracking-widest mb-1">
@@ -381,12 +382,13 @@ function GunPowerCell({ gun }: { gun: Gun }) {
       {info ? (
         <HoverCard openDelay={120} closeDelay={60}>
           <HoverCardTrigger asChild>
-            <span
-              className="cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-4"
+            <button
+              type="button"
+              className="cursor-help bg-transparent p-0 text-left underline decoration-dotted decoration-muted-foreground/50 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nc-cyan/60 focus-visible:ring-offset-0"
               data-testid={`gun-power-${gun.id}`}
             >
               {label}
-            </span>
+            </button>
           </HoverCardTrigger>
           <HoverCardContent className="w-72 rounded-none border-nc-cyan/40 bg-card">
             <div className="font-display text-sm text-nc-cyan tracking-widest mb-1">
