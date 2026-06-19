@@ -191,6 +191,10 @@ export default function CatalogRent() {
           return tierLabel(r.tier) ?? "";
         case "monthlyRent":
           return r.monthlyRent;
+        case "availability":
+          // Available (not occupied) sorts first on ascending so a click
+          // surfaces what can actually be leased.
+          return r.occupied ? 1 : 0;
         default:
           return null;
       }
@@ -249,6 +253,10 @@ export default function CatalogRent() {
             return tierLabel(r.tier) ?? "";
           case "monthlyRent":
             return r.monthlyRent;
+          case "availability":
+            // Available (not occupied) sorts first on ascending so a click
+            // surfaces what can actually be leased.
+            return r.occupied ? 1 : 0;
           default:
             return null;
         }
@@ -420,7 +428,7 @@ export default function CatalogRent() {
                     <SortableTh label="District" columnKey="district" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} />
                     <SortableTh label="Tier" columnKey="tier" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} />
                     <SortableTh label="Rent/mo" columnKey="monthlyRent" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} align="right" />
-                    <th className="p-3 w-0"></th>
+                    <SortableTh label="Status" columnKey="availability" activeKey={bizSort.sortKey} dir={bizSort.sortDir} onSort={bizSort.toggle} align="right" />
                   </tr>
                 </thead>
                 <tbody>
@@ -516,7 +524,7 @@ export default function CatalogRent() {
                               <SortableTh label="Apt #" columnKey="unit" activeKey={unitSort.sortKey} dir={unitSort.sortDir} onSort={unitSort.toggle} />
                               <SortableTh label="Tier" columnKey="tier" activeKey={unitSort.sortKey} dir={unitSort.sortDir} onSort={unitSort.toggle} />
                               <SortableTh label="Rent/mo" columnKey="monthlyRent" activeKey={unitSort.sortKey} dir={unitSort.sortDir} onSort={unitSort.toggle} align="right" />
-                              <th className="p-3 w-0"></th>
+                              <SortableTh label="Status" columnKey="availability" activeKey={unitSort.sortKey} dir={unitSort.sortDir} onSort={unitSort.toggle} align="right" />
                             </tr>
                           </thead>
                           <tbody>
