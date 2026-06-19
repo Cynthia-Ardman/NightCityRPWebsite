@@ -695,6 +695,12 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
   // Applications are only accepted on missions that are publicly posted AND
   // still Open for play (server enforces the same rule).
   const open = data.workflowState === "posted" && data.status === "open";
+  // A player on the mission (pending applicant OR accepted onto the roster) can
+  // keep updating their availability for any UPCOMING mission — not just while
+  // intake is open — so the fixer always has their latest times to schedule
+  // around. Editing an accepted application preserves the roster spot server-side.
+  const canEditAvailability =
+    data.workflowState === "posted" && data.status !== "cancelled" && !data.completedAt;
 
   // Always echo an existing (non-withdrawn) application back to the player so the
   // accepted/declined outcome stays visible even after the mission closes — this
@@ -721,9 +727,14 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
             </p>
           )}
           {existing.comment && <p className="text-muted-foreground whitespace-pre-wrap">{existing.comment}</p>}
-          {existing.status === "pending" && open && (
+          {(existing.status === "pending" || existing.status === "accepted") && canEditAvailability && (
             <div className="space-y-2 border-t border-border/50 pt-3">
               <Label className="text-xs">YOUR AVAILABILITY (optional)</Label>
+              {existing.status === "accepted" && (
+                <p className="text-[11px] text-muted-foreground">
+                  You're on the roster — update your availability any time before the mission and you'll stay accepted.
+                </p>
+              )}
               <AvailabilityGrid mode="edit" value={slots} onChange={setSlots} />
               <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                 <Checkbox

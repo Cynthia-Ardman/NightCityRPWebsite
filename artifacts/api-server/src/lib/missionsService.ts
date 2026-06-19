@@ -1199,21 +1199,40 @@ export async function applyToMission(opts: {
 }): Promise<ApplyResult> {
   const [m] = await db.select().from(missions).where(eq(missions.id, opts.missionId));
   if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
-  // Applications are only accepted on missions that are publicly posted AND
-  // still Open for play — not pending/completed/cancelled ones.
-  if (m.workflowState !== "posted" || m.status !== "open") {
-    return { ok: false, error: "This mission is not open for applications", httpStatus: 409 };
-  }
   // Character must belong to the applicant.
   const [char] = await db.select().from(characters).where(eq(characters.id, opts.characterId));
   if (!char) return { ok: false, error: "Character not found", httpStatus: 404 };
   if (char.ownerId !== opts.userId) {
     return { ok: false, error: "That character isn't yours", httpStatus: 403 };
   }
+  // Is there already an ACTIVE (pending/accepted) application for this character?
+  // Editing one — e.g. an already-accepted player tweaking their availability so
+  // the fixer can keep scheduling around it — is allowed for any UPCOMING mission,
+  // not just while intake is open. A brand-new application (or re-applying after a
+  // withdraw/reject) still requires the mission to be Open for applications.
+  const [existing] = await db
+    .select({ status: missionApplications.status })
+    .from(missionApplications)
+    .where(
+      and(
+        eq(missionApplications.missionId, opts.missionId),
+        eq(missionApplications.characterId, opts.characterId),
+      ),
+    );
+  const isActiveEdit = existing?.status === "pending" || existing?.status === "accepted";
+  const upcoming = m.workflowState === "posted" && m.status !== "cancelled" && m.completedAt == null;
+  if (isActiveEdit) {
+    if (!upcoming) {
+      return { ok: false, error: "This mission is closed", httpStatus: 409 };
+    }
+  } else if (m.workflowState !== "posted" || m.status !== "open") {
+    return { ok: false, error: "This mission is not open for applications", httpStatus: 409 };
+  }
   const comment = opts.comment?.trim() || null;
   const availability = normalizeAvailability(opts.availability);
-  // Dedupe on (mission, character): re-applying re-opens a withdrawn/rejected
-  // application back to pending and refreshes the comment + availability.
+  // Preserve an accepted application's roster status when the player is just
+  // editing availability; otherwise (new / re-apply) (re)open it as pending.
+  const preserveAccepted = existing?.status === "accepted";
   await db
     .insert(missionApplications)
     .values({
@@ -1230,10 +1249,9 @@ export async function applyToMission(opts: {
         userId: opts.userId,
         comment,
         availability,
-        status: "pending",
-        reviewedBy: null,
-        reviewedAt: null,
         updatedAt: new Date(),
+        // Keep an accepted player on the roster; only (re)set pending otherwise.
+        ...(preserveAccepted ? {} : { status: "pending", reviewedBy: null, reviewedAt: null }),
       },
     });
   // Optionally remember this as the player's weekly default for next time.
@@ -1895,6 +1913,74 @@ async function notifyApplicantOfReview(opts: {
     }
   } catch (err) {
     logger.warn({ err, userId: opts.userId, action: opts.action }, "applicant review DM failed");
+  }
+}
+
+/**
+ * DM everyone signed up to a mission that its start time moved. Accepted players
+ * (the roster) and signed-up NPCs always hear about it; pending PC applicants
+ * are only pinged while intake is still open — once a fixer closes applications,
+ * only the players who were accepted get the reschedule notice. Fire-and-forget:
+ * delivery misses never block the PATCH that triggered the reschedule.
+ */
+export async function notifyMissionReschedule(mission: {
+  id: number;
+  title: string;
+  startAt: Date | null;
+  status: string;
+  workflowState: string;
+}): Promise<void> {
+  try {
+    if (mission.workflowState !== "posted" || !mission.startAt) return;
+    const ctx = await getMissionContext();
+    const recipients = new Set<string>();
+    // Accepted players (the active roster) — always.
+    const assigned = await db
+      .select({ userId: missionAssignments.userId })
+      .from(missionAssignments)
+      .where(eq(missionAssignments.missionId, mission.id));
+    for (const r of assigned) recipients.add(r.userId);
+    // Pending PC applicants — only while applications are still open.
+    if (mission.status === "open") {
+      const pending = await db
+        .select({ userId: missionApplications.userId })
+        .from(missionApplications)
+        .where(
+          and(
+            eq(missionApplications.missionId, mission.id),
+            eq(missionApplications.status, "pending"),
+          ),
+        );
+      for (const r of pending) recipients.add(r.userId);
+    }
+    // Signed-up NPCs — always.
+    const npcs = await db
+      .select({ userId: missionNpcSignups.userId })
+      .from(missionNpcSignups)
+      .where(
+        and(
+          eq(missionNpcSignups.missionId, mission.id),
+          inArray(missionNpcSignups.state, ["signed_up", "attended"]),
+        ),
+      );
+    for (const r of npcs) recipients.add(r.userId);
+    if (recipients.size === 0) return;
+    const unix = Math.floor(mission.startAt.getTime() / 1000);
+    const content = `The mission "${mission.title}" has been rescheduled to <t:${unix}:F> (<t:${unix}:R>). Check the mission board for details.`;
+    if (!ctx.live) {
+      logger.info(
+        { missionId: mission.id, recipients: recipients.size },
+        "[test mode] would DM mission reschedule notice",
+      );
+      return;
+    }
+    for (const userId of recipients) {
+      await sendDirectMessage(userId, content).catch((err) =>
+        logger.warn({ err, userId, missionId: mission.id }, "reschedule DM failed"),
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, missionId: mission.id }, "mission reschedule notification failed");
   }
 }
 
