@@ -8975,6 +8975,48 @@ export const GetMyWalletResponse = zod.object({
 
 
 /**
+ * @summary Move eddies from the signed-in user's bank to their cash (spendable) balance
+ */
+
+export const withdrawEddiesBodyIdempotencyKeyMax = 100;
+
+
+
+export const WithdrawEddiesBody = zod.object({
+  "amount": zod.number().min(1).describe('Positive number of eddies to move between bank and cash.'),
+  "idempotencyKey": zod.string().max(withdrawEddiesBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so a network retry \/ double-click of the same withdraw or deposit doesn\'t move eddies twice.')
+})
+
+export const WithdrawEddiesResponse = zod.object({
+  "balance": zod.number(),
+  "cash": zod.number().optional(),
+  "bank": zod.number().optional(),
+  "source": zod.enum(['unbelievaboat', 'local'])
+})
+
+
+/**
+ * @summary Move eddies from the signed-in user's cash (spendable) balance into their bank
+ */
+
+export const depositEddiesBodyIdempotencyKeyMax = 100;
+
+
+
+export const DepositEddiesBody = zod.object({
+  "amount": zod.number().min(1).describe('Positive number of eddies to move between bank and cash.'),
+  "idempotencyKey": zod.string().max(depositEddiesBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so a network retry \/ double-click of the same withdraw or deposit doesn\'t move eddies twice.')
+})
+
+export const DepositEddiesResponse = zod.object({
+  "balance": zod.number(),
+  "cash": zod.number().optional(),
+  "bank": zod.number().optional(),
+  "source": zod.enum(['unbelievaboat', 'local'])
+})
+
+
+/**
  * @summary Combined wallet ledger for the signed-in user across all their characters
  */
 export const GetMyWalletTransactionsResponseItem = zod.object({

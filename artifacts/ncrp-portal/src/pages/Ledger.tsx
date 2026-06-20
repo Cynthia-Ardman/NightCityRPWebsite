@@ -3,6 +3,8 @@ import {
   useGetMyWalletTransactions,
   useListMyCharacters,
   useTransferEddies,
+  useWithdrawEddies,
+  useDepositEddies,
   getGetMyWalletQueryKey,
   getGetMyWalletTransactionsQueryKey,
   type WalletTransaction,
@@ -20,6 +22,15 @@ import { Link } from "wouter";
 
 function humanizeKind(kind: string): string {
   return kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Pull the human-readable message off a failed API mutation. The custom fetch
+// client throws an ApiError whose `.data` carries the server's `{ error }`
+// payload; fall back to a generic message when it's missing.
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as { data?: unknown } | null)?.data;
+  const msg = (data as { error?: unknown } | null)?.error;
+  return typeof msg === "string" && msg.trim() ? msg : fallback;
 }
 
 // The Type column prefers the coarse `category` (rent, cyberware, mission, …)
@@ -117,16 +128,42 @@ export default function Ledger() {
       </div>
 
       <Card className="rounded-none border-nc-yellow/40 bg-nc-yellow/5" data-testid="card-ledger-balance">
-        <CardContent className="flex items-center justify-between p-6">
-          <div className="font-display tracking-widest text-nc-yellow text-sm">CURRENT BALANCE</div>
-          <div className="font-mono text-3xl font-bold text-nc-yellow">
-            {typeof wallet?.balance === "number" ? wallet.balance.toLocaleString() : "—"}
-            <span className="text-nc-yellow/50 text-base ml-2">€$</span>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="font-display tracking-widest text-nc-yellow text-sm">CURRENT BALANCE</div>
+            <div className="font-mono text-3xl font-bold text-nc-yellow" data-testid="text-balance-total">
+              {typeof wallet?.balance === "number" ? wallet.balance.toLocaleString() : "—"}
+              <span className="text-nc-yellow/50 text-base ml-2">€$</span>
+            </div>
           </div>
+          <div className="grid grid-cols-2 gap-4 border-t border-nc-yellow/20 pt-4">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Cash (spendable)
+              </div>
+              <div className="font-mono text-xl font-bold text-nc-green" data-testid="text-balance-cash">
+                {typeof wallet?.cash === "number" ? wallet.cash.toLocaleString() : "—"}
+                <span className="text-nc-green/50 text-sm ml-1">€$</span>
+              </div>
+            </div>
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Bank</div>
+              <div className="font-mono text-xl font-bold text-nc-cyan" data-testid="text-balance-bank">
+                {typeof wallet?.bank === "number" ? wallet.bank.toLocaleString() : "—"}
+                <span className="text-nc-cyan/50 text-sm ml-1">€$</span>
+              </div>
+            </div>
+          </div>
+          <p className="font-mono text-xs text-muted-foreground">
+            Transfers spend <span className="text-nc-green">cash</span> only. Withdraw from your bank to make
+            those eddies spendable.
+          </p>
         </CardContent>
       </Card>
 
-      <TransferCard />
+      <WithdrawDepositCard cash={wallet?.cash ?? null} bank={wallet?.bank ?? null} />
+
+      <TransferCard cash={wallet?.cash ?? null} total={wallet?.balance ?? null} />
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
@@ -218,7 +255,7 @@ export default function Ledger() {
 // Transfer eddies from one of the player's own characters to another
 // character. Relocated here from the old per-character Ledger tab — the
 // per-player Ledger page is now the single home for money movement.
-function TransferCard() {
+function TransferCard({ cash, total }: { cash: number | null; total: number | null }) {
   const qc = useQueryClient();
   const { data: myChars } = useListMyCharacters();
   const [fromId, setFromId] = useState<number | null>(null);
@@ -240,6 +277,28 @@ function TransferCard() {
 
   const chars = myChars ?? [];
   const canSubmit = !!fromId && !!to?.id && amount > 0 && fromId !== to.id && !transfer.isPending;
+
+  // When a transfer fails, prefer the server's specific message. If it failed
+  // for lack of cash but the bank would cover it, add a withdraw nudge so the
+  // player isn't left with the old generic "check funds" dead end.
+  let transferError: string | null = null;
+  if (transfer.error) {
+    transferError = apiErrorMessage(transfer.error, "Transfer failed. Check funds or try again.");
+    // Only enhance the message when the server actually reported a cash/funds
+    // problem — otherwise we'd mask unrelated errors (e.g. a recipient issue)
+    // with a misleading withdraw nudge.
+    const isFundsError = /cash|insufficient funds/i.test(transferError);
+    if (
+      isFundsError &&
+      cash != null &&
+      total != null &&
+      amount > 0 &&
+      cash < amount &&
+      total >= amount
+    ) {
+      transferError = `Not enough cash on hand — you have ${cash.toLocaleString()} €$ in cash. Withdraw at least ${(amount - cash).toLocaleString()} €$ from your bank first, then try again.`;
+    }
+  }
 
   return (
     <Card className="rounded-none border-border bg-card/50">
@@ -307,11 +366,133 @@ function TransferCard() {
         {fromId && to?.id && fromId === to.id && (
           <div className="text-nc-yellow font-mono text-xs">Pick two different characters.</div>
         )}
-        {transfer.error && (
+        {transferError && (
           <div className="text-destructive font-mono text-sm" data-testid="text-transfer-error">
-            Transfer failed. Check funds or try again.
+            {transferError}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Move eddies between the player's account-level bank and cash ("on person").
+// Transfers can only spend cash, so a player whose money sits in the bank uses
+// Withdraw to make it spendable; Deposit moves it back. Both call the new
+// /me/wallet endpoints, then refresh the balance + history. UB writes only fire
+// in the deployed environment, so in dev these no-op with a 502.
+function WithdrawDepositCard({ cash, bank }: { cash: number | null; bank: number | null }) {
+  const qc = useQueryClient();
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [depositAmount, setDepositAmount] = useState(0);
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetMyWalletTransactionsQueryKey() });
+  };
+
+  const withdraw = useWithdrawEddies({
+    mutation: { onSuccess: () => { refresh(); setWithdrawAmount(0); } },
+  });
+  const deposit = useDepositEddies({
+    mutation: { onSuccess: () => { refresh(); setDepositAmount(0); } },
+  });
+
+  const canWithdraw =
+    withdrawAmount > 0 && !withdraw.isPending && (bank == null || withdrawAmount <= bank);
+  const canDeposit =
+    depositAmount > 0 && !deposit.isPending && (cash == null || depositAmount <= cash);
+
+  const withdrawError = withdraw.error
+    ? apiErrorMessage(withdraw.error, "Withdrawal failed. Try again.")
+    : bank != null && withdrawAmount > bank
+      ? `You only have ${bank.toLocaleString()} €$ in the bank.`
+      : null;
+  const depositError = deposit.error
+    ? apiErrorMessage(deposit.error, "Deposit failed. Try again.")
+    : cash != null && depositAmount > cash
+      ? `You only have ${cash.toLocaleString()} €$ in cash.`
+      : null;
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-cyan">BANK</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="font-mono text-xs text-muted-foreground">
+          Withdraw moves eddies from your <span className="text-nc-cyan">bank</span> to your spendable
+          <span className="text-nc-green"> cash</span>. Deposit moves cash back into the bank. Your total
+          never changes.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Withdraw: bank -> cash */}
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!canWithdraw) return;
+              withdraw.mutate({ data: { amount: withdrawAmount, idempotencyKey: crypto.randomUUID() } });
+            }}
+          >
+            <Label className="text-xs font-mono">WITHDRAW (BANK → CASH)</Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={1}
+                value={withdrawAmount || ""}
+                onChange={(e) => setWithdrawAmount(Number(e.target.value))}
+                data-testid="input-withdraw-amount"
+              />
+              <Button
+                type="submit"
+                disabled={!canWithdraw}
+                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display whitespace-nowrap"
+                data-testid="button-withdraw"
+              >
+                {withdraw.isPending ? "..." : "WITHDRAW"}
+              </Button>
+            </div>
+            {withdrawError && (
+              <div className="text-destructive font-mono text-xs" data-testid="text-withdraw-error">
+                {withdrawError}
+              </div>
+            )}
+          </form>
+          {/* Deposit: cash -> bank */}
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!canDeposit) return;
+              deposit.mutate({ data: { amount: depositAmount, idempotencyKey: crypto.randomUUID() } });
+            }}
+          >
+            <Label className="text-xs font-mono">DEPOSIT (CASH → BANK)</Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={1}
+                value={depositAmount || ""}
+                onChange={(e) => setDepositAmount(Number(e.target.value))}
+                data-testid="input-deposit-amount"
+              />
+              <Button
+                type="submit"
+                disabled={!canDeposit}
+                className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display whitespace-nowrap"
+                data-testid="button-deposit"
+              >
+                {deposit.isPending ? "..." : "DEPOSIT"}
+              </Button>
+            </div>
+            {depositError && (
+              <div className="text-destructive font-mono text-xs" data-testid="text-deposit-error">
+                {depositError}
+              </div>
+            )}
+          </form>
+        </div>
       </CardContent>
     </Card>
   );

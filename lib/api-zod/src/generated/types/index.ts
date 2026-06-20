@@ -525,5 +525,6 @@ export * from './vrchatUserRef';
 export * from './vrchatVerifyRequest';
 export * from './wallet';
 export * from './walletAdjustmentInput';
+export * from './walletMoveInput';
 export * from './walletSource';
 export * from './walletTransaction';

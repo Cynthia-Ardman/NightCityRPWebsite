@@ -284,6 +284,7 @@ import type {
   VrchatVerifyRequest,
   Wallet,
   WalletAdjustmentInput,
+  WalletMoveInput,
   WalletTransaction
 } from './api.schemas';
 
@@ -18192,6 +18193,148 @@ export function useGetMyWallet<TData = Awaited<ReturnType<typeof getMyWallet>>, 
 
 
 
+
+export const getWithdrawEddiesUrl = () => {
+
+
+
+
+  return `/api/me/wallet/withdraw`
+}
+
+/**
+ * @summary Move eddies from the signed-in user's bank to their cash (spendable) balance
+ */
+export const withdrawEddies = async (walletMoveInput: WalletMoveInput, options?: RequestInit): Promise<UserWallet> => {
+
+  return customFetch<UserWallet>(getWithdrawEddiesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      walletMoveInput,)
+  }
+);}
+
+
+
+
+export const getWithdrawEddiesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawEddies>>, TError,{data: BodyType<WalletMoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawEddies>>, TError,{data: BodyType<WalletMoveInput>}, TContext> => {
+
+const mutationKey = ['withdrawEddies'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawEddies>>, {data: BodyType<WalletMoveInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  withdrawEddies(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawEddiesMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawEddies>>>
+    export type WithdrawEddiesMutationBody = BodyType<WalletMoveInput>
+    export type WithdrawEddiesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Move eddies from the signed-in user's bank to their cash (spendable) balance
+ */
+export const useWithdrawEddies = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawEddies>>, TError,{data: BodyType<WalletMoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawEddies>>,
+        TError,
+        {data: BodyType<WalletMoveInput>},
+        TContext
+      > => {
+      return useMutation(getWithdrawEddiesMutationOptions(options));
+    }
+
+export const getDepositEddiesUrl = () => {
+
+
+
+
+  return `/api/me/wallet/deposit`
+}
+
+/**
+ * @summary Move eddies from the signed-in user's cash (spendable) balance into their bank
+ */
+export const depositEddies = async (walletMoveInput: WalletMoveInput, options?: RequestInit): Promise<UserWallet> => {
+
+  return customFetch<UserWallet>(getDepositEddiesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      walletMoveInput,)
+  }
+);}
+
+
+
+
+export const getDepositEddiesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depositEddies>>, TError,{data: BodyType<WalletMoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof depositEddies>>, TError,{data: BodyType<WalletMoveInput>}, TContext> => {
+
+const mutationKey = ['depositEddies'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof depositEddies>>, {data: BodyType<WalletMoveInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  depositEddies(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DepositEddiesMutationResult = NonNullable<Awaited<ReturnType<typeof depositEddies>>>
+    export type DepositEddiesMutationBody = BodyType<WalletMoveInput>
+    export type DepositEddiesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Move eddies from the signed-in user's cash (spendable) balance into their bank
+ */
+export const useDepositEddies = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depositEddies>>, TError,{data: BodyType<WalletMoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof depositEddies>>,
+        TError,
+        {data: BodyType<WalletMoveInput>},
+        TContext
+      > => {
+      return useMutation(getDepositEddiesMutationOptions(options));
+    }
 
 export const getGetMyWalletTransactionsUrl = () => {
 

@@ -1,5 +1,5 @@
-import { Router, type IRouter } from "express";
-import { eq, desc, and, or, sql, inArray } from "drizzle-orm";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { eq, desc, and, or, sql, inArray, notInArray } from "drizzle-orm";
 import {
   db,
   characters,
@@ -19,7 +19,9 @@ import {
   classifyWalletCategory,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { getBalance } from "../lib/unbelievaboat";
+import { getBalance, patchBalance } from "../lib/unbelievaboat";
+import { recordSettledWalletMovement } from "../lib/economy";
+import { logger } from "../lib/logger";
 import { hasRole } from "../lib/discord";
 import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand, countsForCyberwareBilling } from "../lib/jobs";
 import { sumCwpByCharacter } from "../lib/cyberware";
@@ -397,6 +399,110 @@ router.get("/me/wallet", requireAuth, async (req, res): Promise<void> => {
   res.json({ balance: ub.total, cash: ub.cash, bank: ub.bank, source: ub.source });
 });
 
+// Move eddies between the caller's UnbelievaBoat bank and cash ("on person").
+// Transfers can only spend cash, so players with most of their money in the
+// bank need to withdraw first. Both directions share this handler: a withdrawal
+// is bank -> cash, a deposit is cash -> bank. The total never changes — this is
+// a purely internal move — so the ledger row we record is net-zero (amount 0)
+// purely to carry the idempotency key; these rows are filtered out of the
+// ledger display (they'd read as misleading "+0" in/out entries). UB is
+// authoritative: we require a live balance read before writing and reject when
+// the source side can't cover the amount.
+//
+// Idempotency mirrors the transfer path: a client may pass a key (a UUID
+// generated once per submit) so a retry / double-click can't run the bank<->cash
+// move twice. If we've already settled this exact key, return the current
+// balance without touching UB again.
+//
+// NOTE: UB writes only fire in the deployed environment (externalWritesAllowed),
+// so in dev patchBalance returns null and this responds 502 by design.
+const BANK_MOVE_KINDS = ["bank_withdraw", "bank_deposit"] as const;
+
+async function handleWalletMove(
+  req: Request,
+  res: Response,
+  dir: "withdraw" | "deposit",
+): Promise<void> {
+  const amount = Number((req.body ?? {}).amount);
+  if (!Number.isInteger(amount) || amount <= 0) {
+    res.status(400).json({ error: "A positive whole amount is required" });
+    return;
+  }
+  const rawKey = (req.body ?? {}).idempotencyKey;
+  const moveKey =
+    typeof rawKey === "string" && rawKey.trim()
+      ? `bank-move:${rawKey.trim().slice(0, 80)}`
+      : null;
+  // Durable dedup BEFORE any UB write: if this exact key already settled, return
+  // the current balance instead of moving money again.
+  if (moveKey) {
+    const [done] = await db
+      .select({ id: walletTransactions.id })
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.idempotencyKey, moveKey), eq(walletTransactions.syncStatus, "synced")));
+    if (done) {
+      const cur = await getBalance(req.user!.discordId, { allowStale: true });
+      res.json({
+        balance: cur?.total ?? 0,
+        cash: cur?.cash ?? 0,
+        bank: cur?.bank ?? 0,
+        source: cur?.source ?? "unbelievaboat",
+      });
+      return;
+    }
+  }
+  // UB is the source of truth — never move money off a stale local figure.
+  const bal = await getBalance(req.user!.discordId);
+  if (!bal) {
+    res.status(502).json({ error: "Wallet provider unavailable" });
+    return;
+  }
+  if (dir === "withdraw" && bal.bank < amount) {
+    res.status(400).json({
+      error: `Not enough in the bank. You have ${bal.bank.toLocaleString()} €$ in the bank but tried to withdraw ${amount.toLocaleString()} €$.`,
+    });
+    return;
+  }
+  if (dir === "deposit" && bal.cash < amount) {
+    res.status(400).json({
+      error: `Not enough cash on hand. You have ${bal.cash.toLocaleString()} €$ in cash but tried to deposit ${amount.toLocaleString()} €$.`,
+    });
+    return;
+  }
+  const delta =
+    dir === "withdraw"
+      ? { cash: amount, bank: -amount, reason: "Withdraw from bank (portal)" }
+      : { cash: -amount, bank: amount, reason: "Deposit to bank (portal)" };
+  const moved = await patchBalance(req.user!.discordId, delta);
+  if (!moved) {
+    logger.warn(
+      { discordUserId: req.user!.discordId, dir, amount },
+      "wallet move failed: UB patch returned null",
+    );
+    res.status(502).json({ error: "Wallet provider unavailable" });
+    return;
+  }
+  // Record a net-zero ledger row carrying the idempotency key so a retry that
+  // races past the pre-check above can't double-move (onConflictDoNothing on the
+  // key). amount 0 means the user's mirrored walletBalance is unchanged; total
+  // is unchanged so reconcile won't drift. Hidden from the ledger display.
+  if (moveKey) {
+    await recordSettledWalletMovement({
+      userId: req.user!.id,
+      amount: 0,
+      ubTotalAfter: moved.total,
+      source: "website",
+      kind: dir === "withdraw" ? "bank_withdraw" : "bank_deposit",
+      memo: dir === "withdraw" ? `Withdrew ${amount} from bank` : `Deposited ${amount} to bank`,
+      idempotencyKey: moveKey,
+    });
+  }
+  res.json({ balance: moved.total, cash: moved.cash, bank: moved.bank, source: moved.source });
+}
+
+router.post("/me/wallet/withdraw", requireAuth, (req, res) => handleWalletMove(req, res, "withdraw"));
+router.post("/me/wallet/deposit", requireAuth, (req, res) => handleWalletMove(req, res, "deposit"));
+
 router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<void> => {
   const myChars = await db
     .select({ id: characters.id, name: characters.name })
@@ -409,7 +515,9 @@ router.get("/me/wallet/transactions", requireAuth, async (req, res): Promise<voi
   const rows = await db
     .select()
     .from(walletTransactions)
-    .where(or(...conditions))
+    // Hide net-zero bank<->cash move rows (they only exist to carry an
+    // idempotency key; the total never changed so they'd read as a "+0" entry).
+    .where(and(or(...conditions), notInArray(walletTransactions.kind, [...BANK_MOVE_KINDS])))
     .orderBy(desc(walletTransactions.createdAt))
     .limit(100);
 

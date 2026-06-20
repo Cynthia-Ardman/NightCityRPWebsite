@@ -4003,6 +4003,38 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UserWallet" }
+  /me/wallet/withdraw:
+    post:
+      operationId: withdrawEddies
+      tags: [wallet]
+      summary: Move eddies from the signed-in user's bank to their cash (spendable) balance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WalletMoveInput" }
+      responses:
+        "200":
+          description: Updated wallet balance after the withdrawal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWallet" }
+  /me/wallet/deposit:
+    post:
+      operationId: depositEddies
+      tags: [wallet]
+      summary: Move eddies from the signed-in user's cash (spendable) balance into their bank
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WalletMoveInput" }
+      responses:
+        "200":
+          description: Updated wallet balance after the deposit
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWallet" }
   /me/wallet/transactions:
     get:
       operationId: getMyWalletTransactions
@@ -6662,6 +6694,13 @@ components:
         cash: { type: integer }
         bank: { type: integer }
         source: { type: string, enum: [unbelievaboat, local] }
+
+    WalletMoveInput:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: integer, minimum: 1, description: "Positive number of eddies to move between bank and cash." }
+        idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key (e.g. a UUID created once per submit) so a network retry / double-click of the same withdraw or deposit doesn't move eddies twice." }
 
     TransferInput:
       type: object

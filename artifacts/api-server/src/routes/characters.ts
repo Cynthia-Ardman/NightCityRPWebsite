@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, and, desc, or, sql } from "drizzle-orm";
+import { eq, and, desc, or, sql, notInArray } from "drizzle-orm";
 import {
   db,
   characters,
@@ -949,9 +949,14 @@ router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res):
     .select()
     .from(walletTransactions)
     .where(
-      or(
-        eq(walletTransactions.characterId, id),
-        c.ownerId ? eq(walletTransactions.userId, c.ownerId) : sql`false`,
+      and(
+        or(
+          eq(walletTransactions.characterId, id),
+          c.ownerId ? eq(walletTransactions.userId, c.ownerId) : sql`false`,
+        ),
+        // Hide net-zero bank<->cash move rows (they only carry an idempotency
+        // key; the total never changed so they'd read as a "+0" entry).
+        notInArray(walletTransactions.kind, ["bank_withdraw", "bank_deposit"]),
       ),
     )
     .orderBy(desc(walletTransactions.createdAt))
@@ -1025,6 +1030,16 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     return;
   }
   if (senderBal.cash < amount) {
+    // Distinguish "you genuinely don't have enough" from "you have enough total
+    // but it's sitting in the bank" — transfers only spend cash, so the latter
+    // is fixable by withdrawing first. Point the player there instead of the
+    // old generic message.
+    if (senderBal.total >= amount) {
+      res.status(400).json({
+        error: `Not enough cash on hand. You have ${senderBal.cash.toLocaleString()} €$ in cash — withdraw at least ${(amount - senderBal.cash).toLocaleString()} €$ from your bank first, then try again.`,
+      });
+      return;
+    }
     res.status(400).json({ error: "Insufficient funds" });
     return;
   }

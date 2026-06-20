@@ -2090,6 +2090,19 @@ export interface UserWallet {
   source: UserWalletSource;
 }
 
+export interface WalletMoveInput {
+  /**
+     * Positive number of eddies to move between bank and cash.
+     * @minimum 1
+     */
+  amount: number;
+  /**
+     * Client-generated key (e.g. a UUID created once per submit) so a network retry / double-click of the same withdraw or deposit doesn't move eddies twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
+}
+
 export interface TransferInput {
   toCharacterId: number;
   /** @minimum 1 */
