@@ -135,7 +135,7 @@ describe("POST /requests/:id/vote (venue materialization)", () => {
     expect(mockDm).toHaveBeenCalledTimes(1);
   });
 
-  it("vote is idempotent: a second approve 409s and creates no store before close", async () => {
+  it("a repeat approve by the same voter toggles their vote off and reverts to pending; nothing materializes before close", async () => {
     const owner = await createUser();
     const fixer = await createFixer();
     const char = await createCharacter({ ownerId: owner.id });
@@ -147,10 +147,16 @@ describe("POST /requests/:id/vote (venue materialization)", () => {
 
     const first = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
     expect(first.status).toBe(200);
-    const second = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
-    expect(second.status).toBe(409);
+    expect(first.body.status).toBe("approved");
 
-    // Still deferred — nothing materialized until close.
+    // Voting stays open on a staged (approved) ticket: re-casting the same vote
+    // toggles it off, dropping the tally below majority and walking the ticket
+    // back to pending. No 409 — but still no double-apply (effects are deferred).
+    const second = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", fixer.id).send({ vote: "approve" });
+    expect(second.status).toBe(200);
+    expect(second.body.status).toBe("pending");
+
+    // Still deferred — nothing materialized at any point.
     expect(await db.select().from(stores)).toHaveLength(0);
   });
 
