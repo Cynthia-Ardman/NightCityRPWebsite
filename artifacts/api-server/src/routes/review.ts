@@ -10,6 +10,8 @@ import {
   characterSheets,
   characters,
   missions,
+  lorePendingEdits,
+  loreEntries,
   users,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
@@ -18,6 +20,7 @@ import { isReviewer, type ReviewActionResult } from "../lib/review";
 import { closeRequest, reopenRequest, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES } from "./requests";
 import { closeEdit, reopenEdit } from "./pending-edits";
 import { closeSheet, reopenSheet } from "./sheets";
+import { closeLore, reopenLore } from "./lore";
 
 // ---------------------------------------------------------------------------
 // Generic review discussion + notification API.
@@ -30,12 +33,13 @@ import { closeSheet, reopenSheet } from "./sheets";
 //   * per-user SEEN tracking that drives the unseen notification counts (a
 //     subject stops counting toward a reviewer's badge once they open it, and
 //     re-counts when the player posts a fresh reply).
-// LORE is intentionally excluded — it is a single-admin flow with no voting.
+// LORE proposals ('lore') also ride this pipeline — they vote/tally/close like
+// the others, but materialize via lore's own applyProposal at the close step.
 // ---------------------------------------------------------------------------
 
 const router: IRouter = Router();
 
-const SUBJECT_TYPES = ["edit", "request", "sheet"] as const;
+const SUBJECT_TYPES = ["edit", "request", "sheet", "lore"] as const;
 type SubjectType = (typeof SUBJECT_TYPES)[number];
 
 function parseSubjectType(v: unknown): SubjectType | null {
@@ -47,7 +51,7 @@ function parseSubjectType(v: unknown): SubjectType | null {
 // (comments / seen / votes / close stay edit|request|sheet only). Keep the
 // extra type scoped to the thread endpoint so the vote-pipeline routes never
 // accept it.
-const THREAD_SUBJECT_TYPES = ["edit", "request", "sheet", "mission"] as const;
+const THREAD_SUBJECT_TYPES = ["edit", "request", "sheet", "lore", "mission"] as const;
 type ThreadSubjectType = (typeof THREAD_SUBJECT_TYPES)[number];
 
 function parseThreadSubjectType(v: unknown): ThreadSubjectType | null {
@@ -89,6 +93,15 @@ async function resolveSubject(type: ThreadSubjectType, id: number): Promise<Reso
       .where(eq(customRequests.id, id));
     if (!row) return null;
     return { submitterId: row.submitterId, status: row.status, label: `your request "${row.title}"` };
+  }
+  if (type === "lore") {
+    const [row] = await db
+      .select({ submitterId: lorePendingEdits.submittedBy, status: lorePendingEdits.status, name: loreEntries.name })
+      .from(lorePendingEdits)
+      .leftJoin(loreEntries, eq(loreEntries.id, lorePendingEdits.loreEntryId))
+      .where(eq(lorePendingEdits.id, id));
+    if (!row) return null;
+    return { submitterId: row.submitterId, status: row.status, label: `your lore proposal${row.name ? ` for ${row.name}` : ""}` };
   }
   // sheet
   const [row] = await db
@@ -262,10 +275,12 @@ router.get("/review/unseen-counts", requireAuth, async (req, res): Promise<void>
   const canMisc = isReviewer(u as never);
   const canSheets = isReviewer(u as never);
   const canEdits = isReviewer(u as never);
+  const canLore = isReviewer(u as never);
 
   let edits = 0;
   let requests = 0;
   let sheets = 0;
+  let lore = 0;
 
   if (canEdits) {
     const rows = await db
@@ -294,8 +309,15 @@ router.get("/review/unseen-counts", requireAuth, async (req, res): Promise<void>
       .where(inArray(characterSheets.status, ACTIONABLE as unknown as string[]));
     sheets = await countUnseen("sheet", rows.filter((r) => r.ownerId !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
   }
+  if (canLore) {
+    const rows = await db
+      .select({ id: lorePendingEdits.id, submittedBy: lorePendingEdits.submittedBy, baseAt: lorePendingEdits.createdAt })
+      .from(lorePendingEdits)
+      .where(inArray(lorePendingEdits.status, ACTIONABLE as unknown as string[]));
+    lore = await countUnseen("lore", rows.filter((r) => r.submittedBy !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
+  }
 
-  res.json({ edits, requests, sheets, total: edits + requests + sheets });
+  res.json({ edits, requests, sheets, lore, total: edits + requests + sheets + lore });
 });
 
 // Like countUnseen but returns the unseen subject ids (drives per-row dots on
@@ -378,6 +400,10 @@ router.get("/review/my-unseen", requireAuth, async (req, res): Promise<void> => 
     .select({ id: characterSheets.id, createdAt: characterSheets.createdAt, decidedAt: characterSheets.decidedAt, closedAt: characterSheets.closedAt })
     .from(characterSheets)
     .where(and(eq(characterSheets.ownerId, viewerId), ne(characterSheets.status, "draft")));
+  const loreRows = await db
+    .select({ id: lorePendingEdits.id, createdAt: lorePendingEdits.createdAt, decidedAt: lorePendingEdits.decidedAt, closedAt: lorePendingEdits.closedAt })
+    .from(lorePendingEdits)
+    .where(eq(lorePendingEdits.submittedBy, viewerId));
 
   // The SUBMITTER is only notified by reviewer-side activity: a decision
   // (decidedAt/reviewedAt) or a comment from someone other than themselves.
@@ -393,8 +419,9 @@ router.get("/review/my-unseen", requireAuth, async (req, res): Promise<void> => 
   const edit = await listUnseenIds("edit", editRows.map((r) => ({ id: r.id, baseAt: r.decidedAt ?? null })), viewerId, { excludeCommentAuthor: viewerId });
   const request = await listUnseenIds("request", requestRows.map((r) => ({ id: r.id, baseAt: r.reviewedAt ?? null })), viewerId, { excludeCommentAuthor: viewerId });
   const sheet = await listUnseenIds("sheet", sheetRows.map((r) => ({ id: r.id, baseAt: r.decidedAt ?? null })), viewerId, { excludeCommentAuthor: viewerId });
+  const lore = await listUnseenIds("lore", loreRows.map((r) => ({ id: r.id, baseAt: r.decidedAt ?? null })), viewerId, { excludeCommentAuthor: viewerId });
 
-  res.json({ edit, request, sheet, total: edit.length + request.length + sheet.length });
+  res.json({ edit, request, sheet, lore, total: edit.length + request.length + sheet.length + lore.length });
 });
 
 // GET /review/unseen-ids — the REVIEWER's per-row unread view. Same actionable
@@ -412,10 +439,12 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
   const canMisc = isReviewer(u as never);
   const canSheets = isReviewer(u as never);
   const canEdits = isReviewer(u as never);
+  const canLore = isReviewer(u as never);
 
   let edit: number[] = [];
   let request: number[] = [];
   let sheet: number[] = [];
+  let lore: number[] = [];
 
   if (canEdits) {
     const rows = await db
@@ -443,8 +472,15 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
       .where(inArray(characterSheets.status, ACTIONABLE as unknown as string[]));
     sheet = await listUnseenIds("sheet", rows.filter((r) => r.ownerId !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
   }
+  if (canLore) {
+    const rows = await db
+      .select({ id: lorePendingEdits.id, submittedBy: lorePendingEdits.submittedBy, baseAt: lorePendingEdits.createdAt })
+      .from(lorePendingEdits)
+      .where(inArray(lorePendingEdits.status, ACTIONABLE as unknown as string[]));
+    lore = await listUnseenIds("lore", rows.filter((r) => r.submittedBy !== viewerId).map((r) => ({ id: r.id, baseAt: r.baseAt })), viewerId);
+  }
 
-  res.json({ edit, request, sheet });
+  res.json({ edit, request, sheet, lore });
 });
 
 // POST /review/:type/:id/close — a reviewer archives a RESOLVED ticket. When the
@@ -513,6 +549,7 @@ router.post("/review/:type/:id/close", requireAuth, async (req, res): Promise<vo
   let result: ReviewActionResult;
   if (parsed.type === "edit") result = await closeEdit(req, parsed.id, note);
   else if (parsed.type === "request") result = await closeRequest(req, parsed.id, note, closeParams);
+  else if (parsed.type === "lore") result = await closeLore(req, parsed.id, note);
   else result = await closeSheet(req, parsed.id, note, { sheetCyberware, sheetGuns });
   res.status(result.status).json(result.body);
 });
@@ -531,6 +568,7 @@ router.post("/review/:type/:id/reopen", requireAuth, async (req, res): Promise<v
   let result: ReviewActionResult;
   if (parsed.type === "edit") result = await reopenEdit(req, parsed.id);
   else if (parsed.type === "request") result = await reopenRequest(req, parsed.id);
+  else if (parsed.type === "lore") result = await reopenLore(req, parsed.id);
   else result = await reopenSheet(req, parsed.id);
   res.status(result.status).json(result.body);
 });
@@ -556,6 +594,9 @@ async function resolveThreadId(type: ThreadSubjectType, id: number): Promise<str
     const [row] = await db.select({ t: customRequests.discordThreadId }).from(customRequests).where(eq(customRequests.id, id));
     return row?.t ?? null;
   }
+  // Lore proposals have no Discord thread mirror — the cs-approver thread
+  // integration is scoped to edit/request/sheet/mission rows.
+  if (type === "lore") return null;
   const [row] = await db.select({ t: characterSheets.discordThreadId }).from(characterSheets).where(eq(characterSheets.id, id));
   return row?.t ?? null;
 }

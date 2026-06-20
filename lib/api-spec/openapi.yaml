@@ -4386,25 +4386,25 @@ paths:
     get:
       operationId: listLoreEdits
       tags: [lore]
-      summary: List fixer-proposed lore edits awaiting decision (fixer/admin).
+      summary: List proposed lore edits — the staff review queue (reviewer-gated).
       parameters:
         - in: query
           name: status
           required: false
-          schema: { type: string, enum: [pending, approved, rejected], default: pending }
+          schema: { type: string, enum: [pending, approved, rejected, changes_requested, closed], default: pending }
       responses:
         "200":
-          description: Proposed edits
+          description: Proposed edits with review tally
           content:
             application/json:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/LorePendingEdit" }
-        "403": { description: Fixer or admin only }
+        "403": { description: Reviewer only }
     post:
       operationId: submitLoreEdit
       tags: [lore]
-      summary: Propose a lore create/edit for admin approval (fixer/admin).
+      summary: Propose a lore create/edit for review (fixer/admin).
       requestBody:
         required: true
         content:
@@ -4422,58 +4422,94 @@ paths:
     get:
       operationId: listMyLoreEdits
       tags: [lore]
-      summary: The signed-in fixer's own lore submissions across all statuses (fixer/admin).
+      summary: The signed-in submitter's own lore submissions across all statuses (fixer/admin).
       responses:
         "200":
-          description: The caller's proposed edits
+          description: The caller's proposed edits (roster fields omitted)
           content:
             application/json:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/LorePendingEdit" }
         "403": { description: Fixer or admin only }
+  /directory/lore/edits/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getLoreEdit
+      tags: [lore]
+      summary: Detail for one proposed lore edit with review tally (reviewer-gated).
+      responses:
+        "200":
+          description: Proposed edit detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LorePendingEdit" }
+        "403": { description: Reviewer only }
+        "404": { description: Not found }
+  /directory/lore/edits/{id}/vote:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: voteLoreEdit
+      tags: [lore]
+      summary: Cast a majority-vote review vote on a lore proposal (eligible reviewers; toggle).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreVoteInput" }
+      responses:
+        "200":
+          description: Vote recorded; proposal with updated tally
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LorePendingEdit" }
+        "400": { description: Invalid vote }
+        "403": { description: Eligible reviewer only / cannot vote on own proposal }
+        "404": { description: Not found }
+        "409": { description: Already resolved }
+  /directory/lore/edits/{id}/override:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: overrideLoreEdit
+      tags: [lore]
+      summary: Admin override — unilaterally approve or deny a lore proposal (admin only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoreOverrideInput" }
+      responses:
+        "200":
+          description: Overridden; proposal with updated tally
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LorePendingEdit" }
+        "403": { description: Admin only / cannot override own proposal }
+        "404": { description: Not found }
+        "409": { description: Already applied/resolved }
   /directory/lore/edits/{id}/approve:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
       operationId: approveLoreEdit
       tags: [lore]
-      summary: Approve a proposed lore edit and apply it (admin only).
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/LoreEditDecision" }
+      deprecated: true
+      summary: "Retired — lore now uses the shared review pipeline (vote/override + apply at close)."
       responses:
-        "200":
-          description: Approved
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/LorePendingEdit" }
-        "403": { description: Admin only }
-        "404": { description: Not found }
-        "409": { description: Already reviewed }
+        "410": { description: Gone — use the shared review pipeline. }
   /directory/lore/edits/{id}/reject:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
       operationId: rejectLoreEdit
       tags: [lore]
-      summary: Reject a proposed lore edit (admin only).
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/LoreEditDecision" }
+      deprecated: true
+      summary: "Retired — lore now uses the shared review pipeline (vote/override + apply at close)."
       responses:
-        "200":
-          description: Rejected
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/LorePendingEdit" }
-        "403": { description: Admin only }
-        "404": { description: Not found }
-        "409": { description: Already reviewed }
+        "410": { description: Gone — use the shared review pipeline. }
   /directory/lore/import/run:
     post:
       operationId: runLoreImport
@@ -4798,7 +4834,7 @@ paths:
 
   /review/{subjectType}/{id}/comments:
     parameters:
-      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet, lore] } }
       - { in: path, name: id, required: true, schema: { type: integer } }
     get:
       operationId: listReviewComments
@@ -4835,7 +4871,7 @@ paths:
         "404": { description: Not found }
   /review/{subjectType}/{id}/seen:
     parameters:
-      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet, lore] } }
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
       operationId: markReviewSeen
@@ -4889,7 +4925,7 @@ paths:
               schema: { $ref: "#/components/schemas/ReviewUnseenIds" }
   /review/{subjectType}/{id}/discord-thread:
     parameters:
-      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet, mission] } }
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet, mission, lore] } }
       - { in: path, name: id, required: true, schema: { type: integer } }
     get:
       operationId: getReviewDiscordThread
@@ -4906,7 +4942,7 @@ paths:
         "404": { description: Not found }
   /review/{subjectType}/{id}/close:
     parameters:
-      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet, lore] } }
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
       operationId: closeReviewTicket
@@ -4929,7 +4965,7 @@ paths:
         "409": { description: Ticket is not in a resolved state }
   /review/{subjectType}/{id}/reopen:
     parameters:
-      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet] } }
+      - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet, lore] } }
       - { in: path, name: id, required: true, schema: { type: integer } }
     post:
       operationId: reopenReviewTicket
@@ -5536,7 +5572,7 @@ components:
       required: [id, subjectType, subjectId, authorId, body, createdAt]
       properties:
         id: { type: integer }
-        subjectType: { type: string, enum: [edit, request, sheet] }
+        subjectType: { type: string, enum: [edit, request, sheet, lore] }
         subjectId: { type: integer }
         authorId: { type: string }
         authorName: { type: ["string", "null"] }
@@ -5551,26 +5587,29 @@ components:
         body: { type: string, minLength: 1, maxLength: 4000 }
     ReviewUnseenCounts:
       type: object
-      required: [edits, requests, sheets, total]
+      required: [edits, requests, sheets, lore, total]
       properties:
         edits: { type: integer }
         requests: { type: integer }
         sheets: { type: integer }
+        lore: { type: integer }
         total: { type: integer }
     ReviewUnseenIds:
       type: object
-      required: [edit, request, sheet]
+      required: [edit, request, sheet, lore]
       properties:
         edit: { type: array, items: { type: integer } }
         request: { type: array, items: { type: integer } }
         sheet: { type: array, items: { type: integer } }
+        lore: { type: array, items: { type: integer } }
     MyUnseen:
       type: object
-      required: [edit, request, sheet, total]
+      required: [edit, request, sheet, lore, total]
       properties:
         edit: { type: array, items: { type: integer } }
         request: { type: array, items: { type: integer } }
         sheet: { type: array, items: { type: integer } }
+        lore: { type: array, items: { type: integer } }
         total: { type: integer }
     DiscordThreadMessage:
       type: object
@@ -5704,17 +5743,56 @@ components:
         proposedDiff: {}
         beforeSnapshot: {}
         updateNote: { type: ["string", "null"] }
-        status: { type: string, enum: [pending, approved, rejected] }
+        status: { type: string, enum: [pending, approved, rejected, changes_requested, closed] }
         decidedById: { type: ["string", "null"] }
         decisionSummary: { type: ["string", "null"] }
         decidedAt: { type: ["string", "null"], format: date-time }
+        closedAt: { type: ["string", "null"], format: date-time }
         appliedEntryId: { type: ["integer", "null"] }
+        overriddenBy: { type: ["string", "null"], description: "Admin user id if resolved via override." }
         createdAt: { type: string, format: date-time }
+        # Shared review-pipeline tally (subject type "lore"). Present on review-queue
+        # and detail responses; the player-facing /edits/mine omits the roster fields.
+        lastActivityAt: { type: ["string", "null"], format: date-time }
+        approveCount: { type: integer }
+        rejectCount: { type: integer }
+        threshold: { type: integer }
+        eligibleVoterCount: { type: integer }
+        myVote: { type: ["string", "null"], enum: [approve, reject, null] }
+        eligibleReviewers:
+          type: array
+          description: "Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. Omitted on the player-facing /edits/mine view."
+          items: { $ref: "#/components/schemas/EligibleReviewer" }
+        voters:
+          type: array
+          description: "Reviewers who have already cast a vote on this proposal. Empty on the player-facing /edits/mine view."
+          items:
+            type: object
+            required: [id, vote]
+            properties:
+              id: { type: string }
+              name: { type: ["string", "null"] }
+              avatarUrl: { type: ["string", "null"] }
+              vote: { type: string, enum: [approve, reject] }
+        canVote: { type: boolean }
+        canOverride: { type: boolean }
+        canClose: { type: boolean }
+        canReopen: { type: boolean }
+        decided: { type: ["string", "null"], enum: [approved, rejected, null], description: "Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null." }
+        cleared: { type: boolean, description: "Vote-endpoint only: true when re-casting the same vote cleared (un-voted) it." }
 
-    LoreEditDecision:
+    LoreVoteInput:
+      type: object
+      required: [vote]
+      properties:
+        vote: { type: string, enum: [approve, reject] }
+        note: { type: string, maxLength: 2000 }
+
+    LoreOverrideInput:
       type: object
       properties:
-        decisionSummary: { type: ["string", "null"] }
+        decision: { type: string, enum: [approve, deny], default: approve, description: "Admin override decision; 'deny' rejects, anything else approves." }
+        reviewerNote: { type: ["string", "null"], maxLength: 2000 }
 
     LoreImportDraft:
       type: object

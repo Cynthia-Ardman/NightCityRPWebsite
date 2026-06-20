@@ -13,4 +13,6 @@ export const ListLoreEditsStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
+  closed: 'closed',
 } as const;

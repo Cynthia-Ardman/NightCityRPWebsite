@@ -24,8 +24,10 @@ params (custom_requests.decisionParams jsonb), WITHOUT materializing.
 - pending-edits.ts: closeEdit applies the diff atomically.
 - sheets.ts: closeSheet materializes the character on approved.
 
-**Out of scope (keep immediate behavior):** lore, and owner/player-decided flows
+**Out of scope (keep immediate behavior):** owner/player-decided flows
 stock_cost and employee_invite — these still apply at decision time.
+NOTE: lore NO LONGER keeps immediate behavior — it now rides the staged
+pipeline and applies at close (see lore-review-pipeline.md).
 
 **Why:** lets reviewers stage a verdict and let a fixer do a final review + commit,
 and prevents double-applying already-applied legacy rows (backfill terminal

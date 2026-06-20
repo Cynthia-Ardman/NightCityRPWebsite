@@ -10,4 +10,5 @@ export interface ReviewUnseenIds {
   edit: number[];
   request: number[];
   sheet: number[];
+  lore: number[];
 }

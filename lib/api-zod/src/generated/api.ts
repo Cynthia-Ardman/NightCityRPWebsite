@@ -9746,12 +9746,12 @@ export const DeleteLoreParams = zod.object({
 
 
 /**
- * @summary List fixer-proposed lore edits awaiting decision (fixer/admin).
+ * @summary List proposed lore edits — the staff review queue (reviewer-gated).
  */
 export const listLoreEditsQueryStatusDefault = `pending`;
 
 export const ListLoreEditsQueryParams = zod.object({
-  "status": zod.enum(['pending', 'approved', 'rejected']).default(listLoreEditsQueryStatusDefault)
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'closed']).default(listLoreEditsQueryStatusDefault)
 })
 
 export const ListLoreEditsResponseItem = zod.object({
@@ -9764,18 +9764,44 @@ export const ListLoreEditsResponseItem = zod.object({
   "proposedDiff": zod.unknown(),
   "beforeSnapshot": zod.unknown().optional(),
   "updateNote": zod.string().nullish(),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'closed']),
   "decidedById": zod.string().nullish(),
   "decisionSummary": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
   "appliedEntryId": zod.number().nullish(),
-  "createdAt": zod.coerce.date()
+  "overriddenBy": zod.string().nullish().describe('Admin user id if resolved via override.'),
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().nullish(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. Omitted on the player-facing \/edits\/mine view.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this proposal. Empty on the player-facing \/edits\/mine view.'),
+  "canVote": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canClose": zod.boolean().optional(),
+  "canReopen": zod.boolean().optional(),
+  "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish().describe('Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null.'),
+  "cleared": zod.boolean().optional().describe('Vote-endpoint only: true when re-casting the same vote cleared (un-voted) it.')
 })
 export const ListLoreEditsResponse = zod.array(ListLoreEditsResponseItem)
 
 
 /**
- * @summary Propose a lore create/edit for admin approval (fixer/admin).
+ * @summary Propose a lore create/edit for review (fixer/admin).
  */
 export const SubmitLoreEditBody = zod.object({
   "loreEntryId": zod.number().nullish(),
@@ -9799,7 +9825,7 @@ export const SubmitLoreEditBody = zod.object({
 
 
 /**
- * @summary The signed-in fixer's own lore submissions across all statuses (fixer/admin).
+ * @summary The signed-in submitter's own lore submissions across all statuses (fixer/admin).
  */
 export const ListMyLoreEditsResponseItem = zod.object({
   "id": zod.number(),
@@ -9811,73 +9837,232 @@ export const ListMyLoreEditsResponseItem = zod.object({
   "proposedDiff": zod.unknown(),
   "beforeSnapshot": zod.unknown().optional(),
   "updateNote": zod.string().nullish(),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'closed']),
   "decidedById": zod.string().nullish(),
   "decisionSummary": zod.string().nullish(),
   "decidedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
   "appliedEntryId": zod.number().nullish(),
-  "createdAt": zod.coerce.date()
+  "overriddenBy": zod.string().nullish().describe('Admin user id if resolved via override.'),
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().nullish(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. Omitted on the player-facing \/edits\/mine view.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this proposal. Empty on the player-facing \/edits\/mine view.'),
+  "canVote": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canClose": zod.boolean().optional(),
+  "canReopen": zod.boolean().optional(),
+  "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish().describe('Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null.'),
+  "cleared": zod.boolean().optional().describe('Vote-endpoint only: true when re-casting the same vote cleared (un-voted) it.')
 })
 export const ListMyLoreEditsResponse = zod.array(ListMyLoreEditsResponseItem)
 
 
 /**
- * @summary Approve a proposed lore edit and apply it (admin only).
+ * @summary Detail for one proposed lore edit with review tally (reviewer-gated).
+ */
+export const GetLoreEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetLoreEditResponse = zod.object({
+  "id": zod.number(),
+  "loreEntryId": zod.number().nullish(),
+  "entryName": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'closed']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "appliedEntryId": zod.number().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if resolved via override.'),
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().nullish(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. Omitted on the player-facing \/edits\/mine view.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this proposal. Empty on the player-facing \/edits\/mine view.'),
+  "canVote": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canClose": zod.boolean().optional(),
+  "canReopen": zod.boolean().optional(),
+  "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish().describe('Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null.'),
+  "cleared": zod.boolean().optional().describe('Vote-endpoint only: true when re-casting the same vote cleared (un-voted) it.')
+})
+
+
+/**
+ * @summary Cast a majority-vote review vote on a lore proposal (eligible reviewers; toggle).
+ */
+export const VoteLoreEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const voteLoreEditBodyNoteMax = 2000;
+
+
+
+export const VoteLoreEditBody = zod.object({
+  "vote": zod.enum(['approve', 'reject']),
+  "note": zod.string().max(voteLoreEditBodyNoteMax).optional()
+})
+
+export const VoteLoreEditResponse = zod.object({
+  "id": zod.number(),
+  "loreEntryId": zod.number().nullish(),
+  "entryName": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'closed']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "appliedEntryId": zod.number().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if resolved via override.'),
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().nullish(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. Omitted on the player-facing \/edits\/mine view.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this proposal. Empty on the player-facing \/edits\/mine view.'),
+  "canVote": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canClose": zod.boolean().optional(),
+  "canReopen": zod.boolean().optional(),
+  "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish().describe('Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null.'),
+  "cleared": zod.boolean().optional().describe('Vote-endpoint only: true when re-casting the same vote cleared (un-voted) it.')
+})
+
+
+/**
+ * @summary Admin override — unilaterally approve or deny a lore proposal (admin only).
+ */
+export const OverrideLoreEditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const overrideLoreEditBodyDecisionDefault = `approve`;
+export const overrideLoreEditBodyReviewerNoteMax = 2000;
+
+
+
+export const OverrideLoreEditBody = zod.object({
+  "decision": zod.enum(['approve', 'deny']).default(overrideLoreEditBodyDecisionDefault).describe('Admin override decision; \'deny\' rejects, anything else approves.'),
+  "reviewerNote": zod.string().max(overrideLoreEditBodyReviewerNoteMax).nullish()
+})
+
+export const OverrideLoreEditResponse = zod.object({
+  "id": zod.number(),
+  "loreEntryId": zod.number().nullish(),
+  "entryName": zod.string().nullish(),
+  "kind": zod.enum(['create', 'edit']),
+  "submittedBy": zod.string(),
+  "submittedByName": zod.string().nullish(),
+  "proposedDiff": zod.unknown(),
+  "beforeSnapshot": zod.unknown().optional(),
+  "updateNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'changes_requested', 'closed']),
+  "decidedById": zod.string().nullish(),
+  "decisionSummary": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "appliedEntryId": zod.number().nullish(),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if resolved via override.'),
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().nullish(),
+  "approveCount": zod.number().optional(),
+  "rejectCount": zod.number().optional(),
+  "threshold": zod.number().optional(),
+  "eligibleVoterCount": zod.number().optional(),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish(),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. Omitted on the player-facing \/edits\/mine view.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject'])
+})).optional().describe('Reviewers who have already cast a vote on this proposal. Empty on the player-facing \/edits\/mine view.'),
+  "canVote": zod.boolean().optional(),
+  "canOverride": zod.boolean().optional(),
+  "canClose": zod.boolean().optional(),
+  "canReopen": zod.boolean().optional(),
+  "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish().describe('Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null.'),
+  "cleared": zod.boolean().optional().describe('Vote-endpoint only: true when re-casting the same vote cleared (un-voted) it.')
+})
+
+
+/**
+ * @deprecated
+ * @summary Retired — lore now uses the shared review pipeline (vote/override + apply at close).
  */
 export const ApproveLoreEditParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const ApproveLoreEditBody = zod.object({
-  "decisionSummary": zod.string().nullish()
-})
-
-export const ApproveLoreEditResponse = zod.object({
-  "id": zod.number(),
-  "loreEntryId": zod.number().nullish(),
-  "entryName": zod.string().nullish(),
-  "kind": zod.enum(['create', 'edit']),
-  "submittedBy": zod.string(),
-  "submittedByName": zod.string().nullish(),
-  "proposedDiff": zod.unknown(),
-  "beforeSnapshot": zod.unknown().optional(),
-  "updateNote": zod.string().nullish(),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
-  "decidedById": zod.string().nullish(),
-  "decisionSummary": zod.string().nullish(),
-  "decidedAt": zod.coerce.date().nullish(),
-  "appliedEntryId": zod.number().nullish(),
-  "createdAt": zod.coerce.date()
-})
-
 
 /**
- * @summary Reject a proposed lore edit (admin only).
+ * @deprecated
+ * @summary Retired — lore now uses the shared review pipeline (vote/override + apply at close).
  */
 export const RejectLoreEditParams = zod.object({
   "id": zod.coerce.number()
-})
-
-export const RejectLoreEditBody = zod.object({
-  "decisionSummary": zod.string().nullish()
-})
-
-export const RejectLoreEditResponse = zod.object({
-  "id": zod.number(),
-  "loreEntryId": zod.number().nullish(),
-  "entryName": zod.string().nullish(),
-  "kind": zod.enum(['create', 'edit']),
-  "submittedBy": zod.string(),
-  "submittedByName": zod.string().nullish(),
-  "proposedDiff": zod.unknown(),
-  "beforeSnapshot": zod.unknown().optional(),
-  "updateNote": zod.string().nullish(),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
-  "decidedById": zod.string().nullish(),
-  "decisionSummary": zod.string().nullish(),
-  "decidedAt": zod.coerce.date().nullish(),
-  "appliedEntryId": zod.number().nullish(),
-  "createdAt": zod.coerce.date()
 })
 
 
@@ -10440,13 +10625,13 @@ export const DeleteGuidebookPageParams = zod.object({
  * @summary The two-way comment thread on a review subject (character edit / custom request / sheet). Visible to the submitter and any reviewer. Comments never change the subject's status.
  */
 export const ListReviewCommentsParams = zod.object({
-  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "subjectType": zod.enum(['edit', 'request', 'sheet', 'lore']),
   "id": zod.coerce.number()
 })
 
 export const ListReviewCommentsResponseItem = zod.object({
   "id": zod.number(),
-  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "subjectType": zod.enum(['edit', 'request', 'sheet', 'lore']),
   "subjectId": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string().nullish(),
@@ -10462,7 +10647,7 @@ export const ListReviewCommentsResponse = zod.array(ListReviewCommentsResponseIt
  * @summary Post a comment on a review subject. Never changes status, so it can never block an approval. Best-effort DMs the submitter when a reviewer comments.
  */
 export const PostReviewCommentParams = zod.object({
-  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "subjectType": zod.enum(['edit', 'request', 'sheet', 'lore']),
   "id": zod.coerce.number()
 })
 
@@ -10479,7 +10664,7 @@ export const PostReviewCommentBody = zod.object({
  * @summary Mark a review subject as seen by the current user (called when a reviewer opens it). Drops it from their unseen notification count until there is fresh activity.
  */
 export const MarkReviewSeenParams = zod.object({
-  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "subjectType": zod.enum(['edit', 'request', 'sheet', 'lore']),
   "id": zod.coerce.number()
 })
 
@@ -10495,6 +10680,7 @@ export const GetReviewUnseenCountsResponse = zod.object({
   "edits": zod.number(),
   "requests": zod.number(),
   "sheets": zod.number(),
+  "lore": zod.number(),
   "total": zod.number()
 })
 
@@ -10506,6 +10692,7 @@ export const GetMyUnseenResponse = zod.object({
   "edit": zod.array(zod.number()),
   "request": zod.array(zod.number()),
   "sheet": zod.array(zod.number()),
+  "lore": zod.array(zod.number()),
   "total": zod.number()
 })
 
@@ -10516,7 +10703,8 @@ export const GetMyUnseenResponse = zod.object({
 export const GetReviewUnseenIdsResponse = zod.object({
   "edit": zod.array(zod.number()),
   "request": zod.array(zod.number()),
-  "sheet": zod.array(zod.number())
+  "sheet": zod.array(zod.number()),
+  "lore": zod.array(zod.number())
 })
 
 
@@ -10524,7 +10712,7 @@ export const GetReviewUnseenIdsResponse = zod.object({
  * @summary The subject's Discord discussion thread, displayed READ-ONLY on the detail page. Reviewers/staff only. The portal never posts to Discord. Serves review tickets (edit/request/sheet) and missions. Returns linked:false with an empty list when no thread is linked yet.
  */
 export const GetReviewDiscordThreadParams = zod.object({
-  "subjectType": zod.enum(['edit', 'request', 'sheet', 'mission']),
+  "subjectType": zod.enum(['edit', 'request', 'sheet', 'mission', 'lore']),
   "id": zod.coerce.number()
 })
 
@@ -10548,7 +10736,7 @@ export const GetReviewDiscordThreadResponse = zod.object({
  * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
  */
 export const CloseReviewTicketParams = zod.object({
-  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "subjectType": zod.enum(['edit', 'request', 'sheet', 'lore']),
   "id": zod.coerce.number()
 })
 
@@ -10629,7 +10817,7 @@ export const CloseReviewTicketResponse = zod.record(zod.string(), zod.unknown())
  * @summary Send a resolved (approved | rejected) ticket back to pending for another vote. Clears votes and the decision fields. Refuses when the effect was already applied. Reviewers only.
  */
 export const ReopenReviewTicketParams = zod.object({
-  "subjectType": zod.enum(['edit', 'request', 'sheet']),
+  "subjectType": zod.enum(['edit', 'request', 'sheet', 'lore']),
   "id": zod.coerce.number()
 })
 

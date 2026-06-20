@@ -1706,9 +1706,17 @@ export const lorePendingEdits = pgTable("lore_pending_edits", {
   decidedById: text("decided_by_id").references(() => users.id),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   decisionSummary: text("decision_summary"),
-  // Set when an approved "create" materializes a new entry, so an approval is
-  // never applied twice.
+  // Set to the admin user id when a proposal is approved (or denied) via the
+  // admin override path, rather than reaching majority through votes.
+  overriddenBy: text("overridden_by").references(() => users.id),
+  // Set when an approved "create"/"edit" materializes the entry at close, so an
+  // approval is never applied twice (the appliedRef idempotency guard). Stays
+  // null while a proposal is only staged-approved (awaiting apply & close).
   appliedEntryId: integer("applied_entry_id"),
+  // Set when a reviewer archives a resolved proposal at the apply & close step.
+  // Drives terminal-bucket filtering, matching the other review queues.
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  closedBy: text("closed_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusIdx: index("lore_pending_edits_status_idx").on(t.status),

@@ -461,6 +461,7 @@ export const ReviewCommentSubjectType = {
   edit: 'edit',
   request: 'request',
   sheet: 'sheet',
+  lore: 'lore',
 } as const;
 
 export interface ReviewComment {
@@ -490,6 +491,7 @@ export interface ReviewUnseenCounts {
   edits: number;
   requests: number;
   sheets: number;
+  lore: number;
   total: number;
 }
 
@@ -497,12 +499,14 @@ export interface ReviewUnseenIds {
   edit: number[];
   request: number[];
   sheet: number[];
+  lore: number[];
 }
 
 export interface MyUnseen {
   edit: number[];
   request: number[];
   sheet: number[];
+  lore: number[];
   total: number;
 }
 
@@ -681,7 +685,62 @@ export const LorePendingEditStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
+  closed: 'closed',
 } as const;
+
+/**
+ * @nullable
+ */
+export type LorePendingEditMyVote = typeof LorePendingEditMyVote[keyof typeof LorePendingEditMyVote] | null;
+
+
+export const LorePendingEditMyVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export type LorePendingEditVotersItemVote = typeof LorePendingEditVotersItemVote[keyof typeof LorePendingEditVotersItemVote];
+
+
+export const LorePendingEditVotersItemVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export type LorePendingEditVotersItem = {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  vote: LorePendingEditVotersItemVote;
+};
+
+/**
+ * Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null.
+ * @nullable
+ */
+export type LorePendingEditDecided = typeof LorePendingEditDecided[keyof typeof LorePendingEditDecided] | null;
+
+
+export const LorePendingEditDecided = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.
+ */
+export interface EligibleReviewer {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** Display-only: true when this reviewer is a trial fixer (still on probation). */
+  isTrialFixer: boolean;
+}
 
 export interface LorePendingEdit {
   id: number;
@@ -705,13 +764,73 @@ export interface LorePendingEdit {
   /** @nullable */
   decidedAt?: string | null;
   /** @nullable */
+  closedAt?: string | null;
+  /** @nullable */
   appliedEntryId?: number | null;
+  /**
+     * Admin user id if resolved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
   createdAt: string;
+  /** @nullable */
+  lastActivityAt?: string | null;
+  approveCount?: number;
+  rejectCount?: number;
+  threshold?: number;
+  eligibleVoterCount?: number;
+  /** @nullable */
+  myVote?: LorePendingEditMyVote;
+  /** Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. Omitted on the player-facing /edits/mine view. */
+  eligibleReviewers?: EligibleReviewer[];
+  /** Reviewers who have already cast a vote on this proposal. Empty on the player-facing /edits/mine view. */
+  voters?: LorePendingEditVotersItem[];
+  canVote?: boolean;
+  canOverride?: boolean;
+  canClose?: boolean;
+  canReopen?: boolean;
+  /**
+     * Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null.
+     * @nullable
+     */
+  decided?: LorePendingEditDecided;
+  /** Vote-endpoint only: true when re-casting the same vote cleared (un-voted) it. */
+  cleared?: boolean;
 }
 
-export interface LoreEditDecision {
-  /** @nullable */
-  decisionSummary?: string | null;
+export type LoreVoteInputVote = typeof LoreVoteInputVote[keyof typeof LoreVoteInputVote];
+
+
+export const LoreVoteInputVote = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface LoreVoteInput {
+  vote: LoreVoteInputVote;
+  /** @maxLength 2000 */
+  note?: string;
+}
+
+/**
+ * Admin override decision; 'deny' rejects, anything else approves.
+ */
+export type LoreOverrideInputDecision = typeof LoreOverrideInputDecision[keyof typeof LoreOverrideInputDecision];
+
+
+export const LoreOverrideInputDecision = {
+  approve: 'approve',
+  deny: 'deny',
+} as const;
+
+export interface LoreOverrideInput {
+  /** Admin override decision; 'deny' rejects, anything else approves. */
+  decision?: LoreOverrideInputDecision;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  reviewerNote?: string | null;
 }
 
 export type LoreImportDraftProposedCategory = typeof LoreImportDraftProposedCategory[keyof typeof LoreImportDraftProposedCategory];
@@ -3403,19 +3522,6 @@ export type CustomRequestVotersItem = {
   avatarUrl?: string | null;
   vote: CustomRequestVotersItemVote;
 };
-
-/**
- * A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.
- */
-export interface EligibleReviewer {
-  id: string;
-  /** @nullable */
-  name?: string | null;
-  /** @nullable */
-  avatarUrl?: string | null;
-  /** Display-only: true when this reviewer is a trial fixer (still on probation). */
-  isTrialFixer: boolean;
-}
 
 export interface CustomRequest {
   id: number;
@@ -6561,6 +6667,8 @@ export const ListLoreEditsStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  changes_requested: 'changes_requested',
+  closed: 'closed',
 } as const;
 
 export type ListLoreImportDraftsParams = {

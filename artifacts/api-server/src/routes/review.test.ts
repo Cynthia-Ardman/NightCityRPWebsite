@@ -99,7 +99,7 @@ describe("GET /review/unseen-counts", () => {
     await makeRequest(await createUser().then((u) => u.id));
     const res = await request(app).get("/api/review/unseen-counts").set("x-test-user", player.id);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ edits: 0, requests: 0, sheets: 0, total: 0 });
+    expect(res.body).toEqual({ edits: 0, requests: 0, sheets: 0, lore: 0, total: 0 });
   });
 
   it("counts a pending request for a fixer, excluding the fixer's own", async () => {

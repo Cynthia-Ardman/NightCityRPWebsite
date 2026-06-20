@@ -10,8 +10,8 @@ import {
   useOverrideSheet,
   useListPendingEdits,
   useListLoreEdits,
-  useApproveLoreEdit,
-  useRejectLoreEdit,
+  useVoteLoreEdit,
+  useOverrideLoreEdit,
   useListGuidebookEdits,
   useApproveGuidebookEdit,
   useRejectGuidebookEdit,
@@ -1217,139 +1217,257 @@ function fmtLoreValue(v: unknown): string {
   return String(v);
 }
 
-function LoreEditCard({ edit }: { edit: LorePendingEdit }) {
+// A lore proposal (new entry OR edit) on the shared majority-vote review
+// pipeline — it votes / tallies / closes exactly like Misc Requests and
+// Character Edits. pending/changes_requested are "in vote"; approved/rejected
+// are decided and awaiting a closer (the CLOSE & APPLY step is where lore's
+// applyProposal actually publishes the entry). The card itself owns the vote /
+// override / close / reopen mutations so its toasts + invalidation stay local.
+function LoreEditCard({ edit, unseen }: { edit: LorePendingEdit; unseen: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [rejecting, setRejecting] = useState(false);
-  const [note, setNote] = useState("");
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListLoreEditsQueryKey() });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getListLoreEditsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
+  };
+  const onMutationError = (title: string) => (err: unknown) => {
+    const msg =
+      (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+      (err instanceof Error ? err.message : "Please try again.");
+    toast({ title, description: msg, variant: "destructive" });
+  };
 
-  const approve = useApproveLoreEdit({
+  const voteMut = useVoteLoreEdit({
     mutation: {
-      onSuccess: () => { invalidate(); toast({ title: "Lore change approved & published" }); },
-      onError: (err) => toast({ title: "Could not approve", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+      onSuccess: (res) => {
+        invalidate();
+        const decidedAs = (res as { decided?: string })?.decided;
+        const cleared = (res as { cleared?: boolean })?.cleared;
+        toast({
+          title:
+            decidedAs === "approved"
+              ? "Approved — majority reached"
+              : decidedAs === "rejected"
+                ? "Rejected — majority reached"
+                : cleared
+                  ? "Vote cleared"
+                  : "Vote recorded",
+        });
+      },
+      onError: onMutationError("Could not vote"),
     },
   });
-  const reject = useRejectLoreEdit({
+  const overrideMut = useOverrideLoreEdit({
     mutation: {
-      onSuccess: () => { invalidate(); setRejecting(false); setNote(""); toast({ title: "Lore change rejected" }); },
-      onError: (err) => toast({ title: "Could not reject", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+      onSuccess: (_res, vars) => {
+        invalidate();
+        toast({
+          title:
+            (vars as { data?: { decision?: string } })?.data?.decision === "deny"
+              ? "Denied via override"
+              : "Approved via override",
+        });
+      },
+      onError: onMutationError("Could not override"),
     },
   });
+  const actions = useReviewTicketActions(invalidate);
 
   const diff = (edit.proposedDiff ?? {}) as LoreEntryUpdate;
   const before = (edit.beforeSnapshot ?? {}) as Record<string, unknown>;
   const changedKeys = Object.keys(diff).filter((k) => k in LORE_FIELD_LABELS);
-  const busy = approve.isPending || reject.isPending;
+  const status = String(edit.status);
+  const isVoting = status === "pending" || status === "changes_requested";
+  const isApproved = status === "approved";
+  const isRejected = status === "rejected";
+  const tone: "default" | "approved" | "rejected" = isApproved
+    ? "approved"
+    : isRejected
+      ? "rejected"
+      : "default";
 
   return (
-    <Card className="rounded-none border-border bg-card/50 flex flex-col" data-testid={`card-lore-edit-${edit.id}`}>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
-            <BookOpen className="w-3 h-3 mr-1" /> LORE {edit.kind.toUpperCase()}
-          </Badge>
-          <span className="text-xs font-mono text-muted-foreground">{new Date(edit.createdAt).toLocaleDateString()}</span>
-        </div>
-        <CardTitle className="text-lg font-display truncate mt-2">
-          {(diff.name as string) || edit.entryName || "New lore entry"}
-        </CardTitle>
-        <CardDescription className="font-mono text-xs">by {edit.submittedByName || edit.submittedBy}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col flex-1 gap-4">
-        {edit.updateNote && (
-          <p className="font-mono text-xs text-muted-foreground border-l-2 border-nc-cyan pl-3" data-testid={`text-lore-edit-note-${edit.id}`}>
-            “{edit.updateNote}”
-          </p>
-        )}
-        <div className="space-y-2">
-          {changedKeys.length === 0 ? (
-            <p className="font-mono text-xs text-muted-foreground italic">No field changes.</p>
-          ) : (
-            changedKeys.map((k) => (
-              <div key={k} className="font-mono text-xs">
-                <div className="text-nc-cyan uppercase tracking-widest mb-0.5">{LORE_FIELD_LABELS[k]}</div>
-                {edit.kind === "edit" ? (
-                  <DiffValue before={fmtLoreValue(before[k])} after={fmtLoreValue((diff as Record<string, unknown>)[k])} compact />
-                ) : (
-                  <div className="text-foreground whitespace-pre-wrap break-words">{fmtLoreValue((diff as Record<string, unknown>)[k])}</div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-
-        {rejecting ? (
-          <div className="mt-auto space-y-2 pt-3 border-t border-border/40">
-            <Input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Reason (optional)"
-              className="rounded-none font-mono"
-              data-testid={`input-lore-reject-note-${edit.id}`}
-            />
-            <div className="flex gap-2">
-              <Button variant="ghost" className="rounded-none flex-1 font-display text-xs" onClick={() => setRejecting(false)}>CANCEL</Button>
-              <Button
-                variant="outline"
-                className="rounded-none flex-1 border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                disabled={busy}
-                onClick={() => reject.mutate({ id: edit.id, data: { decisionSummary: note.trim() || undefined } })}
-                data-testid={`button-confirm-reject-lore-${edit.id}`}
-              >
-                {reject.isPending ? "..." : "CONFIRM REJECT"}
-              </Button>
-            </div>
+    <ReviewQueueCard
+      subjectType="lore"
+      id={edit.id}
+      testId={`card-lore-edit-${edit.id}`}
+      unseen={unseen}
+      badgeLabel={`LORE ${edit.kind.toUpperCase()}`}
+      badgeIcon={BookOpen}
+      title={(diff.name as string) || edit.entryName || "New lore entry"}
+      subtitle={`by ${edit.submittedByName || edit.submittedBy}`}
+      date={edit.createdAt}
+      tone={tone}
+      showRoster={isVoting}
+      roster={{
+        eligibleReviewers: edit.eligibleReviewers ?? [],
+        voters: (edit.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
+      }}
+      markSeenOnMount
+      awaitingVote={!!edit.canVote && !edit.myVote}
+      tally={
+        isVoting ? (
+          <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-lore-${edit.id}`}>
+            <span className="text-nc-green">{edit.approveCount ?? 0}</span>/{edit.threshold ?? "?"} approve ·{" "}
+            <span className="text-destructive">{edit.rejectCount ?? 0}</span> reject
+            {edit.myVote ? (
+              <span className="ml-2">
+                · you voted{" "}
+                <span className={edit.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
+                  {edit.myVote.toUpperCase()}
+                </span>
+              </span>
+            ) : null}
           </div>
         ) : (
-          <div className="mt-auto flex gap-2 pt-3 border-t border-border/40">
-            <Button
-              className="rounded-none flex-1 bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
-              disabled={busy}
-              onClick={() => approve.mutate({ id: edit.id })}
-              data-testid={`button-approve-lore-${edit.id}`}
-            >
-              {approve.isPending ? "PUBLISHING..." : "APPROVE & PUBLISH"}
-            </Button>
-            <Button
-              variant="outline"
-              className="rounded-none flex-1 border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-              disabled={busy}
-              onClick={() => setRejecting(true)}
-              data-testid={`button-reject-lore-${edit.id}`}
-            >
-              REJECT
-            </Button>
+          <div className="font-mono text-xs" data-testid={`status-lore-${edit.id}`}>
+            <span className={isApproved ? "text-nc-green font-display tracking-widest" : "text-destructive font-display tracking-widest"}>
+              {isApproved ? "APPROVED — AWAITING CLOSE & APPLY" : "REJECTED — AWAITING CLOSE"}
+            </span>
+            {edit.decisionSummary ? <span className="block italic mt-0.5 text-muted-foreground">"{edit.decisionSummary}"</span> : null}
           </div>
+        )
+      }
+      actions={
+        <div className="flex flex-wrap gap-2">
+          {isVoting && status === "pending" && (
+            <>
+              {edit.canVote && (
+                <>
+                  <Button
+                    className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display text-xs tracking-widest"
+                    disabled={voteMut.isPending}
+                    onClick={() => voteMut.mutate({ id: edit.id, data: { vote: "approve" } })}
+                    data-testid={`button-approve-lore-${edit.id}`}
+                  >
+                    {edit.myVote === "approve" ? "VOTED APPROVE" : "VOTE APPROVE"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                    disabled={voteMut.isPending}
+                    onClick={() => voteMut.mutate({ id: edit.id, data: { vote: "reject" } })}
+                    data-testid={`button-reject-lore-${edit.id}`}
+                  >
+                    {edit.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                  </Button>
+                </>
+              )}
+              {edit.canOverride && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                    disabled={overrideMut.isPending}
+                    onClick={() => overrideMut.mutate({ id: edit.id, data: { decision: "approve" } })}
+                    data-testid={`button-override-approve-lore-${edit.id}`}
+                  >
+                    OVERRIDE APPROVE
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
+                    disabled={overrideMut.isPending}
+                    onClick={() => overrideMut.mutate({ id: edit.id, data: { decision: "deny" } })}
+                    data-testid={`button-override-deny-lore-${edit.id}`}
+                  >
+                    OVERRIDE DENY
+                  </Button>
+                </>
+              )}
+            </>
+          )}
+          {(isApproved || isRejected) && (
+            <LifecycleActions subjectType="lore" id={edit.id} status={status} actions={actions} />
+          )}
+        </div>
+      }
+    >
+      {edit.updateNote && (
+        <p className="font-mono text-xs text-muted-foreground border-l-2 border-nc-cyan pl-3" data-testid={`text-lore-edit-note-${edit.id}`}>
+          “{edit.updateNote}”
+        </p>
+      )}
+      <div className="space-y-2">
+        {changedKeys.length === 0 ? (
+          <p className="font-mono text-xs text-muted-foreground italic">No field changes.</p>
+        ) : (
+          changedKeys.map((k) => (
+            <div key={k} className="font-mono text-xs">
+              <div className="text-nc-cyan uppercase tracking-widest mb-0.5">{LORE_FIELD_LABELS[k]}</div>
+              {edit.kind === "edit" ? (
+                <DiffValue before={fmtLoreValue(before[k])} after={fmtLoreValue((diff as Record<string, unknown>)[k])} compact />
+              ) : (
+                <div className="text-foreground whitespace-pre-wrap break-words">{fmtLoreValue((diff as Record<string, unknown>)[k])}</div>
+              )}
+            </div>
+          ))
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </ReviewQueueCard>
   );
 }
 
 function LoreEditsTab() {
-  const { data, isLoading } = useListLoreEdits({ status: "pending" });
-  const edits = (data ?? []) as LorePendingEdit[];
+  const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
+  const pending = useListLoreEdits(
+    { status: "pending" },
+    { query: { queryKey: getListLoreEditsQueryKey({ status: "pending" }) } },
+  );
+  const approved = useListLoreEdits(
+    { status: "approved" },
+    { query: { queryKey: getListLoreEditsQueryKey({ status: "approved" }) } },
+  );
+  const rejected = useListLoreEdits(
+    { status: "rejected" },
+    { query: { queryKey: getListLoreEditsQueryKey({ status: "rejected" }) } },
+  );
+  const { data: unseenIds } = useGetReviewUnseenIds();
+  const unseen = new Set((unseenIds?.lore ?? []) as number[]);
+
+  const isLoading = pending.isLoading || approved.isLoading || rejected.isLoading;
+
+  const combined = [
+    ...((pending.data ?? []) as LorePendingEdit[]),
+    ...((approved.data ?? []) as LorePendingEdit[]),
+    ...((rejected.data ?? []) as LorePendingEdit[]),
+  ];
 
   if (isLoading) {
     return <div className="py-20 text-center text-nc-cyan animate-pulse font-display text-xl">LOADING_QUEUE...</div>;
   }
-  if (edits.length === 0) {
+  if (combined.length === 0) {
     return (
       <div className="py-20 text-center border border-dashed border-border bg-card/30">
         <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
         <h3 className="text-xl font-display text-foreground mb-2">QUEUE EMPTY</h3>
-        <p className="text-muted-foreground font-mono text-sm">No lore changes await approval.</p>
+        <p className="text-muted-foreground font-mono text-sm">No lore changes require attention.</p>
       </div>
     );
   }
 
+  const sorted = decidedFirst(
+    sortReviewItems(
+      combined,
+      sortMode,
+      (l) => l.createdAt,
+      (l) => l.lastActivityAt,
+    ),
+    (l) => String(l.status),
+  );
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {edits.map((e) => (
-        <LoreEditCard key={e.id} edit={e} />
-      ))}
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <ReviewSortDropdown value={sortMode} onChange={setSortMode} testId="select-sort-lore" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {sorted.map((e) => (
+          <LoreEditCard key={e.id} edit={e} unseen={unseen.has(e.id)} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1562,7 +1680,10 @@ function useTerminalItems() {
   const canMisc = !!(me?.isAdmin || me?.isFixer || me?.isCsApprover);
   const canEdits = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   const canSheets = !!(me?.isAdmin || me?.isCsApprover || me?.isFixer);
-  const canLore = !!me?.isAdmin;
+  // Lore now rides the shared reviewer pipeline (fixer / cs-approver / admin);
+  // guidebook is still the admin-only flow.
+  const canLore = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
+  const canGuidebook = !!me?.isAdmin;
 
   const reqResolved = useListCustomRequests(
     { bucket: "resolved" },
@@ -1588,28 +1709,26 @@ function useTerminalItems() {
     { bucket: "archive" },
     { query: { enabled: canSheets, queryKey: getListPendingSheetsQueryKey({ bucket: "archive" }) } },
   );
-  const loreApproved = useListLoreEdits(
-    { status: "approved" },
-    { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "approved" }) } },
-  );
-  const loreRejected = useListLoreEdits(
-    { status: "rejected" },
-    { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "rejected" }) } },
+  // Lore decided (approved/rejected) items now live in the active LORE queue
+  // awaiting CLOSE & APPLY; only a CLOSED lore proposal is truly terminal.
+  const loreClosed = useListLoreEdits(
+    { status: "closed" },
+    { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "closed" }) } },
   );
   const guidebookApproved = useListGuidebookEdits(
     { status: "approved" },
-    { query: { enabled: canLore, queryKey: getListGuidebookEditsQueryKey({ status: "approved" }) } },
+    { query: { enabled: canGuidebook, queryKey: getListGuidebookEditsQueryKey({ status: "approved" }) } },
   );
   const guidebookRejected = useListGuidebookEdits(
     { status: "rejected" },
-    { query: { enabled: canLore, queryKey: getListGuidebookEditsQueryKey({ status: "rejected" }) } },
+    { query: { enabled: canGuidebook, queryKey: getListGuidebookEditsQueryKey({ status: "rejected" }) } },
   );
 
   const isLoading =
     reqResolved.isLoading || reqArchive.isLoading ||
     editResolved.isLoading || editArchive.isLoading ||
     sheetResolved.isLoading || sheetArchive.isLoading ||
-    loreApproved.isLoading || loreRejected.isLoading ||
+    loreClosed.isLoading ||
     guidebookApproved.isLoading || guidebookRejected.isLoading;
 
   const completed: TerminalItem[] = [];
@@ -1688,7 +1807,9 @@ function useTerminalItems() {
     });
   }
 
-  const loreToItem = (l: LorePendingEdit, decision: TerminalDecision): TerminalItem => {
+  // A closed lore proposal that published an entry (appliedEntryId set) is
+  // Completed; a closed-after-rejection one is Denied.
+  const loreToItem = (l: LorePendingEdit): TerminalItem => {
     const diff = (l.proposedDiff ?? {}) as Record<string, unknown>;
     return {
       key: `lore-${l.id}`,
@@ -1697,16 +1818,20 @@ function useTerminalItems() {
       id: l.id,
       title: (diff.name as string) || l.entryName || "Lore entry",
       subtitle: `by ${l.submittedByName || l.submittedBy}`,
-      date: (l as { decidedAt?: string | null }).decidedAt || l.createdAt,
-      status: decision === "completed" ? "approved" : "rejected",
+      date: (l as { closedAt?: string | null }).closedAt || (l as { decidedAt?: string | null }).decidedAt || l.createdAt,
+      status: "closed",
       note: (l as { decisionSummary?: string | null }).decisionSummary ?? null,
-      archived: false,
+      archived: true,
+      detailHref: l.appliedEntryId ? `/directory/lore` : undefined,
       badgeLabel: "LORE",
       Icon: BookOpen,
     };
   };
-  for (const l of (loreApproved.data ?? []) as LorePendingEdit[]) completed.push(loreToItem(l, "completed"));
-  for (const l of (loreRejected.data ?? []) as LorePendingEdit[]) denied.push(loreToItem(l, "denied"));
+  for (const l of (loreClosed.data ?? []) as LorePendingEdit[]) {
+    const item = loreToItem(l);
+    if (l.appliedEntryId) completed.push(item);
+    else denied.push(item);
+  }
 
   const guidebookToItem = (g: GuidebookPendingEdit, decision: TerminalDecision): TerminalItem => {
     const diff = (g.proposedDiff ?? {}) as Record<string, unknown>;
@@ -1871,27 +1996,26 @@ export default function PendingRequests() {
   // unseen sheets for them), so they must see the Sheets tab — they just can't
   // cast counted votes there anymore.
   const canNewChars = !!(me?.isAdmin || me?.isCsApprover || me?.isFixer);
-  const canLore = !!me?.isAdmin;
+  // Lore now rides the shared reviewer pipeline (fixer / cs-approver / admin);
+  // guidebook is still the admin-only flow.
+  const canLore = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
+  const canGuidebook = !!me?.isAdmin;
   // The terminal (Completed/Denied) tabs aggregate reviewer queues; only show
   // them to staff who can see at least one of those queues.
   const isReviewer = canSeeMisc || canNewChars || canLore;
 
   // Per-tab badges show UNSEEN-by-me counts (drop once the reviewer opens an
-  // item), not the raw pending totals. Lore is the exception — it's a single-
-  // approver admin queue with no seen-tracking, so it keeps the pending count.
+  // item), not the raw pending totals — lore now has seen-tracking like the
+  // other reviewer queues. Guidebook stays the admin-only pending count.
   const { data: unseen } = useGetReviewUnseenCounts();
-  const { data: loreData } = useListLoreEdits(
-    { status: "pending" },
-    { query: { enabled: canLore, queryKey: getListLoreEditsQueryKey({ status: "pending" }) } },
-  );
   const { data: guidebookData } = useListGuidebookEdits(
     { status: "pending" },
-    { query: { enabled: canLore, queryKey: getListGuidebookEditsQueryKey({ status: "pending" }) } },
+    { query: { enabled: canGuidebook, queryKey: getListGuidebookEditsQueryKey({ status: "pending" }) } },
   );
   const miscCount = unseen?.requests ?? 0;
   const editsCount = unseen?.edits ?? 0;
   const sheetsCount = unseen?.sheets ?? 0;
-  const loreCount = (loreData ?? []).length;
+  const loreCount = unseen?.lore ?? 0;
   const guidebookCount = (guidebookData ?? []).length;
 
   // Land on the first tab that actually has unseen items, so a reviewer arriving
@@ -1909,7 +2033,7 @@ export default function PendingRequests() {
           ? "sheets"
           : canLore && loreCount > 0
             ? "lore"
-            : canLore && guidebookCount > 0
+            : canGuidebook && guidebookCount > 0
               ? "guidebook"
               : canSeeMisc
                 ? "misc"
@@ -1922,7 +2046,8 @@ export default function PendingRequests() {
   const visibleTabs = new Set<string>(["edits"]);
   if (canSeeMisc) visibleTabs.add("misc");
   if (canNewChars) visibleTabs.add("sheets");
-  if (canLore) { visibleTabs.add("lore"); visibleTabs.add("guidebook"); }
+  if (canLore) visibleTabs.add("lore");
+  if (canGuidebook) visibleTabs.add("guidebook");
   if (isReviewer) { visibleTabs.add("completed"); visibleTabs.add("denied"); }
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
@@ -1968,7 +2093,7 @@ export default function PendingRequests() {
               LORE<TabCount n={loreCount} />
             </TabsTrigger>
           )}
-          {canLore && (
+          {canGuidebook && (
             <TabsTrigger value="guidebook" className="rounded-none font-display tracking-widest" data-testid="tab-guidebook">
               GUIDEBOOK<TabCount n={guidebookCount} />
             </TabsTrigger>
@@ -2003,7 +2128,7 @@ export default function PendingRequests() {
             <ErrorBoundary><LoreEditsTab /></ErrorBoundary>
           </TabsContent>
         )}
-        {canLore && (
+        {canGuidebook && (
           <TabsContent value="guidebook" className="mt-6">
             <ErrorBoundary><GuidebookEditsTab /></ErrorBoundary>
           </TabsContent>

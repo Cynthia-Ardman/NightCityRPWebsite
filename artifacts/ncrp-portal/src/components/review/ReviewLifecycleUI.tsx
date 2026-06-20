@@ -64,7 +64,7 @@ export function useReviewTicketActions(invalidate: () => void) {
 // onSuccess/onError + invalidation stay in one place) — we just gate it behind
 // a confirmation that collects the message.
 type CloseTicketDialogProps = {
-  subjectType: "edit" | "request" | "sheet";
+  subjectType: "edit" | "request" | "sheet" | "lore";
   id: number;
   status: string;
   close: ReturnType<typeof useCloseReviewTicket>;
@@ -207,7 +207,7 @@ export function LifecycleActions({
   status,
   actions,
 }: {
-  subjectType: "edit" | "request" | "sheet";
+  subjectType: "edit" | "request" | "sheet" | "lore";
   id: number;
   status: string;
   actions: ReturnType<typeof useReviewTicketActions>;

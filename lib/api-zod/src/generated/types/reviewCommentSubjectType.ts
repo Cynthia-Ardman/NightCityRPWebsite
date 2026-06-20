@@ -13,4 +13,5 @@ export const ReviewCommentSubjectType = {
   edit: 'edit',
   request: 'request',
   sheet: 'sheet',
+  lore: 'lore',
 } as const;

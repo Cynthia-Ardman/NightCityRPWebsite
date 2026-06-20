@@ -18,7 +18,7 @@ import { MessageSquare, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
-type SubjectType = "edit" | "request" | "sheet";
+type SubjectType = "edit" | "request" | "sheet" | "lore";
 
 // Two-way discussion thread shared by every review queue (character edits,
 // custom requests, sheets). Posting a comment NEVER changes the subject's

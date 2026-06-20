@@ -9,15 +9,16 @@ import {
   type MyUnseen,
 } from "@workspace/api-client-react";
 
-type SubjectType = "edit" | "request" | "sheet";
+type SubjectType = "edit" | "request" | "sheet" | "lore";
 
 // unseen-ids / my-unseen key the arrays by the singular subject type; the
 // staff counts object keys the numbers by the plural form. Map between them so
 // an optimistic clear updates every surface in one shot.
-const COUNT_KEY: Record<SubjectType, keyof Pick<ReviewUnseenCounts, "edits" | "requests" | "sheets">> = {
+const COUNT_KEY: Record<SubjectType, keyof Pick<ReviewUnseenCounts, "edits" | "requests" | "sheets" | "lore">> = {
   edit: "edits",
   request: "requests",
   sheet: "sheets",
+  lore: "lore",
 };
 
 // Marking a review subject "seen" must clear EVERY unread surface the instant

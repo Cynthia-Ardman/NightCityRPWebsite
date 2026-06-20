@@ -5,8 +5,12 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EligibleReviewer } from './eligibleReviewer';
+import type { LorePendingEditDecided } from './lorePendingEditDecided';
 import type { LorePendingEditKind } from './lorePendingEditKind';
+import type { LorePendingEditMyVote } from './lorePendingEditMyVote';
 import type { LorePendingEditStatus } from './lorePendingEditStatus';
+import type { LorePendingEditVotersItem } from './lorePendingEditVotersItem';
 
 export interface LorePendingEdit {
   id: number;
@@ -30,6 +34,36 @@ export interface LorePendingEdit {
   /** @nullable */
   decidedAt?: Date | null;
   /** @nullable */
+  closedAt?: Date | null;
+  /** @nullable */
   appliedEntryId?: number | null;
+  /**
+     * Admin user id if resolved via override.
+     * @nullable
+     */
+  overriddenBy?: string | null;
   createdAt: Date;
+  /** @nullable */
+  lastActivityAt?: Date | null;
+  approveCount?: number;
+  rejectCount?: number;
+  threshold?: number;
+  eligibleVoterCount?: number;
+  /** @nullable */
+  myVote?: LorePendingEditMyVote;
+  /** Full roster of reviewers eligible to vote (excludes the submitter), so the UI can show who has not voted yet. Omitted on the player-facing /edits/mine view. */
+  eligibleReviewers?: EligibleReviewer[];
+  /** Reviewers who have already cast a vote on this proposal. Empty on the player-facing /edits/mine view. */
+  voters?: LorePendingEditVotersItem[];
+  canVote?: boolean;
+  canOverride?: boolean;
+  canClose?: boolean;
+  canReopen?: boolean;
+  /**
+     * Vote-endpoint only: the decision a freshly-cast vote tipped the proposal to, or null.
+     * @nullable
+     */
+  decided?: LorePendingEditDecided;
+  /** Vote-endpoint only: true when re-casting the same vote cleared (un-voted) it. */
+  cleared?: boolean;
 }

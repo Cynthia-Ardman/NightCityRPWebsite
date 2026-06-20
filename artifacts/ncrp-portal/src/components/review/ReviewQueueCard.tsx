@@ -7,7 +7,7 @@ import { UnseenDot } from "@/components/review/ReviewLifecycleUI";
 import { ReviewerRoster, type RosterReviewer, type RosterVote } from "@/components/review/ReviewerRoster";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 
-export type ReviewSubjectType = "request" | "sheet" | "edit";
+export type ReviewSubjectType = "request" | "sheet" | "edit" | "lore";
 
 // Shared review-queue card used across the three reviewer pipelines (Misc
 // Requests, New Characters, Character Edits). It standardizes the layout —

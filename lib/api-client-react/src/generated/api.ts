@@ -188,7 +188,6 @@ import type {
   ListingHistory,
   LiveModeState,
   LiveModeUpdate,
-  LoreEditDecision,
   LoreEditProposalInput,
   LoreEntry,
   LoreEntryInput,
@@ -197,7 +196,9 @@ import type {
   LoreImportDraft,
   LoreImportDraftUpdate,
   LoreImportRunResult,
+  LoreOverrideInput,
   LorePendingEdit,
+  LoreVoteInput,
   MarkReviewSeen200,
   Me,
   MissionApplicationListItem,
@@ -19758,7 +19759,7 @@ export const getListLoreEditsUrl = (params?: ListLoreEditsParams,) => {
 }
 
 /**
- * @summary List fixer-proposed lore edits awaiting decision (fixer/admin).
+ * @summary List proposed lore edits — the staff review queue (reviewer-gated).
  */
 export const listLoreEdits = async (params?: ListLoreEditsParams, options?: RequestInit): Promise<LorePendingEdit[]> => {
 
@@ -19805,7 +19806,7 @@ export type ListLoreEditsQueryError = ErrorType<void>
 
 
 /**
- * @summary List fixer-proposed lore edits awaiting decision (fixer/admin).
+ * @summary List proposed lore edits — the staff review queue (reviewer-gated).
  */
 
 export function useListLoreEdits<TData = Awaited<ReturnType<typeof listLoreEdits>>, TError = ErrorType<void>>(
@@ -19835,7 +19836,7 @@ export const getSubmitLoreEditUrl = () => {
 }
 
 /**
- * @summary Propose a lore create/edit for admin approval (fixer/admin).
+ * @summary Propose a lore create/edit for review (fixer/admin).
  */
 export const submitLoreEdit = async (loreEditProposalInput: LoreEditProposalInput, options?: RequestInit): Promise<LorePendingEdit> => {
 
@@ -19884,7 +19885,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SubmitLoreEditMutationError = ErrorType<void>
 
     /**
- * @summary Propose a lore create/edit for admin approval (fixer/admin).
+ * @summary Propose a lore create/edit for review (fixer/admin).
  */
 export const useSubmitLoreEdit = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitLoreEdit>>, TError,{data: BodyType<LoreEditProposalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -19906,7 +19907,7 @@ export const getListMyLoreEditsUrl = () => {
 }
 
 /**
- * @summary The signed-in fixer's own lore submissions across all statuses (fixer/admin).
+ * @summary The signed-in submitter's own lore submissions across all statuses (fixer/admin).
  */
 export const listMyLoreEdits = async ( options?: RequestInit): Promise<LorePendingEdit[]> => {
 
@@ -19953,7 +19954,7 @@ export type ListMyLoreEditsQueryError = ErrorType<void>
 
 
 /**
- * @summary The signed-in fixer's own lore submissions across all statuses (fixer/admin).
+ * @summary The signed-in submitter's own lore submissions across all statuses (fixer/admin).
  */
 
 export function useListMyLoreEdits<TData = Awaited<ReturnType<typeof listMyLoreEdits>>, TError = ErrorType<void>>(
@@ -19974,6 +19975,227 @@ export function useListMyLoreEdits<TData = Awaited<ReturnType<typeof listMyLoreE
 
 
 
+export const getGetLoreEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/edits/${id}`
+}
+
+/**
+ * @summary Detail for one proposed lore edit with review tally (reviewer-gated).
+ */
+export const getLoreEdit = async (id: number, options?: RequestInit): Promise<LorePendingEdit> => {
+
+  return customFetch<LorePendingEdit>(getGetLoreEditUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLoreEditQueryKey = (id: number,) => {
+    return [
+    `/api/directory/lore/edits/${id}`
+    ] as const;
+    }
+
+
+export const getGetLoreEditQueryOptions = <TData = Awaited<ReturnType<typeof getLoreEdit>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLoreEdit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLoreEditQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLoreEdit>>> = ({ signal }) => getLoreEdit(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLoreEdit>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLoreEditQueryResult = NonNullable<Awaited<ReturnType<typeof getLoreEdit>>>
+export type GetLoreEditQueryError = ErrorType<void>
+
+
+/**
+ * @summary Detail for one proposed lore edit with review tally (reviewer-gated).
+ */
+
+export function useGetLoreEdit<TData = Awaited<ReturnType<typeof getLoreEdit>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLoreEdit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLoreEditQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getVoteLoreEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/edits/${id}/vote`
+}
+
+/**
+ * @summary Cast a majority-vote review vote on a lore proposal (eligible reviewers; toggle).
+ */
+export const voteLoreEdit = async (id: number,
+    loreVoteInput: LoreVoteInput, options?: RequestInit): Promise<LorePendingEdit> => {
+
+  return customFetch<LorePendingEdit>(getVoteLoreEditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreVoteInput,)
+  }
+);}
+
+
+
+
+export const getVoteLoreEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voteLoreEdit>>, TError,{id: number;data: BodyType<LoreVoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof voteLoreEdit>>, TError,{id: number;data: BodyType<LoreVoteInput>}, TContext> => {
+
+const mutationKey = ['voteLoreEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof voteLoreEdit>>, {id: number;data: BodyType<LoreVoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  voteLoreEdit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VoteLoreEditMutationResult = NonNullable<Awaited<ReturnType<typeof voteLoreEdit>>>
+    export type VoteLoreEditMutationBody = BodyType<LoreVoteInput>
+    export type VoteLoreEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Cast a majority-vote review vote on a lore proposal (eligible reviewers; toggle).
+ */
+export const useVoteLoreEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voteLoreEdit>>, TError,{id: number;data: BodyType<LoreVoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof voteLoreEdit>>,
+        TError,
+        {id: number;data: BodyType<LoreVoteInput>},
+        TContext
+      > => {
+      return useMutation(getVoteLoreEditMutationOptions(options));
+    }
+
+export const getOverrideLoreEditUrl = (id: number,) => {
+
+
+
+
+  return `/api/directory/lore/edits/${id}/override`
+}
+
+/**
+ * @summary Admin override — unilaterally approve or deny a lore proposal (admin only).
+ */
+export const overrideLoreEdit = async (id: number,
+    loreOverrideInput?: LoreOverrideInput, options?: RequestInit): Promise<LorePendingEdit> => {
+
+  return customFetch<LorePendingEdit>(getOverrideLoreEditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loreOverrideInput,)
+  }
+);}
+
+
+
+
+export const getOverrideLoreEditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideLoreEdit>>, TError,{id: number;data?: BodyType<LoreOverrideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overrideLoreEdit>>, TError,{id: number;data?: BodyType<LoreOverrideInput>}, TContext> => {
+
+const mutationKey = ['overrideLoreEdit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overrideLoreEdit>>, {id: number;data?: BodyType<LoreOverrideInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  overrideLoreEdit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OverrideLoreEditMutationResult = NonNullable<Awaited<ReturnType<typeof overrideLoreEdit>>>
+    export type OverrideLoreEditMutationBody = BodyType<LoreOverrideInput> | undefined
+    export type OverrideLoreEditMutationError = ErrorType<void>
+
+    /**
+ * @summary Admin override — unilaterally approve or deny a lore proposal (admin only).
+ */
+export const useOverrideLoreEdit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideLoreEdit>>, TError,{id: number;data?: BodyType<LoreOverrideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof overrideLoreEdit>>,
+        TError,
+        {id: number;data?: BodyType<LoreOverrideInput>},
+        TContext
+      > => {
+      return useMutation(getOverrideLoreEditMutationOptions(options));
+    }
+
 export const getApproveLoreEditUrl = (id: number,) => {
 
 
@@ -19983,18 +20205,17 @@ export const getApproveLoreEditUrl = (id: number,) => {
 }
 
 /**
- * @summary Approve a proposed lore edit and apply it (admin only).
+ * @deprecated
+ * @summary Retired — lore now uses the shared review pipeline (vote/override + apply at close).
  */
-export const approveLoreEdit = async (id: number,
-    loreEditDecision?: LoreEditDecision, options?: RequestInit): Promise<LorePendingEdit> => {
+export const approveLoreEdit = async (id: number, options?: RequestInit): Promise<unknown> => {
 
-  return customFetch<LorePendingEdit>(getApproveLoreEditUrl(id),
+  return customFetch<unknown>(getApproveLoreEditUrl(id),
   {
     ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      loreEditDecision,)
+    method: 'POST'
+
+
   }
 );}
 
@@ -20002,8 +20223,8 @@ export const approveLoreEdit = async (id: number,
 
 
 export const getApproveLoreEditMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number}, TContext> => {
 
 const mutationKey = ['approveLoreEdit'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -20015,10 +20236,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLoreEdit>>, {id: number;data?: BodyType<LoreEditDecision>}> = (props) => {
-          const {id,data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLoreEdit>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
 
-          return  approveLoreEdit(id,data,requestOptions)
+          return  approveLoreEdit(id,requestOptions)
         }
 
 
@@ -20029,18 +20250,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ApproveLoreEditMutationResult = NonNullable<Awaited<ReturnType<typeof approveLoreEdit>>>
-    export type ApproveLoreEditMutationBody = BodyType<LoreEditDecision> | undefined
+
     export type ApproveLoreEditMutationError = ErrorType<void>
 
     /**
- * @summary Approve a proposed lore edit and apply it (admin only).
+ * @deprecated
+ * @summary Retired — lore now uses the shared review pipeline (vote/override + apply at close).
  */
 export const useApproveLoreEdit = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLoreEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof approveLoreEdit>>,
         TError,
-        {id: number;data?: BodyType<LoreEditDecision>},
+        {id: number},
         TContext
       > => {
       return useMutation(getApproveLoreEditMutationOptions(options));
@@ -20055,18 +20277,17 @@ export const getRejectLoreEditUrl = (id: number,) => {
 }
 
 /**
- * @summary Reject a proposed lore edit (admin only).
+ * @deprecated
+ * @summary Retired — lore now uses the shared review pipeline (vote/override + apply at close).
  */
-export const rejectLoreEdit = async (id: number,
-    loreEditDecision?: LoreEditDecision, options?: RequestInit): Promise<LorePendingEdit> => {
+export const rejectLoreEdit = async (id: number, options?: RequestInit): Promise<unknown> => {
 
-  return customFetch<LorePendingEdit>(getRejectLoreEditUrl(id),
+  return customFetch<unknown>(getRejectLoreEditUrl(id),
   {
     ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      loreEditDecision,)
+    method: 'POST'
+
+
   }
 );}
 
@@ -20074,8 +20295,8 @@ export const rejectLoreEdit = async (id: number,
 
 
 export const getRejectLoreEditMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number}, TContext> => {
 
 const mutationKey = ['rejectLoreEdit'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -20087,10 +20308,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectLoreEdit>>, {id: number;data?: BodyType<LoreEditDecision>}> = (props) => {
-          const {id,data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectLoreEdit>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
 
-          return  rejectLoreEdit(id,data,requestOptions)
+          return  rejectLoreEdit(id,requestOptions)
         }
 
 
@@ -20101,18 +20322,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RejectLoreEditMutationResult = NonNullable<Awaited<ReturnType<typeof rejectLoreEdit>>>
-    export type RejectLoreEditMutationBody = BodyType<LoreEditDecision> | undefined
+
     export type RejectLoreEditMutationError = ErrorType<void>
 
     /**
- * @summary Reject a proposed lore edit (admin only).
+ * @deprecated
+ * @summary Retired — lore now uses the shared review pipeline (vote/override + apply at close).
  */
 export const useRejectLoreEdit = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number;data?: BodyType<LoreEditDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLoreEdit>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof rejectLoreEdit>>,
         TError,
-        {id: number;data?: BodyType<LoreEditDecision>},
+        {id: number},
         TContext
       > => {
       return useMutation(getRejectLoreEditMutationOptions(options));
@@ -21598,7 +21820,7 @@ export const useDeleteGuidebookPage = <TError = ErrorType<void>,
       return useMutation(getDeleteGuidebookPageMutationOptions(options));
     }
 
-export const getListReviewCommentsUrl = (subjectType: 'edit' | 'request' | 'sheet',
+export const getListReviewCommentsUrl = (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number,) => {
 
 
@@ -21610,7 +21832,7 @@ export const getListReviewCommentsUrl = (subjectType: 'edit' | 'request' | 'shee
 /**
  * @summary The two-way comment thread on a review subject (character edit / custom request / sheet). Visible to the submitter and any reviewer. Comments never change the subject's status.
  */
-export const listReviewComments = async (subjectType: 'edit' | 'request' | 'sheet',
+export const listReviewComments = async (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number, options?: RequestInit): Promise<ReviewComment[]> => {
 
   return customFetch<ReviewComment[]>(getListReviewCommentsUrl(subjectType,id),
@@ -21626,7 +21848,7 @@ export const listReviewComments = async (subjectType: 'edit' | 'request' | 'shee
 
 
 
-export const getListReviewCommentsQueryKey = (subjectType: 'edit' | 'request' | 'sheet',
+export const getListReviewCommentsQueryKey = (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number,) => {
     return [
     `/api/review/${subjectType}/${id}/comments`
@@ -21634,7 +21856,7 @@ export const getListReviewCommentsQueryKey = (subjectType: 'edit' | 'request' | 
     }
 
 
-export const getListReviewCommentsQueryOptions = <TData = Awaited<ReturnType<typeof listReviewComments>>, TError = ErrorType<void>>(subjectType: 'edit' | 'request' | 'sheet',
+export const getListReviewCommentsQueryOptions = <TData = Awaited<ReturnType<typeof listReviewComments>>, TError = ErrorType<void>>(subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReviewComments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -21662,7 +21884,7 @@ export type ListReviewCommentsQueryError = ErrorType<void>
  */
 
 export function useListReviewComments<TData = Awaited<ReturnType<typeof listReviewComments>>, TError = ErrorType<void>>(
- subjectType: 'edit' | 'request' | 'sheet',
+ subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReviewComments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -21680,7 +21902,7 @@ export function useListReviewComments<TData = Awaited<ReturnType<typeof listRevi
 
 
 
-export const getPostReviewCommentUrl = (subjectType: 'edit' | 'request' | 'sheet',
+export const getPostReviewCommentUrl = (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number,) => {
 
 
@@ -21692,7 +21914,7 @@ export const getPostReviewCommentUrl = (subjectType: 'edit' | 'request' | 'sheet
 /**
  * @summary Post a comment on a review subject. Never changes status, so it can never block an approval. Best-effort DMs the submitter when a reviewer comments.
  */
-export const postReviewComment = async (subjectType: 'edit' | 'request' | 'sheet',
+export const postReviewComment = async (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number,
     reviewCommentInput: ReviewCommentInput, options?: RequestInit): Promise<ReviewComment> => {
 
@@ -21710,8 +21932,8 @@ export const postReviewComment = async (subjectType: 'edit' | 'request' | 'sheet
 
 
 export const getPostReviewCommentMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data: BodyType<ReviewCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data: BodyType<ReviewCommentInput>}, TContext> => {
 
 const mutationKey = ['postReviewComment'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -21723,7 +21945,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postReviewComment>>, {subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postReviewComment>>, {subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data: BodyType<ReviewCommentInput>}> = (props) => {
           const {subjectType,id,data} = props ?? {};
 
           return  postReviewComment(subjectType,id,data,requestOptions)
@@ -21744,17 +21966,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Post a comment on a review subject. Never changes status, so it can never block an approval. Best-effort DMs the submitter when a reviewer comments.
  */
 export const usePostReviewComment = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postReviewComment>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data: BodyType<ReviewCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof postReviewComment>>,
         TError,
-        {subjectType: 'edit' | 'request' | 'sheet';id: number;data: BodyType<ReviewCommentInput>},
+        {subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data: BodyType<ReviewCommentInput>},
         TContext
       > => {
       return useMutation(getPostReviewCommentMutationOptions(options));
     }
 
-export const getMarkReviewSeenUrl = (subjectType: 'edit' | 'request' | 'sheet',
+export const getMarkReviewSeenUrl = (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number,) => {
 
 
@@ -21766,7 +21988,7 @@ export const getMarkReviewSeenUrl = (subjectType: 'edit' | 'request' | 'sheet',
 /**
  * @summary Mark a review subject as seen by the current user (called when a reviewer opens it). Drops it from their unseen notification count until there is fresh activity.
  */
-export const markReviewSeen = async (subjectType: 'edit' | 'request' | 'sheet',
+export const markReviewSeen = async (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number, options?: RequestInit): Promise<MarkReviewSeen200> => {
 
   return customFetch<MarkReviewSeen200>(getMarkReviewSeenUrl(subjectType,id),
@@ -21782,8 +22004,8 @@ export const markReviewSeen = async (subjectType: 'edit' | 'request' | 'sheet',
 
 
 export const getMarkReviewSeenMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number}, TContext> => {
 
 const mutationKey = ['markReviewSeen'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -21795,7 +22017,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markReviewSeen>>, {subjectType: 'edit' | 'request' | 'sheet';id: number}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markReviewSeen>>, {subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number}> = (props) => {
           const {subjectType,id} = props ?? {};
 
           return  markReviewSeen(subjectType,id,requestOptions)
@@ -21816,11 +22038,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Mark a review subject as seen by the current user (called when a reviewer opens it). Drops it from their unseen notification count until there is fresh activity.
  */
 export const useMarkReviewSeen = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markReviewSeen>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof markReviewSeen>>,
         TError,
-        {subjectType: 'edit' | 'request' | 'sheet';id: number},
+        {subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number},
         TContext
       > => {
       return useMutation(getMarkReviewSeenMutationOptions(options));
@@ -22057,7 +22279,7 @@ export function useGetReviewUnseenIds<TData = Awaited<ReturnType<typeof getRevie
 
 
 
-export const getGetReviewDiscordThreadUrl = (subjectType: 'edit' | 'request' | 'sheet' | 'mission',
+export const getGetReviewDiscordThreadUrl = (subjectType: 'edit' | 'request' | 'sheet' | 'mission' | 'lore',
     id: number,) => {
 
 
@@ -22069,7 +22291,7 @@ export const getGetReviewDiscordThreadUrl = (subjectType: 'edit' | 'request' | '
 /**
  * @summary The subject's Discord discussion thread, displayed READ-ONLY on the detail page. Reviewers/staff only. The portal never posts to Discord. Serves review tickets (edit/request/sheet) and missions. Returns linked:false with an empty list when no thread is linked yet.
  */
-export const getReviewDiscordThread = async (subjectType: 'edit' | 'request' | 'sheet' | 'mission',
+export const getReviewDiscordThread = async (subjectType: 'edit' | 'request' | 'sheet' | 'mission' | 'lore',
     id: number, options?: RequestInit): Promise<DiscordThreadView> => {
 
   return customFetch<DiscordThreadView>(getGetReviewDiscordThreadUrl(subjectType,id),
@@ -22085,7 +22307,7 @@ export const getReviewDiscordThread = async (subjectType: 'edit' | 'request' | '
 
 
 
-export const getGetReviewDiscordThreadQueryKey = (subjectType: 'edit' | 'request' | 'sheet' | 'mission',
+export const getGetReviewDiscordThreadQueryKey = (subjectType: 'edit' | 'request' | 'sheet' | 'mission' | 'lore',
     id: number,) => {
     return [
     `/api/review/${subjectType}/${id}/discord-thread`
@@ -22093,7 +22315,7 @@ export const getGetReviewDiscordThreadQueryKey = (subjectType: 'edit' | 'request
     }
 
 
-export const getGetReviewDiscordThreadQueryOptions = <TData = Awaited<ReturnType<typeof getReviewDiscordThread>>, TError = ErrorType<void>>(subjectType: 'edit' | 'request' | 'sheet' | 'mission',
+export const getGetReviewDiscordThreadQueryOptions = <TData = Awaited<ReturnType<typeof getReviewDiscordThread>>, TError = ErrorType<void>>(subjectType: 'edit' | 'request' | 'sheet' | 'mission' | 'lore',
     id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewDiscordThread>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -22121,7 +22343,7 @@ export type GetReviewDiscordThreadQueryError = ErrorType<void>
  */
 
 export function useGetReviewDiscordThread<TData = Awaited<ReturnType<typeof getReviewDiscordThread>>, TError = ErrorType<void>>(
- subjectType: 'edit' | 'request' | 'sheet' | 'mission',
+ subjectType: 'edit' | 'request' | 'sheet' | 'mission' | 'lore',
     id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewDiscordThread>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -22139,7 +22361,7 @@ export function useGetReviewDiscordThread<TData = Awaited<ReturnType<typeof getR
 
 
 
-export const getCloseReviewTicketUrl = (subjectType: 'edit' | 'request' | 'sheet',
+export const getCloseReviewTicketUrl = (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number,) => {
 
 
@@ -22151,7 +22373,7 @@ export const getCloseReviewTicketUrl = (subjectType: 'edit' | 'request' | 'sheet
 /**
  * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
  */
-export const closeReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet',
+export const closeReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number,
     reviewCloseInput?: ReviewCloseInput, options?: RequestInit): Promise<CloseReviewTicket200> => {
 
@@ -22169,8 +22391,8 @@ export const closeReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet
 
 
 export const getCloseReviewTicketMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data?: BodyType<ReviewCloseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data?: BodyType<ReviewCloseInput>}, TContext> => {
 
 const mutationKey = ['closeReviewTicket'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -22182,7 +22404,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeReviewTicket>>, {subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeReviewTicket>>, {subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data?: BodyType<ReviewCloseInput>}> = (props) => {
           const {subjectType,id,data} = props ?? {};
 
           return  closeReviewTicket(subjectType,id,data,requestOptions)
@@ -22203,17 +22425,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Archive a resolved ticket. When the ticket was approved this commits its deferred effect (lease / inventory / character materialization / edit diff) exactly once. Idempotent — re-closing a closed ticket is a no-op 200. Reviewers only.
  */
 export const useCloseReviewTicket = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data?: BodyType<ReviewCloseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof closeReviewTicket>>,
         TError,
-        {subjectType: 'edit' | 'request' | 'sheet';id: number;data?: BodyType<ReviewCloseInput>},
+        {subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number;data?: BodyType<ReviewCloseInput>},
         TContext
       > => {
       return useMutation(getCloseReviewTicketMutationOptions(options));
     }
 
-export const getReopenReviewTicketUrl = (subjectType: 'edit' | 'request' | 'sheet',
+export const getReopenReviewTicketUrl = (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number,) => {
 
 
@@ -22225,7 +22447,7 @@ export const getReopenReviewTicketUrl = (subjectType: 'edit' | 'request' | 'shee
 /**
  * @summary Send a resolved (approved | rejected) ticket back to pending for another vote. Clears votes and the decision fields. Refuses when the effect was already applied. Reviewers only.
  */
-export const reopenReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet',
+export const reopenReviewTicket = async (subjectType: 'edit' | 'request' | 'sheet' | 'lore',
     id: number, options?: RequestInit): Promise<ReopenReviewTicket200> => {
 
   return customFetch<ReopenReviewTicket200>(getReopenReviewTicketUrl(subjectType,id),
@@ -22241,8 +22463,8 @@ export const reopenReviewTicket = async (subjectType: 'edit' | 'request' | 'shee
 
 
 export const getReopenReviewTicketMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number}, TContext> => {
 
 const mutationKey = ['reopenReviewTicket'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -22254,7 +22476,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenReviewTicket>>, {subjectType: 'edit' | 'request' | 'sheet';id: number}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenReviewTicket>>, {subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number}> = (props) => {
           const {subjectType,id} = props ?? {};
 
           return  reopenReviewTicket(subjectType,id,requestOptions)
@@ -22275,11 +22497,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Send a resolved (approved | rejected) ticket back to pending for another vote. Clears votes and the decision fields. Refuses when the effect was already applied. Reviewers only.
  */
 export const useReopenReviewTicket = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenReviewTicket>>, TError,{subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof reopenReviewTicket>>,
         TError,
-        {subjectType: 'edit' | 'request' | 'sheet';id: number},
+        {subjectType: 'edit' | 'request' | 'sheet' | 'lore';id: number},
         TContext
       > => {
       return useMutation(getReopenReviewTicketMutationOptions(options));

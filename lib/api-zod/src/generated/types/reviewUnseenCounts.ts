@@ -10,5 +10,6 @@ export interface ReviewUnseenCounts {
   edits: number;
   requests: number;
   sheets: number;
+  lore: number;
   total: number;
 }

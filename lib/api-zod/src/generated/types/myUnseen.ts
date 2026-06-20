@@ -10,5 +10,6 @@ export interface MyUnseen {
   edit: number[];
   request: number[];
   sheet: number[];
+  lore: number[];
   total: number;
 }

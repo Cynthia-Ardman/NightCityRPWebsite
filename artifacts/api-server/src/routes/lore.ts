@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -8,6 +8,7 @@ import {
   loreImportDrafts,
   users,
   type LoreEntry,
+  type User,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { sendDirectMessage } from "../lib/discord";
@@ -15,12 +16,28 @@ import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { runLoreImport, type LoreSourceRef } from "../lib/loreImport";
 import { isAdmin, isFixerOrAdmin } from "../lib/roleChecks";
+import {
+  isReviewer,
+  isEligibleReviewer,
+  tallyReviewVotes,
+  castReviewVote,
+  loadVotesBySubject,
+  listEligibleReviewers,
+  latestVoterIdFor,
+  majorityOf,
+  loadLastActivityBySubject,
+  type ReviewActionResult,
+} from "../lib/review";
 
 // Lore Directory: public world-lore entries (Corporations / Gangs / Factions /
 // Miscellaneous) with a PUBLIC body for everyone plus a FIXER-ONLY body and
 // source references visible only to staff. Admins author/publish directly;
-// fixers propose changes that an admin approves (surfaced in Pending Requests).
-// Imported lore lands in a staff review queue (loreImportDrafts) first.
+// fixer/admin-submitted proposals (lorePendingEdits) ride the SHARED
+// majority-vote review pipeline (subject type "lore") alongside Misc Requests,
+// Character Edits, and New Characters: reviewers vote, a majority stages the
+// decision, and the diff is materialized via applyProposal only when a reviewer
+// applies & closes the ticket. Admins may override the vote. Imported lore
+// (loreImportDrafts / runLoreImport) keeps its separate single-admin flow.
 
 const router: IRouter = Router();
 
@@ -201,83 +218,262 @@ const proposalSchema = z.object({
   updateNote: z.string().nullish(),
 });
 
-// List proposed lore edits (fixer/admin). Defaults to pending.
+// Column set for a proposal row joined to its target entry name + submitter
+// name. Shared by every read path (list, mine, detail) so they stay identical.
+const editSelectCols = {
+  id: lorePendingEdits.id,
+  loreEntryId: lorePendingEdits.loreEntryId,
+  entryName: loreEntries.name,
+  kind: lorePendingEdits.kind,
+  submittedBy: lorePendingEdits.submittedBy,
+  submittedByName: users.username,
+  proposedDiff: lorePendingEdits.proposedDiff,
+  beforeSnapshot: lorePendingEdits.beforeSnapshot,
+  updateNote: lorePendingEdits.updateNote,
+  status: lorePendingEdits.status,
+  decidedById: lorePendingEdits.decidedById,
+  decisionSummary: lorePendingEdits.decisionSummary,
+  decidedAt: lorePendingEdits.decidedAt,
+  closedAt: lorePendingEdits.closedAt,
+  appliedEntryId: lorePendingEdits.appliedEntryId,
+  overriddenBy: lorePendingEdits.overriddenBy,
+  createdAt: lorePendingEdits.createdAt,
+} as const;
+
+type LoreEditRow = {
+  id: number;
+  loreEntryId: number | null;
+  entryName: string | null;
+  kind: string;
+  submittedBy: string;
+  submittedByName: string | null;
+  proposedDiff: unknown;
+  beforeSnapshot: unknown;
+  updateNote: string | null;
+  status: string;
+  decidedById: string | null;
+  decisionSummary: string | null;
+  decidedAt: Date | null;
+  closedAt: Date | null;
+  appliedEntryId: number | null;
+  overriddenBy: string | null;
+  createdAt: Date;
+};
+
+function shapeEditRow(r: LoreEditRow): Record<string, unknown> {
+  return {
+    id: r.id,
+    loreEntryId: r.loreEntryId,
+    entryName: r.entryName,
+    kind: r.kind,
+    submittedBy: r.submittedBy,
+    submittedByName: r.submittedByName,
+    proposedDiff: r.proposedDiff,
+    beforeSnapshot: r.beforeSnapshot,
+    updateNote: r.updateNote,
+    status: r.status,
+    decidedById: r.decidedById,
+    decisionSummary: r.decisionSummary,
+    decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
+    closedAt: r.closedAt ? r.closedAt.toISOString() : null,
+    appliedEntryId: r.appliedEntryId,
+    overriddenBy: r.overriddenBy,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+// Attach the shared review-pipeline tally (vote counts, threshold, the viewer's
+// own vote) to a set of proposal rows — the lore mirror of requests'
+// attachTallies. `includeRoster` exposes reviewer identities (the eligible
+// roster + per-voter identity + the can* action flags); it MUST be false for
+// the player-facing /edits/mine endpoint so a submitter can't enumerate the
+// reviewer pool or see who voted.
+async function attachLoreTallies(
+  rows: LoreEditRow[],
+  viewer: User,
+  includeRoster: boolean,
+): Promise<Record<string, unknown>[]> {
+  if (rows.length === 0) return [];
+  const viewerId = viewer.id;
+  const votesById = await loadVotesBySubject({ subjectType: "lore", subjectIds: rows.map((r) => r.id) });
+  const activityById = await loadLastActivityBySubject(
+    "lore",
+    rows.map((r) => ({ id: r.id, baseAt: r.createdAt })),
+  );
+  const reviewerPool = await listEligibleReviewers(null);
+  return rows.map((r) => {
+    const eligible = reviewerPool.filter((rv) => rv.id !== r.submittedBy);
+    const eligibleSet = new Set(eligible.map((rv) => rv.id));
+    const votes = (votesById.get(r.id) ?? []).filter((v) => eligibleSet.has(v.voterId));
+    const approveCount = votes.filter((v) => v.vote === "approve").length;
+    const rejectCount = votes.filter((v) => v.vote === "reject").length;
+    const mine = (votesById.get(r.id) ?? []).find((v) => v.voterId === viewerId);
+    const isOwn = r.submittedBy === viewerId;
+    return {
+      ...shapeEditRow(r),
+      lastActivityAt: (activityById.get(r.id) ?? r.createdAt).toISOString(),
+      approveCount,
+      rejectCount,
+      threshold: majorityOf(eligible.length),
+      eligibleVoterCount: eligible.length,
+      myVote: mine?.vote ?? null,
+      ...(includeRoster ? { eligibleReviewers: eligible } : {}),
+      voters: includeRoster
+        ? votes.map((v) => ({ id: v.voterId, name: v.voterName, avatarUrl: v.voterAvatarUrl, vote: v.vote }))
+        : [],
+      canVote: includeRoster && isEligibleReviewer(viewer) && !isOwn && r.status === "pending",
+      canOverride:
+        includeRoster &&
+        isAdmin(viewer) &&
+        !isOwn &&
+        (r.status === "pending" || r.status === "changes_requested" || r.status === "approved") &&
+        !r.appliedEntryId,
+      canClose: includeRoster && isReviewer(viewer) && (r.status === "approved" || r.status === "rejected"),
+      canReopen:
+        includeRoster && isReviewer(viewer) && (r.status === "approved" || r.status === "rejected" || r.status === "closed"),
+    };
+  });
+}
+
+// Fetch one proposal (with target/submitter names) and attach its tally.
+async function fetchEditWithTallies(
+  id: number,
+  viewer: User,
+  includeRoster: boolean,
+): Promise<Record<string, unknown> | null> {
+  const rows = await db
+    .select(editSelectCols)
+    .from(lorePendingEdits)
+    .leftJoin(loreEntries, eq(loreEntries.id, lorePendingEdits.loreEntryId))
+    .leftJoin(users, eq(users.id, lorePendingEdits.submittedBy))
+    .where(eq(lorePendingEdits.id, id));
+  if (rows.length === 0) return null;
+  const [shaped] = await attachLoreTallies(rows as LoreEditRow[], viewer, includeRoster);
+  return shaped;
+}
+
+// Re-evaluate one still-`pending` proposal against the LIVE eligible-reviewer
+// majority and, if it now resolves, STAGE the same decision the vote handler
+// makes (effects are deferred to close). Self-heals tickets stranded pending
+// after the eligible pool shrank below the already-cast tally. Locked +
+// status-guarded, so it is idempotent and races safely with a concurrent vote
+// or admin override. Returns the decided status, or null if it stayed pending.
+async function finalizeDecidedLore(
+  req: Request,
+  eid: number,
+): Promise<"approved" | "rejected" | null> {
+  const txResult = await db.transaction(async (tx) => {
+    const [edit] = await tx.select().from(lorePendingEdits).where(eq(lorePendingEdits.id, eid)).for("update");
+    if (!edit || edit.status !== "pending") return null;
+    const tally = await tallyReviewVotes({ subjectType: "lore", subjectId: eid, submitterId: edit.submittedBy, conn: tx });
+    if (!tally.decided) return null;
+    const deciderId =
+      (await latestVoterIdFor({
+        subjectType: "lore",
+        subjectId: eid,
+        vote: tally.decided === "approved" ? "approve" : "reject",
+        conn: tx,
+      })) ?? req.user!.id;
+    await tx
+      .update(lorePendingEdits)
+      .set({ status: tally.decided, decidedById: deciderId, decidedAt: new Date(), decisionSummary: null })
+      .where(eq(lorePendingEdits.id, eid));
+    return { decided: tally.decided, edit };
+  });
+  if (!txResult) return null;
+  await recordAudit({
+    req,
+    category: "lore",
+    action: txResult.decided === "approved" ? "lore_auto_finalize_approve" : "lore_auto_finalize_reject",
+    targetType: "lore_pending_edit",
+    targetId: eid,
+    message: `Auto-finalized lore ${txResult.edit.kind} → ${txResult.decided} (majority reached after reviewer-pool change; pending close)`,
+    after: { autoFinalized: true },
+  });
+  return txResult.decided;
+}
+
+// Walk an attachLoreTallies result and auto-finalize any row whose live tally
+// already resolves while it is still `pending`. Mutates `entries` in place so
+// the response reflects the freshly-staged status.
+async function finalizeDecidedLoreInPlace(req: Request, entries: Record<string, unknown>[]): Promise<void> {
+  for (const entry of entries) {
+    if (entry.status !== "pending") continue;
+    const approve = entry.approveCount as number;
+    const reject = entry.rejectCount as number;
+    const threshold = entry.threshold as number;
+    if (approve < threshold && reject < threshold) continue;
+    const decided = await finalizeDecidedLore(req, entry.id as number);
+    if (decided) entry.status = decided;
+  }
+}
+
+// List proposed lore edits — the staff review queue. Reviewer-gated (FIXER /
+// CS_APPROVER / ADMIN) to match the shared pipeline's pool. Defaults to pending.
 router.get("/directory/lore/edits", requireAuth, async (req, res): Promise<void> => {
-  if (!isFixerOrAdmin(req.user!)) {
-    res.status(403).json({ error: "Requires fixer or admin role" });
+  if (!isReviewer(req.user!)) {
+    res.status(403).json({ error: "Requires reviewer role" });
     return;
   }
   const status = String(req.query.status ?? "pending");
   const rows = await db
-    .select({
-      id: lorePendingEdits.id,
-      loreEntryId: lorePendingEdits.loreEntryId,
-      entryName: loreEntries.name,
-      kind: lorePendingEdits.kind,
-      submittedBy: lorePendingEdits.submittedBy,
-      submittedByName: users.username,
-      proposedDiff: lorePendingEdits.proposedDiff,
-      beforeSnapshot: lorePendingEdits.beforeSnapshot,
-      updateNote: lorePendingEdits.updateNote,
-      status: lorePendingEdits.status,
-      decidedById: lorePendingEdits.decidedById,
-      decisionSummary: lorePendingEdits.decisionSummary,
-      decidedAt: lorePendingEdits.decidedAt,
-      appliedEntryId: lorePendingEdits.appliedEntryId,
-      createdAt: lorePendingEdits.createdAt,
-    })
+    .select(editSelectCols)
     .from(lorePendingEdits)
     .leftJoin(loreEntries, eq(loreEntries.id, lorePendingEdits.loreEntryId))
     .leftJoin(users, eq(users.id, lorePendingEdits.submittedBy))
     .where(eq(lorePendingEdits.status, status))
     .orderBy(desc(lorePendingEdits.createdAt));
-  res.json(
-    rows.map((r) => ({
-      ...r,
-      decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
-      createdAt: r.createdAt.toISOString(),
-    })),
-  );
+  const out = await attachLoreTallies(rows as LoreEditRow[], req.user!, true);
+  await finalizeDecidedLoreInPlace(req, out);
+  res.json(out);
 });
 
-// The signed-in fixer's own lore submissions across all statuses, so they can
-// track what's pending, approved, or rejected (with the admin's decision
-// summary). Declared before /edits/:id-style routes to avoid capture.
+// The signed-in submitter's own lore submissions across all statuses, so they
+// can track what's pending, approved, or rejected. includeRoster=false: the
+// player-facing view never exposes the reviewer pool or per-voter identities.
+// Declared before /edits/:id-style routes to avoid capture.
 router.get("/directory/lore/edits/mine", requireAuth, async (req, res): Promise<void> => {
   if (!isFixerOrAdmin(req.user!)) {
     res.status(403).json({ error: "Requires fixer or admin role" });
     return;
   }
   const rows = await db
-    .select({
-      id: lorePendingEdits.id,
-      loreEntryId: lorePendingEdits.loreEntryId,
-      entryName: loreEntries.name,
-      kind: lorePendingEdits.kind,
-      submittedBy: lorePendingEdits.submittedBy,
-      submittedByName: users.username,
-      proposedDiff: lorePendingEdits.proposedDiff,
-      beforeSnapshot: lorePendingEdits.beforeSnapshot,
-      updateNote: lorePendingEdits.updateNote,
-      status: lorePendingEdits.status,
-      decidedById: lorePendingEdits.decidedById,
-      decisionSummary: lorePendingEdits.decisionSummary,
-      decidedAt: lorePendingEdits.decidedAt,
-      appliedEntryId: lorePendingEdits.appliedEntryId,
-      createdAt: lorePendingEdits.createdAt,
-    })
+    .select(editSelectCols)
     .from(lorePendingEdits)
     .leftJoin(loreEntries, eq(loreEntries.id, lorePendingEdits.loreEntryId))
     .leftJoin(users, eq(users.id, lorePendingEdits.submittedBy))
     .where(eq(lorePendingEdits.submittedBy, req.user!.id))
     .orderBy(desc(lorePendingEdits.createdAt));
-  res.json(
-    rows.map((r) => ({
-      ...r,
-      decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
-      createdAt: r.createdAt.toISOString(),
-    })),
-  );
+  const out = await attachLoreTallies(rows as LoreEditRow[], req.user!, false);
+  res.json(out);
+});
+
+// Detail for a single proposal — reviewer-gated. Runs finalize-on-read so a
+// proposal stranded pending after the eligible pool shrank surfaces its
+// resolved state (and Close & Apply action) when opened.
+router.get("/directory/lore/edits/:id", requireAuth, async (req, res): Promise<void> => {
+  if (!isReviewer(req.user!)) {
+    res.status(403).json({ error: "Requires reviewer role" });
+    return;
+  }
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(id)) {
+    res.status(404).json({ error: "Proposal not found" });
+    return;
+  }
+  let shaped = await fetchEditWithTallies(id, req.user!, true);
+  if (!shaped) {
+    res.status(404).json({ error: "Proposal not found" });
+    return;
+  }
+  if (shaped.status === "pending") {
+    const wrapped = [shaped];
+    await finalizeDecidedLoreInPlace(req, wrapped);
+    if (wrapped[0].status !== "pending") {
+      shaped = (await fetchEditWithTallies(id, req.user!, true)) ?? shaped;
+    }
+  }
+  res.json(shaped);
 });
 
 // Submit a lore create/edit proposal for admin approval (fixer/admin).
@@ -396,48 +592,53 @@ async function applyProposal(
   return updated;
 }
 
-// Approve a proposed edit (admin only). Locks + status-guards so a concurrent
-// reject can't clobber the decision, then applies the diff.
-router.post("/directory/lore/edits/:id/approve", requireAuth, async (req, res): Promise<void> => {
-  if (!isAdmin(req.user!)) {
-    res.status(403).json({ error: "Requires admin role" });
+// Cast a majority-vote review vote on a lore proposal (eligible reviewers only;
+// admins use override). Mirrors the requests pipeline: lock + re-check pending,
+// exclude the submitter, toggle the vote (re-casting the same value clears it),
+// then re-tally. A resolved majority STAGES the decision (status flip only) —
+// the diff is materialized later by closeLore at apply & close.
+router.post("/directory/lore/edits/:id/vote", requireAuth, async (req, res): Promise<void> => {
+  if (!isEligibleReviewer(req.user!)) {
+    res.status(403).json({ error: "Only eligible reviewers can vote. Admins use override." });
     return;
   }
   const id = parseInt(String(req.params.id), 10);
-  const summary =
-    typeof req.body?.decisionSummary === "string" && req.body.decisionSummary.trim()
-      ? req.body.decisionSummary.trim()
-      : null;
+  if (!Number.isFinite(id)) {
+    res.status(404).json({ error: "Proposal not found" });
+    return;
+  }
+  const body = (req.body ?? {}) as { vote?: unknown; note?: unknown };
+  const vote = body.vote === "approve" ? "approve" : body.vote === "reject" ? "reject" : null;
+  if (!vote) {
+    res.status(400).json({ error: "vote must be 'approve' or 'reject'" });
+    return;
+  }
+  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
 
   const result = await db.transaction(async (tx) => {
-    const [edit] = await tx
-      .select()
-      .from(lorePendingEdits)
-      .where(eq(lorePendingEdits.id, id))
-      .for("update");
+    const [edit] = await tx.select().from(lorePendingEdits).where(eq(lorePendingEdits.id, id)).for("update");
     if (!edit) return { error: { status: 404, body: { error: "Proposal not found" } } };
-    if (edit.status !== "pending") {
-      return { error: { status: 409, body: { error: `Proposal already ${edit.status}` } } };
+    if (edit.status !== "pending") return { error: { status: 409, body: { error: `Proposal already ${edit.status}` } } };
+    if (edit.submittedBy === req.user!.id) {
+      return { error: { status: 403, body: { error: "You cannot vote on a proposal you submitted" } } };
     }
-    if (edit.kind === "edit" && edit.loreEntryId) {
-      const [exists] = await tx
-        .select({ id: loreEntries.id })
-        .from(loreEntries)
-        .where(eq(loreEntries.id, edit.loreEntryId));
-      if (!exists) return { error: { status: 400, body: { error: "Target entry no longer exists" } } };
+    const castResult = await castReviewVote({
+      subjectType: "lore",
+      subjectId: id,
+      voterId: req.user!.id,
+      vote,
+      note,
+      conn: tx,
+    });
+    const cleared = castResult === null;
+    const tally = await tallyReviewVotes({ subjectType: "lore", subjectId: id, submitterId: edit.submittedBy, conn: tx });
+    if (tally.decided) {
+      await tx
+        .update(lorePendingEdits)
+        .set({ status: tally.decided, decidedById: req.user!.id, decidedAt: new Date(), decisionSummary: note })
+        .where(eq(lorePendingEdits.id, id));
     }
-    const entry = await applyProposal(tx, edit, req.user!.id);
-    await tx
-      .update(lorePendingEdits)
-      .set({
-        status: "approved",
-        decidedById: req.user!.id,
-        decidedAt: new Date(),
-        decisionSummary: summary,
-        appliedEntryId: entry.id,
-      })
-      .where(eq(lorePendingEdits.id, id));
-    return { ok: { entry, edit } };
+    return { ok: { edit, decided: tally.decided, cleared } };
   });
 
   if (!("ok" in result) || !result.ok) {
@@ -448,51 +649,63 @@ router.post("/directory/lore/edits/:id/approve", requireAuth, async (req, res): 
   await recordAudit({
     req,
     category: "lore",
-    action: "lore_edit_approve",
+    action: result.ok.decided
+      ? result.ok.decided === "approved"
+        ? "lore_vote_approve"
+        : "lore_vote_reject"
+      : result.ok.cleared
+        ? "lore_vote_clear"
+        : "lore_vote",
     targetType: "lore_pending_edit",
     targetId: id,
-    message: `Approved lore ${result.ok.edit.kind}: ${result.ok.entry.name}`,
-    after: { entryId: result.ok.entry.id },
+    message: result.ok.cleared
+      ? `Cleared review vote on lore ${result.ok.edit.kind} proposal`
+      : `Voted ${vote} on lore ${result.ok.edit.kind} proposal${result.ok.decided ? ` → ${result.ok.decided}` : ""}`,
   });
-  await notifyFixerOfLoreDecision(result.ok.edit, "approved", summary, result.ok.entry.name);
-  res.json({
-    ...result.ok.edit,
-    status: "approved",
-    appliedEntryId: result.ok.entry.id,
-    decidedAt: new Date().toISOString(),
-    createdAt: result.ok.edit.createdAt.toISOString(),
-  });
+  const shaped = await fetchEditWithTallies(id, req.user!, true);
+  res.json({ ...(shaped ?? {}), decided: result.ok.decided ?? null, cleared: result.ok.cleared });
 });
 
-// Reject a proposed edit (admin only).
-router.post("/directory/lore/edits/:id/reject", requireAuth, async (req, res): Promise<void> => {
+// Admin override: unilaterally resolve a proposal (approve or deny), bypassing
+// the vote. Editable while pending/changes_requested/approved and not yet
+// applied; stamps overriddenBy. Effects still materialize at close (idempotent).
+router.post("/directory/lore/edits/:id/override", requireAuth, async (req, res): Promise<void> => {
   if (!isAdmin(req.user!)) {
-    res.status(403).json({ error: "Requires admin role" });
+    res.status(403).json({ error: "Only admins can override" });
     return;
   }
   const id = parseInt(String(req.params.id), 10);
-  const summary =
-    typeof req.body?.decisionSummary === "string" && req.body.decisionSummary.trim()
-      ? req.body.decisionSummary.trim()
-      : null;
+  if (!Number.isFinite(id)) {
+    res.status(404).json({ error: "Proposal not found" });
+    return;
+  }
+  const body = (req.body ?? {}) as { decision?: unknown; reviewerNote?: unknown; decisionSummary?: unknown };
+  const deny = body.decision === "deny";
+  const note =
+    typeof body.reviewerNote === "string" && body.reviewerNote.trim()
+      ? body.reviewerNote.trim()
+      : typeof body.decisionSummary === "string" && body.decisionSummary.trim()
+        ? body.decisionSummary.trim()
+        : null;
 
   const result = await db.transaction(async (tx) => {
-    const [edit] = await tx
-      .select()
-      .from(lorePendingEdits)
-      .where(eq(lorePendingEdits.id, id))
-      .for("update");
+    const [edit] = await tx.select().from(lorePendingEdits).where(eq(lorePendingEdits.id, id)).for("update");
     if (!edit) return { error: { status: 404, body: { error: "Proposal not found" } } };
-    if (edit.status !== "pending") {
-      return { error: { status: 409, body: { error: `Proposal already ${edit.status}` } } };
+    const editable = edit.status === "pending" || edit.status === "changes_requested" || edit.status === "approved";
+    if (!editable || edit.appliedEntryId) {
+      return { error: { status: 409, body: { error: `Proposal already ${edit.appliedEntryId ? "applied" : edit.status}` } } };
+    }
+    if (edit.submittedBy === req.user!.id) {
+      return { error: { status: 403, body: { error: "You cannot override your own proposal" } } };
     }
     await tx
       .update(lorePendingEdits)
       .set({
-        status: "rejected",
+        status: deny ? "rejected" : "approved",
         decidedById: req.user!.id,
         decidedAt: new Date(),
-        decisionSummary: summary,
+        decisionSummary: note,
+        overriddenBy: req.user!.id,
       })
       .where(eq(lorePendingEdits.id, id));
     return { ok: { edit } };
@@ -506,29 +719,136 @@ router.post("/directory/lore/edits/:id/reject", requireAuth, async (req, res): P
   await recordAudit({
     req,
     category: "lore",
-    action: "lore_edit_reject",
+    action: deny ? "lore_override_reject" : "lore_override_approve",
     targetType: "lore_pending_edit",
     targetId: id,
-    message: `Rejected lore ${result.ok.edit.kind} proposal`,
+    message: `Admin override → ${deny ? "rejected" : "approved"} lore ${result.ok.edit.kind} proposal`,
   });
-  {
-    const rejectedDiff = (result.ok.edit.proposedDiff ?? {}) as z.infer<typeof entryUpdateSchema>;
-    let rejectedName: string | null = rejectedDiff.name ?? null;
-    if (!rejectedName && result.ok.edit.loreEntryId) {
-      const [e] = await db
-        .select({ name: loreEntries.name })
-        .from(loreEntries)
-        .where(eq(loreEntries.id, result.ok.edit.loreEntryId));
-      rejectedName = e?.name ?? null;
+  const shaped = await fetchEditWithTallies(id, req.user!, true);
+  res.json(shaped);
+});
+
+// Apply & close a resolved proposal. EXPORTED for routes/review.ts's generic
+// close dispatcher. Materializes the diff via applyProposal ONLY when the row
+// is approved and not yet applied (effects deferred to close, per the shared
+// pipeline), idempotent under FOR UPDATE + the appliedEntryId/status guards.
+// Rejected rows just archive (and DM the submitter). Re-closing is a no-op.
+export async function closeLore(req: Request, id: number, note?: string): Promise<ReviewActionResult> {
+  const u = req.user!;
+  const result = await db.transaction(async (tx) => {
+    const [edit] = await tx.select().from(lorePendingEdits).where(eq(lorePendingEdits.id, id)).for("update");
+    if (!edit) return { kind: "error" as const, status: 404, body: { error: "Proposal not found" } };
+    if (edit.status === "closed") return { kind: "noop" as const };
+    if (edit.status !== "approved" && edit.status !== "rejected") {
+      return { kind: "error" as const, status: 409, body: { error: `Only a resolved proposal can be closed (this one is ${edit.status})` } };
     }
-    await notifyFixerOfLoreDecision(result.ok.edit, "rejected", summary, rejectedName);
-  }
-  res.json({
-    ...result.ok.edit,
-    status: "rejected",
-    decidedAt: new Date().toISOString(),
-    createdAt: result.ok.edit.createdAt.toISOString(),
+    if (edit.status === "approved" && !edit.appliedEntryId) {
+      if (edit.kind === "edit" && edit.loreEntryId) {
+        const [exists] = await tx.select({ id: loreEntries.id }).from(loreEntries).where(eq(loreEntries.id, edit.loreEntryId));
+        if (!exists) return { kind: "error" as const, status: 400, body: { error: "Target entry no longer exists" } };
+      }
+      const entry = await applyProposal(tx, edit, u.id);
+      await tx
+        .update(lorePendingEdits)
+        .set({ status: "closed", closedAt: new Date(), closedBy: u.id, appliedEntryId: entry.id })
+        .where(eq(lorePendingEdits.id, id));
+      return { kind: "applied" as const, edit, entry };
+    }
+    await tx
+      .update(lorePendingEdits)
+      .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
+      .where(eq(lorePendingEdits.id, id));
+    return { kind: "archived" as const, edit };
   });
+
+  if (result.kind === "error") return { status: result.status, body: result.body };
+  if (result.kind === "noop") {
+    const shaped = await fetchEditWithTallies(id, u, true);
+    return { status: 200, body: shaped ?? { id, status: "closed" } };
+  }
+  if (result.kind === "applied") {
+    await recordAudit({
+      req,
+      category: "lore",
+      action: "lore_edit_apply",
+      targetType: "lore_pending_edit",
+      targetId: id,
+      message: `Applied & closed lore ${result.edit.kind}: ${result.entry.name}`,
+      after: { entryId: result.entry.id },
+    });
+    await notifyFixerOfLoreDecision(result.edit, "approved", note ?? result.edit.decisionSummary ?? null, result.entry.name);
+  } else {
+    await recordAudit({
+      req,
+      category: "lore",
+      action: "lore_edit_close",
+      targetType: "lore_pending_edit",
+      targetId: id,
+      message: `Closed lore ${result.edit.kind} proposal (${result.edit.status})${note ? ` — note: ${note}` : ""}`,
+    });
+    if (result.edit.status === "rejected") {
+      const rejectedDiff = (result.edit.proposedDiff ?? {}) as z.infer<typeof entryUpdateSchema>;
+      let rejectedName: string | null = rejectedDiff.name ?? null;
+      if (!rejectedName && result.edit.loreEntryId) {
+        const [e] = await db.select({ name: loreEntries.name }).from(loreEntries).where(eq(loreEntries.id, result.edit.loreEntryId));
+        rejectedName = e?.name ?? null;
+      }
+      await notifyFixerOfLoreDecision(result.edit, "rejected", note ?? result.edit.decisionSummary ?? null, rejectedName);
+    }
+  }
+  const shaped = await fetchEditWithTallies(id, u, true);
+  return { status: 200, body: shaped ?? { id, status: "closed" } };
+}
+
+// Reopen a resolved/archived proposal back to pending. EXPORTED for the generic
+// reopen dispatcher. Wipes the decision + close lifecycle but PRESERVES votes
+// (finalize-on-read re-evaluates them) and appliedEntryId (so a re-close won't
+// re-apply an already-materialized diff).
+export async function reopenLore(req: Request, id: number): Promise<ReviewActionResult> {
+  const result = await db.transaction(async (tx) => {
+    const [edit] = await tx.select().from(lorePendingEdits).where(eq(lorePendingEdits.id, id)).for("update");
+    if (!edit) return { error: { status: 404, body: { error: "Proposal not found" } } };
+    if (edit.status !== "approved" && edit.status !== "rejected" && edit.status !== "closed") {
+      return { error: { status: 409, body: { error: `Only a resolved or archived proposal can be reopened (this one is ${edit.status})` } } };
+    }
+    await tx
+      .update(lorePendingEdits)
+      .set({
+        status: "pending",
+        decidedById: null,
+        decidedAt: null,
+        decisionSummary: null,
+        overriddenBy: null,
+        closedAt: null,
+        closedBy: null,
+      })
+      .where(eq(lorePendingEdits.id, id));
+    return { ok: { edit } };
+  });
+
+  if (!("ok" in result) || !result.ok) {
+    const err = (result as { error: { status: number; body: { error: string } } }).error;
+    return { status: err.status, body: err.body };
+  }
+  await recordAudit({
+    req,
+    category: "lore",
+    action: "lore_edit_reopen",
+    targetType: "lore_pending_edit",
+    targetId: id,
+    message: `Reopened lore ${result.ok.edit.kind} proposal`,
+  });
+  const shaped = await fetchEditWithTallies(id, req.user!, true);
+  return { status: 200, body: shaped ?? { id, status: "pending" } };
+}
+
+// Legacy single-admin approve/reject — retired in favor of the shared
+// majority-vote pipeline (vote / override + apply at close via /review).
+router.post("/directory/lore/edits/:id/approve", requireAuth, (_req, res): void => {
+  res.status(410).json({ error: "Lore proposals now use the shared review pipeline. Vote or override, then apply & close." });
+});
+router.post("/directory/lore/edits/:id/reject", requireAuth, (_req, res): void => {
+  res.status(410).json({ error: "Lore proposals now use the shared review pipeline. Vote or override, then apply & close." });
 });
 
 // ---- Import pipeline (admin only) -----------------------------------------

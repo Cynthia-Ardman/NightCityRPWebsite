@@ -101,7 +101,7 @@ export function majorityOf(n: number): number {
 // Generic review_votes helpers (sheets + requests).
 // ---------------------------------------------------------------------------
 
-export type ReviewSubjectType = "sheet" | "request";
+export type ReviewSubjectType = "sheet" | "request" | "lore";
 
 // A response-shaped result returned by the per-type close/reopen handlers in
 // the route files and surfaced verbatim by the unified /review/:type/:id/close
@@ -303,7 +303,7 @@ export async function loadVotesBySubject(opts: {
 // every input id is present (defaulting to its baseAt) so callers never miss a
 // row. Bulk: one grouped comment query, no N+1.
 export async function loadLastActivityBySubject(
-  subjectType: "sheet" | "request" | "edit",
+  subjectType: "sheet" | "request" | "edit" | "lore",
   items: Array<{ id: number; baseAt: Date }>,
 ): Promise<Map<number, Date>> {
   const out = new Map<number, Date>(items.map((i) => [i.id, i.baseAt]));
