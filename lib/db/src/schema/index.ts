@@ -888,6 +888,11 @@ export const missions = pgTable("missions", {
   client: text("client"),
   // Player-facing notes shown on the mission brief.
   notesForPlayers: text("notes_for_players"),
+  // Fixer-only briefing text. Shown ONLY inside the Fixer tab on the mission
+  // detail page (full fixers/admins on any mission; trial fixers on their own
+  // approved/posted missions). Stripped from the API response for any viewer
+  // who cannot manage the mission, so it never reaches players.
+  fixerNotes: text("fixer_notes"),
   // Max player-characters that can be assigned (0 = unlimited). Distinct from
   // `slots` which is the legacy attendee count.
   maxPlayers: integer("max_players").notNull().default(0),

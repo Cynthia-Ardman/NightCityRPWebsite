@@ -33,6 +33,8 @@ export interface MissionCreateInput {
   requestedSkills?: string;
   client?: string;
   notesForPlayers?: string;
+  /** Fixer-only briefing text (visible only in the Fixer tab). */
+  fixerNotes?: string;
   /** @minimum 0 */
   maxPlayers?: number;
   assignments?: MissionAssignmentInput[];

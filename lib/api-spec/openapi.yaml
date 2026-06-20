@@ -8471,6 +8471,7 @@ components:
         notesForPlayers: { type: ["string", "null"] }
         maxPlayers: { type: integer }
         worldLink: { type: ["string", "null"], description: "Staff-only world/join link (null for players)." }
+        fixerNotes: { type: ["string", "null"], description: "Fixer-only briefing text. Only returned to viewers who can manage the mission (Fixer tab); null/omitted for players." }
         fixerId: { type: ["string", "null"] }
         fixerName: { type: ["string", "null"] }
         fixerAvatarUrl: { type: ["string", "null"] }
@@ -8800,6 +8801,7 @@ components:
         requestedSkills: { type: string }
         client: { type: string }
         notesForPlayers: { type: string }
+        fixerNotes: { type: string, description: "Fixer-only briefing text (visible only in the Fixer tab)." }
         maxPlayers: { type: integer, minimum: 0, default: 0 }
         assignments:
           type: array
@@ -8824,6 +8826,7 @@ components:
         requestedSkills: { type: ["string", "null"] }
         client: { type: ["string", "null"] }
         notesForPlayers: { type: ["string", "null"] }
+        fixerNotes: { type: ["string", "null"], description: "Fixer-only briefing text (visible only in the Fixer tab)." }
         maxPlayers: { type: integer, minimum: 0 }
         assignments:
           type: array

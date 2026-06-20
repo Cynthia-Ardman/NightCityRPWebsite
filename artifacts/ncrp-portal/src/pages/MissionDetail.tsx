@@ -1391,6 +1391,21 @@ function FixerView({ data }: { data: MissionDetailModel }) {
         </div>
       )}
 
+      {data.fixerNotes && (
+        <Card className="rounded-none border-nc-magenta/40 bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+              Fixer-Only Information <span className="text-nc-magenta normal-case">(staff only)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-mono text-sm text-foreground whitespace-pre-wrap" data-testid="text-mission-fixer-notes">
+              {data.fixerNotes}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <WorkflowPanel data={data} />
 
       <ApplicationsPanel data={data} />

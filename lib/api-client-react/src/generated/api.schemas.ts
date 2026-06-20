@@ -5212,6 +5212,11 @@ export interface MissionDetail {
      * @nullable
      */
   worldLink?: string | null;
+  /**
+     * Fixer-only briefing text. Only returned to viewers who can manage the mission (Fixer tab); null/omitted for players.
+     * @nullable
+     */
+  fixerNotes?: string | null;
   /** @nullable */
   fixerId?: string | null;
   /** @nullable */
@@ -5636,6 +5641,8 @@ export interface MissionCreateInput {
   requestedSkills?: string;
   client?: string;
   notesForPlayers?: string;
+  /** Fixer-only briefing text (visible only in the Fixer tab). */
+  fixerNotes?: string;
   /** @minimum 0 */
   maxPlayers?: number;
   assignments?: MissionAssignmentInput[];
@@ -5706,6 +5713,11 @@ export interface MissionUpdateInput {
   client?: string | null;
   /** @nullable */
   notesForPlayers?: string | null;
+  /**
+     * Fixer-only briefing text (visible only in the Fixer tab).
+     * @nullable
+     */
+  fixerNotes?: string | null;
   /** @minimum 0 */
   maxPlayers?: number;
   /** If present, replaces the full assignment set. */

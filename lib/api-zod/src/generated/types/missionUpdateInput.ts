@@ -41,6 +41,11 @@ export interface MissionUpdateInput {
   client?: string | null;
   /** @nullable */
   notesForPlayers?: string | null;
+  /**
+     * Fixer-only briefing text (visible only in the Fixer tab).
+     * @nullable
+     */
+  fixerNotes?: string | null;
   /** @minimum 0 */
   maxPlayers?: number;
   /** If present, replaces the full assignment set. */

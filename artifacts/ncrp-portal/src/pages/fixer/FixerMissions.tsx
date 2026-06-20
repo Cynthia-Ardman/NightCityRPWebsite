@@ -199,6 +199,7 @@ type FormValues = {
   requestedSkills: string;
   client: string;
   notesForPlayers: string;
+  fixerNotes: string;
   maxPlayers: number;
   assignments: AssignmentDraft[];
 };
@@ -219,6 +220,7 @@ const EMPTY: FormValues = {
   requestedSkills: "",
   client: "",
   notesForPlayers: "",
+  fixerNotes: "",
   maxPlayers: 0,
   assignments: [],
 };
@@ -251,6 +253,7 @@ function EditMissionForm({ missionId, onSaved }: { missionId: number; onSaved: (
     requestedSkills: data.requestedSkills ?? "",
     client: data.client ?? "",
     notesForPlayers: data.notesForPlayers ?? "",
+    fixerNotes: data.fixerNotes ?? "",
     maxPlayers: data.maxPlayers,
     assignments: data.assignments.map((a) => ({
       userId: a.userId,
@@ -391,6 +394,7 @@ function MissionForm({
       requestedSkills: v.requestedSkills || undefined,
       client: v.client || undefined,
       notesForPlayers: v.notesForPlayers || undefined,
+      fixerNotes: v.fixerNotes || undefined,
       maxPlayers: v.maxPlayers,
       assignments,
     };
@@ -661,6 +665,20 @@ function MissionForm({
               placeholder="https://vrchat.com/home/world/..."
               className="rounded-none"
               data-testid="input-mission-worldlink"
+            />
+          </div>
+
+          <div className="md:col-span-12">
+            <Label className="text-xs">
+              FIXER-ONLY INFORMATION <span className="text-nc-magenta">(staff only)</span>
+            </Label>
+            <Textarea
+              value={v.fixerNotes}
+              onChange={(e) => set("fixerNotes", e.target.value)}
+              rows={2}
+              className="rounded-none"
+              placeholder="Private briefing — visible only in the Fixer tab. Never shown to players."
+              data-testid="input-mission-fixernotes"
             />
           </div>
 

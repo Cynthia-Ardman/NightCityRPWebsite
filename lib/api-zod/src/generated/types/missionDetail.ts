@@ -48,6 +48,11 @@ export interface MissionDetail {
      * @nullable
      */
   worldLink?: string | null;
+  /**
+     * Fixer-only briefing text. Only returned to viewers who can manage the mission (Fixer tab); null/omitted for players.
+     * @nullable
+     */
+  fixerNotes?: string | null;
   /** @nullable */
   fixerId?: string | null;
   /** @nullable */

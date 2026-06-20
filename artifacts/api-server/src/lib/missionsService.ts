@@ -866,6 +866,10 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     // archivist approvers (who review non-posted missions), and to the trial
     // fixer who owns the mission (their own planning doc) — never to players.
     worldLink: canEdit || viewer.isArchivist ? m.worldLink : null,
+    // Fixer-only briefing text: gated on canManage so it appears only inside the
+    // Fixer tab (full fixers/admins on any mission; trial fixers on their own
+    // approved/posted missions) and is never sent to players over the API.
+    fixerNotes: canManage ? m.fixerNotes : null,
     fixerId: m.fixerId,
     fixerName: m.fixerName,
     fixerAvatarUrl: m.fixerAvatarUrl,

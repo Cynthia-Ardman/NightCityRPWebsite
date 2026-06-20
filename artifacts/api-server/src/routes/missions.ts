@@ -101,10 +101,12 @@ function jobTypeName(jt: string | null): string {
 // discordThreadId is set ONLY when the thread helper returns non-null (never
 // `threadId ?? msgId`). Fail-safe — a Discord miss never blocks mission
 // creation.
-// Role pinged when a new mission is announced to #fix-your-job-announcements so
-// players are notified the job is open. Pinging requires the role id in both the
-// message content (`<@&id>`) and allowed_mentions.roles.
-const CHOOM_ROLE_ID = "1348642753554288640";
+// Role pinged when a new mission's brief is posted to the fixer job proposals
+// channel. The mission discussion thread is a fixer-only planning space, so we
+// ping the Fixer role (not @Choom — that announcement happens separately when a
+// mission is posted for player sign-ups). Pinging requires the role id in both
+// the message content (`<@&id>`) and allowed_mentions.roles.
+const FIXER_ROLE_ID = "1348633945545379911";
 
 async function announceMissionThread(m: Mission, channelId: string): Promise<void> {
   if (!channelId) return;
@@ -135,7 +137,7 @@ async function announceMissionThread(m: Mission, channelId: string): Promise<voi
 
     const msgId = await postToChannel(
       channelId,
-      `<@&${CHOOM_ROLE_ID}> **New mission created — ${m.title}**`,
+      `<@&${FIXER_ROLE_ID}> **New mission created — ${m.title}**`,
       [
         {
           title: m.title,
@@ -144,7 +146,7 @@ async function announceMissionThread(m: Mission, channelId: string): Promise<voi
           ...(m.imageUrl ? { image: { url: m.imageUrl } } : {}),
         },
       ],
-      { roles: [CHOOM_ROLE_ID] },
+      { roles: [FIXER_ROLE_ID] },
     );
     if (msgId) {
       const threadId = await startThreadFromMessage(channelId, msgId, m.title);
@@ -444,6 +446,7 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
       requestedSkills: typeof b.requestedSkills === "string" && b.requestedSkills.trim() ? b.requestedSkills.trim() : null,
       client: typeof b.client === "string" && b.client.trim() ? b.client.trim() : null,
       notesForPlayers: typeof b.notesForPlayers === "string" && b.notesForPlayers.trim() ? b.notesForPlayers.trim() : null,
+      fixerNotes: typeof b.fixerNotes === "string" && b.fixerNotes.trim() ? b.fixerNotes.trim() : null,
       maxPlayers: Number.isFinite(Number(b.maxPlayers)) ? Math.max(0, Math.trunc(Number(b.maxPlayers))) : 0,
       fixerId: req.user!.id,
     })
@@ -928,6 +931,7 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
   if (b.requestedSkills !== undefined) set.requestedSkills = typeof b.requestedSkills === "string" && b.requestedSkills.trim() ? b.requestedSkills.trim() : null;
   if (b.client !== undefined) set.client = typeof b.client === "string" && b.client.trim() ? b.client.trim() : null;
   if (b.notesForPlayers !== undefined) set.notesForPlayers = typeof b.notesForPlayers === "string" && b.notesForPlayers.trim() ? b.notesForPlayers.trim() : null;
+  if (b.fixerNotes !== undefined) set.fixerNotes = typeof b.fixerNotes === "string" && b.fixerNotes.trim() ? b.fixerNotes.trim() : null;
   if (b.maxPlayers !== undefined) set.maxPlayers = Math.max(0, Math.trunc(Number(b.maxPlayers) || 0));
 
   // Reschedule resets the pre-mission NPC announcement so it re-fires for the
