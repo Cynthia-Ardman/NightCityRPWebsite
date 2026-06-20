@@ -35,7 +35,10 @@ async function seedEntry(overrides: Partial<typeof loreEntries.$inferInsert> = {
 }
 
 describe("GET /directory/lore/:id (fixer-only content gating)", () => {
-  it("hides fixerBody and sources from a non-staff player", async () => {
+  it("blocks a non-staff player while the lore section is locked down", async () => {
+    // The lore section is temporarily restricted to fixers/admins (see the
+    // lockdown guards in routes/lore.ts), so a non-staff caller is refused
+    // outright rather than served a redacted entry.
     const player = await createUser();
     const entry = await seedEntry();
 
@@ -43,14 +46,7 @@ describe("GET /directory/lore/:id (fixer-only content gating)", () => {
       .get(`/api/directory/lore/${entry.id}`)
       .set("x-test-user", player.id);
 
-    expect(res.status).toBe(200);
-    expect(res.body.publicBody).toBe("A megacorporation.");
-    // The sensitive fields must never reach a non-staff caller.
-    expect(res.body.fixerBody).toBeNull();
-    expect(res.body.sources).toEqual([]);
-    expect(res.body.canViewFixer).toBe(false);
-    // But the player can still SEE that restricted content exists.
-    expect(res.body.hasFixerContent).toBe(true);
+    expect(res.status).toBe(403);
   });
 
   it("returns full fixerBody and sources to a fixer", async () => {
