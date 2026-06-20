@@ -1129,7 +1129,18 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
     const blocked = ownerDecidedError(reqRow.type);
     if (blocked) return { error: blocked };
-    if (reqRow.status !== "pending") {
+    // Voting stays open on a still-staged decision (approved | rejected) as well
+    // as a pending ticket: under the deferred-effects model the effect isn't
+    // committed until close, so until then reviewers may add / remove / flip
+    // votes and the status is re-derived from the live tally. This makes "change
+    // my mind after it tipped" work without first reopening — and a removed vote
+    // can walk a decided ticket back to pending. Only closed / cancelled tickets
+    // are locked. (appliedRef is deliberately NOT blocked here: a reopened ticket
+    // is pending with appliedRef preserved, and re-voting it is the whole point
+    // of reopen; the second close is idempotent because appliedRef short-circuits
+    // re-materialization.)
+    const voteable = reqRow.status === "pending" || reqRow.status === "approved" || reqRow.status === "rejected";
+    if (!voteable) {
       return { error: { status: 409, body: { error: `Request already ${reqRow.status}` } } };
     }
     if (reqRow.requestedById === req.user!.id) {
@@ -1138,14 +1149,30 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
 
     await castReviewVote({ subjectType: "request", subjectId: rid, voterId: req.user!.id, vote, note, conn: tx });
     const tally = await tallyReviewVotes({ subjectType: "request", subjectId: rid, submitterId: reqRow.requestedById, conn: tx });
-    if (!tally.decided) return { ok: { decided: null as "approved" | "rejected" | null, reqRow, tally } };
+
+    if (!tally.decided) {
+      // The tally no longer reaches a majority (a vote was removed or flipped).
+      // If the ticket had already been decided, walk it back to pending and wipe
+      // the stale decision metadata — including any prior admin override — so it
+      // re-enters the queue cleanly. An already-pending ticket just stays pending.
+      if (reqRow.status !== "pending") {
+        await tx
+          .update(customRequests)
+          .set({ status: "pending", reviewedById: null, reviewedAt: null, reviewerNote: null, decisionParams: null, overriddenBy: null })
+          .where(eq(customRequests.id, rid));
+        return { ok: { decided: null as "approved" | "rejected" | null, reverted: true, reqRow, tally } };
+      }
+      return { ok: { decided: null as "approved" | "rejected" | null, reverted: false, reqRow, tally } };
+    }
 
     if (tally.decided === "rejected") {
+      // A fresh majority now drives the decision: clear any prior staged params /
+      // admin override so the ticket is attributed to the vote tally.
       await tx
         .update(customRequests)
-        .set({ status: "rejected", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note })
+        .set({ status: "rejected", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note, decisionParams: null, overriddenBy: null })
         .where(eq(customRequests.id, rid));
-      return { ok: { decided: "rejected" as const, reqRow, tally } };
+      return { ok: { decided: "rejected" as const, reverted: false, reqRow, tally } };
     }
 
     // Decided approve — STAGE the decision only. Under the deferred-effects
@@ -1153,13 +1180,14 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
     // is committed when a fixer closes the ticket. Mechanical params are entered
     // by the closer at CLOSE & APPLY, so decisionParams is normally null here;
     // a legacy details.approval (from before params moved to close) is still
-    // honored as a fallback so older staged tickets keep working.
+    // honored as a fallback so older staged tickets keep working. Clears any
+    // prior override so a vote-reached approval is attributed to the tally.
     const storedApproval = ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? null;
     await tx
       .update(customRequests)
-      .set({ status: "approved", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note, decisionParams: storedApproval as never })
+      .set({ status: "approved", reviewedById: req.user!.id, reviewedAt: new Date(), reviewerNote: note, decisionParams: storedApproval as never, overriddenBy: null })
       .where(eq(customRequests.id, rid));
-    return { ok: { decided: "approved" as const, reqRow, tally } };
+    return { ok: { decided: "approved" as const, reverted: false, reqRow, tally } };
   });
 
   if (!("ok" in txResult) || !txResult.ok) {
@@ -1205,6 +1233,17 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
     // No player DM here — the rejection is communicated at close (with an
     // optional staff message), so reaching the reject threshold no longer
     // instantly notifies the player. Staff can change votes / reopen first.
+  } else if (out.reverted) {
+    // A removed / flipped vote dropped a previously-decided ticket back below
+    // majority — record the walk-back for the audit trail.
+    await recordAudit({
+      req,
+      category: auditCategoryFor(out.reqRow.type),
+      action: "request_vote_reverted",
+      targetType: "custom_request",
+      targetId: rid,
+      message: `Vote change dropped ${out.reqRow.type} request below majority → back to pending: ${out.reqRow.title}`,
+    });
   }
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json({ ...shape(row), decided: out.decided, approveCount: out.tally.approveCount, rejectCount: out.tally.rejectCount, threshold: out.tally.threshold });
@@ -1228,10 +1267,16 @@ router.post("/requests/:id/override", requireAuth, async (req, res): Promise<voi
     if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
     const blocked = ownerDecidedError(reqRow.type);
     if (blocked) return { error: blocked };
-    // Allow re-overriding an already-approved (staged) request so an admin can
-    // correct the mechanical params before it is closed/applied. Block once the
-    // effect has been materialized (appliedRef set) or the ticket is terminal.
-    const editable = reqRow.status === "pending" || reqRow.status === "changes_requested" || reqRow.status === "approved";
+    // Allow overriding a staged decision in either direction (approved OR
+    // rejected) so an admin can flip or re-stage it before it is closed/applied
+    // — e.g. override-approve a vote-rejected ticket, or override-deny one the
+    // votes approved. Block once the effect has been materialized (appliedRef
+    // set) or the ticket is terminal (closed / cancelled).
+    const editable =
+      reqRow.status === "pending" ||
+      reqRow.status === "changes_requested" ||
+      reqRow.status === "approved" ||
+      reqRow.status === "rejected";
     if (!editable || reqRow.appliedRef) {
       return { error: { status: 409, body: { error: `Request already ${reqRow.appliedRef ? "applied" : reqRow.status}` } } };
     }
@@ -1400,11 +1445,14 @@ export async function reopenRequest(req: Request, id: number): Promise<ReviewAct
         details: det as never,
       })
       .where(eq(customRequests.id, id));
-    // Votes are deliberately PRESERVED across a reopen so reviewers don't have
-    // to re-cast the same decision. The "decided" markers are wiped above, so
-    // the next staff-queue read (finalize-on-read) re-evaluates the carried-over
-    // votes and auto-finalizes the ticket back to approved/rejected if they
-    // still meet the (possibly changed) threshold.
+    // Votes are CLEARED on reopen so the ticket returns to a genuinely fresh
+    // pending state. Preserving them made reopen a no-op: finalize-on-read would
+    // immediately re-tally the carried-over votes and auto-resolve the ticket
+    // right back to its prior decision. Reviewers who only want to tweak a
+    // decision (add / remove / flip a vote) can now do so directly on the
+    // still-staged approved/rejected ticket without reopening at all; reopen is
+    // the explicit "start the review over" reset.
+    await clearReviewVotes({ subjectType: "request", subjectId: id, conn: tx });
     return { ok: { reqRow } };
   });
   if ("error" in result && result.error) return result.error;

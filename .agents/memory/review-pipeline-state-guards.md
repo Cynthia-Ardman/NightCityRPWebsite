@@ -13,3 +13,11 @@ In the three review queues (character EDITS = pending_character_edits/pending_ed
 **Why:** a plain read-then-write lets a concurrent deciding vote/override slip in between the read and the write. Unconditional write would clobber an already-decided (approved/rejected) row back to changes_requested/pending, and a resubmit flipping approved→pending could let a later vote materialize the character/inventory a SECOND time.
 
 **How to apply:** any new transition handler on these subjects that isn't already holding `FOR UPDATE` must guard its UPDATE by the expected source status and surface 409 on a no-op. See request-review-race.md for the approve/reject-specific variant (lock + re-check).
+
+## Reopen must clear votes; staged decisions stay voteable (requests queue)
+
+**Rule (custom REQUESTS queue):** `reopenRequest` MUST `clearReviewVotes` inside its txn. The `/requests/:id/vote` guard allows `pending|approved|rejected` (NOT just pending) and re-derives status from the live tally every cast — a removed/flipped vote (castReviewVote is toggle: re-cast same vote = remove) walks a decided ticket back to `pending` (wipe reviewedBy/At/Note/decisionParams/overriddenBy + `request_vote_reverted` audit). `/requests/:id/override` `editable` includes `rejected` so admin can override-approve a vote-rejected staged ticket.
+
+**Why:** preserving votes on reopen made reopen a visible no-op — `finalizeDecidedRequestsInPlace` (finalize-on-read in GET /requests) re-tallied the carried-over votes and instantly re-decided the ticket. Under deferred-effects, approved/rejected are only STAGED (effect commits at close), so they must remain editable until close — reviewers shouldn't have to reopen just to change their minds.
+
+**How to apply:** do NOT block the vote path on `appliedRef` — a reopened-after-applied ticket is `pending` with `appliedRef` preserved, and re-voting it is the entire point of reopen (re-close is idempotent because close only materializes on `approved && !appliedRef`). The `review.ts` reopen dispatcher comment is per-queue: only the request queue clears votes; sheet/edit handlers manage their own vote lifecycle (sheets reopen still PRESERVES votes — leave it).

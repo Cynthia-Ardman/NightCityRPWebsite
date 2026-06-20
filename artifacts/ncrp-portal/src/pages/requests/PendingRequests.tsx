@@ -243,6 +243,11 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
     const isVoting = r.status === "pending" || r.status === "changes_requested";
     const isApproved = r.status === "approved";
     const isRejected = r.status === "rejected";
+    // A still-staged decision (approved / rejected, not yet closed/applied) is
+    // re-openable to voting: reviewers can add / remove / flip votes and admins
+    // can override-flip directly on the decided card. changes_requested is NOT
+    // voteable (mirrors the backend guard).
+    const canStillVote = r.status === "pending" || isApproved || isRejected;
     const tone: "default" | "approved" | "rejected" = isApproved
       ? "approved"
       : isRejected
@@ -261,7 +266,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
         subtitle={`${r.characterName} · by ${r.requestedByName || r.requestedById}`}
         date={r.createdAt}
         tone={tone}
-        showRoster={isReviewer && isVoting}
+        showRoster={isReviewer && (isVoting || isApproved || isRejected)}
         roster={{
           eligibleReviewers: r.eligibleReviewers ?? [],
           voters: (r.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
@@ -270,32 +275,35 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
         initiallyExpanded={r.id === focusId}
         awaitingVote={canVote && r.status === "pending" && !r.myVote}
         tally={
-          isVoting ? (
-            <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
-              <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
-              <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
-              {r.myVote ? (
-                <span className="ml-2">
-                  · you voted{" "}
-                  <span className={r.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
-                    {r.myVote.toUpperCase()}
+          isVoting || isApproved || isRejected ? (
+            <div className="space-y-1">
+              <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
+                <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
+                <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
+                {r.myVote ? (
+                  <span className="ml-2">
+                    · you voted{" "}
+                    <span className={r.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
+                      {r.myVote.toUpperCase()}
+                    </span>
                   </span>
-                </span>
+                ) : null}
+              </div>
+              {isApproved || isRejected ? (
+                <div className="font-mono text-xs" data-testid={`status-misc-${r.id}`}>
+                  <span className={isApproved ? "text-nc-green font-display tracking-widest" : "text-destructive font-display tracking-widest"}>
+                    {isApproved ? "APPROVED — AWAITING CLOSE & APPLY" : "REJECTED — AWAITING CLOSE & DENY"}
+                  </span>
+                  {r.reviewerNote ? <span className="block italic mt-0.5 text-muted-foreground">"{r.reviewerNote}"</span> : null}
+                </div>
               ) : null}
             </div>
-          ) : (
-            <div className="font-mono text-xs" data-testid={`status-misc-${r.id}`}>
-              <span className={isApproved ? "text-nc-green font-display tracking-widest" : "text-destructive font-display tracking-widest"}>
-                {isApproved ? "APPROVED — AWAITING CLOSE & APPLY" : "REJECTED — AWAITING CLOSE & DENY"}
-              </span>
-              {r.reviewerNote ? <span className="block italic mt-0.5 text-muted-foreground">"{r.reviewerNote}"</span> : null}
-            </div>
-          )
+          ) : null
         }
         actions={
           isReviewer ? (
             <div className="flex flex-wrap gap-2">
-              {isVoting && r.status === "pending" && (
+              {canStillVote && (
                 <>
                   {canVote && (
                     <>

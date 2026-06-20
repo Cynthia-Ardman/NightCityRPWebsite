@@ -184,7 +184,7 @@ describe("close/reopen authorization", () => {
     expect(reopen.status).toBe(403);
   });
 
-  it("reopens a CLOSED request to pending, preserves appliedRef, and re-closing never double-applies", async () => {
+  it("reopens a CLOSED request to a vote-less pending state, preserves appliedRef, and re-closing never double-applies", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
     const f2 = await createFixer();
@@ -214,23 +214,27 @@ describe("close/reopen authorization", () => {
     expect(reopen.body.status).toBe("pending");
 
     // appliedRef is preserved (effect not orphaned); closed/decision fields wiped;
-    // but the prior-round votes are PRESERVED so reviewers needn't re-vote.
+    // and the prior-round votes are CLEARED so reopen is a genuine fresh start —
+    // not instantly re-finalized by finalize-on-read.
     const [reopened] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
     expect(reopened.appliedRef).toBe(closedRow.appliedRef);
     expect(reopened.closedAt).toBeNull();
     expect(reopened.closedBy).toBeNull();
     expect(reopened.reviewedAt).toBeNull();
-    expect(await db.select().from(reviewVotes).where(eq(reviewVotes.subjectId, reqId))).toHaveLength(2);
+    expect(await db.select().from(reviewVotes).where(eq(reviewVotes.subjectId, reqId))).toHaveLength(0);
 
-    // No re-voting needed: a staff-queue read re-evaluates the carried-over
-    // votes (finalize-on-read) and auto-finalizes the ticket back to approved.
+    // With no carried-over votes, a staff-queue read (finalize-on-read) must
+    // leave the reopened ticket pending — reopen actually reopens it.
     const queue = await request(app).get("/api/requests").set("x-test-user", f1.id);
-    expect(queue.body.find((r: { id: number }) => r.id === reqId).status).toBe("approved");
-    const [reapproved] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
-    expect(reapproved.status).toBe("approved");
+    expect(queue.body.find((r: { id: number }) => r.id === reqId).status).toBe("pending");
+    const [stillPending] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(stillPending.status).toBe("pending");
 
-    // Because appliedRef is preserved, the second close only archives — it never
-    // materializes a second inventory item.
+    // Re-vote to a fresh approval, then re-close. Because appliedRef is
+    // preserved, the second close only archives — it never materializes a
+    // second inventory item.
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
     const reClose = await request(app)
       .post(`/api/review/request/${reqId}/close`)
       .set("x-test-user", f1.id)
@@ -238,6 +242,59 @@ describe("close/reopen authorization", () => {
     expect(reClose.status).toBe(200);
     expect(reClose.body.status).toBe("closed");
     expect(await db.select().from(inventoryItems)).toHaveLength(1);
+  });
+
+  it("removing a vote on an APPROVED (staged) request reverts it to pending and clears the decision", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const { reqId } = await submitGunRequest(owner.id);
+
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const decide = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    expect(decide.body.status).toBe("approved");
+
+    // Re-casting the same vote toggles it off; the tally now falls below the
+    // majority so the staged approval is walked back to pending.
+    const remove = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    expect(remove.status).toBe(200);
+    expect(remove.body.status).toBe("pending");
+    expect(remove.body.decided).toBeNull();
+
+    const [reverted] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(reverted.status).toBe("pending");
+    expect(reverted.reviewedAt).toBeNull();
+    expect(reverted.reviewedById).toBeNull();
+    expect(reverted.decisionParams).toBeNull();
+    expect(reverted.overriddenBy).toBeNull();
+    // No effect was ever materialized (effects are deferred to close).
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+  });
+
+  it("lets an admin override-approve a vote-rejected (staged) request", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    const admin = await createAdmin();
+    const { reqId } = await submitGunRequest(owner.id);
+
+    await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "reject" });
+    const decide = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "reject" });
+    expect(decide.body.status).toBe("rejected");
+
+    // Admin override flips the staged rejection to an approval without a reopen.
+    const override = await request(app)
+      .post(`/api/requests/${reqId}/override`)
+      .set("x-test-user", admin.id)
+      .send({ decision: "approve" });
+    expect(override.status).toBe(200);
+
+    const [flipped] = await db.select().from(customRequests).where(eq(customRequests.id, reqId));
+    expect(flipped.status).toBe("approved");
+    expect(flipped.overriddenBy).toBe(admin.id);
+    // Still staged — the effect is only committed at close.
+    expect(flipped.appliedRef).toBeNull();
+    expect(await db.select().from(inventoryItems)).toHaveLength(0);
   });
 });
 
