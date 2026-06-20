@@ -14,6 +14,7 @@ import {
   missionAssignments,
   missionActorPayments,
   attendanceClaims,
+  botMissionLog,
   stores,
   ripperdocs,
 } from "@workspace/db";
@@ -260,7 +261,7 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
   const charIds = chars.map((c) => c.id);
   const charNameById = new Map(chars.map((c) => [c.id, c.name]));
 
-  const [auditRows, activityRows, walletRows, missionRows, actorRows, attendRows, storeRows, ripperRows] = await Promise.all([
+  const [auditRows, activityRows, walletRows, missionRows, actorRows, attendRows, storeRows, ripperRows, missionLogRows] = await Promise.all([
     db
       .select({
         id: auditLog.id,
@@ -347,6 +348,7 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
       .limit(LIMIT),
     db.select().from(stores).where(eq(stores.ownerId, userId)).orderBy(desc(stores.createdAt)),
     db.select().from(ripperdocs).where(eq(ripperdocs.ownerId, userId)).orderBy(desc(ripperdocs.createdAt)),
+    db.select().from(botMissionLog).where(eq(botMissionLog.userId, userId)),
   ]);
 
   // Resolve counterparty venue names for wallet transactions that reference a
@@ -450,6 +452,17 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
     })),
     stores: storeRows.map((s) => ({ id: s.id, name: s.name, kind: s.kind, location: s.location, balance: s.balance, createdAt: s.createdAt.toISOString() })),
     ripperdocs: ripperRows.map((r) => ({ id: r.id, name: r.name, location: r.location, balance: r.balance, createdAt: r.createdAt.toISOString() })),
+    historicalAppearances: (() => {
+      const row = missionLogRows[0];
+      if (!row) return null;
+      const dates = Array.isArray(row.missionDates) ? (row.missionDates as string[]) : [];
+      return {
+        count: row.missionCount,
+        dates,
+        username: row.username ?? null,
+        updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+      };
+    })(),
   });
 });
 

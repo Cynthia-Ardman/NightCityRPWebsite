@@ -6820,7 +6820,13 @@ export const GetFixerPlayerActivityResponse = zod.object({
   "location": zod.string().nullish(),
   "balance": zod.number(),
   "createdAt": zod.coerce.date()
-}))
+})),
+  "historicalAppearances": zod.object({
+  "count": zod.number(),
+  "dates": zod.array(zod.string()),
+  "username": zod.string().nullish(),
+  "updatedAt": zod.coerce.date().nullish()
+}).nullish().describe('Imported historical mission attendance for this player from the community attendance sheet (appearance count + dates). Null when no imported record exists.')
 })
 
 

@@ -29,6 +29,18 @@ function fmt(ts: string | null | undefined): string {
   return ts ? new Date(ts).toLocaleString() : "—";
 }
 
+// Imported attendance dates are calendar dates ("YYYY-MM-DD") with no time.
+// Render them literally so a viewer's timezone can't shift the day.
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return "—";
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return d;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).toLocaleDateString(
+    undefined,
+    { timeZone: "UTC", year: "numeric", month: "short", day: "numeric" },
+  );
+}
+
 function eddies(n: number): string {
   const sign = n < 0 ? "-" : "+";
   return `${sign}€$${Math.abs(n).toLocaleString()}`;
@@ -320,6 +332,27 @@ export default function FixerPlayerLookup() {
                   </RowList>
                 )}
               </Section>
+
+              {/* Imported mission appearances (from the community attendance sheet) */}
+              {profile.historicalAppearances && (
+                <Section
+                  icon={<CalendarCheck className="w-4 h-4" />}
+                  title="MISSION APPEARANCES (IMPORTED)"
+                  count={profile.historicalAppearances.count}
+                >
+                  {profile.historicalAppearances.dates.length === 0 ? (
+                    <Empty>No imported appearance dates.</Empty>
+                  ) : (
+                    <RowList>
+                      {profile.historicalAppearances.dates.map((d, i) => (
+                        <Row key={`appearance-${i}`} testId={`row-appearance-${i}`} when={fmtDate(d)}>
+                          <span className="text-foreground">Mission appearance</span>
+                        </Row>
+                      ))}
+                    </RowList>
+                  )}
+                </Section>
+              )}
 
               {/* Wallet transactions */}
               <Section icon={<Coins className="w-4 h-4" />} title="WALLET TRANSACTIONS" count={profile.walletTransactions.length}>

@@ -414,6 +414,7 @@ export * from './playerActivityProfileActorPaymentsItem';
 export * from './playerActivityProfileAttendanceClaimsItem';
 export * from './playerActivityProfileAuditEntriesItem';
 export * from './playerActivityProfileCharactersItem';
+export * from './playerActivityProfileHistoricalAppearances';
 export * from './playerActivityProfileMissionsItem';
 export * from './playerActivityProfilePlayer';
 export * from './playerActivityProfileRipperdocsItem';

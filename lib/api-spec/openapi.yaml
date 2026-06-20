@@ -6597,6 +6597,20 @@ components:
               location: { type: [string, "null"] }
               balance: { type: integer }
               createdAt: { type: string, format: date-time }
+        historicalAppearances:
+          type: [object, "null"]
+          description: >-
+            Imported historical mission attendance for this player from the
+            community attendance sheet (appearance count + dates). Null when no
+            imported record exists.
+          required: [count, dates]
+          properties:
+            count: { type: integer }
+            dates:
+              type: array
+              items: { type: string }
+            username: { type: [string, "null"] }
+            updatedAt: { type: [string, "null"], format: date-time }
 
     InventoryItemInput:
       type: object

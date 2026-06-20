@@ -1967,6 +1967,19 @@ export type PlayerActivityProfileRipperdocsItem = {
   createdAt: string;
 };
 
+/**
+ * Imported historical mission attendance for this player from the community attendance sheet (appearance count + dates). Null when no imported record exists.
+ * @nullable
+ */
+export type PlayerActivityProfileHistoricalAppearances = {
+  count: number;
+  dates: string[];
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  updatedAt?: string | null;
+} | null;
+
 export interface PlayerActivityProfile {
   player: PlayerActivityProfilePlayer;
   characters: PlayerActivityProfileCharactersItem[];
@@ -1978,6 +1991,11 @@ export interface PlayerActivityProfile {
   attendanceClaims: PlayerActivityProfileAttendanceClaimsItem[];
   stores: PlayerActivityProfileStoresItem[];
   ripperdocs: PlayerActivityProfileRipperdocsItem[];
+  /**
+     * Imported historical mission attendance for this player from the community attendance sheet (appearance count + dates). Null when no imported record exists.
+     * @nullable
+     */
+  historicalAppearances?: PlayerActivityProfileHistoricalAppearances;
 }
 
 export interface InventoryItemInput {

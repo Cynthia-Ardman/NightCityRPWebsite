@@ -10,6 +10,7 @@ import type { PlayerActivityProfileActorPaymentsItem } from './playerActivityPro
 import type { PlayerActivityProfileAttendanceClaimsItem } from './playerActivityProfileAttendanceClaimsItem';
 import type { PlayerActivityProfileAuditEntriesItem } from './playerActivityProfileAuditEntriesItem';
 import type { PlayerActivityProfileCharactersItem } from './playerActivityProfileCharactersItem';
+import type { PlayerActivityProfileHistoricalAppearances } from './playerActivityProfileHistoricalAppearances';
 import type { PlayerActivityProfileMissionsItem } from './playerActivityProfileMissionsItem';
 import type { PlayerActivityProfilePlayer } from './playerActivityProfilePlayer';
 import type { PlayerActivityProfileRipperdocsItem } from './playerActivityProfileRipperdocsItem';
@@ -27,4 +28,9 @@ export interface PlayerActivityProfile {
   attendanceClaims: PlayerActivityProfileAttendanceClaimsItem[];
   stores: PlayerActivityProfileStoresItem[];
   ripperdocs: PlayerActivityProfileRipperdocsItem[];
+  /**
+     * Imported historical mission attendance for this player from the community attendance sheet (appearance count + dates). Null when no imported record exists.
+     * @nullable
+     */
+  historicalAppearances?: PlayerActivityProfileHistoricalAppearances;
 }
