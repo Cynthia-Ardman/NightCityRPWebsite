@@ -43,3 +43,9 @@ post-mutation label-lookup failure can never 500 the action that already committ
 PATCH /missions/:id builds a single combined thread message (status open↔pending =
 close/reopen, cancelled, reschedule, plus a collapsed "Updated: <fields>" line);
 posts nothing when no diff. complete/uncomplete post a single line each.
+
+**Reschedule is thread-only — NO DM fan-out.** Once the mission thread exists, the
+thread post IS the notification channel for lifecycle updates; do NOT also DM every
+participant about a reschedule (that was redundant and confused players). The old
+notifyMissionReschedule DM helper was removed. If you add a new lifecycle event,
+post it to the thread, don't reach for per-participant DMs.
