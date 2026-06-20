@@ -153,6 +153,14 @@ export default function CharacterDetail() {
 // "/missions/owned" board so a moderator sees the target character's missions.
 const CHAR_TAB_VALUES = ["profile", "property", "inventory", "cyberware", "missions", "breach"] as const;
 
+// Cyberware (whether currently installed, category "cyberware", or removed,
+// category "cyberware (removed)") is managed through the ripperdoc flow — it's
+// never "equipped" like a gun or a gadget, so it shows a "via ripperdoc" label
+// instead of an equip toggle. Match on the prefix so both variants count.
+function isCyberwareCategory(category?: string | null): boolean {
+  return (category ?? "").trim().toLowerCase().startsWith("cyberware");
+}
+
 function readCharTabFromHash(): string {
   if (typeof window === "undefined") return "profile";
   const h = window.location.hash.replace(/^#/, "");
@@ -1148,7 +1156,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
                   <span className="col-span-2 text-nc-cyan uppercase truncate">{it.category ?? "—"}</span>
                   <span className="col-span-1 text-right">x{it.quantity}</span>
                   <span className="col-span-2 truncate text-muted-foreground">{stripImportSentinel(it.notes)}</span>
-                  {(it.category ?? "").trim().toLowerCase() === "cyberware" ? (
+                  {isCyberwareCategory(it.category) ? (
                     <span
                       className="col-span-1 text-[10px] leading-tight text-muted-foreground"
                       title="Cyberware is installed or removed by a ripperdoc."
