@@ -1293,6 +1293,103 @@ export async function startThreadFromMessage(
   return data.id;
 }
 
+/** Discord channel type for a forum channel (GUILD_FORUM). */
+export const FORUM_CHANNEL_TYPE = 15;
+
+interface ChannelMeta {
+  type: number;
+  /** Forum post tags (empty for non-forum channels). */
+  tags: { id: string; name: string }[];
+  fetchedAt: number;
+}
+
+const CHANNEL_META_TTL_MS = 10 * 60 * 1000;
+const channelMetaCache = new Map<string, ChannelMeta>();
+
+/**
+ * Look up a channel's type (and forum tags, if any), cached for a few minutes.
+ * This is a READ, so it is NOT gated by externalWritesAllowed() — callers need
+ * the type even in dev to decide HOW to create a thread (forum channels can't
+ * take a plain message + thread-off-message; they need the forum thread API).
+ * Returns null on no-token / fetch failure so callers can fall back.
+ */
+export async function getChannelMeta(channelId: string): Promise<ChannelMeta | null> {
+  if (!DISCORD_BOT_TOKEN || !channelId) return null;
+  const cached = channelMetaCache.get(channelId);
+  if (cached && Date.now() - cached.fetchedAt < CHANNEL_META_TTL_MS) return cached;
+  try {
+    const res = await fetch(`${API}/channels/${channelId}`, {
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status, channelId }, "Discord channel lookup failed");
+      return null;
+    }
+    const c = (await res.json()) as { type: number; available_tags?: { id: string; name: string }[] };
+    const meta: ChannelMeta = {
+      type: c.type,
+      tags: (c.available_tags ?? []).map((t) => ({ id: t.id, name: t.name })),
+      fetchedAt: Date.now(),
+    };
+    channelMetaCache.set(channelId, meta);
+    return meta;
+  } catch (err) {
+    logger.warn({ err, channelId }, "Discord channel lookup threw");
+    return null;
+  }
+}
+
+/**
+ * Create a forum thread (a forum "post") in a GUILD_FORUM channel. Unlike a text
+ * channel, a forum channel has no top-level messages — the post body is the
+ * thread's STARTER message, sent in the same call. Returns the new thread id (==
+ * the starter message id), or null on any failure / suppressed write.
+ *
+ * `appliedTags` is required when the forum has "require tag" enabled, so callers
+ * should always pass at least one tag id for such forums.
+ */
+export async function createForumThread(
+  channelId: string,
+  name: string,
+  content: string,
+  embeds?: unknown[],
+  opts?: { allowedMentions?: unknown; appliedTags?: string[] },
+): Promise<string | null> {
+  if (!DISCORD_BOT_TOKEN) {
+    logger.warn("No bot token; cannot create Discord forum thread");
+    return null;
+  }
+  if (!externalWritesAllowed()) {
+    logger.info({ channelId }, "Discord write suppressed (non-deployment env); skipping forum thread create");
+    return null;
+  }
+  const res = await fetch(`${API}/channels/${channelId}/threads`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: name.slice(0, 100),
+      auto_archive_duration: 10080,
+      ...(opts?.appliedTags?.length ? { applied_tags: opts.appliedTags } : {}),
+      message: {
+        content,
+        embeds,
+        ...(opts?.allowedMentions !== undefined ? { allowed_mentions: opts.allowedMentions } : {}),
+      },
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) {
+    logger.warn({ status: res.status, body: await res.text(), channelId }, "Discord forum thread create failed");
+    return null;
+  }
+  const data = (await res.json()) as { id: string };
+  return data.id;
+}
+
 /** A single Discord message rendered in the read-only ticket thread panel. */
 export interface DiscordThreadMessage {
   id: string;

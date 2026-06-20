@@ -21,6 +21,9 @@ import { recordSettledWalletMovement } from "./economy";
 import {
   postToChannel,
   startThreadFromMessage,
+  getChannelMeta,
+  createForumThread,
+  FORUM_CHANNEL_TYPE,
   sendDirectMessage,
   createGuildScheduledEvent,
   modifyGuildScheduledEvent,
@@ -2278,6 +2281,33 @@ export async function ensureMissionThread(
 ): Promise<{ created: boolean; threadId: string | null }> {
   if (!channelId) return { created: false, threadId: m.discordThreadId ?? null };
   if (m.discordThreadId) return { created: false, threadId: m.discordThreadId };
+
+  // The mission thread channel (#fixer-job-proposals) is a Discord FORUM
+  // channel, which has no top-level messages — you can't post a brief then
+  // thread off it. A forum "post" IS a thread whose body is sent in the same
+  // create call, and the forum requires a tag. Detect the channel type so this
+  // works whether an admin points the config at a forum OR a text channel.
+  const meta = await getChannelMeta(channelId);
+  if (meta?.type === FORUM_CHANNEL_TYPE) {
+    const brief = buildMissionBrief(m);
+    const tagId = pickMissionForumTagId(meta.tags, m);
+    const threadId = await createForumThread(channelId, m.title, brief.content, brief.embeds, {
+      allowedMentions: { roles: [FIXER_ROLE_ID] },
+      appliedTags: tagId ? [tagId] : undefined,
+    });
+    // null = no token, suppressed write (non-deployment), or a create failure
+    // (e.g. missing required tag). Leave the row unlinked so a later run retries.
+    if (!threadId) return { created: false, threadId: null };
+    // For a forum thread the starter message id equals the thread id, so both
+    // columns point at it (lifecycle updates post into the thread by id).
+    await db
+      .update(missions)
+      .set({ discordThreadId: threadId, discordMessageId: threadId })
+      .where(eq(missions.id, m.id));
+    return { created: true, threadId };
+  }
+
+  // Text / announcement channel: post the brief, then start a thread off it.
   let msgId = m.discordMessageId ?? null;
   if (!msgId) {
     const brief = buildMissionBrief(m);
@@ -2291,6 +2321,20 @@ export async function ensureMissionThread(
   if (!threadId) return { created: false, threadId: null };
   await db.update(missions).set({ discordThreadId: threadId }).where(eq(missions.id, m.id));
   return { created: true, threadId };
+}
+
+/**
+ * Pick the forum tag for a mission's thread. The #fixer-job-proposals forum has
+ * "require tag" on, so a thread create with no tag is rejected — we always
+ * return a tag id when the forum has any tags. A posted (live) mission maps to
+ * the "Approved" tag; anything earlier (draft/proposal) maps to "WIP". Falls
+ * back to the first available tag so a renamed/missing tag never blocks creation.
+ */
+function pickMissionForumTagId(tags: { id: string; name: string }[], m: Mission): string | undefined {
+  if (tags.length === 0) return undefined;
+  const byName = (n: string) => tags.find((t) => t.name.toLowerCase() === n.toLowerCase())?.id;
+  const wanted = m.workflowState === "posted" ? byName("Approved") : byName("WIP");
+  return wanted ?? tags[0].id;
 }
 
 /**
