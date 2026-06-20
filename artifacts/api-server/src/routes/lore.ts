@@ -153,6 +153,12 @@ async function notifyFixerOfLoreDecision(
 
 // List entries. Any signed-in user; optional category + free-text filter.
 router.get("/directory/lore", requireAuth, async (req, res): Promise<void> => {
+  // Temporary lockdown: the lore section is being cleaned up before it can be
+  // made public, so restrict the entire section to fixers/admins for now.
+  if (!isFixerOrAdmin(req.user!)) {
+    res.status(403).json({ error: "Requires fixer or admin role" });
+    return;
+  }
   const category = req.query.category ? String(req.query.category) : null;
   const q = req.query.q ? String(req.query.q).trim() : "";
   const clauses = [];
@@ -805,6 +811,11 @@ router.post("/directory/lore/import/drafts/:id/discard", requireAuth, async (req
 // ---- Detail + admin mutations (param routes last) --------------------------
 
 router.get("/directory/lore/:id", requireAuth, async (req, res): Promise<void> => {
+  // Temporary lockdown: lore section is fixer/admin-only until cleanup is done.
+  if (!isFixerOrAdmin(req.user!)) {
+    res.status(403).json({ error: "Requires fixer or admin role" });
+    return;
+  }
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isFinite(id)) {
     res.status(404).json({ error: "Not found" });
