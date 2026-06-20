@@ -61,8 +61,8 @@ export const GUN_RESTRICTION_INFO: Record<string, MechanicEntry> = {
 // Power-level color codes from the spreadsheet. Power guns and Tech/Smart guns
 // use different palettes for the same Low/Medium/High tiers.
 export const GUN_POWER_COLORS = {
-  power: { L: "#FFFFFF", M: "#FF9900", H: "#FF0000" },
-  techSmart: { L: "#01FFFF", M: "#0000FF", H: "#9900FF" },
+  power: { L: "#FFFF00", M: "#FF6400", H: "#FF0000" },
+  techSmart: { L: "#00FFFF", M: "#0000FF", H: "#9900FF" },
 } as const;
 
 // Caliber examples grouped by power tier (examples, not exhaustive).

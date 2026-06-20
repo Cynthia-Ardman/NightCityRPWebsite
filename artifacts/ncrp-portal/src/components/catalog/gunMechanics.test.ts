@@ -39,6 +39,15 @@ describe("gunMechanics resolvers", () => {
     expect(restrictionInfo("Forbidden")).toBeNull();
   });
 
+  it("pins the in-game power-tier hex codes to the reference values", () => {
+    expect(GUN_POWER_COLORS.power.L).toBe("#FFFF00");
+    expect(GUN_POWER_COLORS.power.M).toBe("#FF6400");
+    expect(GUN_POWER_COLORS.power.H).toBe("#FF0000");
+    expect(GUN_POWER_COLORS.techSmart.L).toBe("#00FFFF");
+    expect(GUN_POWER_COLORS.techSmart.M).toBe("#0000FF");
+    expect(GUN_POWER_COLORS.techSmart.H).toBe("#9900FF");
+  });
+
   it("tints the power swatch by category family", () => {
     expect(powerColor("Power", "H")).toBe(GUN_POWER_COLORS.power.H);
     expect(powerColor("Power", "low")).toBe(GUN_POWER_COLORS.power.L);
