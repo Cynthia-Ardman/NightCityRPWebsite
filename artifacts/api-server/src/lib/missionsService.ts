@@ -1182,7 +1182,10 @@ export async function listApplicantOutcomes(userId: string, limit = 20) {
 }
 
 export type ApplyResult =
-  | { ok: true }
+  // `isEdit` distinguishes a brand-new sign-up (false/undefined) from an
+  // in-place edit of an existing one (true) so callers can decide whether to
+  // announce it (e.g. mission-thread updates post only on genuinely new ones).
+  | { ok: true; isEdit?: boolean }
   | { ok: false; error: string; httpStatus: number };
 
 /** Player applies to a posted mission with one of their own characters. */
@@ -1268,7 +1271,7 @@ export async function applyToMission(opts: {
       })
       .where(eq(users.id, opts.userId));
   }
-  return { ok: true };
+  return { ok: true, isEdit: isActiveEdit };
 }
 
 /** Dedupe + sort UTC ISO availability instants; drop invalid entries. */
@@ -1626,7 +1629,9 @@ export async function signUpAsNpc(opts: {
         ),
       );
   }
-  return { ok: true };
+  // isEdit=true when no new row was inserted (idempotent re-signup / character
+  // swap) so callers don't re-announce an existing sign-up.
+  return { ok: true, isEdit: inserted.length === 0 };
 }
 
 /** Player withdraws their own active (not-yet-confirmed) NPC sign-up. */

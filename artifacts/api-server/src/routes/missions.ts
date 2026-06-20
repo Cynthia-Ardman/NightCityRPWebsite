@@ -4,6 +4,7 @@ import {
   db,
   missions,
   missionAssignments,
+  missionApplications,
   characters,
   users,
   botConfig,
@@ -158,6 +159,61 @@ async function announceMissionThread(m: Mission, channelId: string): Promise<voi
   } catch (err) {
     logger.warn({ err, missionId: m.id }, "announceMissionThread failed");
   }
+}
+
+// Post a follow-up message into a mission's existing discussion thread (the one
+// started by announceMissionThread off the fixer job-proposal brief). No-ops
+// silently when the mission has no thread linked, when Discord writes are
+// suppressed (postToChannel is deployment-gated), or on any error — a delivery
+// miss must never block the mission action that triggered it. allowed_mentions
+// is forced empty so character names / handles in the text can never ping.
+async function postMissionThreadUpdate(missionId: number, content: string): Promise<void> {
+  try {
+    const [m] = await db
+      .select({ discordThreadId: missions.discordThreadId })
+      .from(missions)
+      .where(eq(missions.id, missionId));
+    if (!m?.discordThreadId) return;
+    await postToChannel(m.discordThreadId, content, undefined, { parse: [] });
+  } catch (err) {
+    logger.warn({ err, missionId }, "postMissionThreadUpdate failed");
+  }
+}
+
+// Human-readable label for a mission participant used in thread updates, e.g.
+// "**Choomba** (Vik Vector)" or just "**Choomba**" when no character is known.
+async function missionMemberLabel(userId: string, characterId: number | null): Promise<string> {
+  let charName: string | null = null;
+  if (characterId != null) {
+    const [c] = await db
+      .select({ name: characters.name })
+      .from(characters)
+      .where(eq(characters.id, characterId));
+    charName = c?.name ?? null;
+  }
+  const [u] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId));
+  const uname = u?.username ?? "Someone";
+  return charName ? `**${uname}** (${charName})` : `**${uname}**`;
+}
+
+// Fire-and-forget member-scoped thread update. Resolves the participant label
+// (extra DB reads) and posts, all inside its own try/catch, so a label-lookup
+// miss can never bubble into — and 500 — the HTTP request that triggered it.
+// Callers invoke this synchronously (no await): the work runs detached.
+function postMissionMemberThreadUpdate(
+  missionId: number,
+  userId: string,
+  characterId: number | null,
+  makeText: (label: string) => string,
+): void {
+  void (async () => {
+    try {
+      const label = await missionMemberLabel(userId, characterId);
+      await postMissionThreadUpdate(missionId, makeText(label));
+    } catch (err) {
+      logger.warn({ err, missionId }, "postMissionMemberThreadUpdate failed");
+    }
+  })();
 }
 
 function isManager(req: Request): boolean {
@@ -985,6 +1041,54 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
     void notifyMissionReschedule(after);
   }
 
+  // Summarize the edit into the mission thread. Status transitions and a
+  // reschedule get friendly dedicated lines; remaining content edits collapse
+  // into a single "Updated: <fields>" line. Nothing changed → nothing posted.
+  const changeLines: string[] = [];
+  if (set.status !== undefined && set.status !== before.status) {
+    if (set.status === "pending" && before.status === "open") {
+      changeLines.push("🔒 PC applications closed (NPC sign-ups remain open).");
+    } else if (set.status === "open" && before.status === "pending") {
+      changeLines.push("🔓 PC applications reopened.");
+    } else if (set.status === "cancelled") {
+      changeLines.push("❌ Mission cancelled.");
+    } else {
+      changeLines.push(`Status changed to **${set.status}**.`);
+    }
+  }
+  if (rescheduled) {
+    const u = after.startAt ? Math.floor(after.startAt.getTime() / 1000) : null;
+    changeLines.push(u ? `🗓️ Rescheduled to <t:${u}:F>.` : "🗓️ Start time cleared.");
+  }
+  const FIELD_LABELS: Record<string, string> = {
+    title: "title",
+    tier: "tier",
+    playerPay: "player pay",
+    npcPayAmount: "NPC pay",
+    location: "location",
+    description: "description",
+    imageUrl: "image",
+    durationMinutes: "duration",
+    slots: "slots",
+    worldLink: "world link",
+    jobType: "job type",
+    requestedSkills: "requested skills",
+    client: "client",
+    notesForPlayers: "notes for players",
+    fixerNotes: "fixer notes",
+    maxPlayers: "max players",
+  };
+  const editedFields = Object.keys(set)
+    .filter((k) => k in FIELD_LABELS)
+    .map((k) => FIELD_LABELS[k]);
+  if (editedFields.length > 0) changeLines.push(`✏️ Updated: ${editedFields.join(", ")}.`);
+  if (changeLines.length > 0) {
+    void postMissionThreadUpdate(
+      id,
+      `**${after.title}** — edited by **${req.user!.username}**\n${changeLines.join("\n")}`,
+    );
+  }
+
   const detail = await getMissionDetail(id, viewerOf(req));
   res.json(detail);
 });
@@ -1061,6 +1165,7 @@ router.post("/missions/:id/complete", requireAuth, async (req, res): Promise<voi
     res.status(result.httpStatus).json({ error: result.error });
     return;
   }
+  void postMissionThreadUpdate(id, `🏁 Mission marked complete by **${req.user!.username}**.`);
   res.json(await getMissionDetail(id, viewerOf(req)));
 });
 
@@ -1073,6 +1178,7 @@ router.post("/missions/:id/uncomplete", requireAuth, async (req, res): Promise<v
     res.status(result.httpStatus).json({ error: result.error });
     return;
   }
+  void postMissionThreadUpdate(id, `↩️ Mission reopened (marked not complete) by **${req.user!.username}**.`);
   res.json(await getMissionDetail(id, viewerOf(req)));
 });
 
@@ -1156,6 +1262,16 @@ router.post("/missions/:id/applications", requireAuth, async (req, res): Promise
     res.status(result.httpStatus).json({ error: result.error });
     return;
   }
+  // Announce genuinely new sign-ups in the mission thread (skip availability
+  // edits to an existing application to keep the thread quiet).
+  if (!result.isEdit) {
+    postMissionMemberThreadUpdate(
+      id,
+      req.user!.id,
+      characterId,
+      (label) => `📝 ${label} signed up for this mission.`,
+    );
+  }
   res.json(await getMissionDetail(id, viewerOf(req)));
 });
 
@@ -1196,6 +1312,18 @@ router.post("/missions/:id/applications/:appId/review", requireAuth, async (req,
     res.status(400).json({ error: "action must be 'accept' or 'reject'" });
     return;
   }
+  // Snapshot the application BEFORE the review so we only announce a genuine
+  // pending→accepted transition (reviewApplication is idempotent, so a repeat
+  // accept must not re-post). Reading before the mutation is side-effect-free —
+  // a failure here just 4xx/5xxs with nothing committed.
+  const [appBefore] = await db
+    .select({
+      status: missionApplications.status,
+      userId: missionApplications.userId,
+      characterId: missionApplications.characterId,
+    })
+    .from(missionApplications)
+    .where(eq(missionApplications.id, appId));
   const result = await reviewApplication({
     missionId: id,
     applicationId: appId,
@@ -1206,6 +1334,14 @@ router.post("/missions/:id/applications/:appId/review", requireAuth, async (req,
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
     return;
+  }
+  if (action === "accept" && appBefore && appBefore.status !== "accepted") {
+    postMissionMemberThreadUpdate(
+      id,
+      appBefore.userId,
+      appBefore.characterId,
+      (label) => `✅ ${label} was accepted onto the roster.`,
+    );
   }
   res.json(await getMissionDetail(id, viewerOf(req)));
 });
@@ -1253,6 +1389,14 @@ router.post("/missions/:id/npc-signups", requireAuth, async (req, res): Promise<
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
     return;
+  }
+  if (!result.isEdit) {
+    postMissionMemberThreadUpdate(
+      id,
+      req.user!.id,
+      characterId,
+      (label) => `🎭 ${label} signed up as an NPC.`,
+    );
   }
   res.json(await getMissionDetail(id, viewerOf(req)));
 });
