@@ -11,7 +11,7 @@ import {
   customRequests,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, sendDirectMessage, searchGuildMembers, postToChannel, startThreadFromMessage } from "../lib/discord";
+import { hasRole, sendDirectMessage, searchGuildMembers, postToChannel } from "../lib/discord";
 import { getMissionContext, MISSION_CONFIG_KEYS } from "../lib/missionsConfig";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -49,13 +49,12 @@ import {
   removeAssignedPlayer,
   listApplicantOutcomes,
   checkDiscordEventConflict,
-  buildMissionUrl,
+  announceMissionThread,
   getMissionManageAuth,
   viewerHasManageableMission,
   notifyMissionReschedule,
   type MissionViewer,
 } from "../lib/missionsService";
-import type { Mission } from "@workspace/db";
 import { convertEventToMission } from "../lib/eventsService";
 
 const router: IRouter = Router();
@@ -80,86 +79,10 @@ function canApprove(req: Request): boolean {
   return hasRole(roles, "ADMIN") || hasRole(roles, "ARCHIVIST");
 }
 
-const TIER_NAMES: Record<number, string> = {
-  1: "Street Work",
-  2: "Contract Work",
-  3: "High Risk Operation",
-  4: "Extreme",
-};
-
-function jobTypeName(jt: string | null): string {
-  if (jt === "combat") return "Combat";
-  if (jt === "non_combat") return "Non-Combat";
-  if (jt === "mixed") return "Mixed";
-  return jt ?? "—";
-}
-
-// Post the full mission brief to the #missions discussion channel and start a
-// per-mission thread off it, then persist the linkage on the row. Mirrors the
-// edit/request/sheet thread pattern: deployment-gated (postToChannel /
-// startThreadFromMessage no-op outside deployments), the message id is always
-// persisted on a successful post so a later backfill can recover, and
-// discordThreadId is set ONLY when the thread helper returns non-null (never
-// `threadId ?? msgId`). Fail-safe — a Discord miss never blocks mission
-// creation.
-// Role pinged when a new mission's brief is posted to the fixer job proposals
-// channel. The mission discussion thread is a fixer-only planning space, so we
-// ping the Fixer role (not @Choom — that announcement happens separately when a
-// mission is posted for player sign-ups). Pinging requires the role id in both
-// the message content (`<@&id>`) and allowed_mentions.roles.
-const FIXER_ROLE_ID = "1348633945545379911";
-
-async function announceMissionThread(m: Mission, channelId: string): Promise<void> {
-  if (!channelId) return;
-  try {
-    const startUnix = m.startAt ? Math.floor(m.startAt.getTime() / 1000) : null;
-    const fields: Array<{ name: string; value: string; inline?: boolean }> = [
-      { name: "Tier", value: `${m.tier} — ${TIER_NAMES[m.tier] ?? "Unknown"}`, inline: true },
-      { name: "Job Type", value: jobTypeName(m.jobType), inline: true },
-      { name: "Client", value: m.client || "—", inline: true },
-      { name: "Location", value: m.location || "—", inline: true },
-      {
-        name: "Start / Duration",
-        value: `${startUnix ? `<t:${startUnix}:F>` : "Not scheduled"} · ${m.durationMinutes}m`,
-        inline: true,
-      },
-      { name: "Player Pay", value: `€$${m.playerPay.toLocaleString()}`, inline: true },
-      { name: "NPC Pay", value: `€$${m.npcPayAmount.toLocaleString()}`, inline: true },
-      {
-        name: "Slots / Max Players",
-        value: `${m.slots || "—"} slots · ${m.maxPlayers > 0 ? `${m.maxPlayers} max` : "unlimited"}`,
-        inline: true,
-      },
-      { name: "Requested Skills", value: m.requestedSkills || "—", inline: false },
-    ];
-    if (m.worldLink) fields.push({ name: "World Link", value: m.worldLink, inline: false });
-    if (m.notesForPlayers) fields.push({ name: "Notes for Players", value: m.notesForPlayers.slice(0, 1024), inline: false });
-    fields.push({ name: "Mission", value: buildMissionUrl(m.id), inline: false });
-
-    const msgId = await postToChannel(
-      channelId,
-      `<@&${FIXER_ROLE_ID}> **New mission created — ${m.title}**`,
-      [
-        {
-          title: m.title,
-          description: m.description ? m.description.slice(0, 4096) : undefined,
-          fields,
-          ...(m.imageUrl ? { image: { url: m.imageUrl } } : {}),
-        },
-      ],
-      { roles: [FIXER_ROLE_ID] },
-    );
-    if (msgId) {
-      const threadId = await startThreadFromMessage(channelId, msgId, m.title);
-      await db
-        .update(missions)
-        .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
-        .where(eq(missions.id, m.id));
-    }
-  } catch (err) {
-    logger.warn({ err, missionId: m.id }, "announceMissionThread failed");
-  }
-}
+// The mission brief post + discussion-thread creation now lives in
+// missionsService (announceMissionThread / ensureMissionThread) so both the
+// create path here and the thread backfill share one idempotent
+// implementation.
 
 // Post a follow-up message into a mission's existing discussion thread (the one
 // started by announceMissionThread off the fixer job-proposal brief). No-ops

@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { and, or, eq, desc, gt, lte, inArray, isNull, isNotNull, ne, sql } from "drizzle-orm";
+import { and, or, eq, desc, gt, lte, inArray, notInArray, isNull, isNotNull, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   db,
@@ -20,6 +20,7 @@ import { patchBalance } from "./unbelievaboat";
 import { recordSettledWalletMovement } from "./economy";
 import {
   postToChannel,
+  startThreadFromMessage,
   sendDirectMessage,
   createGuildScheduledEvent,
   modifyGuildScheduledEvent,
@@ -2265,6 +2266,246 @@ export async function checkDiscordEventConflict(opts: {
 // before start, once per mission (idempotent via npcAnnouncedAt; cleared on
 // reschedule). Gated by Test/Live mode.
 // ===========================================================================
+
+// ===========================================================================
+// MISSION DISCUSSION THREAD (deployment-gated, off the fixer job-proposal brief)
+// ===========================================================================
+
+// Role pinged when a new mission's brief is posted to the fixer job-proposal
+// channel. The discussion thread is a fixer-only planning space, so we ping the
+// Fixer role (not @Choom — the public sign-up announcement is separate). Pinging
+// requires the role id in both the content (`<@&id>`) and allowed_mentions.roles.
+const FIXER_ROLE_ID = "1348633945545379911";
+
+const TIER_NAMES: Record<number, string> = {
+  1: "Street Work",
+  2: "Contract Work",
+  3: "High Risk Operation",
+  4: "Extreme",
+};
+
+// Build the full mission brief (content + embed) posted to the #missions
+// discussion channel, off which the per-mission thread is started.
+function buildMissionBrief(m: Mission): { content: string; embeds: unknown[] } {
+  const startUnix = m.startAt ? Math.floor(m.startAt.getTime() / 1000) : null;
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    { name: "Tier", value: `${m.tier} — ${TIER_NAMES[m.tier] ?? "Unknown"}`, inline: true },
+    { name: "Job Type", value: m.jobType ? jobTypeLabel(m.jobType) : "—", inline: true },
+    { name: "Client", value: m.client || "—", inline: true },
+    { name: "Location", value: m.location || "—", inline: true },
+    {
+      name: "Start / Duration",
+      value: `${startUnix ? `<t:${startUnix}:F>` : "Not scheduled"} · ${m.durationMinutes}m`,
+      inline: true,
+    },
+    { name: "Player Pay", value: `€$${m.playerPay.toLocaleString()}`, inline: true },
+    { name: "NPC Pay", value: `€$${m.npcPayAmount.toLocaleString()}`, inline: true },
+    {
+      name: "Slots / Max Players",
+      value: `${m.slots || "—"} slots · ${m.maxPlayers > 0 ? `${m.maxPlayers} max` : "unlimited"}`,
+      inline: true,
+    },
+    { name: "Requested Skills", value: m.requestedSkills || "—", inline: false },
+  ];
+  if (m.worldLink) fields.push({ name: "World Link", value: m.worldLink, inline: false });
+  if (m.notesForPlayers) fields.push({ name: "Notes for Players", value: m.notesForPlayers.slice(0, 1024), inline: false });
+  fields.push({ name: "Mission", value: buildMissionUrl(m.id), inline: false });
+  return {
+    content: `<@&${FIXER_ROLE_ID}> **New mission created — ${m.title}**`,
+    embeds: [
+      {
+        title: m.title,
+        description: m.description ? m.description.slice(0, 4096) : undefined,
+        fields,
+        ...(m.imageUrl ? { image: { url: m.imageUrl } } : {}),
+      },
+    ],
+  };
+}
+
+/**
+ * Idempotently ensure a mission has a Discord discussion thread linked.
+ *
+ * - If a thread is already linked, this is a no-op (no duplicate brief/thread).
+ * - Otherwise it reuses an existing brief message id when one is stored
+ *   (threading off it rather than re-posting), or posts a fresh brief and
+ *   persists `discordMessageId` BEFORE creating the thread so a crash mid-flight
+ *   is recoverable by a later re-run.
+ * - `discordThreadId` is set ONLY when the thread helper returns non-null
+ *   (never `threadId ?? msgId`). The Discord "thread already created" (160004)
+ *   response is treated as success by startThreadFromMessage (returns msgId).
+ *
+ * All writes go through the deployment-gated post helpers, so this no-ops
+ * outside a real deployment (unless ALLOW_EXTERNAL_WRITES=1). Returns whether a
+ * thread was newly linked THIS call, so a backfill knows when to seed the
+ * current-state snapshot.
+ */
+export async function ensureMissionThread(
+  m: Mission,
+  channelId: string,
+): Promise<{ created: boolean; threadId: string | null }> {
+  if (!channelId) return { created: false, threadId: m.discordThreadId ?? null };
+  if (m.discordThreadId) return { created: false, threadId: m.discordThreadId };
+  let msgId = m.discordMessageId ?? null;
+  if (!msgId) {
+    const brief = buildMissionBrief(m);
+    msgId = await postToChannel(channelId, brief.content, brief.embeds, { roles: [FIXER_ROLE_ID] });
+    // null = no token, suppressed write (non-deployment), or a post failure.
+    // Leave the row unlinked so a later run retries.
+    if (!msgId) return { created: false, threadId: null };
+    await db.update(missions).set({ discordMessageId: msgId }).where(eq(missions.id, m.id));
+  }
+  const threadId = await startThreadFromMessage(channelId, msgId, m.title);
+  if (!threadId) return { created: false, threadId: null };
+  await db.update(missions).set({ discordThreadId: threadId }).where(eq(missions.id, m.id));
+  return { created: true, threadId };
+}
+
+/**
+ * Fire-and-forget wrapper used at mission creation: post the brief + start the
+ * discussion thread. Never throws — a Discord miss must not block creation.
+ */
+export async function announceMissionThread(m: Mission, channelId: string): Promise<void> {
+  try {
+    await ensureMissionThread(m, channelId);
+  } catch (err) {
+    logger.warn({ err, missionId: m.id }, "announceMissionThread failed");
+  }
+}
+
+// Cap per section so a huge roster can't blow past Discord's 2000-char message
+// limit; the overflow is summarized with a "+N more" line.
+const SNAPSHOT_SECTION_CAP = 30;
+
+function snapshotSection(title: string, lines: string[]): string {
+  if (lines.length === 0) return `**${title} (0)**\n_None._`;
+  const shown = lines.slice(0, SNAPSHOT_SECTION_CAP);
+  const extra = lines.length - shown.length;
+  const body = shown.join("\n") + (extra > 0 ? `\n…and ${extra} more` : "");
+  return `**${title} (${lines.length})**\n${body}`;
+}
+
+function participantLabel(userName: string | null, characterName: string | null): string {
+  const u = userName ?? "Someone";
+  return characterName ? `• **${u}** (${characterName})` : `• **${u}**`;
+}
+
+/**
+ * Build a single consolidated "current state" snapshot for a mission's thread:
+ * the accepted roster, any pending applicants, and active NPC sign-ups. Mentions
+ * are suppressed by the caller (parse: []), so the names here never ping.
+ */
+async function buildMissionThreadSnapshot(missionId: number): Promise<string> {
+  const assignments = (await loadAssignments([missionId])).get(missionId) ?? [];
+  const apps = await listApplicationViews(missionId);
+  const pending = apps.filter((a) => a.status === "pending");
+  const npcRows = await db
+    .select({
+      userName: users.username,
+      characterName: characters.name,
+    })
+    .from(missionNpcSignups)
+    .leftJoin(users, eq(users.id, missionNpcSignups.userId))
+    .leftJoin(characters, eq(characters.id, missionNpcSignups.characterId))
+    .where(
+      and(
+        eq(missionNpcSignups.missionId, missionId),
+        inArray(missionNpcSignups.state, ["signed_up", "attended"]),
+      ),
+    )
+    .orderBy(missionNpcSignups.id);
+
+  const rosterLines = assignments.map((a) => participantLabel(a.userName, a.characterName));
+  const pendingLines = pending.map((a) => participantLabel(a.userName, a.characterName));
+  const npcLines = npcRows.map((r) => participantLabel(r.userName, r.characterName));
+
+  return [
+    "📋 **Current mission state** (backfilled snapshot)",
+    snapshotSection("Accepted roster", rosterLines),
+    snapshotSection("Pending applicants", pendingLines),
+    snapshotSection("NPC sign-ups", npcLines),
+  ].join("\n\n");
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Backfill discussion threads for every currently-open mission.
+ *
+ * Walks posted, non-completed, non-cancelled missions whose Discord thread OR
+ * its current-state snapshot is still missing, ensures each gets a thread
+ * (idempotently — see ensureMissionThread), then posts a single consolidated
+ * current-state snapshot (roster + pending applicants + active NPC sign-ups,
+ * mentions suppressed) into the thread. Deployment-gated via the post helpers (a
+ * pure no-op in the dev workspace unless ALLOW_EXTERNAL_WRITES=1).
+ *
+ * Restartable / honest accounting: a thread is only ever created once (the row's
+ * discordThreadId gates that), and the snapshot is gated separately on
+ * discordThreadSnapshotAt. Crucially, postToChannel returns null (it does NOT
+ * throw) on a rate-limit / permission / transient failure, so the snapshot
+ * marker is set ONLY when it returns a real message id — a failed post is left
+ * un-marked and re-attempted on the next run rather than silently counted as
+ * seeded. A short delay between writes keeps the run under Discord's rate limits.
+ */
+export async function runMissionThreadBackfill(opts: { limit?: number } = {}): Promise<{
+  scanned: number;
+  created: number;
+  seeded: number;
+  failed: number;
+}> {
+  const ctx = await getMissionContext();
+  const targets = await db
+    .select()
+    .from(missions)
+    .where(
+      and(
+        eq(missions.workflowState, "posted"),
+        notInArray(missions.status, HISTORY_STATUSES),
+        // Needs a thread, or has one but no snapshot yet (retry partial failures).
+        or(isNull(missions.discordThreadId), isNull(missions.discordThreadSnapshotAt)),
+      ),
+    )
+    .orderBy(missions.id)
+    .limit(opts.limit ?? 500);
+
+  let scanned = 0;
+  let created = 0;
+  let seeded = 0;
+  let failed = 0;
+  for (const m of targets) {
+    scanned += 1;
+    let wrote = false;
+    try {
+      const r = await ensureMissionThread(m, ctx.threadChannelId);
+      if (r.created) created += 1;
+      // No thread id => writes are suppressed (dev/test) or the thread couldn't
+      // be created this run; nothing to seed, leave the row for a later run.
+      if (!r.threadId) continue;
+      wrote = r.created;
+      // Seed the snapshot only when it hasn't been recorded yet.
+      if (!m.discordThreadSnapshotAt) {
+        const snapshot = await buildMissionThreadSnapshot(m.id);
+        const snapId = await postToChannel(r.threadId, snapshot, undefined, { parse: [] });
+        if (snapId) {
+          // Mark ONLY on a confirmed post id (postToChannel returns null, not a
+          // throw, on failure) so a rejected post is retried next run.
+          await db.update(missions).set({ discordThreadSnapshotAt: new Date() }).where(eq(missions.id, m.id));
+          seeded += 1;
+          wrote = true;
+        } else {
+          failed += 1;
+          logger.warn({ missionId: m.id }, "mission thread snapshot post returned no id; will retry next run");
+        }
+      }
+    } catch (err) {
+      failed += 1;
+      logger.error({ err, missionId: m.id }, "mission thread backfill failed");
+    }
+    // Throttle only when real writes actually happened (a no-op dev run skips this).
+    if (wrote) await sleep(1200);
+  }
+  return { scanned, created, seeded, failed };
+}
 
 /**
  * Find posted, non-cancelled missions starting within the next hour that

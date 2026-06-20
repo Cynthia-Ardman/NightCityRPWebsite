@@ -4,9 +4,22 @@ description: How follow-up posts into a mission's Discord discussion thread are 
 ---
 
 Missions start a per-mission Discord discussion thread off the fixer job-proposal
-brief (announceMissionThread in routes/missions.ts; thread id stored in
-missions.discordThreadId only when startThreadFromMessage succeeds). Follow-up
-lifecycle posts go into that thread via postMissionThreadUpdate(missionId, text):
+brief. The brief-build + thread-create logic lives in missionsService
+(ensureMissionThread(m, channelId) → {created, threadId}; announceMissionThread is
+the fire-and-forget wrapper the create path calls) so it is SHARED with the thread
+backfill — do not re-inline it in routes/missions.ts. Idempotency contract:
+ensureMissionThread no-ops if discordThreadId set, reuses an existing
+discordMessageId, persists msgId BEFORE the thread call, sets discordThreadId only
+when startThreadFromMessage returns non-null, and returns created=true ONLY when a
+thread was newly linked this call. The whole subsystem is DEPLOYMENT-gated
+(externalWritesAllowed inside postToChannel/startThreadFromMessage), NOT missions
+Test/Live gated — the backfill job (runMissionThreadBackfill, admin job
+"mission_thread_backfill" + scripts/backfill-mission-threads.ts) matches this: no
+ctx.live gate, no liveSystemByJob entry, pure no-op in dev. Backfill targets
+workflowState='posted' AND status NOT IN HISTORY_STATUSES AND discordThreadId IS
+NULL, and seeds a one-shot current-state snapshot (roster+pending+NPC, parse:[])
+only when created=true. Follow-up lifecycle posts go into that thread via
+postMissionThreadUpdate(missionId, text):
 loads discordThreadId, no-ops if absent, posts with postToChannel using
 allowed_mentions {parse:[]} (suppress all pings), fully try/catch wrapped.
 

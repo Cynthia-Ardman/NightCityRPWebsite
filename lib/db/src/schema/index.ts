@@ -908,6 +908,14 @@ export const missions = pgTable("missions", {
   // suppressed) or for missions created before this feature.
   discordThreadId: text("discord_thread_id"),
   discordMessageId: text("discord_message_id"),
+  // Set once the mission-thread backfill has posted the consolidated current-state
+  // snapshot (roster + pending applicants + NPC sign-ups) into the thread.
+  // Idempotency + retryability guard: the backfill targets posted, open missions
+  // whose thread exists but this is still null, so a snapshot post that Discord
+  // rejected (postToChannel returned null) is retried on the next run instead of
+  // being lost. Null for missions created before the feature or whose snapshot has
+  // not been seeded yet.
+  discordThreadSnapshotAt: timestamp("discord_thread_snapshot_at", { withTimezone: true }),
   // Set once the auto-pay cron has processed this mission (idempotency guard).
   autoPayProcessedAt: timestamp("auto_pay_processed_at", { withTimezone: true }),
   // Set once the pre-mission NPC announcement was posted (idempotency guard).

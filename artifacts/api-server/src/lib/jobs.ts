@@ -5,7 +5,7 @@ import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGui
 import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
-import { runMissionAutoPay, runMissionNpcAnnouncements } from "./missionsService";
+import { runMissionAutoPay, runMissionNpcAnnouncements, runMissionThreadBackfill } from "./missionsService";
 import { reconcileDiscordEvents, backfillMainSessions, reconcileVrchatCalendar } from "./eventsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode, advanceSettledWalletBalance } from "./economy";
@@ -221,7 +221,7 @@ async function chargePersonalFeeWithReservation(opts: {
   return true;
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill";
 
 // Money-moving jobs guarded against overlapping in-process runs (see runJob).
 const MONEY_JOBS = new Set<JobName>(["monthly_rent", "cyberware_humanity"]);
@@ -986,6 +986,16 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       message = parts.length
         ? `main session backfill: ${parts.join("; ")}`
         : `main session backfill: nothing to create${r.reason ? ` (${r.reason})` : ""}`;
+    } else if (name === "mission_thread_backfill") {
+      // One-off backfill: give every currently-open mission a
+      // Discord discussion thread + a seeded current-state snapshot. Like the
+      // other thread posts this is deployment-gated (a no-op in the dev
+      // workspace), NOT missions Test/Live gated, so it is intentionally NOT in
+      // liveSystemByJob. Idempotent — only ever touches missions still missing a
+      // thread, so it is safe to re-run.
+      const r = await runMissionThreadBackfill();
+      affected = r.created;
+      message = `mission thread backfill: scanned ${r.scanned}, created ${r.created} thread(s), seeded ${r.seeded} snapshot(s), failed ${r.failed}`;
     }
   } catch (err) {
     status = "failed";
