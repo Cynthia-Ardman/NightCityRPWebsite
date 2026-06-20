@@ -312,7 +312,7 @@ describe("pending edit request-changes (retired) + resubmit", () => {
     expect(await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id))).toHaveLength(0);
   });
 
-  it("preserves prior approvals when an approved edit is reopened so reviewers needn't re-vote", async () => {
+  it("clears prior approvals when an approved edit is reopened so it genuinely returns to pending", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
     const f2 = await createFixer();
@@ -329,18 +329,22 @@ describe("pending edit request-changes (retired) + resubmit", () => {
       .set("x-test-user", f1.id)
       .send({});
     expect(reopen.status).toBe(200);
+    expect(reopen.body.status).toBe("pending");
 
-    // Approvals survive the reopen.
+    // Votes are wiped — the fresh round starts from zero approvals.
     expect(
       await db.select().from(pendingEditApprovals).where(eq(pendingEditApprovals.editId, edit.id)),
-    ).toHaveLength(2);
+    ).toHaveLength(0);
 
-    // No re-vote needed: a reviewer detail read re-evaluates the carried-over
-    // approvals (finalize-on-read) and auto-finalizes the edit back to approved.
+    // A reviewer detail read must NOT re-finalize: with no carried-over votes,
+    // finalize-on-read has nothing to re-tally, so the edit stays pending
+    // (previously the preserved approvals snapped it straight back to approved,
+    // making "reopen" a no-op).
     const detail = await request(app).get(`/api/pending-edits/${edit.id}`).set("x-test-user", f1.id);
-    expect(detail.body.status).toBe("approved");
-    const [refinalized] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
-    expect(refinalized.status).toBe("approved");
+    expect(detail.body.status).toBe("pending");
+    expect(detail.body.approveCount).toBe(0);
+    const [reopened] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, edit.id));
+    expect(reopened.status).toBe("pending");
   });
 });
 

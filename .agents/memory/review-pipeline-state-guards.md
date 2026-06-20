@@ -20,4 +20,12 @@ In the three review queues (character EDITS = pending_character_edits/pending_ed
 
 **Why:** preserving votes on reopen made reopen a visible no-op — `finalizeDecidedRequestsInPlace` (finalize-on-read in GET /requests) re-tallied the carried-over votes and instantly re-decided the ticket. Under deferred-effects, approved/rejected are only STAGED (effect commits at close), so they must remain editable until close — reviewers shouldn't have to reopen just to change their minds.
 
-**How to apply:** do NOT block the vote path on `appliedRef` — a reopened-after-applied ticket is `pending` with `appliedRef` preserved, and re-voting it is the entire point of reopen (re-close is idempotent because close only materializes on `approved && !appliedRef`). The `review.ts` reopen dispatcher comment is per-queue: only the request queue clears votes; sheet/edit handlers manage their own vote lifecycle (sheets reopen still PRESERVES votes — leave it).
+**How to apply:** do NOT block the vote path on `appliedRef` — a reopened-after-applied ticket is `pending` with `appliedRef` preserved, and re-voting it is the entire point of reopen (re-close is idempotent because close only materializes on `approved && !appliedRef`). The `review.ts` reopen dispatcher is per-queue.
+
+## Reopen also clears votes for the EDITS queue (separate vote store)
+
+**Rule (character EDITS queue):** `reopenEdit` (pending-edits.ts) MUST clear prior votes too. Edit votes live in `pendingEditApprovals` (editId-keyed), NOT the generic `reviewVotes` table — so it deletes `pendingEditApprovals WHERE editId=?` inside the reopen txn, it does NOT call `clearReviewVotes` (whose `ReviewSubjectType` is only `sheet|request|lore` — passing `"edit"` is a tsc error). Frontend: PendingEditDetail.tsx has a REOPEN button gated `isReviewer && status∈{approved,rejected}` using `useReopenReviewTicket({subjectType:"edit"})`.
+
+**Why:** same no-op bug as requests — edits also have finalize-on-read (re-tally on reviewer GET), so preserving approvals snapped a reopened edit straight back to approved. Clearing them makes reopen genuinely return to a fresh pending round.
+
+**How to apply:** SHEETS reopen still PRESERVES votes (leave it). Only requests + edits clear on reopen, and they use different vote tables.

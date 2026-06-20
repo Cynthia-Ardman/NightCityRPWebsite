@@ -9,6 +9,7 @@ import {
   useOverridePendingEdit,
   useResubmitPendingEdit,
   useCloseReviewTicket,
+  useReopenReviewTicket,
   getGetPendingEditQueryKey,
   getListPendingEditsQueryKey,
   getGetCharacterPendingEditQueryKey,
@@ -159,6 +160,13 @@ export default function PendingEditDetail() {
         navigate(queueHref);
       },
       onError: (err) => toast({ title: "Close failed", description: errMsg(err, "Close failed"), variant: "destructive" }),
+    },
+  });
+
+  const reopen = useReopenReviewTicket({
+    mutation: {
+      onSuccess: () => { toast({ title: "Edit reopened — back to pending" }); invalidate(); },
+      onError: (err) => toast({ title: "Reopen failed", description: errMsg(err, "Reopen failed"), variant: "destructive" }),
     },
   });
 
@@ -436,6 +444,26 @@ export default function PendingEditDetail() {
           </Button>
           <p className="font-mono text-xs text-muted-foreground mt-1">
             Change what you proposed while it's still under review — your update amends this same ticket. Prior votes are cleared so reviewers re-tally against the new content.
+          </p>
+        </div>
+      )}
+
+      {/* Reopen (reviewers) — send a resolved-but-not-applied edit back to a
+          fresh pending round. Clears the prior votes so it doesn't instantly
+          re-decide. Hidden once the edit is closed/applied (can't be undone). */}
+      {isReviewer && (edit.status === "approved" || edit.status === "rejected") && (
+        <div className="border-t border-border pt-4 space-y-2">
+          <Button
+            onClick={() => reopen.mutate({ subjectType: "edit", id: editId })}
+            disabled={reopen.isPending}
+            variant="outline"
+            className="rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display"
+            data-testid="button-reopen-edit"
+          >
+            <RotateCcw className="w-4 h-4 mr-1" /> REOPEN FOR ANOTHER ROUND
+          </Button>
+          <p className="font-mono text-xs text-muted-foreground mt-1">
+            Sends this {edit.status} edit back to pending and clears the prior votes so reviewers re-decide from scratch.
           </p>
         </div>
       )}

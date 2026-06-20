@@ -1090,10 +1090,12 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
 }
 
 // Reopen a RESOLVED-but-not-archived character edit (approved | rejected) back
-// to pending for another review round. Votes are deleted and the decision fields
-// are wiped. Because effects are deferred, an approved-not-closed edit has not
-// been applied yet, so reopening it is safe. cancelled and closed edits cannot
-// be reopened.
+// to pending for another review round. Votes are CLEARED and the decision fields
+// are wiped so the edit returns to a genuinely fresh pending state — otherwise
+// finalize-on-read would instantly re-tally the preserved approvals and snap the
+// edit straight back to its prior decision (making "reopen" look like a no-op).
+// Because effects are deferred, an approved-not-closed edit has not been applied
+// yet, so reopening it is safe. cancelled and closed edits cannot be reopened.
 export async function reopenEdit(req: Request, id: number): Promise<ReviewActionResult> {
   const result = await db.transaction(async (tx) => {
     const lockedRows = await tx.execute(
@@ -1116,8 +1118,12 @@ export async function reopenEdit(req: Request, id: number): Promise<ReviewAction
       .update(pendingCharacterEdits)
       .set({ status: "pending", decidedAt: null, decisionSummary: null, reviewComment: null, overriddenBy: null, submittedAt: new Date() })
       .where(eq(pendingCharacterEdits.id, id));
-    // Approvals are deliberately PRESERVED across a reopen so reviewers don't
-    // have to re-cast the same decision; finalize-on-read re-evaluates them.
+    // Clear the prior votes so the edit starts a fresh review round. If we left
+    // them in place, finalize-on-read would re-tally the same approvals on the
+    // next page load and immediately re-decide the edit — exactly what made
+    // "reopen" appear to do nothing before. Edit votes live in
+    // pendingEditApprovals (not the generic reviewVotes table).
+    await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, id));
     return { ok: true as const };
   });
   if ("error" in result && result.error) return result.error;
