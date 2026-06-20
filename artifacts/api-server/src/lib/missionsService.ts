@@ -284,6 +284,39 @@ function toMySignupView(r: {
 }
 
 /**
+ * Pick the single application to surface to the player for one mission. A player
+ * can hold several application rows on the same mission (the unique index is per
+ * (mission, character), so applying with a second character makes a new row), so
+ * we must choose ONE deterministically. Priority: an active row first (accepted,
+ * then pending) so an on-roster / awaiting-review player always sees that; then
+ * the most recent terminal row (withdrawn before rejected) so a player whose only
+ * application was withdrawn falls through to the apply form and can RE-APPLY.
+ *
+ * Without this, naive "first/last row" selection broke re-applying: the detail
+ * page used the OLDEST row and the open-list used the NEWEST, so withdrawing one
+ * of several applications could leave the detail page locked to a stale card with
+ * no apply form. Both surfaces now share this picker.
+ */
+const APPLICATION_STATUS_RANK: Record<string, number> = {
+  accepted: 0,
+  pending: 1,
+  withdrawn: 2,
+  rejected: 3,
+};
+function pickMyApplicationView<T extends { status: string; createdAt: string }>(
+  views: T[],
+): T | null {
+  if (views.length === 0) return null;
+  return [...views].sort((a, b) => {
+    const ra = APPLICATION_STATUS_RANK[a.status] ?? 9;
+    const rb = APPLICATION_STATUS_RANK[b.status] ?? 9;
+    if (ra !== rb) return ra - rb;
+    // Within the same status, prefer the most recently created row.
+    return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+  })[0];
+}
+
+/**
  * Batch-load the viewer's OWN application for each of the given missions, keyed
  * by mission id. Mirrors the per-mission `myApplication` the detail model
  * computes so the Open-tab cards can render the inline apply/withdraw button.
@@ -333,11 +366,16 @@ async function loadMyApplicationsForMissions(
     -1,
   );
   const now = Date.now();
+  // Group every application row per mission, then pick the single one to surface
+  // with the shared picker (active first, else most-recent terminal) so the
+  // open-list card matches the detail page and a withdrawn row never hides the
+  // re-apply affordance behind a stale sibling.
+  const byMission = new Map<number, Awaited<ReturnType<typeof listApplicationViews>>>();
   for (const r of rows) {
     const rec = recency.get(r.characterId);
     const last = rec?.lastAttendedAt ?? null;
     const daysSince = last ? Math.floor((now - last.getTime()) / 86_400_000) : null;
-    out.set(r.missionId, {
+    const view = {
       id: r.id,
       userId: r.userId,
       userName: r.userName,
@@ -356,7 +394,14 @@ async function loadMyApplicationsForMissions(
       lastAttendedAt: iso(last),
       daysSinceLastMission: daysSince,
       recencyWarning: daysSince != null && daysSince < RECENCY_WARNING_DAYS,
-    });
+    };
+    const list = byMission.get(r.missionId);
+    if (list) list.push(view);
+    else byMission.set(r.missionId, [view]);
+  }
+  for (const [missionId, views] of byMission) {
+    const picked = pickMyApplicationView(views);
+    if (picked) out.set(missionId, picked);
   }
   return out;
 }
@@ -829,7 +874,7 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
   // also play need to see their pending/accepted status and use the apply form
   // on missions they don't run. (The full applicant pool stays manager-gated via
   // `applications` above.)
-  const myApplication = (await listApplicationViews(missionId, viewer.id))[0] ?? null;
+  const myApplication = pickMyApplicationView(await listApplicationViews(missionId, viewer.id));
 
   // Resolve the display name of whoever marked the mission completed (audit
   // surface for the read-only lock); only looked up when actually completed.

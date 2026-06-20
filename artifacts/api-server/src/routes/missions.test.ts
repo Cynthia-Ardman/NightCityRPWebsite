@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import request from "supertest";
 
 // Currency provider is fully mocked: no test ever hits the real UB API.
@@ -1563,6 +1563,54 @@ describe("Mission applications", () => {
     expect(res.status).toBe(200);
     const [appAfter] = await db.select().from(missionApplications).where(eq(missionApplications.id, appId));
     expect(appAfter.status).toBe("withdrawn");
+  });
+
+  // Regression: a withdrawn application must never block re-applying. The detail
+  // page hides the apply form whenever `myApplication` is a non-withdrawn row, so
+  // surfacing the wrong row (e.g. the oldest, when a player holds several rows on
+  // one mission via different characters) used to lock a player out of reapplying
+  // the very character they withdrew. The surfaced application must be the most
+  // relevant one (active first, else the most recent terminal) and a withdrawn-only
+  // state must fall through so the player can reapply.
+  it("withdrawing then re-applying surfaces the withdrawn/pending row, not a stale sibling", async () => {
+    const player = await createUser();
+    const charA = await createCharacter({ ownerId: player.id });
+    const charB = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+    const apply = (characterId: number) =>
+      request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId });
+    const detail = () => request(app).get(`/api/missions/${m.id}`).set("x-test-user", player.id);
+
+    // Player applies with A, then with B (B is the newer row).
+    await apply(charA.id);
+    const appliedB = await apply(charB.id);
+    const appBId = appliedB.body.myApplication.id as number;
+
+    // Withdraw the NEWER application (B). The player still has an active app (A),
+    // so the detail page should surface A (pending) — not get stuck/blank.
+    const wB = await request(app).delete(`/api/missions/${m.id}/applications/${appBId}`).set("x-test-user", player.id);
+    expect(wB.status).toBe(200);
+    const afterWithdrawB = await detail();
+    expect(afterWithdrawB.body.myApplication?.characterId).toBe(charA.id);
+    expect(afterWithdrawB.body.myApplication?.status).toBe("pending");
+
+    // Now withdraw A too. With no active application, the surfaced row must be a
+    // withdrawn one so the frontend renders the apply form (re-apply enabled).
+    const [appA] = await db
+      .select()
+      .from(missionApplications)
+      .where(and(eq(missionApplications.missionId, m.id), eq(missionApplications.characterId, charA.id)));
+    const wA = await request(app).delete(`/api/missions/${m.id}/applications/${appA.id}`).set("x-test-user", player.id);
+    expect(wA.status).toBe(200);
+    const allWithdrawn = await detail();
+    expect(allWithdrawn.body.myApplication?.status).toBe("withdrawn");
+
+    // Re-applying with B succeeds and is surfaced as the active (pending) row.
+    const reapplied = await apply(charB.id);
+    expect(reapplied.status).toBe(200);
+    const afterReapply = await detail();
+    expect(afterReapply.body.myApplication?.characterId).toBe(charB.id);
+    expect(afterReapply.body.myApplication?.status).toBe("pending");
   });
 
   it("a player cannot review applications (manager only)", async () => {

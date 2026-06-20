@@ -154,3 +154,4 @@
 - [Sheet close custom-attrs](sheet-close-custom-attrs.md) — closing a NEW sheet w/ non-catalog cyberware/guns 400s unless closer supplies attrs; catalog auto-resolves; params keyed by FULL-array index.
 - [Code-defined guidebook page](code-defined-guidebook-page.md) — bespoke React guidebook page = static route BEFORE /guidebook/:id + static card in DirectoryGuidebook (not a DB row).
 - [Mission thread lifecycle updates](mission-thread-lifecycle.md) — follow-up posts into a mission's Discord thread; announce-once guards (isEdit, pre-review status snapshot), member posts via detached wrapper.
+- [Mission application row picker](mission-application-row-picker.md) — a player holds many app rows per mission; list + detail must share pickMyApplicationView (active>pending>withdrawn>rejected, newest in tier) or a stale row hides the reapply form.
