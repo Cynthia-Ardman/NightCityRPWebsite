@@ -52,7 +52,6 @@ import {
   announceMissionThread,
   getMissionManageAuth,
   viewerHasManageableMission,
-  notifyMissionReschedule,
   type MissionViewer,
 } from "../lib/missionsService";
 import { convertEventToMission } from "../lib/eventsService";
@@ -957,12 +956,6 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
     before: { status: before.status, startAt: before.startAt, title: before.title, tier: before.tier, playerPay: before.playerPay },
     after: { ...set },
   });
-
-  // Tell everyone signed up that the start time moved (accepted players +
-  // signed-up NPCs always; pending PC applicants only while intake is open).
-  if (rescheduled && after.status !== "cancelled") {
-    void notifyMissionReschedule(after);
-  }
 
   // Summarize the edit into the mission thread. Status transitions and a
   // reschedule get friendly dedicated lines; remaining content edits collapse

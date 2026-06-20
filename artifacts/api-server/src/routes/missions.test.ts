@@ -39,6 +39,7 @@ import {
   createGuildScheduledEvent,
   modifyGuildScheduledEvent,
   deleteGuildScheduledEvent,
+  sendDirectMessage,
 } from "../lib/discord";
 import {
   payMissionPlayers,
@@ -59,6 +60,7 @@ import { createUser, createCharacter } from "../test/testDb";
 const app = buildTestApp();
 const mockPatch = vi.mocked(patchBalance);
 const mockPost = vi.mocked(postToChannel);
+const mockDM = vi.mocked(sendDirectMessage);
 const mockCreateEvent = vi.mocked(createGuildScheduledEvent);
 const mockModifyEvent = vi.mocked(modifyGuildScheduledEvent);
 const mockDeleteEvent = vi.mocked(deleteGuildScheduledEvent);
@@ -124,6 +126,7 @@ async function seedMission(opts: Partial<typeof missions.$inferInsert> = {}) {
       // force startAt/createdAt ties and exercise the id-descending tiebreaker.
       ...(opts.createdAt !== undefined ? { createdAt: opts.createdAt } : {}),
       ...(opts.npcPayAmount !== undefined ? { npcPayAmount: opts.npcPayAmount } : {}),
+      ...(opts.discordThreadId !== undefined ? { discordThreadId: opts.discordThreadId } : {}),
     })
     .returning();
   return m;
@@ -1080,6 +1083,41 @@ describe("Discord scheduled-event sync", () => {
     expect(mockCreateEvent).not.toHaveBeenCalled();
     expect(mockModifyEvent).not.toHaveBeenCalled();
     expect(mockDeleteEvent).not.toHaveBeenCalled();
+  });
+
+  // Regression: a reschedule must be announced IN the mission's Discord thread,
+  // never as a DM to each participant. (The redundant DM fan-out was removed —
+  // the thread is the single source of truth for mission lifecycle updates.)
+  it("reschedule posts to the mission thread and does NOT DM participants", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await seedMission({
+      workflowState: "posted",
+      status: "open",
+      startAt: new Date(Date.now() + 86_400_000),
+      fixerId: admin.id,
+      discordThreadId: "thread-1",
+    });
+    await seedAssignment(m.id, player.id, { characterId: char.id });
+
+    // Ignore any Discord chatter from setup; only assert on the reschedule edit.
+    mockPost.mockClear();
+    mockDM.mockClear();
+
+    const newStart = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const patched = await request(app)
+      .patch(`/api/missions/${m.id}`)
+      .set("x-test-user", admin.id)
+      .send({ startAt: newStart });
+    expect(patched.status).toBe(200);
+
+    // The reschedule is announced in the thread (the message id == thread id).
+    const threadCalls = mockPost.mock.calls.filter((c) => c[0] === "thread-1");
+    expect(threadCalls).toHaveLength(1);
+    expect(String(threadCalls[0][1])).toContain("Rescheduled");
+    // ...and nobody gets a DM about it.
+    expect(mockDM).not.toHaveBeenCalled();
   });
 });
 
