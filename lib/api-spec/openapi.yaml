@@ -2244,6 +2244,29 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EventView" }
         "404": { description: Not found. }
+  /events/{id}/npc-signups/{signupId}/confirm:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: signupId, required: true, schema: { type: integer } }
+    post:
+      operationId: confirmEventNpcSignup
+      tags: [events]
+      summary: "Confirm an event NPC sign-up: attended (pays the supplied amount) or no_show. Fixer/admin only."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmEventNpcSignupInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventView" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+        "409": { description: Event cancelled. }
 
   /admin/audit:
     get:
@@ -8827,9 +8850,16 @@ components:
               startAt: { type: string, format: date-time }
               endAt: { type: ["string", "null"], format: date-time }
 
+    ConfirmEventNpcSignupInput:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [attended, no_show], description: "attended pays the supplied amount; no_show resolves with no payout." }
+        amount: { type: integer, minimum: 0, description: "Per-person payout for attended (€$); required when action is attended." }
+
     EventSignupView:
       type: object
-      required: [id, userId, createdAt]
+      required: [id, userId, state, paymentStatus, createdAt]
       properties:
         id: { type: integer }
         userId: { type: string }
@@ -8837,6 +8867,11 @@ components:
         characterId: { type: ["integer", "null"] }
         characterName: { type: ["string", "null"] }
         note: { type: ["string", "null"] }
+        state: { type: string, enum: [signed_up, attended, no_show] }
+        payAmount: { type: ["integer", "null"] }
+        paymentStatus: { type: string, enum: [unpaid, processing, paid, failed, simulated] }
+        paymentError: { type: ["string", "null"] }
+        paidAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: ["string", "null"], format: date-time }
 
     EventRecurrence:

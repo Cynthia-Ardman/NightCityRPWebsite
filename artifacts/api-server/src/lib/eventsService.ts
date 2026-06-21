@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Request } from "express";
 import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import {
   db,
@@ -29,7 +30,8 @@ import {
   type GuildScheduledEvent,
 } from "./discord";
 import { getMissionContext } from "./missionsConfig";
-import { checkDiscordEventConflict } from "./missionsService";
+import { checkDiscordEventConflict, payStandaloneActors } from "./missionsService";
+import { recordAudit } from "./audit";
 import { logger } from "./logger";
 import { ObjectStorageService } from "./objectStorage";
 
@@ -114,6 +116,14 @@ export interface EventSignupView {
   characterId: number | null;
   characterName: string | null;
   note: string | null;
+  // NPC lifecycle (mirrors mission NPC sign-ups). An organizer confirms each
+  // volunteer as attended (pays) or no_show; players see the resolved state +
+  // payout status.
+  state: string;
+  payAmount: number | null;
+  paymentStatus: string;
+  paymentError: string | null;
+  paidAt: string | null;
   createdAt: string | null;
 }
 
@@ -612,6 +622,11 @@ async function loadSignupViews(eventIds: number[]): Promise<Map<number, EventSig
       eventId: eventNpcSignups.eventId,
       userId: eventNpcSignups.userId,
       note: eventNpcSignups.note,
+      state: eventNpcSignups.state,
+      payAmount: eventNpcSignups.payAmount,
+      paymentStatus: eventNpcSignups.paymentStatus,
+      paymentError: eventNpcSignups.paymentError,
+      paidAt: eventNpcSignups.paidAt,
       createdAt: eventNpcSignups.createdAt,
       characterId: eventNpcSignups.characterId,
       globalName: users.globalName,
@@ -621,7 +636,10 @@ async function loadSignupViews(eventIds: number[]): Promise<Map<number, EventSig
     .from(eventNpcSignups)
     .leftJoin(users, eq(users.id, eventNpcSignups.userId))
     .leftJoin(characters, eq(characters.id, eventNpcSignups.characterId))
-    .where(and(inArray(eventNpcSignups.eventId, eventIds), eq(eventNpcSignups.state, "signed_up")));
+    // Include resolved sign-ups (attended/no_show) so the manager roster shows
+    // the full history and players see their own resolved status; only the
+    // withdrawn state is hidden.
+    .where(and(inArray(eventNpcSignups.eventId, eventIds), ne(eventNpcSignups.state, "withdrawn")));
   for (const r of rows) {
     const view: EventSignupView = {
       id: r.id,
@@ -630,6 +648,11 @@ async function loadSignupViews(eventIds: number[]): Promise<Map<number, EventSig
       characterId: r.characterId,
       characterName: r.characterName ?? null,
       note: r.note,
+      state: r.state,
+      payAmount: r.payAmount,
+      paymentStatus: r.paymentStatus,
+      paymentError: r.paymentError,
+      paidAt: iso(r.paidAt),
       createdAt: iso(r.createdAt),
     };
     const list = byEvent.get(r.eventId) ?? [];
@@ -664,7 +687,10 @@ function toView(
     discordSyncError: viewer.isManager ? e.discordSyncError : null,
     hasVrchatEvent: !!e.vrchatCalendarId,
     vrchatSyncError: viewer.isManager ? e.vrchatSyncError : null,
-    signupCount: signups.length,
+    // Active (still-awaiting-confirmation) sign-ups only; the roster now also
+    // carries resolved attended/no_show rows for history, which must not inflate
+    // the calendar's "needs N NPCs" count.
+    signupCount: signups.filter((s) => s.state === "signed_up").length,
     mySignup,
     canManage: viewer.isManager,
     recurrence: e.recurrenceRule ?? null,
@@ -1467,5 +1493,117 @@ export async function withdrawEventNpcSignup(opts: { eventId: number; userId: st
         eq(eventNpcSignups.state, "signed_up"),
       ),
     );
+  return { ok: true };
+}
+
+// Organizer (fixer/admin) confirms an event NPC sign-up: attended (pays the
+// per-person fee) or no_show. Mirrors the mission NPC lifecycle
+// (confirmNpcSignup) but, because events have no fixed NPC pay amount, the
+// attended payout amount is supplied per confirm. The actual payout reuses the
+// shared event-bound actor-pay path (payStandaloneActors), which dedups per
+// (eventId, userId), credits via UnbelievaBoat, records the ledger, and is
+// gated on Test/Live — so re-confirming never double-pays.
+export async function confirmEventNpcSignup(opts: {
+  eventId: number;
+  signupId: number;
+  action: "attended" | "no_show";
+  amount: number;
+  viewer: EventViewer;
+  req?: Request;
+}): Promise<{ ok: true } | { ok: false; error: string; httpStatus: number }> {
+  if (!opts.viewer.isManager) {
+    return { ok: false, error: "Only a fixer or admin can confirm NPC sign-ups", httpStatus: 403 };
+  }
+  const [signup] = await db
+    .select()
+    .from(eventNpcSignups)
+    .where(eq(eventNpcSignups.id, opts.signupId));
+  if (!signup || signup.eventId !== opts.eventId) {
+    return { ok: false, error: "Sign-up not found", httpStatus: 404 };
+  }
+  if (signup.state === "withdrawn") {
+    return { ok: false, error: "This sign-up was withdrawn", httpStatus: 409 };
+  }
+  const [event] = await db.select().from(events).where(eq(events.id, opts.eventId));
+  if (!event) return { ok: false, error: "Event not found", httpStatus: 404 };
+  if (event.status === "cancelled") {
+    return { ok: false, error: "This event is cancelled. Cancelled events cannot pay NPCs.", httpStatus: 409 };
+  }
+
+  if (opts.action === "no_show") {
+    await db
+      .update(eventNpcSignups)
+      .set({ state: "no_show", paymentStatus: "unpaid", payAmount: null, paymentError: null, paidAt: null })
+      .where(eq(eventNpcSignups.id, signup.id));
+    await recordAudit({
+      req: opts.req,
+      actorId: opts.viewer.id,
+      category: "mission",
+      action: "event.npc_no_show",
+      targetType: "event",
+      targetId: opts.eventId,
+      message: `Marked event NPC sign-up ${signup.id} (user ${signup.userId}) as no-show`,
+    });
+    return { ok: true };
+  }
+
+  // action === "attended": idempotent if already paid/simulated for this event.
+  if (signup.state === "attended" && (signup.paymentStatus === "paid" || signup.paymentStatus === "simulated")) {
+    return { ok: true };
+  }
+
+  const amount = Math.max(0, Math.trunc(opts.amount));
+  const now = new Date();
+  const res = await payStandaloneActors(
+    {
+      eventName: event.title,
+      eventType: event.eventType,
+      eventDate: event.startAt,
+      eventId: event.id,
+      userIds: [signup.userId],
+      amount,
+    },
+    { req: opts.req, actorId: opts.viewer.id },
+  );
+
+  // Map the single-actor payout result onto the sign-up's payment fields.
+  // skipped means this actor was already paid for the event via another path
+  // (the PAID dedup index fired) — mark paid so the row reflects reality, but do
+  // NOT claim `amount` was disbursed this call, since this confirm paid nothing.
+  let paymentStatus: string;
+  let paymentError: string | null = null;
+  let paidAt: Date | null = null;
+  let paidAmount: number | null = null;
+  if (!res.live) {
+    paymentStatus = "simulated";
+    paidAt = now;
+    paidAmount = amount;
+  } else if (res.paid > 0) {
+    paymentStatus = "paid";
+    paidAt = now;
+    paidAmount = amount;
+  } else if (res.skipped > 0) {
+    // Already paid earlier — preserve any previously-recorded amount; never
+    // overwrite it with this call's (unpaid) amount.
+    paymentStatus = "paid";
+    paidAt = signup.paidAt ?? now;
+    paidAmount = signup.payAmount ?? null;
+  } else {
+    paymentStatus = "failed";
+    paymentError = "UnbelievaBoat payout failed";
+  }
+  await db
+    .update(eventNpcSignups)
+    .set({ state: "attended", payAmount: paidAmount, paymentStatus, paymentError, paidAt })
+    .where(eq(eventNpcSignups.id, signup.id));
+  await recordAudit({
+    req: opts.req,
+    actorId: opts.viewer.id,
+    category: "mission",
+    action: "event.npc_attended",
+    targetType: "event",
+    targetId: opts.eventId,
+    message: `Confirmed event NPC sign-up ${signup.id} (user ${signup.userId}) attended — ${paymentStatus}${amount > 0 ? ` (${amount.toLocaleString()} €$)` : ""}`,
+  });
   return { ok: true };
 }

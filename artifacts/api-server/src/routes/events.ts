@@ -10,6 +10,7 @@ import {
   cancelEvent,
   signUpAsEventNpc,
   withdrawEventNpcSignup,
+  confirmEventNpcSignup,
   checkEventConflict,
   isEventType,
   convertMissionToEvent,
@@ -285,6 +286,44 @@ router.delete("/events/:id/npc-signups/me", requireAuth, async (req, res): Promi
   const id = eventIdParam(req, res);
   if (id == null) return;
   const result = await withdrawEventNpcSignup({ eventId: id, userId: req.user!.id });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json(await getEventDetail(id, viewerOf(req)));
+});
+
+// Organizer (fixer/admin) confirms an event NPC sign-up: attended (pays the
+// supplied per-person fee) or no_show. Mirrors the mission confirm route.
+router.post("/events/:id/npc-signups/:signupId/confirm", requireAuth, async (req, res): Promise<void> => {
+  const id = eventIdParam(req, res);
+  if (id == null) return;
+  const signupId = parseInt(String(req.params.signupId), 10);
+  if (!Number.isInteger(signupId)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const action = req.body?.action;
+  if (action !== "attended" && action !== "no_show") {
+    res.status(400).json({ error: "action must be 'attended' or 'no_show'" });
+    return;
+  }
+  let amount = 0;
+  if (action === "attended") {
+    amount = Number(req.body?.amount);
+    if (!Number.isInteger(amount) || amount < 0) {
+      res.status(400).json({ error: "amount must be a non-negative integer" });
+      return;
+    }
+  }
+  const result = await confirmEventNpcSignup({
+    eventId: id,
+    signupId,
+    action,
+    amount,
+    viewer: viewerOf(req),
+    req,
+  });
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
     return;

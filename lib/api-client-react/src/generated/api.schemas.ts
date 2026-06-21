@@ -5594,6 +5594,47 @@ export interface MissionConflictCheck {
   conflicts: MissionConflictCheckConflictsItem[];
 }
 
+/**
+ * attended pays the supplied amount; no_show resolves with no payout.
+ */
+export type ConfirmEventNpcSignupInputAction = typeof ConfirmEventNpcSignupInputAction[keyof typeof ConfirmEventNpcSignupInputAction];
+
+
+export const ConfirmEventNpcSignupInputAction = {
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
+export interface ConfirmEventNpcSignupInput {
+  /** attended pays the supplied amount; no_show resolves with no payout. */
+  action: ConfirmEventNpcSignupInputAction;
+  /**
+     * Per-person payout for attended (€$); required when action is attended.
+     * @minimum 0
+     */
+  amount?: number;
+}
+
+export type EventSignupViewState = typeof EventSignupViewState[keyof typeof EventSignupViewState];
+
+
+export const EventSignupViewState = {
+  signed_up: 'signed_up',
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
+export type EventSignupViewPaymentStatus = typeof EventSignupViewPaymentStatus[keyof typeof EventSignupViewPaymentStatus];
+
+
+export const EventSignupViewPaymentStatus = {
+  unpaid: 'unpaid',
+  processing: 'processing',
+  paid: 'paid',
+  failed: 'failed',
+  simulated: 'simulated',
+} as const;
+
 export interface EventSignupView {
   id: number;
   userId: string;
@@ -5605,6 +5646,14 @@ export interface EventSignupView {
   characterName?: string | null;
   /** @nullable */
   note?: string | null;
+  state: EventSignupViewState;
+  /** @nullable */
+  payAmount?: number | null;
+  paymentStatus: EventSignupViewPaymentStatus;
+  /** @nullable */
+  paymentError?: string | null;
+  /** @nullable */
+  paidAt?: string | null;
   /** @nullable */
   createdAt: string | null;
 }

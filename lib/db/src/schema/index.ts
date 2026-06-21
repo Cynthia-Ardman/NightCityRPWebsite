@@ -1157,8 +1157,17 @@ export const eventNpcSignups = pgTable("event_npc_signups", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   characterId: integer("character_id").references(() => characters.id, { onDelete: "set null" }),
   note: text("note"),
-  // signed_up | withdrawn
+  // signed_up | withdrawn | attended | no_show. An organizer later confirms
+  // whether the volunteer actually attended (and pays them) or marks a no-show,
+  // mirroring the mission NPC lifecycle (missionNpcSignups).
   state: text("state").notNull().default("signed_up"),
+  // Eddies paid for attending; snapshotted from the organizer's per-person fee
+  // at confirm time (events have no fixed NPC pay amount, unlike missions).
+  payAmount: integer("pay_amount"),
+  // unpaid | processing | paid | failed | simulated
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  paymentError: text("payment_error"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({

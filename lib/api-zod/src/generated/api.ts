@@ -5412,6 +5412,11 @@ export const ListEventsResponseItem = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
@@ -5429,6 +5434,11 @@ export const ListEventsResponseItem = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
@@ -5510,6 +5520,11 @@ export const GetEventResponse = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
@@ -5527,6 +5542,11 @@ export const GetEventResponse = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
@@ -5581,6 +5601,11 @@ export const UpdateEventResponse = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
@@ -5598,6 +5623,11 @@ export const UpdateEventResponse = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
@@ -5654,6 +5684,11 @@ export const SignUpAsEventNpcResponse = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
@@ -5671,6 +5706,11 @@ export const SignUpAsEventNpcResponse = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
@@ -5710,6 +5750,11 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
@@ -5727,6 +5772,87 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "characterId": zod.number().nullish(),
   "characterName": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+})).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
+})
+
+
+/**
+ * @summary Confirm an event NPC sign-up: attended (pays the supplied amount) or no_show. Fixer/admin only.
+ */
+export const ConfirmEventNpcSignupParams = zod.object({
+  "id": zod.coerce.number(),
+  "signupId": zod.coerce.number()
+})
+
+export const confirmEventNpcSignupBodyAmountMin = 0;
+
+
+
+export const ConfirmEventNpcSignupBody = zod.object({
+  "action": zod.enum(['attended', 'no_show']).describe('attended pays the supplied amount; no_show resolves with no payout.'),
+  "amount": zod.number().min(confirmEventNpcSignupBodyAmountMin).optional().describe('Per-person payout for attended (€$); required when action is attended.')
+})
+
+export const ConfirmEventNpcSignupResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "eventType": zod.enum(['session', 'social', 'mission', 'other']),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date(),
+  "status": zod.enum(['scheduled', 'cancelled', 'completed']),
+  "needsNpcs": zod.boolean(),
+  "npcBlurb": zod.string().nullish(),
+  "createdById": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "hasDiscordEvent": zod.boolean().describe('True when a Discord scheduled event is linked.'),
+  "discordSyncError": zod.string().nullish().describe('Last Discord sync error (managers only).'),
+  "hasVrchatEvent": zod.boolean().optional().describe('True when a VRChat group calendar event is linked.'),
+  "vrchatSyncError": zod.string().nullish().describe('Last VRChat calendar sync error (managers only).'),
+  "signupCount": zod.number().describe('Number of active NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullable()
+}),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
+  "recurrence": zod.union([zod.object({
+  "frequency": zod.number(),
+  "interval": zod.number(),
+  "byWeekday": zod.union([zod.array(zod.number()),zod.null()]).optional(),
+  "count": zod.number().nullish(),
+  "until": zod.coerce.date().nullish()
+}).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
+  "signups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().nullable()
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')

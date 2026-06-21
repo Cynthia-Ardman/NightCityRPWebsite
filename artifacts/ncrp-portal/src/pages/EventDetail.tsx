@@ -5,13 +5,12 @@ import {
   useGetEvent,
   useSignUpAsEventNpc,
   useWithdrawEventNpcSignup,
+  useConfirmEventNpcSignup,
   useListMyCharacters,
-  useCreateActorPayout,
   useConvertEventToMission,
   getGetEventQueryKey,
   getListEventsQueryKey,
   getListMissionsQueryKey,
-  getGetActorPayoutsQueryKey,
   type EventView,
   type EventSignupView,
   type EventToMissionConvertInput,
@@ -520,7 +519,11 @@ function NpcSignupSection({ data }: { data: EventView }) {
   const err = errOf(signUp.error) ?? errOf(withdraw.error);
   const open = data.needsNpcs && data.status !== "cancelled";
 
+  // Echo an existing sign-up back to the player so they see whether the
+  // organizer confirmed attendance (and paid) or marked them a no-show — the
+  // same lifecycle players already see on missions.
   if (mine) {
+    const resolved = mine.state === "attended" || mine.state === "no_show";
     return (
       <Card className="rounded-none border-border bg-card/50" data-testid="block-my-npc-signup">
         <CardHeader>
@@ -530,16 +533,21 @@ function NpcSignupSection({ data }: { data: EventView }) {
         </CardHeader>
         <CardContent className="space-y-3 font-mono text-sm">
           <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="rounded-none text-[10px] border-nc-magenta text-nc-magenta bg-nc-magenta/10"
-            >
-              Signed up
-            </Badge>
+            <NpcStateBadge state={mine.state} />
             {mine.characterName && <span className="text-foreground">{mine.characterName}</span>}
           </div>
+          {mine.state === "attended" && (
+            <div className="flex items-center gap-2" data-testid="text-npc-signup-paid">
+              <PaymentBadge status={mine.paymentStatus} amount={mine.payAmount} error={null} />
+            </div>
+          )}
+          {mine.state === "no_show" && (
+            <p className="text-muted-foreground" data-testid="text-npc-signup-noshow">
+              The organizer marked this sign-up as a no-show — no payout for this one.
+            </p>
+          )}
           {mine.note && <p className="text-muted-foreground whitespace-pre-wrap">{mine.note}</p>}
-          {open && (
+          {!resolved && open && (
             <Button
               type="button"
               variant="outline"
@@ -630,174 +638,169 @@ function NpcSignupSection({ data }: { data: EventView }) {
   );
 }
 
-// Attendance + pay-once roster. Each distinct signup gets an attendance
-// checkbox; the fixer checks who actually showed up, sets one flat fee, and pays
-// only the checked NPCs. The backend dedups per (eventId, userId) so an NPC can
-// only ever be paid ONCE for this event — already-paid NPCs are shown locked
-// with a PAID badge, and any NPC left unchecked stays payable later.
+function NpcStateBadge({ state }: { state: EventSignupView["state"] }) {
+  const cls =
+    state === "attended"
+      ? "border-green-500 text-green-400 bg-green-500/10"
+      : state === "no_show"
+        ? "border-destructive text-destructive bg-destructive/10"
+        : "border-nc-magenta text-nc-magenta bg-nc-magenta/10";
+  const label =
+    state === "attended" ? "Attended" : state === "no_show" ? "No-show" : "Signed up";
+  return (
+    <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
+      {label}
+    </Badge>
+  );
+}
+
+function PaymentBadge({
+  status,
+  amount,
+  error,
+}: {
+  status: string;
+  amount?: number | null;
+  error?: string | null;
+}) {
+  const cls =
+    status === "paid"
+      ? "border-green-500 text-green-400 bg-green-500/10"
+      : status === "failed"
+        ? "border-destructive text-destructive bg-destructive/10"
+        : status === "simulated"
+          ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
+          : "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
+  const label =
+    status === "paid" ? "Paid" : status === "failed" ? "Failed" : status === "simulated" ? "Test" : "Unpaid";
+  return (
+    <div className="inline-flex flex-col items-end gap-0.5">
+      <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
+        {label}
+        {amount ? ` €$${amount.toLocaleString()}` : ""}
+      </Badge>
+      {error && (
+        <span className="text-[10px] font-mono text-destructive max-w-[12rem] truncate" title={error}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Per-person attendance + pay-once roster. The organizer confirms each NPC as
+// attended (paying the single fee in the FEE input) or no-show — mirroring the
+// mission NPC roster. The backend dedups per (eventId, userId) so an NPC can
+// only ever be paid ONCE for this event; resolved rows show a state/payment
+// badge instead of buttons.
 function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupView[] }) {
   const qc = useQueryClient();
-  const pay = useCreateActorPayout({
+  const confirm = useConfirmEventNpcSignup({
     mutation: {
       onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getGetActorPayoutsQueryKey() });
-        // Refresh the event so paidActorUserIds (and thus the PAID locks) update.
         qc.invalidateQueries({ queryKey: getGetEventQueryKey(event.id) });
-        setSelected(new Set());
+        qc.invalidateQueries({ queryKey: getListEventsQueryKey() });
       },
     },
   });
   const [amount, setAmount] = useState(0);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const paidSet = new Set(event.paidActorUserIds ?? []);
-
-  // One row per distinct user, even if they signed up more than once. Track
-  // whether each is already paid so we can lock them.
-  const seen = new Set<string>();
-  const roster = signups
-    .filter((s) => {
-      if (!s.userId || seen.has(s.userId)) return false;
-      seen.add(s.userId);
-      return true;
-    })
-    .map((s) => ({ signup: s, userId: s.userId as string, paid: paidSet.has(s.userId as string) }));
-
-  const unpaid = roster.filter((r) => !r.paid);
-  const allUnpaidSelected = unpaid.length > 0 && unpaid.every((r) => selected.has(r.userId));
-
-  const toggle = (userId: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(userId) ? next.delete(userId) : next.add(userId);
-      return next;
-    });
-  const toggleAll = () =>
-    setSelected(allUnpaidSelected ? new Set() : new Set(unpaid.map((r) => r.userId)));
-
-  // Only pay checked NPCs who haven't already been paid for this event.
-  const payableIds = unpaid.filter((r) => selected.has(r.userId)).map((r) => r.userId);
-  const payErr = errOf(pay.error);
-  const canPay = payableIds.length > 0 && amount > 0 && !pay.isPending;
-  const submitPay = () =>
-    pay.mutate({
-      data: {
-        eventName: event.title,
-        eventType: event.eventType,
-        eventDate: event.startAt,
-        eventId: event.id,
-        userIds: payableIds,
-        amount,
-      },
-    });
+  const confirmErr = errOf(confirm.error);
+  const outstanding = signups.filter((s) => s.state === "signed_up").length;
+  const cancelled = event.status === "cancelled";
 
   return (
     <Card className="rounded-none border-border bg-card/50">
       <CardHeader>
         <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
           NPC Sign-ups ({signups.length})
+          {outstanding > 0 && (
+            <span className="ml-2 text-nc-yellow normal-case tracking-normal">
+              {outstanding} awaiting confirmation
+            </span>
+          )}
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        {roster.length === 0 ? (
-          <p className="font-mono text-muted-foreground italic">No NPC sign-ups yet.</p>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <p className="text-muted-foreground text-xs">
+          Players who volunteered to NPC this event. Set the fee, then confirm attendance to pay each NPC, or mark a
+          no-show. Each NPC can only be paid once for this event.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">FEE PER NPC €$</Label>
+            <Input
+              type="number"
+              min={0}
+              value={amount || ""}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              className="rounded-none w-40"
+              data-testid="input-npc-pay-amount"
+            />
+          </div>
+        </div>
+        {signups.length === 0 ? (
+          <p className="text-muted-foreground italic" data-testid="text-no-npc-signups">
+            No NPC sign-ups yet.
+          </p>
         ) : (
-          <>
-            {unpaid.length > 0 && (
-              <label
-                className="flex items-center gap-2 pb-2 mb-1 border-b border-border/40 font-mono text-xs text-muted-foreground cursor-pointer select-none"
-                data-testid="toggle-select-all-npcs"
-              >
-                <input
-                  type="checkbox"
-                  checked={allUnpaidSelected}
-                  onChange={toggleAll}
-                  className="h-4 w-4 accent-nc-cyan"
-                  data-testid="checkbox-select-all-npcs"
-                />
-                Mark all attended
-              </label>
-            )}
-            <ul className="divide-y divide-border/40 font-mono text-sm">
-              {roster.map(({ signup: s, userId, paid }) => (
-                <li key={s.id} className="py-2 flex items-start gap-3" data-testid={`row-signup-${s.id}`}>
-                  {paid ? (
-                    <span className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                  ) : (
-                    <input
-                      type="checkbox"
-                      checked={selected.has(userId)}
-                      onChange={() => toggle(userId)}
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-nc-cyan cursor-pointer"
-                      data-testid={`checkbox-attended-${s.id}`}
-                      aria-label={`Mark ${s.userName ?? "NPC"} attended`}
-                    />
-                  )}
-                  <div className="flex flex-col gap-0.5 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-foreground">{s.userName ?? "(unknown)"}</span>
-                      {s.characterName && <span className="text-nc-cyan text-xs">as {s.characterName}</span>}
-                      {paid && (
-                        <span
-                          className="px-1.5 py-0.5 text-[9px] font-display tracking-wider uppercase border bg-nc-green/20 border-nc-green/60 text-nc-green"
-                          data-testid={`badge-npc-paid-${s.id}`}
-                        >
-                          Paid
-                        </span>
-                      )}
-                    </div>
-                    {s.note && <p className="text-muted-foreground text-xs whitespace-pre-wrap">{s.note}</p>}
+          <ul className="divide-y divide-border/40">
+            {signups.map((s) => (
+              <li key={s.id} className="py-3 flex items-start gap-3" data-testid={`row-signup-${s.id}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-foreground">{s.userName ?? "(unknown)"}</span>
+                    {s.characterName && <span className="text-nc-cyan text-xs">as {s.characterName}</span>}
                   </div>
-                </li>
-              ))}
-            </ul>
-          </>
+                  {s.note && <p className="text-muted-foreground text-xs whitespace-pre-wrap">{s.note}</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {s.state === "signed_up" ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={cancelled || amount <= 0 || confirm.isPending}
+                        onClick={() =>
+                          confirm.mutate({ id: event.id, signupId: s.id, data: { action: "attended", amount } })
+                        }
+                        className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                        data-testid={`button-npc-attended-${s.id}`}
+                      >
+                        ATTENDED
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={cancelled || confirm.isPending}
+                        onClick={() =>
+                          confirm.mutate({ id: event.id, signupId: s.id, data: { action: "no_show" } })
+                        }
+                        className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+                        data-testid={`button-npc-noshow-${s.id}`}
+                      >
+                        NO-SHOW
+                      </Button>
+                    </>
+                  ) : s.state === "attended" ? (
+                    <PaymentBadge status={s.paymentStatus} amount={s.payAmount} error={s.paymentError} />
+                  ) : (
+                    <NpcStateBadge state={s.state} />
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
-
-        {/* Attendance checklist payout: check who showed up, set one flat fee,
-            pay only the checked + not-yet-paid NPCs. Each NPC can only be paid
-            once per event; unchecked NPCs stay payable later. */}
-        {unpaid.length > 0 && (
-          <div className="mt-4 border-t border-border/40 pt-4 space-y-3" data-testid="block-pay-npcs">
-            <div className="font-display tracking-widest text-xs uppercase text-nc-magenta">Pay attending NPCs</div>
-            <p className="font-mono text-xs text-muted-foreground">
-              Check the NPCs who actually attended, set the flat fee, then pay. Each NPC can only be paid once for this
-              event — unchecked NPCs stay payable later, and already-paid NPCs are locked.
-            </p>
-            <div className="flex flex-wrap items-end gap-3 font-mono text-sm">
-              <div className="space-y-1">
-                <Label className="text-xs">FEE PER NPC €$</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={amount || ""}
-                  onChange={(e) => setAmount(Number(e.target.value))}
-                  className="rounded-none w-40"
-                  data-testid="input-npc-pay-amount"
-                />
-              </div>
-              <Button
-                type="button"
-                disabled={!canPay}
-                onClick={submitPay}
-                className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
-                data-testid="button-pay-npcs"
-              >
-                {pay.isPending ? "PAYING..." : `PAY ${payableIds.length} NPC${payableIds.length === 1 ? "" : "S"}`}
-              </Button>
-              {pay.data && (
-                <span className="text-xs text-muted-foreground" data-testid="text-npc-pay-result">
-                  {pay.data.result.live
-                    ? `Paid ${pay.data.result.paid}, failed ${pay.data.result.failed}${pay.data.result.skipped ? `, already paid ${pay.data.result.skipped}` : ""}.`
-                    : `Simulated ${pay.data.result.simulated} (Test mode — no real payout).`}
-                </span>
-              )}
-            </div>
-            {payErr && (
-              <div className="text-destructive text-xs" data-testid="text-npc-pay-error">
-                {payErr}
-              </div>
-            )}
+        {amount <= 0 && outstanding > 0 && (
+          <p className="text-nc-yellow text-xs" data-testid="text-fee-required">
+            Set a fee above before confirming attendance.
+          </p>
+        )}
+        {confirmErr && (
+          <div className="text-destructive text-xs" data-testid="text-confirm-npc-error">
+            {confirmErr}
           </div>
         )}
       </CardContent>

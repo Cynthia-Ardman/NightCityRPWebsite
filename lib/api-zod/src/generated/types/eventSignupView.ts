@@ -5,6 +5,8 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EventSignupViewPaymentStatus } from './eventSignupViewPaymentStatus';
+import type { EventSignupViewState } from './eventSignupViewState';
 
 export interface EventSignupView {
   id: number;
@@ -17,6 +19,14 @@ export interface EventSignupView {
   characterName?: string | null;
   /** @nullable */
   note?: string | null;
+  state: EventSignupViewState;
+  /** @nullable */
+  payAmount?: number | null;
+  paymentStatus: EventSignupViewPaymentStatus;
+  /** @nullable */
+  paymentError?: string | null;
+  /** @nullable */
+  paidAt?: Date | null;
   /** @nullable */
   createdAt: Date | null;
 }

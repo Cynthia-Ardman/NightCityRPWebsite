@@ -89,6 +89,7 @@ import type {
   CheckEventConflictsParams,
   CheckMissionConflictsParams,
   CloseReviewTicket200,
+  ConfirmEventNpcSignupInput,
   ConfirmNpcSignupInput,
   CustomCatalogItem,
   CustomGunInput,
@@ -10331,6 +10332,80 @@ export const useWithdrawEventNpcSignup = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getWithdrawEventNpcSignupMutationOptions(options));
+    }
+
+export const getConfirmEventNpcSignupUrl = (id: number,
+    signupId: number,) => {
+
+
+
+
+  return `/api/events/${id}/npc-signups/${signupId}/confirm`
+}
+
+/**
+ * @summary Confirm an event NPC sign-up: attended (pays the supplied amount) or no_show. Fixer/admin only.
+ */
+export const confirmEventNpcSignup = async (id: number,
+    signupId: number,
+    confirmEventNpcSignupInput: ConfirmEventNpcSignupInput, options?: RequestInit): Promise<EventView> => {
+
+  return customFetch<EventView>(getConfirmEventNpcSignupUrl(id,signupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      confirmEventNpcSignupInput,)
+  }
+);}
+
+
+
+
+export const getConfirmEventNpcSignupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmEventNpcSignup>>, TError,{id: number;signupId: number;data: BodyType<ConfirmEventNpcSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmEventNpcSignup>>, TError,{id: number;signupId: number;data: BodyType<ConfirmEventNpcSignupInput>}, TContext> => {
+
+const mutationKey = ['confirmEventNpcSignup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmEventNpcSignup>>, {id: number;signupId: number;data: BodyType<ConfirmEventNpcSignupInput>}> = (props) => {
+          const {id,signupId,data} = props ?? {};
+
+          return  confirmEventNpcSignup(id,signupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmEventNpcSignupMutationResult = NonNullable<Awaited<ReturnType<typeof confirmEventNpcSignup>>>
+    export type ConfirmEventNpcSignupMutationBody = BodyType<ConfirmEventNpcSignupInput>
+    export type ConfirmEventNpcSignupMutationError = ErrorType<void>
+
+    /**
+ * @summary Confirm an event NPC sign-up: attended (pays the supplied amount) or no_show. Fixer/admin only.
+ */
+export const useConfirmEventNpcSignup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmEventNpcSignup>>, TError,{id: number;signupId: number;data: BodyType<ConfirmEventNpcSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmEventNpcSignup>>,
+        TError,
+        {id: number;signupId: number;data: BodyType<ConfirmEventNpcSignupInput>},
+        TContext
+      > => {
+      return useMutation(getConfirmEventNpcSignupMutationOptions(options));
     }
 
 export const getAdminListAuditUrl = (params?: AdminListAuditParams,) => {
