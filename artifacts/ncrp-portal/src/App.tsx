@@ -60,6 +60,7 @@ import PayActors from "@/pages/fixer/PayActors";
 import FixerInventorySearch from "@/pages/fixer/FixerInventorySearch";
 import FixerPlayerLookup from "@/pages/fixer/FixerPlayerLookup";
 import CyberwareViolations from "@/pages/fixer/CyberwareViolations";
+import OffMapProperties from "@/pages/fixer/OffMapProperties";
 import CyberPsycho from "@/pages/fixer/CyberPsycho";
 import InventoryItemDetail from "@/pages/InventoryItemDetail";
 import Missions from "@/pages/Missions";
@@ -300,6 +301,9 @@ function AppRoutes() {
           </Route>
           <Route path="/fixer/cyberware-violations">
             <FixerGuard><CyberwareViolations /></FixerGuard>
+          </Route>
+          <Route path="/fixer/off-map-properties">
+            <FixerGuard><OffMapProperties /></FixerGuard>
           </Route>
           <Route path="/fixer/cyberpsycho">
             <FixerGuard><CyberPsycho /></FixerGuard>

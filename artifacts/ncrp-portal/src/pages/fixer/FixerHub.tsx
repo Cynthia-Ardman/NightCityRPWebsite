@@ -3,7 +3,7 @@ import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, ShieldAlert, type LucideIcon } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, ShieldAlert, Building2, type LucideIcon } from "lucide-react";
 
 type FixerTool = {
   href: string;
@@ -87,6 +87,15 @@ const FIXER_TOOLS: FixerTool[] = [
     description: "Find a player and see the characters, wallets, and accounts tied to them.",
     cta: "Look up a player",
     accent: "cyan",
+  },
+  {
+    href: "/fixer/off-map-properties",
+    testId: "link-fixer-off-map-properties",
+    icon: Building2,
+    title: "Off-Map Properties",
+    description: "Every off-map lease — residential homes and business spaces not tied to a catalog building, with the venue each business backs.",
+    cta: "Browse off-map",
+    accent: "yellow",
   },
   {
     href: "/fixer/cyberware-violations",

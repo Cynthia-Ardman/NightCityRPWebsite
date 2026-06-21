@@ -64,6 +64,12 @@ export default function VenueRequestSection({
   const [location, setLocation] = useState("");
   const [listingId, setListingId] = useState<string>("");
   const [description, setDescription] = useState("");
+  // Store-only business-type picker: a Gun Store is tagged so it surfaces under
+  // the Guns badge in the directory. Ripperdocs are always cyberware clinics.
+  const [storeKind, setStoreKind] = useState<"guns" | "mixed">("mixed");
+  // Off-map venues may attach an off-map property/lease. The fixer sets the
+  // rent / district / tier at CLOSE & APPLY (same flow as Off-Map Housing).
+  const [attachProperty, setAttachProperty] = useState(false);
 
   // Available on-map buildings only load while the dialog is open (and only
   // matter for the On Map path).
@@ -83,6 +89,8 @@ export default function VenueRequestSection({
     setListingId("");
     setDescription("");
     setCharacterId("");
+    setStoreKind("mixed");
+    setAttachProperty(false);
   };
 
   const submit = useSubmitCustomRequest({
@@ -131,6 +139,10 @@ export default function VenueRequestSection({
         ? { listingId: parseInt(listingId, 10) }
         : {}
       : { location: location.trim() }),
+    // Stores carry their business type so the directory can flag Gun Stores.
+    ...(type === "store" ? { storeKind } : {}),
+    // Only off-map venues may attach an off-map property/lease at close.
+    ...(locationKind === "off_map" && attachProperty ? { attachProperty: true } : {}),
     ...(asDraft ? { asDraft: true } : {}),
   });
 
@@ -208,6 +220,23 @@ export default function VenueRequestSection({
                 data-testid={`input-name-${type}`}
               />
             </div>
+            {type === "store" && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Business Type</Label>
+                <Select value={storeKind} onValueChange={(v) => setStoreKind(v as "guns" | "mixed")}>
+                  <SelectTrigger className="rounded-none font-mono" data-testid={`select-storekind-${type}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mixed">General Store</SelectItem>
+                    <SelectItem value="guns">Gun Store</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="font-mono text-[10px] text-muted-foreground">
+                  Gun Stores are flagged in the directory so buyers can find weapons dealers.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Purpose</Label>
               <Input
@@ -241,13 +270,30 @@ export default function VenueRequestSection({
                 </Button>
               </div>
               {locationKind === "off_map" ? (
-                <Input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="In-world location / district"
-                  className="rounded-none font-mono"
-                  data-testid={`input-location-${type}`}
-                />
+                <>
+                  <Input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="In-world location / district"
+                    className="rounded-none font-mono"
+                    data-testid={`input-location-${type}`}
+                  />
+                  <label
+                    className="flex items-start gap-2 pt-1 cursor-pointer"
+                    data-testid={`toggle-attach-property-${type}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={attachProperty}
+                      onChange={(e) => setAttachProperty(e.target.checked)}
+                      className="mt-0.5 accent-nc-magenta"
+                    />
+                    <span className="font-mono text-[10px] text-muted-foreground leading-snug">
+                      Attach an off-map property (lease). A fixer sets the rent, district, and tier at
+                      approval. Leave unchecked for a Tier-0 venue with no property.
+                    </span>
+                  </label>
+                </>
               ) : (
                 <>
                   <Select value={listingId} onValueChange={setListingId}>

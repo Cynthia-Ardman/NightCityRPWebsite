@@ -87,7 +87,7 @@ const TYPE_META: Record<
   CustomRequest["type"],
   { label: string; Icon: typeof Home }
 > = {
-  property: { label: "PROPERTY", Icon: Home },
+  property: { label: "OFF-MAP HOUSING", Icon: Home },
   gun: { label: "GUN", Icon: Crosshair },
   cyberware: { label: "CYBERWARE", Icon: Cpu },
   // Freeform off-catalog item (anything that is not a gun or cyberware).
@@ -500,7 +500,6 @@ function RequestCloseDialog({
   const { toast } = useToast();
   const [note, setNote] = useState("");
   const [monthlyRent, setMonthlyRent] = useState("");
-  const [kind, setKind] = useState<"residential" | "business">("residential");
   const [businessName, setBusinessName] = useState("");
   const [district, setDistrict] = useState("");
   const [tier, setTier] = useState("");
@@ -525,7 +524,6 @@ function RequestCloseDialog({
   if (target && seededFor !== seedKey) {
     setNote("");
     setMonthlyRent("");
-    setKind("residential");
     setBusinessName("");
     setDistrict("");
     setTier("");
@@ -565,17 +563,30 @@ function RequestCloseDialog({
   const isCyberware = request.type === "cyberware";
   const isVenueStock = request.type === "venue_stock";
   const isGun = request.type === "gun";
+  // Off-Map Business venues only collect lease params when the player opted to
+  // attach an off-map property. On-map venues lease the reserved building and
+  // need no rent/district/tier here.
+  const venueDet =
+    request.type === "store" || request.type === "ripperdoc"
+      ? (request.details as { attachProperty?: boolean; locationKind?: string } | null)
+      : null;
+  const isVenueProperty =
+    !!venueDet && venueDet.attachProperty === true && venueDet.locationKind !== "on_map";
+  // Both off-map housing and an attached-business lease collect the same lease
+  // numbers (rent / district / tier).
+  const needsLeaseParams = isProperty || isVenueProperty;
 
   const rentNum = parseInt(monthlyRent, 10);
   const cwpNum = parseInt(cwp, 10);
   const unitCostNum = parseInt(unitCost, 10);
   const retailNum = parseInt(retail, 10);
   const qtyNum = parseInt(qty, 10);
-  // Tier presets mirror the properties page (kind-dependent); custom is allowed.
-  const tierOptions = kind === "business" ? ["T0", "T1", "T2", "T3"] : ["T1", "T2", "T3"];
+  // Tier presets mirror the properties page; custom is allowed. Residential
+  // off-map housing starts at T1; business leases can be Tier-0.
+  const tierOptions = isVenueProperty ? ["T0", "T1", "T2", "T3"] : ["T1", "T2", "T3"];
   const paramsValid =
     !isApply ||
-    ((!isProperty ||
+    ((!needsLeaseParams ||
       (Number.isFinite(rentNum) && rentNum >= 0 && district.trim() !== "" && tier.trim() !== "")) &&
       (!isCyberware || (Number.isFinite(cwpNum) && cwpNum >= 0 && slot.trim() !== "")) &&
       (!isGun ||
@@ -594,10 +605,9 @@ function RequestCloseDialog({
   const submit = () => {
     const params = isApply
       ? {
-          ...(isProperty
+          ...(needsLeaseParams
             ? {
                 monthlyRent: rentNum,
-                kind,
                 district: district.trim(),
                 tier: tier.trim(),
                 ...(businessName.trim() ? { businessName: businessName.trim() } : {}),
@@ -637,8 +647,14 @@ function RequestCloseDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          {isApply && isProperty && (
+          {isApply && needsLeaseParams && (
             <>
+              {isVenueProperty && (
+                <p className="font-mono text-[11px] text-nc-cyan/80 border border-nc-cyan/30 bg-nc-cyan/5 px-3 py-2">
+                  This Off-Map Business asked to attach a property — set the off-map business lease's
+                  rent, district, and tier below.
+                </p>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Monthly Rent (€$)</Label>
                 <Input
@@ -652,7 +668,7 @@ function RequestCloseDialog({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Business / Property Name</Label>
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Property Name</Label>
                 <Input
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
@@ -660,18 +676,6 @@ function RequestCloseDialog({
                   className="rounded-none font-mono"
                   data-testid="input-close-business-name"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Kind</Label>
-                <Select value={kind} onValueChange={(v) => setKind(v as "residential" | "business")}>
-                  <SelectTrigger className="rounded-none font-mono" data-testid="select-close-kind">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="residential">Residential</SelectItem>
-                    <SelectItem value="business">Business</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">District</Label>

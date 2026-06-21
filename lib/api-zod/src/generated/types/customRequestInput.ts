@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CustomRequestInputLocationKind } from './customRequestInputLocationKind';
+import type { CustomRequestInputStoreKind } from './customRequestInputStoreKind';
 import type { CustomRequestInputType } from './customRequestInputType';
 
 export interface CustomRequestInput {
@@ -24,6 +25,10 @@ export interface CustomRequestInput {
   locationKind?: CustomRequestInputLocationKind;
   /** Required for on_map store/ripperdoc requests; the business catalog_rent building to reserve. */
   listingId?: number;
+  /** Store requests only (Off-Map Business type picker): 'guns' tags the venue as a Gun Store (surfaces under the Guns badge), 'mixed' is a general store. Defaults to mixed. Ignored for ripperdoc requests. */
+  storeKind?: CustomRequestInputStoreKind;
+  /** Off-map store/ripperdoc requests only: when true the fixer mints an off-map business lease (rent/district/tier set at CLOSE & APPLY) linked to the new venue. On-map venues always lease their reserved building, so this is ignored there. */
+  attachProperty?: boolean;
   /** For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source. */
   source?: string;
   /** When true the request is saved as a private draft (status=draft): not announced to reviewers and holding no building reservation until submitted via /requests/{id}/submit. */

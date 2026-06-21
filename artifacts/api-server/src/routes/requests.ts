@@ -123,7 +123,7 @@ function isVenueType(type: string): boolean {
 function typeLabelFor(type: string): string {
   switch (type) {
     case "property":
-      return "off-map property";
+      return "off-map housing";
     case "gun":
       return "custom gun";
     case "cyberware":
@@ -223,26 +223,55 @@ const MAX_MONEY = 2_000_000_000;
 function normalizeApprovalParams(
   type: string,
   params: ApprovalParams,
+  details?: Record<string, unknown> | null,
 ): { ok: Record<string, number | string> } | { error: string } {
   if (type === "property") {
     const raw = parseInt(String(params.monthlyRent), 10);
     if (!Number.isFinite(raw) || raw < 0) {
-      return { error: "monthlyRent (>= 0) required to approve a property request" };
+      return { error: "monthlyRent (>= 0) required to approve a housing request" };
     }
     // Clamp a too-large value down to the ceiling instead of rejecting it, so a
     // staff typo of an enormous number is silently corrected rather than erroring.
     const monthlyRent = Math.min(raw, MAX_MONEY);
-    const kind = params.kind === "business" ? "business" : "residential";
+    // Off-map housing is residential-only: business spaces now go through the
+    // Off-Map Business (store/ripperdoc) request, which optionally attaches its
+    // own business lease. This removes the old "property = home or business?"
+    // ambiguity ("Deadlock Defense" confusion).
+    const kind = "residential";
     // District + tier are fixer-decided at close (mirroring the properties page)
     // and required so an off-map lease carries the same classification on-map
     // listings do.
     const district = reqStr(params.district);
-    if (!district) return { error: "district required to approve a property request" };
+    if (!district) return { error: "district required to approve a housing request" };
     const tier = reqStr(params.tier);
-    if (!tier) return { error: "tier required to approve a property request" };
+    if (!tier) return { error: "tier required to approve a housing request" };
     const out: Record<string, number | string> = { monthlyRent, kind, district, tier };
-    // Optional: staff may set/replace the leased business/property name at
-    // approval time. When omitted the request title is used as-is.
+    // Optional: staff may set/replace the leased property name at approval time.
+    // When omitted the request title is used as-is.
+    if (typeof params.businessName === "string" && params.businessName.trim()) {
+      out.businessName = params.businessName.trim();
+    }
+    return { ok: out };
+  }
+  if (type === "store" || type === "ripperdoc") {
+    // Off-Map Business venues need no mechanical params UNLESS the player asked
+    // to attach an off-map property — then the fixer sets the lease's rent /
+    // district / tier at close, exactly like a housing request. On-map venues
+    // already get their lease from the reserved catalog building, so they never
+    // collect these here.
+    const det = details ?? {};
+    const attach = det.attachProperty === true && det.locationKind !== "on_map";
+    if (!attach) return { ok: {} };
+    const raw = parseInt(String(params.monthlyRent), 10);
+    if (!Number.isFinite(raw) || raw < 0) {
+      return { error: "monthlyRent (>= 0) required to attach a property to this business" };
+    }
+    const monthlyRent = Math.min(raw, MAX_MONEY);
+    const district = reqStr(params.district);
+    if (!district) return { error: "district required to attach a property to this business" };
+    const tier = reqStr(params.tier);
+    if (!tier) return { error: "tier required to attach a property to this business" };
+    const out: Record<string, number | string> = { monthlyRent, district, tier };
     if (typeof params.businessName === "string" && params.businessName.trim()) {
       out.businessName = params.businessName.trim();
     }
@@ -316,12 +345,14 @@ async function materializeRequest(
     if (monthlyRent > MAX_MONEY) {
       return { error: { status: 400, body: { error: `monthlyRent must be ${MAX_MONEY.toLocaleString()} or less — re-approve this request with a valid rent` } } };
     }
-    const kind = params.kind === "business" ? "business" : "residential";
+    // Off-map housing is residential-only (the old ambiguous business path now
+    // lives under the Off-Map Business request).
+    const kind = "residential";
     if (!c.approved) {
       return { error: { status: 400, body: { error: "Character is not approved; cannot bill rent" } } };
     }
-    // Staff may set/replace the business/property name on approval; it becomes
-    // the lease's displayed address. Falls back to the request title.
+    // Staff may set/replace the property name on approval; it becomes the
+    // lease's displayed address. Falls back to the request title.
     const businessName =
       typeof params.businessName === "string" && params.businessName.trim()
         ? params.businessName.trim()
@@ -434,6 +465,8 @@ async function materializeRequest(
       location?: string;
       locationKind?: "on_map" | "off_map";
       listingId?: number;
+      storeKind?: string;
+      attachProperty?: boolean;
     };
     // On-map venue: commit a business lease for the reserved building to the
     // venue's owning character, and pin the venue location to the building. The
@@ -479,8 +512,54 @@ async function materializeRequest(
         .returning({ id: housing.id });
       venueLocation = address;
       venueHousingId = lease.id;
+    } else if (det.attachProperty) {
+      // Off-map business that opted into a property: mint an off-map business
+      // lease (no catalog building, listingId null) using the rent / district /
+      // tier the fixer sets at CLOSE & APPLY — exactly like an off-map housing
+      // request, but classified as a business lease and linked to the venue.
+      const raw = parseInt(String(params.monthlyRent), 10);
+      if (!Number.isFinite(raw) || raw < 0) {
+        return { error: { status: 400, body: { error: "monthlyRent (>= 0) required to attach a property to this business" } } };
+      }
+      if (raw > MAX_MONEY) {
+        return { error: { status: 400, body: { error: `monthlyRent must be ${MAX_MONEY.toLocaleString()} or less — re-approve this request with a valid rent` } } };
+      }
+      const district = reqStr(params.district);
+      if (!district) {
+        return { error: { status: 400, body: { error: "district required to attach a property to this business" } } };
+      }
+      const tier = reqStr(params.tier);
+      if (!tier) {
+        return { error: { status: 400, body: { error: "tier required to attach a property to this business" } } };
+      }
+      if (!c.approved) {
+        return { error: { status: 400, body: { error: "Character is not approved; cannot bill rent" } } };
+      }
+      const address =
+        typeof params.businessName === "string" && params.businessName.trim()
+          ? params.businessName.trim()
+          : reqRow.title;
+      const [lease] = await tx
+        .insert(housing)
+        .values({
+          characterId: reqRow.characterId,
+          listingId: null,
+          address,
+          district,
+          tier,
+          monthlyRent: raw,
+          paidThrough: endOfCurrentMonth(),
+          notes: `Off-map business lease via ${reqRow.type} request "${reqRow.title}"`,
+          kind: "business",
+        })
+        .returning({ id: housing.id });
+      venueLocation = det.location ?? address;
+      venueHousingId = lease.id;
     }
     if (reqRow.type === "store") {
+      // Off-Map Business type picker: a Gun Store surfaces under the Guns badge
+      // in the directory; everything else stays a general "mixed" store.
+      const storeKind = det.storeKind === "guns" ? "guns" : "mixed";
       const [s] = await tx
         .insert(stores)
         .values({
@@ -491,6 +570,7 @@ async function materializeRequest(
           location: venueLocation,
           housingId: venueHousingId,
           description: reqRow.description ?? null,
+          kind: storeKind,
         })
         .returning();
       return { ok: { appliedRef: `store:${s.id}`, summary: `New store approved: ${reqRow.title}` } };
@@ -616,6 +696,19 @@ async function afterApprove(
     targetId: reqRow.id,
     message: summary,
     after: { type: reqRow.type, characterId: reqRow.characterId, appliedRef, via },
+  });
+  // Mirror the decision onto the affected character's own audit trail so a
+  // fixer reading a character's history sees the applied request (lease, venue,
+  // chrome, etc.) without cross-referencing the request log. Uses a distinct
+  // close/apply action so it reads clearly apart from the request-vote entry.
+  await recordAudit({
+    req,
+    category: auditCategoryFor(reqRow.type),
+    action: "request_applied",
+    targetType: "character",
+    targetId: reqRow.characterId,
+    message: `${c.name}: ${summary}${via === "override" ? " (admin override)" : ""}`,
+    after: { type: reqRow.type, requestId: reqRow.id, appliedRef, via },
   });
 }
 
@@ -893,7 +986,7 @@ async function notifyRequesterOfDecision(
 // Submit a custom request. Player picks one of their own characters and types
 // a free-text title (location / item name) and description.
 router.post("/requests", requireAuth, async (req, res): Promise<void> => {
-  const { type, characterId, title, description, imageUrl, purpose, location, source, locationKind, listingId, asDraft } = req.body ?? {};
+  const { type, characterId, title, description, imageUrl, purpose, location, source, locationKind, listingId, storeKind, attachProperty, asDraft } = req.body ?? {};
   // A draft is the requester's private work-in-progress: it is NOT announced to
   // the cs-approver queue, holds no building reservation, and is invisible to
   // reviewers until the player submits it (POST /requests/:id/submit).
@@ -938,6 +1031,13 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
     // "on_map" picks a business building from the rent catalog; "off_map" (the
     // default / legacy behaviour) keeps the free-text location.
     const kind = locationKind === "on_map" ? "on_map" : "off_map";
+    // Business-type picker (stores only): a Gun Store is tagged so it surfaces
+    // under the Guns badge in the directory; anything else is a general store.
+    const venueStoreKind = reqType === "store" ? (storeKind === "guns" ? "guns" : "mixed") : undefined;
+    // Off-map venues may opt to attach a property — the fixer then sets the
+    // off-map business lease's rent/district/tier at CLOSE & APPLY. On-map
+    // venues always lease their reserved catalog building, so the flag is moot.
+    const wantsProperty = kind === "off_map" && attachProperty === true;
     // Drafts skip the required-field gates (mirrors the sheet draft→submit flow):
     // a player can stash partial work and finish it later. The full check runs at
     // POST /requests/:id/submit before the row ever reaches reviewers.
@@ -969,13 +1069,13 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
           }
         }
         const buildingLabel = listing.district ? `${listing.name} — ${listing.district}` : listing.name;
-        details = { purpose: p, locationKind: "on_map", listingId: lid, location: buildingLabel };
+        details = { purpose: p, locationKind: "on_map", listingId: lid, location: buildingLabel, ...(venueStoreKind ? { storeKind: venueStoreKind } : {}) };
         reservedListingId = lid;
       } else if (!isDraft) {
         res.status(400).json({ error: "listingId is required for an on-map venue" });
         return;
       } else {
-        details = { purpose: p, locationKind: "on_map" };
+        details = { purpose: p, locationKind: "on_map", ...(venueStoreKind ? { storeKind: venueStoreKind } : {}) };
       }
     } else {
       const l = typeof location === "string" ? location.trim() : "";
@@ -983,7 +1083,13 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
         res.status(400).json({ error: "purpose, location, and description are required" });
         return;
       }
-      details = { purpose: p, locationKind: "off_map", location: l };
+      details = {
+        purpose: p,
+        locationKind: "off_map",
+        location: l,
+        ...(venueStoreKind ? { storeKind: venueStoreKind } : {}),
+        ...(wantsProperty ? { attachProperty: true } : {}),
+      };
     }
     descToStore = d || null;
   } else if ((reqType === "gun" || reqType === "cyberware") && typeof source === "string" && source.trim()) {
@@ -1364,7 +1470,7 @@ export async function closeRequest(req: Request, id: number, note?: string, clos
       // materializeRequest call below re-validates and 400s if still missing.
       let params = (reqRow.decisionParams ?? ((reqRow.details ?? {}) as { approval?: ApprovalParams }).approval ?? {}) as ApprovalParams;
       if (closeParams && Object.values(closeParams).some((v) => v !== undefined)) {
-        const norm = normalizeApprovalParams(reqRow.type, closeParams);
+        const norm = normalizeApprovalParams(reqRow.type, closeParams, reqRow.details as Record<string, unknown> | null);
         if ("error" in norm) return { kind: "error" as const, status: 400, body: { error: norm.error } };
         params = norm.ok as ApprovalParams;
       }

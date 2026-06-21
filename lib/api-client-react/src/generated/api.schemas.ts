@@ -3417,6 +3417,47 @@ export interface HousingLease {
   createdAt: string;
 }
 
+/**
+ * residential = Off-Map Housing; business = property attached to an Off-Map Business venue.
+ */
+export type OffMapPropertyKind = typeof OffMapPropertyKind[keyof typeof OffMapPropertyKind];
+
+
+export const OffMapPropertyKind = {
+  residential: 'residential',
+  business: 'business',
+} as const;
+
+export interface OffMapProperty {
+  id: number;
+  characterId: number;
+  characterName: string;
+  /**
+     * Discord username of the owning player, or null if the character is unclaimed.
+     * @nullable
+     */
+  ownerName?: string | null;
+  address: string;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+  monthlyRent: number;
+  /** residential = Off-Map Housing; business = property attached to an Off-Map Business venue. */
+  kind: OffMapPropertyKind;
+  /** @nullable */
+  paidThrough?: string | null;
+  delinquent?: boolean;
+  /** @nullable */
+  notes?: string | null;
+  /**
+     * Name of the store/ripperdoc this business lease backs, or null for residential / unlinked leases.
+     * @nullable
+     */
+  venueName?: string | null;
+  createdAt: string;
+}
+
 export interface HousingReviewerNote {
   reviewerNote?: string;
 }
@@ -3691,6 +3732,17 @@ export const CustomRequestInputLocationKind = {
   on_map: 'on_map',
 } as const;
 
+/**
+ * Store requests only (Off-Map Business type picker): 'guns' tags the venue as a Gun Store (surfaces under the Guns badge), 'mixed' is a general store. Defaults to mixed. Ignored for ripperdoc requests.
+ */
+export type CustomRequestInputStoreKind = typeof CustomRequestInputStoreKind[keyof typeof CustomRequestInputStoreKind];
+
+
+export const CustomRequestInputStoreKind = {
+  guns: 'guns',
+  mixed: 'mixed',
+} as const;
+
 export interface CustomRequestInput {
   type: CustomRequestInputType;
   characterId: number;
@@ -3707,6 +3759,10 @@ export interface CustomRequestInput {
   locationKind?: CustomRequestInputLocationKind;
   /** Required for on_map store/ripperdoc requests; the business catalog_rent building to reserve. */
   listingId?: number;
+  /** Store requests only (Off-Map Business type picker): 'guns' tags the venue as a Gun Store (surfaces under the Guns badge), 'mixed' is a general store. Defaults to mixed. Ignored for ripperdoc requests. */
+  storeKind?: CustomRequestInputStoreKind;
+  /** Off-map store/ripperdoc requests only: when true the fixer mints an off-map business lease (rent/district/tier set at CLOSE & APPLY) linked to the new venue. On-map venues always lease their reserved building, so this is ignored there. */
+  attachProperty?: boolean;
   /** For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source. */
   source?: string;
   /** When true the request is saved as a private draft (status=draft): not announced to reviewers and holding no building reservation until submitted via /requests/{id}/submit. */

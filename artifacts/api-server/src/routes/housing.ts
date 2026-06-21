@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, sql, ilike, inArray, desc } from "drizzle-orm";
-import { db, housing, characters, catalogRent, activityEvents, characterUpdates, housingRequests, users, walletTransactions } from "@workspace/db";
+import { db, housing, characters, catalogRent, activityEvents, characterUpdates, housingRequests, users, walletTransactions, stores, ripperdocs } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { recordAudit } from "../lib/audit";
 import { endOfCurrentMonth } from "../lib/billingDates";
@@ -109,6 +109,78 @@ router.get("/characters/:id/housing", requireAuth, async (req, res): Promise<voi
   }
   const rows = await selectLeasesWhere(eq(housing.characterId, cid));
   res.json(rows.map(shape));
+});
+
+// Staff-only browser for every OFF-MAP lease (listingId null) — the homes and
+// business spaces that aren't tied to a catalog building. Off-map leases are
+// created by approving an Off-Map Housing request (residential) or an Off-Map
+// Business request that opted to attach a property (business, linked to its
+// store/ripperdoc). Without this view they were invisible outside each owner's
+// own pages, which is exactly what bred the "Deadlock Defense" confusion.
+router.get("/fixer/off-map-properties", requireAuth, async (req, res): Promise<void> => {
+  if (!isFixerOrAdmin(req.user!)) {
+    res.status(403).json({ error: "Staff only" });
+    return;
+  }
+  const rows = (await db
+    .select({
+      id: housing.id,
+      characterId: housing.characterId,
+      characterName: characters.name,
+      ownerName: users.username,
+      address: housing.address,
+      district: housing.district,
+      tier: housing.tier,
+      monthlyRent: housing.monthlyRent,
+      kind: housing.kind,
+      paidThrough: housing.paidThrough,
+      delinquentSince: housing.delinquentSince,
+      notes: housing.notes,
+      createdAt: housing.createdAt,
+      storeName: stores.name,
+      ripperdocName: ripperdocs.name,
+    })
+    .from(housing)
+    .innerJoin(characters, eq(characters.id, housing.characterId))
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .leftJoin(stores, eq(stores.housingId, housing.id))
+    .leftJoin(ripperdocs, eq(ripperdocs.housingId, housing.id))
+    .where(sql`${housing.listingId} IS NULL`)
+    .orderBy(desc(housing.createdAt))) as {
+    id: number;
+    characterId: number;
+    characterName: string;
+    ownerName: string | null;
+    address: string;
+    district: string | null;
+    tier: string | null;
+    monthlyRent: number;
+    kind: string;
+    paidThrough: Date | null;
+    delinquentSince: Date | null;
+    notes: string | null;
+    createdAt: Date;
+    storeName: string | null;
+    ripperdocName: string | null;
+  }[];
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      characterId: r.characterId,
+      characterName: r.characterName,
+      ownerName: r.ownerName,
+      address: r.address,
+      district: r.district,
+      tier: r.tier,
+      monthlyRent: r.monthlyRent,
+      kind: r.kind,
+      paidThrough: r.paidThrough ? r.paidThrough.toISOString() : null,
+      delinquent: r.delinquentSince != null || (!!r.paidThrough && r.paidThrough.getTime() < Date.now()),
+      notes: r.notes,
+      venueName: r.storeName ?? r.ripperdocName ?? null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
 });
 
 // Staff-only audit view for a single catalog listing. Returns the listing

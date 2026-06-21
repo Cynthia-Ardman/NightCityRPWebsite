@@ -214,6 +214,7 @@ import type {
   MissionUpdateInput,
   MyUnseen,
   NpcSignupInput,
+  OffMapProperty,
   OverrideDecisionInput,
   OverridePendingEdit200,
   PayActorsInput,
@@ -4064,6 +4065,83 @@ export function useGetCharacterHousing<TData = Awaited<ReturnType<typeof getChar
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCharacterHousingQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListOffMapPropertiesUrl = () => {
+
+
+
+
+  return `/api/fixer/off-map-properties`
+}
+
+/**
+ * @summary Staff-only browser for every off-map lease (no catalog building) — residential homes and business spaces, the latter linked to their store/ripperdoc.
+ */
+export const listOffMapProperties = async ( options?: RequestInit): Promise<OffMapProperty[]> => {
+
+  return customFetch<OffMapProperty[]>(getListOffMapPropertiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOffMapPropertiesQueryKey = () => {
+    return [
+    `/api/fixer/off-map-properties`
+    ] as const;
+    }
+
+
+export const getListOffMapPropertiesQueryOptions = <TData = Awaited<ReturnType<typeof listOffMapProperties>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOffMapProperties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOffMapPropertiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOffMapProperties>>> = ({ signal }) => listOffMapProperties({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOffMapProperties>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOffMapPropertiesQueryResult = NonNullable<Awaited<ReturnType<typeof listOffMapProperties>>>
+export type ListOffMapPropertiesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Staff-only browser for every off-map lease (no catalog building) — residential homes and business spaces, the latter linked to their store/ripperdoc.
+ */
+
+export function useListOffMapProperties<TData = Awaited<ReturnType<typeof listOffMapProperties>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOffMapProperties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOffMapPropertiesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

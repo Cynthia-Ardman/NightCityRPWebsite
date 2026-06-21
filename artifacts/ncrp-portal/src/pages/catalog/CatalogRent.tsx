@@ -360,9 +360,9 @@ export default function CatalogRent() {
       </div>
       <CatalogRequestSection
         type="property"
-        buttonLabel="SUBMIT OFF-MAP PROPERTY REQUEST"
-        dialogTitle="OFF-MAP PROPERTY REQUEST"
-        dialogDescription="Ask staff for a home or business that isn't a listed property."
+        buttonLabel="SUBMIT OFF-MAP HOUSING REQUEST"
+        dialogTitle="OFF-MAP HOUSING REQUEST"
+        dialogDescription="Ask staff for a place to live that isn't a listed property. For a business or venue, use Request a Business instead."
         titleLabel="Location / Address"
         titlePlaceholder="e.g. Loft above the Afterlife, Watson"
       />
@@ -1233,10 +1233,14 @@ function BusinessLeaseDialog({
   const [characterId, setCharacterId] = useState<number | null>(null);
   const [businessName, setBusinessName] = useState("");
   const [purpose, setPurpose] = useState("");
+  // Which kind of venue this on-map space will operate as. Drives the request
+  // type (ripperdoc vs store) and, for stores, the Gun-Store directory flag.
+  const [bizType, setBizType] = useState<"store_mixed" | "store_guns" | "ripperdoc">("store_mixed");
+  const venueType = bizType === "ripperdoc" ? "ripperdoc" : "store";
   const submit = useSubmitCustomRequest({
     mutation: {
       onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey({ type: "property" }) });
+        void qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey({ type: venueType }) });
         toast({ title: "Application submitted", description: "Staff will review your business space request." });
         onDone();
       },
@@ -1265,9 +1269,15 @@ function BusinessLeaseDialog({
               if (!characterId) return;
               submit.mutate({
                 data: {
-                  type: "property",
+                  type: venueType,
                   characterId,
-                  title: `${businessName.trim()} @ ${listing.name}`,
+                  title: businessName.trim(),
+                  purpose: purpose.trim(),
+                  locationKind: "on_map",
+                  listingId: listing.id,
+                  ...(venueType === "store"
+                    ? { storeKind: bizType === "store_guns" ? "guns" : "mixed" }
+                    : {}),
                   description:
                     `Business space: ${listing.name} (€$${listing.monthlyRent.toLocaleString()}/mo)\n` +
                     `Business name: ${businessName.trim()}\n` +
@@ -1279,6 +1289,19 @@ function BusinessLeaseDialog({
             <p className="text-muted-foreground">
               Business spaces require staff review. Submit your plans below — a fixer sets up the lease on approval.
             </p>
+            <div>
+              <Label className="text-xs">BUSINESS TYPE</Label>
+              <Select value={bizType} onValueChange={(v) => setBizType(v as typeof bizType)}>
+                <SelectTrigger className="rounded-none font-mono mt-1" data-testid="select-business-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="store_mixed">General Store</SelectItem>
+                  <SelectItem value="store_guns">Gun Store</SelectItem>
+                  <SelectItem value="ripperdoc">Cyberware Clinic</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label className="text-xs">CHARACTER</Label>
               {eligible.length === 0 ? (

@@ -878,6 +878,20 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/HousingLease" }
+  /fixer/off-map-properties:
+    get:
+      operationId: listOffMapProperties
+      tags: [housing]
+      summary: "Staff-only browser for every off-map lease (no catalog building) — residential homes and business spaces, the latter linked to their store/ripperdoc."
+      responses:
+        "200":
+          description: Off-map leases
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OffMapProperty" }
+        "403": { description: Staff only }
   /housing/lease:
     post:
       operationId: leaseHousing
@@ -7548,6 +7562,28 @@ components:
           description: "Days remaining in the grace window. 0 = will be evicted on the next eviction_sweep run. Null = not delinquent."
         createdAt: { type: string, format: date-time }
 
+    OffMapProperty:
+      type: object
+      required: [id, characterId, characterName, address, monthlyRent, kind, createdAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        characterName: { type: string }
+        ownerName: { type: ["string", "null"], description: "Discord username of the owning player, or null if the character is unclaimed." }
+        address: { type: string }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
+        monthlyRent: { type: integer }
+        kind:
+          type: string
+          enum: [residential, business]
+          description: "residential = Off-Map Housing; business = property attached to an Off-Map Business venue."
+        paidThrough: { type: ["string", "null"], format: date-time }
+        delinquent: { type: boolean }
+        notes: { type: ["string", "null"] }
+        venueName: { type: ["string", "null"], description: "Name of the store/ripperdoc this business lease backs, or null for residential / unlinked leases." }
+        createdAt: { type: string, format: date-time }
+
     HousingReviewerNote:
       type: object
       properties:
@@ -7669,6 +7705,11 @@ components:
           enum: [off_map, on_map]
           description: "Store/ripperdoc requests: off_map uses free-text location; on_map reserves a business building (listingId). Defaults to off_map."
         listingId: { type: integer, description: "Required for on_map store/ripperdoc requests; the business catalog_rent building to reserve." }
+        storeKind:
+          type: string
+          enum: [guns, mixed]
+          description: "Store requests only (Off-Map Business type picker): 'guns' tags the venue as a Gun Store (surfaces under the Guns badge), 'mixed' is a general store. Defaults to mixed. Ignored for ripperdoc requests."
+        attachProperty: { type: boolean, description: "Off-map store/ripperdoc requests only: when true the fixer mints an off-map business lease (rent/district/tier set at CLOSE & APPLY) linked to the new venue. On-map venues always lease their reserved building, so this is ignored there." }
         source: { type: string, description: "For gun/cyberware requests: which store/ripperdoc the player wants it from, or a free-text 'Custom' source. Stored on details.source." }
         asDraft: { type: boolean, description: "When true the request is saved as a private draft (status=draft): not announced to reviewers and holding no building reservation until submitted via /requests/{id}/submit." }
 

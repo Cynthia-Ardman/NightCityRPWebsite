@@ -1179,6 +1179,28 @@ export const GetCharacterHousingResponse = zod.array(GetCharacterHousingResponse
 
 
 /**
+ * @summary Staff-only browser for every off-map lease (no catalog building) — residential homes and business spaces, the latter linked to their store/ripperdoc.
+ */
+export const ListOffMapPropertiesResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "ownerName": zod.string().nullish().describe('Discord username of the owning player, or null if the character is unclaimed.'),
+  "address": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "monthlyRent": zod.number(),
+  "kind": zod.enum(['residential', 'business']).describe('residential = Off-Map Housing; business = property attached to an Off-Map Business venue.'),
+  "paidThrough": zod.coerce.date().nullish(),
+  "delinquent": zod.boolean().optional(),
+  "notes": zod.string().nullish(),
+  "venueName": zod.string().nullish().describe('Name of the store\/ripperdoc this business lease backs, or null for residential \/ unlinked leases.'),
+  "createdAt": zod.coerce.date()
+})
+export const ListOffMapPropertiesResponse = zod.array(ListOffMapPropertiesResponseItem)
+
+
+/**
  * @summary Lease a catalog listing for one of the signed-in user's characters
  */
 export const LeaseHousingBody = zod.object({
@@ -9108,6 +9130,8 @@ export const SubmitCustomRequestBody = zod.object({
   "location": zod.string().optional().describe('Required for off-map store\/ripperdoc requests; free-text in-world location.'),
   "locationKind": zod.enum(['off_map', 'on_map']).optional().describe('Store\/ripperdoc requests: off_map uses free-text location; on_map reserves a business building (listingId). Defaults to off_map.'),
   "listingId": zod.number().optional().describe('Required for on_map store\/ripperdoc requests; the business catalog_rent building to reserve.'),
+  "storeKind": zod.enum(['guns', 'mixed']).optional().describe('Store requests only (Off-Map Business type picker): \'guns\' tags the venue as a Gun Store (surfaces under the Guns badge), \'mixed\' is a general store. Defaults to mixed. Ignored for ripperdoc requests.'),
+  "attachProperty": zod.boolean().optional().describe('Off-map store\/ripperdoc requests only: when true the fixer mints an off-map business lease (rent\/district\/tier set at CLOSE & APPLY) linked to the new venue. On-map venues always lease their reserved building, so this is ignored there.'),
   "source": zod.string().optional().describe('For gun\/cyberware requests: which store\/ripperdoc the player wants it from, or a free-text \'Custom\' source. Stored on details.source.'),
   "asDraft": zod.boolean().optional().describe('When true the request is saved as a private draft (status=draft): not announced to reviewers and holding no building reservation until submitted via \/requests\/{id}\/submit.')
 })
