@@ -4792,6 +4792,7 @@ export const JobRunInputJob = {
   role_sync: 'role_sync',
   eviction_sweep: 'eviction_sweep',
   discord_event_sync: 'discord_event_sync',
+  mission_thread_backfill: 'mission_thread_backfill',
 } as const;
 
 export interface JobRunInput {

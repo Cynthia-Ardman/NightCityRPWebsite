@@ -1399,7 +1399,7 @@ export function JobsTab() {
     },
   });
 
-  const handleRunJob = (jobId: "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "discord_event_sync") => {
+  const handleRunJob = (jobId: "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "discord_event_sync" | "mission_thread_backfill") => {
     runJob.mutate({ data: { job: jobId } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getAdminListJobsQueryKey() });
@@ -1472,6 +1472,9 @@ export function JobsTab() {
           </Button>
           <Button onClick={() => handleRunJob("discord_event_sync")} disabled={runJob.isPending} className="rounded-none font-display border border-nc-cyan text-nc-cyan hover:bg-nc-cyan hover:text-background" variant="outline" data-testid="btn-job-event-sync">
             Sync Events
+          </Button>
+          <Button onClick={() => handleRunJob("mission_thread_backfill")} disabled={runJob.isPending} className="rounded-none font-display border border-nc-magenta text-nc-magenta hover:bg-nc-magenta hover:text-background" variant="outline" data-testid="btn-job-mission-thread-backfill">
+            Backfill Mission Threads
           </Button>
         </div>
         

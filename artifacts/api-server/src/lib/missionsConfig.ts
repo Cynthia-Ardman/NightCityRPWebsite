@@ -35,8 +35,9 @@ export const MISSION_DEFAULTS = {
   // Channel that receives a "new mission open for sign-ups" post (with a link
   // to the mission) when an approved mission is posted to the public board.
   signupChannelId: "1516438594728886415",
-  // #missions discussion channel — receives the full mission brief at creation
-  // time, off which a per-mission discussion thread is started.
+  // #fixer-job-proposals forum channel — receives the full mission brief at
+  // creation time as a forum post (the post body IS the thread starter), which
+  // becomes the per-mission discussion thread.
   threadChannelId: "1353897076534153216",
   autopayDelayHours: 3.5,
   defaultImageUrl: "",

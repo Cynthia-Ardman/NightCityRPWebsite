@@ -25,3 +25,11 @@ creating a thread. This silently broke BOTH new-mission thread creation AND the
 - All creates stay deployment-gated (`externalWritesAllowed`), so dev no-ops;
   verify forum behavior by reading the live channel via the Discord API, don't
   spam the real forum from dev.
+
+**Diagnosing "missions aren't posting":** `announceMissionThread` runs only at
+creation time, so a mission created BEFORE the forum code was deployed gets NULL
+`discordThreadId` forever and never self-heals. Check deploy timing vs the
+mission's `createdAt` before assuming a live bug — channel/tags/bot-perms were
+all correct as of 2026-06. The only retro fix is the `mission_thread_backfill`
+job, now exposed as the "Backfill Mission Threads" button in AdminDashboard →
+Cron Jobs (run it in prod; idempotent, only touches missing-thread rows).
