@@ -223,27 +223,33 @@ async function chargePersonalFeeWithReservation(opts: {
 
 export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill";
 
-// Money-moving jobs guarded against overlapping in-process runs (see runJob).
-const MONEY_JOBS = new Set<JobName>(["monthly_rent", "cyberware_humanity"]);
-const inFlightMoneyJobs = new Set<JobName>();
+// Jobs guarded against overlapping in-process runs (see runJob). Money-moving
+// jobs (monthly_rent, cyberware_humanity) would double-charge; mission_thread_-
+// backfill would double-post Discord threads — it reads each mission's
+// discordThreadId before creating, so two overlapping runs (e.g. a manual admin
+// trigger landing on a cron tick) can both see null and create a second forum
+// thread before either commits the link.
+const NO_OVERLAP_JOBS = new Set<JobName>(["monthly_rent", "cyberware_humanity", "mission_thread_backfill"]);
+const inFlightJobs = new Set<JobName>();
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
-  // In-process guard for the money-moving jobs: stop a manual /admin/jobs/run
+  // In-process guard for overlap-sensitive jobs: stop a manual /admin/jobs/run
   // from overlapping an in-flight cron tick (or vice versa) within this process.
-  // Two simultaneous runs can both pass the paid_through / billed-this-run
-  // guards before either commits, double-charging. The deployment is a single
+  // Money jobs can both pass the paid_through / billed-this-run guards before
+  // either commits (double-charge); mission_thread_backfill can both read a null
+  // discordThreadId and create two forum threads. The deployment is a single
   // always-on VM, so an in-process mutex is reliable here (unlike pooled-
   // connection Postgres advisory locks, which don't keep a stable session).
-  if (MONEY_JOBS.has(name) && inFlightMoneyJobs.has(name)) {
-    logger.warn({ job: name }, "money job already running in-process; skipping overlapping run to avoid double-charge");
+  if (NO_OVERLAP_JOBS.has(name) && inFlightJobs.has(name)) {
+    logger.warn({ job: name }, "job already running in-process; skipping overlapping run");
     const [skipped] = await db
       .insert(jobRuns)
       .values({ job: name, status: "skipped", finishedAt: new Date(), affectedCount: 0, message: "Skipped: another run of this job is already in progress." })
       .returning();
     return { id: skipped.id, status: "skipped", affectedCount: 0 };
   }
-  const heldMoneyLock = MONEY_JOBS.has(name);
-  if (heldMoneyLock) inFlightMoneyJobs.add(name);
+  const heldOverlapLock = NO_OVERLAP_JOBS.has(name);
+  if (heldOverlapLock) inFlightJobs.add(name);
   const [run] = await db.insert(jobRuns).values({ job: name, status: "running" }).returning();
   let affected = 0;
   let status = "succeeded";
@@ -1002,7 +1008,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
     message = err instanceof Error ? err.message : String(err);
     logger.error({ err, job: name }, "Job failed");
   } finally {
-    if (heldMoneyLock) inFlightMoneyJobs.delete(name);
+    if (heldOverlapLock) inFlightJobs.delete(name);
   }
   await db
     .update(jobRuns)
@@ -1084,6 +1090,19 @@ export function startCron() {
     // the just-pushed Discord event as a duplicate row before it's linked).
     cron.schedule("37 6 * * *", () => {
       runJob("main_session_backfill").catch((err) => logger.error({ err }, "main_session_backfill cron"));
+    });
+    // Self-heal mission discussion threads every 10 minutes. New missions get a
+    // forum thread at creation (announceMissionThread), but this catches every
+    // mission still missing one: older missions created before forum-thread
+    // support existed, missions made via paths that don't announce (e.g.
+    // event→mission conversion), or a transient Discord failure at creation.
+    // Idempotent — ensureMissionThread only writes when a thread is actually
+    // missing, and the create call is deployment-gated internally (a no-op in
+    // dev), so this is NOT Test/Live gated here, matching main_session_backfill.
+    // Offset off the */10 boundary so it never piles onto a discord_event_sync
+    // tick (different Discord API buckets, but keep the writes spread out).
+    cron.schedule("5,15,25,35,45,55 * * * *", () => {
+      runJob("mission_thread_backfill").catch((err) => logger.error({ err }, "mission_thread_backfill cron"));
     });
     // Live VRChat instance browser poll, every 2 minutes. Reads the NCRP group's
     // open instances and refreshes the member-facing cache. Gated to the

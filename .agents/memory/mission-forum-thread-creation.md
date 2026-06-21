@@ -27,9 +27,19 @@ creating a thread. This silently broke BOTH new-mission thread creation AND the
   spam the real forum from dev.
 
 **Diagnosing "missions aren't posting":** `announceMissionThread` runs only at
-creation time, so a mission created BEFORE the forum code was deployed gets NULL
-`discordThreadId` forever and never self-heals. Check deploy timing vs the
-mission's `createdAt` before assuming a live bug — channel/tags/bot-perms were
-all correct as of 2026-06. The only retro fix is the `mission_thread_backfill`
-job, now exposed as the "Backfill Mission Threads" button in AdminDashboard →
-Cron Jobs (run it in prod; idempotent, only touches missing-thread rows).
+the `POST /missions` create path (missions.ts), so any mission created another
+way (event→mission conversion) or before forum support, or that hit a transient
+Discord error, gets NULL `discordThreadId`. Channel/tags/bot-perms were all
+correct as of 2026-06 (forum type 15, require-tag, tags Approved/WIP/Mission
+Finished), so don't assume a live bug — it's almost always a missed/unhealed row.
+
+**Self-heal:** `mission_thread_backfill` now runs on a **cron** (every 10 min,
+minutes `5,15,25,35,45,55`, added to `startCron()` in jobs.ts), in addition to
+the manual "Backfill Mission Threads" button (AdminDashboard → Cron Jobs). It is
+idempotent (only touches `workflow_state='posted'`, non-history rows missing a
+thread/snapshot) and the create is deployment-gated, so dev no-ops — threads
+only appear in the deployed prod. Because the cron + button can now overlap,
+`mission_thread_backfill` is in `NO_OVERLAP_JOBS` (the in-process mutex shared
+with the money jobs in `runJob`) so two runs can't double-create a forum thread.
+**Why:** the per-mission create reads `discordThreadId` then writes it later, so
+without the mutex two concurrent runs both see null and post twice.
