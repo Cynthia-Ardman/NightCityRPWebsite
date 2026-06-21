@@ -31,3 +31,16 @@ dev relies on `submittedAt` going forward).
 effective value, not raw `createdAt`. The owner list `GET /sheets` returns raw
 rows, so `submittedAt` is genuinely null there for never-submitted drafts — guard
 with `submittedAt ?? createdAt` on the client.
+
+**Durable backfill (dev rows have no announce post):** the snowflake fallback only
+fixes rows WITH a `discordMessageId`. Dev-submitted sheets never get one (Discord
+writes are deployment-gated), so the queue still showed `createdAt` for them. The
+recoverable real submit time for no-message-id rows is the `activity_events` row
+`kind='sheet_submitted'` (message `"<user> submitted sheet for <name>"`), matched
+on `actor_id == owner_id` AND exact trailing name, latest event at/after
+`createdAt`. `activity_events` has NO sheet-id FK, so multiple same-name no-msgid
+sheets for one owner are unresolvable — skip + warn, never auto-attribute. Backfill
+script: `scripts/src/backfill-sheet-submitted-at.ts` (snowflake first per-row, then
+activity-event; idempotent on `submittedAt IS NULL`; `IMPORT_TARGET=live`). NOTE:
+`audit_log` has no sheet-submit action (`edit_submitted` is pending-EDITS only),
+and `character_sheets` has no `updated_at` — `activity_events` is the only submit log.
