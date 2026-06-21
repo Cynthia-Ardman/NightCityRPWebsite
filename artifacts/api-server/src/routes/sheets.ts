@@ -86,6 +86,28 @@ async function finalizeDecidedSheet(req: Request, id: number): Promise<"approved
   return result.decided;
 }
 
+// Discord snowflakes embed their creation time in the high bits. A sheet's
+// announce post (discordMessageId) is created at submission time, so for
+// historical rows that predate the submittedAt column we can recover the real
+// submission moment from it. Returns null for a missing / malformed id.
+const DISCORD_EPOCH = 1420070400000;
+function snowflakeToDate(id: string | null | undefined): Date | null {
+  if (!id || !/^\d+$/.test(id)) return null;
+  try {
+    const ms = Number(BigInt(id) >> 22n) + DISCORD_EPOCH;
+    return Number.isFinite(ms) && ms >= DISCORD_EPOCH ? new Date(ms) : null;
+  } catch {
+    return null;
+  }
+}
+
+// The date a sheet was actually submitted for review, with fallbacks for rows
+// created before the submittedAt column existed: explicit column -> Discord
+// announce snowflake -> createdAt (draft creation, last resort).
+function effectiveSubmittedAt(row: { submittedAt: Date | null; discordMessageId: string | null; createdAt: Date }): string {
+  return (row.submittedAt ?? snowflakeToDate(row.discordMessageId) ?? row.createdAt).toISOString();
+}
+
 router.get("/sheets", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
     .select()
@@ -121,6 +143,8 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
       name: characterSheets.name,
       status: characterSheets.status,
       createdAt: characterSheets.createdAt,
+      submittedAt: characterSheets.submittedAt,
+      discordMessageId: characterSheets.discordMessageId,
       ownerId: characterSheets.ownerId,
       ownerName: users.username,
       ownerAvatarUrl: users.avatarUrl,
@@ -148,8 +172,10 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
     const approveCount = votes.filter((v) => v.vote === "approve").length;
     const rejectCount = votes.filter((v) => v.vote === "reject").length;
     const myVote = allVotes.find((v) => v.voterId === req.user!.id) ?? null;
+    const { discordMessageId: _dm, submittedAt: _rawSubmittedAt, ...rest } = r;
     return {
-      ...r,
+      ...rest,
+      submittedAt: effectiveSubmittedAt(r),
       lastActivityAt: (activityBySheet.get(r.id) ?? r.createdAt).toISOString(),
       approveCount,
       rejectCount,
@@ -215,6 +241,7 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   const myVote = votes.find((v) => v.voterId === req.user!.id) ?? null;
   res.json({
     ...s,
+    submittedAt: effectiveSubmittedAt(s),
     votes,
     // Reviewer-only: the full eligible-reviewer roster (incl. who hasn't voted)
     // is staff info — don't expose it to the sheet owner viewing their own sheet.
@@ -575,7 +602,7 @@ router.post("/sheets/:id/submit", requireAuth, async (req, res): Promise<void> =
     // materialize the character a second time.
     const rows = await tx
       .update(characterSheets)
-      .set({ status: "pending", decisionBy: null, decisionNote: null, decidedAt: null, overriddenBy: null })
+      .set({ status: "pending", submittedAt: new Date(), decisionBy: null, decisionNote: null, decidedAt: null, overriddenBy: null })
       .where(and(eq(characterSheets.id, id), inArray(characterSheets.status, ["draft", "changes_requested"])))
       .returning();
     if (rows.length === 0) return rows;

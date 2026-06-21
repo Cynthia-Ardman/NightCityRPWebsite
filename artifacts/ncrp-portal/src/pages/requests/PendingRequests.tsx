@@ -1046,7 +1046,7 @@ function NewCharactersTab() {
     sortReviewItems(
       [...((active ?? []) as PendingSheetSummary[]), ...decided],
       sortMode,
-      (s) => s.createdAt,
+      (s) => s.submittedAt,
       (s) => s.lastActivityAt,
     ),
     (s) => String(s.status),
@@ -1082,7 +1082,7 @@ function NewCharactersTab() {
         badgeClassName="border-nc-yellow text-nc-yellow"
         title={sheet.name}
         subtitle={`By ${sheet.ownerName || sheet.ownerId}`}
-        date={sheet.createdAt}
+        date={sheet.submittedAt}
         tone={tone}
         showRoster={isReviewer}
         roster={{

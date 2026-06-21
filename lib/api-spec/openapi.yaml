@@ -7916,6 +7916,7 @@ components:
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
         ownerAvatarUrl: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
+        submittedAt: { type: ["string", "null"], format: date-time, description: "When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft." }
         data: { $ref: "#/components/schemas/CharacterSheetData" }
         # Review fields — present on GET /sheets/{id} only.
         votes:
@@ -7969,12 +7970,13 @@ components:
 
     PendingSheetSummary:
       type: object
-      required: [id, name, status, createdAt, ownerId, approveCount, rejectCount, threshold]
+      required: [id, name, status, createdAt, submittedAt, ownerId, approveCount, rejectCount, threshold]
       properties:
         id: { type: integer }
         name: { type: string }
         status: { type: string, enum: [draft, pending, approved, rejected, changes_requested] }
         createdAt: { type: string, format: date-time }
+        submittedAt: { type: string, format: date-time, description: "When the sheet was submitted for review (effective value with fallbacks to the Discord announce time then createdAt)." }
         lastActivityAt: { type: string, format: date-time }
         ownerId: { type: string }
         ownerName: { type: ["string", "null"] }

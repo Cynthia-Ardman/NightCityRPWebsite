@@ -15,6 +15,8 @@ export interface PendingSheetSummary {
   name: string;
   status: PendingSheetSummaryStatus;
   createdAt: Date;
+  /** When the sheet was submitted for review (effective value with fallbacks to the Discord announce time then createdAt). */
+  submittedAt: Date;
   lastActivityAt?: Date;
   ownerId: string;
   /** @nullable */

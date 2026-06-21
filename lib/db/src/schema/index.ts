@@ -473,6 +473,11 @@ export const characterSheets = pgTable("character_sheets", {
   // Discord thread that mirrors this ticket's review discussion in the
   // cs-approver channel. Read-only on the portal; the website never posts to it.
   discordThreadId: text("discord_thread_id"),
+  // When the sheet was actually submitted for review (draft/changes_requested ->
+  // pending). Distinct from createdAt (when the draft row was first created).
+  // Null on drafts never yet submitted; the API falls back to the Discord
+  // announce snowflake then createdAt for rows that predate this column.
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

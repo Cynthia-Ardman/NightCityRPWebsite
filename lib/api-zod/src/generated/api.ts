@@ -7064,6 +7064,7 @@ export const ListMySheetsResponseItem = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
@@ -7199,6 +7200,7 @@ export const ListPendingSheetsResponseItem = zod.object({
   "name": zod.string(),
   "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested']),
   "createdAt": zod.coerce.date(),
+  "submittedAt": zod.coerce.date().describe('When the sheet was submitted for review (effective value with fallbacks to the Discord announce time then createdAt).'),
   "lastActivityAt": zod.coerce.date().optional(),
   "ownerId": zod.string(),
   "ownerName": zod.string().nullish(),
@@ -7249,6 +7251,7 @@ export const GetSheetResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
@@ -7394,6 +7397,7 @@ export const UpdateSheetResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
@@ -7497,6 +7501,7 @@ export const SubmitDraftSheetResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),
@@ -7621,6 +7626,7 @@ export const OverrideSheetResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
   "fullName": zod.string(),

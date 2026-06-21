@@ -4177,6 +4177,11 @@ export interface CharacterSheet {
   /** @nullable */
   ownerAvatarUrl?: string | null;
   createdAt: string;
+  /**
+     * When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.
+     * @nullable
+     */
+  submittedAt?: string | null;
   data: CharacterSheetData;
   votes?: ReviewVoteRecord[];
   /** Full roster of reviewers eligible to vote (excludes the submitter). Present on GET /sheets/{id} only. */
@@ -4225,6 +4230,8 @@ export interface PendingSheetSummary {
   name: string;
   status: PendingSheetSummaryStatus;
   createdAt: string;
+  /** When the sheet was submitted for review (effective value with fallbacks to the Discord announce time then createdAt). */
+  submittedAt: string;
   lastActivityAt?: string;
   ownerId: string;
   /** @nullable */

@@ -164,7 +164,7 @@ export default function SheetDetail() {
         <div>
           <h1 className="text-4xl font-display text-foreground" data-testid="text-sheet-name">{sheet.name}</h1>
           <p className="font-mono text-xs text-muted-foreground mt-1">
-            Submitted {new Date(sheet.createdAt).toLocaleString()}
+            Submitted {new Date(sheet.submittedAt ?? sheet.createdAt).toLocaleString()}
             {sheet.ownerName ? <> by <span className="text-foreground">{sheet.ownerName}</span></> : null} · Status:{" "}
             {sheetStatusBadge(sheet.status)}
           </p>
