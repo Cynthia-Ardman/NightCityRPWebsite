@@ -32,9 +32,11 @@ interface CW {
   points: number;
   notes: string;
   isCustom: boolean;
+  customName?: boolean;
 }
 
 const CUSTOM_SLOT = "__custom__";
+const CUSTOM_NAME = "__customname__";
 
 // Turn whatever skills shape an older sheet stored (object of skill->rank, or a
 // plain string) into the free-text value the form now uses.
@@ -231,15 +233,23 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
   function onSlotChange(i: number, value: string) {
     if (value === CUSTOM_SLOT) {
-      updateRow(i, { isCustom: true, slot: "", name: "", points: 0, notes: "" });
+      updateRow(i, { isCustom: true, customName: false, slot: "", name: "", points: 0, notes: "" });
     } else {
-      updateRow(i, { isCustom: false, slot: value, name: "", points: 0, notes: "" });
+      updateRow(i, { isCustom: false, customName: false, slot: value, name: "", points: 0, notes: "" });
     }
   }
 
   function onInstallChange(i: number, name: string, slot: string) {
+    // "Custom install…" lets the player type a free-text implant (e.g. a Reflex
+    // Tuner) under a real catalog slot, with a hand-entered CWP, instead of being
+    // limited to the catalog dropdown.
+    if (name === CUSTOM_NAME) {
+      updateRow(i, { customName: true, name: "", points: 0, notes: "" });
+      return;
+    }
     const item = (catalog ?? []).find((c) => c.slot === slot && c.name === name);
     updateRow(i, {
+      customName: false,
       name,
       points: item ? Number(item.cwp) || 0 : 0,
       notes: item?.description ?? "",
@@ -712,6 +722,17 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           {chrome.map((cw, i) => {
             const isCustom = rowIsCustom(cw);
             const installs = (catalog ?? []).filter((c) => c.slot === cw.slot);
+            // Custom-install mode under a real catalog slot: either explicitly
+            // chosen via "Custom install…", or a loaded row whose name isn't one
+            // of the slot's catalog installs (so it round-trips as free text).
+            const customName =
+              !isCustom &&
+              (!!cw.customName ||
+                (cw.name.trim() !== "" &&
+                  installs.length > 0 &&
+                  !installs.some((c) => c.name === cw.name)));
+            const showNameInput = isCustom || customName;
+            const cwpEditable = isCustom || customName;
             return (
               <div key={i} className="grid grid-cols-12 gap-2 items-end border border-border/50 p-3" data-testid={`row-cyberware-${i}`}>
                 <div className="col-span-4">
@@ -740,11 +761,13 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
                 </div>
                 <div className="col-span-6">
                   <Label className="text-xs font-mono">INSTALL</Label>
-                  {isCustom ? (
+                  {showNameInput ? (
                     <Input
                       value={cw.name}
                       placeholder="Custom install name"
-                      onChange={(e) => updateRow(i, { name: e.target.value })}
+                      onChange={(e) =>
+                        updateRow(i, { name: e.target.value, ...(isCustom ? {} : { customName: true }) })
+                      }
                       data-testid={`input-cyberware-name-${i}`}
                     />
                   ) : (
@@ -761,13 +784,14 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
                           {it.name}{it.cwp ? ` · CWP ${it.cwp}` : ""}
                         </option>
                       ))}
+                      <option value={CUSTOM_NAME}>Custom install…</option>
                     </select>
                   )}
                   {cw.notes && <p className="text-xs font-mono text-muted-foreground mt-1">{cw.notes}</p>}
                 </div>
                 <div className="col-span-1">
                   <Label className="text-xs font-mono">CWP</Label>
-                  {isCustom ? (
+                  {cwpEditable ? (
                     <Input
                       type="number"
                       min={0}
