@@ -80,10 +80,15 @@ export function expandPattern(pattern: AvailabilitySlot[], days: Date[]): string
   return out;
 }
 
+// Display formatting is deliberately locale-NEUTRAL so every player sees the
+// same grid regardless of their device locale (some were seeing a 12-hour AM/PM
+// clock and "6/21" dates while others saw a 24-hour clock and "21/06"). Times
+// stay in the viewer's local TIMEZONE (intentional for cross-tz overlap) — only
+// the clock/date FORMAT is standardized: 24-hour times + "Jun 21" dates.
 function dayHeader(d: Date): { dow: string; date: string } {
   return {
-    dow: d.toLocaleDateString(undefined, { weekday: "short" }),
-    date: d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" }),
+    dow: d.toLocaleDateString("en-US", { weekday: "short" }),
+    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
   };
 }
 
@@ -93,7 +98,7 @@ function rowLabel(row: number): string {
   const m = mins % 60;
   const d = new Date();
   d.setHours(h, m, 0, 0);
-  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 type EditProps = {
@@ -309,12 +314,13 @@ function HeatmapGrid({
         </div>
         <div className="text-[11px] text-muted-foreground min-h-[15px]" data-testid="availability-hover">
           {hover
-            ? `${new Date(hover.iso).toLocaleString(undefined, {
+            ? `${new Date(hover.iso).toLocaleString("en-GB", {
                 weekday: "short",
-                month: "numeric",
+                month: "short",
                 day: "numeric",
-                hour: "numeric",
+                hour: "2-digit",
                 minute: "2-digit",
+                hour12: false,
               })} — ${hover.names.join(", ")}`
             : "Hover a block to see who's free"}
         </div>
