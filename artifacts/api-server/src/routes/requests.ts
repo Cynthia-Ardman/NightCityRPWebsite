@@ -1617,16 +1617,22 @@ router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
     res.json(shape(row));
     return;
   }
-  // Editing a request that is STILL pending (i.e. live in the fixer queue) is a
-  // material change to what reviewers are voting on, so clear any votes already
-  // cast — the next round must judge the edited content. (For changes_requested
-  // the votes are cleared by the separate resubmit step instead, so we only
-  // reset here when the row hasn't left the queue.) clearReviewVotes is a no-op
-  // for owner/player-decided types that never accrue votes.
+  // When the OWNER edits a request that is STILL pending (live in the fixer
+  // queue), it's a material change to what reviewers are voting on, so clear any
+  // votes already cast — the next round must judge the edited content. (For
+  // changes_requested the votes are cleared by the separate resubmit step
+  // instead, so we only reset here when the row hasn't left the queue.)
+  // clearReviewVotes is a no-op for owner/player-decided types that never accrue
+  // votes.
+  //
+  // An ADMIN editing someone else's request deliberately KEEPS the existing
+  // votes so the request retains its approvals and is pushed straight through
+  // without a re-review (staff "edit and push through").
   //
   // The UPDATE is guarded on the SAME status we read above so a concurrent vote
   // that flips the ticket to approved/rejected between the read and the write
   // can't be clobbered (and we don't clear votes on an already-decided row).
+  const isOwnerEditing = reqRow.requestedById === req.user!.id;
   if (reqRow.status === "pending") {
     const applied = await db.transaction(async (tx) => {
       const rows = await tx
@@ -1635,7 +1641,9 @@ router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
         .where(and(eq(customRequests.id, rid), eq(customRequests.status, "pending")))
         .returning({ id: customRequests.id });
       if (rows.length === 0) return false;
-      await clearReviewVotes({ subjectType: "request", subjectId: rid, conn: tx });
+      if (isOwnerEditing) {
+        await clearReviewVotes({ subjectType: "request", subjectId: rid, conn: tx });
+      }
       return true;
     });
     if (!applied) {
@@ -1654,6 +1662,19 @@ router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
       res.status(409).json({ error: "This request's status changed — refresh and try again" });
       return;
     }
+  }
+  // Staff edits on someone else's request must leave an audit trail (the owner's
+  // own edits are already implicit in the request history).
+  if (!isOwnerEditing) {
+    await recordAudit({
+      req,
+      category: auditCategoryFor(reqRow.type),
+      action: "request_edit",
+      targetType: "custom_request",
+      targetId: rid,
+      message: `Admin edited ${reqRow.type} request: ${reqRow.title}`,
+      after: { ...patch, votesKept: reqRow.status === "pending" },
+    });
   }
   const [row] = await selectWhere(eq(customRequests.id, rid));
   res.json(shape(row));

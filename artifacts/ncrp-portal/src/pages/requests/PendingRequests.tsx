@@ -5,6 +5,7 @@ import {
   useListCustomRequests,
   useVoteCustomRequest,
   useOverrideCustomRequest,
+  useUpdateCustomRequest,
   useListPendingSheets,
   useVoteSheet,
   useOverrideSheet,
@@ -60,6 +61,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -77,7 +79,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
@@ -135,6 +137,11 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   const { data: me } = useEffectiveMe();
   const [closeTarget, setCloseTarget] = useState<{ request: CustomRequest; mode: "apply" | "deny" } | null>(null);
   const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
+  // Admin in-place edit of a request's content. Keeps existing votes (the
+  // backend skips vote-clearing for a non-owner admin edit).
+  const [editing, setEditing] = useState<
+    { id: number; title: string; description: string; isVenue: boolean; purpose: string; location: string } | null
+  >(null);
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   // Approver pool: only Cs Approvers cast counted votes. Fixers and admins are
@@ -226,6 +233,25 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
       onError: onMutationError("Could not reopen"),
     },
   });
+  const updateMut = useUpdateCustomRequest({
+    mutation: {
+      onSuccess: () => {
+        invalidateQueue();
+        toast({ title: "Request updated", description: "Existing votes were kept." });
+        setEditing(null);
+      },
+      onError: onMutationError("Could not save"),
+    },
+  });
+  const saveEdit = () => {
+    if (!editing) return;
+    const data: Record<string, unknown> = { title: editing.title, description: editing.description };
+    if (editing.isVenue) {
+      data.purpose = editing.purpose;
+      data.location = editing.location;
+    }
+    updateMut.mutate({ id: editing.id, data });
+  };
 
   // A ?focus=<id> deep link (from the Discord CS-approver post) scrolls the
   // matching card into view once the queue has rendered.
@@ -391,6 +417,25 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                   </Button>
                 </>
               )}
+              {isAdmin && isVoting && r.requestedById !== me?.id && (
+                <Button
+                  variant="outline"
+                  className="rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
+                  onClick={() =>
+                    setEditing({
+                      id: r.id,
+                      title: r.title,
+                      description: r.description ?? "",
+                      isVenue: r.type === "store" || r.type === "ripperdoc",
+                      purpose: det?.purpose ?? "",
+                      location: det?.location ?? "",
+                    })
+                  }
+                  data-testid={`button-edit-misc-${r.id}`}
+                >
+                  <Pencil className="w-3.5 h-3.5 mr-1" /> EDIT
+                </Button>
+              )}
               <DiscordThreadDrawer
                 subjectType="request"
                 subjectId={r.id}
@@ -480,6 +525,82 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
         onClose={() => setCloseTarget(null)}
         onDone={invalidateQueue}
       />
+
+      <Dialog open={editing != null} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        <DialogContent className="rounded-none border-nc-cyan bg-card">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-nc-cyan">EDIT REQUEST</DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Editing as an admin keeps the existing votes — this does not send the request back for re-review.
+            </DialogDescription>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Title</label>
+                <Input
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                  className="rounded-none mt-1"
+                  data-testid="input-admin-edit-title"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Description</label>
+                <Textarea
+                  value={editing.description}
+                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                  rows={4}
+                  className="rounded-none mt-1"
+                  data-testid="input-admin-edit-description"
+                />
+              </div>
+              {editing.isVenue && (
+                <>
+                  <div>
+                    <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Purpose</label>
+                    <Input
+                      value={editing.purpose}
+                      onChange={(e) => setEditing({ ...editing, purpose: e.target.value })}
+                      className="rounded-none mt-1"
+                      data-testid="input-admin-edit-purpose"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Location</label>
+                    <Input
+                      value={editing.location}
+                      onChange={(e) => setEditing({ ...editing, location: e.target.value })}
+                      className="rounded-none mt-1"
+                      data-testid="input-admin-edit-location"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none font-display"
+              onClick={() => setEditing(null)}
+              data-testid="button-admin-edit-cancel"
+            >
+              CANCEL
+            </Button>
+            <Button
+              type="button"
+              disabled={updateMut.isPending || !editing?.title.trim()}
+              className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+              onClick={saveEdit}
+              data-testid="button-admin-edit-save"
+            >
+              SAVE CHANGES
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

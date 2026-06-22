@@ -81,11 +81,19 @@ export default function PendingEditDetail() {
   // distinct from canResubmit, which only applies after changes were requested.
   const canAmend =
     !!me.data?.id && !!edit && edit.submittedBy === me.data.id && edit.status === "pending";
+  // Admins can edit ANYONE's in-flight submission directly (pending or
+  // changes_requested) so staff don't have to wait on the player. Unlike the
+  // owner's amend, this KEEPS the existing votes — it edits and pushes through.
+  const canAdminEdit =
+    !!me.data?.isAdmin &&
+    !!edit &&
+    edit.submittedBy !== me.data?.id &&
+    (edit.status === "pending" || edit.status === "changes_requested");
   // Pull the live character so the submitter can edit-and-resubmit (after
-  // changes) or amend (while pending) in place.
+  // changes) or amend (while pending) in place — or an admin can edit it.
   const { data: character } = useGetCharacter(edit?.characterId ?? 0, {
     query: {
-      enabled: !!edit?.characterId && (!!edit?.canResubmit || canAmend),
+      enabled: !!edit?.characterId && (!!edit?.canResubmit || canAmend || canAdminEdit),
       queryKey: getGetCharacterQueryKey(edit?.characterId ?? 0),
     },
   });
@@ -448,6 +456,24 @@ export default function PendingEditDetail() {
         </div>
       )}
 
+      {/* Admin edit (admins only) — edit anyone's in-flight submission directly
+          without waiting on the player. Keeps the existing votes. */}
+      {canAdminEdit && (
+        <div className="border-t border-border pt-4 space-y-2">
+          <Button
+            onClick={() => setEditOpen(true)}
+            disabled={!mergedCharacter}
+            className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display"
+            data-testid="button-admin-edit"
+          >
+            <Pencil className="w-4 h-4 mr-1" /> EDIT THIS SUBMISSION
+          </Button>
+          <p className="font-mono text-xs text-muted-foreground mt-1">
+            Edit the proposed changes directly as an admin. Existing votes are kept — this does not send it back for re-review.
+          </p>
+        </div>
+      )}
+
       {/* Reopen (reviewers) — send a resolved-but-not-applied edit back to a
           fresh pending round. Clears the prior votes so it doesn't instantly
           re-decide. Hidden once the edit is closed/applied (can't be undone). */}
@@ -469,7 +495,17 @@ export default function PendingEditDetail() {
       )}
 
       {mergedCharacter && (
-        <EditCharacterDialog character={mergedCharacter} open={editOpen} onOpenChange={setEditOpen} />
+        <EditCharacterDialog
+          character={mergedCharacter}
+          open={editOpen}
+          onOpenChange={(o) => {
+            setEditOpen(o);
+            // The shared dialog refreshes the character + edit-list keys but not
+            // THIS edit's detail query, so refetch it when the dialog closes to
+            // pick up an admin's in-place change.
+            if (!o) invalidate();
+          }}
+        />
       )}
 
       {/* Apply & close confirmation — optional reviewer note before committing. */}

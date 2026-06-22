@@ -376,7 +376,15 @@ export async function createPendingEdit(opts: {
     )
     .orderBy(desc(pendingCharacterEdits.submittedAt));
   if (inFlight) {
-    if (inFlight.submittedBy !== opts.submitter.id) {
+    // An ADMIN may edit another player's in-flight edit directly, so staff can
+    // fix a submission without waiting on the player. Unlike the owner's amend
+    // (which resets the round and clears prior votes for a fresh re-review), an
+    // admin edit KEEPS the existing votes/status/decision and only swaps the
+    // proposed content — the submission retains its approvals and is pushed
+    // straight through rather than re-queued.
+    const isAdminAmend =
+      inFlight.submittedBy !== opts.submitter.id && hasRole(opts.submitter.roles, "ADMIN");
+    if (inFlight.submittedBy !== opts.submitter.id && !isAdminAmend) {
       return { ok: false, error: { kind: "edit_already_pending", editId: inFlight.id } };
     }
     // Atomic state guard: only amend-in-place if the row is STILL in-flight. A
@@ -387,16 +395,22 @@ export async function createPendingEdit(opts: {
     const updated = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(pendingCharacterEdits)
-        .set({
-          proposedDiff: diff,
-          beforeSnapshot,
-          updateNote,
-          status: "pending",
-          reviewComment: null,
-          decisionSummary: null,
-          decidedAt: null,
-          submittedAt: new Date(),
-        })
+        .set(
+          isAdminAmend
+            ? // Admin edit: swap the proposed content only; leave votes, status,
+              // decision summary and submittedAt untouched so the round stands.
+              { proposedDiff: diff, beforeSnapshot, updateNote }
+            : {
+                proposedDiff: diff,
+                beforeSnapshot,
+                updateNote,
+                status: "pending",
+                reviewComment: null,
+                decisionSummary: null,
+                decidedAt: null,
+                submittedAt: new Date(),
+              },
+        )
         .where(
           and(
             eq(pendingCharacterEdits.id, inFlight.id),
@@ -405,7 +419,11 @@ export async function createPendingEdit(opts: {
         )
         .returning();
       if (!row) return null;
-      await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, inFlight.id));
+      // Owner amend resets the review round, so prior votes are wiped. An admin
+      // edit deliberately keeps them.
+      if (!isAdminAmend) {
+        await tx.delete(pendingEditApprovals).where(eq(pendingEditApprovals.editId, inFlight.id));
+      }
       return row;
     });
     if (!updated) {
@@ -413,15 +431,21 @@ export async function createPendingEdit(opts: {
       // create a duplicate), so surface a conflict the client can refresh on.
       return { ok: false, error: { kind: "edit_already_decided", editId: inFlight.id } };
     }
-    announceEdit(updated.id, opts.character, opts.submitter, diff as EditableDiff, updateNote).catch((e) => {
-      console.error("[pending-edits] Discord announce failed", e);
-    });
+    // Re-announce only when the round actually resets (owner amend). An admin's
+    // in-place content fix should not re-ping reviewers for a fresh review.
+    if (!isAdminAmend) {
+      announceEdit(updated.id, opts.character, opts.submitter, diff as EditableDiff, updateNote).catch((e) => {
+        console.error("[pending-edits] Discord announce failed", e);
+      });
+    }
     await db.insert(activityEvents).values({
       kind: "character_edit_submitted",
       actorId: opts.submitter.id,
       actorName: opts.submitter.username,
       actorAvatarUrl: opts.submitter.avatarUrl,
-      message: `${opts.submitter.username} updated an in-flight edit for ${opts.character.name}`,
+      message: isAdminAmend
+        ? `${opts.submitter.username} edited an in-flight edit for ${opts.character.name} (admin)`
+        : `${opts.submitter.username} updated an in-flight edit for ${opts.character.name}`,
     });
     return { ok: true, edit: updated };
   }
