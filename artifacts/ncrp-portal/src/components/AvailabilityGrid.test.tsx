@@ -84,6 +84,28 @@ describe("AvailabilityGrid edit mode", () => {
     // First cell + the two dragged-over cells.
     expect(Number(screen.getByTestId("count").textContent)).toBeGreaterThanOrEqual(3);
   });
+
+  it("toggles time labels between 24-hour and 12-hour and remembers the choice", () => {
+    localStorage.removeItem("ncrp.availability.hour12");
+    const { unmount } = render(<ControlledEdit />);
+    // Default is 24-hour: no AM/PM markers in the time column.
+    expect(screen.queryByText(/AM|PM/)).toBeNull();
+
+    const toggle = screen.getByTestId("availability-clock-toggle");
+    fireEvent.click(within(toggle).getByText("12h"));
+    expect(screen.getAllByText(/AM|PM/).length).toBeGreaterThan(0);
+    expect(localStorage.getItem("ncrp.availability.hour12")).toBe("1");
+
+    // Preference persists: a freshly mounted grid starts in 12-hour mode.
+    unmount();
+    render(<ControlledEdit />);
+    expect(screen.getAllByText(/AM|PM/).length).toBeGreaterThan(0);
+
+    // Back to 24-hour for a clean slate.
+    fireEvent.click(within(screen.getByTestId("availability-clock-toggle")).getByText("24h"));
+    expect(screen.queryByText(/AM|PM/)).toBeNull();
+    localStorage.removeItem("ncrp.availability.hour12");
+  });
 });
 
 describe("AvailabilityGrid heatmap mode", () => {

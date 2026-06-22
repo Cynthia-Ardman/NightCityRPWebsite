@@ -16,6 +16,26 @@ const END_HOUR = 24; // exclusive
 const SLOT_MINUTES = 30;
 export const AVAIL_ROWS = ((END_HOUR - START_HOUR) * 60) / SLOT_MINUTES; // 48
 
+// Per-viewer clock-format preference (12-hour AM/PM vs 24-hour). Default is the
+// historical 24-hour format; the choice is remembered in localStorage so it
+// sticks across visits. This only changes the FORMAT of the labels — times stay
+// in the viewer's local timezone (intentional for cross-tz overlap).
+const HOUR12_KEY = "ncrp.availability.hour12";
+function readHour12Pref(): boolean {
+  try {
+    return localStorage.getItem(HOUR12_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeHour12Pref(v: boolean): void {
+  try {
+    localStorage.setItem(HOUR12_KEY, v ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
 export type AvailabilitySlot = { weekday: number; minutes: number };
 
 /** Local midnight today through today+13. */
@@ -92,13 +112,62 @@ function dayHeader(d: Date): { dow: string; date: string } {
   };
 }
 
-function rowLabel(row: number): string {
+function rowLabel(row: number, hour12: boolean): string {
   const mins = rowMinutes(row);
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   const d = new Date();
   d.setHours(h, m, 0, 0);
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return d.toLocaleTimeString(hour12 ? "en-US" : "en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12,
+  });
+}
+
+// Locale-neutral "Mon, Jun 21 06:00" (or "06:00 AM") — date format stays fixed,
+// only the clock format follows the viewer's toggle.
+function formatInstant(iso: string, hour12: boolean): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const time = d.toLocaleTimeString(hour12 ? "en-US" : "en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12,
+  });
+  return `${date} ${time}`;
+}
+
+function ClockFormatToggle({ hour12, onChange }: { hour12: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div
+      className="inline-flex items-center rounded border border-border/60 overflow-hidden text-[10px] font-mono shrink-0"
+      data-testid="availability-clock-toggle"
+    >
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        aria-pressed={!hour12}
+        className={cn(
+          "px-2 py-0.5 leading-none transition-colors",
+          !hour12 ? "bg-nc-cyan text-background" : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        24h
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        aria-pressed={hour12}
+        className={cn(
+          "px-2 py-0.5 leading-none border-l border-border/60 transition-colors",
+          hour12 ? "bg-nc-cyan text-background" : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        12h
+      </button>
+    </div>
+  );
 }
 
 type EditProps = {
@@ -121,11 +190,36 @@ type Props = (EditProps | HeatmapProps) & { className?: string };
 export function AvailabilityGrid(props: Props) {
   const days = useMemo(() => buildDayColumns(), []);
   const rows = useMemo(() => Array.from({ length: AVAIL_ROWS }, (_, r) => r), []);
+  const [hour12, setHour12] = useState<boolean>(() => readHour12Pref());
+
+  const onChangeHour12 = useCallback((v: boolean) => {
+    setHour12(v);
+    writeHour12Pref(v);
+  }, []);
 
   if (props.mode === "edit") {
-    return <EditGrid days={days} rows={rows} value={props.value} onChange={props.onChange} className={props.className} />;
+    return (
+      <EditGrid
+        days={days}
+        rows={rows}
+        value={props.value}
+        onChange={props.onChange}
+        className={props.className}
+        hour12={hour12}
+        onChangeHour12={onChangeHour12}
+      />
+    );
   }
-  return <HeatmapGrid days={days} rows={rows} applicants={props.heatmap} className={props.className} />;
+  return (
+    <HeatmapGrid
+      days={days}
+      rows={rows}
+      applicants={props.heatmap}
+      className={props.className}
+      hour12={hour12}
+      onChangeHour12={onChangeHour12}
+    />
+  );
 }
 
 const GRID_SHELL =
@@ -156,12 +250,12 @@ function DayHeaders({ days }: { days: Date[] }) {
   );
 }
 
-function RowTimeLabel({ row }: { row: number }) {
+function RowTimeLabel({ row, hour12 }: { row: number; hour12: boolean }) {
   const onHour = rowMinutes(row) % 60 === 0;
   return (
     <div className="sticky left-0 z-10 bg-card border-r border-border/60 w-[58px] shrink-0 h-[13px] flex items-start justify-end pr-1">
       {onHour && (
-        <span className="text-[9px] text-muted-foreground leading-none -translate-y-[1px] whitespace-nowrap">{rowLabel(row)}</span>
+        <span className="text-[9px] text-muted-foreground leading-none -translate-y-[1px] whitespace-nowrap">{rowLabel(row, hour12)}</span>
       )}
     </div>
   );
@@ -173,12 +267,16 @@ function EditGrid({
   value,
   onChange,
   className,
+  hour12,
+  onChangeHour12,
 }: {
   days: Date[];
   rows: number[];
   value: string[];
   onChange: (next: string[]) => void;
   className?: string;
+  hour12: boolean;
+  onChangeHour12: (v: boolean) => void;
 }) {
   const selected = useMemo(() => new Set(value), [value]);
   const draggingRef = useRef(false);
@@ -209,8 +307,11 @@ function EditGrid({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="text-[11px] text-muted-foreground">
-        Drag to paint the times you're available (shown in your local time).
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[11px] text-muted-foreground">
+          Drag to paint the times you're available (shown in your local time).
+        </div>
+        <ClockFormatToggle hour12={hour12} onChange={onChangeHour12} />
       </div>
       <div
         className={GRID_SHELL}
@@ -222,7 +323,7 @@ function EditGrid({
           <TimeColHeader />
           <DayHeaders days={days} />
           {rows.map((row) => (
-            <Row key={row} row={row}>
+            <Row key={row} row={row} hour12={hour12}>
               {days.map((day, di) => {
                 const iso = cellInstant(day, row);
                 const on = selected.has(iso);
@@ -257,10 +358,10 @@ function EditGrid({
   );
 }
 
-function Row({ row, children }: { row: number; children: React.ReactNode }) {
+function Row({ row, hour12, children }: { row: number; hour12: boolean; children: React.ReactNode }) {
   return (
     <>
-      <RowTimeLabel row={row} />
+      <RowTimeLabel row={row} hour12={hour12} />
       {children}
     </>
   );
@@ -271,11 +372,15 @@ function HeatmapGrid({
   rows,
   applicants,
   className,
+  hour12,
+  onChangeHour12,
 }: {
   days: Date[];
   rows: number[];
   applicants: { name: string; slots: string[] }[];
   className?: string;
+  hour12: boolean;
+  onChangeHour12: (v: boolean) => void;
 }) {
   const counts = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -309,19 +414,15 @@ function HeatmapGrid({
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-[11px] font-display tracking-widest uppercase text-nc-cyan" data-testid="availability-peak">
-          Max {peak} of {total} player{total === 1 ? "" : "s"} available
+        <div className="flex items-center gap-3">
+          <div className="text-[11px] font-display tracking-widest uppercase text-nc-cyan" data-testid="availability-peak">
+            Max {peak} of {total} player{total === 1 ? "" : "s"} available
+          </div>
+          <ClockFormatToggle hour12={hour12} onChange={onChangeHour12} />
         </div>
         <div className="text-[11px] text-muted-foreground min-h-[15px]" data-testid="availability-hover">
           {hover
-            ? `${new Date(hover.iso).toLocaleString("en-GB", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              })} — ${hover.names.join(", ")}`
+            ? `${formatInstant(hover.iso, hour12)} — ${hover.names.join(", ")}`
             : "Hover a block to see who's free"}
         </div>
       </div>
@@ -330,7 +431,7 @@ function HeatmapGrid({
           <TimeColHeader />
           <DayHeaders days={days} />
           {rows.map((row) => (
-            <Row key={row} row={row}>
+            <Row key={row} row={row} hour12={hour12}>
               {days.map((day, di) => {
                 const iso = cellInstant(day, row);
                 const names = counts.get(iso) ?? [];
