@@ -723,8 +723,8 @@ function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupV
       </CardHeader>
       <CardContent className="space-y-3 font-mono text-sm">
         <p className="text-muted-foreground text-xs">
-          Players who volunteered to NPC this event. Set the fee, then confirm attendance to pay each NPC, or mark a
-          no-show. Each NPC can only be paid once for this event.
+          Players who volunteered to NPC this event. Confirm attendance to credit each NPC, or mark a no-show. Set a fee
+          to pay them, or leave it at 0 for unpaid volunteers. Each NPC can only be paid once for this event.
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
@@ -760,7 +760,7 @@ function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupV
                       <Button
                         type="button"
                         size="sm"
-                        disabled={cancelled || amount <= 0 || confirm.isPending}
+                        disabled={cancelled || amount < 0 || confirm.isPending}
                         onClick={() =>
                           confirm.mutate({ id: event.id, signupId: s.id, data: { action: "attended", amount } })
                         }
@@ -794,8 +794,8 @@ function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupV
           </ul>
         )}
         {amount <= 0 && outstanding > 0 && (
-          <p className="text-nc-yellow text-xs" data-testid="text-fee-required">
-            Set a fee above before confirming attendance.
+          <p className="text-muted-foreground text-xs" data-testid="text-fee-optional">
+            No fee set — confirming will mark these NPCs as attended (unpaid).
           </p>
         )}
         {confirmErr && (
