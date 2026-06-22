@@ -138,6 +138,58 @@ describe("runJob('cyberware_humanity')", () => {
     const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
     expect(meds).toHaveLength(0);
   });
+
+  it("skips meds for a player whose character is on the self-service LOA toggle", async () => {
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    await addChrome(char.id, owner.id, 8); // medium band — would normally bill
+    await backdateCreation(char.id);
+    // The player flipped LOA on the website (character_status.loa), but the
+    // headline lifeStatus is still billable ("missing" / "active"). Meds must
+    // still pause, matching how monthly_rent honors this flag.
+    await db.insert(characterStatus).values({ characterId: char.id, loa: true });
+
+    await runJob("cyberware_humanity");
+    expect(mockPatch).not.toHaveBeenCalled();
+    const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
+    expect(meds).toHaveLength(0);
+  });
+
+  it("does not let an LOA household member inflate the multiplier for active members", async () => {
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    // Control: a player with a single active chromed character.
+    const control = await createUser();
+    const controlChar = await createCharacter({ ownerId: control.id });
+    await addChrome(controlChar.id, control.id, 8);
+    await backdateCreation(controlChar.id);
+    // Subject: same active character PLUS a second chromed character on the
+    // self-service LOA toggle. The LOA member must drop out of the household
+    // multiplier, so the subject pays exactly the same as the control.
+    const subject = await createUser();
+    const activeChar = await createCharacter({ ownerId: subject.id });
+    await addChrome(activeChar.id, subject.id, 8);
+    await backdateCreation(activeChar.id);
+    const loaChar = await createCharacter({ ownerId: subject.id });
+    await addChrome(loaChar.id, subject.id, 8);
+    await backdateCreation(loaChar.id);
+    await db.insert(characterStatus).values({ characterId: loaChar.id, loa: true });
+
+    await runJob("cyberware_humanity");
+
+    const controlMeds = await db
+      .select()
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.kind, "meds"), eq(walletTransactions.userId, control.id)));
+    const subjectMeds = await db
+      .select()
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.kind, "meds"), eq(walletTransactions.userId, subject.id)));
+    expect(controlMeds).toHaveLength(1);
+    expect(subjectMeds).toHaveLength(1);
+    // Equal amounts ⇒ the LOA character did not add a +25% household member.
+    expect(subjectMeds[0].amount).toBe(controlMeds[0].amount);
+  });
 });
 
 describe("runJob('monthly_rent')", () => {

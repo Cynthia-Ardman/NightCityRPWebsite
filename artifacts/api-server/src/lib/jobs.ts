@@ -799,13 +799,22 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .from(walletTransactions)
         .where(and(eq(walletTransactions.kind, "meds"), gte(walletTransactions.createdAt, sixDaysAgo)));
       const recentMedsSet = new Set(recentMeds.map((r) => r.characterId));
+      // Self-service LOA toggle (character_status.loa) pauses meds the same way
+      // it pauses rent in monthly_rent. This is separate from the headline
+      // lifeStatus="loa" the importer/admin sets; a player on hiatus flips the
+      // transient flag and expects ALL personal billing to stop, so honor both.
+      const medsStatusRows = await db.select().from(characterStatus);
+      const medsLoaByCharacter = new Map<number, boolean>();
+      for (const s of medsStatusRows) medsLoaByCharacter.set(s.characterId, !!s.loa);
       const approvedChars = (await db
         .select()
         .from(characters)
         .where(and(eq(characters.kind, "pc"), eq(characters.approved, true), eq(characters.archived, false))))
         // LOA / retired / dead characters owe no meds and don't inflate the
-        // household multiplier — drop them before any household grouping.
-        .filter(countsForCyberwareBilling);
+        // household multiplier — drop them before any household grouping. This
+        // covers both the headline lifeStatus (countsForCyberwareBilling) and
+        // the transient self-service character_status.loa toggle.
+        .filter((c) => countsForCyberwareBilling(c) && medsLoaByCharacter.get(c.id) !== true);
 
       // Per-character CWP totals (sum of "CWP n" parsed from each
       // cyberware item's notes, not a row count). Bands (7/10/13) are
