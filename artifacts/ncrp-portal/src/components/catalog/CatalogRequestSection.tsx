@@ -38,6 +38,39 @@ type RequestType = "property" | "gun" | "cyberware" | "item";
 
 const CUSTOM_SOURCE = "__custom__";
 
+// When the dialog lets the player pick what kind of thing they're requesting
+// (gun / cyberware / general item), these drive the per-type wording so the
+// labels match the chosen category instead of staying stuck on the entry point.
+const TYPE_CHOICE_META: Record<
+  RequestType,
+  { choiceLabel: string; dialogTitle: string; titleLabel: string; titlePlaceholder: string }
+> = {
+  item: {
+    choiceLabel: "General item",
+    dialogTitle: "Request Custom Item",
+    titleLabel: "Item",
+    titlePlaceholder: "e.g. Encrypted Agent, Med Kit, Vehicle Keys",
+  },
+  gun: {
+    choiceLabel: "Gun / weapon",
+    dialogTitle: "Request Custom Gun",
+    titleLabel: "Gun",
+    titlePlaceholder: "e.g. Militech M-10AF Lexington",
+  },
+  cyberware: {
+    choiceLabel: "Cyberware",
+    dialogTitle: "Request Custom Cyberware",
+    titleLabel: "Cyberware",
+    titlePlaceholder: "e.g. Militech Berserk MK.4",
+  },
+  property: {
+    choiceLabel: "Property",
+    dialogTitle: "Request Property",
+    titleLabel: "Property",
+    titlePlaceholder: "e.g. Apartment in Watson",
+  },
+};
+
 // Resolved/terminal request states hidden from the per-catalog "Your Requests"
 // banner — the banner only tracks requests that still need attention.
 const TERMINAL_REQUEST_STATUSES = new Set(["approved", "rejected", "closed", "cancelled"]);
@@ -50,6 +83,7 @@ export default function CatalogRequestSection({
   titleLabel,
   titlePlaceholder,
   presetCharacterId,
+  typeChoices,
 }: {
   type: RequestType;
   buttonLabel: string;
@@ -61,11 +95,14 @@ export default function CatalogRequestSection({
   // and the "Your Requests" list are hidden (used by the per-character
   // Cyberware tab entry point).
   presetCharacterId?: number;
+  // When provided with 2+ entries, the dialog shows a "kind of request" picker
+  // (e.g. gun / cyberware / general item) so players who land on one entry
+  // point can still file the right category. `type` is the default selection.
+  typeChoices?: RequestType[];
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: characters } = useListMyCharacters();
-  const { data: mine } = useListMyCustomRequests({ type });
   const [open, setOpen] = useState(false);
   const [characterId, setCharacterId] = useState<string>("");
   const [title, setTitle] = useState("");
@@ -76,14 +113,30 @@ export default function CatalogRequestSection({
   const [source, setSource] = useState<string>("");
   const [customSource, setCustomSource] = useState<string>("");
 
-  const hasSource = type === "gun" || type === "cyberware";
+  // The category actually being requested. In single-type mode this is just
+  // `type`; in choice mode the player picks it from `typeChoices`.
+  const choiceMode = !!typeChoices && typeChoices.length > 1;
+  const [selectedType, setSelectedType] = useState<RequestType>(type);
+  const activeType = choiceMode ? selectedType : type;
+
+  const { data: mine } = useListMyCustomRequests({ type: activeType });
+
+  const hasSource = activeType === "gun" || activeType === "cyberware";
   const { data: stores } = useListStores({
-    query: { enabled: type === "gun", queryKey: getListStoresQueryKey() },
+    query: { enabled: activeType === "gun", queryKey: getListStoresQueryKey() },
   });
   const { data: ripperdocs } = useListRipperdocs({
-    query: { enabled: type === "cyberware", queryKey: getListRipperdocsQueryKey() },
+    query: { enabled: activeType === "cyberware", queryKey: getListRipperdocsQueryKey() },
   });
-  const sourceOptions = (type === "gun" ? stores : type === "cyberware" ? ripperdocs : []) ?? [];
+  const sourceOptions =
+    (activeType === "gun" ? stores : activeType === "cyberware" ? ripperdocs : []) ?? [];
+
+  // In choice mode the wording follows the chosen category; otherwise the
+  // caller-supplied props win (keeps existing single-type entry points intact).
+  const meta = choiceMode ? TYPE_CHOICE_META[activeType] : null;
+  const effectiveDialogTitle = meta?.dialogTitle ?? dialogTitle;
+  const effectiveTitleLabel = meta?.titleLabel ?? titleLabel;
+  const effectiveTitlePlaceholder = meta?.titlePlaceholder ?? titlePlaceholder;
 
   // Only the player's own, non-archived PCs can hold a request target.
   const ownChars = (characters ?? []).filter((c) => !c.archived);
@@ -95,7 +148,7 @@ export default function CatalogRequestSection({
   const submit = useSubmitCustomRequest({
     mutation: {
       onSuccess: (_data, variables) => {
-        queryClient.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey({ type }) });
+        queryClient.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey({ type: activeType }) });
         toast(
           variables?.data?.asDraft
             ? { title: "Draft saved", description: "Find it under Your Requests to finish and submit." }
@@ -108,6 +161,7 @@ export default function CatalogRequestSection({
         setImageUrl("");
         setSource("");
         setCustomSource("");
+        setSelectedType(type);
       },
       onError: (err) => {
         toast({
@@ -126,7 +180,7 @@ export default function CatalogRequestSection({
   const canSaveDraft = !!effectiveCharacterId && !!title.trim() && !submit.isPending;
 
   const buildData = (asDraft: boolean) => ({
-    type,
+    type: activeType,
     characterId: parseInt(effectiveCharacterId, 10),
     title: title.trim(),
     description: description.trim() || undefined,
@@ -180,10 +234,36 @@ export default function CatalogRequestSection({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="rounded-none border-border bg-card sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-display tracking-widest text-nc-cyan">{dialogTitle}</DialogTitle>
+            <DialogTitle className="font-display tracking-widest text-nc-cyan">{effectiveDialogTitle}</DialogTitle>
             <DialogDescription className="font-mono text-xs">{dialogDescription}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {choiceMode && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">What are you requesting?</Label>
+                <Select
+                  value={selectedType}
+                  onValueChange={(v) => {
+                    setSelectedType(v as RequestType);
+                    // Source is type-specific (store vs ripperdoc); drop any
+                    // prior pick so it can't ride into a different category.
+                    setSource("");
+                    setCustomSource("");
+                  }}
+                >
+                  <SelectTrigger className="rounded-none font-mono" data-testid="select-request-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(typeChoices ?? []).map((t) => (
+                      <SelectItem key={t} value={t} data-testid={`request-type-option-${t}`}>
+                        {TYPE_CHOICE_META[t].choiceLabel}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {presetCharacterId ? (
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Character</Label>
@@ -215,11 +295,11 @@ export default function CatalogRequestSection({
               </div>
             )}
             <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">{titleLabel}</Label>
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">{effectiveTitleLabel}</Label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={titlePlaceholder}
+                placeholder={effectiveTitlePlaceholder}
                 className="rounded-none font-mono"
                 data-testid={`input-title-${type}`}
               />
@@ -227,11 +307,11 @@ export default function CatalogRequestSection({
             {hasSource && (
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">
-                  {type === "gun" ? "Store (optional)" : "Ripperdoc (optional)"}
+                  {activeType === "gun" ? "Store (optional)" : "Ripperdoc (optional)"}
                 </Label>
                 <Select value={source} onValueChange={setSource}>
                   <SelectTrigger className="rounded-none font-mono" data-testid={`select-source-${type}`}>
-                    <SelectValue placeholder={type === "gun" ? "Where do you want it from?" : "Where do you want it installed?"} />
+                    <SelectValue placeholder={activeType === "gun" ? "Where do you want it from?" : "Where do you want it installed?"} />
                   </SelectTrigger>
                   <SelectContent>
                     {sourceOptions.map((v) => (
