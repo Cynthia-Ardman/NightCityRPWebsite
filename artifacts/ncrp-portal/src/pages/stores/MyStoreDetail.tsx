@@ -13,6 +13,7 @@ import {
   useRemoveStoreStock,
   useDepositToStore,
   useWithdrawFromStore,
+  useGrantStoreBalance,
   useGetStoreTransactions,
   useListStoreOffers,
   useRequestStoreStock,
@@ -155,6 +156,7 @@ export default function MyStoreDetail() {
   };
   const deposit = useDepositToStore({ mutation: { onSuccess: invalidateWallet } });
   const withdraw = useWithdrawFromStore({ mutation: { onSuccess: invalidateWallet } });
+  const grant = useGrantStoreBalance({ mutation: { onSuccess: invalidateWallet } });
 
   const [empChar, setEmpChar] = useState<CharacterPickerValue>(null);
   const [empRole, setEmpRole] = useState("clerk");
@@ -210,11 +212,17 @@ export default function MyStoreDetail() {
   // Staff get delete via StaffVenuePanel below, so this owner-only card is hidden
   // for staff to avoid two delete controls.
   const isOwner = !!me && !!store && store.ownerId === me.id;
+  // Employees can reach this page (GET /stores/:id allows owner/staff/employee)
+  // and may SELL stock, but every management mutation (profile edit, employees,
+  // wallet, stock edits, delete) is owner-or-staff only on the server
+  // (loadManageableStore). Gate those controls on canManage so employees see a
+  // read-only management view with a working sell button instead of dead 403s.
+  const canManage = isOwner || isStaff;
   // Gun stores carry a regulated catalog: their OWNERS may only VIEW stock —
   // all editing (add/edit/delete + power level) is staff-only. This mirrors the
   // server gate in routes/stores.ts; the UI just avoids dead 403 controls.
   const isGunStore = store?.kind === "guns";
-  const canEditStock = !isGunStore || isStaff;
+  const canEditStock = canManage && (!isGunStore || isStaff);
   // Power level is a gun-store-only field, and only staff edit it.
   const showPowerLevel = isGunStore;
 
@@ -232,6 +240,7 @@ export default function MyStoreDetail() {
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display" data-testid="text-store-name">{store.name}</h1>
 
+      {canManage && (
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="font-display tracking-widest">EDIT</CardTitle>
@@ -293,17 +302,22 @@ export default function MyStoreDetail() {
           </div>
         </CardContent>
       </Card>
+      )}
 
+      {canManage && (
       <VenueWalletPanel
         balance={store.balance ?? 0}
         transactions={txns ?? []}
-        busy={deposit.isPending || withdraw.isPending}
+        busy={deposit.isPending || withdraw.isPending || grant.isPending}
         onDeposit={(amount) => deposit.mutateAsync({ id: storeId, data: { amount, idempotencyKey: crypto.randomUUID() } })}
         onWithdraw={(amount) => withdraw.mutateAsync({ id: storeId, data: { amount, idempotencyKey: crypto.randomUUID() } })}
+        onGrant={isAdmin ? (amount) => grant.mutateAsync({ id: storeId, data: { amount, idempotencyKey: crypto.randomUUID() } }) : undefined}
         accent="cyan"
         testIdPrefix="store"
       />
+      )}
 
+      {canManage && (
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">EMPLOYEES</CardTitle></CardHeader>
         <CardContent className="space-y-2">
@@ -358,11 +372,13 @@ export default function MyStoreDetail() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="font-display tracking-widest">STOCK</CardTitle>
           <div className="flex items-center gap-2">
+            {canManage && (
             <Button
               size="sm"
               variant="outline"
@@ -372,6 +388,7 @@ export default function MyStoreDetail() {
             >
               <PackagePlus className="w-3 h-3 mr-1" /> REQUEST CUSTOM STOCK
             </Button>
+            )}
             {canEditStock && (
               <Button
                 size="sm"

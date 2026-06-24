@@ -17,4 +17,9 @@ export interface VenueAccountInput {
      * @maxLength 100
      */
   idempotencyKey?: string;
+  /**
+     * Optional note attached to a player gift (giveToStore only); ignored by deposit/withdraw/grant.
+     * @maxLength 200
+     */
+  memo?: string;
 }

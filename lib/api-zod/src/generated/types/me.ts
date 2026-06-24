@@ -27,6 +27,10 @@ export interface Me {
   isCsApprover: boolean;
   isRipperdoc: boolean;
   isStoreOwner: boolean;
+  /** Data-derived: true when any of the user's characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role. */
+  isStoreEmployee: boolean;
+  /** Data-derived: true when any of the user's characters is on staff at a ripperdoc clinic. Drives the Manage Clinics nav link for employees who hold no owner role. */
+  isRipperdocEmployee: boolean;
   /** Number of times this user has logged in via Discord. Drives the first-run onboarding banner. */
   loginCount?: number;
   /** True once the user has dismissed the onboarding banner; it then never re-appears. */

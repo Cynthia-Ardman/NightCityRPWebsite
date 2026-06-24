@@ -24,7 +24,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage } from "../lib/discord";
 import { logger } from "../lib/logger";
-import { applyWalletDelta } from "../lib/economy";
+import { applyWalletDelta, MAX_WALLET_BALANCE } from "../lib/economy";
 import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwnedOffer } from "../lib/saleOffers";
 import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
@@ -1752,6 +1752,197 @@ router.post("/ripperdocs/:id/deposit", requireAuth, async (req, res): Promise<vo
 });
 router.post("/ripperdocs/:id/withdraw", requireAuth, async (req, res): Promise<void> => {
   await venueDepositWithdraw({ kind: "ripperdoc", venueId: parseInt(String(req.params.id), 10), direction: "withdraw", amount: Number(req.body?.amount), idempotencyKey: req.body?.idempotencyKey, req, res });
+});
+
+// Admin-only: inject eddies straight into a store's account balance. There is
+// no personal-wallet leg — this credits website-side balance (seeding a store,
+// corrections, rewards). Writes a synced ledger row + audit, idempotent on the
+// client key so a double-submit can't credit twice.
+router.post("/stores/:id/grant", requireAuth, async (req, res): Promise<void> => {
+  if (!hasRole(req.user!.roles, "ADMIN")) {
+    res.status(403).json({ error: "Only admins can grant funds to a store." });
+    return;
+  }
+  const venueId = parseInt(String(req.params.id), 10);
+  const amount = Number(req.body?.amount);
+  if (!Number.isInteger(amount) || amount <= 0) {
+    res.status(400).json({ error: "amount must be a positive whole number" });
+    return;
+  }
+  const [store] = await db.select().from(stores).where(eq(stores.id, venueId));
+  if (!store) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (store.balance + amount > MAX_WALLET_BALANCE) {
+    res.status(400).json({ error: `This would push the store balance past the maximum of ${MAX_WALLET_BALANCE.toLocaleString()} eddies.` });
+    return;
+  }
+  const clientKey =
+    typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim().length > 0
+      ? req.body.idempotencyKey.trim().slice(0, 100)
+      : String(Date.now());
+  const idempotencyKey = `store-grant-${venueId}-${clientKey}`;
+  const { ip, ua } = auditMeta(req);
+  const finalBalance = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ newBalance: walletTransactions.newBalance })
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, idempotencyKey));
+    if (existing) return existing.newBalance ?? store.balance;
+    const [u] = await tx
+      .update(stores)
+      .set({ balance: sql`${stores.balance} + ${amount}` })
+      .where(eq(stores.id, venueId))
+      .returning({ balance: stores.balance });
+    const newBalance = u.balance;
+    await tx.insert(walletTransactions).values({
+      amount,
+      kind: "store_grant",
+      source: "store",
+      syncStatus: "synced",
+      memo: `Admin grant — ${store.name}`,
+      previousBalance: newBalance - amount,
+      newBalance,
+      storeId: venueId,
+      relatedEntityType: "store",
+      relatedEntityId: venueId,
+      idempotencyKey,
+    });
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "store_grant",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "store",
+      targetId: String(venueId),
+      message: `Granted ${amount} eddies to ${store.name}`,
+    });
+    return newBalance;
+  });
+  res.json({ ok: true, venueBalance: finalBalance, walletBalance: 0 });
+});
+
+// Any player may gift eddies from their personal wallet into a store's account.
+// One-directional (personal debit -> store credit); mirrors the deposit leg of
+// venueDepositWithdraw but is NOT owner-restricted.
+router.post("/stores/:id/give", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const amount = Number(req.body?.amount);
+  if (!Number.isInteger(amount) || amount <= 0) {
+    res.status(400).json({ error: "amount must be a positive whole number" });
+    return;
+  }
+  const [store] = await db.select().from(stores).where(eq(stores.id, venueId));
+  if (!store) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (store.balance + amount > MAX_WALLET_BALANCE) {
+    res.status(400).json({ error: `This would push the store balance past the maximum of ${MAX_WALLET_BALANCE.toLocaleString()} eddies.` });
+    return;
+  }
+  const giver = req.user!;
+  const note = typeof req.body?.memo === "string" ? req.body.memo.trim().slice(0, 200) : "";
+  const clientKey =
+    typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim().length > 0
+      ? req.body.idempotencyKey.trim().slice(0, 100)
+      : String(Date.now());
+  const idempotencyKey = `store-give-${venueId}-${clientKey}-${giver.id}`;
+  const result = await applyWalletDelta({
+    userId: giver.id,
+    discordId: giver.discordId,
+    amount: -amount,
+    source: "store",
+    kind: "store_give",
+    reason: `Gift to ${store.name}`,
+    memo: note ? `gift to store "${store.name}": ${note}` : `gift to store "${store.name}"`,
+    storeId: venueId,
+    relatedEntityType: "store",
+    relatedEntityId: venueId,
+    idempotencyKey,
+  });
+  if (result.status === "disabled") {
+    res.status(409).json({ error: "The economy system is currently disabled." });
+    return;
+  }
+  if (result.status === "insufficient_funds") {
+    res.status(400).json({ error: "Insufficient personal wallet balance" });
+    return;
+  }
+  if (result.status === "exceeds_max") {
+    res.status(400).json({ error: result.error ?? "This would exceed the maximum wallet balance." });
+    return;
+  }
+  if (result.status === "dry_run") {
+    res.json({
+      ok: true,
+      dryRun: true,
+      venueBalance: store.balance,
+      proposedVenueBalance: store.balance + amount,
+      walletBalance: result.balance,
+      proposedWalletBalance: result.proposedBalance,
+    });
+    return;
+  }
+  if (!result.ok) {
+    res.status(502).json({ error: result.error ?? "Wallet sync failed; no money moved." });
+    return;
+  }
+  // Personal leg is live-synced (status "synced") or was already applied on a
+  // prior attempt (status "duplicate"). Either way the store-credit leg must be
+  // independently idempotent: applyWalletDelta dedupes the personal debit, but a
+  // replayed/duplicate request must NOT credit the store a second time, and a
+  // retry after a crash between the two legs must still credit it exactly once.
+  // We key the venue-leg ledger row on its own idempotency key and short-circuit
+  // inside the transaction if it already exists. A credit increment has no guard
+  // race (unlike a withdraw), so no reversal path is needed.
+  const venueIdempotencyKey = `${idempotencyKey}-venue`;
+  const { ip, ua } = auditMeta(req);
+  let finalVenueBalance = store.balance + amount;
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ newBalance: walletTransactions.newBalance })
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, venueIdempotencyKey));
+    if (existing) {
+      finalVenueBalance = existing.newBalance ?? store.balance;
+      return;
+    }
+    const [u] = await tx
+      .update(stores)
+      .set({ balance: sql`${stores.balance} + ${amount}` })
+      .where(eq(stores.id, venueId))
+      .returning({ balance: stores.balance });
+    finalVenueBalance = u.balance;
+    await tx.insert(walletTransactions).values({
+      amount,
+      kind: "store_give",
+      source: "store",
+      syncStatus: "synced",
+      memo: `Gift from ${giver.username} — ${store.name}${note ? `: ${note}` : ""}`,
+      previousBalance: finalVenueBalance - amount,
+      newBalance: finalVenueBalance,
+      storeId: venueId,
+      relatedEntityType: "store",
+      relatedEntityId: venueId,
+      idempotencyKey: venueIdempotencyKey,
+    });
+    await tx.insert(auditLog).values({
+      category: "shop",
+      action: "store_give",
+      actorId: giver.id,
+      actorName: giver.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "store",
+      targetId: String(venueId),
+      message: `${giver.username} gifted ${amount} eddies to ${store.name}`,
+    });
+  });
+  res.json({ ok: true, venueBalance: finalVenueBalance, walletBalance: result.balance });
 });
 
 // Per-venue transaction history (owner or staff only).

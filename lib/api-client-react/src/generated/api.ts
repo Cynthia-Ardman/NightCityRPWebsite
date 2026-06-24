@@ -5753,6 +5753,150 @@ export const useWithdrawFromStore = <TError = ErrorType<void>,
       return useMutation(getWithdrawFromStoreMutationOptions(options));
     }
 
+export const getGrantStoreBalanceUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/grant`
+}
+
+/**
+ * @summary Admin grants eddies directly into a store account (no personal-wallet leg)
+ */
+export const grantStoreBalance = async (id: number,
+    venueAccountInput: VenueAccountInput, options?: RequestInit): Promise<VenueAccountResult> => {
+
+  return customFetch<VenueAccountResult>(getGrantStoreBalanceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueAccountInput,)
+  }
+);}
+
+
+
+
+export const getGrantStoreBalanceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantStoreBalance>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof grantStoreBalance>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext> => {
+
+const mutationKey = ['grantStoreBalance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof grantStoreBalance>>, {id: number;data: BodyType<VenueAccountInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  grantStoreBalance(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GrantStoreBalanceMutationResult = NonNullable<Awaited<ReturnType<typeof grantStoreBalance>>>
+    export type GrantStoreBalanceMutationBody = BodyType<VenueAccountInput>
+    export type GrantStoreBalanceMutationError = ErrorType<void>
+
+    /**
+ * @summary Admin grants eddies directly into a store account (no personal-wallet leg)
+ */
+export const useGrantStoreBalance = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantStoreBalance>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof grantStoreBalance>>,
+        TError,
+        {id: number;data: BodyType<VenueAccountInput>},
+        TContext
+      > => {
+      return useMutation(getGrantStoreBalanceMutationOptions(options));
+    }
+
+export const getGiveToStoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/give`
+}
+
+/**
+ * @summary Any player gifts eddies from their personal wallet into a store account
+ */
+export const giveToStore = async (id: number,
+    venueAccountInput: VenueAccountInput, options?: RequestInit): Promise<VenueAccountResult> => {
+
+  return customFetch<VenueAccountResult>(getGiveToStoreUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueAccountInput,)
+  }
+);}
+
+
+
+
+export const getGiveToStoreMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveToStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof giveToStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext> => {
+
+const mutationKey = ['giveToStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof giveToStore>>, {id: number;data: BodyType<VenueAccountInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  giveToStore(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GiveToStoreMutationResult = NonNullable<Awaited<ReturnType<typeof giveToStore>>>
+    export type GiveToStoreMutationBody = BodyType<VenueAccountInput>
+    export type GiveToStoreMutationError = ErrorType<void>
+
+    /**
+ * @summary Any player gifts eddies from their personal wallet into a store account
+ */
+export const useGiveToStore = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveToStore>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof giveToStore>>,
+        TError,
+        {id: number;data: BodyType<VenueAccountInput>},
+        TContext
+      > => {
+      return useMutation(getGiveToStoreMutationOptions(options));
+    }
+
 export const getGetStoreTransactionsUrl = (id: number,) => {
 
 

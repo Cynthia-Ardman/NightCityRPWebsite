@@ -74,6 +74,8 @@ export const GetMeResponse = zod.object({
   "isCsApprover": zod.boolean(),
   "isRipperdoc": zod.boolean(),
   "isStoreOwner": zod.boolean(),
+  "isStoreEmployee": zod.boolean().describe('Data-derived: true when any of the user\'s characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role.'),
+  "isRipperdocEmployee": zod.boolean().describe('Data-derived: true when any of the user\'s characters is on staff at a ripperdoc clinic. Drives the Manage Clinics nav link for employees who hold no owner role.'),
   "loginCount": zod.number().optional().describe('Number of times this user has logged in via Discord. Drives the first-run onboarding banner.'),
   "onboardingBannerDismissed": zod.boolean().optional().describe('True once the user has dismissed the onboarding banner; it then never re-appears.'),
   "notificationPromptDismissed": zod.boolean().optional().describe('True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless.'),
@@ -1827,11 +1829,14 @@ export const DepositToStoreParams = zod.object({
 
 export const depositToStoreBodyIdempotencyKeyMax = 100;
 
+export const depositToStoreBodyMemoMax = 200;
+
 
 
 export const DepositToStoreBody = zod.object({
   "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
-  "idempotencyKey": zod.string().max(depositToStoreBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.')
+  "idempotencyKey": zod.string().max(depositToStoreBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
+  "memo": zod.string().max(depositToStoreBodyMemoMax).optional().describe('Optional note attached to a player gift (giveToStore only); ignored by deposit\/withdraw\/grant.')
 })
 
 export const DepositToStoreResponse = zod.object({
@@ -1854,14 +1859,77 @@ export const WithdrawFromStoreParams = zod.object({
 
 export const withdrawFromStoreBodyIdempotencyKeyMax = 100;
 
+export const withdrawFromStoreBodyMemoMax = 200;
+
 
 
 export const WithdrawFromStoreBody = zod.object({
   "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
-  "idempotencyKey": zod.string().max(withdrawFromStoreBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.')
+  "idempotencyKey": zod.string().max(withdrawFromStoreBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
+  "memo": zod.string().max(withdrawFromStoreBodyMemoMax).optional().describe('Optional note attached to a player gift (giveToStore only); ignored by deposit\/withdraw\/grant.')
 })
 
 export const WithdrawFromStoreResponse = zod.object({
+  "ok": zod.boolean(),
+  "venueBalance": zod.number().describe('Venue balance after the move (unchanged when dryRun).'),
+  "walletBalance": zod.number().describe('Owner personal wallet balance after the move (unchanged when dryRun).'),
+  "dryRun": zod.boolean().optional().describe('True when the economy is in Test mode — nothing was written.'),
+  "proposedVenueBalance": zod.number().optional().describe('What the venue balance WOULD become (Test mode only).'),
+  "proposedWalletBalance": zod.number().optional().describe('What the wallet balance WOULD become (Test mode only).')
+})
+
+
+/**
+ * @summary Admin grants eddies directly into a store account (no personal-wallet leg)
+ */
+export const GrantStoreBalanceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const grantStoreBalanceBodyIdempotencyKeyMax = 100;
+
+export const grantStoreBalanceBodyMemoMax = 200;
+
+
+
+export const GrantStoreBalanceBody = zod.object({
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
+  "idempotencyKey": zod.string().max(grantStoreBalanceBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
+  "memo": zod.string().max(grantStoreBalanceBodyMemoMax).optional().describe('Optional note attached to a player gift (giveToStore only); ignored by deposit\/withdraw\/grant.')
+})
+
+export const GrantStoreBalanceResponse = zod.object({
+  "ok": zod.boolean(),
+  "venueBalance": zod.number().describe('Venue balance after the move (unchanged when dryRun).'),
+  "walletBalance": zod.number().describe('Owner personal wallet balance after the move (unchanged when dryRun).'),
+  "dryRun": zod.boolean().optional().describe('True when the economy is in Test mode — nothing was written.'),
+  "proposedVenueBalance": zod.number().optional().describe('What the venue balance WOULD become (Test mode only).'),
+  "proposedWalletBalance": zod.number().optional().describe('What the wallet balance WOULD become (Test mode only).')
+})
+
+
+/**
+ * @summary Any player gifts eddies from their personal wallet into a store account
+ */
+export const GiveToStoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const giveToStoreBodyIdempotencyKeyMax = 100;
+
+export const giveToStoreBodyMemoMax = 200;
+
+
+
+export const GiveToStoreBody = zod.object({
+  "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
+  "idempotencyKey": zod.string().max(giveToStoreBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
+  "memo": zod.string().max(giveToStoreBodyMemoMax).optional().describe('Optional note attached to a player gift (giveToStore only); ignored by deposit\/withdraw\/grant.')
+})
+
+export const GiveToStoreResponse = zod.object({
   "ok": zod.boolean(),
   "venueBalance": zod.number().describe('Venue balance after the move (unchanged when dryRun).'),
   "walletBalance": zod.number().describe('Owner personal wallet balance after the move (unchanged when dryRun).'),
@@ -6114,11 +6182,14 @@ export const DepositToRipperdocParams = zod.object({
 
 export const depositToRipperdocBodyIdempotencyKeyMax = 100;
 
+export const depositToRipperdocBodyMemoMax = 200;
+
 
 
 export const DepositToRipperdocBody = zod.object({
   "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
-  "idempotencyKey": zod.string().max(depositToRipperdocBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.')
+  "idempotencyKey": zod.string().max(depositToRipperdocBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
+  "memo": zod.string().max(depositToRipperdocBodyMemoMax).optional().describe('Optional note attached to a player gift (giveToStore only); ignored by deposit\/withdraw\/grant.')
 })
 
 export const DepositToRipperdocResponse = zod.object({
@@ -6141,11 +6212,14 @@ export const WithdrawFromRipperdocParams = zod.object({
 
 export const withdrawFromRipperdocBodyIdempotencyKeyMax = 100;
 
+export const withdrawFromRipperdocBodyMemoMax = 200;
+
 
 
 export const WithdrawFromRipperdocBody = zod.object({
   "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
-  "idempotencyKey": zod.string().max(withdrawFromRipperdocBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.')
+  "idempotencyKey": zod.string().max(withdrawFromRipperdocBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
+  "memo": zod.string().max(withdrawFromRipperdocBodyMemoMax).optional().describe('Optional note attached to a player gift (giveToStore only); ignored by deposit\/withdraw\/grant.')
 })
 
 export const WithdrawFromRipperdocResponse = zod.object({

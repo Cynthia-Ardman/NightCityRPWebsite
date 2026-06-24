@@ -1257,6 +1257,49 @@ paths:
         "404": { description: Not found }
         "409": { description: Economy disabled }
         "502": { description: Wallet sync failed }
+  /stores/{id}/grant:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: grantStoreBalance
+      tags: [stores]
+      summary: Admin grants eddies directly into a store account (no personal-wallet leg)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueAccountInput" }
+      responses:
+        "200":
+          description: Granted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueAccountResult" }
+        "400": { description: Bad amount or would exceed the maximum balance }
+        "403": { description: Not an admin }
+        "404": { description: Not found }
+  /stores/{id}/give:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: giveToStore
+      tags: [stores]
+      summary: Any player gifts eddies from their personal wallet into a store account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueAccountInput" }
+      responses:
+        "200":
+          description: Gifted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueAccountResult" }
+        "400": { description: Bad amount or insufficient personal wallet balance }
+        "404": { description: Not found }
+        "409": { description: Economy disabled }
+        "502": { description: Wallet sync failed }
   /stores/{id}/transactions:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -6071,7 +6114,7 @@ components:
 
     Me:
       type: object
-      required: [id, discordId, username, avatarUrl, roles, isAdmin, isFixer, isArchivist, isCsApprover, isRipperdoc, isStoreOwner]
+      required: [id, discordId, username, avatarUrl, roles, isAdmin, isFixer, isArchivist, isCsApprover, isRipperdoc, isStoreOwner, isStoreEmployee, isRipperdocEmployee]
       properties:
         id: { type: string }
         discordId: { type: string }
@@ -6092,6 +6135,8 @@ components:
         isCsApprover: { type: boolean }
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
+        isStoreEmployee: { type: boolean, description: "Data-derived: true when any of the user's characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role." }
+        isRipperdocEmployee: { type: boolean, description: "Data-derived: true when any of the user's characters is on staff at a ripperdoc clinic. Drives the Manage Clinics nav link for employees who hold no owner role." }
         loginCount:
           type: integer
           description: "Number of times this user has logged in via Discord. Drives the first-run onboarding banner."
@@ -7231,6 +7276,7 @@ components:
       properties:
         amount: { type: integer, minimum: 1, description: "Whole eddies to move between the owner's personal wallet and the venue account." }
         idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key (e.g. a UUID created once per submit) so network retries / double-clicks of the same move don't debit or credit twice." }
+        memo: { type: string, maxLength: 200, description: "Optional note attached to a player gift (giveToStore only); ignored by deposit/withdraw/grant." }
 
     VenueAccountResult:
       type: object

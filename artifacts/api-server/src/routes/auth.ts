@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
-import { db, users, characters, vrchatLinks } from "@workspace/db";
+import { db, users, characters, vrchatLinks, storeEmployees, ripperdocEmployees } from "@workspace/db";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   buildAuthUrl,
@@ -311,6 +311,22 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(vrchatLinks)
     .where(eq(vrchatLinks.discordId, u.discordId));
+  // Data-derived venue-employment flags. Unlike the role-derived STORE_OWNER /
+  // RIPPERDOC flags, an employee may hold no special Discord role, so the nav
+  // gate for the management pages must come from actual employment rows (any of
+  // the user's characters being on staff at a store / clinic).
+  const [storeEmp] = await db
+    .select({ id: storeEmployees.id })
+    .from(storeEmployees)
+    .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
+    .where(eq(characters.ownerId, u.id))
+    .limit(1);
+  const [ripperdocEmp] = await db
+    .select({ id: ripperdocEmployees.id })
+    .from(ripperdocEmployees)
+    .innerJoin(characters, eq(characters.id, ripperdocEmployees.characterId))
+    .where(eq(characters.ownerId, u.id))
+    .limit(1);
   res.json({
     id: u.id,
     discordId: u.discordId,
@@ -335,6 +351,11 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     isCsApprover: hasRole(u.roles, "CS_APPROVER"),
     isRipperdoc: hasRole(u.roles, "RIPPERDOC"),
     isStoreOwner: hasRole(u.roles, "STORE_OWNER"),
+    // Data-derived: true when any of the user's characters is on staff at a
+    // store / ripperdoc clinic. Drives the management nav links so employees
+    // (who may hold no owner role) can reach the venues they work at.
+    isStoreEmployee: !!storeEmp,
+    isRipperdocEmployee: !!ripperdocEmp,
     // Staff-only lockdown state. When true, only ADMIN / FIXER / ARCHIVIST may
     // use the portal; the SPA shows a maintenance screen to everyone else.
     loginRestricted: await isLoginRestricted(),
