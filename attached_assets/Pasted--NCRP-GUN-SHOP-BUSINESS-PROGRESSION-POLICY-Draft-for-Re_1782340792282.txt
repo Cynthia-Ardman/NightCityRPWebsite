@@ -1,0 +1,911 @@
+**NCRP GUN SHOP BUSINESS PROGRESSION POLICY**
+*Draft for Review - June 2026*
+
+**Scope**
+This policy applies to player-owned and player-operated gun shops. Ripperdoc, cyberware, Tech Shop, weaponsmith, explosives, and custom-gear rules will be handled separately.
+
+**Core Rules**
+- Every new gun shop begins at **Tier 0** unless an approved transition assigns an existing shop another starting tier.
+- A higher tier makes a gun shop better at being a gun shop. It does **not** grant another business type.
+- Business tier represents the shop's facilities, equipment, active staff, suppliers, reputation, and inventory capacity.
+- Location, tier, staffing, and supplier access are separate requirements.
+- Restricted and Special weapons are never normal gun-store inventory.
+- On-map and off-map businesses use the **same employee requirements**.
+
+Message 2/12
+
+**PLAYER BUSINESS PARTICIPATION LIMITS**
+
+These limits apply per player across all of their characters.
+
+**Ownership Slot**
+- One character may own, co-own, manage, or otherwise control **one business**.
+- The owner character may operate their own business.
+- The owner character may not be registered as an employee of another business.
+- A controlling ownership share, profit share, management role, or "silent partner" arrangement still uses the ownership slot.
+
+**Employment Slot**
+- One separate character may be a full-time employee of **one other business**.
+- That employee character may not own, co-own, manage, or control a business.
+- That employee character may not work full-time for multiple businesses.
+
+**Additional Characters**
+- A third or later character may not own, manage, run, or be registered as an employee of a business.
+- Additional characters may still visit, purchase goods, receive services, or appear in one-off scenes.
+- Staffing is counted by **unique players**, not characters.
+- A player's owner character and employee character cannot both count toward the same business.
+- Alternate characters may not be used to transfer business inventory, funds, supplier access, or permissions.
+
+Message 3/12
+
+**LOCATION, RENT, AND STAFFING**
+
+**Monthly Rent**
+- **Tier 0:** Off-map 1,000 eb | On-map unavailable
+- **Tier 1:** Off-map 2,000 eb | On-map 3,000 eb
+- **Tier 2:** Off-map 3,000 eb | On-map 4,000 eb
+- **Tier 3:** Off-map 4,000 eb | On-map 5,000 eb
+
+Tier 0 is an off-map startup operation. Tier 1-3 may operate on-map or off-map.
+
+The on-map premium represents the benefit of a persistent, visible VRChat location. Property purchase, construction, relocation, guards, cameras, reinforced doors, turrets, and other security upgrades are separate costs unless specifically included.
+
+**Required Staffing**
+- **Tier 0:** Proprietor only; 0 employees; 1 unique player total
+- **Tier 1:** Proprietor + at least 1 full-time employee; 2 unique players total
+- **Tier 2:** Proprietor + at least 2 full-time employees; 3 unique players total
+- **Tier 3:** Proprietor + at least 3 full-time employees; 4 unique players total
+
+These staffing requirements are identical for on-map and off-map businesses. The proprietor does not count as an employee.
+
+Message 4/12
+
+**TIER 0 - STARTUP GUNSMITH**
+
+A new informal operation working from a garage, rented room, home workshop, mobile bench, or another off-map location.
+
+**Staffing**
+- Proprietor only
+- No full-time employee required
+
+**May Provide**
+- Firearm cleaning and maintenance
+- Routine repairs and basic troubleshooting
+- Firearm appraisal and condition checks
+
+**May Not Provide**
+- Firearm sales
+- Wholesale firearm orders
+- Controlled, Restricted, or Special weapons
+- Custom weapon construction
+- Complex mechanical modifications
+
+---
+
+**TIER 1 - LOCAL GUN STORE**
+
+A small established business with a storefront or off-map location, retail inventory, basic equipment, and ordinary legal or street-market suppliers.
+
+**Staffing**
+- Proprietor + at least 1 full-time employee
+
+**May Provide**
+- All Tier 0 services
+- Basic firearms
+- Basic ammunition
+- Ordinary firearm accessories
+- Standard replacement parts
+
+**May Not Provide**
+- Controlled firearms or ammunition
+- Bespoke mechanical modifications
+- Restricted or Special weapons
+
+Message 5/12
+
+**TIER 2 - ESTABLISHED ARMS DEALER**
+
+An established commercial operation with improved equipment, reliable inventory, active staff, and a documented fixer, gang, specialist, or corporate supplier.
+
+**Staffing**
+- Proprietor + at least 2 full-time employees
+
+**May Provide**
+- All Tier 1 goods and services
+- Basic and Controlled firearms
+- Basic and Controlled ammunition
+- Standard attachments
+- Cosmetic customization
+- Special orders for permitted Basic or Controlled weapons
+
+**May Not Provide**
+- Regular Restricted or Special weapon sales
+- Unique or event-only weapons
+- Unapproved bespoke mechanical weapon builds
+
+---
+
+**TIER 3 - MAJOR ARMS SPECIALIST**
+
+A significant, well-equipped gun business with experienced staff, advanced facilities, and major faction, corporate, arms-dealer, or high-level fixer connections.
+
+**Staffing**
+- Proprietor + at least 3 full-time employees
+
+**May Provide**
+- All Tier 2 goods and services
+- Complex special orders within permitted categories
+- Approved custom weapon commissions
+- Major corporate or faction contracts
+- Brokerage or transfer services for individually approved weapons
+
+Message 6/12
+
+**TIER 3 LIMITS**
+
+A Tier 3 gun shop may not:
+- Treat Restricted or Special weapons as normal shelf inventory
+- Claim unlimited access to military, iconic, unique, or experimental weapons
+- Operate as a Tech Shop, Ripperdoc clinic, explosives manufacturer, drone workshop, or unrelated business
+
+**CUSTOM WEAPONS**
+
+"Custom" describes work performed on a weapon. It is not a weapon availability tier.
+
+- Tier 2 permits standard attachments and cosmetic customization.
+- Tier 3 permits approved custom commissions.
+- Complex mechanical sidegrades, internal redesign, or fabrication may require a Weaponsmith Tech Shop under future rules.
+- A gun shop may commission or broker another business's specialized work without gaining that business's permissions.
+- Custom work cannot be used to disguise a Restricted or Special weapon as a lower-tier item.
+- The base weapon and all components remain subject to their normal availability rules.
+
+Message 7/12
+
+**RESTRICTED AND SPECIAL WEAPONS**
+
+Restricted and Special weapons are never normal gun-shop inventory, regardless of business tier.
+
+They may only be acquired through:
+- Fixer jobs or individually approved rewards
+- Case-by-case black-market transactions
+- Event-runner rewards
+- Staff-approved storylines
+- Specific megacorp or faction contracts
+
+A Tier 3 shop may act as a broker, transfer location, legal front, or meeting point for an approved transaction. This does not create permanent supplier access.
+
+**Example**
+A Tier 3 shop may facilitate the transfer of one fixer-approved military rifle. The shop may not add it to its public catalogue or assume it can order ten more afterward.
+
+A supplier relationship never creates an unrestricted catalogue and may be lost through inactivity, broken agreements, unpaid obligations, faction conflict, or story consequences.
+
+Message 8/12
+
+**UPGRADE COSTS AND WAITING PERIODS**
+
+Upgrade costs represent a business front, equipment, inventory capacity, licensing, supplier deposits, renovations, and expansion. They are separate from monthly rent.
+
+- **Tier 0 -> Tier 1:** 20,000 eb
+  - Requires 2 complete billing cycles at Tier 0
+- **Tier 1 -> Tier 2:** 40,000 eb
+  - Requires 2 complete billing cycles at Tier 1
+- **Tier 2 -> Tier 3:** 60,000 eb
+  - Requires 2 complete billing cycles at Tier 2
+
+**Rules**
+- Waiting periods do not stack.
+- Waiting periods cannot be skipped by paying extra.
+- The shop must meet the requested tier's employee requirement when the upgrade is approved.
+- Upgrade fees are the same for on-map and off-map shops.
+- On-map rent already includes the location premium.
+- Property purchase or construction is handled separately.
+- The earliest normal path from Tier 0 to Tier 3 is 6 complete billing cycles and 120,000 eb in upgrade fees, before rent and other expenses.
+
+Message 9/12
+
+**UPGRADE ELIGIBILITY**
+
+Completing the waiting period does not automatically grant an upgrade. The shop must:
+
+1. Be current on rent and business obligations.
+2. Complete the required two billing cycles at its current tier.
+3. Meet the requested tier's proprietor and employee requirement.
+4. Demonstrate meaningful business activity during the waiting period.
+5. Remain registered exclusively as a gun shop.
+6. Have an appropriate supplier, sponsor, or faction relationship.
+7. Pay the full upgrade cost.
+8. Receive fixer or business-team approval when required.
+9. Receive explicit review for every Tier 3 upgrade.
+
+**Expected Supplier Progression**
+- **Tier 0:** Personal tools and retail parts
+- **Tier 1:** Public market or ordinary wholesaler
+- **Tier 2:** Fixer, gang, specialist, or minor corporate distributor
+- **Tier 3:** Major arms distributor, megacorp sponsor, faction supplier, black-market contact, or established fixer network
+
+Tier 3 supplier access supports advanced orders and approved brokerage. It does not grant unlimited Restricted access.
+
+Message 10/12
+
+**FULL-TIME EMPLOYEE DEFINITION**
+
+"Full-time" is a rules designation, not a literal real-world hourly requirement.
+
+A full-time employee must:
+- Be formally registered to the business for the current billing cycle
+- Be controlled by a unique player
+- Use that character's single employment slot for the business
+- Meaningfully participate through sales, repairs, inventory work, business scenes, appointments, or another approved activity
+- Not exist only as a placeholder name used to satisfy a tier requirement
+
+**Recommended Activity Baseline**
+At least one meaningful business scene, transaction, service, or operational activity per employee during each monthly billing cycle.
+
+This baseline may be adjusted after the system has been tested.
+
+Message 11/12
+
+**STAFFING LOSS AND DOWNGRADES**
+
+- If a shop falls below its employee requirement, it enters a one-billing-cycle grace period.
+- During the grace period, it keeps its current tier for existing operations but may not request another upgrade.
+- Existing approved orders may be completed.
+- New high-tier special orders may be paused or require fixer approval while the shop is understaffed.
+- If staffing is not restored by the next billing date, the shop downgrades by one tier.
+- Continued understaffing may cause further monthly downgrades.
+- A shop may voluntarily downgrade at the start of a billing cycle to reduce rent and obligations.
+- Upgrade fees are not refunded after a downgrade.
+- Re-upgrading normally requires the standard waiting period, staffing, approval, and upgrade fee unless a specific exception is approved.
+
+**CORE INTERPRETATION RULE**
+
+Higher tier means deeper specialization, not broader permissions.
+
+A Tier 3 gun shop is still only a gun shop.
+
+Message 12/12
+
+**IMPLEMENTATION NOTES**
+
+Before this policy becomes active:
+- Existing gun shops need a one-time transition review for starting tier, staffing roster, location, and supplier status.
+- The website or bot should enforce inventory limits wherever practical.
+- An official weapon list must define Basic, Controlled, Restricted, and Special firearms.
+- Ripperdoc, Tech Shop, Weaponsmith, custom-gear, explosives, and security-add-on policies must be handled separately.
+- The final policy must be approved and announced before enforcement begins.
+
+**PENDING DECISION: 80,000 EB**
+
+There are only three upgrades between Tier 0 and Tier 3.
+
+The separately discussed 80,000 eb amount currently has no tier transition. It should be reserved for a future major Tier 3 facility expansion, premium on-map property purchase, or another separately approved system. It should not accidentally create Tier 4.
+
+Done. It includes the updated employee requirements for both on-map and off-map businesses, player character limits, rent, tier permissions, upgrade costs, waiting periods, and downgrades. It follows the meeting-approved principles for tier-based rent and inventory, single-purpose businesses, and fixer/black-market control of the highest-tier weapons.
+
+Download the Gun Shop Business Progression Policy
+
+Can you give me the stuff for ripperdocs next?
+
+I’ll mirror the gun-shop structure while separating cyberware availability, surgical complexity, and Techie modification so Ripperdoc tiers don’t become “install anything.”
+
+Thought for 3m 34s
+
+Here’s the Ripperdoc version in the same Discord-ready format. It follows the meeting’s direction that business capability scales with tier, businesses remain single-purpose, and Ripperdocs handle installation while Techie modification rules stay separate.
+
+Message 1/11
+
+**NCRP RIPPERDOC BUSINESS PROGRESSION POLICY**
+*Draft for Review - June 2026*
+
+**Scope**
+This policy applies to player-owned and player-operated Ripperdoc clinics.
+
+Tech Shop, cyberware fabrication, cyberware upgrading, general medical clinic, Trauma Team, pharmaceutical, and custom cyberware rules will be handled separately.
+
+**Core Rules**
+- Every new Ripperdoc business begins at **Tier 0** unless an approved transition assigns an existing clinic another starting tier.
+- A higher tier makes a Ripperdoc clinic better at cyberware installation and related surgical care.
+- A higher tier does not allow the clinic to become a Tech Shop, general hospital, weapons shop, or other business type.
+- Business tier represents the clinic's facilities, surgical equipment, active staff, supplier access, reputation, and procedural capability.
+- Location, tier, staffing, supplier access, and practitioner approval are separate requirements.
+- On-map and off-map clinics use the same employee requirements.
+
+Message 2/11
+
+**PLAYER BUSINESS PARTICIPATION LIMITS**
+
+These limits apply per player across all of their characters.
+
+**Ownership Slot**
+- One character may own, co-own, manage, or otherwise control one business.
+- That character may work within their own business.
+- That character may not be registered as an employee of another business.
+- A controlling ownership share, profit share, management position, or "silent partner" arrangement still uses the ownership slot.
+
+**Employment Slot**
+- One separate character may be a full-time employee of one other business.
+- That employee character may not own, co-own, manage, or control another business.
+- That employee character may not work full-time for multiple businesses.
+
+**Additional Characters**
+- A third or later character may not own, manage, run, or be registered as an employee of a business.
+- Additional characters may still visit businesses, purchase services, or appear in one-off scenes.
+- Staffing is counted by unique players, not characters.
+- A player's owner character and employee character cannot both count toward the same business.
+- Alternate characters may not be used to transfer business funds, inventory, supplier access, or permissions.
+
+Message 3/11
+
+**LOCATION, RENT, AND STAFFING**
+
+**Monthly Rent**
+- **Tier 0:** Off-map 1,000 eb | On-map unavailable
+- **Tier 1:** Off-map 2,000 eb | On-map 3,000 eb
+- **Tier 2:** Off-map 3,000 eb | On-map 4,000 eb
+- **Tier 3:** Off-map 4,000 eb | On-map 5,000 eb
+
+Tier 0 is an off-map startup operation. Tier 1-3 may operate on-map or off-map.
+
+The on-map premium represents the benefit of a permanent and visible VRChat location. Property purchase, construction, relocation, security, specialized surgical equipment, and other facility upgrades may carry separate costs.
+
+**Required Staffing**
+- **Tier 0:** Proprietor only; 0 employees; 1 unique player total
+- **Tier 1:** Proprietor + at least 1 full-time employee; 2 unique players total
+- **Tier 2:** Proprietor + at least 2 full-time employees; 3 unique players total
+- **Tier 3:** Proprietor + at least 3 full-time employees; 4 unique players total
+
+These staffing requirements are identical for on-map and off-map businesses.
+
+The proprietor does not count as an employee.
+
+Message 4/11
+
+**TIER 0 - STARTUP RIPPERDOC**
+
+A new or informal Ripperdoc operation working from a rented room, home clinic, backroom, mobile setup, or another off-map location.
+
+**Staffing**
+- Proprietor only
+- No full-time employee required
+
+**May Provide**
+- Consultations
+- Cyberware checkups
+- Diagnostics
+- Condition assessments
+- Basic aftercare
+- Referrals to established clinics
+- Non-invasive inspection of existing cyberware
+
+**May Not Provide**
+- New cyberware installations
+- Cyberware removal or replacement
+- Invasive surgery
+- Custom or modified cyberware installation
+- Controlled, Restricted, or Special procedures
+
+Tier 0 allows a new Ripperdoc business to establish itself without immediately operating as a complete surgical clinic.
+
+Message 5/11
+
+**TIER 1 - LOCAL RIPPERDOC CLINIC**
+
+A small established clinic with proper surgical space, basic equipment, active staff, and ordinary medical or cyberware suppliers.
+
+**Staffing**
+- Proprietor + at least 1 full-time employee
+
+**May Provide**
+- All Tier 0 services
+- Installation of standard cyberware worth 1-2 Cyberware Points
+- Removal or replacement of standard cyberware worth 1-2 Cyberware Points
+- Routine anesthesia and surgical preparation
+- Routine surgical aftercare
+- Treatment of ordinary complications related to permitted procedures
+
+**May Not Provide**
+- Cyberware worth more than 2 Cyberware Points
+- Modified or custom cyberware installation
+- Experimental, military, corporate-proprietary, Restricted, or Special cyberware
+- Cyberware fabrication or mechanical upgrading
+
+Message 6/11
+
+**TIER 2 - ESTABLISHED RIPPERDOC CLINIC**
+
+An established clinic with improved surgical equipment, reliable suppliers, experienced staff, and a fixer, gang, specialist, hospital, or corporate connection.
+
+**Staffing**
+- Proprietor + at least 2 full-time employees
+
+**May Provide**
+- All Tier 1 services
+- Installation, removal, or replacement of standard cyberware worth up to 3 Cyberware Points
+- More involved surgical procedures
+- Approved installation of modified or sidegraded cyberware
+- Treatment of moderate cyberware complications
+- Special orders for permitted cyberware
+- Collaborative procedures involving an approved Techie
+
+**May Not Provide**
+- Cyberware worth more than 3 Cyberware Points
+- Unapproved custom cyberware
+- Experimental or Special cyberware
+- Independent cyberware fabrication or upgrading
+- Unrestricted military or megacorporate procedures
+
+Message 7/11
+
+**TIER 3 - MAJOR RIPPERDOC SPECIALIST**
+
+A major, well-equipped clinic with experienced staff, advanced surgical facilities, strong supplier relationships, and significant faction, corporate, medical, or black-market connections.
+
+**Staffing**
+- Proprietor + at least 3 full-time employees
+
+**May Provide**
+- All Tier 2 services
+- Installation, removal, or replacement of cyberware worth up to 5 Cyberware Points
+- Complex and high-risk procedures
+- Approved custom cyberware installation
+- Approved modified or sidegraded cyberware installation
+- Major corporate, faction, or medical contracts
+- Treatment of serious cyberware complications
+- Brokerage or installation support for individually approved cyberware
+
+**Tier 3 Does Not Automatically Allow**
+- Cyberware worth more than 5 Cyberware Points
+- Experimental, unique, iconic, military, or Special cyberware
+- Unlimited access to corporate or black-market cyberware
+- Cyberware design, fabrication, or mechanical upgrading
+- General hospital or Trauma Team operations
+
+Message 8/11
+
+**CYBERWARE POINT LIMITS**
+
+The clinic's tier is based on the Cyberware Point value of the individual piece of cyberware being installed, removed, or replaced.
+
+- **Tier 0:** No installations
+- **Tier 1:** Up to 2 Cyberware Points
+- **Tier 2:** Up to 3 Cyberware Points
+- **Tier 3:** Up to 5 Cyberware Points
+
+**Multiple Procedures**
+- Every individual piece of cyberware must fall within the clinic's tier limit.
+- A clinic may not bypass its limits by dividing one complex installation into several smaller entries.
+- Large multi-installation packages may be treated as a higher-complexity procedure and require fixer or business-team review.
+- Procedures involving multiple body systems, severe surgical risk, or unusual complications may require a higher-tier clinic even if each individual item is technically within the normal limit.
+
+Cyberware Point value represents more than price. It also reflects installation difficulty, surgical risk, system complexity, and the facilities needed to perform the procedure safely.
+
+Message 9/11
+
+**CYBERWARE SALES, TECHIES, AND CUSTOM WORK**
+
+A Ripperdoc clinic earns money through consultations, procedures, installation, removal, replacement, aftercare, and approved procurement.
+
+A Ripperdoc may obtain cyberware for a scheduled procedure and include the implant's price in the customer's bill.
+
+A Ripperdoc clinic may not operate as a walk-in retail cyberware warehouse where customers purchase boxed implants to take elsewhere.
+
+**Division of Responsibilities**
+- **Ripperdocs:** Assess patients, perform surgery, install cyberware, remove cyberware, and provide related medical care.
+- **Techies:** Modify, repair, fabricate, tune, or sidegrade cyberware hardware under the future Techie policy.
+
+A Ripperdoc does not automatically gain Techie permissions because the clinic reaches Tier 3.
+
+**Modified or Custom Cyberware**
+- Tier 1 may only install standard cyberware.
+- Tier 2 may install approved modified or sidegraded cyberware.
+- Tier 3 may install approved complex or custom cyberware.
+- The modification itself must come from an approved source.
+- Custom work cannot be used to disguise Restricted or Special cyberware as a lower-tier implant.
+
+Message 10/11
+
+**RESTRICTED AND SPECIAL CYBERWARE**
+
+Restricted and Special cyberware is never normal clinic inventory, regardless of business tier.
+
+This includes cyberware that is:
+- Experimental
+- Unique or iconic
+- Military-grade
+- Corporate-proprietary
+- Plot-specific
+- Extremely dangerous
+- Worth more than 5 Cyberware Points
+- Specifically designated Restricted or Special by staff
+
+Restricted or Special cyberware may only be obtained through:
+- Fixer jobs
+- Black-market transactions
+- Event-runner rewards
+- Megacorporate or faction storylines
+- Direct staff-approved storylines
+
+A Tier 3 clinic may act as the approved installer or surgical location for one of these procedures.
+
+That does not grant the clinic permanent access to the implant or allow it to advertise the implant as ordinary stock.
+
+Supplier relationships are conditional and may be lost through inactivity, unpaid obligations, broken agreements, faction conflict, or story consequences.
+
+Message 11/11
+
+**UPGRADE COSTS, WAITING PERIODS, AND DOWNGRADES**
+
+**Upgrade Costs**
+- **Tier 0 -> Tier 1:** 20,000 eb
+  - Requires 2 complete billing cycles at Tier 0
+- **Tier 1 -> Tier 2:** 40,000 eb
+  - Requires 2 complete billing cycles at Tier 1
+- **Tier 2 -> Tier 3:** 60,000 eb
+  - Requires 2 complete billing cycles at Tier 2
+
+Upgrade costs represent new facilities, surgical equipment, sterilization systems, medical supplies, licensing, supplier deposits, staff expansion, and business growth.
+
+**Upgrade Requirements**
+A clinic must:
+1. Be current on rent and obligations.
+2. Complete 2 billing cycles at its current tier.
+3. Meet the requested tier's staffing requirement.
+4. Demonstrate meaningful business activity.
+5. Remain registered exclusively as a Ripperdoc business.
+6. Have an appropriate supplier or sponsor.
+7. Pay the full upgrade cost.
+8. Receive fixer or business-team approval when required.
+9. Receive explicit review for Tier 3.
+
+**Staffing Loss**
+- A clinic that falls below its employee requirement receives a 1-billing-cycle grace period.
+- It may finish existing approved procedures during that period.
+- It may not accept new procedures above the tier it currently qualifies for.
+- If staffing is not restored by the next billing date, the clinic downgrades by one tier.
+- Upgrade fees are not refunded.
+- A business may voluntarily downgrade at the beginning of a billing cycle.
+
+**Core Rule**
+A higher-tier Ripperdoc becomes better at performing cyberware procedures. It does not gain the ability to design every implant, manufacture cyberware, operate a hospital, or provide every form of medical care.
+tech shops next
+
+I’m carrying over the same rent, staffing, player limits, upgrade costs, and downgrade structure, then forcing Tech Shops into one specialty so Tier 3 stays focused.
+
+Thought for 4m 45s
+
+Here’s the Discord-ready Tech Shop draft. It keeps the same rent, staffing, upgrade costs, and two-month waiting periods. It also follows the meeting direction that Techies modify hardware while Ripperdocs perform installation; the exact modification catalog still needs separate approval.
+
+Message 1/14
+
+**NCRP TECH SHOP BUSINESS PROGRESSION POLICY**
+*Draft for Review - June 2026*
+
+**Scope**
+This policy applies to player-owned and player-operated Tech Shops.
+
+Ripperdoc surgery, gun-store retail, general medical care, netrunning software, explosives, and other specialized systems are handled separately.
+
+**Core Rules**
+- Every new Tech Shop begins at **Tier 0** unless an approved transition assigns an existing shop another tier.
+- Every Tech Shop must choose **one registered specialty**.
+- Higher tiers increase the depth of that specialty, not the number of specialties the shop can perform.
+- Business tier does not automatically grant a character technical skills they do not possess.
+- Only appropriately approved or established Techie characters may perform technical work.
+- On-map and off-map Tech Shops use the same employee requirements.
+- Techies modify hardware. Ripperdocs install cyberware into people.
+
+Message 2/14
+
+**PLAYER BUSINESS PARTICIPATION LIMITS**
+
+These limits apply per player across all characters.
+
+**Ownership Slot**
+- One character may own, co-own, manage, or otherwise control one business.
+- That character may work within their own business.
+- That character may not be registered as an employee of another business.
+- Ownership shares, management authority, profit shares, and "silent partner" arrangements use the ownership slot.
+
+**Employment Slot**
+- One separate character may be a full-time employee of one other business.
+- That employee character may not own, manage, or control a business.
+- That employee character may not work full-time for multiple businesses.
+
+**Additional Characters**
+- A third or later character may not own, run, manage, or be registered as an employee of a business.
+- Staffing is counted by unique players, not characters.
+- Alternate characters may not be used to transfer business funds, inventory, supplier access, or permissions.
+
+Message 3/14
+
+**TECH SHOP SPECIALTIES**
+
+A Tech Shop must choose one specialty when the business is created.
+
+Approved standard specialties include:
+
+- **Weaponsmithing**
+- **Cyberware Hardware**
+- **Armor and Personal Gear**
+- **Drones and Robotics**
+- **Electronics and Security Systems**
+- **Vehicle Technology**
+
+A different specialty may be proposed but requires approval.
+
+**Specialty Rules**
+- A shop may only sell, repair, fabricate, or modify items within its registered specialty.
+- A creative business name does not grant additional permissions.
+- Reaching Tier 3 does not unlock another specialty.
+- A Weaponsmith does not become a drone engineer.
+- A Cyberware Technician does not become a Ripperdoc.
+- An Electronics Shop does not become an explosives manufacturer.
+
+Changing specialty is considered a business conversion and normally returns the business to Tier 0 unless a specific transition is approved.
+
+Message 4/14
+
+**LOCATION, RENT, AND STAFFING**
+
+**Monthly Rent**
+- **Tier 0:** Off-map 1,000 eb | On-map unavailable
+- **Tier 1:** Off-map 2,000 eb | On-map 3,000 eb
+- **Tier 2:** Off-map 3,000 eb | On-map 4,000 eb
+- **Tier 3:** Off-map 4,000 eb | On-map 5,000 eb
+
+Tier 0 is an off-map startup operation. Tier 1-3 may operate on-map or off-map.
+
+The on-map premium represents a permanent, visible VRChat location. Property purchase, construction, security, specialized machinery, and other facility upgrades may carry separate costs.
+
+**Required Staffing**
+- **Tier 0:** Proprietor only; 0 employees; 1 unique player total
+- **Tier 1:** Proprietor + at least 1 full-time employee; 2 unique players total
+- **Tier 2:** Proprietor + at least 2 full-time employees; 3 unique players total
+- **Tier 3:** Proprietor + at least 3 full-time employees; 4 unique players total
+
+These requirements are identical for on-map and off-map businesses.
+
+Message 5/14
+
+**TIER 0 - INDEPENDENT BENCH TECH**
+
+A new informal operation working from a garage, rented room, home workshop, mobile bench, or another off-map location.
+
+**Staffing**
+- Proprietor only
+- No full-time employee required
+
+**May Provide**
+- Diagnostics within the registered specialty
+- Basic maintenance
+- Basic repair of customer-owned Basic equipment
+- Replacement of ordinary damaged parts
+- Condition assessments and estimates
+
+**May Not Provide**
+- Finished equipment sales
+- Controlled equipment or components
+- Custom fabrication
+- Mechanical sidegrades
+- Restricted or Special work
+- Services outside the registered specialty
+
+Message 6/14
+
+**TIER 1 - LOCAL TECH SHOP**
+
+A small established operation with proper tools, a workspace, active staff, and ordinary component suppliers.
+
+**Staffing**
+- Proprietor + at least 1 full-time employee
+
+**May Provide**
+- All Tier 0 services
+- Basic components and replacement parts
+- Basic finished equipment permitted by the shop's specialty
+- Routine assembly and fabrication
+- Cosmetic customization
+- Minor quality-of-life modifications that do not increase mechanical performance
+- Repair of Basic equipment within the specialty
+
+**May Not Provide**
+- Controlled equipment or components
+- Major mechanical modifications
+- Performance sidegrades
+- Bespoke custom equipment
+- Restricted or Special work
+
+Message 7/14
+
+**TIER 2 - ESTABLISHED TECHNICAL SPECIALIST**
+
+An established operation with improved machinery, experienced staff, reliable inventory, and a fixer, gang, specialist, or corporate supplier.
+
+**Staffing**
+- Proprietor + at least 2 full-time employees
+
+**May Provide**
+- All Tier 1 services
+- Basic and Controlled equipment within the specialty
+- Basic and Controlled components
+- Standard fabrication
+- Special orders for permitted equipment
+- Approved standardized sidegrades
+- Repair of Basic and Controlled equipment
+- Collaborative work with another approved business type
+
+Tier 2 modifications must come from an approved modification list or established ruling.
+
+Tier 2 may not create unrestricted prototypes, Special equipment, or bespoke modifications outside approved options.
+
+Message 8/14
+
+**TIER 3 - ADVANCED TECHNICAL SPECIALIST**
+
+A major, well-equipped Tech Shop with advanced facilities, experienced staff, and significant corporate, faction, fixer, or black-market connections.
+
+**Staffing**
+- Proprietor + at least 3 full-time employees
+
+**May Provide**
+- All Tier 2 services
+- Advanced custom commissions within the registered specialty
+- Bespoke sidegrade proposals
+- Prototype development
+- Complex fabrication
+- Small-batch production of approved equipment
+- Major corporate or faction contracts
+- Approved work involving Restricted equipment
+
+**Tier 3 Does Not Automatically Allow**
+- Normal sale of Restricted or Special equipment
+- Experimental or plot-specific technology
+- Unlimited corporate or black-market inventory
+- Work outside the registered specialty
+- Mass production of unique technology
+
+Message 9/14
+
+**MODIFICATIONS AND SIDEGRADES**
+
+Techie modifications should normally be **sidegrades**, not permanent objective upgrades.
+
+A valid sidegrade must provide a meaningful benefit and a meaningful tradeoff.
+
+Possible tradeoffs include:
+- Reduced reliability
+- Higher power consumption
+- Limited duration
+- Longer cooldown
+- Increased weight or visibility
+- Reduced capacity, range, or damage
+- Higher maintenance costs
+- Increased heat or legal attention
+- Risk of malfunction or bodily strain
+
+**Rules**
+- Tier 2 may perform approved standardized sidegrades.
+- Tier 3 may propose bespoke custom sidegrades.
+- Pure increases with no meaningful drawback require separate approval.
+- Multiple modifications may not be stacked to erase each other's tradeoffs.
+- Unless specifically approved, an item may only have one substantial Techie sidegrade at a time.
+- All mechanical changes must be documented on the character sheet.
+- Repairs restore normal function; they do not improve baseline performance.
+
+Message 10/14
+
+**WEAPONSMITHING SPECIALTY**
+
+A Weaponsmith Tech Shop repairs and modifies weapons. It is not a retail gun store.
+
+**Tier Progression**
+- **Tier 0:** Diagnose, maintain, and repair customer-owned Basic firearms
+- **Tier 1:** Basic parts, ordinary attachments, replacement components, and cosmetic work
+- **Tier 2:** Controlled components and approved standardized weapon sidegrades
+- **Tier 3:** Approved bespoke weapon commissions and case-by-case Restricted weapon work
+
+**Limits**
+- May not operate a general firearm storefront
+- May not maintain normal firearm inventory for retail sale
+- May not wholesale ammunition
+- May not use custom work to bypass weapon availability
+- May not manufacture explosives under this policy
+
+Gun Stores sell firearms. Weaponsmiths perform advanced technical work on them. The two businesses may collaborate without becoming the same business.
+
+Message 11/14
+
+**CYBERWARE HARDWARE SPECIALTY**
+
+A Cyberware Hardware Tech Shop sells, repairs, modifies, and fabricates cyberware hardware. It does not perform surgery.
+
+**Tier Progression**
+- **Tier 0:** Diagnose and repair removed cyberware hardware
+- **Tier 1:** Standard cyberware hardware worth up to 2 Cyberware Points
+- **Tier 2:** Standard hardware worth up to 3 Cyberware Points and approved sidegrades
+- **Tier 3:** Hardware worth up to 5 Cyberware Points and approved bespoke custom work
+
+**Rules**
+- A Ripperdoc is required to remove or install cyberware.
+- The Ripperdoc clinic must be capable of installing the Cyberware Point value involved.
+- A Techie modifying cyberware does not gain permission to perform surgery.
+- A Ripperdoc installing modified cyberware does not gain permission to fabricate it.
+- Restricted, experimental, military, corporate-proprietary, or Special cyberware remains individually controlled.
+
+Message 12/14
+
+**OTHER TECH SHOP SPECIALTIES**
+
+**Armor and Personal Gear**
+- Repairs, sells, fabricates, and sidegrades armor or carried equipment
+- Tier 2 unlocks Controlled gear and standardized sidegrades
+- Tier 3 unlocks approved bespoke work and case-by-case Restricted equipment
+
+**Drones and Robotics**
+- Repairs and produces utility drones, robotics, and related components
+- Controlled systems begin at Tier 2
+- Advanced custom robotics begin at Tier 3
+- Combat drones and autonomous lethal systems require separate approval
+
+**Electronics and Security Systems**
+- Covers cameras, sensors, communications, alarms, access systems, and surveillance hardware
+- Tier 3 may create advanced integrated security systems
+- Turrets and lethal defenses require separate approval and purchase
+
+**Vehicle Technology**
+- Covers vehicle repair, parts, tuning, and approved modifications
+- Does not allow complete vehicle sales
+- Vehicle weaponization requires separate approval
+
+Message 13/14
+
+**RESTRICTED AND SPECIAL TECHNOLOGY**
+
+Restricted and Special technology is never normal Tech Shop inventory, regardless of tier.
+
+It may only be obtained or worked on through:
+- Fixer jobs
+- Case-by-case black-market transactions
+- Event rewards
+- Megacorporate or faction storylines
+- Direct staff-approved storylines
+
+A Tier 3 shop may be approved to repair, modify, fabricate, or transfer one specific Restricted item.
+
+That approval does not:
+- Grant permanent access to the item
+- Permit public advertising of it
+- Allow additional copies to be created
+- Permit reverse engineering for mass production
+- Allow the shop to sell it to unrelated customers
+
+A customer possessing Restricted technology does not automatically authorize the shop to modify or reproduce it.
+
+Message 14/14
+
+**UPGRADES, EMPLOYEES, AND DOWNGRADES**
+
+**Upgrade Costs**
+- **Tier 0 -> Tier 1:** 20,000 eb and 2 complete billing cycles at Tier 0
+- **Tier 1 -> Tier 2:** 40,000 eb and 2 complete billing cycles at Tier 1
+- **Tier 2 -> Tier 3:** 60,000 eb and 2 complete billing cycles at Tier 2
+
+Waiting periods cannot be stacked, skipped, or reduced by paying extra.
+
+**Upgrade Requirements**
+- Rent and obligations are current
+- Requested staffing requirement is met
+- The shop demonstrated meaningful activity
+- An appropriate supplier exists
+- The shop remains within its registered specialty
+- The full upgrade cost is paid
+- Tier 3 receives explicit review
+
+**Full-Time Employees**
+A full-time employee must be registered to the business, controlled by a unique player, and meaningfully participate during the billing cycle. Placeholder employees do not count.
+
+**Staffing Loss**
+A shop below its staffing requirement receives a one-billing-cycle grace period. If staffing is not restored, it downgrades by one tier. Upgrade fees are not refunded.
+
+**Core Rule**
+A higher-tier Tech Shop becomes more capable within one technical specialty. It does not become a shop t
