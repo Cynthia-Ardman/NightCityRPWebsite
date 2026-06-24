@@ -47,6 +47,7 @@ import {
 } from "@/components/AvailabilityGrid";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -321,7 +322,7 @@ export default function MissionDetail() {
   return <MissionDetailView data={data} when={when} />;
 }
 
-function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Date | null }) {
+function MissionDetailView({ data: rawData, when }: { data: MissionDetailModel; when: Date | null }) {
   const qc = useQueryClient();
   const invalidateMission = () => qc.invalidateQueries({ queryKey: getGetMissionQueryKey(data.id) });
   const complete = useCompleteMission({ mutation: { onSuccess: invalidateMission } });
@@ -332,8 +333,28 @@ function MissionDetailView({ data, when }: { data: MissionDetailModel; when: Dat
   // mission (roster / post / pay). Convert-to-event and the cs-approver thread
   // drawer hit full-manager/reviewer-only endpoints, so gate THOSE on the real
   // role to avoid showing trial owners a button that just 403s.
-  const { data: me } = useAuthMe();
+  //
+  // The server computes the staff capability flags (canManage/canEdit/...) from
+  // the REAL account, so they stay true while an admin is using "View as <role>"
+  // (which only downgrades client-side flags in useEffectiveMe). Downgrade them
+  // here too when previewing as a role that wouldn't manage this mission, so the
+  // preview shows what that role actually sees. Only admins can preview, so a
+  // real manager's canManage came from isManager — the "fixer" preview keeps it,
+  // while player/new_user/ripperdoc drop it.
+  const { data: me, viewAs } = useEffectiveMe();
   const isFullManager = !!(me?.isFixer || me?.isAdmin);
+  const suppressStaff = !!viewAs && !isFullManager;
+  const data: MissionDetailModel = suppressStaff
+    ? {
+        ...rawData,
+        canManage: false,
+        canEdit: false,
+        canComplete: false,
+        canUncomplete: false,
+        canApprove: false,
+        fixerNotes: null,
+      }
+    : rawData;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">

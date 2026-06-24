@@ -9,4 +9,6 @@ The admin "View as <role>" preview works by downgrading role flags in `useEffect
 
 **Why:** lore/guidebook detail pages have fixer-only intel sections; directory/calendar/missions/home show staff controls. All originally used useAuthMe and leaked under view-as. Route-guarded staff-only tools (AdminDashboard, PendingRequests, sheets review, catalog management) are fine on useAuthMe since players never reach them.
 
-**How to apply:** when adding a new content page or a staff-only block on a shared page, gate it via useEffectiveMe.
+**Second vector — server-computed capability flags:** some pages gate staff UI on flags the SERVER computes from the real account (e.g. mission detail's `data.canManage`/`canEdit`/`canComplete`/`canUncomplete`/`canApprove`, `fixerNotes`), which `useEffectiveMe()` cannot touch — so View-as never hides them. NOT a security leak (server still enforces real roles), just a broken preview. Fix on MissionDetail.tsx: take `viewAs` from `useEffectiveMe()`, and when previewing a non-managing role (`viewAs && !isFullManager`) build a derived `data` object with those flags forced false so every child reading `data.*` renders the player view. Only admins can preview, so the "fixer" preview keeps canManage (effective isFixer), player/new_user/ripperdoc drop it.
+
+**How to apply:** when adding a new content page or a staff-only block on a shared page, gate it via useEffectiveMe. If the staff gate is a server-computed capability flag, downgrade that flag client-side during a non-staff preview rather than reading it raw.

@@ -10,6 +10,7 @@ import type {
 
 const state = vi.hoisted(() => ({
   me: null as Me | null,
+  viewAs: null as "player" | "ripperdoc" | "fixer" | "new_user" | null,
   mission: null as MissionDetailModel | null,
   myCharacters: [] as Array<{ id: number; name: string }>,
   apply: vi.fn(),
@@ -23,6 +24,37 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/useAuthMe", () => ({
   useAuthMe: () => ({ data: state.me }),
 }));
+
+// Drive the admin "View as <role>" preview. useEffectiveMe calls useViewAs via
+// the module's own closure, so overriding the exported useViewAs would not reach
+// it — mock useEffectiveMe directly, mirroring the real downgrade (only admins
+// can preview; player/new_user/ripperdoc strip every staff flag).
+vi.mock("@/contexts/ViewAsContext", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/contexts/ViewAsContext")>();
+  return {
+    ...actual,
+    useEffectiveMe: () => {
+      const real = state.me;
+      const realIsAdmin = !!real?.isAdmin;
+      const active = realIsAdmin ? state.viewAs : null;
+      let data = real;
+      if (real && active) {
+        data = {
+          ...real,
+          isAdmin: false,
+          isFixer: false,
+          isArchivist: false,
+          isCsApprover: false,
+          isRipperdoc: false,
+          isStoreOwner: false,
+        };
+        if (active === "ripperdoc") data.isRipperdoc = true;
+        if (active === "fixer") data.isFixer = true;
+      }
+      return { data, realIsAdmin, realIsFixer: !!real?.isFixer, viewAs: active };
+    },
+  };
+});
 
 vi.mock("wouter", async (importOriginal) => {
   const actual = await importOriginal<typeof import("wouter")>();
@@ -117,6 +149,7 @@ function renderPage() {
 
 beforeEach(() => {
   state.me = makeMe();
+  state.viewAs = null;
   state.mission = null;
   state.myCharacters = [];
   state.apply.mockReset();
@@ -222,6 +255,47 @@ describe("MissionDetail — apply flow", () => {
     expect(screen.getByTestId("block-my-application")).toBeInTheDocument();
     expect(screen.queryByTestId("block-apply")).toBeNull();
     expect(screen.getByTestId("button-withdraw")).toBeInTheDocument();
+  });
+});
+
+describe("MissionDetail — View-as preview gating", () => {
+  it("shows the fixer tab to a real admin who is not previewing", () => {
+    state.me = makeMe({ isAdmin: true });
+    state.viewAs = null;
+    state.mission = makeMission({ canManage: true, canEdit: true });
+    renderPage();
+
+    expect(screen.getByTestId("tab-fixer")).toBeInTheDocument();
+  });
+
+  it("hides the fixer tab and staff controls when an admin previews as a player", () => {
+    // The server still reports canManage:true (computed from the real admin
+    // account); the View-as preview must hide it client-side.
+    state.me = makeMe({ isAdmin: true });
+    state.viewAs = "player";
+    state.mission = makeMission({ canManage: true, canEdit: true });
+    renderPage();
+
+    expect(screen.queryByTestId("tab-fixer")).toBeNull();
+    expect(screen.queryByTestId("button-edit-mission")).toBeNull();
+  });
+
+  it("hides the fixer tab when an admin previews as a new user", () => {
+    state.me = makeMe({ isAdmin: true });
+    state.viewAs = "new_user";
+    state.mission = makeMission({ canManage: true });
+    renderPage();
+
+    expect(screen.queryByTestId("tab-fixer")).toBeNull();
+  });
+
+  it("keeps the fixer tab when an admin previews as a fixer", () => {
+    state.me = makeMe({ isAdmin: true });
+    state.viewAs = "fixer";
+    state.mission = makeMission({ canManage: true });
+    renderPage();
+
+    expect(screen.getByTestId("tab-fixer")).toBeInTheDocument();
   });
 });
 
