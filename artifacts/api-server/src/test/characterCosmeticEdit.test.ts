@@ -398,9 +398,9 @@ describe("staff (admin/fixer) character edits still go through review", () => {
     expect(row.statsImageUrls ?? []).toEqual([]);
   });
 
-  it("refuses a second user's edit while another's edit is still pending (409)", async () => {
+  it("refuses a second non-admin user's edit while another's edit is still pending (409)", async () => {
     const owner = await createUser();
-    const admin = await createAdmin();
+    const fixer = await createUser({ roles: ["fixer"] });
     const c = await ownedChar(owner.id);
 
     // Owner queues a stats-image edit (parked for review).
@@ -410,16 +410,17 @@ describe("staff (admin/fixer) character edits still go through review", () => {
     expect(queued.status).toBe(202);
     expect(await pendingCount(c.id)).toBe(1);
 
-    // An admin's meaningful edit no longer instant-applies. Since a DIFFERENT
-    // user already holds the in-flight edit for this character, the admin's
+    // A fixer's meaningful edit no longer instant-applies. Since a DIFFERENT
+    // user already holds the in-flight edit for this character, the fixer's
     // edit is refused rather than spawning a duplicate or clobbering it.
-    const blocked = await patch(admin.id, c.id, {
+    // (Only an ADMIN may amend another user's in-flight edit in place.)
+    const blocked = await patch(fixer.id, c.id, {
       statsImageUrls: ["/api/storage/objects/admin"],
     });
     expect(blocked.status).toBe(409);
 
     // The original pending edit is untouched (still pending, original diff —
-    // the admin's value never overwrote the owner's queued payload).
+    // the fixer's value never overwrote the owner's queued payload).
     const [pending] = await db
       .select()
       .from(pendingCharacterEdits)
@@ -431,6 +432,41 @@ describe("staff (admin/fixer) character edits still go through review", () => {
     expect(await pendingCount(c.id)).toBe(1);
 
     // The live row was never modified.
+    const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
+    expect(row.statsImageUrls ?? []).toEqual([]);
+  });
+
+  it("lets an admin amend another user's in-flight edit in place (202, single row)", async () => {
+    const owner = await createUser();
+    const admin = await createAdmin();
+    const c = await ownedChar(owner.id);
+
+    // Owner queues a stats-image edit (parked for review).
+    const queued = await patch(owner.id, c.id, {
+      statsImageUrls: ["/api/storage/objects/stale"],
+    });
+    expect(queued.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
+
+    // Unlike a fixer, an ADMIN may amend the in-flight edit in place: the same
+    // row is reused (no duplicate), its proposed content is swapped to the
+    // admin's value, and it stays pending for review.
+    const amended = await patch(admin.id, c.id, {
+      statsImageUrls: ["/api/storage/objects/admin"],
+    });
+    expect(amended.status).toBe(202);
+    expect(await pendingCount(c.id)).toBe(1);
+
+    const [pending] = await db
+      .select()
+      .from(pendingCharacterEdits)
+      .where(eq(pendingCharacterEdits.characterId, c.id));
+    expect(pending.status).toBe("pending");
+    expect((pending.proposedDiff as { statsImageUrls?: string[] }).statsImageUrls).toEqual([
+      "/api/storage/objects/admin",
+    ]);
+
+    // The live row is still untouched — the amend only updates the pending edit.
     const [row] = await db.select().from(characters).where(eq(characters.id, c.id));
     expect(row.statsImageUrls ?? []).toEqual([]);
   });

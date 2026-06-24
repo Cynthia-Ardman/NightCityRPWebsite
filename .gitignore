@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# api-server one-off script inputs/state (real prod financial data — never commit)
+artifacts/api-server/scripts/refund-website-meds-loa-input.json
+artifacts/api-server/scripts/*-state.json

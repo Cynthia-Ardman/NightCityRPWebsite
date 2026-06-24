@@ -37,12 +37,37 @@ interface State {
   error?: string;
 }
 
-// owner discordId == users PK (verified). Amounts = sum of erroneous meds rows.
-const DATA: Row[] = [
-  { user_id: "161347603680722945", refund: 3000, label: "Hawk" },
-  { user_id: "485468501704704000", refund: 93, label: "volt" },
-  { user_id: "493811366868811779", refund: 234, label: "Violet (Nikkie Reyes)" },
-];
+// Refund rows (owner discordId == users PK; amount = sum of erroneous meds rows)
+// are real prod financial data, so they live in a gitignored input file rather
+// than in source control. Shape: [{ "user_id": "...", "refund": 123, "label": "..." }].
+const INPUT_PATH = path.join(__dirname, "refund-website-meds-loa-input.json");
+if (!fs.existsSync(INPUT_PATH)) {
+  console.error(
+    `Missing input file: ${INPUT_PATH}\n` +
+      `Create it with the refund rows, e.g.\n` +
+      `[{ "user_id": "<discordId>", "refund": 100, "label": "Name" }]`,
+  );
+  process.exit(1);
+}
+let DATA: Row[];
+try {
+  DATA = JSON.parse(fs.readFileSync(INPUT_PATH, "utf8"));
+} catch (err) {
+  console.error(`Failed to parse ${INPUT_PATH} as JSON: ${(err as Error).message}`);
+  process.exit(1);
+}
+const isValidRow = (r: Row) =>
+  typeof r?.user_id === "string" &&
+  r.user_id.length > 0 &&
+  Number.isInteger(r?.refund) &&
+  r.refund >= 0 &&
+  typeof r?.label === "string";
+if (!Array.isArray(DATA) || !DATA.every(isValidRow)) {
+  console.error(
+    `Invalid input file ${INPUT_PATH}: expected [{ user_id: string, refund: non-negative integer, label: string }].`,
+  );
+  process.exit(1);
+}
 const STATE_PATH = path.join(__dirname, "refund-website-meds-loa-state.json");
 
 let state: Record<string, State> = {};
