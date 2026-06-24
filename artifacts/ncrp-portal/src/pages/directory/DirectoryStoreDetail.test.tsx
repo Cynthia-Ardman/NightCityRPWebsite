@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   state: {
     data: undefined as unknown,
     me: undefined as unknown,
+    myStores: [] as Array<{ id: number }>,
   },
 }));
 
@@ -17,6 +18,7 @@ const h = vi.hoisted(() => ({
 vi.mock("@workspace/api-client-react", () => ({
   useGetStorePublic: () => ({ data: h.state.data, isLoading: false }),
   useGiveToStore: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useListMyStores: () => ({ data: h.state.myStores ?? [] }),
   getGetStorePublicQueryKey: (id: number) => ["getStorePublic", id],
 }));
 
@@ -69,6 +71,24 @@ function makeStore(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   h.state.data = undefined;
+  h.state.me = undefined;
+  h.state.myStores = [];
+});
+
+describe("DirectoryStoreDetail manage button", () => {
+  it("hides MANAGE when the store is not one the viewer owns or works at", () => {
+    h.state.data = makeStore({ id: 9 });
+    h.state.myStores = [{ id: 1 }];
+    renderPage();
+    expect(screen.queryByTestId("button-manage-store")).toBeNull();
+  });
+
+  it("shows MANAGE when the store is in the viewer's owned/employed list", () => {
+    h.state.data = makeStore({ id: 9 });
+    h.state.myStores = [{ id: 9 }];
+    renderPage();
+    expect(screen.getByTestId("button-manage-store")).toBeInTheDocument();
+  });
 });
 
 describe("DirectoryStoreDetail staff list", () => {

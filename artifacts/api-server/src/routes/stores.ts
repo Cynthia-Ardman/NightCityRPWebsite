@@ -1151,6 +1151,10 @@ async function purchaseFromCatalog(opts: {
       .from(stockTable)
       .where(and(eq(stockVenueCol, venueId), eq(stockTable.name, name)));
     if (existing) {
+      // Restock of an existing row keeps its established shop cost as-is — the
+      // purchase-price default only seeds the cost of a brand-new stock row (see
+      // the insert branch). Overwriting here would clobber an intentional cost
+      // (including a deliberate 0).
       const [u] = await tx
         .update(stockTable)
         .set({ quantity: existing.quantity + qty, price: retail, category: existing.category ?? category })
@@ -1160,7 +1164,10 @@ async function purchaseFromCatalog(opts: {
     } else {
       const [ins] = await tx
         .insert(stockTable)
-        .values({ [kind === "store" ? "storeId" : "ripperdocId"]: venueId, name, category, price: retail, quantity: qty } as never)
+        // Default the shop cost to the per-unit price the venue just paid, so
+        // commission (price − cost) is correct out of the box without a manual
+        // cost entry. Staff overrides flow through unitCost above.
+        .values({ [kind === "store" ? "storeId" : "ripperdocId"]: venueId, name, category, price: retail, quantity: qty, cost: unitCost } as never)
         .returning();
       stockRow = ins;
     }

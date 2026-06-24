@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetStorePublic, useGiveToStore, getGetStorePublicQueryKey } from "@workspace/api-client-react";
+import { useGetStorePublic, useGiveToStore, useListMyStores, getGetStorePublicQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,11 @@ export default function DirectoryStoreDetail() {
   const { data, isLoading } = useGetStorePublic(storeId);
   const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isAdmin || me.isFixer);
+  // The owner and any employee of this store reach the management view from
+  // here too — not just staff. /stores/mine already returns stores the user
+  // owns OR is employed at, so a hit means they have management access.
+  const { data: myStores } = useListMyStores();
+  const canManage = isStaff || (myStores ?? []).some((s) => s.id === storeId);
   const [giveAmount, setGiveAmount] = useState(0);
   const [giveMemo, setGiveMemo] = useState("");
   const give = useGiveToStore({
@@ -71,7 +76,7 @@ export default function DirectoryStoreDetail() {
           <p className="font-mono text-xs text-nc-cyan mt-1" data-testid="text-store-owner">OWNER: {data.ownerName ?? "UNCLAIMED"}</p>
           {data.purpose && <p className="font-mono text-xs text-muted-foreground mt-1" data-testid="text-store-purpose">{data.purpose}</p>}
         </div>
-        {isStaff && (
+        {canManage && (
           <Link href={`/stores/${data.id}`}>
             <Button className="rounded-none bg-nc-cyan text-background font-display shrink-0" data-testid="button-manage-store">
               <Settings className="w-4 h-4 mr-2" /> MANAGE

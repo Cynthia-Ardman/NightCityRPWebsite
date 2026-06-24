@@ -407,6 +407,19 @@ export default function MyStoreDetail() {
               Gun-store stock is managed by staff. You can view it and sell to customers, but item details and power levels are set by an admin or fixer.
             </p>
           )}
+          {canEditStock && store.stock.length > 0 && (
+            <div
+              className="grid grid-cols-12 gap-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+              data-testid="stock-header-row"
+            >
+              <span className="col-span-3">Name</span>
+              <span className="col-span-2">Price (€$)</span>
+              <span className="col-span-2">Shop cost (€$)</span>
+              <span className="col-span-1">Qty</span>
+              <span className="col-span-2">Category</span>
+              <span className="col-span-2 text-right">Sell / Remove</span>
+            </div>
+          )}
           {store.stock.map((s) => {
           if (canEditStock) {
             return (
