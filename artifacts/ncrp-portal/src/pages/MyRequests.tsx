@@ -457,7 +457,7 @@ export default function MyRequests() {
           {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : "—"}
         </td>
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
-          <RequestStatusBadge status={r.status} />
+          <RequestStatusBadge status={r.status} stagedApproval={!!r.subjectType} />
           {r.status === "changes_requested" && r.customId != null && r.customType !== "stock_cost" ? (
             <div className="flex gap-2 mt-2">
               <Button

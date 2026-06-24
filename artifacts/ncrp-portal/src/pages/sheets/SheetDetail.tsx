@@ -24,17 +24,23 @@ import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import { ReviewerRoster } from "@/components/review/ReviewerRoster";
 import { useMemo, useState } from "react";
 
-function sheetStatusBadge(status: string) {
+function sheetStatusBadge(status: string, stagedApproval = false) {
+  // Sheets are deferred-apply: "approved" only STAGES the decision — a reviewer
+  // must still click Close and Apply (closeSheet materializes the character)
+  // before it takes hold and the owner is notified. So we never surface
+  // "approved" to the sheet's owner before that final step; staff keep seeing it.
+  const displayStatus = stagedApproval && status === "approved" ? "in review" : status;
   const map: Record<string, string> = {
     pending: "border-nc-yellow text-nc-yellow",
+    "in review": "border-nc-yellow text-nc-yellow",
     approved: "border-nc-green text-nc-green",
     rejected: "border-destructive text-destructive",
     changes_requested: "border-nc-magenta text-nc-magenta",
     draft: "border-muted-foreground text-muted-foreground",
   };
   return (
-    <Badge variant="outline" className={`rounded-none uppercase ${map[status] ?? "border-nc-cyan text-nc-cyan"}`} data-testid="badge-status">
-      {status.replace("_", " ")}
+    <Badge variant="outline" className={`rounded-none uppercase ${map[displayStatus] ?? "border-nc-cyan text-nc-cyan"}`} data-testid="badge-status">
+      {displayStatus.replace("_", " ")}
     </Badge>
   );
 }
@@ -166,7 +172,7 @@ export default function SheetDetail() {
           <p className="font-mono text-xs text-muted-foreground mt-1">
             Submitted {new Date(sheet.submittedAt ?? sheet.createdAt).toLocaleString()}
             {sheet.ownerName ? <> by <span className="text-foreground">{sheet.ownerName}</span></> : null} · Status:{" "}
-            {sheetStatusBadge(sheet.status)}
+            {sheetStatusBadge(sheet.status, !isStaff)}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

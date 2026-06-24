@@ -4,7 +4,28 @@ import { CheckCircle2, Clock, XCircle, MessageSquareWarning, FileEdit } from "lu
 // Shared status badge for player request rows (custom requests + leases),
 // used by the per-catalog request section and the consolidated My Requests
 // history page so the visual language stays identical everywhere.
-export function RequestStatusBadge({ status }: { status: string }) {
+export function RequestStatusBadge({
+  status,
+  stagedApproval = false,
+}: {
+  status: string;
+  // A decision that is "approved" only STAGES the outcome — a staff member must
+  // still click "Close and Apply" before the effect (lease / item / character
+  // edit / sheet) takes hold and the owner is DM'd. Owner-facing surfaces for
+  // those deferred-apply subjects pass this flag so the row reads as still in
+  // review instead of prematurely showing "APPROVED". Immediate-apply subjects
+  // (lore, guidebook) leave it false and keep showing APPROVED, and the staff
+  // review queue also leaves it false so reviewers still see the approved state.
+  stagedApproval?: boolean;
+}) {
+  // Never surface "APPROVED" to the request owner until the ticket is closed.
+  if (stagedApproval && status === "approved") {
+    return (
+      <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none font-mono text-[10px]">
+        <Clock className="w-3 h-3 mr-1" /> IN REVIEW
+      </Badge>
+    );
+  }
   switch (status) {
     case "draft":
       return (

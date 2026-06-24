@@ -221,7 +221,7 @@ export default function PendingEditDetail() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <RequestStatusBadge status={edit.status} />
+          <RequestStatusBadge status={edit.status} stagedApproval={!isReviewer} />
         </div>
       </div>
 

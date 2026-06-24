@@ -176,7 +176,7 @@ export default function VenueRequestSection({
                   {r.reviewerNote ? ` · "${r.reviewerNote}"` : ""}
                 </div>
               </div>
-              <div className="shrink-0"><RequestStatusBadge status={r.status} /></div>
+              <div className="shrink-0"><RequestStatusBadge status={r.status} stagedApproval /></div>
             </div>
           ))}
         </div>
