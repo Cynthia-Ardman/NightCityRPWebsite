@@ -211,8 +211,12 @@ export default function EditCharacterDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, inventory, cyberCatalog]);
 
-  // Reset form state every time we re-open with a different character or after
-  // server-side changes (avoids leaking stale form state across opens).
+  // Reset form state when the dialog OPENS or switches to a different
+  // character — never on an incidental re-render. Callers like PendingEditDetail
+  // rebuild the `character` prop (live ⊕ pending diff) into a NEW object on every
+  // render, so keying this on the object reference would re-fire on any
+  // background refetch (e.g. triggered by an image upload) and clobber the
+  // images/text the user is mid-editing. Key on the STABLE character.id instead.
   useEffect(() => {
     if (!open) return;
     setName(character.name);
@@ -233,7 +237,8 @@ export default function EditCharacterDialog({
     setXanaduGold(character.xanaduGold ?? false);
     setUpdateNote("");
     setDeleteConfirm("");
-  }, [open, character]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, character.id]);
 
   // Saving no longer applies the change directly — the API now queues the
   // edit as a pending_character_edit awaiting a fixer-majority approval.

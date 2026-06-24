@@ -474,4 +474,37 @@ describe("EditCharacterDialog", () => {
       (screen.getByTestId("input-edit-archetype") as HTMLInputElement).value,
     ).toBe("Fixer");
   });
+
+  // Regression: amending a pending edit re-renders the parent (e.g. a background
+  // refetch kicked off by an image upload), which rebuilds the `character` prop
+  // as a brand-new object with the SAME id. The form reset must NOT re-fire on
+  // that — otherwise the images/text the player just changed snap back to the
+  // proposed values ("kept putting back to the original specs").
+  it("does not reset in-progress edits on a same-id re-render with a new object", () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <EditCharacterDialog character={CHAR} open onOpenChange={onOpenChange} />,
+    );
+
+    fireEvent.change(screen.getByTestId("input-edit-name"), {
+      target: { value: "Temp Edit" },
+    });
+    expect(
+      (screen.getByTestId("input-edit-name") as HTMLInputElement).value,
+    ).toBe("Temp Edit");
+
+    // Parent re-renders while still open, passing a fresh object (same id 9).
+    rerender(
+      <EditCharacterDialog
+        character={{ ...CHAR }}
+        open
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    // The user's edit survives — the reset is keyed on the stable character.id.
+    expect(
+      (screen.getByTestId("input-edit-name") as HTMLInputElement).value,
+    ).toBe("Temp Edit");
+  });
 });
