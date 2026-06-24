@@ -233,11 +233,11 @@ export default function PurchaseStockDialog({
                 />
               </div>
               <div>
-                <Label className="text-xs">SHELF PRICE (OPTIONAL)</Label>
+                <Label className="text-xs">SALE PRICE (OPTIONAL)</Label>
                 <Input
                   type="number"
                   min={0}
-                  placeholder={selected ? String(selected.price) : "Catalog price"}
+                  placeholder="0"
                   value={retailPrice}
                   onChange={(e) => setRetailPrice(e.target.value === "" ? "" : Number(e.target.value))}
                   data-testid="input-purchase-retail"

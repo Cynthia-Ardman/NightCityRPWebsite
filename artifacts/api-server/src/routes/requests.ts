@@ -1888,6 +1888,10 @@ router.post("/requests/:id/stock-decision", requireAuth, async (req, res): Promi
     const totalCost = Math.max(0, Math.round(Number(det.totalCost) || 0));
     const qty = Math.max(1, Math.round(Number(det.qty) || 1));
     const retail = Math.max(0, Math.round(Number(det.retail) || 0));
+    // Shop cost is seeded from the per-unit price the venue just paid (the
+    // fixer-approved unitCost) so commission (price − cost) is correct out of the
+    // box. On restock of an existing row the established cost is preserved.
+    const unitCost = Math.max(0, Math.round(Number(det.unitCost) || 0));
 
     const [debited] = await tx
       .update(venueTable)
@@ -1921,6 +1925,7 @@ router.post("/requests/:id/stock-decision", requireAuth, async (req, res): Promi
           category: det.category,
           price: retail,
           quantity: qty,
+          cost: unitCost,
         } as never)
         .returning();
       stockId = ins.id;

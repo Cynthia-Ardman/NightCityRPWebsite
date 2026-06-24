@@ -823,7 +823,9 @@ describe("POST /requests/:id/stock-decision (owner authorization)", () => {
 
     const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
     expect(s.balance).toBe(9000); // 10000 - (500 * 2)
-    expect(await db.select().from(storeStock).where(eq(storeStock.storeId, store.id))).toHaveLength(1);
+    const stockRows = await db.select().from(storeStock).where(eq(storeStock.storeId, store.id));
+    expect(stockRows).toHaveLength(1);
+    expect(stockRows[0].cost).toBe(500); // shop cost seeded from the fixer-approved unit cost
     const [row] = await db.select().from(customRequests).where(eq(customRequests.id, requestId));
     expect(row.status).toBe("approved");
   });

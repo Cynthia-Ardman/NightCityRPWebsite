@@ -223,7 +223,8 @@ describe("POST /stores/:id/purchase (store-funded catalog restock)", () => {
     const stockRows = await db.select().from(storeStock).where(eq(storeStock.storeId, store.id));
     expect(stockRows).toHaveLength(1);
     expect(stockRows[0].quantity).toBe(3);
-    expect(stockRows[0].price).toBe(100); // retail defaults to catalog price
+    expect(stockRows[0].price).toBe(0); // sale price defaults to 0 (owner sets their markup)
+    expect(stockRows[0].cost).toBe(100); // shop cost seeded from the wholesale price they paid
     const ledger = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "stock_purchase"));
     expect(ledger).toHaveLength(1);
     expect(ledger[0].amount).toBe(-300);

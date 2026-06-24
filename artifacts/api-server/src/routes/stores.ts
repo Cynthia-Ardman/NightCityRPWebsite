@@ -1041,7 +1041,8 @@ async function createStockCostRequest(opts: {
 // account never has a UB leg, so a single guarded atomic decrement
 // (WHERE balance >= cost) is fully crash-safe — no reserve/refund dance needed.
 // Stock is merged into an existing same-name row (price refreshed to the chosen
-// retail) or inserted. The retail price defaults to the catalog price.
+// retail) or inserted. The sale price defaults to 0 (the owner sets their own
+// markup); the shop cost is seeded from the wholesale price the venue paid.
 async function purchaseFromCatalog(opts: {
   kind: "store" | "ripperdoc";
   venueId: number;
@@ -1103,9 +1104,12 @@ async function purchaseFromCatalog(opts: {
     actorIsStaff && unitCostOverride !== undefined && Number.isFinite(Number(unitCostOverride));
   const unitCost = hasOverride ? Math.max(0, Math.round(Number(unitCostOverride))) : catalogPrice;
   const totalCost = unitCost * qty;
-  const retail = retailPrice !== undefined && Number.isFinite(Number(retailPrice))
-    ? Math.max(0, Math.round(Number(retailPrice)))
-    : catalogPrice;
+  // Sale price defaults to 0 so the owner sets their own markup; the shop cost is
+  // seeded from the wholesale price the venue just paid (unitCost) in the insert
+  // branch below. On restock (existing row) a blank sale price keeps the current
+  // shelf price rather than zeroing it.
+  const retailProvided = retailPrice !== undefined && Number.isFinite(Number(retailPrice));
+  const retail = retailProvided ? Math.max(0, Math.round(Number(retailPrice))) : 0;
 
   // Fixer/admin set a CUSTOM cost (> 0): don't debit now. Route a cost-approval
   // to the venue owner; the stock is added atomically when they approve it
@@ -1157,7 +1161,7 @@ async function purchaseFromCatalog(opts: {
       // (including a deliberate 0).
       const [u] = await tx
         .update(stockTable)
-        .set({ quantity: existing.quantity + qty, price: retail, category: existing.category ?? category })
+        .set({ quantity: existing.quantity + qty, price: retailProvided ? retail : existing.price, category: existing.category ?? category })
         .where(eq(stockTable.id, existing.id))
         .returning();
       stockRow = u;

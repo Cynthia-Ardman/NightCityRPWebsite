@@ -413,7 +413,7 @@ export default function MyStoreDetail() {
               data-testid="stock-header-row"
             >
               <span className="col-span-3">Name</span>
-              <span className="col-span-2">Price (€$)</span>
+              <span className="col-span-2">Sale Price (€$)</span>
               <span className="col-span-2">Shop cost (€$)</span>
               <span className="col-span-1">Qty</span>
               <span className="col-span-2">Category</span>
@@ -426,7 +426,7 @@ export default function MyStoreDetail() {
             <div key={s.id} className="space-y-1 border-b border-border/30 py-2" data-testid={`row-stock-${s.id}`}>
               <div className="grid grid-cols-12 gap-2 items-center">
                 <Input className="col-span-3" defaultValue={s.name} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { name: e.target.value } })} />
-                <Input className="col-span-2" type="number" title="Sale price" placeholder="Price" defaultValue={s.price} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { price: Number(e.target.value) } })} data-testid={`input-stock-price-${s.id}`} />
+                <Input className="col-span-2" type="number" title="Sale price" placeholder="Sale Price" defaultValue={s.price} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { price: Number(e.target.value) } })} data-testid={`input-stock-price-${s.id}`} />
                 <Input className="col-span-2" type="number" title="Shop cost (commission comes out of price − cost)" placeholder="Cost" defaultValue={s.cost ?? 0} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { cost: Number(e.target.value) } })} data-testid={`input-stock-cost-${s.id}`} />
                 <Input className="col-span-1" type="number" title="Quantity" placeholder="Qty" defaultValue={s.quantity} onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { quantity: Number(e.target.value) } })} />
                 {isGunStore ? (
@@ -535,7 +535,8 @@ export default function MyStoreDetail() {
                     onPick={(item) => {
                       setStockName(item.name);
                       setStockCategory(item.category ?? "");
-                      setStockPrice(item.price);
+                      setStockPrice(0);
+                      setStockCost(item.price);
                       setStockPowerLevel(item.powerLevel ?? "");
                       setStockCyberReq(item.cyberwareReq ?? "");
                       if (stockQty < 1) setStockQty(1);
@@ -558,7 +559,7 @@ export default function MyStoreDetail() {
                 ) : (
                   <Input className="col-span-2" placeholder="Category / type" value={stockCategory} onChange={(e) => setStockCategory(e.target.value)} data-testid="input-add-stock-category" />
                 )}
-                <Input className="col-span-2" type="number" title="Sale price" placeholder="Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
+                <Input className="col-span-2" type="number" title="Sale price" placeholder="Sale Price" value={stockPrice} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-stock-price" />
                 <Input className="col-span-2" type="number" title="Shop cost (commission comes out of price − cost)" placeholder="Cost" value={stockCost} onChange={(e) => setStockCost(Number(e.target.value))} data-testid="input-add-stock-cost" />
                 <Input className="col-span-1" type="number" title="Quantity" placeholder="Qty" value={stockQty} onChange={(e) => setStockQty(Number(e.target.value))} data-testid="input-add-stock-qty" />
                 <Button
