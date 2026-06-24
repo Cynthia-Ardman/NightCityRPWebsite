@@ -1,25 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Mutable shared mock state, set per-test before rendering.
 const h = vi.hoisted(() => ({
   state: {
     data: undefined as unknown,
+    me: undefined as unknown,
   },
 }));
 
-// The page reads exactly one hook from the generated client (the public store
-// query) plus the auth hook. We mock only what it touches so we never hit the
-// network and avoid the fragile manual-mock flake documented for the portal
-// vitest suite.
+// The page reads the public store query plus the give-to-store mutation from the
+// generated client, the effective-me hook, and a toast. We mock only what it
+// touches so we never hit the network and avoid the fragile manual-mock flake
+// documented for the portal vitest suite.
 vi.mock("@workspace/api-client-react", () => ({
   useGetStorePublic: () => ({ data: h.state.data, isLoading: false }),
+  useGiveToStore: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  getGetStorePublicQueryKey: (id: number) => ["getStorePublic", id],
 }));
 
-vi.mock("@/hooks/useAuthMe", () => ({
-  // Anonymous visitor: not staff. Staff affordances are irrelevant to the
-  // staff-list rendering we're guarding here.
-  useAuthMe: () => ({ data: undefined }),
+vi.mock("@/contexts/ViewAsContext", () => ({
+  // Anonymous visitor by default: no `me`, so the "Give eddies" card is hidden.
+  // Individual tests can flip h.state.me to exercise the logged-in branch.
+  useEffectiveMe: () => ({ data: h.state.me }),
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
 }));
 
 vi.mock("wouter", () => ({
@@ -30,6 +38,18 @@ vi.mock("wouter", () => ({
 }));
 
 import DirectoryStoreDetail from "./DirectoryStoreDetail";
+
+// useQueryClient (used for cache invalidation) needs a provider in scope.
+function renderPage() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <DirectoryStoreDetail />
+    </QueryClientProvider>,
+  );
+}
 
 function makeStore(overrides: Record<string, unknown> = {}) {
   return {
@@ -56,7 +76,7 @@ describe("DirectoryStoreDetail staff list", () => {
     h.state.data = makeStore({
       employeeNames: ["Wakako Okada", "Regina Jones"],
     });
-    render(<DirectoryStoreDetail />);
+    renderPage();
 
     expect(screen.getByTestId("row-employee-0")).toHaveTextContent(
       "Wakako Okada",
@@ -70,7 +90,7 @@ describe("DirectoryStoreDetail staff list", () => {
 
   it("shows the empty-state fallback only when employeeNames is empty", () => {
     h.state.data = makeStore({ employeeNames: [] });
-    render(<DirectoryStoreDetail />);
+    renderPage();
 
     expect(screen.getByText("No staff listed.")).toBeInTheDocument();
     expect(screen.queryByTestId("row-employee-0")).toBeNull();
@@ -78,7 +98,7 @@ describe("DirectoryStoreDetail staff list", () => {
 
   it("falls back to the empty state when employeeNames is missing", () => {
     h.state.data = makeStore({ employeeNames: undefined });
-    render(<DirectoryStoreDetail />);
+    renderPage();
 
     expect(screen.getByText("No staff listed.")).toBeInTheDocument();
     expect(screen.queryByTestId("row-employee-0")).toBeNull();
