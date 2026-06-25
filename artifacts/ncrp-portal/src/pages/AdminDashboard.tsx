@@ -1688,6 +1688,7 @@ export function MaintenanceTab() {
 
       <FullMigrationCard />
       <BotImportCard />
+      <MergeAccountCard />
       <DuplicateCleanupCard />
       <ClaimByUsernameCard />
       <PortraitBackfillCard />
@@ -1730,6 +1731,190 @@ interface MergeResult {
   dropId: number;
   fieldsFilled: string[];
   repointed: Record<string, number>;
+}
+
+interface AccountMergePreview {
+  dryRun: true;
+  keep: Record<string, unknown>;
+  drop: Record<string, unknown>;
+  wouldTransferEddies: number;
+  economyMode: "disabled" | "test" | "enabled";
+  liveUbBalance: { keep: number | null; drop: number | null };
+  wouldFillFields: string[];
+  wouldRepoint: Record<string, number>;
+}
+
+function MergeAccountCard() {
+  const { toast } = useToast();
+  const [keepId, setKeepId] = useState("");
+  const [dropId, setDropId] = useState("");
+  const [preview, setPreview] = useState<AccountMergePreview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [merging, setMerging] = useState(false);
+
+  async function scan() {
+    if (!keepId.trim() || !dropId.trim()) {
+      toast({ title: "Missing IDs", description: "Enter both the KEEP and DROP Discord user IDs.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    setPreview(null);
+    try {
+      const r = await fetch("/api/admin/maintenance/merge-account", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ keepId: keepId.trim(), dropId: dropId.trim(), dryRun: true }),
+      });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Preview failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      setPreview(body as AccountMergePreview);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function doMerge() {
+    if (!preview) return;
+    const repointTotal = Object.values(preview.wouldRepoint).reduce((s, n) => s + n, 0);
+    const ok = window.confirm(
+      `MERGE ACCOUNT ${dropId.trim()} INTO ${keepId.trim()}?\n\n` +
+      `• €${preview.wouldTransferEddies.toLocaleString()} will be moved on UnbelievaBoat to the keep account.\n` +
+      `• ~${repointTotal} child rows (characters, stores, wallet history, requests…) will be repointed.\n` +
+      `• Empty fields on the keep account will be filled from the drop account.\n` +
+      `• The drop account row will then be DELETED. This cannot be undone.\n\n` +
+      (preview.economyMode !== "enabled"
+        ? `WARNING: the economy is "${preview.economyMode}", not LIVE — the eddies transfer will NOT run and the merge will abort before deleting anything.`
+        : ""),
+    );
+    if (!ok) return;
+    setMerging(true);
+    try {
+      const r = await fetch("/api/admin/maintenance/merge-account", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ keepId: keepId.trim(), dropId: dropId.trim() }),
+      });
+      const body = await r.json();
+      if (!r.ok) {
+        toast({ title: "Merge failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      const repointTotalDone = Object.values(body.repointed ?? {}).reduce((s: number, n) => s + (n as number), 0);
+      toast({
+        title: `Merged ${dropId.trim()} → ${keepId.trim()}`,
+        description: `Transferred €${(body.walletTransfer?.amount ?? 0).toLocaleString()}, repointed ${repointTotalDone} rows, filled ${body.fieldsFilled?.length ?? 0} fields.`,
+      });
+      setPreview(null);
+      setKeepId("");
+      setDropId("");
+    } finally {
+      setMerging(false);
+    }
+  }
+
+  return (
+    <Card className="rounded-none border-destructive/40 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-destructive">MERGE ACCOUNTS</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Fold a compromised or duplicate Discord account (DROP) into another one (KEEP). The KEEP
+          account keeps its own login, roles and identity; everything the DROP account owns —
+          characters, stores, wallet history, requests, missions — is repointed to KEEP, its eddies
+          are transferred on UnbelievaBoat, and the DROP account is deleted. User IDs are the Discord
+          snowflake (the long number). Always PREVIEW first. The eddies transfer only runs when the
+          economy is LIVE; in any other mode the merge aborts before deleting anything.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-xs">
+          <label className="space-y-1">
+            <span className="text-nc-cyan tracking-widest">KEEP (surviving) user ID</span>
+            <Input value={keepId} onChange={(e) => { setKeepId(e.target.value); setPreview(null); }} placeholder="e.g. 1519394891287756909" data-testid="input-merge-keep-id" />
+          </label>
+          <label className="space-y-1">
+            <span className="text-destructive tracking-widest">DROP (deleted) user ID</span>
+            <Input value={dropId} onChange={(e) => { setDropId(e.target.value); setPreview(null); }} placeholder="e.g. 288730657872412672" data-testid="input-merge-drop-id" />
+          </label>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            onClick={scan}
+            disabled={loading || merging}
+            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+            data-testid="button-merge-account-preview"
+          >
+            {loading ? "CHECKING..." : "PREVIEW MERGE"}
+          </Button>
+          {preview && (
+            <Button
+              type="button"
+              onClick={doMerge}
+              disabled={merging || loading}
+              className="rounded-none bg-destructive text-foreground hover:bg-destructive/80 font-display tracking-widest"
+              data-testid="button-merge-account-confirm"
+            >
+              {merging ? "MERGING..." : "MERGE & DELETE DROP"}
+            </Button>
+          )}
+        </div>
+
+        {preview && (
+          <div className="border border-border/60 p-3 space-y-3 font-mono text-xs" data-testid="merge-account-preview">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="border border-nc-cyan/50 bg-nc-cyan/5 p-2 space-y-1">
+                <div className="text-nc-cyan font-bold tracking-widest">KEEP · {String(preview.keep.username ?? "?")}</div>
+                <div className="text-muted-foreground">id: {String(preview.keep.id)}</div>
+                <div>balance: €{Number(preview.keep.walletBalance ?? 0).toLocaleString()}</div>
+                <div className="text-muted-foreground">live UB: {preview.liveUbBalance.keep == null ? "—" : `€${preview.liveUbBalance.keep.toLocaleString()}`}</div>
+              </div>
+              <div className="border border-destructive/50 bg-destructive/5 p-2 space-y-1">
+                <div className="text-destructive font-bold tracking-widest">DROP · {String(preview.drop.username ?? "?")}</div>
+                <div className="text-muted-foreground">id: {String(preview.drop.id)}</div>
+                <div>balance: €{Number(preview.drop.walletBalance ?? 0).toLocaleString()}</div>
+                <div className="text-muted-foreground">live UB: {preview.liveUbBalance.drop == null ? "—" : `€${preview.liveUbBalance.drop.toLocaleString()}`}</div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div>
+                Eddies to transfer:{" "}
+                <span className="text-nc-cyan font-bold">€{preview.wouldTransferEddies.toLocaleString()}</span>{" "}
+                <span className={preview.economyMode === "enabled" ? "text-nc-cyan" : "text-destructive"}>
+                  (economy: {preview.economyMode}{preview.economyMode !== "enabled" ? " — transfer will NOT run" : ""})
+                </span>
+              </div>
+              <div>Fields to fill on KEEP: {preview.wouldFillFields.length ? preview.wouldFillFields.join(", ") : <em className="text-muted-foreground/50">none</em>}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground tracking-widest mb-1">CHILD ROWS TO REPOINT</div>
+              {Object.keys(preview.wouldRepoint).length === 0 ? (
+                <em className="text-muted-foreground/50">none</em>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0.5 text-[10px]">
+                  {Object.entries(preview.wouldRepoint).map(([k, n]) => (
+                    <div key={k} className="flex justify-between gap-2">
+                      <span className="truncate">{k}</span>
+                      <span className="text-nc-cyan">{n}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="text-[10px] text-muted-foreground/60 mt-1 italic">
+                Preview shows ownership highlights only; the merge repoints every reference, including
+                staff-action and review-vote rows not listed here.
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function DuplicateCleanupCard() {

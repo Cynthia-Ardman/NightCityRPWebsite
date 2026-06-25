@@ -28,7 +28,7 @@ import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from 
 import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsService";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
-import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement } from "../lib/economy";
+import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement, applyWalletDelta } from "../lib/economy";
 
 const router: IRouter = Router();
 
@@ -2168,6 +2168,330 @@ router.post(
       before: { drop: summarizeForMerge(drop), keep: summarizeForMerge(keep) },
       after: result,
     });
+    res.json(result);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Account merge — fold a DROP user (e.g. a compromised/duplicate Discord
+// account) into a KEEP user. KEEP is the surviving login: it keeps its identity,
+// roles and tokens. Everything the DROP user owns or is referenced by is
+// repointed to KEEP, the DROP user's eddies are transferred ON UnbelievaBoat
+// into KEEP, and the DROP `users` row is finally deleted.
+//
+// Why a dedicated tool: `users.id` IS the Discord snowflake and the login key,
+// so a hacked account can't simply be "renamed". 50+ tables reference users.id;
+// most repoint cleanly, but a handful carry UNIQUE / PK constraints on the user
+// column that would 23505 on a naive UPDATE — those rows are de-duplicated
+// (drop's conflicting row deleted) before the repoint. The wallet is special:
+// the balance is mirrored to UnbelievaBoat keyed by Discord id and the reconcile
+// cron would revert a plain DB copy, so the eddies are moved via applyWalletDelta
+// (debit drop's UB account, credit keep's) which updates UB + ledger + balance +
+// the reconcile baseline in lockstep, idempotently.
+// ---------------------------------------------------------------------------
+
+// [table, column] for user-id references that can be repointed with a plain
+// UPDATE — there is no UNIQUE/PK on the column so two rows for the same user
+// never collide. DB (snake_case) names; driven through a raw UPDATE so we don't
+// have to import ~50 table objects.
+const ACCOUNT_PLAIN_USER_COLS: ReadonlyArray<readonly [string, string]> = [
+  ["characters", "owner_id"],
+  ["character_updates", "author_id"],
+  ["inventory_items", "owner_id"],
+  ["wallet_transactions", "user_id"],
+  ["stores", "owner_id"],
+  ["ripperdocs", "owner_id"],
+  ["fixer_npcs", "fixer_id"],
+  ["character_sheets", "owner_id"],
+  ["character_sheets", "overridden_by"],
+  ["character_sheets", "closed_by"],
+  ["dice_rolls", "user_id"],
+  ["catalog_districts", "created_by_id"],
+  ["character_tag_options", "created_by_id"],
+  ["housing_requests", "requested_by_id"],
+  ["housing_requests", "reviewed_by_id"],
+  ["custom_requests", "requested_by_id"],
+  ["custom_requests", "reviewed_by_id"],
+  ["custom_requests", "overridden_by"],
+  ["custom_requests", "closed_by"],
+  ["sale_offers", "buyer_user_id"],
+  ["sale_offers", "created_by_id"],
+  ["mission_log", "fixer_id"],
+  ["missions", "fixer_id"],
+  ["missions", "completed_by"],
+  ["mission_applications", "user_id"],
+  ["mission_applications", "reviewed_by"],
+  ["events", "created_by_id"],
+  ["wholesaler_orders", "fixer_id"],
+  ["pending_character_edits", "submitted_by"],
+  ["pending_character_edits", "overridden_by"],
+  ["pending_character_edits", "closed_by"],
+  ["review_comments", "author_id"],
+  ["lore_entries", "created_by_id"],
+  ["lore_entries", "updated_by_id"],
+  ["lore_pending_edits", "submitted_by"],
+  ["lore_pending_edits", "decided_by_id"],
+  ["lore_pending_edits", "overridden_by"],
+  ["lore_pending_edits", "closed_by"],
+  ["lore_import_drafts", "decided_by_id"],
+  ["guidebook_pages", "created_by_id"],
+  ["guidebook_pages", "updated_by_id"],
+  ["guidebook_pending_edits", "submitted_by"],
+  ["guidebook_pending_edits", "decided_by_id"],
+  ["breach_puzzles", "created_by"],
+  ["breach_puzzles", "assigned_user_id"],
+  ["breach_practice_clears", "user_id"],
+  ["vrchat_agent_commands", "user_id"],
+  ["vrchat_agent_commands", "created_by_id"],
+];
+
+function summarizeUserForMerge(u: typeof users.$inferSelect): Record<string, unknown> {
+  return {
+    id: u.id,
+    username: u.username,
+    globalName: u.globalName,
+    roles: u.roles,
+    walletBalance: u.walletBalance,
+    lastSyncedUbBalance: u.lastSyncedUbBalance,
+    defaultAvailability: u.defaultAvailability != null,
+    availabilityTimezone: u.availabilityTimezone,
+    createdAt: u.createdAt,
+    lastSeenAt: u.lastSeenAt,
+  };
+}
+
+// A curated set of ownership/meaningful child counts for the dry-run preview.
+// The actual merge repoints EVERY user-id column, not only these.
+async function collectAccountChildCounts(userId: string): Promise<Record<string, number>> {
+  const c = async (q: Promise<Array<{ n: number }>>) => (await q)[0]?.n ?? 0;
+  return {
+    characters: await c(db.select({ n: count() }).from(characters).where(eq(characters.ownerId, userId))),
+    stores: await c(db.select({ n: count() }).from(stores).where(eq(stores.ownerId, userId))),
+    ripperdocs: await c(db.select({ n: count() }).from(ripperdocs).where(eq(ripperdocs.ownerId, userId))),
+    character_sheets: await c(db.select({ n: count() }).from(characterSheets).where(eq(characterSheets.ownerId, userId))),
+    inventory_items: await c(db.select({ n: count() }).from(inventoryItems).where(eq(inventoryItems.ownerId, userId))),
+    wallet_transactions: await c(db.select({ n: count() }).from(walletTransactions).where(eq(walletTransactions.userId, userId))),
+    custom_requests: await c(db.select({ n: count() }).from(customRequests).where(eq(customRequests.requestedById, userId))),
+    housing_requests: await c(db.select({ n: count() }).from(housingRequests).where(eq(housingRequests.requestedById, userId))),
+    mission_assignments: await c(db.select({ n: count() }).from(missionAssignments).where(eq(missionAssignments.userId, userId))),
+    mission_applications: await c(db.select({ n: count() }).from(missionApplications).where(eq(missionApplications.userId, userId))),
+    sale_offers_as_buyer: await c(db.select({ n: count() }).from(saleOffers).where(eq(saleOffers.buyerUserId, userId))),
+  };
+}
+
+router.post(
+  "/admin/maintenance/merge-account",
+  adminOnly,
+  expressJson({ limit: "256kb" }),
+  async (req, res) => {
+    const body = req.body as { keepId?: unknown; dropId?: unknown; dryRun?: unknown } | null;
+    const keepId = typeof body?.keepId === "string" ? body.keepId.trim() : "";
+    const dropId = typeof body?.dropId === "string" ? body.dropId.trim() : "";
+    const dryRun = body?.dryRun === true;
+
+    if (!keepId || !dropId) {
+      res.status(400).json({ error: "Both keepId and dropId are required." });
+      return;
+    }
+    if (keepId === dropId) {
+      res.status(400).json({ error: "keepId and dropId must be different." });
+      return;
+    }
+
+    const [keep] = await db.select().from(users).where(eq(users.id, keepId));
+    const [drop] = await db.select().from(users).where(eq(users.id, dropId));
+    if (!keep) {
+      res.status(404).json({ error: `Keep user ${keepId} not found.` });
+      return;
+    }
+    if (!drop) {
+      res.status(404).json({ error: `Drop user ${dropId} not found.` });
+      return;
+    }
+
+    const transferAmount = drop.walletBalance ?? 0;
+    const fieldsToFill: string[] = [];
+    if (keep.defaultAvailability == null && drop.defaultAvailability != null) fieldsToFill.push("defaultAvailability");
+    if (!keep.availabilityTimezone && drop.availabilityTimezone) fieldsToFill.push("availabilityTimezone");
+
+    if (dryRun) {
+      // Surface live UB balances too so the operator can confirm the website
+      // mirror (transferAmount) matches the real eddies before committing.
+      const [keepUb, dropUb] = await Promise.all([
+        getBalance(keep.id, { allowStale: true }),
+        getBalance(drop.id, { allowStale: true }),
+      ]);
+      res.json({
+        dryRun: true,
+        keep: summarizeUserForMerge(keep),
+        drop: summarizeUserForMerge(drop),
+        wouldTransferEddies: transferAmount,
+        economyMode: await getEconomyMode(),
+        liveUbBalance: { keep: keepUb?.total ?? null, drop: dropUb?.total ?? null },
+        wouldFillFields: fieldsToFill,
+        wouldRepoint: await collectAccountChildCounts(dropId),
+      });
+      return;
+    }
+
+    // --- Phase A: repoint every user-id reference drop -> keep ----------------
+    // Done in one transaction. Collision tables (unique/PK on the user column)
+    // delete drop's conflicting rows first, then repoint the rest. Historical
+    // wallet_transactions are repointed here, BEFORE the balance transfer, so the
+    // transfer's own debit row (created next, on drop) stays with drop and is
+    // cascade-deleted with it — keeping keep's wallet history clean.
+    const repointed: Record<string, number> = {};
+    await db.transaction(async (tx) => {
+      const repoint = async (table: string, col: string): Promise<number> => {
+        const r = await tx.execute(
+          sql`update ${sql.identifier(table)} set ${sql.identifier(col)} = ${keepId} where ${sql.identifier(col)} = ${dropId}`,
+        );
+        return r.rowCount ?? 0;
+      };
+
+      for (const [table, col] of ACCOUNT_PLAIN_USER_COLS) {
+        const n = await repoint(table, col);
+        if (n > 0) repointed[`${table}.${col}`] = n;
+      }
+
+      // Collision tables: delete drop's rows that would violate a UNIQUE/PK with
+      // an existing keep row, then repoint the survivors. Equality (not NOT
+      // DISTINCT FROM) on nullable sibling cols matches unique-index NULL
+      // semantics (NULLs are distinct, so they never collide).
+      await tx.execute(sql`delete from income_command_uses d where d.user_id = ${dropId} and exists (select 1 from income_command_uses k where k.user_id = ${keepId} and k.command = d.command)`);
+      repointed["income_command_uses.user_id"] = (await tx.execute(sql`update income_command_uses set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from mission_assignments d where d.user_id = ${dropId} and exists (select 1 from mission_assignments k where k.user_id = ${keepId} and k.mission_id = d.mission_id)`);
+      repointed["mission_assignments.user_id"] = (await tx.execute(sql`update mission_assignments set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from mission_actor_payments d where d.user_id = ${dropId} and d.payment_status = 'paid' and exists (select 1 from mission_actor_payments k where k.user_id = ${keepId} and k.payment_status = 'paid' and k.mission_id = d.mission_id)`);
+      await tx.execute(sql`delete from mission_actor_payments d where d.user_id = ${dropId} and d.payment_status = 'paid' and d.event_id is not null and exists (select 1 from mission_actor_payments k where k.user_id = ${keepId} and k.payment_status = 'paid' and k.event_id = d.event_id)`);
+      repointed["mission_actor_payments.user_id"] = (await tx.execute(sql`update mission_actor_payments set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from mission_npc_signups d where d.user_id = ${dropId} and d.state = 'signed_up' and exists (select 1 from mission_npc_signups k where k.user_id = ${keepId} and k.state = 'signed_up' and k.mission_id = d.mission_id)`);
+      repointed["mission_npc_signups.user_id"] = (await tx.execute(sql`update mission_npc_signups set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from event_npc_signups d where d.user_id = ${dropId} and d.state = 'signed_up' and exists (select 1 from event_npc_signups k where k.user_id = ${keepId} and k.state = 'signed_up' and k.event_id = d.event_id)`);
+      repointed["event_npc_signups.user_id"] = (await tx.execute(sql`update event_npc_signups set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from pending_edit_approvals d where d.voter_id = ${dropId} and exists (select 1 from pending_edit_approvals k where k.voter_id = ${keepId} and k.edit_id = d.edit_id)`);
+      repointed["pending_edit_approvals.voter_id"] = (await tx.execute(sql`update pending_edit_approvals set voter_id = ${keepId} where voter_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from review_votes d where d.voter_id = ${dropId} and exists (select 1 from review_votes k where k.voter_id = ${keepId} and k.subject_type = d.subject_type and k.subject_id = d.subject_id)`);
+      repointed["review_votes.voter_id"] = (await tx.execute(sql`update review_votes set voter_id = ${keepId} where voter_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from review_seen d where d.user_id = ${dropId} and exists (select 1 from review_seen k where k.user_id = ${keepId} and k.subject_type = d.subject_type and k.subject_id = d.subject_id)`);
+      repointed["review_seen.user_id"] = (await tx.execute(sql`update review_seen set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from attendance_claims d where d.user_id = ${dropId} and exists (select 1 from attendance_claims k where k.user_id = ${keepId} and k.week_start = d.week_start)`);
+      repointed["attendance_claims.user_id"] = (await tx.execute(sql`update attendance_claims set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from breach_practice_stats d where d.user_id = ${dropId} and exists (select 1 from breach_practice_stats k where k.user_id = ${keepId} and k.difficulty = d.difficulty)`);
+      repointed["breach_practice_stats.user_id"] = (await tx.execute(sql`update breach_practice_stats set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      await tx.execute(sql`delete from vrchat_agents d where d.user_id = ${dropId} and exists (select 1 from vrchat_agents k where k.user_id = ${keepId})`);
+      repointed["vrchat_agents.user_id"] = (await tx.execute(sql`update vrchat_agents set user_id = ${keepId} where user_id = ${dropId}`)).rowCount ?? 0;
+
+      // Drop zero-count entries so the response only lists what actually moved.
+      for (const key of Object.keys(repointed)) if (repointed[key] === 0) delete repointed[key];
+
+      // Backfill only portable, non-identity fields onto keep where it's empty.
+      const fill: Partial<typeof users.$inferInsert> = {};
+      if (keep.defaultAvailability == null && drop.defaultAvailability != null) fill.defaultAvailability = drop.defaultAvailability;
+      if (!keep.availabilityTimezone && drop.availabilityTimezone) fill.availabilityTimezone = drop.availabilityTimezone;
+      if (Object.keys(fill).length > 0) {
+        await tx.update(users).set(fill).where(eq(users.id, keepId));
+      }
+    });
+
+    // --- Phase B: transfer eddies on UnbelievaBoat (idempotent) --------------
+    // applyWalletDelta makes the external UB call + writes the ledger/balance +
+    // advances the reconcile baseline, so it can't be inside the DB transaction.
+    // Stable idempotency keys make the whole merge safe to re-run after a partial
+    // failure. We MUST NOT delete the drop row unless the money actually moved.
+    //
+    // CRITICAL for reruns: do NOT gate on the *current* drop balance. If a prior
+    // run debited drop (balance now 0) but the credit failed, recomputing the
+    // amount from drop.walletBalance would skip Phase B and delete drop with the
+    // eddies stranded. Instead, if a debit ledger row already exists for this
+    // merge, trust ITS amount as the authoritative plan so the credit always
+    // gets retried (applyWalletDelta de-dupes the debit leg by key).
+    const debitKey = `account-merge:${dropId}->${keepId}:out`;
+    const creditKey = `account-merge:${dropId}->${keepId}:in`;
+    const [priorDebit] = await db
+      .select({ amount: walletTransactions.amount })
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, debitKey));
+    const plannedAmount = priorDebit ? Math.abs(priorDebit.amount) : transferAmount;
+
+    let walletTransfer: Record<string, unknown> = { amount: 0, skipped: true };
+    if (plannedAmount > 0) {
+      const debit = await applyWalletDelta({
+        userId: dropId,
+        discordId: drop.id,
+        amount: -plannedAmount,
+        source: "admin",
+        kind: "account_merge_out",
+        reason: `Account merge: transfer to ${keepId}`,
+        memo: `Account merge: eddies moved to user ${keepId}`,
+        idempotencyKey: debitKey,
+      });
+      if (!debit.ok || (debit.status !== "synced" && debit.status !== "duplicate")) {
+        res.status(409).json({
+          error: `Eddies debit from the drop account did not complete (status=${debit.status}). Nothing was deleted. The economy must be LIVE (enabled) for the transfer to run; child rows were already repointed and re-running the merge will retry safely.`,
+          repointed,
+          walletTransfer: { debit },
+        });
+        return;
+      }
+      const credit = await applyWalletDelta({
+        userId: keepId,
+        discordId: keep.id,
+        amount: plannedAmount,
+        source: "admin",
+        kind: "account_merge_in",
+        reason: `Account merge: transfer from ${dropId}`,
+        memo: `Account merge: eddies received from user ${dropId}`,
+        idempotencyKey: creditKey,
+      });
+      if (!credit.ok || (credit.status !== "synced" && credit.status !== "duplicate")) {
+        res.status(409).json({
+          error: `Eddies were debited from the drop account but the credit to the keep account did not complete (status=${credit.status}). Nothing was deleted — re-run the merge to retry; the debit will not repeat.`,
+          repointed,
+          walletTransfer: { debit, credit },
+        });
+        return;
+      }
+      walletTransfer = { amount: plannedAmount, debit: debit.status, credit: credit.status };
+    }
+
+    // --- Phase C: delete the drop user row -----------------------------------
+    // All non-cascade references were repointed in Phase A; the only remaining
+    // child rows are cascade FKs (e.g. the Phase-B debit ledger row) which the
+    // delete cleans up. This is the point of no return.
+    await db.transaction(async (tx) => {
+      await tx.delete(users).where(eq(users.id, dropId));
+    });
+
+    const result = {
+      keepId,
+      dropId,
+      fieldsFilled: fieldsToFill,
+      repointed,
+      walletTransfer,
+    };
+
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "merge_account",
+      targetType: "user",
+      targetId: keepId,
+      message: `Merged account ${dropId} (${drop.username ?? "?"}) into ${keepId} (${keep.username ?? "?"}); transferred €${plannedAmount.toLocaleString()}`,
+      before: { drop: summarizeUserForMerge(drop), keep: summarizeUserForMerge(keep) },
+      after: result,
+    });
+
     res.json(result);
   },
 );
