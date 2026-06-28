@@ -511,16 +511,17 @@ describe("sheet auto-finalize on reviewer read after pool shrinks", () => {
   });
 });
 
-// Reopening an approved (but not-yet-closed) sheet must PRESERVE the prior-round
-// votes so reviewers don't have to re-cast the same decision. The next reviewer
-// read re-evaluates the carried-over votes and auto-finalizes back to approved.
-describe("sheet reopen preserves votes", () => {
-  it("keeps prior votes when an approved sheet is reopened so reviewers needn't re-vote", async () => {
+// Reopening an approved (but not-yet-closed) sheet must CLEAR the prior-round
+// votes so it becomes a genuinely fresh review round. If votes were preserved,
+// finalize-on-read would re-tally them on the next reviewer read and snap the
+// sheet straight back to approved — making reopen look like it did nothing.
+describe("sheet reopen clears votes", () => {
+  it("clears prior votes and stays pending after a reopen", async () => {
     const owner = await createUser();
     const f1 = await createFixer();
     const f2 = await createFixer();
     await createFixer(); // pool 3 → threshold 2
-    const sheet = await createPendingSheet(owner.id, "Reopen Keep Votes");
+    const sheet = await createPendingSheet(owner.id, "Reopen Clear Votes");
 
     await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
     await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
@@ -534,22 +535,21 @@ describe("sheet reopen preserves votes", () => {
     expect(reopen.status).toBe(200);
     expect(reopen.body.status).toBe("pending");
 
-    // Votes survive the reopen.
+    // Votes are wiped by the reopen.
     expect(
       await db
         .select()
         .from(reviewVotes)
         .where(and(eq(reviewVotes.subjectType, "sheet"), eq(reviewVotes.subjectId, sheet.id))),
-    ).toHaveLength(2);
+    ).toHaveLength(0);
 
-    // No re-vote needed: a reviewer detail read re-evaluates the carried-over
-    // votes (finalize-on-read) and auto-finalizes the sheet back to approved.
+    // A reviewer detail read does NOT re-finalize — the sheet stays pending
+    // because there are no carried-over votes to re-tally.
     const detail = await request(app).get(`/api/sheets/${sheet.id}`).set("x-test-user", f1.id);
-    expect(detail.body.status).toBe("approved");
-    const [refinalized] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
-    expect(refinalized.status).toBe("approved");
-    // Materialization stays deferred to close — no character yet.
-    expect(refinalized.characterId).toBeNull();
+    expect(detail.body.status).toBe("pending");
+    const [stillPending] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
+    expect(stillPending.status).toBe("pending");
+    expect(stillPending.characterId).toBeNull();
   });
 });
 

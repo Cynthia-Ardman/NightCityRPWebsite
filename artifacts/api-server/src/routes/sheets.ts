@@ -1102,8 +1102,11 @@ export async function reopenSheet(req: Request, id: number): Promise<ReviewActio
       .set({ status: "pending", decisionBy: null, decisionNote: null, decidedAt: null, overriddenBy: null })
       .where(eq(characterSheets.id, id))
       .returning();
-    // Votes are deliberately PRESERVED across a reopen so reviewers don't have
-    // to re-cast the same decision; finalize-on-read re-evaluates them.
+    // Clear the prior round's votes so reopen is a genuinely fresh review round.
+    // If we preserved them, finalize-on-read would re-tally the carried-over
+    // approvals on the very next reviewer read and snap the sheet straight back
+    // to approved — making reopen look like it did nothing.
+    await clearReviewVotes({ subjectType: "sheet", subjectId: id, conn: tx });
     return { ok: { updated } };
   });
   if ("error" in result && result.error) return result.error;
