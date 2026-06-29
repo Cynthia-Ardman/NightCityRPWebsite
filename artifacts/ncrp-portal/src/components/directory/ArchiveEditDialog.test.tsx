@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ReactNode } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ArchiveCharacter } from "@workspace/api-client-react";
+
+// Render every tab panel flat so cross-tab testid lookups work without
+// simulating tab clicks (same approach EditCharacterDialog.test uses).
+vi.mock("@/components/ui/tabs", () => ({
+  Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 
 const { mutate, delMutate } = vi.hoisted(() => ({ mutate: vi.fn(), delMutate: vi.fn() }));
 

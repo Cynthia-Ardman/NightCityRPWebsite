@@ -34,3 +34,17 @@ a character they submitted is **approved AND finalized** (sheet close), gated on
 **Gotcha:** Discord writes are gated by `externalWritesAllowed()` (REPLIT_DEPLOYMENT=1 or
 ALLOW_EXTERNAL_WRITES=1) — in dev/test the grant no-ops (returns `ok:false`). The backfill must
 be run from the PUBLISHED app to actually grant Discord roles; the UI surfaces this warning.
+
+**Edit-surface grants (three independent paths now):** turning on `sheetData.ripperDoc` from an
+EDIT (not just initial sheet approval) must also grant the role, and the wiring lives in THREE
+places — miss one and that surface silently won't grant:
+1. `closeSheet` applied branch (initial approval) — original path above.
+2. `pending-edits.ts closeEdit` approved branch — detect `diff.sheetData.ripperDoc===true`, capture
+   `{ownerId,name}` inside the tx, fire `addGuildMemberRole(RIPPERDOC_ROLE_ID)` AFTER commit.
+3. `directory.ts PATCH /directory/archive/:id` (admin archive editor) — grant when
+   `edit.sheetData?.ripperDoc===true` after the activity insert.
+Same fire-and-forget pattern everywhere. NOTE: archive PATCH `sheetData` must SPREAD-MERGE
+(`{...cur.sheetData, ...edit.sheetData}`), not whole-replace, or it wipes unrelated sheet keys
+(see sheetdata-merge-passthrough). The Ripper Doc checkbox is on ALL edit dialogs
+(EditCharacterDialog Identity tab + ArchiveEditDialog Identity tab); ArchiveEditDialog was also
+restructured into tabs matching creation.

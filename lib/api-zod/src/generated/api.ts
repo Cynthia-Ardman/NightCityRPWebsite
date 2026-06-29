@@ -8752,7 +8752,8 @@ export const UpdateArchiveCharacterBody = zod.object({
   "tags": zod.array(zod.string()).optional().describe('Full desired merged tag set.'),
   "sheetData": zod.object({
   "preamble": zod.string(),
-  "sections": zod.record(zod.string(), zod.string())
+  "sections": zod.record(zod.string(), zod.string()),
+  "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.')
 }).optional()
 })
 

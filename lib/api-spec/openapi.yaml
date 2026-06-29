@@ -6360,6 +6360,7 @@ components:
           properties:
             preamble: { type: string }
             sections: { type: object, additionalProperties: { type: string } }
+            ripperDoc: { type: boolean, description: "When true, grants the RipperDoc Discord role to the character's owner on save." }
 
     ArchiveEditResult:
       type: object

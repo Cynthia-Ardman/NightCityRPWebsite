@@ -315,6 +315,7 @@ describe("EditCharacterDialog", () => {
       psychProfile: "",
       hooks: "",
       skills: "",
+      ripperDoc: false,
     });
     // updateNote is trimmed before being sent.
     expect(call.data.updateNote).toBe("refit");

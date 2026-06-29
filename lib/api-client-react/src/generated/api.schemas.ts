@@ -1492,6 +1492,8 @@ export type ArchiveEditInputSheetDataSections = {[key: string]: string};
 export type ArchiveEditInputSheetData = {
   preamble: string;
   sections: ArchiveEditInputSheetDataSections;
+  /** When true, grants the RipperDoc Discord role to the character's owner on save. */
+  ripperDoc?: boolean;
 };
 
 export interface ArchiveEditInput {

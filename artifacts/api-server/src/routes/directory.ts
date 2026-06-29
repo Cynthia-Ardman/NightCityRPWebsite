@@ -23,7 +23,7 @@ import {
   inventoryItems,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
-import { hasRole } from "../lib/discord";
+import { hasRole, addGuildMemberRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import { deriveCyberwareBand } from "../lib/jobs";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
@@ -503,6 +503,9 @@ const ArchiveEditSchema = z
       .object({
         preamble: z.string(),
         sections: z.record(z.string(), z.string()),
+        // RipperDoc flag (parity with the player/staff edit dialog). Grants the
+        // RipperDoc Discord role to the owner on save; see the grant below.
+        ripperDoc: z.boolean().optional(),
       })
       .optional(),
   })
@@ -558,9 +561,14 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
     patch.archivedAt = edit.archived ? (cur.archivedAt ?? new Date()) : null;
     mark("archived", cur.archived, edit.archived);
   }
+  // sheetData: spread-merge over the existing column so editing the preamble /
+  // sections / ripperDoc flag from this admin tool never wipes the richer keys
+  // (physicalDescription, appearance, skills, …) the player/staff edit dialog
+  // owns.
   if (edit.sheetData !== undefined) {
-    patch.sheetData = edit.sheetData;
-    mark("sheetData", cur.sheetData, edit.sheetData);
+    const merged = { ...((cur.sheetData ?? {}) as Record<string, unknown>), ...edit.sheetData };
+    patch.sheetData = merged;
+    mark("sheetData", cur.sheetData, merged);
   }
 
   // Owner (re)assignment. ownerId === null clears ownership AND marks
@@ -666,6 +674,27 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
     });
   } catch (err) {
     console.error("[archive] activity event insert failed", err);
+  }
+
+  // Grant the "RipperDoc" Discord role when this staff/admin edit flags the
+  // character as a ripper doc. This is a direct staff write (no review), so the
+  // grant fires immediately on save — mirroring the sheet-approval and edit-
+  // approval grants. Fire-and-forget + gated/idempotent in addGuildMemberRole;
+  // the role_sync cron re-injects the website "ripperdoc" flag from the role id.
+  if (edit.sheetData?.ripperDoc === true && updated.ownerId) {
+    void addGuildMemberRole(
+      updated.ownerId,
+      RIPPERDOC_ROLE_ID,
+      `RipperDoc — character "${updated.name}" archive edit`,
+    ).then((r) => {
+      if (!r.ok) {
+        console.warn("[archive] RipperDoc role grant did not apply", {
+          characterId: id,
+          ownerId: updated.ownerId,
+          error: r.error,
+        });
+      }
+    });
   }
 
   res.json({
