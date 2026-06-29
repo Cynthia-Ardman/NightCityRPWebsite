@@ -14,7 +14,8 @@ import {
 } from "@workspace/db";
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, postToChannel, startThreadFromMessage } from "../lib/discord";
+import { hasRole, postToChannel, startThreadFromMessage, addGuildMemberRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { logger } from "../lib/logger";
 import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, loadLastActivityBySubject, majorityOf, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
 
@@ -1074,9 +1075,21 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
     if (locked.status !== "approved" && locked.status !== "rejected" && locked.status !== "cancelled") {
       return { kind: "error" as const, status: 409, body: { error: `Only a resolved edit can be closed (this one is ${locked.status})` } };
     }
+    // When an approved edit flips the character's `ripperDoc` flag on, we grant
+    // the RipperDoc Discord role AFTER the tx commits (fire-and-forget). Captured
+    // here so the external call stays outside the transaction.
+    let ripperGrant: { ownerId: string; name: string } | null = null;
     if (locked.status === "approved") {
       const diff = (locked.proposed_diff ?? {}) as EditableDiff;
       await applyDiff(locked.character_id, diff, tx);
+      const sd = (diff as { sheetData?: Record<string, unknown> }).sheetData;
+      if (sd && sd.ripperDoc === true) {
+        const [c] = await tx
+          .select({ ownerId: characters.ownerId, name: characters.name })
+          .from(characters)
+          .where(eq(characters.id, locked.character_id));
+        if (c?.ownerId) ripperGrant = { ownerId: c.ownerId, name: c.name };
+      }
       if (locked.update_note) {
         await tx.insert(characterUpdates).values({
           characterId: locked.character_id,
@@ -1096,7 +1109,7 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
       .update(pendingCharacterEdits)
       .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
       .where(eq(pendingCharacterEdits.id, id));
-    return { kind: "ok" as const, status: locked.status };
+    return { kind: "ok" as const, status: locked.status, ripperGrant };
   });
   if (result.kind === "error") return { status: result.status, body: result.body };
   if (result.kind === "ok") {
@@ -1108,6 +1121,18 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
       targetId: id,
       message: `Closed character edit (${result.status})${note ? ` — note: ${note}` : ""}`,
     });
+    // Mirror the sheet-approval grant: when the applied edit flagged the
+    // character as a ripper doc, push the RipperDoc Discord role. Fire-and-forget
+    // + gated/idempotent in addGuildMemberRole; the role_sync cron re-injects the
+    // website "ripperdoc" flag from the role id.
+    if (result.ripperGrant) {
+      const { ownerId, name } = result.ripperGrant;
+      void addGuildMemberRole(ownerId, RIPPERDOC_ROLE_ID, `RipperDoc — character "${name}" edit approved`).then((r) => {
+        if (!r.ok) {
+          logger.warn({ editId: id, ownerId, error: r.error }, "RipperDoc role grant (edit) did not apply");
+        }
+      });
+    }
   }
   const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));
   return { status: 200, body: { ok: true, status: "closed", id: row?.id } };

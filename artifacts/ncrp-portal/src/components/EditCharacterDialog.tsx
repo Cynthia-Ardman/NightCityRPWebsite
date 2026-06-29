@@ -162,6 +162,11 @@ export default function EditCharacterDialog({
   const [lifeStatus, setLifeStatus] = useState<string>(character.lifeStatus ?? "active");
   const [traumaTeamTier, setTraumaTeamTier] = useState<string>(character.traumaTeamTier ?? "");
   const [xanaduGold, setXanaduGold] = useState<boolean>(character.xanaduGold ?? false);
+  // RipperDoc flag lives in sheetData (mirrors the new-character form). Toggling
+  // it on always routes the edit through review; the role is granted on approval.
+  const [ripperDoc, setRipperDoc] = useState<boolean>(
+    ((character.sheetData ?? {}) as Record<string, unknown>).ripperDoc === true,
+  );
   const [updateNote, setUpdateNote] = useState<string>("");
   // Admin-only destructive delete lives at the bottom of this dialog. The
   // delete button stays disabled until the admin types the literal word DELETE.
@@ -235,6 +240,7 @@ export default function EditCharacterDialog({
     setLifeStatus(character.lifeStatus ?? "active");
     setTraumaTeamTier(character.traumaTeamTier ?? "");
     setXanaduGold(character.xanaduGold ?? false);
+    setRipperDoc(((character.sheetData ?? {}) as Record<string, unknown>).ripperDoc === true);
     setUpdateNote("");
     setDeleteConfirm("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -341,6 +347,7 @@ export default function EditCharacterDialog({
           psychProfile,
           hooks,
           skills,
+          ripperDoc,
         },
         lifeStatus: lifeStatus as "active" | "dead" | "missing" | "loa" | "retired",
         traumaTeamTier: (traumaTeamTier || null) as "silver" | "gold" | "platinum" | "diamond" | "corporate" | null,
@@ -555,6 +562,25 @@ export default function EditCharacterDialog({
                             Flat monthly fee. Paused while on LOA.
                           </p>
                         </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs">RIPPER DOC</Label>
+                        <label className="flex h-10 items-center gap-3 border border-input bg-background px-3">
+                          <input
+                            type="checkbox"
+                            checked={ripperDoc}
+                            onChange={(e) => setRipperDoc(e.target.checked)}
+                            className="accent-nc-cyan"
+                            data-testid="checkbox-edit-ripper-doc"
+                          />
+                          <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                            {ripperDoc ? "Yes" : "No"}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Grants the RipperDoc Discord role when this edit is approved.
+                        </p>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
