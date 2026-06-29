@@ -22,6 +22,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, postToChannel, startThreadFromMessage } from "../lib/discord";
+import { reconcileBusinessChannelAccess } from "../lib/businessChannelAccess";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { isListingReserved } from "../lib/listingReservations";
 import { recordAudit } from "../lib/audit";
@@ -1493,6 +1494,13 @@ export async function closeRequest(req: Request, id: number, note?: string, clos
   if (result.kind === "error") return { status: result.status, body: result.body };
   if (result.kind === "applied") {
     await afterApprove(req as never, result.reqRow, result.c, result.appliedRef, result.summary, result.reqRow.overriddenBy ? "override" : "vote");
+    // A newly-approved business gives its owner access to the business-owners
+    // Discord channel. Fire-and-forget; self-heals via the hourly reconcile.
+    if (result.appliedRef.startsWith("store:") || result.appliedRef.startsWith("ripperdoc:")) {
+      void reconcileBusinessChannelAccess().catch((err) =>
+        logger.warn({ err, appliedRef: result.appliedRef }, "business channel access reconcile (approve) failed"),
+      );
+    }
     const [row] = await selectWhere(eq(customRequests.id, id));
     await notifyRequesterOfDecision(row, result.summary, true, note ?? null);
   } else if (result.kind === "archived") {

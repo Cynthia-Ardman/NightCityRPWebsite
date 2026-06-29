@@ -459,6 +459,120 @@ export async function removeGuildMemberRole(
   }
 }
 
+/**
+ * Discord channel id of the private "business owners" channel. Owners of a
+ * store/ripperdoc are granted a per-member VIEW permission overwrite on this
+ * channel when they own at least one business, and the overwrite is removed
+ * once they own none. Employees never get access. Managed by
+ * {@link reconcileBusinessChannelAccess} in lib/businessChannelAccess.ts.
+ */
+export const BUSINESS_OWNER_CHANNEL_ID = "1469857847105032376";
+
+// Channel permission bitfield: VIEW_CHANNEL (1 << 10) lets the member see the
+// channel; READ_MESSAGE_HISTORY (1 << 16) lets them read past messages. Sending
+// is left to the channel's default (role/@everyone) overwrites — we only grant
+// access, not posting rights, so a member who can already post elsewhere keeps
+// those defaults here. Stored as a string because Discord permission values are
+// 64-bit and serialized as strings.
+const CHANNEL_VIEW_ACCESS_BITS = String((1 << 10) | (1 << 16)); // "66560"
+
+/**
+ * Grant a member access (a VIEW permission overwrite) to a specific channel
+ * (`PUT /channels/{channel}/permissions/{user}` with `type: 1` = member).
+ * Gated behind externalWritesAllowed() like every other outbound Discord write,
+ * so it only fires on the real deployment (or when explicitly opted in). Discord
+ * returns 204 whether or not an overwrite already existed, so this is
+ * idempotent. Returns a discriminated result instead of throwing.
+ */
+export async function grantChannelViewAccess(
+  discordUserId: string,
+  channelId: string,
+  reason = "Business owner channel access granted via portal",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!DISCORD_BOT_TOKEN) {
+    return { ok: false, error: "Discord bot token not configured" };
+  }
+  if (!externalWritesAllowed()) {
+    logger.info(
+      { discordUserId, channelId },
+      "Discord write suppressed (non-deployment env); skipping channel grant",
+    );
+    return {
+      ok: false,
+      error: "External Discord writes are disabled in this (test) environment",
+    };
+  }
+  try {
+    const res = await fetch(`${API}/channels/${channelId}/permissions/${discordUserId}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        "Content-Type": "application/json",
+        "X-Audit-Log-Reason": reason,
+      },
+      body: JSON.stringify({ type: 1, allow: CHANNEL_VIEW_ACCESS_BITS, deny: "0" }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn({ status: res.status, body: text, discordUserId, channelId }, "grantChannelViewAccess failed");
+      return { ok: false, error: `Discord channel grant failed (${res.status}): ${text.slice(0, 300)}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ err, discordUserId, channelId }, "grantChannelViewAccess error");
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Remove a member's channel permission overwrite
+ * (`DELETE /channels/{channel}/permissions/{user}`). Sibling to
+ * grantChannelViewAccess: gated behind externalWritesAllowed() so it only fires
+ * on the real deployment. Discord returns 204 whether or not the overwrite
+ * existed, so this is idempotent. Returns a discriminated result.
+ */
+export async function revokeChannelViewAccess(
+  discordUserId: string,
+  channelId: string,
+  reason = "Business owner channel access removed via portal",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!DISCORD_BOT_TOKEN) {
+    return { ok: false, error: "Discord bot token not configured" };
+  }
+  if (!externalWritesAllowed()) {
+    logger.info(
+      { discordUserId, channelId },
+      "Discord write suppressed (non-deployment env); skipping channel revoke",
+    );
+    return {
+      ok: false,
+      error: "External Discord writes are disabled in this (test) environment",
+    };
+  }
+  try {
+    const res = await fetch(`${API}/channels/${channelId}/permissions/${discordUserId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        "X-Audit-Log-Reason": reason,
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn({ status: res.status, body: text, discordUserId, channelId }, "revokeChannelViewAccess failed");
+      return { ok: false, error: `Discord channel revoke failed (${res.status}): ${text.slice(0, 300)}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ err, discordUserId, channelId }, "revokeChannelViewAccess error");
+    return { ok: false, error: msg };
+  }
+}
+
 export type GuildMemberLite = {
   id: string;
   username: string;

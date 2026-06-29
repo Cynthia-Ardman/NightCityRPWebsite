@@ -23,6 +23,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage } from "../lib/discord";
+import { reconcileBusinessChannelAccess } from "../lib/businessChannelAccess";
 import { logger } from "../lib/logger";
 import { applyWalletDelta, MAX_WALLET_BALANCE } from "../lib/economy";
 import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwnedOffer } from "../lib/saleOffers";
@@ -579,6 +580,13 @@ router.patch("/stores/:id", requireAuth, async (req, res): Promise<void> => {
     });
     return u;
   });
+  // Ownership transfer changes who should hold business-owners channel access:
+  // grant the new owner, revoke the old one if they no longer own any business.
+  if ("ownerId" in patch) {
+    void reconcileBusinessChannelAccess().catch((err) =>
+      logger.warn({ err, storeId: s.id }, "business channel access reconcile (store transfer) failed"),
+    );
+  }
   res.json({ ...updated, lease: await loadVenueLease(updated.housingId) });
 });
 
@@ -605,6 +613,11 @@ router.delete("/stores/:id", requireAuth, async (req, res): Promise<void> => {
       afterJson: null,
     });
   });
+  // The former owner loses business-owners channel access unless they still own
+  // another business (the reconcile only revokes when they own none).
+  void reconcileBusinessChannelAccess().catch((err) =>
+    logger.warn({ err, storeId: s.id }, "business channel access reconcile (store delete) failed"),
+  );
   res.sendStatus(204);
 });
 
@@ -1329,6 +1342,12 @@ router.patch("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> => 
     });
     return u;
   });
+  // See store transfer above — keep business-owners channel access in sync.
+  if ("ownerId" in patch) {
+    void reconcileBusinessChannelAccess().catch((err) =>
+      logger.warn({ err, ripperdocId: r.id }, "business channel access reconcile (ripperdoc transfer) failed"),
+    );
+  }
   res.json({ ...updated, lease: await loadVenueLease(updated.housingId) });
 });
 
@@ -1353,6 +1372,10 @@ router.delete("/ripperdocs/:id", requireAuth, async (req, res): Promise<void> =>
       afterJson: null,
     });
   });
+  // The former owner loses access unless they still own another business.
+  void reconcileBusinessChannelAccess().catch((err) =>
+    logger.warn({ err, ripperdocId: r.id }, "business channel access reconcile (ripperdoc delete) failed"),
+  );
   res.sendStatus(204);
 });
 

@@ -2,6 +2,7 @@ import { db, users, jobRuns, characters, characterStatus, walletTransactions, ho
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, applyRoleIdGrants, addGuildMemberRole, postToChannel } from "./discord";
+import { reconcileBusinessChannelAccess } from "./businessChannelAccess";
 import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
@@ -347,6 +348,19 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         } catch (err) {
           logger.warn({ err, userId: u.id }, "role sync user failed");
         }
+      }
+      // Catch-all for the business-owners Discord channel: grant access to any
+      // current store/ripperdoc owner who is missing it and revoke anyone who no
+      // longer owns a business. Self-heals event-driven grants/revokes that were
+      // suppressed off-deployment or failed transiently. No-op when nothing drifted.
+      try {
+        const { granted, revoked } = await reconcileBusinessChannelAccess();
+        if (granted || revoked) {
+          logger.info({ granted, revoked }, "role sync: business channel access reconciled");
+          affected += granted + revoked;
+        }
+      } catch (err) {
+        logger.warn({ err }, "role sync: business channel access reconcile failed");
       }
     } else if (name === "monthly_rent") {
       // Build an LOA lookup once so every billing pass below can ask
