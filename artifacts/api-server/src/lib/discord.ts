@@ -79,28 +79,54 @@ export const TRIAL_FIXER_ROLE_ID = "1489385692915302419";
 export const TRIAL_FIXER_ROLE_MARKER = "trial-fixer";
 
 /**
+ * Discord role id for the guild's "RipperDoc" role. Matched by exact id (not
+ * name) — same id-pin pattern as Verified 18+ / Trial Fixer — so a Discord
+ * rename can't silently drop the website RIPPERDOC flag. Granted on character
+ * approval (when the sheet's `ripperDoc` flag is set) and by the one-time admin
+ * backfill; {@link applyRoleIdGrants} re-injects the marker name on every role
+ * sync so the flag stays in lockstep with the Discord role both directions.
+ */
+export const RIPPERDOC_ROLE_ID = "1356028868103897156";
+
+/**
+ * Synthetic role NAME injected when a member holds {@link RIPPERDOC_ROLE_ID}.
+ * Matches {@link ROLE_NAMES}.RIPPERDOC so the name-based hasRole(roles,
+ * "RIPPERDOC") check stays true regardless of the Discord role's display name.
+ */
+export const RIPPERDOC_ROLE_MARKER = "ripperdoc";
+
+/**
  * Augment a member's resolved role NAMES with synthetic names derived from
  * exact role IDs, so id-gated grants survive Discord role renames and flow
  * through the name-based {@link hasRole} checks used everywhere downstream.
  * Tags the Trial Fixer role id with the {@link TRIAL_FIXER_ROLE_MARKER} marker
  * ONLY — it deliberately does NOT grant the canonical "fixer" name, so trial
  * fixers get the narrow mission-author tier (gated via the TRIAL_FIXER group)
- * rather than full Fixer-equivalent access. Idempotent: never adds a duplicate
- * name. Pass the raw role ids alongside the resolved names.
+ * rather than full Fixer-equivalent access. Tags the RipperDoc role id with the
+ * {@link RIPPERDOC_ROLE_MARKER}. Idempotent: never adds a duplicate name. Pass
+ * the raw role ids alongside the resolved names.
  */
 export function applyRoleIdGrants(names: string[], ids: string[]): string[] {
-  if (!ids.includes(TRIAL_FIXER_ROLE_ID)) return names;
-  // Trial fixers are a narrow mission-author tier, NOT full fixers. Drop any
-  // "fixer"/"coordinator" role NAMES they may also carry (a transitional or
-  // mistaken dual-role grant) so the FIXER group checks stay false for them
-  // everywhere downstream — the trial-fixer marker below is authoritative.
-  const suppressed = new Set<string>([...ROLE_NAMES.FIXER, ...ROLE_NAMES.COORDINATOR]);
-  const out = names.filter((n) => !suppressed.has(n.toLowerCase()));
-  // Tag them as a trial fixer so the TRIAL_FIXER group checks (and the
-  // display-only `isTrialFixer` flags) stay true, independent of the Discord
-  // role's display name. Intentionally NOT mapped onto "fixer".
-  if (!out.some((n) => n.toLowerCase() === TRIAL_FIXER_ROLE_MARKER)) {
-    out.push(TRIAL_FIXER_ROLE_MARKER);
+  let out = names;
+  if (ids.includes(TRIAL_FIXER_ROLE_ID)) {
+    // Trial fixers are a narrow mission-author tier, NOT full fixers. Drop any
+    // "fixer"/"coordinator" role NAMES they may also carry (a transitional or
+    // mistaken dual-role grant) so the FIXER group checks stay false for them
+    // everywhere downstream — the trial-fixer marker below is authoritative.
+    const suppressed = new Set<string>([...ROLE_NAMES.FIXER, ...ROLE_NAMES.COORDINATOR]);
+    out = out.filter((n) => !suppressed.has(n.toLowerCase()));
+    // Tag them as a trial fixer so the TRIAL_FIXER group checks (and the
+    // display-only `isTrialFixer` flags) stay true, independent of the Discord
+    // role's display name. Intentionally NOT mapped onto "fixer".
+    if (!out.some((n) => n.toLowerCase() === TRIAL_FIXER_ROLE_MARKER)) {
+      out = [...out, TRIAL_FIXER_ROLE_MARKER];
+    }
+  }
+  // RipperDoc: id-pin the canonical "ripperdoc" name so the website RIPPERDOC
+  // flag survives a Discord role rename and is reconciled both directions by
+  // the role_sync cron (added while the role is held, dropped when it's gone).
+  if (ids.includes(RIPPERDOC_ROLE_ID) && !out.some((n) => n.toLowerCase() === RIPPERDOC_ROLE_MARKER)) {
+    out = [...out, RIPPERDOC_ROLE_MARKER];
   }
   return out;
 }

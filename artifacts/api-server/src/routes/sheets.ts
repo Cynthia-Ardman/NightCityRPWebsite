@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, catalogGuns, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { postToChannel, startThreadFromMessage, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID } from "../lib/discord";
+import { postToChannel, startThreadFromMessage, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID, RIPPERDOC_ROLE_ID } from "../lib/discord";
 import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
@@ -36,6 +36,12 @@ const CS_CHANNEL_ID = process.env.CS_APPROVAL_CHANNEL_ID ?? "";
 function sheetDataIsNpc(data: unknown): boolean {
   const v = (data as Record<string, unknown> | null | undefined)?.sheetType;
   return typeof v === "string" && v.trim().toUpperCase() === "NPC";
+}
+
+// True when the submitter ticked the "Ripper Doc" box on the sheet. Drives the
+// RipperDoc Discord-role grant at approval/close (see closeSheet).
+function sheetWantsRipperdoc(data: unknown): boolean {
+  return (data as Record<string, unknown> | null | undefined)?.ripperDoc === true;
 }
 
 const SUBMISSIONS_DISABLED_MSG =
@@ -1065,6 +1071,24 @@ export async function closeSheet(
           logger.warn(
             { sheetId: id, ownerId: result.sheet.ownerId, error: r.error },
             "Approved-character role grant did not apply",
+          );
+        }
+      });
+    }
+    // Grant the "RipperDoc" Discord role when the submitter flagged this
+    // character as a ripper doc on the sheet. Same fire-and-forget,
+    // gated/idempotent pattern as the approved-character role above — the
+    // role_sync cron re-injects the website "ripperdoc" flag from the role id.
+    if (result.sheet.ownerId && sheetWantsRipperdoc(result.sheet.data)) {
+      void addGuildMemberRole(
+        result.sheet.ownerId,
+        RIPPERDOC_ROLE_ID,
+        `RipperDoc — character "${result.sheet.name}" approved`,
+      ).then((r) => {
+        if (!r.ok) {
+          logger.warn(
+            { sheetId: id, ownerId: result.sheet.ownerId, error: r.error },
+            "RipperDoc role grant did not apply",
           );
         }
       });

@@ -207,6 +207,10 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const [statsImageUrls, setStatsImageUrls] = useState<string[]>(
     Array.isArray(init.statsImageUrls) ? init.statsImageUrls.map(String) : [],
   );
+  // Marks this character as a Ripper Doc. When the sheet is approved & finalized
+  // by staff, the submitter is granted the "RipperDoc" Discord role (and the
+  // matching website role flows in via the role sync).
+  const [ripperDoc, setRipperDoc] = useState<boolean>(!!init.ripperDoc);
 
   // Non-fixers may only create PCs — force PC if a stale NPC value slips in.
   // Wait for auth to resolve first so a fixer's NPC draft is never downgraded
@@ -274,6 +278,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     portraitUrls: portraitUrls.filter((u) => u.trim()),
     profileUrl: profileUrl.trim() || undefined,
     statsImageUrls: statsImageUrls.filter((u) => u.trim()),
+    ripperDoc,
   });
 
   const createMut = useSubmitSheet();
@@ -340,7 +345,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc],
   );
 
   useEffect(() => {
@@ -562,8 +567,24 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">OCCUPATION / ROLE</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <MarkdownEditor testId="input-occupation" rows={2} value={occupation} onChange={setOccupation} placeholder="Fixer, solo, netrunner..." />
+          <label className="flex items-start gap-3 cursor-pointer" data-testid="checkbox-ripperdoc-label">
+            <input
+              type="checkbox"
+              data-testid="checkbox-ripperdoc"
+              className="mt-1 h-4 w-4 accent-nc-cyan"
+              checked={ripperDoc}
+              onChange={(e) => setRipperDoc(e.target.checked)}
+            />
+            <span className="font-mono text-xs leading-relaxed">
+              <span className="text-nc-cyan tracking-widest">RIPPER DOC</span>
+              <span className="block text-muted-foreground">
+                This character is a Ripper Doc. When the sheet is approved, you'll be granted
+                the RipperDoc role in Discord and on the portal.
+              </span>
+            </span>
+          </label>
         </CardContent>
       </Card>
 

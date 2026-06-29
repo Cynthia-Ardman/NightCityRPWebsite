@@ -16,7 +16,7 @@ import {
 import { isNull, or, ilike, count, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, applyRoleIdGrants, type ThreadAttachment } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, addGuildMemberRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, RIPPERDOC_ROLE_ID, RIPPERDOC_ROLE_MARKER, applyRoleIdGrants, externalWritesAllowed, type ThreadAttachment } from "../lib/discord";
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
@@ -2014,6 +2014,118 @@ function pickSuggestedKeep<T extends {
   }
   return best.id;
 }
+
+// ─── RipperDoc role backfill ──────────────────────────────────────────────
+// One-time (re-runnable, idempotent) grant of the "RipperDoc" Discord role to
+// every existing ripper doc, combining two signals (deduplicated):
+//   • characters whose archetype OR sheet occupation says "ripperdoc" (or the
+//     sheet's ripperDoc flag is set), and
+//   • anyone who owns or works at a ripperdoc clinic on the portal.
+// users.id IS the Discord snowflake, so we grant straight on owner_id. Discord
+// writes are gated by externalWritesAllowed() (deployment only), so this is
+// meant to be run from the published app. dryRun=true returns the target set
+// without touching Discord. On a successful grant we also set the website
+// "ripperdoc" role immediately; the hourly role_sync reconciles it both ways
+// via the id-pinned applyRoleIdGrants.
+router.post(
+  "/admin/maintenance/ripperdoc-backfill",
+  adminOnly,
+  async (req, res): Promise<void> => {
+    const dryRun = (req.body as { dryRun?: boolean } | null)?.dryRun === true;
+    // `ripper ?-?doc` matches ripperdoc / ripper doc / ripper-doc but NOT the
+    // false-positive "stripper" that a bare "ripper" would catch.
+    const RX = "ripper ?-?doc";
+    const result = await db.execute(sql`
+      WITH targets AS (
+        SELECT DISTINCT c.owner_id AS user_id, 'sheet'::text AS source
+        FROM characters c
+        WHERE c.owner_id IS NOT NULL
+          AND (lower(coalesce(c.archetype, '')) ~ ${RX}
+               OR lower(coalesce(c.sheet_data->>'occupation', '')) ~ ${RX}
+               OR c.sheet_data->>'ripperDoc' = 'true')
+        UNION
+        SELECT DISTINCT r.owner_id, 'clinic_owner'
+        FROM ripperdocs r WHERE r.owner_id IS NOT NULL
+        UNION
+        SELECT DISTINCT c.owner_id, 'clinic_owner'
+        FROM ripperdocs r JOIN characters c ON c.id = r.owner_character_id
+        WHERE c.owner_id IS NOT NULL
+        UNION
+        SELECT DISTINCT c.owner_id, 'clinic_employee'
+        FROM ripperdoc_employees e JOIN characters c ON c.id = e.character_id
+        WHERE c.owner_id IS NOT NULL
+      )
+      SELECT t.user_id,
+             u.username,
+             string_agg(DISTINCT t.source, ',' ORDER BY t.source) AS sources
+      FROM targets t
+      LEFT JOIN users u ON u.id = t.user_id
+      GROUP BY t.user_id, u.username
+      ORDER BY u.username NULLS LAST
+    `);
+    const targets = ((result.rows ?? []) as Array<{
+      user_id: string;
+      username: string | null;
+      sources: string;
+    }>).map((t) => ({ userId: String(t.user_id), username: t.username, sources: t.sources }));
+
+    // Only ever attempt the grant on real Discord snowflakes (17–20 digits).
+    // Anything else is a legacy/non-Discord id we can't grant a role to.
+    const isSnowflake = (id: string) => /^\d{17,20}$/.test(id);
+    const grantable = targets.filter((t) => isSnowflake(t.userId));
+    const skipped = targets.filter((t) => !isSnowflake(t.userId));
+
+    if (dryRun) {
+      res.json({
+        dryRun: true,
+        count: targets.length,
+        grantable: grantable.length,
+        skipped: skipped.length,
+        externalWritesAllowed: externalWritesAllowed(),
+        targets,
+      });
+      return;
+    }
+
+    let granted = 0;
+    let failed = 0;
+    const failures: Array<{ userId: string; username: string | null; error: string }> = [];
+    for (const t of grantable) {
+      const r = await addGuildMemberRole(t.userId, RIPPERDOC_ROLE_ID, "RipperDoc backfill");
+      if (r.ok) {
+        granted++;
+        // Reflect on the website right away (no waiting for the hourly sync).
+        await db.execute(sql`
+          UPDATE users
+          SET roles = array_append(coalesce(roles, '{}'::text[]), ${RIPPERDOC_ROLE_MARKER})
+          WHERE id = ${t.userId}
+            AND NOT (${RIPPERDOC_ROLE_MARKER} = ANY(coalesce(roles, '{}'::text[])))
+        `);
+      } else {
+        failed++;
+        failures.push({ userId: t.userId, username: t.username, error: r.error });
+      }
+    }
+
+    await recordAudit({
+      req,
+      category: "admin",
+      action: "ripperdoc_backfill",
+      targetType: "role",
+      targetId: RIPPERDOC_ROLE_ID,
+      message: `RipperDoc backfill — granted ${granted}, failed ${failed}, skipped ${skipped.length} of ${targets.length} targets`,
+    });
+
+    res.json({
+      count: targets.length,
+      granted,
+      failed,
+      skipped: skipped.length,
+      externalWritesAllowed: externalWritesAllowed(),
+      failures: failures.slice(0, 50),
+    });
+  },
+);
 
 router.post(
   "/admin/maintenance/merge-character",

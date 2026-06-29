@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyRoleIdGrants, hasRole, TRIAL_FIXER_ROLE_ID } from "./discord";
+import { applyRoleIdGrants, hasRole, TRIAL_FIXER_ROLE_ID, RIPPERDOC_ROLE_ID } from "./discord";
 
 describe("applyRoleIdGrants (Trial Fixer)", () => {
   it("tags the Trial Fixer role id with the marker but NOT canonical fixer", () => {
@@ -56,5 +56,37 @@ describe("applyRoleIdGrants (Trial Fixer)", () => {
 
   it("leaves names untouched when no ids supplied", () => {
     expect(applyRoleIdGrants(["member"], [])).toEqual(["member"]);
+  });
+});
+
+describe("applyRoleIdGrants (RipperDoc)", () => {
+  it("tags the RipperDoc role id with the ripperdoc marker", () => {
+    const result = applyRoleIdGrants(["member"], [RIPPERDOC_ROLE_ID]);
+    expect(hasRole(result, "RIPPERDOC")).toBe(true);
+    expect(result).toContain("ripperdoc");
+  });
+
+  it("does NOT tag ripperdoc when the role id is absent", () => {
+    const result = applyRoleIdGrants(["member"], ["999"]);
+    expect(hasRole(result, "RIPPERDOC")).toBe(false);
+  });
+
+  it("is idempotent for the ripperdoc marker (no duplicate)", () => {
+    const result = applyRoleIdGrants(["ripperdoc"], [RIPPERDOC_ROLE_ID]);
+    expect(result.filter((r) => r === "ripperdoc")).toHaveLength(1);
+  });
+
+  it("can grant ripperdoc and trial-fixer together (independent id-pins)", () => {
+    const result = applyRoleIdGrants(["member"], [TRIAL_FIXER_ROLE_ID, RIPPERDOC_ROLE_ID]);
+    expect(hasRole(result, "TRIAL_FIXER")).toBe(true);
+    expect(hasRole(result, "RIPPERDOC")).toBe(true);
+    expect(hasRole(result, "FIXER")).toBe(false);
+  });
+
+  it("preserves existing names when adding the ripperdoc marker", () => {
+    const result = applyRoleIdGrants(["member", "fixer"], [RIPPERDOC_ROLE_ID]);
+    expect(result).toContain("member");
+    expect(result).toContain("fixer");
+    expect(hasRole(result, "RIPPERDOC")).toBe(true);
   });
 });

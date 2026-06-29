@@ -1692,7 +1692,138 @@ export function MaintenanceTab() {
       <DuplicateCleanupCard />
       <ClaimByUsernameCard />
       <PortraitBackfillCard />
+      <RipperdocBackfillCard />
     </div>
+  );
+}
+
+interface RipperdocBackfillTarget {
+  userId: string;
+  username: string | null;
+  sources: string;
+}
+interface RipperdocBackfillResult {
+  dryRun?: boolean;
+  count: number;
+  granted?: number;
+  failed?: number;
+  grantable?: number;
+  skipped: number;
+  externalWritesAllowed: boolean;
+  targets?: RipperdocBackfillTarget[];
+  failures?: Array<{ userId: string; username: string | null; error: string }>;
+}
+
+function RipperdocBackfillCard() {
+  const { toast } = useToast();
+  const [preview, setPreview] = useState<RipperdocBackfillResult | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  async function call(dryRun: boolean): Promise<RipperdocBackfillResult | null> {
+    const r = await fetch("/api/admin/maintenance/ripperdoc-backfill", {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dryRun }),
+    });
+    const body = await r.json();
+    if (!r.ok) {
+      toast({ title: dryRun ? "Preview failed" : "Backfill failed", description: body.error ?? `HTTP ${r.status}`, variant: "destructive" });
+      return null;
+    }
+    return body as RipperdocBackfillResult;
+  }
+
+  async function scan() {
+    setScanning(true);
+    setPreview(null);
+    try {
+      const body = await call(true);
+      if (body) setPreview(body);
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function run() {
+    if (!preview) return;
+    const ok = window.confirm(
+      `Grant the RipperDoc role to ${preview.grantable ?? preview.count} ripper docs?\n\n` +
+      `This grants the Discord "RipperDoc" role and sets the website role for each.\n` +
+      (!preview.externalWritesAllowed
+        ? `\nWARNING: Discord writes are DISABLED in this environment — the Discord grant will be skipped. Run this from the published app to actually grant Discord roles.`
+        : ""),
+    );
+    if (!ok) return;
+    setRunning(true);
+    try {
+      const body = await call(false);
+      if (body) {
+        setPreview(body);
+        toast({
+          title: "RipperDoc backfill complete",
+          description: `Granted ${body.granted ?? 0}, failed ${body.failed ?? 0}, skipped ${body.skipped} of ${body.count}.`,
+        });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest">RIPPERDOC ROLE BACKFILL</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          One-time grant of the "RipperDoc" Discord role (and the matching website role) to every
+          existing ripper doc: characters whose archetype or occupation says ripperdoc, plus everyone
+          who owns or works at a ripperdoc clinic. Idempotent — safe to re-run. Always PREVIEW first.
+          Discord roles are only granted when run from the published app.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-none" onClick={scan} disabled={scanning || running} data-testid="button-ripperdoc-scan">
+            {scanning ? "Scanning…" : "Preview targets"}
+          </Button>
+          <Button variant="default" className="rounded-none" onClick={run} disabled={!preview || running || scanning} data-testid="button-ripperdoc-run">
+            {running ? "Granting…" : "Grant RipperDoc role"}
+          </Button>
+        </div>
+        {preview && (
+          <div className="font-mono text-xs space-y-2" data-testid="ripperdoc-backfill-result">
+            <div className="text-muted-foreground">
+              {preview.dryRun ? "Preview" : "Done"} — {preview.count} target(s)
+              {preview.grantable != null ? `, ${preview.grantable} grantable` : ""}
+              {preview.granted != null ? `, granted ${preview.granted}` : ""}
+              {preview.failed != null ? `, failed ${preview.failed}` : ""}
+              {`, skipped ${preview.skipped}`}.
+              {!preview.externalWritesAllowed && (
+                <span className="block text-destructive">Discord writes disabled here — run from the published app to grant Discord roles.</span>
+              )}
+            </div>
+            {preview.targets && preview.targets.length > 0 && (
+              <ul className="max-h-48 overflow-auto border border-border p-2 space-y-0.5">
+                {preview.targets.map((t) => (
+                  <li key={t.userId} className="flex justify-between gap-2">
+                    <span>{t.username ?? "(unknown)"} <span className="text-muted-foreground">{t.userId}</span></span>
+                    <span className="text-nc-cyan">{t.sources}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {preview.failures && preview.failures.length > 0 && (
+              <ul className="max-h-32 overflow-auto border border-destructive/40 p-2 space-y-0.5 text-destructive">
+                {preview.failures.map((f) => (
+                  <li key={f.userId}>{f.username ?? f.userId}: {f.error}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
