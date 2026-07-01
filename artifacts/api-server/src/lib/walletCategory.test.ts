@@ -11,6 +11,7 @@ describe("classifyWalletCategory", () => {
     expect(classifyWalletCategory("shop_income", null)).toBe("business");
     expect(classifyWalletCategory("mission", null)).toBe("mission");
     expect(classifyWalletCategory("transfer", null)).toBe("transfer");
+    expect(classifyWalletCategory("sink", null)).toBe("sink");
     expect(classifyWalletCategory("store_deposit", null)).toBe("purchase");
     expect(classifyWalletCategory("lifestyle_unpaid", null)).toBe("fee");
   });

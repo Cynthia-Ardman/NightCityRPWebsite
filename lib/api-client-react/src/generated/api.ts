@@ -34,6 +34,7 @@ import type {
   AdminRecordCheckup200,
   AdminSearchDiscordChannelsParams,
   AdminSearchDiscordMembersParams,
+  AdminSinkInput,
   AdminUser,
   ApplyToMissionInput,
   ApproveOfferResult,
@@ -252,6 +253,7 @@ import type {
   SearchMissionActorsParams,
   SheetVoteInput,
   SheetVoteResult,
+  SinkInput,
   SiteAccessState,
   StandaloneActorPayInput,
   StockCostDecision,
@@ -2032,6 +2034,78 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getTransferEddiesMutationOptions(options));
+    }
+
+export const getSinkEddiesUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/wallet/sink`
+}
+
+/**
+ * @summary Pay Night City Bot — burn eddies out of the economy (debit only)
+ */
+export const sinkEddies = async (id: number,
+    sinkInput: SinkInput, options?: RequestInit): Promise<Wallet> => {
+
+  return customFetch<Wallet>(getSinkEddiesUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      sinkInput,)
+  }
+);}
+
+
+
+
+export const getSinkEddiesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sinkEddies>>, TError,{id: number;data: BodyType<SinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sinkEddies>>, TError,{id: number;data: BodyType<SinkInput>}, TContext> => {
+
+const mutationKey = ['sinkEddies'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sinkEddies>>, {id: number;data: BodyType<SinkInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sinkEddies(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SinkEddiesMutationResult = NonNullable<Awaited<ReturnType<typeof sinkEddies>>>
+    export type SinkEddiesMutationBody = BodyType<SinkInput>
+    export type SinkEddiesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Pay Night City Bot — burn eddies out of the economy (debit only)
+ */
+export const useSinkEddies = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sinkEddies>>, TError,{id: number;data: BodyType<SinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sinkEddies>>,
+        TError,
+        {id: number;data: BodyType<SinkInput>},
+        TContext
+      > => {
+      return useMutation(getSinkEddiesMutationOptions(options));
     }
 
 export const getGetWalletTransactionsUrl = (id: number,) => {
@@ -16974,6 +17048,77 @@ export const useAdminAdjustWallet = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminAdjustWalletMutationOptions(options));
+    }
+
+export const getAdminSinkWalletUrl = () => {
+
+
+
+
+  return `/api/admin/wallet/sink`
+}
+
+/**
+ * @summary Pay Night City Bot on behalf of a character — burn eddies (admin only)
+ */
+export const adminSinkWallet = async (adminSinkInput: AdminSinkInput, options?: RequestInit): Promise<Wallet> => {
+
+  return customFetch<Wallet>(getAdminSinkWalletUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminSinkInput,)
+  }
+);}
+
+
+
+
+export const getAdminSinkWalletMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSinkWallet>>, TError,{data: BodyType<AdminSinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSinkWallet>>, TError,{data: BodyType<AdminSinkInput>}, TContext> => {
+
+const mutationKey = ['adminSinkWallet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSinkWallet>>, {data: BodyType<AdminSinkInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminSinkWallet(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSinkWalletMutationResult = NonNullable<Awaited<ReturnType<typeof adminSinkWallet>>>
+    export type AdminSinkWalletMutationBody = BodyType<AdminSinkInput>
+    export type AdminSinkWalletMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Pay Night City Bot on behalf of a character — burn eddies (admin only)
+ */
+export const useAdminSinkWallet = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSinkWallet>>, TError,{data: BodyType<AdminSinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSinkWallet>>,
+        TError,
+        {data: BodyType<AdminSinkInput>},
+        TContext
+      > => {
+      return useMutation(getAdminSinkWalletMutationOptions(options));
     }
 
 export const getAdminRunJobUrl = () => {

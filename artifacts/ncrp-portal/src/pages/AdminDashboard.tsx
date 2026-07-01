@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
@@ -843,6 +843,11 @@ const walletSchema = z.object({
   reason: z.string().min(1, "Reason is required"),
 });
 
+const sinkSchema = z.object({
+  amount: z.coerce.number().positive("Amount must be positive"),
+  memo: z.string().optional(),
+});
+
 export function EconomyTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -985,6 +990,7 @@ export function WalletTab() {
   };
 
   return (
+    <div className="space-y-6">
     <Card className="rounded-none border-destructive/50 bg-card/50">
       <CardHeader>
         <CardTitle className="font-display text-destructive">Manual Wallet Adjustment</CardTitle>
@@ -1028,6 +1034,102 @@ export function WalletTab() {
             />
             <Button type="submit" disabled={adjustWallet.isPending || !target?.id} className="w-full rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display mt-4" data-testid="button-submit-wallet">
               {adjustWallet.isPending ? "PROCESSING..." : "EXECUTE TRANSFER"}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+
+    <AdminSinkCard />
+    </div>
+  );
+}
+
+// Staff money sink: burn eddies from any character by "paying Night City Bot".
+// Debit-only movement recorded with kind "sink" — reads clearly in the ledger.
+// Requires the character to hold the cash; force-removal beyond balance stays in
+// Manual Wallet Adjustment above.
+function AdminSinkCard() {
+  const sinkWallet = useAdminSinkWallet();
+  const { toast } = useToast();
+  const [target, setTarget] = useState<CharacterPickerValue>(null);
+
+  const form = useForm<z.infer<typeof sinkSchema>>({
+    resolver: zodResolver(sinkSchema),
+    defaultValues: { amount: 0, memo: "" },
+  });
+
+  const onSubmit = (values: z.infer<typeof sinkSchema>) => {
+    if (!target?.id) {
+      toast({ title: "Pick a character", description: "Search by character or player name.", variant: "destructive" });
+      return;
+    }
+    sinkWallet.mutate(
+      {
+        data: {
+          characterId: target.id,
+          amount: values.amount,
+          memo: values.memo || undefined,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Eddies Burned", description: `${target.name} paid Night City Bot ${values.amount.toLocaleString()} €$.` });
+          form.reset();
+          setTarget(null);
+        },
+        onError: (err: any) => {
+          toast({ title: "Payment Failed", description: err?.data?.error ?? err?.message ?? "Try again.", variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  return (
+    <Card className="rounded-none border-nc-yellow/50 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display text-nc-yellow">Pay Night City Bot (Money Sink)</CardTitle>
+        <CardDescription className="font-mono">Burn eddies out of the economy from any character. Recorded in the ledger as a payment to Night City Bot.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 font-mono max-w-md">
+            <div className="space-y-2">
+              <Label>Character</Label>
+              <CharacterPicker value={target} onChange={setTarget} scope="all" testId="input-sink-char" />
+              {!target && (
+                <p className="text-xs text-muted-foreground">Search by character or player name.</p>
+              )}
+            </div>
+            <FormField
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Amount to burn (€$)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={1} className="rounded-none border-border bg-background focus-visible:ring-nc-yellow" {...field} data-testid="input-sink-amount" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="memo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Reason / Memo</FormLabel>
+                  <FormControl>
+                    <Input className="rounded-none border-border bg-background focus-visible:ring-nc-yellow" placeholder="Paid Night City Bot" {...field} data-testid="input-sink-reason" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" disabled={sinkWallet.isPending || !target?.id} className="w-full rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display mt-4" data-testid="button-submit-sink">
+              {sinkWallet.isPending ? "BURNING..." : "PAY NIGHT CITY BOT"}
             </Button>
           </form>
         </Form>

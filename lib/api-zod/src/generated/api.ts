@@ -543,6 +543,34 @@ export const TransferEddiesResponse = zod.object({
 })
 
 
+/**
+ * @summary Pay Night City Bot — burn eddies out of the economy (debit only)
+ */
+export const SinkEddiesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const sinkEddiesBodyIdempotencyKeyMax = 100;
+
+
+
+export const SinkEddiesBody = zod.object({
+  "amount": zod.number().min(1),
+  "memo": zod.string().optional(),
+  "idempotencyKey": zod.string().max(sinkEddiesBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so a retry \/ double-click doesn\'t burn eddies twice.')
+})
+
+export const SinkEddiesResponse = zod.object({
+  "characterId": zod.number(),
+  "balance": zod.number(),
+  "bank": zod.number().optional(),
+  "cash": zod.number().optional(),
+  "source": zod.enum(['unbelievaboat', 'local']),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
 export const GetWalletTransactionsParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -555,7 +583,7 @@ export const GetWalletTransactionsResponseItem = zod.object({
   "amount": zod.number(),
   "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
   "memo": zod.string().nullish(),
-  "category": zod.string().nullish().describe('Coarse display\/reporting bucket derived from kind+memo: rent,\ncyberware, mission, business, membership, fee, purchase, transfer,\nother. Independent of `kind` (which stays load-bearing for billing).\nAlways populated in responses (derived on the fly if not stored).\n'),
+  "category": zod.string().nullish().describe('Coarse display\/reporting bucket derived from kind+memo: rent,\ncyberware, mission, business, membership, fee, purchase, transfer,\nsink, other. Independent of `kind` (which stays load-bearing for billing).\nAlways populated in responses (derived on the fly if not stored).\n'),
   "counterpartyName": zod.string().nullish(),
   "counterpartyCharacterId": zod.number().nullish(),
   "counterpartyCharacterName": zod.string().nullish(),
@@ -1954,7 +1982,7 @@ export const GetStoreTransactionsResponseItem = zod.object({
   "amount": zod.number(),
   "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
   "memo": zod.string().nullish(),
-  "category": zod.string().nullish().describe('Coarse display\/reporting bucket derived from kind+memo: rent,\ncyberware, mission, business, membership, fee, purchase, transfer,\nother. Independent of `kind` (which stays load-bearing for billing).\nAlways populated in responses (derived on the fly if not stored).\n'),
+  "category": zod.string().nullish().describe('Coarse display\/reporting bucket derived from kind+memo: rent,\ncyberware, mission, business, membership, fee, purchase, transfer,\nsink, other. Independent of `kind` (which stays load-bearing for billing).\nAlways populated in responses (derived on the fly if not stored).\n'),
   "counterpartyName": zod.string().nullish(),
   "counterpartyCharacterId": zod.number().nullish(),
   "counterpartyCharacterName": zod.string().nullish(),
@@ -6247,7 +6275,7 @@ export const GetRipperdocTransactionsResponseItem = zod.object({
   "amount": zod.number(),
   "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
   "memo": zod.string().nullish(),
-  "category": zod.string().nullish().describe('Coarse display\/reporting bucket derived from kind+memo: rent,\ncyberware, mission, business, membership, fee, purchase, transfer,\nother. Independent of `kind` (which stays load-bearing for billing).\nAlways populated in responses (derived on the fly if not stored).\n'),
+  "category": zod.string().nullish().describe('Coarse display\/reporting bucket derived from kind+memo: rent,\ncyberware, mission, business, membership, fee, purchase, transfer,\nsink, other. Independent of `kind` (which stays load-bearing for billing).\nAlways populated in responses (derived on the fly if not stored).\n'),
   "counterpartyName": zod.string().nullish(),
   "counterpartyCharacterId": zod.number().nullish(),
   "counterpartyCharacterName": zod.string().nullish(),
@@ -8842,6 +8870,31 @@ export const AdminAdjustWalletResponse = zod.object({
 
 
 /**
+ * @summary Pay Night City Bot on behalf of a character — burn eddies (admin only)
+ */
+
+export const adminSinkWalletBodyIdempotencyKeyMax = 100;
+
+
+
+export const AdminSinkWalletBody = zod.object({
+  "characterId": zod.number(),
+  "amount": zod.number().min(1),
+  "memo": zod.string().optional(),
+  "idempotencyKey": zod.string().max(adminSinkWalletBodyIdempotencyKeyMax).optional().describe('Client-generated key so a retry \/ double-click doesn\'t burn eddies twice.')
+})
+
+export const AdminSinkWalletResponse = zod.object({
+  "characterId": zod.number(),
+  "balance": zod.number(),
+  "bank": zod.number().optional(),
+  "cash": zod.number().optional(),
+  "source": zod.enum(['unbelievaboat', 'local']),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
  * @summary Manually trigger a cron job
  */
 export const AdminRunJobBody = zod.object({
@@ -9256,7 +9309,7 @@ export const GetMyWalletTransactionsResponseItem = zod.object({
   "amount": zod.number(),
   "kind": zod.string().describe('Wallet transaction kind. Includes legacy values plus per-billing-line\nkinds emitted by the autobill cron (rent, business_rent, lifestyle,\nbaseline, trauma_team, xanadu_gold, meds, transfer, lifestyle_unpaid,\nand others) plus economy kinds (store_deposit, store_withdraw,\nripperdoc_deposit, ripperdoc_withdraw, reconcile, reconcile_seed).\nTreat as an open vocabulary.\n'),
   "memo": zod.string().nullish(),
-  "category": zod.string().nullish().describe('Coarse display\/reporting bucket derived from kind+memo: rent,\ncyberware, mission, business, membership, fee, purchase, transfer,\nother. Independent of `kind` (which stays load-bearing for billing).\nAlways populated in responses (derived on the fly if not stored).\n'),
+  "category": zod.string().nullish().describe('Coarse display\/reporting bucket derived from kind+memo: rent,\ncyberware, mission, business, membership, fee, purchase, transfer,\nsink, other. Independent of `kind` (which stays load-bearing for billing).\nAlways populated in responses (derived on the fly if not stored).\n'),
   "counterpartyName": zod.string().nullish(),
   "counterpartyCharacterId": zod.number().nullish(),
   "counterpartyCharacterName": zod.string().nullish(),

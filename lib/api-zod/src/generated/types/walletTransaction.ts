@@ -28,7 +28,7 @@ export interface WalletTransaction {
   /**
      * Coarse display/reporting bucket derived from kind+memo: rent,
   cyberware, mission, business, membership, fee, purchase, transfer,
-  other. Independent of `kind` (which stays load-bearing for billing).
+  sink, other. Independent of `kind` (which stays load-bearing for billing).
   Always populated in responses (derived on the fly if not stored).
 
      * @nullable

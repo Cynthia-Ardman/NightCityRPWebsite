@@ -1116,6 +1116,98 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
   });
 });
 
+// Money sink: pay "Night City Bot" to burn eddies out of the economy. Unlike a
+// transfer this has ONLY a debit leg — there is no counterparty account to
+// credit, so the eddies simply leave circulation. Mirrors the transfer debit
+// path exactly (UB-authoritative balance read, cash check with bank-withdraw
+// hint, keyed idempotency) so a retry / double-click can't burn twice.
+router.post("/characters/:id/wallet/sink", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const { amount, memo } = req.body ?? {};
+  if (!amount || amount <= 0) {
+    res.status(400).json({ error: "positive amount required" });
+    return;
+  }
+  const sinkKey =
+    typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
+      ? `sink:${req.body.idempotencyKey.trim().slice(0, 80)}`
+      : null;
+  if (sinkKey) {
+    const [done] = await db
+      .select({ id: walletTransactions.id })
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.idempotencyKey, sinkKey), eq(walletTransactions.syncStatus, "synced")));
+    if (done) {
+      const cur = await getBalance(req.user!.discordId);
+      res.json({
+        characterId: id,
+        balance: cur?.total ?? 0,
+        cash: cur?.cash ?? 0,
+        bank: cur?.bank ?? 0,
+        source: cur?.source ?? "unbelievaboat",
+      });
+      return;
+    }
+  }
+  // UB is authoritative — require a successful balance read before writing.
+  const bal = await getBalance(req.user!.discordId);
+  if (!bal) {
+    res.status(502).json({ error: "Wallet provider unavailable" });
+    return;
+  }
+  if (bal.cash < amount) {
+    if (bal.total >= amount) {
+      res.status(400).json({
+        error: `Not enough cash on hand. You have ${bal.cash.toLocaleString()} €$ in cash — withdraw at least ${(amount - bal.cash).toLocaleString()} €$ from your bank first, then try again.`,
+      });
+      return;
+    }
+    res.status(400).json({ error: "Insufficient funds" });
+    return;
+  }
+  const debited = await patchBalance(req.user!.discordId, {
+    cash: -amount,
+    reason: memo ?? "Paid Night City Bot",
+  });
+  if (!debited) {
+    res.status(502).json({ error: "Wallet provider rejected debit" });
+    return;
+  }
+  await recordSettledWalletMovement({
+    userId: req.user!.id,
+    amount: -amount,
+    ubTotalAfter: debited.total,
+    source: "website",
+    kind: "sink",
+    memo: memo ?? null,
+    characterId: id,
+    counterpartyName: "Night City Bot",
+    idempotencyKey: sinkKey,
+  });
+  await recordAudit({
+    req,
+    category: "wallet",
+    action: "sink",
+    targetType: "character",
+    targetId: id,
+    message: `${c.name} paid Night City Bot: ${amount}`,
+    after: { characterId: id, amount, memo: memo ?? null },
+  });
+  const ub = await getBalance(req.user!.discordId);
+  res.json({
+    characterId: id,
+    balance: ub?.total ?? 0,
+    cash: ub?.cash ?? 0,
+    bank: ub?.bank ?? 0,
+    source: ub?.source ?? "unbelievaboat",
+  });
+});
+
 // Status
 router.get("/characters/:id/status", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);

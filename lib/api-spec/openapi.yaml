@@ -397,6 +397,24 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Wallet" }
+  /characters/{id}/wallet/sink:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: sinkEddies
+      tags: [wallet]
+      summary: Pay Night City Bot — burn eddies out of the economy (debit only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SinkInput" }
+      responses:
+        "200":
+          description: Burned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wallet" }
   /characters/{id}/wallet/transactions:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3776,6 +3794,22 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Wallet" }
+  /admin/wallet/sink:
+    post:
+      operationId: adminSinkWallet
+      tags: [admin]
+      summary: Pay Night City Bot on behalf of a character — burn eddies (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminSinkInput" }
+      responses:
+        "200":
+          description: Burned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wallet" }
   /admin/jobs/run:
     post:
       operationId: adminRunJob
@@ -6872,6 +6906,23 @@ components:
         memo: { type: string }
         idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key (e.g. a UUID created once per submit) so a network retry / double-click of the same transfer doesn't move eddies twice." }
 
+    SinkInput:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: integer, minimum: 1 }
+        memo: { type: string }
+        idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key (e.g. a UUID created once per submit) so a retry / double-click doesn't burn eddies twice." }
+
+    AdminSinkInput:
+      type: object
+      required: [characterId, amount]
+      properties:
+        characterId: { type: integer }
+        amount: { type: integer, minimum: 1 }
+        memo: { type: string }
+        idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key so a retry / double-click doesn't burn eddies twice." }
+
     WalletTransaction:
       type: object
       required: [id, amount, kind, createdAt]
@@ -6896,7 +6947,7 @@ components:
           description: |
             Coarse display/reporting bucket derived from kind+memo: rent,
             cyberware, mission, business, membership, fee, purchase, transfer,
-            other. Independent of `kind` (which stays load-bearing for billing).
+            sink, other. Independent of `kind` (which stays load-bearing for billing).
             Always populated in responses (derived on the fly if not stored).
         counterpartyName: { type: ["string", "null"] }
         counterpartyCharacterId: { type: ["integer", "null"] }

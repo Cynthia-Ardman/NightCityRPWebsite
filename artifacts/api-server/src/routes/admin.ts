@@ -793,6 +793,105 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
   res.json({ success: true });
 });
 
+// Staff money sink: burn eddies from any character by "paying Night City Bot".
+// A debit-only movement (no counterparty account credited) recorded with kind
+// "sink" so it reads clearly in the ledger. Requires the character to have the
+// cash on hand — for forcible removal beyond balance, use /admin/wallet/adjust.
+router.post("/admin/wallet/sink", adminOnly, async (req, res): Promise<void> => {
+  const { characterId, amount, memo } = req.body ?? {};
+  const note = typeof memo === "string" && memo.trim() ? memo.trim() : null;
+  if (!characterId || typeof amount !== "number" || amount <= 0) {
+    res.status(400).json({ error: "characterId and positive amount required" });
+    return;
+  }
+  const [c] = await db.select().from(characters).where(eq(characters.id, characterId));
+  if (!c) {
+    res.status(404).json({ error: "Character not found" });
+    return;
+  }
+  if (!c.ownerId) {
+    res.status(400).json({ error: "Character has no owner (unclaimed)" });
+    return;
+  }
+  const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
+  if (!owner) {
+    res.status(404).json({ error: "Character owner not found" });
+    return;
+  }
+  const sinkKey =
+    typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
+      ? `sink:${req.body.idempotencyKey.trim().slice(0, 80)}`
+      : null;
+  if (sinkKey) {
+    const [done] = await db
+      .select({ id: walletTransactions.id })
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.idempotencyKey, sinkKey), eq(walletTransactions.syncStatus, "synced")));
+    if (done) {
+      const cur = await getBalance(owner.discordId);
+      res.json({
+        characterId,
+        balance: cur?.total ?? 0,
+        cash: cur?.cash ?? 0,
+        bank: cur?.bank ?? 0,
+        source: cur?.source ?? "unbelievaboat",
+      });
+      return;
+    }
+  }
+  const bal = await getBalance(owner.discordId);
+  if (!bal) {
+    res.status(502).json({ error: "Wallet provider unavailable" });
+    return;
+  }
+  if (bal.cash < amount) {
+    if (bal.total >= amount) {
+      res.status(400).json({
+        error: `Not enough cash on hand. ${c.name} has ${bal.cash.toLocaleString()} €$ in cash — withdraw from bank first, or use Manual Wallet Adjustment to force-remove.`,
+      });
+      return;
+    }
+    res.status(400).json({ error: "Insufficient funds" });
+    return;
+  }
+  const debited = await patchBalance(owner.discordId, {
+    cash: -amount,
+    reason: note ?? "Paid Night City Bot",
+  });
+  if (!debited) {
+    res.status(502).json({ error: "Wallet provider rejected debit" });
+    return;
+  }
+  await recordSettledWalletMovement({
+    userId: owner.id,
+    amount: -amount,
+    ubTotalAfter: debited.total,
+    source: "admin",
+    kind: "sink",
+    memo: note,
+    characterId,
+    counterpartyName: "Night City Bot",
+    idempotencyKey: sinkKey,
+  });
+  await recordAudit({
+    req,
+    category: "wallet",
+    action: "sink",
+    targetType: "character",
+    targetId: characterId,
+    message: `${req.user!.username} burned ${amount} from ${c.name} (paid Night City Bot)`,
+    after: { characterId, amount, memo: note, ownerDiscordId: owner.discordId },
+  });
+  const ub = await getBalance(owner.discordId);
+  res.json({
+    characterId,
+    balance: ub?.total ?? 0,
+    cash: ub?.cash ?? 0,
+    bank: ub?.bank ?? 0,
+    source: ub?.source ?? "unbelievaboat",
+  });
+});
+
 router.get("/admin/jobs", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(jobRuns).orderBy(desc(jobRuns.startedAt)).limit(50);
   res.json(rows);

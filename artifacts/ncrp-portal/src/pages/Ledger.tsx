@@ -3,6 +3,7 @@ import {
   useGetMyWalletTransactions,
   useListMyCharacters,
   useTransferEddies,
+  useSinkEddies,
   useWithdrawEddies,
   useDepositEddies,
   getGetMyWalletQueryKey,
@@ -17,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
-import { Receipt, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Receipt, ArrowDownLeft, ArrowUpRight, Flame } from "lucide-react";
 import { Link } from "wouter";
 
 function humanizeKind(kind: string): string {
@@ -164,6 +165,8 @@ export default function Ledger() {
       <WithdrawDepositCard cash={wallet?.cash ?? null} bank={wallet?.bank ?? null} />
 
       <TransferCard cash={wallet?.cash ?? null} total={wallet?.balance ?? null} />
+
+      <SinkCard cash={wallet?.cash ?? null} total={wallet?.balance ?? null} />
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
@@ -369,6 +372,111 @@ function TransferCard({ cash, total }: { cash: number | null; total: number | nu
         {transferError && (
           <div className="text-destructive font-mono text-sm" data-testid="text-transfer-error">
             {transferError}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Money sink: pay "Night City Bot" to permanently burn eddies out of the
+// economy. A debit-only movement (no recipient), recorded in the ledger as a
+// payment to Night City Bot. Only spends cash, so it shows the same
+// withdraw-from-bank nudge as transfers when funds sit in the bank.
+function SinkCard({ cash, total }: { cash: number | null; total: number | null }) {
+  const qc = useQueryClient();
+  const { data: myChars } = useListMyCharacters();
+  const [fromId, setFromId] = useState<number | null>(null);
+  const [amount, setAmount] = useState(0);
+  const [memo, setMemo] = useState("");
+
+  const sink = useSinkEddies({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetMyWalletTransactionsQueryKey() });
+        setAmount(0);
+        setMemo("");
+      },
+    },
+  });
+
+  const chars = myChars ?? [];
+  const canSubmit = !!fromId && amount > 0 && !sink.isPending;
+
+  let sinkError: string | null = null;
+  if (sink.error) {
+    sinkError = apiErrorMessage(sink.error, "Payment failed. Check funds or try again.");
+    const isFundsError = /cash|insufficient funds/i.test(sinkError);
+    if (isFundsError && cash != null && total != null && amount > 0 && cash < amount && total >= amount) {
+      sinkError = `Not enough cash on hand — you have ${cash.toLocaleString()} €$ in cash. Withdraw at least ${(amount - cash).toLocaleString()} €$ from your bank first, then try again.`;
+    }
+  }
+
+  return (
+    <Card className="rounded-none border-nc-yellow/40 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-yellow flex items-center gap-2">
+          <Flame className="w-5 h-5" /> PAY NIGHT CITY BOT
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="font-mono text-xs text-muted-foreground">
+          Burn eddies out of the economy by paying Night City Bot. This spends the eddies with no
+          recipient — the payment is recorded in your ledger and can't be undone.
+        </p>
+        <form
+          className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!canSubmit || !fromId) return;
+            sink.mutate({ id: fromId, data: { amount, memo: memo || undefined, idempotencyKey: crypto.randomUUID() } });
+          }}
+        >
+          <div className="sm:col-span-4">
+            <Label className="text-xs font-mono">FROM</Label>
+            <select
+              value={fromId ?? ""}
+              onChange={(e) => setFromId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full h-10 bg-background border border-border rounded-none px-2 font-mono text-sm text-foreground"
+              data-testid="select-sink-from"
+            >
+              <option value="">Select character…</option>
+              {chars.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-3">
+            <Label className="text-xs font-mono">AMOUNT (€$)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={amount || ""}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              data-testid="input-sink-amount"
+            />
+          </div>
+          <div className="sm:col-span-3">
+            <Label className="text-xs font-mono">MEMO</Label>
+            <Input value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="input-sink-memo" />
+          </div>
+          <div className="sm:col-span-2">
+            <Button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display"
+              data-testid="button-sink"
+            >
+              {sink.isPending ? "BURNING..." : "PAY"}
+            </Button>
+          </div>
+        </form>
+        {sinkError && (
+          <div className="text-destructive font-mono text-sm" data-testid="text-sink-error">
+            {sinkError}
           </div>
         )}
       </CardContent>

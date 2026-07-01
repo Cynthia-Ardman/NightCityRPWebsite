@@ -18,6 +18,7 @@ export type WalletCategory =
   | "fee"
   | "purchase"
   | "transfer"
+  | "sink"
   | "other";
 
 export function classifyWalletCategory(
@@ -29,6 +30,7 @@ export function classifyWalletCategory(
 
   // 1) Structured kind wins for live (non-historical) rows.
   if (k === "transfer" || k === "transfer_in" || k === "transfer_out") return "transfer";
+  if (k === "sink") return "sink";
   if (k === "rent" || k === "business_rent") return "rent";
   if (k === "meds") return "cyberware";
   if (k === "trauma_team" || k === "xanadu_gold") return "membership";
@@ -80,6 +82,8 @@ export function walletCategoryLabel(category: WalletCategory): string {
       return "Purchase";
     case "transfer":
       return "Transfer";
+    case "sink":
+      return "Money Sink";
     default:
       return "Other";
   }

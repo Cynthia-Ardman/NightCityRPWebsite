@@ -2240,6 +2240,29 @@ export interface TransferInput {
   idempotencyKey?: string;
 }
 
+export interface SinkInput {
+  /** @minimum 1 */
+  amount: number;
+  memo?: string;
+  /**
+     * Client-generated key (e.g. a UUID created once per submit) so a retry / double-click doesn't burn eddies twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
+}
+
+export interface AdminSinkInput {
+  characterId: number;
+  /** @minimum 1 */
+  amount: number;
+  memo?: string;
+  /**
+     * Client-generated key so a retry / double-click doesn't burn eddies twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
+}
+
 export interface WalletTransaction {
   id: number;
   /** @nullable */
@@ -2262,7 +2285,7 @@ export interface WalletTransaction {
   /**
      * Coarse display/reporting bucket derived from kind+memo: rent,
   cyberware, mission, business, membership, fee, purchase, transfer,
-  other. Independent of `kind` (which stays load-bearing for billing).
+  sink, other. Independent of `kind` (which stays load-bearing for billing).
   Always populated in responses (derived on the fly if not stored).
 
      * @nullable
