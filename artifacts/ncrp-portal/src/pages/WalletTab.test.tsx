@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 // Shared mock state — vi.hoisted lets the vi.mock factories below read these.
 const h = vi.hoisted(() => ({
   adjustMutate: vi.fn(),
+  sinkMutate: vi.fn(),
   state: {
     pending: false as boolean,
   },
@@ -16,6 +17,10 @@ const h = vi.hoisted(() => ({
 vi.mock("@workspace/api-client-react", () => ({
   useAdminAdjustWallet: () => ({
     mutate: h.adjustMutate,
+    isPending: h.state.pending,
+  }),
+  useAdminSinkWallet: () => ({
+    mutate: h.sinkMutate,
     isPending: h.state.pending,
   }),
   useListPublicCharacters: () => ({ data: undefined, isFetching: false }),
@@ -31,6 +36,7 @@ import { WalletTab } from "./AdminDashboard";
 describe("WalletTab", () => {
   beforeEach(() => {
     h.adjustMutate.mockReset();
+    h.sinkMutate.mockReset();
     h.state.pending = false;
   });
 
