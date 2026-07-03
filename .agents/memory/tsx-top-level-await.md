@@ -11,3 +11,7 @@ description: `pnpm exec tsx -e '...'` rejects top-level await with "Top-level aw
 - For any one-off script that needs `await` (drizzle queries, fetch, fs.promises), write `scripts/src/<name>.ts` and run `pnpm exec tsx src/<name>.ts`. Do not use `-e`.
 - If you must inline, wrap in `(async () => { ... })()` and call `process.exit(0)` at the end.
 - When a "delete" or "merge" looks suspiciously fast or silent, re-query the DB to confirm the write actually happened before moving on.
+
+
+## Former index detail (full)
+`pnpm exec tsx -e 'await…'` silently no-ops (exit 0), use a `.ts` file for awaited one-offs; detached/nohup bg jobs freeze when the launching tool call returns ([bg suspension](bash-background-suspension.md)) — run long jobs foreground in ≤120s slices with a resumable skip-file.

@@ -33,3 +33,7 @@ those inputs for venue drafts and send them in the PATCH `data`.
 ## Authz note
 submit + delete allow the requester OR admin, matching the existing PATCH /
 resubmit convention (admins act on behalf). Intentional, not owner-strict.
+
+
+## Former index detail (full)
+venue (store/ripperdoc) drafts: submit re-validates purpose/location from stored row, so MyRequests editor MUST expose purpose+location or venue drafts saved name-only get stuck; submit+delete allow owner OR admin.

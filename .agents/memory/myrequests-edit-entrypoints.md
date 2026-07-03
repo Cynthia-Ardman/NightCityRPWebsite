@@ -25,3 +25,7 @@ pending or changes_requested queues.
 **Server:** the request update endpoint already merges venue purpose/location
 into `details` for `isVenueType` rows regardless of status — this gap is
 purely frontend.
+
+
+## Former index detail (full)
+3 edit entry points (draft/pending/changes_requested) each call setEditing; ALL must wire isVenue+purpose+location for store/ripperdoc or the dialog hides those fields and save drops them; server merge is status-agnostic.

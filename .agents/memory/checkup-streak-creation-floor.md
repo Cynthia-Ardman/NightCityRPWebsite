@@ -23,3 +23,7 @@ description: Why a null lastCheckupAt must NOT mean instant max meds streak — 
 **Same-first-name account trap:** rendered Discord mentions resolve from the underlying user ID, not the display string. Two different accounts can share a first name across their display handles and own different characters. Always match checkups by user ID / owner_id, never by display name — don't conflate same-first-name characters across accounts.
 
 Side effect (intended): the 7-day `checkupIsCurrent` meds-suppression now also keys off the effective date, so a <7-day-old chromed PC gets a grace week. Tradeoff (accepted): a newly approved sibling character can move the household effective date forward; gated by sheet approval, not an open exploit.
+
+
+## Former index detail (full)
+null lastCheckupAt must NOT mean max meds streak; createdAt is the implicit initial checkup (7-day grace) across 4 surfaces (dashboard, meds cron, char card, ripperdoc console); meds-charge/DM tests must backdate or pass vacuously + assert patchBalance ([test trap](cyberware-checkup-grace-test-trap.md)).

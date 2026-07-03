@@ -49,3 +49,7 @@ DATABASE_URL (dev vs LIVE_PROD_DATABASE_URL) before connecting MUST do the guard
 first and load db (and anything that imports db) via **dynamic** `await
 import(...)` inside `main()`. A static top-level `import` is hoisted and connects
 to the wrong DB. (Same reason import-guidebook.ts uses dynamic imports.)
+
+
+## Former index detail (full)
+Docs/Sheets→section "library" pages; importer resolves ids from sources[].url at runtime; cyberware→/catalog/cyberware, housing→/catalog/rent (don't duplicate); channel `<#id>` mentions → /guidebook/<id> via buildChannelLinkMap (CHANNEL_PORTAL_LINKS authoritative, never hijacked by stale DB page); dev/prod scripts dynamic-import db AFTER the DATABASE_URL guard.

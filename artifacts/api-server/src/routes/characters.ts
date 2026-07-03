@@ -33,6 +33,7 @@ import {
   normalizeSlot,
 } from "../lib/cyberwareSlots";
 import { isSessionWindowOpen, nextSessionWindowStart, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
+import { parseCwp } from "../lib/cyberware";
 import { hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -649,6 +650,17 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
   }
   if (qty > item.quantity) {
     res.status(400).json({ error: "Quantity exceeds available stock" });
+    return;
+  }
+  // Installed chrome can't change bodies by mail. The transfer would carry the
+  // "CWP n · Installed at ..." tag with it, so the recipient would instantly
+  // count it as INSTALLED cyberware (risk band + weekly meds billing) without
+  // any ripperdoc involved. Route these through a ripperdoc remove first —
+  // the removed item ("cyberware (removed)") transfers fine.
+  if ((item.category ?? "").trim().toLowerCase() === "cyberware" && parseCwp(item.notes) != null) {
+    res.status(400).json({
+      error: "This cyberware is currently installed. Have a ripperdoc remove it first — then the removed piece can be given or sold.",
+    });
     return;
   }
   const [to] = await db.select().from(characters).where(eq(characters.id, toCharacterId));

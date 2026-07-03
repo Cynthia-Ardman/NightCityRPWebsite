@@ -28,3 +28,7 @@ archives it and never re-runs the stale diff.
 any character — they just go through review like everyone else now. The
 supersede-on-cancel pattern is the guard to reach for the moment any new
 instant-apply write path is reintroduced.
+
+
+## Former index detail (full)
+admin instant-apply char-edit path REMOVED; all non-cosmetic edits now go through review for everyone. Any FUTURE direct-write path must still cancel (not approve) in-flight pending edits in the same tx, or closeEdit re-applies a stale diff.

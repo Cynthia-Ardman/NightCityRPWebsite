@@ -28,3 +28,7 @@ outside any lock (never hold a row lock across the network call).
 and is guarded by a mutable flag must use this reservation-with-EXISTS-guard
 pattern, not a separate pre-read. Pairs with the existing reserve-before-external
 idempotency rule (see mission-payout-idempotency.md).
+
+
+## Former index detail (full)
+re-check the mutable gate (completedAt) atomically inside the paid-row INSERT...SELECT, not top-level; cancel sets status only (NOT completedAt) so both player AND actor pay paths guard BOTH states top-level AND in the atomic reservation ([cancel symmetry](mission-pay-cancelled-guard.md)).

@@ -12,3 +12,7 @@ The staff-only character archive detail page (route guarded by `StaffArchiveGuar
 **Missions caveat:** there is NO per-character staff missions endpoint. `MissionsTab` `staffView` falls back to the manager-gated `/missions/owned` (all missions, admins see everything) and filters client-side by `characterId`. Owner view still uses `/missions/mine`. Both hooks are always called (React rules) with `enabled` toggles + explicit queryKeys.
 
 **Wallet caveat:** `/characters/:id/wallet/transactions` account-level OR branch must key off the loaded char's `ownerId` (nullable → `sql\`false\``), NOT `req.user.id`, or a staff viewer would see their own ledger mixed in.
+
+
+## Former index detail (full)
+archive page reuses owner CharacterTabsPanel; new owner-only character READ gates must widen to loadOwnedOrStaffChar or the tab 404s for staff; no per-char staff missions endpoint (use /missions/owned filtered).

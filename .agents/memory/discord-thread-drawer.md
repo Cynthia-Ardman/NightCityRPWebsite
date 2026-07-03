@@ -59,3 +59,7 @@ pipeline. Adding "mission" to the shared `SUBJECT_TYPES` would let it fall throu
 into comment/close/reopen handlers (which assume a review subject) and break them.
 `resolveSubject`/`resolveThreadId` take the wider `ThreadSubjectType` param so only
 the thread path reaches the missions-table branch.
+
+
+## Former index detail (full)
+cs-approver thread mirror is a right-side Sheet pop-out (DiscordThreadDrawer, mount the 15s-polling panel only when open); thread-from-message id == message id, 400/160004 => return msgId (success), other non-ok => null, persist threadId only when non-null never `?? msgId`, fix BOTH server lib + backfill ([linkage](discord-thread-mirror-linkage.md)).

@@ -11,3 +11,7 @@ Several ncrp-portal component tests (EditCharacterDialog.test, CharacterDetail.t
 **Why:** the real generated client exports exist and real React Query preserves data identity via structural sharing, so both modes are mock-realism artifacts, not product bugs.
 
 **How to apply:** when the `test` workflow fails after a portal refactor, first confirm via `git --no-optional-locks status --porcelain` whether the failing files are even in your diff. Pre-existing, out-of-scope failures in unrelated areas (mission-board tabs, breach minigame, sheet decide-staging) reproduce at HEAD and have older `git log -1 -- <file>` commits — treat as pre-existing and skip validation with that reason rather than chasing them.
+
+
+## Former index detail (full)
+manual vi.mock factories (EditCharacterDialog/CharacterDetail/CyberwareEditor) throw "No <hook> export is defined" when a component calls an omitted hook (pre-existing flake); AdminTabs.test uses a no-importOriginal allowlist so new System-Admin-subtree hooks must be added or the tab "fails to mount" ([detail](admin-tabs-render-guard-mock.md)).

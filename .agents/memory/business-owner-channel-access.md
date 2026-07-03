@@ -25,3 +25,7 @@ store/ripperdoc, + hourly catch-all piggybacked on the role_sync job. Reconcile 
 in-process via a promise chain (bot_config is read-modify-write; overlapping fire-and-forget calls
 would otherwise race/double-call). Owner ids that aren't 17-20 digit snowflakes (legacy/stub rows)
 are skipped.
+
+
+## Former index detail (full)
+store/ripperdoc OWNERS (not employees) get a per-member Discord channel overwrite while owning ≥1 business; managed via bot_config set + reconcile (event-driven + hourly role_sync), serialized in-process.

@@ -122,6 +122,18 @@ export function cwpFromNotes(notes: string | null | undefined): number {
   return 0;
 }
 
+// Whether the notes carry a CWP install tag at all — distinct from
+// cwpFromNotes, which returns 0 both for "no tag" and a legitimate "CWP 0"
+// install. Installed-ness must key on tag PRESENCE (mirrors the server's
+// parseCwp(notes) != null), or zero-point chrome renders as uninstalled.
+export function hasCwpTag(notes: string | null | undefined): boolean {
+  if (!notes) return false;
+  return CWP_PATTERNS.some((re) => {
+    const m = notes.match(re);
+    return !!m && Number.isFinite(parseFloat(m[1]));
+  });
+}
+
 // Bucket a total CWP load into the same risk band the server derives
 // (artifacts/api-server/src/lib/jobs.ts deriveCyberwareBand) and that the
 // weekly meds-billing cron charges off: 0-6 none · 7-9 medium · 10-12 high ·

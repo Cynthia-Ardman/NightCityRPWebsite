@@ -19,3 +19,7 @@ nothing backfills `listing_id` for externally-created leases.
 missing `listing_id` by matching the address to the listing name (additive — only
 where it is NULL). Prefer re-running the source-of-truth importer when a fresh
 spreadsheet exists. Remember prod = the live Neon DB, not the legacy bot DB.
+
+
+## Former index detail (full)
+catalog OCCUPIED via housing.listing_id; legacy leases store name in housing.address w/ NULL listing_id (backfill by name); import-rent-leases never deletes catalog_rent rows so renames orphan listings, prune by count diff ([stale](rent-importer-stale-listings.md)).

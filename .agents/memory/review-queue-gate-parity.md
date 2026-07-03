@@ -23,3 +23,7 @@ Note: role strings are matched via `hasRole` against `ROLE_NAMES` (lib/discord)
 case-insensitively; CS_APPROVER's canonical names are `"cs approver"`,
 `"character approver"`, `"cs-approver"` — NOT `"cs_approver"`. Tests seeding a
 CS_APPROVER must use one of the canonical strings.
+
+
+## Former index detail (full)
+all 3 review queues gate reads on isReviewer (FIXER/CS_APPROVER/ADMIN) or eligible CS_APPROVER voters get locked out + finalize-on-read strands; decisions evaluated only at vote-cast, so a shrinking eligible pool drops majorityOf below cast approvals — re-evaluate+finalize (locked, idempotent) on reviewer reads ([stale-pool](stale-pool-finalize-on-read.md)).

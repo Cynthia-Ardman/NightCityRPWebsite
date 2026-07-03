@@ -25,3 +25,7 @@ the character UPDATE + audit insert + changelog insert (partial-write states).
   valid, fully-audited edit.
 - Plain `recordAudit()` remains fine for best-effort logging on endpoints where
   a missing audit row is tolerable.
+
+
+## Former index detail (full)
+recordAudit() swallows failures, so traceable endpoints write audit+changelog inline in a db.transaction; every staff PATCH on catalog/housing/stock must write an audit row like its create/delete sibling ([parity](staff-edit-audit-parity.md)).

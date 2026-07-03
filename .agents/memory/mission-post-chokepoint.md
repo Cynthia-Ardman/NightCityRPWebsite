@@ -28,3 +28,7 @@ the claim, live-gated (`ctx.live`) and wrapped in try/catch so a Discord miss
 never blocks the transition (mirrors the NPC announcement pattern). The sign-up
 channel id is `missions_signup_channel_id` in bot_config (MISSION_CONFIG_KEYS /
 MISSION_DEFAULTS in missionsConfig.ts), defaulting to the production channel.
+
+
+## Former index detail (full)
+postMission is the single approved→posted→open transition (approveMission delegates); gate "on open" side effects (Discord event + sign-up post) behind an atomic conditional-update claim, not read-then-update.

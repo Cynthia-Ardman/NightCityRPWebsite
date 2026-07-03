@@ -27,3 +27,7 @@ request literally.
 
 **How to apply:** any future "new character" intake path must also consult
 `areCharacterSubmissionsDisabled()` or it becomes a bypass.
+
+
+## Former index detail (full)
+bot_config `character_submissions_disabled` gates only non-NPC sheet submit/POST (drafts/edits/NPCs exempt); dashboard WORK/SLUT "command failed" = economy_enabled OFF (or live-mode TEST), toggles in Jobs tab + Live Mode switchboard ([economy](economy-disabled-symptom.md)).

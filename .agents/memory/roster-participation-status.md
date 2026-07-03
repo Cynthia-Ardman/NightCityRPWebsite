@@ -24,3 +24,7 @@ scope.
 `details.missionId` scoping + pending-precedence, not read a column. The badge is
 shown to all viewers (acceptance isn't sensitive), unlike payAmount which stays
 canManage/own-row gated.
+
+
+## Former index detail (full)
+roster accepted/pending DERIVED from custom_requests mission_participation (scoped details.missionId; pending>accepted; null=none); My Applications DERIVE accepted from a live assignment (status never flips) ([desync](mission-application-status-desync.md)); a player holds many app rows/mission so list+detail share pickMyApplicationView (active>pending>withdrawn>rejected, newest) ([picker](mission-application-row-picker.md)).

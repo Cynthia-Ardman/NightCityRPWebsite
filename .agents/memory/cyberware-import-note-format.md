@@ -31,3 +31,7 @@ field and the SLOT dropdown stays empty.
   catalog is intentionally a dep so a not-yet-edited grid re-parses once slots load.
 - Fix is display-layer only (no data migration): the live prod DB isn't reachable
   from dev, and reconcileCyberware self-heals to canonical on the next staff save.
+
+
+## Former index detail (full)
+legacy importer wrote bare-slot + `[cyberware-import:v1]`; parseCyberNotes needs catalog slots to disambiguate + stripImportSentinel on raw-notes surfaces; hydration must dirty-guard.

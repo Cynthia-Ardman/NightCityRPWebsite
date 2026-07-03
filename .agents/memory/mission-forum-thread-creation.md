@@ -43,3 +43,7 @@ only appear in the deployed prod. Because the cron + button can now overlap,
 with the money jobs in `runJob`) so two runs can't double-create a forum thread.
 **Why:** the per-mission create reads `discordThreadId` then writes it later, so
 without the mutex two concurrent runs both see null and post twice.
+
+
+## Former index detail (full)
+mission thread channel is a Discord FORUM (type 15, require-tag); use POST /threads + a tag, not post-message-then-thread; pre-forum-deploy missions have NULL threads forever, only the admin `mission_thread_backfill` button retro-posts them.

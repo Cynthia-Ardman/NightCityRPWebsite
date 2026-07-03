@@ -10,3 +10,7 @@ description: /characters/:id/wallet/transactions returns account-level rows too;
 **How to apply:** when building character-scoped views off this endpoint, always combine the category/kind filter with `t.characterId === characterId`. The full (account-inclusive) result is intended for the character page's general wallet view, not for attributed-history sections.
 
 Related: `wallet_transactions.category` is a coarse display bucket (rent/cyberware/mission/business/membership/fee/purchase/transfer/other) derived from kind+memo via `classifyWalletCategory` in lib/db/src/walletCategory.ts. It is independent of the load-bearing `kind`; APIs fallback-derive it when null so responses never have null category.
+
+
+## Former index detail (full)
+/characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows (filter t.characterId===id in UI); category (rent/cyberware/…) derived from kind+memo via classifyWalletCategory, fallback-derived when null.

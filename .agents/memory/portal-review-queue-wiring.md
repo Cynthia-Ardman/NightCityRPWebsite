@@ -32,3 +32,7 @@ stale when navigating between two edit pages without a remount.
 **Conflict model note:** Guidebook uses a pendingImport-on-page conflict model
 (re-import flags the live page; review applies/dismisses), NOT Lore's separate
 import-draft queue. Different import-review UI shapes for the same broad feature.
+
+
+## Former index detail (full)
+a new fixer-propose/admin-approve queue must wire 4 spots (PendingRequests tab+terminal/TerminalKind, AppLayout staffPending badge, App.tsx routes); seed edit forms via useEffect keyed on id.

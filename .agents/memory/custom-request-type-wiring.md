@@ -31,3 +31,7 @@ Then run `pnpm --filter @workspace/api-spec run codegen` (orval client + zod; ru
 - A player entry point (e.g. a card in `pages/CharacterDetail.tsx` using `CatalogRequestSection` with `presetCharacterId`).
 
 **Why:** TS catches the frontend Record/union omissions and api-server switch, but the THREE openapi enums and the MyRequests `FIXER_VOTED_TYPES`/filters are silent gaps that ship a half-wired type. Run portal+api-server+libs typecheck and the `requests.pipeline.test.ts` after.
+
+
+## Former index detail (full)
+adding a player-submit/fixer-voted type (gun template): requests.ts spots + 3 openapi enums + MyRequests own union/CUSTOM_LABEL/FILTERS/FIXER_VOTED_TYPES + PendingRequests TYPE_META; don't add to STAFF_QUEUE_EXCLUDED.

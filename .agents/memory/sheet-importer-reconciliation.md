@@ -13,3 +13,7 @@ When importing a spreadsheet that is the **source of truth** for an ownership / 
 **How to apply:** any new "import from sheet → into ownership table" script needs a `// reconciliation` block running before the upsert. Forward-fill cells (tier, building, business name) only across rows that genuinely inherit them — never forward-fill row-local fields like operating cost.
 
 **Matching rules for owner→character (or owner→entity):** prefer exact normalized-name match; fall back to single-active-record only when unambiguous. Never substring-match on short names ("Adam", "Mist") — it false-links siblings and reused names. Report skipped rows distinctly as "no user" vs "no character" so admins know whether to claim or to assign.
+
+
+## Former index detail (full)
+source-of-truth importer must DELETE vacated/changed-tenant rows, not just upsert; exact lower(name) misses "Corpse" vs "The Corpse Hound" so fuzzy-token match + delete-before-update when collapsing dups ([dedupe](import-name-dedupe.md)).

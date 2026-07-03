@@ -27,3 +27,7 @@ A forensic refund analysis on LIVE prod found **zero** erroneous cyberware-meds 
 The incomplete resolver left `.local/checkup-byowner.json` missing 32 owners + 9 stale; the corrected merge has 172 owners. Re-importing to live prod corrected 12 PCs' `last_checkup_at` (all bills strictly LOWER — the import's safety assertion guarantees it never raises a bill).
 
 **Verified with complete data:** 0 of 150 May wallet meds charges are overcharges (charged week ≤ checkup-implied week +1 for every charge). Conclusion unchanged: no refunds; the gap only affected *projected future* bills, now fixed.
+
+
+## Former index detail (full)
+June-2026 probe: legacy meds charges were CORRECT (reset on checkup, scale w/ gap), new cron never charged, no refunds. #ripperdoc-checkups has 4+ patterns (incl. `Ripperdoc checkup on <@id>. No money deducted.` + `Streak is now`, direct ids) — capture all or owners go unmapped.

@@ -23,3 +23,7 @@ await removeWorkflow({ name: "..." });
 **Why:** Workflows are explicitly supervised by Replit and survive across agent turns. Detached shells are not.
 
 **How to apply:** Anytime you'd reach for `nohup` or `setsid` for a job >2 min, register a workflow, poll its status, then remove it when done. Always remove the workflow afterwards so it doesn't clutter the workspace.
+
+
+## Former index detail (full)
+Anthropic SDK calls, fetches, Discord pagination need explicit AbortSignal.timeout or they hang; pass Anthropic `{ timeout: ms }` per call ([anthropic](anthropic-sdk-timeouts.md)), default is longer than you expect.

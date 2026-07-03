@@ -88,3 +88,7 @@ After the bot stopped cyberware sweeps (~2026-05-25), the portal cron took over.
 merge; debits are returned NEGATIVE so the shared `ActivityHistoryDialog`
 (showAmount) renders them red/outflow. ALL FINANCES (`/me/financial-history`) is
 the raw ledger dump (all reasons, ~2026-05 onward).
+
+
+## Former index detail (full)
+rent = #rent-payments channel; meds full year = bot's operator-DM sweep logs (our token IS the bot, reads own DMs); both → bot_rent_payment_events, merged with the recent bot_balance_history ledger.

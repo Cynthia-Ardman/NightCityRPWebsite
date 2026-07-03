@@ -62,3 +62,7 @@ Gotchas:
   — identical to the existing `login()`. A `401 "Invalid Username/Email or Password"`
   from `/auth/user` is a CREDENTIAL problem (wrong VRCHAT_USERNAME/PASSWORD), not
   an encoding bug; don't chase the code.
+
+
+## Former index detail (full)
+group API only returns GROUP instances (private/invite+ never listed); instance roleIds→names via cached group-roles map at poll time, read path never hits VRChat, drop unresolved `grol_` ids ([roles](vrchat-instance-roles.md)); cron deployment-gated, dev serves prod cache; emailOtp from datacenter IPs blocks unattended TOTP login; never log creds.

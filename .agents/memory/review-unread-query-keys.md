@@ -33,3 +33,7 @@ context-specific drift.
 **Out of scope (separate concern):** my-unseen counts a submission as unseen from creation
 (no seen row is written at submit time), so a freshly submitted ticket lights the player's
 own badge until they open it. That's the unseen model, not this cache bug.
+
+
+## Former index detail (full)
+mark-seen/post-comment must invalidate BOTH staff unseen-counts AND player my-unseen keys or a badge goes stale; the /review/my-unseen My Requests badge ([detail](my-unseen-phantom-badge.md)) counts own rows across ALL statuses, so every counted row MUST be renderable in MyRequests or the badge sticks.

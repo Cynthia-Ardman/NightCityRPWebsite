@@ -26,3 +26,7 @@ the Jobs tab is an explicit, supported test path and must always
 execute regardless of switch state. Any new wallet-debiting cron must
 get its own kill-switch flag added to `AUTOBILL_FLAGS` and a toggle
 in `AdminDashboard.JobsTab`.
+
+
+## Former index detail (full)
+housing + cyberware crons gated on bot_config flags defaulting OFF (manual admin runs bypass by design); monthly_rent runs 6 bill types in one job with per-type LOA-skip rules, period guard via paid_through or wallet kind+month set ([parity](autobill-parity.md)).

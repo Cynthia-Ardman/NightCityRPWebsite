@@ -42,3 +42,7 @@ blocks a second debit; applyWalletDelta reuses the prior `failed` row — only a
 `pending` rows block a retry). This gives deterministic crash recovery with no background
 worker. **Why:** reversing on failure loses the "owed" marker; a hard 409 on the finalized
 state makes the reserved-but-unpaid window unrecoverable.
+
+
+## Former index detail (full)
+buyer debit precedes the guarded pending→approved flip; if flip fails, refund unless final status is 'approved', and never claim "refunded" without checking applyWalletDelta.ok.

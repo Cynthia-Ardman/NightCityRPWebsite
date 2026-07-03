@@ -41,3 +41,7 @@ NOTE: `castReviewVote` is TOGGLE, not a plain upsert (see
 is only `sheet|request|lore`, `"edit"` is a tsc error). Separately, paths where
 the submitter *changed the content* — resubmit and edit-while-pending PATCH —
 ALWAYS clear votes too (fresh round from zero), regardless of queue.
+
+
+## Former index detail (full)
+reopen CLEARS votes for ALL three queues (else finalize-on-read re-decides on next read = no-op); requests+sheets via clearReviewVotes, edits via pendingEditApprovals delete; resubmit/edit-while-pending always clear; castReviewVote is TOGGLE not upsert — re-casting same value clears it ([toggle](vote-toggle.md)), pending-edits replicates inline (returns `cleared`), only fires while pending, override untouched.

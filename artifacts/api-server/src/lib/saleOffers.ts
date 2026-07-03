@@ -983,6 +983,10 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
           category,
           quantity: offer.quantity,
           notes: installNotes,
+          // Installs are live chrome the moment the offer completes — mirror the
+          // install-owned branch (and sheet-seeded cyberware) so the character
+          // page shows the item as installed, not sitting loose in the stash.
+          equipped: offerType === "install",
           pricePaid: offer.totalPrice,
           acquiredAt: new Date(),
         })

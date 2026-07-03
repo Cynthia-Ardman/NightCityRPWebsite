@@ -24,3 +24,7 @@ In `purchaseFromCatalog` (stores.ts), a brand-NEW stock row seeds `cost: unitCos
 a manual cost entry. On a RESTOCK merge into an existing row, do NOT touch cost —
 `existing.cost || unitCost` is a bug because cost=0 is a valid intentional value
 and would get clobbered. Preserve existing cost; the default only applies to new rows.
+
+
+## Former index detail (full)
+public store/clinic page MANAGE button must gate on owner+employee+staff, not isStaff alone; derive access from useListMyStores (/stores/mine already returns owned+employed); restock keeps existing cost (default purchase-price only seeds NEW stock rows, never overwrites a deliberate 0).

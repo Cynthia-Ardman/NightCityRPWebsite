@@ -39,3 +39,7 @@ same origin). Command: `pnpm --filter @workspace/ncrp-portal run test:e2e`.
 ## Run constraints
 - Keep `workers: 1`. Parallel workers spawn multiple chromiums that contend
   badly in this constrained env (~40s/test vs ~8s serial). Full suite ~2–3 min.
+
+
+## Former index detail (full)
+Nix `which chromium` executablePath; test-login backdoor gated by NODE_ENV+ENABLE_TEST_AUTH+`e2e-` prefix; per-role storageState seeded via raw pg; balance not seedable (assert wallet_transactions); keep workers=1.

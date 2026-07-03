@@ -70,3 +70,7 @@ rows keep their null calendar_id + sync_error so the cron retries them all and
 they backfill once the new build is live.
 **Why:** unofficial VRChat API silently constrains category; passing arbitrary
 strings 400s every write, which surfaces as "nothing syncs" despite all gates open.
+
+
+## Former index detail (full)
+session+social only (no missions); triple-gated; reconcile/backfill creates silent (notifyOnCreate:false), inline notifies; gate-closed CRUD is a true no-op; both CRUD+cron can create the same row (guard the claim); events.vrchat_* reach prod only via Publish ([mirror](vrchat-calendar-mirror.md)).

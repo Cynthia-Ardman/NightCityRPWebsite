@@ -57,3 +57,7 @@ completed]); ReconcileResult/jobs log carry a `completed` counter.
   for an on-site cancel. In Test they increment `result.deferred` and are left for the next
   Live run. jobs.ts computes `live = await isSystemLive("missions")` (ANDs master) and passes it.
 Mission-owned discord ids (missions.discordEventId) are excluded from import/reconcile.
+
+
+## Former index detail (full)
+events↔Discord poll-based (NO gateway); hash-directed, website-authoritative; reconcile website-writes always run, only Discord mutations gate on the `live` flag; partial-unique discord_event_id + onConflict.

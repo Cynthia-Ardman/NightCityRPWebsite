@@ -56,3 +56,7 @@ loop flips existing `social`→`session` for Main-Session-titled rows. Because
 recurrence backfill) — it never triggers a spurious Discord push. The
 `discord_event_sync` cron (every 10 min, website-writes always run) makes prod
 self-correct after deploy with no manual re-typing or direct prod DB write.
+
+
+## Former index detail (full)
+one event row per Sunday (own discord id), NOT recurrence_rule; extend via backfill-main-sessions.ts. Discord-IMPORTED sessions default event_type='social' (drops NPC signup) → classify by title + promote-only self-heal in reconcile.

@@ -32,7 +32,7 @@ import EditCharacterDialog from "@/components/EditCharacterDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import StaffCyberwareCard from "@/components/StaffCyberwareCard";
-import { cwpFromNotes, deriveCwpBand, buildCyberNotes, parseCyberNotes, stripImportSentinel } from "@/components/CyberwareEditor";
+import { cwpFromNotes, hasCwpTag, deriveCwpBand, buildCyberNotes, parseCyberNotes, stripImportSentinel } from "@/components/CyberwareEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FIRE_MODES, GUN_CATEGORIES, GUN_WEAPON_TYPES, GUN_POWER_LEVELS } from "@/components/catalog/gunTypes";
 import { useListCyberware } from "@workspace/api-client-react";
@@ -751,9 +751,13 @@ function CyberwareTab({ characterId }: { characterId: number }) {
                               {it.quantity > 1 ? (
                                 <span className="text-muted-foreground"> ×{it.quantity}</span>
                               ) : null}
-                              {it.equipped ? (
+                              {/* Installed-ness is DERIVED from the CWP install tag in
+                                  notes (same source the meds cron and risk band bill
+                                  off) — the `equipped` flag drifted historically (offer
+                                  installs didn't set it), so it's only a fallback. */}
+                              {hasCwpTag(it.notes) || it.equipped ? (
                                 <Badge variant="outline" className="ml-2 rounded-none border-nc-cyan/60 text-nc-cyan text-[10px] py-0">
-                                  EQUIPPED
+                                  INSTALLED
                                 </Badge>
                               ) : null}
                             </div>

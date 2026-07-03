@@ -44,3 +44,7 @@ tier), cost 0 in `DEFAULT_TRAUMA_TEAM_COSTS`.
   (admin.ts create is staff-only; player create path doesn't accept trauma tier).
 - Enum lives in 3 OpenAPI schemas + EditableSchema + admin TRAUMA_TIERS set;
   after editing openapi.yaml run codegen + rebuild api-client-react dist.
+
+
+## Former index detail (full)
+LOA/retired/dead excluded from cyberware household+meds ONLY (separate cyberBillable), not rent/trauma/baseline; free "corporate" trauma tier (cost 0, fixer-only via createPendingEdit forbidden gate).

@@ -37,3 +37,7 @@ approved/rejected/cancelled rows → closed before deploying, dev + prod).
 to the close handler and stash its params in decisionParams, not materialize in
 vote/override. Schema: closedAt/closedBy on all three tables; decisionParams on
 custom_requests.
+
+
+## Former index detail (full)
+approve/override only STAGE (persist decisionParams); effects (lease/inventory/materialize/diff) commit at close, idempotent under FOR UPDATE; lore/stock_cost/employee_invite stay immediate. Re-override editable while appliedRef IS NULL (always null until close, even when approved), NOT gated on status.

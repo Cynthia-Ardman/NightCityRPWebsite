@@ -29,3 +29,7 @@ In the three review queues (character EDITS = pending_character_edits/pending_ed
 **Why:** same no-op bug as requests — edits also have finalize-on-read (re-tally on reviewer GET), so preserving approvals snapped a reopened edit straight back to approved. Clearing them makes reopen genuinely return to a fresh pending round.
 
 **How to apply:** SHEETS reopen still PRESERVES votes (leave it). Only requests + edits clear on reopen, and they use different vote tables.
+
+
+## Former index detail (full)
+request-changes/resubmit/submit must use status-guarded conditional UPDATE (409 on no-op); vote/override lock FOR UPDATE; reopenRequest MUST clearReviewVotes (else finalize-on-read re-decides); requests vote/override stay open on staged approved/rejected, don't block on appliedRef.

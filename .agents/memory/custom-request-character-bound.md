@@ -25,3 +25,7 @@ prefer extending that over forcing missions into custom_requests.
 Contrast: `mission_participation` DID fit as a new enum value because it *does* have an
 owning character (the assigned PC), so it reuses the owner-decided path like
 `employee_invite`.
+
+
+## Former index detail (full)
+characterId is NOT NULL; non-character proposals (new mission/cyberware catalog) need a migration, don't drop into the vote flow; participation fits because it has an owning PC.
