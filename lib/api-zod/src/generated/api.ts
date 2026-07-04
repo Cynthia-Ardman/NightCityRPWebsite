@@ -7080,6 +7080,17 @@ export const GetFixerPlayerActivityResponse = zod.object({
   "status": zod.string(),
   "createdAt": zod.coerce.date()
 })).describe('Character-sheet drafts this player has created but not yet submitted for review (status = draft). Read-only; visible to fixer\/admin.'),
+  "rejectedRequests": zod.array(zod.object({
+  "id": zod.number(),
+  "type": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "status": zod.string(),
+  "reviewerNote": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).describe('Proposals (custom requests) this player submitted that were rejected in review (status = rejected). Read-only; visible to fixer\/admin. Link each to \/requests?focus=<id> to open and read it in the review queue.'),
   "stores": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),

@@ -14,6 +14,7 @@ import type { PlayerActivityProfileDraftsItem } from './playerActivityProfileDra
 import type { PlayerActivityProfileHistoricalAppearances } from './playerActivityProfileHistoricalAppearances';
 import type { PlayerActivityProfileMissionsItem } from './playerActivityProfileMissionsItem';
 import type { PlayerActivityProfilePlayer } from './playerActivityProfilePlayer';
+import type { PlayerActivityProfileRejectedRequestsItem } from './playerActivityProfileRejectedRequestsItem';
 import type { PlayerActivityProfileRipperdocsItem } from './playerActivityProfileRipperdocsItem';
 import type { PlayerActivityProfileStoresItem } from './playerActivityProfileStoresItem';
 import type { PlayerActivityProfileWalletTransactionsItem } from './playerActivityProfileWalletTransactionsItem';
@@ -29,6 +30,8 @@ export interface PlayerActivityProfile {
   attendanceClaims: PlayerActivityProfileAttendanceClaimsItem[];
   /** Character-sheet drafts this player has created but not yet submitted for review (status = draft). Read-only; visible to fixer/admin. */
   drafts: PlayerActivityProfileDraftsItem[];
+  /** Proposals (custom requests) this player submitted that were rejected in review (status = rejected). Read-only; visible to fixer/admin. Link each to /requests?focus=<id> to open and read it in the review queue. */
+  rejectedRequests: PlayerActivityProfileRejectedRequestsItem[];
   stores: PlayerActivityProfileStoresItem[];
   ripperdocs: PlayerActivityProfileRipperdocsItem[];
   /**

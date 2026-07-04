@@ -5,6 +5,7 @@ import {
   fixerNpcs,
   characters,
   characterSheets,
+  customRequests,
   users,
   inventoryItems,
   inventoryEvents,
@@ -262,7 +263,7 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
   const charIds = chars.map((c) => c.id);
   const charNameById = new Map(chars.map((c) => [c.id, c.name]));
 
-  const [auditRows, activityRows, walletRows, missionRows, actorRows, attendRows, storeRows, ripperRows, missionLogRows, draftRows] = await Promise.all([
+  const [auditRows, activityRows, walletRows, missionRows, actorRows, attendRows, storeRows, ripperRows, missionLogRows, draftRows, rejectedRequestRows] = await Promise.all([
     db
       .select({
         id: auditLog.id,
@@ -361,6 +362,22 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
       .from(characterSheets)
       .where(and(eq(characterSheets.ownerId, userId), eq(characterSheets.status, "draft")))
       .orderBy(desc(characterSheets.createdAt))
+      .limit(LIMIT),
+    db
+      .select({
+        id: customRequests.id,
+        type: customRequests.type,
+        title: customRequests.title,
+        description: customRequests.description,
+        characterId: customRequests.characterId,
+        status: customRequests.status,
+        reviewerNote: customRequests.reviewerNote,
+        reviewedAt: customRequests.reviewedAt,
+        createdAt: customRequests.createdAt,
+      })
+      .from(customRequests)
+      .where(and(eq(customRequests.requestedById, userId), eq(customRequests.status, "rejected")))
+      .orderBy(desc(customRequests.createdAt))
       .limit(LIMIT),
   ]);
 
@@ -469,6 +486,17 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
       characterId: d.characterId,
       status: d.status,
       createdAt: d.createdAt.toISOString(),
+    })),
+    rejectedRequests: rejectedRequestRows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      description: r.description,
+      characterId: r.characterId,
+      status: r.status,
+      reviewerNote: r.reviewerNote,
+      reviewedAt: r.reviewedAt ? r.reviewedAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
     })),
     stores: storeRows.map((s) => ({ id: s.id, name: s.name, kind: s.kind, location: s.location, balance: s.balance, createdAt: s.createdAt.toISOString() })),
     ripperdocs: ripperRows.map((r) => ({ id: r.id, name: r.name, location: r.location, balance: r.balance, createdAt: r.createdAt.toISOString() })),

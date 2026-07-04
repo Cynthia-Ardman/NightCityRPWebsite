@@ -24,7 +24,22 @@ import {
   Activity,
   ArrowLeft,
   FileEdit,
+  FileX,
 } from "lucide-react";
+
+// Player-facing labels for custom-request (proposal) types.
+const REQUEST_TYPE_LABEL: Record<string, string> = {
+  property: "OFF-MAP HOUSING",
+  gun: "GUN",
+  cyberware: "CYBERWARE",
+  item: "ITEM",
+  store: "STORE",
+  ripperdoc: "RIPPERDOC",
+  venue_stock: "VENUE STOCK",
+  stock_cost: "STOCK COST",
+  employee_invite: "EMPLOYEE INVITE",
+  mission_participation: "MISSION PARTICIPATION",
+};
 
 function fmt(ts: string | null | undefined): string {
   return ts ? new Date(ts).toLocaleString() : "—";
@@ -254,6 +269,30 @@ export default function FixerPlayerLookup() {
                         <Badge variant="outline" className="rounded-none text-nc-yellow border-nc-yellow ml-2 text-[10px]">
                           DRAFT
                         </Badge>
+                      </Row>
+                    ))}
+                  </RowList>
+                )}
+              </Section>
+
+              {/* Rejected proposals (custom requests) — click to open in the review queue */}
+              <Section icon={<FileX className="w-4 h-4" />} title="REJECTED PROPOSALS" count={profile.rejectedRequests.length}>
+                {profile.rejectedRequests.length === 0 ? (
+                  <Empty>No rejected proposals.</Empty>
+                ) : (
+                  <RowList>
+                    {profile.rejectedRequests.map((r) => (
+                      <Row key={r.id} testId={`row-rejected-request-${r.id}`} when={fmt(r.reviewedAt || r.createdAt)} href={`/requests?focus=${r.id}`}>
+                        <span className="text-foreground break-words">{r.title}</span>
+                        <Badge variant="outline" className="rounded-none text-nc-cyan border-nc-cyan ml-2 text-[10px]">
+                          {REQUEST_TYPE_LABEL[r.type] ?? r.type.toUpperCase()}
+                        </Badge>
+                        <Badge variant="outline" className="rounded-none text-nc-magenta border-nc-magenta ml-2 text-[10px]">
+                          REJECTED
+                        </Badge>
+                        {r.reviewerNote ? (
+                          <span className="block w-full text-xs text-muted-foreground italic mt-0.5 break-words">"{r.reviewerNote}"</span>
+                        ) : null}
                       </Row>
                     ))}
                   </RowList>

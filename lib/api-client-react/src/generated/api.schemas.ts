@@ -2081,6 +2081,22 @@ export type PlayerActivityProfileDraftsItem = {
   createdAt: string;
 };
 
+export type PlayerActivityProfileRejectedRequestsItem = {
+  id: number;
+  type: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  characterId?: number | null;
+  status: string;
+  /** @nullable */
+  reviewerNote?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  createdAt: string;
+};
+
 export type PlayerActivityProfileStoresItem = {
   id: number;
   name: string;
@@ -2125,6 +2141,8 @@ export interface PlayerActivityProfile {
   attendanceClaims: PlayerActivityProfileAttendanceClaimsItem[];
   /** Character-sheet drafts this player has created but not yet submitted for review (status = draft). Read-only; visible to fixer/admin. */
   drafts: PlayerActivityProfileDraftsItem[];
+  /** Proposals (custom requests) this player submitted that were rejected in review (status = rejected). Read-only; visible to fixer/admin. Link each to /requests?focus=<id> to open and read it in the review queue. */
+  rejectedRequests: PlayerActivityProfileRejectedRequestsItem[];
   stores: PlayerActivityProfileStoresItem[];
   ripperdocs: PlayerActivityProfileRipperdocsItem[];
   /**

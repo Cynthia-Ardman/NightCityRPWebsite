@@ -433,6 +433,7 @@ export * from './playerActivityProfileDraftsItem';
 export * from './playerActivityProfileHistoricalAppearances';
 export * from './playerActivityProfileMissionsItem';
 export * from './playerActivityProfilePlayer';
+export * from './playerActivityProfileRejectedRequestsItem';
 export * from './playerActivityProfileRipperdocsItem';
 export * from './playerActivityProfileStoresItem';
 export * from './playerActivityProfileWalletTransactionsItem';

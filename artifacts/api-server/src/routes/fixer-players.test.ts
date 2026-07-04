@@ -14,6 +14,7 @@ import {
   ripperdocs,
   characters,
   characterSheets,
+  customRequests,
 } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
@@ -367,6 +368,56 @@ describe("GET /fixer/players/:userId/activity (aggregation)", () => {
     expect(row.id).toBe(draft.id);
     expect(row.name).toBe("Misty Olszewski");
     expect(row.status).toBe("draft");
+    expect(new Date(row.createdAt).toISOString()).toBe(row.createdAt);
+  });
+
+  it("surfaces a player's rejected proposals and excludes non-rejected/other-player requests", async () => {
+    const admin = await createAdmin();
+    const target = await createUser({ username: "vik" });
+    const other = await createUser({ username: "regina" });
+    const char = await createCharacter({ ownerId: target.id, name: "Vik's Merc" });
+    const otherChar = await createCharacter({ ownerId: other.id, name: "Regina's Merc" });
+
+    // a rejected proposal submitted by the target
+    const [rejected] = await db
+      .insert(customRequests)
+      .values({
+        type: "cyberware",
+        characterId: char.id,
+        requestedById: target.id,
+        title: "Militech Berserk",
+        description: "Illegal combat chrome",
+        status: "rejected",
+        reviewerNote: "Too powerful for street level.",
+      })
+      .returning();
+    // a pending request by the target must NOT appear
+    await db.insert(customRequests).values({
+      type: "gun",
+      characterId: char.id,
+      requestedById: target.id,
+      title: "Still Pending",
+      status: "pending",
+    });
+    // another player's rejected request must NOT leak into the target's dossier
+    await db.insert(customRequests).values({
+      type: "property",
+      characterId: otherChar.id,
+      requestedById: other.id,
+      title: "Not Yours",
+      status: "rejected",
+    });
+
+    const res = await request(app).get(`/api/fixer/players/${target.id}/activity`).set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.rejectedRequests)).toBe(true);
+    expect(res.body.rejectedRequests.length).toBe(1);
+    const row = res.body.rejectedRequests[0];
+    expect(row.id).toBe(rejected.id);
+    expect(row.type).toBe("cyberware");
+    expect(row.title).toBe("Militech Berserk");
+    expect(row.status).toBe("rejected");
+    expect(row.reviewerNote).toBe("Too powerful for street level.");
     expect(new Date(row.createdAt).toISOString()).toBe(row.createdAt);
   });
 
