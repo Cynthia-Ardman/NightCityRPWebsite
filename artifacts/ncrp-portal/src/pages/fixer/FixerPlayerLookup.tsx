@@ -23,6 +23,7 @@ import {
   Stethoscope,
   Activity,
   ArrowLeft,
+  FileEdit,
 } from "lucide-react";
 
 function fmt(ts: string | null | undefined): string {
@@ -238,6 +239,24 @@ export default function FixerPlayerLookup() {
                       </Link>
                     ))}
                   </div>
+                )}
+              </Section>
+
+              {/* Character-sheet drafts (unsubmitted) */}
+              <Section icon={<FileEdit className="w-4 h-4" />} title="CHARACTER DRAFTS" count={profile.drafts.length}>
+                {profile.drafts.length === 0 ? (
+                  <Empty>No unsubmitted drafts.</Empty>
+                ) : (
+                  <RowList>
+                    {profile.drafts.map((d) => (
+                      <Row key={d.id} testId={`row-draft-${d.id}`} when={fmt(d.createdAt)} href={`/sheets/${d.id}`}>
+                        <span className="text-foreground">{d.name || "Untitled draft"}</span>
+                        <Badge variant="outline" className="rounded-none text-nc-yellow border-nc-yellow ml-2 text-[10px]">
+                          DRAFT
+                        </Badge>
+                      </Row>
+                    ))}
+                  </RowList>
                 )}
               </Section>
 

@@ -6690,7 +6690,7 @@ components:
 
     PlayerActivityProfile:
       type: object
-      required: [player, characters, auditEntries, activityEvents, walletTransactions, missions, actorPayments, attendanceClaims, stores, ripperdocs]
+      required: [player, characters, auditEntries, activityEvents, walletTransactions, missions, actorPayments, attendanceClaims, drafts, stores, ripperdocs]
       properties:
         player:
           type: object
@@ -6801,6 +6801,20 @@ components:
               weekStart: { type: string }
               amount: { type: integer }
               claimedAt: { type: string, format: date-time }
+        drafts:
+          type: array
+          description: >-
+            Character-sheet drafts this player has created but not yet submitted
+            for review (status = draft). Read-only; visible to fixer/admin.
+          items:
+            type: object
+            required: [id, name, status, createdAt]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              characterId: { type: [integer, "null"] }
+              status: { type: string }
+              createdAt: { type: string, format: date-time }
         stores:
           type: array
           items:

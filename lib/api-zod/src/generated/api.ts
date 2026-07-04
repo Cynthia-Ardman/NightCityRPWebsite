@@ -7073,6 +7073,13 @@ export const GetFixerPlayerActivityResponse = zod.object({
   "amount": zod.number(),
   "claimedAt": zod.coerce.date()
 })),
+  "drafts": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "characterId": zod.number().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date()
+})).describe('Character-sheet drafts this player has created but not yet submitted for review (status = draft). Read-only; visible to fixer\/admin.'),
   "stores": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),

@@ -2072,6 +2072,15 @@ export type PlayerActivityProfileAttendanceClaimsItem = {
   claimedAt: string;
 };
 
+export type PlayerActivityProfileDraftsItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  characterId?: number | null;
+  status: string;
+  createdAt: string;
+};
+
 export type PlayerActivityProfileStoresItem = {
   id: number;
   name: string;
@@ -2114,6 +2123,8 @@ export interface PlayerActivityProfile {
   missions: PlayerActivityProfileMissionsItem[];
   actorPayments: PlayerActivityProfileActorPaymentsItem[];
   attendanceClaims: PlayerActivityProfileAttendanceClaimsItem[];
+  /** Character-sheet drafts this player has created but not yet submitted for review (status = draft). Read-only; visible to fixer/admin. */
+  drafts: PlayerActivityProfileDraftsItem[];
   stores: PlayerActivityProfileStoresItem[];
   ripperdocs: PlayerActivityProfileRipperdocsItem[];
   /**

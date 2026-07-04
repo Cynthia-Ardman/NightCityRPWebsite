@@ -10,6 +10,7 @@ import type { PlayerActivityProfileActorPaymentsItem } from './playerActivityPro
 import type { PlayerActivityProfileAttendanceClaimsItem } from './playerActivityProfileAttendanceClaimsItem';
 import type { PlayerActivityProfileAuditEntriesItem } from './playerActivityProfileAuditEntriesItem';
 import type { PlayerActivityProfileCharactersItem } from './playerActivityProfileCharactersItem';
+import type { PlayerActivityProfileDraftsItem } from './playerActivityProfileDraftsItem';
 import type { PlayerActivityProfileHistoricalAppearances } from './playerActivityProfileHistoricalAppearances';
 import type { PlayerActivityProfileMissionsItem } from './playerActivityProfileMissionsItem';
 import type { PlayerActivityProfilePlayer } from './playerActivityProfilePlayer';
@@ -26,6 +27,8 @@ export interface PlayerActivityProfile {
   missions: PlayerActivityProfileMissionsItem[];
   actorPayments: PlayerActivityProfileActorPaymentsItem[];
   attendanceClaims: PlayerActivityProfileAttendanceClaimsItem[];
+  /** Character-sheet drafts this player has created but not yet submitted for review (status = draft). Read-only; visible to fixer/admin. */
+  drafts: PlayerActivityProfileDraftsItem[];
   stores: PlayerActivityProfileStoresItem[];
   ripperdocs: PlayerActivityProfileRipperdocsItem[];
   /**

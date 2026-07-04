@@ -13,6 +13,7 @@ import {
   attendanceClaims,
   ripperdocs,
   characters,
+  characterSheets,
 } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
@@ -337,6 +338,36 @@ describe("GET /fixer/players/:userId/activity (aggregation)", () => {
     expect(resolvedTx.counterpartyCharacterId).toBe(receiverChar.id);
     expect(resolvedTx.counterpartyCharacterName).toBe("Kerry Eurodyne");
     expect(resolvedTx.counterpartyName).toBeNull();
+  });
+
+  it("surfaces a player's unsubmitted character-sheet drafts and excludes submitted/other-player sheets", async () => {
+    const admin = await createAdmin();
+    const target = await createUser({ username: "misty" });
+    const other = await createUser({ username: "kirk" });
+
+    // an unsubmitted draft owned by the target
+    const [draft] = await db
+      .insert(characterSheets)
+      .values({ ownerId: target.id, name: "Misty Olszewski", status: "draft", data: {} })
+      .returning();
+    // a submitted (pending) sheet by the target must NOT appear as a draft
+    await db
+      .insert(characterSheets)
+      .values({ ownerId: target.id, name: "Pending Persona", status: "pending", data: {} });
+    // another player's draft must NOT leak into the target's dossier
+    await db
+      .insert(characterSheets)
+      .values({ ownerId: other.id, name: "Not Yours", status: "draft", data: {} });
+
+    const res = await request(app).get(`/api/fixer/players/${target.id}/activity`).set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.drafts)).toBe(true);
+    expect(res.body.drafts.length).toBe(1);
+    const row = res.body.drafts[0];
+    expect(row.id).toBe(draft.id);
+    expect(row.name).toBe("Misty Olszewski");
+    expect(row.status).toBe("draft");
+    expect(new Date(row.createdAt).toISOString()).toBe(row.createdAt);
   });
 
   it("does not misattribute a character-scoped wallet row after ownership transfer", async () => {
