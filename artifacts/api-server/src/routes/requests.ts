@@ -67,7 +67,7 @@ const CS_CHANNEL_ID = process.env.CS_APPROVAL_CHANNEL_ID ?? "";
 // fire-and-forget: a Discord miss must never block request creation, and writes
 // are suppressed outside the production deployment. customRequests historically
 // did not post to CS — this brings them in line with sheets/edits.
-async function announceRequest(
+export async function announceRequest(
   requestId: number,
   reqType: string,
   title: string,

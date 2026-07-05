@@ -30,6 +30,7 @@ import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwned
 import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
 import { isStaffRoles as isStaff } from "../lib/roleChecks";
+import { announceRequest } from "./requests";
 
 const router: IRouter = Router();
 
@@ -437,6 +438,23 @@ async function createVenueStockRequest(args: {
       } as never,
     })
     .returning();
+  // Announce to the cs-approver channel + open a Discord thread (fire-and-forget,
+  // deployment-gated) for parity with sheets/edits/other custom requests. Venue
+  // stock requests appear in the same review queue and expose a thread mirror,
+  // but this creation path historically skipped the announce, so tickets showed
+  // "No Discord thread linked to this ticket yet." The character-name lookup
+  // (embed-only) lives inside the fire-and-forget block so a read failure here
+  // can never fail the response after the row is already created.
+  const submitterName = req.user!.username;
+  const attributedCharacterId = characterId;
+  void (async () => {
+    const [charRow] = await db
+      .select({ name: characters.name })
+      .from(characters)
+      .where(eq(characters.id, attributedCharacterId))
+      .limit(1);
+    await announceRequest(inserted.id, "venue_stock", name, charRow?.name ?? "(unknown)", submitterName);
+  })().catch((err) => logger.warn({ err, requestId: inserted.id }, "venue_stock announce failed"));
   res.status(201).json(shapeCustomRequest(inserted));
 }
 
