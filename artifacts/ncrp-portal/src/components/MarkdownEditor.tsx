@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import Markdown from "@/components/Markdown";
 import { COLOR_PRESETS } from "@/lib/remarkColor";
@@ -32,16 +32,39 @@ export default function MarkdownEditor({
 
   // Grow the textarea to fit its content so the whole sheet is visible without
   // manual dragging. We reset to "auto" first so it can shrink as well as grow.
+  // Skip while the field is hidden (clientWidth 0) — e.g. inside an inactive
+  // Radix tab (display:none) — because scrollHeight would collapse to the
+  // default rows and leave a pre-filled long field stuck at its original size.
   const autosize = useCallback(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || el.clientWidth === 0) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, []);
 
-  useEffect(() => {
+  // Re-measure before paint whenever the content changes to avoid a flash.
+  useLayoutEffect(() => {
     autosize();
   }, [value, autosize]);
+
+  // Re-measure when the field gains or changes width — i.e. when its tab is
+  // revealed (display:none -> block) or the dialog/viewport resizes. Guarding on
+  // width means our own height writes don't retrigger it (no observer loop).
+  useEffect(() => {
+    const el = ref.current;
+    const parent = el?.parentElement;
+    if (!parent || typeof ResizeObserver === "undefined") return;
+    let lastWidth = -1;
+    const ro = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (width !== lastWidth) {
+        lastWidth = width;
+        autosize();
+      }
+    });
+    ro.observe(parent);
+    return () => ro.disconnect();
+  }, [autosize]);
 
   // Turn the selected line(s) (or the current line) into a markdown bullet
   // list. Each line gets a "- " prefix unless it already has one, and the list
