@@ -30,6 +30,14 @@ Discord replies; it clears on drawer open and is intentionally independent of se
 `useMarkReviewSeenInstant`; don't branch on role — clearing all three is cheap and avoids
 context-specific drift.
 
+**Numeric discussion-unread badge (VIEW & RESPOND):** GET /review/unread-detail
+(`getGetReviewUnreadDetailQueryKey`) returns per-queue `Record<subjectId, count>`. The count is
+the reviewer↔player two-party discussion, so it counts ONLY comments authored by that ticket's
+SUBMITTER (edit/lore=submittedBy, request=requestedById, sheet=ownerId) newer than the viewer's
+lastSeenAt — NOT fellow reviewers' comments (those would inflate the badge whenever staff
+discuss). Pass the per-subject submitterId into `countUnreadComments`, don't just exclude the
+viewer. markSeen advances lastSeenAt so vote/override/open all zero it automatically.
+
 **Out of scope (separate concern):** my-unseen counts a submission as unseen from creation
 (no seen row is written at submit time), so a freshly submitted ticket lights the player's
 own badge until they open it. That's the unseen model, not this cache bug.

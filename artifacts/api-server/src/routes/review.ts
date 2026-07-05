@@ -483,28 +483,33 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
   res.json({ edit, request, sheet, lore });
 });
 
-// Count, per subject id, the discussion comments the viewer has NOT read yet:
-// comments authored by SOMEONE OTHER than the viewer with createdAt after the
-// viewer's lastSeenAt (all of them when there's no seen row). Unlike
-// countUnseen / listUnseenIds this is purely comment-driven — a brand-new
-// ticket with no comments has a count of 0 — so it powers the numeric badge on
-// the per-card VIEW & RESPOND button independent of the "pending seen" line.
+// Count, per subject id, the discussion comments the viewer has NOT read yet.
+// This is the REVIEWER-side badge, so "unread" means comments from the OTHER
+// PARTY — i.e. the ticket's submitter (player) — not fellow reviewers. A
+// comment counts when it was authored by that ticket's submitter and its
+// createdAt is after the viewer's lastSeenAt (all of them when there's no seen
+// row). Unlike countUnseen / listUnseenIds this is purely comment-driven — a
+// brand-new ticket with no submitter comments has a count of 0 — so it powers
+// the numeric badge on the per-card VIEW & RESPOND button independent of the
+// "pending seen" line.
 async function countUnreadComments(
   subjectType: SubjectType,
-  ids: number[],
+  items: Array<{ id: number; submitterId: string | null }>,
   viewerId: string,
 ): Promise<Record<number, number>> {
+  const ids = items.map((i) => i.id);
   if (ids.length === 0) return {};
+  const submitterBySubject = new Map(items.map((i) => [i.id, i.submitterId]));
   const commentRows = await db
     .select({
       subjectId: reviewComments.subjectId,
+      authorId: reviewComments.authorId,
       createdAt: reviewComments.createdAt,
     })
     .from(reviewComments)
     .where(and(
       eq(reviewComments.subjectType, subjectType),
       inArray(reviewComments.subjectId, ids),
-      ne(reviewComments.authorId, viewerId),
     ));
   const seenRows = await db
     .select({ subjectId: reviewSeen.subjectId, lastSeenAt: reviewSeen.lastSeenAt })
@@ -513,6 +518,11 @@ async function countUnreadComments(
   const seen = new Map(seenRows.map((r) => [r.subjectId, r.lastSeenAt]));
   const out: Record<number, number> = {};
   for (const c of commentRows) {
+    // Only the submitter's comments count toward the reviewer's unread badge;
+    // skip fellow reviewers' comments (and the viewer's own, which the submitter
+    // filter already excludes since submitter !== viewer for included rows).
+    const submitterId = submitterBySubject.get(c.subjectId) ?? null;
+    if (!submitterId || c.authorId !== submitterId) continue;
     const s = seen.get(c.subjectId);
     if (!s || s.getTime() < c.createdAt.getTime()) out[c.subjectId] = (out[c.subjectId] ?? 0) + 1;
   }
@@ -539,7 +549,7 @@ router.get("/review/unread-detail", requireAuth, async (req, res): Promise<void>
       .select({ id: pendingCharacterEdits.id, submittedBy: pendingCharacterEdits.submittedBy })
       .from(pendingCharacterEdits)
       .where(inArray(pendingCharacterEdits.status, ACTIONABLE as unknown as string[]));
-    edit = await countUnreadComments("edit", editRows.filter((r) => r.submittedBy !== viewerId).map((r) => r.id), viewerId);
+    edit = await countUnreadComments("edit", editRows.filter((r) => r.submittedBy !== viewerId).map((r) => ({ id: r.id, submitterId: r.submittedBy })), viewerId);
 
     const requestRows = await db
       .select({ id: customRequests.id, requestedById: customRequests.requestedById })
@@ -548,19 +558,19 @@ router.get("/review/unread-detail", requireAuth, async (req, res): Promise<void>
         inArray(customRequests.status, ACTIONABLE as unknown as string[]),
         notInArray(customRequests.type, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES as unknown as string[]),
       ));
-    request = await countUnreadComments("request", requestRows.filter((r) => r.requestedById !== viewerId).map((r) => r.id), viewerId);
+    request = await countUnreadComments("request", requestRows.filter((r) => r.requestedById !== viewerId).map((r) => ({ id: r.id, submitterId: r.requestedById })), viewerId);
 
     const sheetRows = await db
       .select({ id: characterSheets.id, ownerId: characterSheets.ownerId })
       .from(characterSheets)
       .where(inArray(characterSheets.status, ACTIONABLE as unknown as string[]));
-    sheet = await countUnreadComments("sheet", sheetRows.filter((r) => r.ownerId !== viewerId).map((r) => r.id), viewerId);
+    sheet = await countUnreadComments("sheet", sheetRows.filter((r) => r.ownerId !== viewerId).map((r) => ({ id: r.id, submitterId: r.ownerId })), viewerId);
 
     const loreRows = await db
       .select({ id: lorePendingEdits.id, submittedBy: lorePendingEdits.submittedBy })
       .from(lorePendingEdits)
       .where(inArray(lorePendingEdits.status, ACTIONABLE as unknown as string[]));
-    lore = await countUnreadComments("lore", loreRows.filter((r) => r.submittedBy !== viewerId).map((r) => r.id), viewerId);
+    lore = await countUnreadComments("lore", loreRows.filter((r) => r.submittedBy !== viewerId).map((r) => ({ id: r.id, submitterId: r.submittedBy })), viewerId);
   }
 
   res.json({ edit, request, sheet, lore });
