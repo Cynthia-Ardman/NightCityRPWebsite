@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import {
   useListCustomRequests,
   useVoteCustomRequest,
@@ -2183,8 +2183,31 @@ export default function PendingRequests() {
   const focusParam = searchParams.get("focus");
   const focusId = focusParam && /^\d+$/.test(focusParam) ? Number(focusParam) : null;
   const focusTab = focusId != null && canSeeMisc ? "misc" : null;
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const tab = activeTab ?? initialUrlTab ?? focusTab ?? computedTab;
+  const unseenLoaded = unseen !== undefined;
+
+  // Once the unseen counts have loaded, freeze the resolved tab into state. The
+  // auto-land heuristic (computedTab) is derived live from those counts, so
+  // without this, marking an item as seen — even just by opening its thread —
+  // would drop a count, recompute computedTab, and slide the viewer onto a
+  // different tab. Freezing means the tab only changes when the viewer clicks one.
+  useEffect(() => {
+    if (activeTab != null || !unseenLoaded) return;
+    setActiveTab(initialUrlTab ?? focusTab ?? computedTab);
+  }, [activeTab, unseenLoaded, initialUrlTab, focusTab, computedTab]);
+
+  // Mirror the active tab into the URL (?tab=) so navigating into a detail page
+  // (View / Open Edit) and clicking browser Back restores the same tab instead
+  // of falling back to the auto-land heuristic. Replace (not push) so we don't
+  // litter history; the equality guard prevents a navigate loop.
+  useEffect(() => {
+    if (!unseenLoaded || urlTab === tab) return;
+    const params = new URLSearchParams(search);
+    params.set("tab", tab);
+    navigate(`/requests?${params.toString()}`, { replace: true });
+  }, [tab, urlTab, unseenLoaded, search, navigate]);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
