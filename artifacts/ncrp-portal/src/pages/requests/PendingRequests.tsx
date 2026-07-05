@@ -21,8 +21,10 @@ import {
   useListDistricts,
   useGetReviewUnseenCounts,
   useGetReviewUnseenIds,
+  useGetReviewUnreadDetail,
   getGetReviewUnseenIdsQueryKey,
   getGetReviewUnseenCountsQueryKey,
+  getGetReviewUnreadDetailQueryKey,
   getListCustomRequestsQueryKey,
   getListPendingSheetsQueryKey,
   getListPendingEditsQueryKey,
@@ -82,6 +84,7 @@ import {
 import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
@@ -134,6 +137,8 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
     { query: { queryKey: getListCustomRequestsQueryKey({ bucket: "resolved" }) } },
   );
   const { data: unseenIds } = useGetReviewUnseenIds();
+  const { data: unreadDetail } = useGetReviewUnreadDetail();
+  const markSeen = useMarkReviewSeenInstant();
   const { data: me } = useEffectiveMe();
   const [closeTarget, setCloseTarget] = useState<{ request: CustomRequest; mode: "apply" | "deny" } | null>(null);
   const [sortMode, setSortMode] = useState<ReviewSortMode>("updated");
@@ -185,6 +190,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
     qc.invalidateQueries({ queryKey: getListCustomRequestsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
   };
   const onMutationError = (title: string) => (err: unknown) => {
     const msg =
@@ -195,7 +201,10 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
 
   const voteMut = useVoteCustomRequest({
     mutation: {
-      onSuccess: (res) => {
+      onSuccess: (res, vars) => {
+        // Voting is an interaction, so it clears the ticket's "new/pending"
+        // unread state the same way opening it does.
+        markSeen("request", (vars as { id: number }).id);
         invalidateQueue();
         const decidedAs = (res as { decided?: string })?.decided;
         toast({
@@ -213,6 +222,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   const overrideMut = useOverrideCustomRequest({
     mutation: {
       onSuccess: (_res, vars) => {
+        markSeen("request", (vars as { id: number }).id);
         invalidateQueue();
         toast({
           title:
@@ -299,6 +309,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
         }}
         markSeenOnMount={isReviewer}
         initiallyExpanded={r.id === focusId}
+        discussionUnread={unreadDetail?.request?.[r.id] ?? 0}
         awaitingVote={canVote && r.status === "pending" && !r.myVote}
         tally={
           isVoting || isApproved || isRejected ? (
@@ -1110,6 +1121,8 @@ function NewCharactersTab() {
     { query: { queryKey: getListPendingSheetsQueryKey({ bucket: "resolved" }) } },
   );
   const { data: unseenIds } = useGetReviewUnseenIds();
+  const { data: unreadDetail } = useGetReviewUnreadDetail();
+  const markSeen = useMarkReviewSeenInstant();
   const { data: me } = useEffectiveMe();
   const unseen = new Set(unseenIds?.sheet ?? []);
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
@@ -1121,13 +1134,15 @@ function NewCharactersTab() {
     qc.invalidateQueries({ queryKey: getListPendingSheetsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
   };
   const errMsg = (err: unknown, fallback: string) =>
     (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
 
   const vote = useVoteSheet({
     mutation: {
-      onSuccess: (res) => {
+      onSuccess: (res, vars) => {
+        markSeen("sheet", (vars as { id: number }).id);
         invalidate();
         const decided = (res as { decided?: string })?.decided;
         toast({
@@ -1145,7 +1160,8 @@ function NewCharactersTab() {
   });
   const override = useOverrideSheet({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_res, vars) => {
+        markSeen("sheet", (vars as { id: number }).id);
         invalidate();
         toast({ title: "Sheet approved via override" });
       },
@@ -1211,6 +1227,7 @@ function NewCharactersTab() {
           voters: (sheet.voters ?? []).map((v) => ({ id: v.id, vote: v.vote })),
         }}
         markSeenOnMount={isReviewer}
+        discussionUnread={unreadDetail?.sheet?.[sheet.id] ?? 0}
         awaitingVote={canVote && sheet.status === "pending" && !my}
         tally={
           isDecided ? (

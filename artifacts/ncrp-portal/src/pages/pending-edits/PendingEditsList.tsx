@@ -6,8 +6,10 @@ import {
   useVotePendingEdit,
   useOverridePendingEdit,
   useGetReviewUnseenIds,
+  useGetReviewUnreadDetail,
   getGetReviewUnseenIdsQueryKey,
   getGetReviewUnseenCountsQueryKey,
+  getGetReviewUnreadDetailQueryKey,
   getListPendingEditsQueryKey,
   type PendingEditSummary,
 } from "@workspace/api-client-react";
@@ -17,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { ShieldAlert, CheckCircle2, XCircle } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
+import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
@@ -120,6 +123,7 @@ function EditRow({
 function EditReviewCard({
   e,
   unseen,
+  discussionUnread = 0,
   isReviewer,
   canVote,
   isAdmin,
@@ -130,6 +134,7 @@ function EditReviewCard({
 }: {
   e: PendingEditSummary;
   unseen: boolean;
+  discussionUnread?: number;
   isReviewer: boolean;
   canVote: boolean;
   isAdmin: boolean;
@@ -162,6 +167,7 @@ function EditReviewCard({
         voters: e.voters.map((v) => ({ id: v.id, vote: v.vote })),
       }}
       markSeenOnMount={isReviewer}
+      discussionUnread={discussionUnread}
       awaitingVote={canVote && e.status === "pending" && !my}
       tally={
         isDecided ? (
@@ -296,6 +302,8 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
     { query: { enabled: !activeOnly, queryKey: getListPendingEditsQueryKey({ bucket: "archive" }) } },
   );
   const { data: unseenIds } = useGetReviewUnseenIds();
+  const { data: unreadDetail } = useGetReviewUnreadDetail();
+  const markSeen = useMarkReviewSeenInstant();
   const { data: me } = useEffectiveMe();
   const { toast } = useToast();
   const isAdmin = !!me?.isAdmin;
@@ -307,13 +315,15 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
     qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
   };
   const actions = useReviewTicketActions(invalidate);
   const errMsg = (err: unknown, fallback: string) =>
     (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
   const vote = useVotePendingEdit({
     mutation: {
-      onSuccess: (res) => {
+      onSuccess: (res, vars) => {
+        markSeen("edit", (vars as { id: number }).id);
         invalidate();
         const decided = (res as { decided?: string })?.decided;
         toast({
@@ -331,7 +341,8 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
   });
   const override = useOverridePendingEdit({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_res, vars) => {
+        markSeen("edit", (vars as { id: number }).id);
         invalidate();
         toast({ title: "Edit approved via override" });
       },
@@ -388,6 +399,7 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
                       key={e.id}
                       e={e}
                       unseen={unseen.has(e.id)}
+                      discussionUnread={unreadDetail?.edit?.[e.id] ?? 0}
                       isReviewer
                       canVote={canVote}
                       isAdmin={isAdmin}

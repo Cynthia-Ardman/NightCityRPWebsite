@@ -16,6 +16,7 @@ import {
   getGetCharacterQueryKey,
   getGetReviewUnseenIdsQueryKey,
   getGetReviewUnseenCountsQueryKey,
+  getGetReviewUnreadDetailQueryKey,
   type Character,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import DiffValue from "@/components/DiffValue";
 import { valuesDiffer } from "@/lib/textDiff";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
 // Render a single field's change. Defaults to the unified diff (only what
@@ -62,6 +64,7 @@ export default function PendingEditDetail() {
   const editId = Number(id);
   const qc = useQueryClient();
   const { toast } = useToast();
+  const markSeen = useMarkReviewSeenInstant();
   const [, navigate] = useLocation();
   const [voteNote, setVoteNote] = useState("");
   const [diffView, setDiffView] = useState<"unified" | "split">("unified");
@@ -105,6 +108,7 @@ export default function PendingEditDetail() {
     // so the "Pending Requests" badge doesn't go stale until a full reload.
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
     if (edit?.characterId) {
       qc.invalidateQueries({ queryKey: getGetCharacterPendingEditQueryKey(edit.characterId) });
       qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(edit.characterId) });
@@ -114,6 +118,7 @@ export default function PendingEditDetail() {
   const vote = useVotePendingEdit({
     mutation: {
       onSuccess: (r) => {
+        markSeen("edit", editId);
         toast({
           title: `Vote recorded: ${r.status === "pending" ? `${r.approveCount}/${r.threshold} approvals` : r.status}`,
         });
@@ -146,7 +151,7 @@ export default function PendingEditDetail() {
 
   const override = useOverridePendingEdit({
     mutation: {
-      onSuccess: () => { toast({ title: "Edit approved via override" }); invalidate(); },
+      onSuccess: () => { markSeen("edit", editId); toast({ title: "Edit approved via override" }); invalidate(); },
       onError: (err) => toast({ title: "Override failed", description: errMsg(err, "Override failed"), variant: "destructive" }),
     },
   });

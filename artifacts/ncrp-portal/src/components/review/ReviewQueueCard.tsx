@@ -38,6 +38,7 @@ export function ReviewQueueCard({
   markSeenOnMount = false,
   initiallyExpanded = false,
   tone = "default",
+  discussionUnread = 0,
 }: {
   subjectType: ReviewSubjectType;
   id: number;
@@ -64,6 +65,10 @@ export function ReviewQueueCard({
   // Seed the comment-thread section open on mount — used by ?focus= deep links
   // from the Discord CS-approver post so the linked ticket lands expanded.
   initiallyExpanded?: boolean;
+  // Count of unread in-app discussion comments (from the other party) to show
+  // as a numeric badge on the VIEW & RESPOND button; clears when the thread is
+  // opened (which marks the ticket seen). 0 hides the badge.
+  discussionUnread?: number;
 }) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const hasFooter =
@@ -130,6 +135,14 @@ export function ReviewQueueCard({
                 >
                   <MessageSquare className="w-3 h-3 mr-1" />
                   VIEW &amp; RESPOND
+                  {discussionUnread > 0 && (
+                    <span
+                      className="ml-2 inline-flex items-center justify-center min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-nc-magenta text-background font-mono text-[10px] font-bold"
+                      data-testid={`discussion-unread-${subjectType}-${id}`}
+                    >
+                      {discussionUnread}
+                    </span>
+                  )}
                   {expanded ? (
                     <ChevronUp className="w-3 h-3 ml-1" />
                   ) : (

@@ -510,6 +510,21 @@ export interface MyUnseen {
   total: number;
 }
 
+export type ReviewUnreadDetailEdit = {[key: string]: number};
+
+export type ReviewUnreadDetailRequest = {[key: string]: number};
+
+export type ReviewUnreadDetailSheet = {[key: string]: number};
+
+export type ReviewUnreadDetailLore = {[key: string]: number};
+
+export interface ReviewUnreadDetail {
+  edit: ReviewUnreadDetailEdit;
+  request: ReviewUnreadDetailRequest;
+  sheet: ReviewUnreadDetailSheet;
+  lore: ReviewUnreadDetailLore;
+}
+
 export interface DiscordThreadMessage {
   id: string;
   authorId: string;

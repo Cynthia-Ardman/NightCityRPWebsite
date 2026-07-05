@@ -4,9 +4,11 @@ import {
   getGetReviewUnseenIdsQueryKey,
   getGetReviewUnseenCountsQueryKey,
   getGetMyUnseenQueryKey,
+  getGetReviewUnreadDetailQueryKey,
   type ReviewUnseenIds,
   type ReviewUnseenCounts,
   type MyUnseen,
+  type ReviewUnreadDetail,
 } from "@workspace/api-client-react";
 
 type SubjectType = "edit" | "request" | "sheet" | "lore";
@@ -42,6 +44,7 @@ export function useMarkReviewSeenInstant() {
     const idsKey = getGetReviewUnseenIdsQueryKey();
     const countsKey = getGetReviewUnseenCountsQueryKey();
     const myKey = getGetMyUnseenQueryKey();
+    const unreadDetailKey = getGetReviewUnreadDetailQueryKey();
 
     // (1) Per-card dots/line (reviewer view). Track whether this id was actually
     // unseen so we only decrement the matching count when it was.
@@ -79,6 +82,18 @@ export function useMarkReviewSeenInstant() {
       };
     });
 
+    // (4) Per-card VIEW & RESPOND discussion-unread badge — opening the ticket
+    // (which is what calls this) marks it seen, so its unread comment count
+    // drops to 0 immediately instead of waiting for a refetch.
+    qc.setQueryData<ReviewUnreadDetail>(unreadDetailKey, (old) => {
+      if (!old) return old;
+      const map = old[subjectType] ?? {};
+      if (!(subjectId in map)) return old;
+      const next = { ...map };
+      delete next[subjectId];
+      return { ...old, [subjectType]: next };
+    });
+
     // Persist server-side, then reconcile every surface against the source of
     // truth (covers the case where another tab/device changed the state).
     seen.mutate(
@@ -88,6 +103,7 @@ export function useMarkReviewSeenInstant() {
           qc.invalidateQueries({ queryKey: idsKey });
           qc.invalidateQueries({ queryKey: countsKey });
           qc.invalidateQueries({ queryKey: myKey });
+          qc.invalidateQueries({ queryKey: unreadDetailKey });
         },
       },
     );

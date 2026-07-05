@@ -11011,6 +11011,17 @@ export const GetReviewUnseenIdsResponse = zod.object({
 
 
 /**
+ * @summary Per-item count of unread discussion comments (authored by someone other than the viewer, since the reviewer's last-seen) for each actionable ticket, keyed by id per queue. Same actionable scope and role gating as unseen-ids.
+ */
+export const GetReviewUnreadDetailResponse = zod.object({
+  "edit": zod.record(zod.string(), zod.number()),
+  "request": zod.record(zod.string(), zod.number()),
+  "sheet": zod.record(zod.string(), zod.number()),
+  "lore": zod.record(zod.string(), zod.number())
+})
+
+
+/**
  * @summary The subject's Discord discussion thread, displayed READ-ONLY on the detail page. Reviewers/staff only. The portal never posts to Discord. Serves review tickets (edit/request/sheet) and missions. Returns linked:false with an empty list when no thread is linked yet.
  */
 export const GetReviewDiscordThreadParams = zod.object({

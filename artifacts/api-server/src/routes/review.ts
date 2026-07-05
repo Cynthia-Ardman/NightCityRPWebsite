@@ -483,6 +483,89 @@ router.get("/review/unseen-ids", requireAuth, async (req, res): Promise<void> =>
   res.json({ edit, request, sheet, lore });
 });
 
+// Count, per subject id, the discussion comments the viewer has NOT read yet:
+// comments authored by SOMEONE OTHER than the viewer with createdAt after the
+// viewer's lastSeenAt (all of them when there's no seen row). Unlike
+// countUnseen / listUnseenIds this is purely comment-driven — a brand-new
+// ticket with no comments has a count of 0 — so it powers the numeric badge on
+// the per-card VIEW & RESPOND button independent of the "pending seen" line.
+async function countUnreadComments(
+  subjectType: SubjectType,
+  ids: number[],
+  viewerId: string,
+): Promise<Record<number, number>> {
+  if (ids.length === 0) return {};
+  const commentRows = await db
+    .select({
+      subjectId: reviewComments.subjectId,
+      createdAt: reviewComments.createdAt,
+    })
+    .from(reviewComments)
+    .where(and(
+      eq(reviewComments.subjectType, subjectType),
+      inArray(reviewComments.subjectId, ids),
+      ne(reviewComments.authorId, viewerId),
+    ));
+  const seenRows = await db
+    .select({ subjectId: reviewSeen.subjectId, lastSeenAt: reviewSeen.lastSeenAt })
+    .from(reviewSeen)
+    .where(and(eq(reviewSeen.userId, viewerId), eq(reviewSeen.subjectType, subjectType), inArray(reviewSeen.subjectId, ids)));
+  const seen = new Map(seenRows.map((r) => [r.subjectId, r.lastSeenAt]));
+  const out: Record<number, number> = {};
+  for (const c of commentRows) {
+    const s = seen.get(c.subjectId);
+    if (!s || s.getTime() < c.createdAt.getTime()) out[c.subjectId] = (out[c.subjectId] ?? 0) + 1;
+  }
+  return out;
+}
+
+// GET /review/unread-detail — the REVIEWER's per-item unread DISCUSSION count.
+// Same actionable scope + role gating as /review/unseen-ids, but returns, per
+// queue, a map of subjectId -> number of unread discussion comments (from the
+// other party) so each card's VIEW & RESPOND button can show a numeric badge.
+router.get("/review/unread-detail", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  const viewerId = u.id;
+  const ACTIONABLE = ["pending", "changes_requested"] as const;
+  const can = isReviewer(u as never);
+
+  let edit: Record<number, number> = {};
+  let request: Record<number, number> = {};
+  let sheet: Record<number, number> = {};
+  let lore: Record<number, number> = {};
+
+  if (can) {
+    const editRows = await db
+      .select({ id: pendingCharacterEdits.id, submittedBy: pendingCharacterEdits.submittedBy })
+      .from(pendingCharacterEdits)
+      .where(inArray(pendingCharacterEdits.status, ACTIONABLE as unknown as string[]));
+    edit = await countUnreadComments("edit", editRows.filter((r) => r.submittedBy !== viewerId).map((r) => r.id), viewerId);
+
+    const requestRows = await db
+      .select({ id: customRequests.id, requestedById: customRequests.requestedById })
+      .from(customRequests)
+      .where(and(
+        inArray(customRequests.status, ACTIONABLE as unknown as string[]),
+        notInArray(customRequests.type, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES as unknown as string[]),
+      ));
+    request = await countUnreadComments("request", requestRows.filter((r) => r.requestedById !== viewerId).map((r) => r.id), viewerId);
+
+    const sheetRows = await db
+      .select({ id: characterSheets.id, ownerId: characterSheets.ownerId })
+      .from(characterSheets)
+      .where(inArray(characterSheets.status, ACTIONABLE as unknown as string[]));
+    sheet = await countUnreadComments("sheet", sheetRows.filter((r) => r.ownerId !== viewerId).map((r) => r.id), viewerId);
+
+    const loreRows = await db
+      .select({ id: lorePendingEdits.id, submittedBy: lorePendingEdits.submittedBy })
+      .from(lorePendingEdits)
+      .where(inArray(lorePendingEdits.status, ACTIONABLE as unknown as string[]));
+    lore = await countUnreadComments("lore", loreRows.filter((r) => r.submittedBy !== viewerId).map((r) => r.id), viewerId);
+  }
+
+  res.json({ edit, request, sheet, lore });
+});
+
 // POST /review/:type/:id/close — a reviewer archives a RESOLVED ticket. When the
 // ticket was approved this is where its deferred effect (lease / inventory /
 // character materialization / diff) is finally committed. Dispatches to the

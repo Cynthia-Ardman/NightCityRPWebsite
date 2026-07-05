@@ -5037,6 +5037,17 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReviewUnseenIds" }
+  /review/unread-detail:
+    get:
+      operationId: getReviewUnreadDetail
+      tags: [review]
+      summary: Per-item count of unread discussion comments (authored by someone other than the viewer, since the reviewer's last-seen) for each actionable ticket, keyed by id per queue. Same actionable scope and role gating as unseen-ids.
+      responses:
+        "200":
+          description: Per-item unread discussion counts per queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewUnreadDetail" }
   /review/{subjectType}/{id}/discord-thread:
     parameters:
       - { in: path, name: subjectType, required: true, schema: { type: string, enum: [edit, request, sheet, mission, lore] } }
@@ -5725,6 +5736,14 @@ components:
         sheet: { type: array, items: { type: integer } }
         lore: { type: array, items: { type: integer } }
         total: { type: integer }
+    ReviewUnreadDetail:
+      type: object
+      required: [edit, request, sheet, lore]
+      properties:
+        edit: { type: object, additionalProperties: { type: integer } }
+        request: { type: object, additionalProperties: { type: integer } }
+        sheet: { type: object, additionalProperties: { type: integer } }
+        lore: { type: object, additionalProperties: { type: integer } }
     DiscordThreadMessage:
       type: object
       required: [id, authorId, authorName, authorAvatarUrl, authorIsBot, content, createdAt]

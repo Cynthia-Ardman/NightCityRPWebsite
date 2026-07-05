@@ -239,6 +239,7 @@ import type {
   ReviewCloseInput,
   ReviewComment,
   ReviewCommentInput,
+  ReviewUnreadDetail,
   ReviewUnseenCounts,
   ReviewUnseenIds,
   RevokeVrchatAgent200,
@@ -22709,6 +22710,83 @@ export function useGetReviewUnseenIds<TData = Awaited<ReturnType<typeof getRevie
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetReviewUnseenIdsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetReviewUnreadDetailUrl = () => {
+
+
+
+
+  return `/api/review/unread-detail`
+}
+
+/**
+ * @summary Per-item count of unread discussion comments (authored by someone other than the viewer, since the reviewer's last-seen) for each actionable ticket, keyed by id per queue. Same actionable scope and role gating as unseen-ids.
+ */
+export const getReviewUnreadDetail = async ( options?: RequestInit): Promise<ReviewUnreadDetail> => {
+
+  return customFetch<ReviewUnreadDetail>(getGetReviewUnreadDetailUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReviewUnreadDetailQueryKey = () => {
+    return [
+    `/api/review/unread-detail`
+    ] as const;
+    }
+
+
+export const getGetReviewUnreadDetailQueryOptions = <TData = Awaited<ReturnType<typeof getReviewUnreadDetail>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewUnreadDetail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReviewUnreadDetailQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReviewUnreadDetail>>> = ({ signal }) => getReviewUnreadDetail({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReviewUnreadDetail>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReviewUnreadDetailQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewUnreadDetail>>>
+export type GetReviewUnreadDetailQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Per-item count of unread discussion comments (authored by someone other than the viewer, since the reviewer's last-seen) for each actionable ticket, keyed by id per queue. Same actionable scope and role gating as unseen-ids.
+ */
+
+export function useGetReviewUnreadDetail<TData = Awaited<ReturnType<typeof getReviewUnreadDetail>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewUnreadDetail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReviewUnreadDetailQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

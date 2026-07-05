@@ -117,7 +117,22 @@ export default function DiscordThreadDrawer({
     setSeen(readSeen(subjectType, subjectId));
   }, [subjectType, subjectId]);
 
-  const unread = watchUnread && newest > 0 && newest > seen;
+  // Count of HUMAN (non-bot) Discord messages newer than the reviewer's
+  // per-browser seen marker — the number shown on the button. Bot posts are
+  // excluded for the same reasons newestHumanMs excludes them (initial mirror
+  // post + website-originated status mirrors are not "new replies to read").
+  const unreadCount = useMemo(() => {
+    if (!watchUnread) return 0;
+    let n = 0;
+    for (const m of (watchData?.messages ?? []) as DiscordThreadMessage[]) {
+      if (m.authorIsBot) continue;
+      const t = new Date(m.createdAt).getTime();
+      if (Number.isFinite(t) && t > seen) n++;
+    }
+    return n;
+  }, [watchData, seen, watchUnread]);
+
+  const unread = unreadCount > 0;
 
   // Mark the thread read whenever it is open and newer than what we've seen.
   useEffect(() => {
@@ -149,9 +164,11 @@ export default function DiscordThreadDrawer({
           {iconOnly ? <span className="sr-only">{buttonLabel}</span> : buttonLabel}
           {unread && (
             <span
-              className="ml-2 inline-block w-2 h-2 rounded-full bg-nc-yellow shadow-[0_0_6px_rgba(255,255,0,0.9)]"
+              className="ml-2 inline-flex items-center justify-center min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-nc-yellow text-background font-mono text-[10px] font-bold shadow-[0_0_6px_rgba(255,255,0,0.9)]"
               data-testid={`discord-thread-unread-${subjectType}-${subjectId}`}
-            />
+            >
+              {unreadCount}
+            </span>
           )}
         </Button>
       </SheetTrigger>

@@ -7,6 +7,7 @@ import {
   getGetReviewUnseenIdsQueryKey,
   getGetReviewUnseenCountsQueryKey,
   getGetMyUnseenQueryKey,
+  getGetReviewUnreadDetailQueryKey,
   type ReviewComment,
 } from "@workspace/api-client-react";
 import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
@@ -68,6 +69,7 @@ export default function ReviewCommentThread({
         qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
       },
       onError: (err) => {
         const msg = (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? "Could not post comment";
