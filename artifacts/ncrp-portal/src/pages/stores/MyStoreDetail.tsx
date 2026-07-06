@@ -213,14 +213,24 @@ export default function MyStoreDetail() {
   // for staff to avoid two delete controls.
   const isOwner = !!me && !!store && store.ownerId === me.id;
   // Employees can reach this page (GET /stores/:id allows owner/staff/employee)
-  // and may SELL stock, but every management mutation (profile edit, employees,
-  // wallet, stock edits, delete) is owner-or-staff only on the server
-  // (loadManageableStore). Gate those controls on canManage so employees see a
-  // read-only management view with a working sell button instead of dead 403s.
+  // and may SELL and BUY stock, but management mutations (profile edit,
+  // employees, wallet, manual stock edits, delete) are owner-or-staff only on
+  // the server (loadManageableStore). Gate those controls on canManage so
+  // employees see a read-only management view with working buy/sell instead of
+  // dead 403s.
   const canManage = isOwner || isStaff;
+  // The read endpoint 403s everyone but owner/staff/employee, so a non-owner,
+  // non-staff viewer who reached this page is necessarily an employee.
+  const isEmployee = !!me && !!store && !isOwner && !isStaff;
+  // Buying stock from the catalog is store-funded and permitted for ANY venue
+  // operator on the server (POST /stores/:id/purchase -> isVenueOperator:
+  // owner|staff|employee), including inside regulated gun stores — unlike manual
+  // stock edits. Gate the buy button on operator status, NOT canEditStock, or
+  // employees (and gun-store owners) get no way to stock the shelves.
+  const canBuyStock = isOwner || isStaff || isEmployee;
   // Gun stores carry a regulated catalog: their OWNERS may only VIEW stock —
-  // all editing (add/edit/delete + power level) is staff-only. This mirrors the
-  // server gate in routes/stores.ts; the UI just avoids dead 403 controls.
+  // all manual editing (add/edit/delete + power level) is staff-only. This
+  // mirrors the server gate in routes/stores.ts; the UI just avoids dead 403s.
   const isGunStore = store?.kind === "guns";
   const canEditStock = canManage && (!isGunStore || isStaff);
   // Power level is a gun-store-only field, and only staff edit it.
@@ -389,7 +399,7 @@ export default function MyStoreDetail() {
               <PackagePlus className="w-3 h-3 mr-1" /> REQUEST CUSTOM STOCK
             </Button>
             )}
-            {canEditStock && (
+            {canBuyStock && (
               <Button
                 size="sm"
                 onClick={() => setPurchaseOpen(true)}
@@ -404,7 +414,7 @@ export default function MyStoreDetail() {
         <CardContent className="space-y-2">
           {!canEditStock && (
             <p className="font-mono text-xs text-muted-foreground" data-testid="text-stock-readonly-note">
-              Gun-store stock is managed by staff. You can view it and sell to customers, but item details and power levels are set by an admin or fixer.
+              You can view stock, buy from the catalog, and sell to customers. Item details{isGunStore ? " and power levels" : ""} are set by {isGunStore ? "an admin or fixer" : "the owner or staff"}.
             </p>
           )}
           {canEditStock && store.stock.length > 0 && (

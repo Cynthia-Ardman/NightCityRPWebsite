@@ -44,6 +44,7 @@
 - Financial/owner decisions: [gate on CURRENT ownerId, not the requestedById snapshotted at creation](financial-decision-current-owner.md); [same rule for owner-action request endpoints](owner-decision-current-ownership.md).
 - [Sheet approval materialization](sheet-approval-materialization.md) — approving a character_sheet must create+link a characters row (atomically); sheet.characterId is user-supplied, validate ownership before any write.
 - [Open-shop instant income](shop-open-venue-income.md) — shop income paid INSTANTLY on open (flat SHOP_OPEN_PAYOUT, 1/session, per-char advisory-lock guarded); monthly 2a/2b passes REMOVED; lease OR venue gates the button.
+- [Venue operator vs manage gates](venue-operator-vs-manage-gates.md) — BUY/SELL = operator (owner|staff|EMPLOYEE, isVenueOperator); profile/wallet/manual-stock = owner|staff (gun stores staff-only); gate buy on canBuyStock NOT canEditStock.
 - [Pending-row dedup](pending-row-dedup.md) — "at most one pending row per key" needs a PARTIAL unique index (WHERE status='pending') + onConflictDoNothing, not an in-memory seen-set (TOCTOU race).
 - Housing importer: [occupancy via housing.listing_id, legacy leases NULL-linked](housing-occupancy-linkage.md); [catalog_rent only upserted — naming change leaves orphan listings](rent-importer-stale-listings.md).
 - [Stock-add offer + lease race](stock-add-offer-and-lease.md) — venue-debiting offers need owner-only approve guard (canDecide's admin allowance is a bypass); single-unit lease must lock listing FOR UPDATE across check+insert.
