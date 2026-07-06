@@ -1,30 +1,50 @@
 ---
-name: Open-shop access & income for venue owners
-description: Why shop owners without a business lease can still open shop and how they get paid
+name: Open-shop access & instant income
+description: Who can open shop and how shop owners get paid (instant per-session payout)
 ---
 
-# Open-shop visibility & income parity
+# Open-shop visibility & instant income
 
 The open-shop "collect" flow originally gated on **business leases** only, so
 store/ripperdoc owners who own a *venue* but hold no business lease saw no
-button and earned nothing.
+button and earned nothing. Access was widened; income was later reworked.
 
-**Decision (kept the existing daily-open → monthly-payout model, NOT a flat
-weekly amount):**
+## Access
 - `canOpen = leases > 0 || venues > 0`. Venue owners (stores/ripperdocs matched
   by `ownerCharacterId`) can open shop; `open-shop` 403s only when there is
   NEITHER a lease NOR a venue. `listingId` is nullable for venue-only opens.
-- Monthly income has a dedicated **"2b" pass** in `jobs.ts` (after the lease
-  loop) paying venue-only owners a Tier-0 flat `SHOP_T0_PAYOUTS[opens]` scaled
-  by capped monthly opens.
 
-**Why:** keeps one consistent economy (opens still drive payout) while widening
-who participates.
+## Income model — INSTANT, not monthly
+Shop income is paid **instantly** the moment an owner opens shop during a live
+session (`POST /characters/:id/open-shop`), like the weekly attendance bonus.
+Amount is the flat `SHOP_OPEN_PAYOUT` constant in `characters.ts` (currently
+150, hardcoded like attendance's `WEEKLY_ATTEND_PAYOUT` — change in code to tune).
+
+**Why:** the old monthly model (a "2a" business pass + a "2b" venue-only pass in
+`jobs.ts`) was silently broken — the monthly_rent cron fires on the 1st at
+04:00 UTC and counted opens in the CURRENT month, so it saw ~0 opens and paid
+nobody, ever (shop_opens had rows but shop_income had zero all-time). User chose
+instant-per-open over fixing the monthly off-by-one. Both monthly passes are now
+REMOVED (replaced with REMOVED-note comments); only the rent DEBIT remains in the
+lease pass.
 
 **How to apply / pitfalls:**
-- The 2b pass MUST exclude `businessLeaseCharIds` — a character with both a
-  lease and a venue is already paid by the lease loop; double-paying is the main
-  risk.
-- Reuse the lease path's idempotency: preloaded `alreadyBilled` month guard
-  (kind `shop_income`), in-run `markBilled/unmarkBilled`, and reserve-before-UB
-  rollback. Inherits `monthly_rent` live-mode gating (`isSystemLive("housing")`).
+- **Anti-farm guard is mandatory** with instant pay: pay at most once per
+  session. The endpoint rejects (409) if any shop_opens row for the char exists
+  within the last **8 hours** (the session window is 7h Sun 2–9pm Pacific and
+  sessions are a week apart, so an 8h lookback is TZ-math-free and can't bleed
+  into a neighbouring session). This also closes the UTC-midnight straddle that
+  the `(characterId, openedOn)` per-UTC-day unique index alone would let through.
+- **Reserve-before-credit** (mirrors attendance): insert the shop_opens row
+  FIRST (the durable "opened this session" marker), then credit UB; on a clean
+  UB failure DELETE the shop_opens row so the owner can retry. Two rapid clicks
+  collide on the per-day unique index (23505 → 409) so only one reaches payout.
+- Record the money via `recordSettledWalletMovement` (kind `shop_income`,
+  `source:"website"`, `idempotencyKey: shop-open:<rowId>`, `ubTotalAfter: ub.total`)
+  so the website wallet balance advances and reconcile never double-counts.
+- `loadOwnedChar` is strictly owner-only (`ownerId === userId`), so `req.user`
+  IS the payee — no `getOwner` lookup needed here.
+- Instant pay does NOT gate on `isSystemLive("housing")` (attendance doesn't
+  either); `patchBalance` already no-ops in dev via the deployment-write gate.
+- Prod-history caveat: instant pay is forward-only — June/July opens that
+  predate this change were never paid and are not back-paid.

@@ -445,68 +445,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         if (rent <= 0) continue;
         const reasonLabel = isBusiness ? "Business rent" : "Rent";
 
-        // ----- 2a. Passive income for businesses -----------------------------
-        // Credit BEFORE the rent debit so a profitable shop can fund its own
-        // rent. The income amount is driven by how many days the owner
-        // pressed OPEN SHOP during the period (capped at SHOP_OPENS_CAP).
-        // T0 (micro) leases use a flat schedule; everything else uses a
-        // rent-multiplier curve. Skipped silently on UB failure — we'd
-        // rather lose passive income than corrupt the rent flow.
-        if (isBusiness && !billedThisRun(c.id, "shop_income")) {
-          const opensThisMonth = await db
-            .select({ n: sql<number>`count(*)` })
-            .from(shopOpens)
-            .where(and(eq(shopOpens.characterId, c.id), gte(shopOpens.openedAt, periodStart)));
-          const opens = Math.min(Number(opensThisMonth[0]?.n ?? 0), SHOP_OPENS_CAP);
-          let income = 0;
-          if (opens > 0) {
-            income = isShopTierZero(lease.address, lease.kind)
-              ? SHOP_T0_PAYOUTS[opens]
-              : Math.floor(rent * SHOP_TIER_PLUS_MULT[opens]);
-          }
-          if (income > 0) {
-            // Crash-window guard (credit-side mirror of the rent/personal-fee
-            // debits): RESERVE the 'shop_income' ledger row + flip the period
-            // marker BEFORE the external UB credit. If the process dies after
-            // the credit succeeds but before we can finish, the reservation is
-            // already committed, so a manual rerun in the same period sees the
-            // row (preloaded into `alreadyBilled`) and skips — no double credit.
-            // The trade-off is a recoverable under-payment if UB never actually
-            // ran; we roll the reservation back below on a clean UB failure.
-            // See .agents/memory/autobill-parity.md ("Crash-window race").
-            const incomeMemo = `Shop income: ${lease.address} (${opens} day${opens === 1 ? "" : "s"})`;
-            const [reservedIncome] = await db
-              .insert(walletTransactions)
-              .values({
-                characterId: c.id,
-                userId: c.ownerId,
-                amount: income,
-                kind: "shop_income",
-                memo: incomeMemo,
-              })
-              .returning({ id: walletTransactions.id });
-            markBilled(c.id, "shop_income");
-
-            const ubCredit = await patchBalance(owner.discordId, {
-              cash: income,
-              reason: incomeMemo,
-            });
-            if (ubCredit) {
-              affected++;
-              // Keep the website wallet balance in lockstep with the UB credit.
-              await advanceSettledWalletBalance({ userId: owner.id, amount: income, ubTotalAfter: ubCredit.total }).catch(() => {});
-            } else {
-              // Clean UB failure (not a crash): roll the reservation back so a
-              // later run can retry the payout.
-              await db.delete(walletTransactions).where(eq(walletTransactions.id, reservedIncome.id));
-              unmarkBilled(c.id, "shop_income");
-              logger.warn(
-                { characterId: c.id, leaseId: lease.id, income },
-                "monthly_rent shop_income UB credit failed; rolled back ledger reservation",
-              );
-            }
-          }
-        }
+        // ----- 2a. Passive shop income (REMOVED) -----------------------------
+        // Shop income is now paid INSTANTLY when an owner opens shop during a
+        // live session (POST /characters/:id/open-shop), like the weekly
+        // attendance bonus — no longer accrued and paid monthly. The old
+        // monthly pass counted opens in the CURRENT month, but this cron fires
+        // on the 1st before any opens exist, so it silently paid nothing.
+        // See .agents/memory/shop-open-venue-income.md.
 
         // Crash-window guard: RESERVE the idempotency markers (ledger row +
         // paid_through bump) BEFORE the external UB debit. If the process dies
@@ -593,84 +538,11 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         affected++;
       }
 
-      // ----- 2b. Passive income for venue-only shop owners -------------------
-      // Store / ripperdoc owners don't necessarily hold a `business` housing
-      // lease, but they're still "shop owners" and the OPEN SHOP button is
-      // available to them. They have no rent base, so they earn the flat
-      // Tier-0 schedule (SHOP_T0_PAYOUTS) driven purely by how many days they
-      // pressed OPEN SHOP this period. Characters that DO hold a business
-      // lease are intentionally excluded here — they were already paid (often
-      // more) in the lease pass above, and the shared `alreadyBilled` /
-      // `shop_income` guard prevents any double credit.
-      const businessLeaseCharIds = new Set<number>();
-      for (const { lease, character: c } of rows) {
-        if (lease.kind === "business") businessLeaseCharIds.add(c.id);
-      }
-      const [storeOwners, clinicOwners] = await Promise.all([
-        db.select({ cid: stores.ownerCharacterId, name: stores.name }).from(stores).where(isNotNull(stores.ownerCharacterId)),
-        db.select({ cid: ripperdocs.ownerCharacterId, name: ripperdocs.name }).from(ripperdocs).where(isNotNull(ripperdocs.ownerCharacterId)),
-      ]);
-      const venueNameByChar = new Map<number, string>();
-      for (const v of [...storeOwners, ...clinicOwners]) {
-        if (v.cid == null) continue;
-        if (businessLeaseCharIds.has(v.cid)) continue;
-        if (!venueNameByChar.has(v.cid)) venueNameByChar.set(v.cid, v.name);
-      }
-      if (venueNameByChar.size > 0) {
-        const venueChars = await db
-          .select()
-          .from(characters)
-          .where(and(
-            inArray(characters.id, [...venueNameByChar.keys()]),
-            eq(characters.approved, true),
-            eq(characters.archived, false),
-          ));
-        for (const c of venueChars) {
-          if (!c.ownerId) continue;
-          if (billedThisRun(c.id, "shop_income")) continue;
-          const owner = await getOwner(c.ownerId);
-          if (!owner) continue;
-          const opensThisMonth = await db
-            .select({ n: sql<number>`count(*)` })
-            .from(shopOpens)
-            .where(and(eq(shopOpens.characterId, c.id), gte(shopOpens.openedAt, periodStart)));
-          const opens = Math.min(Number(opensThisMonth[0]?.n ?? 0), SHOP_OPENS_CAP);
-          if (opens <= 0) continue;
-          const income = SHOP_T0_PAYOUTS[opens];
-          if (income <= 0) continue;
-          const shopName = venueNameByChar.get(c.id) ?? `${c.name}'s shop`;
-          // Same crash-window reservation as the business pass: RESERVE the
-          // ledger row + period marker BEFORE the external UB credit so a
-          // rerun can't double-pay; roll back only on a clean UB failure.
-          const incomeMemo = `Shop income: ${shopName} (${opens} day${opens === 1 ? "" : "s"})`;
-          const [reservedIncome] = await db
-            .insert(walletTransactions)
-            .values({
-              characterId: c.id,
-              userId: c.ownerId,
-              amount: income,
-              kind: "shop_income",
-              memo: incomeMemo,
-            })
-            .returning({ id: walletTransactions.id });
-          markBilled(c.id, "shop_income");
-          const ubCredit = await patchBalance(owner.discordId, {
-            cash: income,
-            reason: incomeMemo,
-          });
-          if (ubCredit) {
-            affected++;
-            await advanceSettledWalletBalance({ userId: owner.id, amount: income, ubTotalAfter: ubCredit.total }).catch(() => {});
-          } else {
-            await db.delete(walletTransactions).where(eq(walletTransactions.id, reservedIncome.id));
-            unmarkBilled(c.id, "shop_income");
-            logger.warn(
-              { characterId: c.id, income },
-              "monthly_rent venue shop_income UB credit failed; rolled back ledger reservation",
-            );
-          }
-        }
-      }
+      // ----- 2b. Passive venue-only shop income (REMOVED) --------------------
+      // Store / ripperdoc owners without a business lease used to earn monthly
+      // passive income here. Shop income is now paid INSTANTLY on open shop
+      // (POST /characters/:id/open-shop) for lease holders and venue-only
+      // owners alike, so this monthly pass is gone to avoid double-paying.
 
       // ----- 3. Lifestyle (REMOVED) -----------------------------------------
       // Lifestyle tiers were retired pre-launch: cost-of-living is now a flat

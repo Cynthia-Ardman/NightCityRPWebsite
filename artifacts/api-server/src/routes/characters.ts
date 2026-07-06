@@ -40,6 +40,11 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+// Fixed cash paid to a shop owner each time they open shop during a live
+// session (mirrors the weekly attendance bonus). Exactly one payout per
+// session — enforced by the open-shop endpoint's session guard.
+const SHOP_OPEN_PAYOUT = 150;
+
 async function loadOwnedChar(userId: string, id: number): Promise<Character | null> {
   const [c] = await db
     .select()
@@ -1450,46 +1455,104 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
     .toISOString()
     .slice(0, 10);
+  // One paid open per live session. Opens are already gated to the Sunday
+  // 2–9pm Pacific window, so any open within the last 8 hours belongs to the
+  // SAME session (the window is 7h; sessions are a week apart) — an 8h lookback
+  // is timezone-math-free and can't bleed into a neighbouring session.
+  const sessionLookback = new Date(now.getTime() - 8 * 60 * 60 * 1000);
+
+  // Atomically claim this session's open. A per-character advisory lock
+  // serializes concurrent open-shop attempts so the check-then-insert is
+  // race-safe. This closes the UTC-midnight straddle where two requests could
+  // both pass the lookback and then insert on DIFFERENT `openedOn` dates
+  // (Sun/Mon), each slipping past the (characterId, openedOn) per-day unique
+  // index and getting paid twice. The transaction commits — releasing the lock
+  // — BEFORE the external UB credit, so no HTTP call is held inside the lock; a
+  // request that was blocked then sees the committed row on re-check and 409s.
+  let outcome:
+    | { kind: "already"; openedAt: Date }
+    | { kind: "opened"; row: typeof shopOpens.$inferSelect };
   try {
-    const [row] = await db
-      .insert(shopOpens)
-      .values({
-        characterId: id,
-        listingId: lease?.listingId ?? null,
-        openedOn: today,
-        notes: typeof req.body?.notes === "string" ? req.body.notes : null,
-      })
-      .returning();
-    await db.insert(activityEvents).values({
-      kind: "shop_opened",
-      actorId: req.user!.id,
-      actorName: req.user!.username,
-      actorAvatarUrl: req.user!.avatarUrl,
-      message: `${c.name} opened shop at ${shopLabel}`,
-    });
-    await recordAudit({
-      req,
-      category: "shop",
-      action: "open",
-      targetType: "character",
-      targetId: id,
-      message: `${c.name} opened shop at ${shopLabel}`,
-      after: { leaseId: lease?.id ?? null, address: shopLabel, openedOn: today },
-    });
-    res.json({
-      characterId: id,
-      openedOn: row.openedOn,
-      openedAt: row.openedAt,
-      leaseAddress: shopLabel,
+    outcome = await db.transaction(async (tx): Promise<typeof outcome> => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(8123, ${id})`);
+      const [prior] = await tx
+        .select({ id: shopOpens.id, openedAt: shopOpens.openedAt })
+        .from(shopOpens)
+        .where(and(eq(shopOpens.characterId, id), gte(shopOpens.openedAt, sessionLookback)))
+        .limit(1);
+      if (prior) return { kind: "already", openedAt: prior.openedAt };
+      const [inserted] = await tx
+        .insert(shopOpens)
+        .values({
+          characterId: id,
+          listingId: lease?.listingId ?? null,
+          openedOn: today,
+          notes: typeof req.body?.notes === "string" ? req.body.notes : null,
+        })
+        .returning();
+      return { kind: "opened", row: inserted };
     });
   } catch (err: unknown) {
     const code = (err as { code?: string })?.code;
     if (code === "23505") {
-      res.status(409).json({ error: "Shop already opened today", openedOn: today });
+      res.status(409).json({ error: "Shop already opened this session", openedOn: today });
       return;
     }
     throw err;
   }
+  if (outcome.kind === "already") {
+    res.status(409).json({ error: "Shop already opened this session", openedAt: outcome.openedAt });
+    return;
+  }
+  const row = outcome.row;
+
+  // Instant shop income: credit the owner's cash the moment they open shop,
+  // like the weekly attendance bonus. loadOwnedChar guarantees the caller IS
+  // the owner, so req.user is the payee. On a clean UB failure we roll the open
+  // back so the owner can retry cleanly (no money moved).
+  const payoutMemo = `Shop income: ${shopLabel}`;
+  const ub = await patchBalance(req.user!.discordId, { cash: SHOP_OPEN_PAYOUT, reason: payoutMemo });
+  if (!ub) {
+    await db.delete(shopOpens).where(eq(shopOpens.id, row.id)).catch(() => {});
+    res.status(502).json({ error: "UnbelievaBoat unavailable, try again shortly" });
+    return;
+  }
+  // Record the settled ledger row + advance the website wallet balance. Keyed
+  // on the open row id so a retry can never double-record.
+  await recordSettledWalletMovement({
+    userId: req.user!.id,
+    amount: SHOP_OPEN_PAYOUT,
+    ubTotalAfter: ub.total,
+    source: "website",
+    kind: "shop_income",
+    memo: payoutMemo,
+    characterId: id,
+    idempotencyKey: `shop-open:${row.id}`,
+  });
+
+  await db.insert(activityEvents).values({
+    kind: "shop_opened",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${c.name} opened shop at ${shopLabel} (+€${SHOP_OPEN_PAYOUT})`,
+  });
+  await recordAudit({
+    req,
+    category: "shop",
+    action: "open",
+    targetType: "character",
+    targetId: id,
+    message: `${c.name} opened shop at ${shopLabel} (+€${SHOP_OPEN_PAYOUT})`,
+    after: { leaseId: lease?.id ?? null, address: shopLabel, openedOn: today, payout: SHOP_OPEN_PAYOUT },
+  });
+  res.json({
+    characterId: id,
+    openedOn: row.openedOn,
+    openedAt: row.openedAt,
+    leaseAddress: shopLabel,
+    payout: SHOP_OPEN_PAYOUT,
+  });
 });
 
 export default router;
