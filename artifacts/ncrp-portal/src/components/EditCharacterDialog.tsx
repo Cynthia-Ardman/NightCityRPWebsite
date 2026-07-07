@@ -167,6 +167,11 @@ export default function EditCharacterDialog({
   const [ripperDoc, setRipperDoc] = useState<boolean>(
     ((character.sheetData ?? {}) as Record<string, unknown>).ripperDoc === true,
   );
+  // Full Body Conversion flag — self-declared, no programmatic effect. Lives in
+  // sheetData alongside ripperDoc.
+  const [fbc, setFbc] = useState<boolean>(
+    ((character.sheetData ?? {}) as Record<string, unknown>).fbc === true,
+  );
   const [updateNote, setUpdateNote] = useState<string>("");
   // Admin-only destructive delete lives at the bottom of this dialog. The
   // delete button stays disabled until the admin types the literal word DELETE.
@@ -241,6 +246,7 @@ export default function EditCharacterDialog({
     setTraumaTeamTier(character.traumaTeamTier ?? "");
     setXanaduGold(character.xanaduGold ?? false);
     setRipperDoc(((character.sheetData ?? {}) as Record<string, unknown>).ripperDoc === true);
+    setFbc(((character.sheetData ?? {}) as Record<string, unknown>).fbc === true);
     setUpdateNote("");
     setDeleteConfirm("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -348,6 +354,7 @@ export default function EditCharacterDialog({
           hooks,
           skills,
           ripperDoc,
+          fbc,
         },
         lifeStatus: lifeStatus as "active" | "dead" | "missing" | "loa" | "retired",
         traumaTeamTier: (traumaTeamTier || null) as "silver" | "gold" | "platinum" | "diamond" | "corporate" | null,
@@ -580,6 +587,25 @@ export default function EditCharacterDialog({
                         </label>
                         <p className="text-[10px] text-muted-foreground mt-1">
                           Grants the RipperDoc Discord role when this edit is approved.
+                        </p>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs">FULL BODY CONVERSION (FBC)</Label>
+                        <label className="flex h-10 items-center gap-3 border border-input bg-background px-3">
+                          <input
+                            type="checkbox"
+                            checked={fbc}
+                            onChange={(e) => setFbc(e.target.checked)}
+                            className="accent-nc-cyan"
+                            data-testid="checkbox-edit-fbc"
+                          />
+                          <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                            {fbc ? "Yes" : "No"}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Medical-grade only, no advantages; FBCs can't use combat cyberware. Self-declared, not enforced.
                         </p>
                       </div>
                     </AccordionContent>

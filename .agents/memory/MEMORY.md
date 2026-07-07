@@ -113,6 +113,7 @@
 - VRChat: [calendar sync](vrchat-calendar-sync.md) + [mirror gating](vrchat-calendar-mirror.md); [group instances](vrchat-group-instances.md); [allowed-roles](vrchat-instance-roles.md); [agent queue CLAIM](vrchat-agent-command-queue.md).
 - [Meds refund forensics + checkup extraction](meds-refund-forensics.md) — June-2026 probe: legacy meds charges were CORRECT (reset on checkup, scale w/ gap), new cron never charged — see topic.
 - [sheetData merge + passthrough](sheetdata-merge-passthrough.md) — char edit whole-replaces sheetData; forms must spread-merge existing keys AND EditableSchema must `.passthrough()` or sheet-created story/gear/identity fields silently wipe.
+- [Sheet self-declaration flags](sheet-self-declaration-flags.md) — boolean flags (ripperDoc/fbc) live in free-form sheetData, persist via full-blob materialize + passthrough; a new one needs 3 form surfaces + payloadSig dep + reset-on-open; effects opt-in.
 - [Availability grid locale formatting](availability-grid-locale.md) — one shared full-day grid; pin DATE format always, but clock is a per-viewer 12h/24h toggle (localStorage, default 24h); keep times in local TZ.
 - [Dossier background rendering](dossier-background-rendering.md) — column `background` + a "Background" section coexist; render the column card independent of hasSections, dedup only on exact normalized-text match.
 - Event NPCs: [ATTENDED confirm must allow fee=0](event-npc-fee-optional.md) never gate on amount>0; [lifecycle mirrors missions](event-npc-lifecycle.md) attended/no_show + pay, per-confirm-amount deviation.

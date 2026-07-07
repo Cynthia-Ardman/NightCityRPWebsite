@@ -6289,6 +6289,8 @@ components:
         psychProfile: { type: string }
         hooks: { type: string }
         skills: { type: string }
+        ripperDoc: { type: boolean, description: "When true, grants the RipperDoc Discord role to the character's owner on save." }
+        fbc: { type: boolean, description: "Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware)." }
 
     PublicCharacterSummary:
       type: object
@@ -6414,6 +6416,7 @@ components:
             preamble: { type: string }
             sections: { type: object, additionalProperties: { type: string } }
             ripperDoc: { type: boolean, description: "When true, grants the RipperDoc Discord role to the character's owner on save." }
+            fbc: { type: boolean, description: "Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware)." }
 
     ArchiveEditResult:
       type: object

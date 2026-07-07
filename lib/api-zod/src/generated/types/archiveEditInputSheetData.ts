@@ -12,4 +12,6 @@ export type ArchiveEditInputSheetData = {
   sections: ArchiveEditInputSheetDataSections;
   /** When true, grants the RipperDoc Discord role to the character's owner on save. */
   ripperDoc?: boolean;
+  /** Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware). */
+  fbc?: boolean;
 };

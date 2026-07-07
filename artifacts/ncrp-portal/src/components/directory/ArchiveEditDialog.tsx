@@ -95,6 +95,7 @@ export default function ArchiveEditDialog({
     preamble?: string;
     sections?: Record<string, string>;
     ripperDoc?: boolean;
+    fbc?: boolean;
   };
 
   const [name, setName] = useState(character.name);
@@ -115,6 +116,9 @@ export default function ArchiveEditDialog({
   // RipperDoc flag (parity with the player/staff edit dialog). Persisted into
   // sheetData; saving with this on grants the RipperDoc Discord role to the owner.
   const [ripperDoc, setRipperDoc] = useState<boolean>(sheet.ripperDoc === true);
+  // Full Body Conversion flag (parity with the player/staff edit dialogs).
+  // Self-declared, no programmatic effect; persisted into sheetData.
+  const [fbc, setFbc] = useState<boolean>(sheet.fbc === true);
   const [commitMessage, setCommitMessage] = useState("");
   // Admin-only destructive delete lives at the bottom of this dialog. The
   // delete button stays disabled until the admin types the literal word DELETE.
@@ -195,7 +199,7 @@ export default function ArchiveEditDialog({
           fixerDiscordId: fixerDiscordId.trim() ? fixerDiscordId.trim() : null,
           playerDiscordId: playerDiscordId.trim() ? playerDiscordId.trim() : null,
           tags,
-          sheetData: { preamble, sections: rowsToSections(rows), ripperDoc },
+          sheetData: { preamble, sections: rowsToSections(rows), ripperDoc, fbc },
         },
       },
       {
@@ -309,6 +313,25 @@ export default function ArchiveEditDialog({
               </label>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Grants the RipperDoc Discord role to the owner when saved.
+              </p>
+            </div>
+
+            <div>
+              <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Full Body Conversion (FBC)</Label>
+              <label className="flex h-10 items-center gap-3 border border-input bg-background px-3">
+                <input
+                  type="checkbox"
+                  checked={fbc}
+                  onChange={(e) => setFbc(e.target.checked)}
+                  className="accent-nc-cyan"
+                  data-testid="checkbox-edit-fbc"
+                />
+                <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                  {fbc ? "Yes" : "No"}
+                </span>
+              </label>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Medical-grade only, no advantages; FBCs can't use combat cyberware. Self-declared, not enforced.
               </p>
             </div>
           </TabsContent>
