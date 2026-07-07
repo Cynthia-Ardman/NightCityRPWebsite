@@ -603,7 +603,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
               <span className="text-nc-cyan tracking-widest">FULL BODY CONVERSION (FBC)</span>
               <span className="block text-muted-foreground">
                 FBCs are medical grade only and carry no advantages over a normal human body.
-                By selecting FBC, this character cannot use any combat cyberware.
               </span>
             </span>
           </label>
