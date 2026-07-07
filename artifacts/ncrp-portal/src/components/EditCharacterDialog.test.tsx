@@ -316,9 +316,49 @@ describe("EditCharacterDialog", () => {
       hooks: "",
       skills: "",
       ripperDoc: false,
+      fbc: false,
+      // Identity fields (empty in this fixture) ride along as undefined, which
+      // JSON.stringify drops so the whole-replace never stamps empty keys.
+      nickname: undefined,
+      pronouns: undefined,
+      gender: undefined,
+      occupation: undefined,
+      notes: undefined,
+      age: undefined,
     });
     // updateNote is trimmed before being sent.
     expect(call.data.updateNote).toBe("refit");
+  });
+
+  it("persists a valid age and trims identity fields", () => {
+    renderDialog();
+    fireEvent.change(screen.getByTestId("input-edit-age"), {
+      target: { value: "27" },
+    });
+    fireEvent.change(screen.getByTestId("input-edit-nickname"), {
+      target: { value: "  Rex  " },
+    });
+    fireEvent.click(screen.getByTestId("button-save-edit"));
+
+    const call = h.updateMutate.mock.calls[0][0] as {
+      data: { sheetData: Record<string, unknown> };
+    };
+    expect(call.data.sheetData.age).toBe(27);
+    expect(call.data.sheetData.nickname).toBe("Rex");
+  });
+
+  it("drops age when blank or not a positive integer (never stores NaN/null)", () => {
+    renderDialog();
+    fireEvent.change(screen.getByTestId("input-edit-age"), {
+      target: { value: "abc" },
+    });
+    fireEvent.click(screen.getByTestId("button-save-edit"));
+
+    const call = h.updateMutate.mock.calls[0][0] as {
+      data: { sheetData: Record<string, unknown> };
+    };
+    expect(call.data.sheetData.age).toBeUndefined();
+    expect(JSON.stringify(call.data.sheetData)).not.toContain("age");
   });
 
   it("omits empty optional fields from the payload (archetype, updateNote)", () => {

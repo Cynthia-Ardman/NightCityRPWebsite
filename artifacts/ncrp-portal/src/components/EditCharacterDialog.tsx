@@ -80,6 +80,13 @@ function sheetStr(sheetData: Character["sheetData"], key: string): string {
   return typeof v[key] === "string" ? (v[key] as string) : "";
 }
 
+// Read the numeric age off sheetData as an editable string ("" when unset), so
+// the edit form can round-trip the same Age field the new-character form uses.
+function ageStr(sheetData: Character["sheetData"]): string {
+  const v = (sheetData ?? {}) as Record<string, unknown>;
+  return v.age != null && v.age !== "" ? String(v.age) : "";
+}
+
 type AcquireRoute = { label: string; description: string; onClick: () => void; testId: string };
 
 // Read-only panel explaining how a category of equipment is acquired through the
@@ -156,6 +163,15 @@ export default function EditCharacterDialog({
   const [psychProfile, setPsychProfile] = useState(sheetStr(character.sheetData, "psychProfile"));
   const [hooks, setHooks] = useState(sheetStr(character.sheetData, "hooks"));
   const [skills, setSkills] = useState(skillsToText(character.sheetData?.skills));
+  // Identity fields the new-character form also captures — stored at the top
+  // level of sheetData (legacy characters leave them empty). Surfaced here so
+  // the edit form offers the same options as creation.
+  const [nickname, setNickname] = useState(sheetStr(character.sheetData, "nickname"));
+  const [pronouns, setPronouns] = useState(sheetStr(character.sheetData, "pronouns"));
+  const [gender, setGender] = useState(sheetStr(character.sheetData, "gender"));
+  const [occupation, setOccupation] = useState(sheetStr(character.sheetData, "occupation"));
+  const [notes, setNotes] = useState(sheetStr(character.sheetData, "notes"));
+  const [age, setAge] = useState(ageStr(character.sheetData));
   const [portraitUrl, setPortraitUrl] = useState<string | null>(character.portraitUrl ?? null);
   const [portraitUrls, setPortraitUrls] = useState<string[]>(character.portraitUrls ?? []);
   const [statsImageUrls, setStatsImageUrls] = useState<string[]>(character.statsImageUrls ?? []);
@@ -239,6 +255,12 @@ export default function EditCharacterDialog({
     setPsychProfile(sheetStr(character.sheetData, "psychProfile"));
     setHooks(sheetStr(character.sheetData, "hooks"));
     setSkills(skillsToText(character.sheetData?.skills));
+    setNickname(sheetStr(character.sheetData, "nickname"));
+    setPronouns(sheetStr(character.sheetData, "pronouns"));
+    setGender(sheetStr(character.sheetData, "gender"));
+    setOccupation(sheetStr(character.sheetData, "occupation"));
+    setNotes(sheetStr(character.sheetData, "notes"));
+    setAge(ageStr(character.sheetData));
     setPortraitUrl(character.portraitUrl ?? null);
     setPortraitUrls(character.portraitUrls ?? []);
     setStatsImageUrls(character.statsImageUrls ?? []);
@@ -355,6 +377,23 @@ export default function EditCharacterDialog({
           skills,
           ripperDoc,
           fbc,
+          // Identity fields mirror the new-character form. Send undefined (which
+          // JSON.stringify drops, so the whole-replace clears the key) when
+          // empty — this both removes a cleared value and avoids stamping empty
+          // keys onto legacy characters that never had them.
+          nickname: nickname.trim() || undefined,
+          pronouns: pronouns.trim() || undefined,
+          gender: gender.trim() || undefined,
+          occupation: occupation.trim() ? occupation : undefined,
+          notes: notes.trim() ? notes : undefined,
+          // Only persist a finite, positive integer; anything else (blank or
+          // garbage) drops the key rather than storing NaN → null.
+          age: (() => {
+            const n = Number(age);
+            return age.trim() !== "" && Number.isFinite(n) && n >= 1
+              ? Math.trunc(n)
+              : undefined;
+          })(),
         },
         lifeStatus: lifeStatus as "active" | "dead" | "missing" | "loa" | "retired",
         traumaTeamTier: (traumaTeamTier || null) as "silver" | "gold" | "platinum" | "diamond" | "corporate" | null,
@@ -487,7 +526,7 @@ export default function EditCharacterDialog({
                 <Accordion type="multiple" defaultValue={["basics", "status"]}>
                   <AccordionItem value="basics" className="border-border">
                     <AccordionTrigger className={accTriggerClass}>BASICS</AccordionTrigger>
-                    <AccordionContent>
+                    <AccordionContent className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label className="text-xs">NAME</Label>
@@ -499,6 +538,22 @@ export default function EditCharacterDialog({
                           />
                         </div>
                         <div>
+                          <Label className="text-xs">NICKNAME / HANDLE</Label>
+                          <Input
+                            value={nickname}
+                            onChange={(e) => setNickname(e.target.value)}
+                            data-testid="input-edit-nickname"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">PRONOUNS</Label>
+                          <Input
+                            value={pronouns}
+                            onChange={(e) => setPronouns(e.target.value)}
+                            data-testid="input-edit-pronouns"
+                          />
+                        </div>
+                        <div>
                           <Label className="text-xs">ARCHETYPE</Label>
                           <Input
                             value={archetype}
@@ -506,6 +561,33 @@ export default function EditCharacterDialog({
                             data-testid="input-edit-archetype"
                           />
                         </div>
+                        <div>
+                          <Label className="text-xs">AGE</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={age}
+                            onChange={(e) => setAge(e.target.value)}
+                            data-testid="input-edit-age"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">GENDER</Label>
+                          <Input
+                            value={gender}
+                            onChange={(e) => setGender(e.target.value)}
+                            data-testid="input-edit-gender"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs">OCCUPATION / ROLE</Label>
+                        <MarkdownEditor
+                          value={occupation}
+                          onChange={setOccupation}
+                          rows={2}
+                          testId="input-edit-occupation"
+                        />
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -623,6 +705,7 @@ export default function EditCharacterDialog({
                     <TabsTrigger value="background" className={subTabTriggerClass}>BACKGROUND</TabsTrigger>
                     <TabsTrigger value="hooks" className={subTabTriggerClass}>HOOKS</TabsTrigger>
                     <TabsTrigger value="skills" className={subTabTriggerClass}>SKILLS</TabsTrigger>
+                    <TabsTrigger value="notes" className={subTabTriggerClass}>NOTES</TabsTrigger>
                     <TabsTrigger value="sections" className={subTabTriggerClass}>SECTIONS</TabsTrigger>
                     <TabsTrigger value="note" className={subTabTriggerClass}>NOTE</TabsTrigger>
                   </TabsList>
@@ -684,6 +767,16 @@ export default function EditCharacterDialog({
                       onChange={setSkills}
                       rows={6}
                       testId="input-edit-skills"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="notes" className="mt-0">
+                    <Label className="text-xs">NOTES</Label>
+                    <Textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={4}
+                      data-testid="input-edit-notes"
                     />
                   </TabsContent>
 
