@@ -21,6 +21,7 @@ import {
   CalendarCheck,
   Store,
   Stethoscope,
+  HeartPulse,
   Activity,
   ArrowLeft,
   FileEdit,
@@ -326,6 +327,83 @@ export default function FixerPlayerLookup() {
                         <span className="text-foreground">{r.name}</span>
                         {r.location && <span className="text-muted-foreground"> · {r.location}</span>}
                         <span className="text-nc-yellow"> · €${r.balance.toLocaleString()}</span>
+                      </Row>
+                    ))}
+                  </RowList>
+                )}
+              </Section>
+
+              {/* Cyberware checkup history (who performed each checkup + per-char status) */}
+              <Section icon={<HeartPulse className="w-4 h-4" />} title="CYBERWARE CHECKUPS" count={profile.checkups.length}>
+                {(() => {
+                  // Per-character checkup status summary (only characters with
+                  // any checkup signal — skip chars that never had chrome).
+                  const withStatus = profile.characters.filter(
+                    (c) => c.lastCheckupAt != null || (c.checkupStreak ?? 0) > 0,
+                  );
+                  return (
+                    <>
+                      {withStatus.length > 0 && (
+                        <div className="flex flex-wrap gap-2 font-mono text-xs mb-3">
+                          {withStatus.map((c) => (
+                            <Badge
+                              key={c.id}
+                              variant="outline"
+                              className="rounded-none border-border text-muted-foreground"
+                              data-testid={`chip-checkup-status-${c.id}`}
+                            >
+                              <span className="text-foreground mr-1">{c.name}:</span>
+                              last {fmt(c.lastCheckupAt)}
+                              {(c.checkupStreak ?? 0) > 0 && (
+                                <span className="text-nc-magenta ml-1">
+                                  · {c.checkupStreak} wk{(c.checkupStreak ?? 0) === 1 ? "" : "s"} missed
+                                </span>
+                              )}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {profile.checkups.length === 0 ? (
+                        <Empty>No recorded checkups.</Empty>
+                      ) : (
+                        <RowList>
+                          {profile.checkups.map((ck) => (
+                            <Row
+                              key={ck.id}
+                              testId={`row-checkup-${ck.id}`}
+                              when={fmt(ck.createdAt)}
+                              href={ck.characterId != null ? `/characters/${ck.characterId}` : undefined}
+                            >
+                              {ck.characterName && <span className="text-nc-cyan">{ck.characterName}</span>}
+                              <span className="text-foreground"> · checkup</span>
+                              {ck.actorName && <span className="text-muted-foreground"> · by {ck.actorName}</span>}
+                              {ck.level && <span className="text-nc-yellow"> · band: {ck.level}</span>}
+                            </Row>
+                          ))}
+                        </RowList>
+                      )}
+                    </>
+                  );
+                })()}
+              </Section>
+
+              {/* Meds / cyberware charge history (weekly meds bills, install fees) */}
+              <Section icon={<Stethoscope className="w-4 h-4" />} title="MEDS / CYBERWARE CHARGES" count={profile.medsCharges.length}>
+                {profile.medsCharges.length === 0 ? (
+                  <Empty>No cyberware charges.</Empty>
+                ) : (
+                  <RowList>
+                    {profile.medsCharges.map((m) => (
+                      <Row
+                        key={m.id}
+                        testId={`row-medscharge-${m.id}`}
+                        when={fmt(m.createdAt)}
+                        href={m.characterId != null ? `/characters/${m.characterId}` : undefined}
+                      >
+                        <span className={m.amount < 0 ? "text-destructive" : "text-nc-green"}>{eddies(m.amount)}</span>
+                        {m.characterName && <span className="text-nc-cyan"> · {m.characterName}</span>}
+                        <span className="text-muted-foreground"> · {m.kind}</span>
+                        {m.memo && <span className="text-muted-foreground/70"> · {m.memo}</span>}
                       </Row>
                     ))}
                   </RowList>

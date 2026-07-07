@@ -7019,8 +7019,28 @@ export const GetFixerPlayerActivityResponse = zod.object({
   "name": zod.string(),
   "lifeStatus": zod.string().optional(),
   "archived": zod.boolean().optional(),
-  "claimed": zod.boolean().optional()
+  "claimed": zod.boolean().optional(),
+  "lastCheckupAt": zod.coerce.date().nullish(),
+  "checkupStreak": zod.number().nullish()
 })),
+  "checkups": zod.array(zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "actorName": zod.string().nullish(),
+  "message": zod.string().nullish(),
+  "level": zod.string().nullish(),
+  "createdAt": zod.coerce.date().nullish()
+})).describe('Ripperdoc checkup history across all of this player\'s characters, newest first (sourced from the audit log — same records the Ripperdoc Console shows). actorName is the doc\/staff member who recorded the visit.'),
+  "medsCharges": zod.array(zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "kind": zod.string(),
+  "memo": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})).describe('Cyberware\/meds charge history across this player\'s characters (wallet rows in the cyberware category), newest first. Memos carry the week count for weekly meds bills.'),
   "auditEntries": zod.array(zod.object({
   "id": zod.number(),
   "category": zod.string(),

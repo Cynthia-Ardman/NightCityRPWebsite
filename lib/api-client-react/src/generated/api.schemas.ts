@@ -1986,6 +1986,39 @@ export type PlayerActivityProfileCharactersItem = {
   lifeStatus?: string;
   archived?: boolean;
   claimed?: boolean;
+  /** @nullable */
+  lastCheckupAt?: string | null;
+  /** @nullable */
+  checkupStreak?: number | null;
+};
+
+export type PlayerActivityProfileCheckupsItem = {
+  id: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  /** @nullable */
+  actorName?: string | null;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  level?: string | null;
+  /** @nullable */
+  createdAt?: string | null;
+};
+
+export type PlayerActivityProfileMedsChargesItem = {
+  id: number;
+  /** @nullable */
+  characterId?: number | null;
+  /** @nullable */
+  characterName?: string | null;
+  amount: number;
+  kind: string;
+  /** @nullable */
+  memo?: string | null;
+  createdAt: string;
 };
 
 export type PlayerActivityProfileAuditEntriesItem = {
@@ -2154,6 +2187,10 @@ export type PlayerActivityProfileHistoricalAppearances = {
 export interface PlayerActivityProfile {
   player: PlayerActivityProfilePlayer;
   characters: PlayerActivityProfileCharactersItem[];
+  /** Ripperdoc checkup history across all of this player's characters, newest first (sourced from the audit log — same records the Ripperdoc Console shows). actorName is the doc/staff member who recorded the visit. */
+  checkups: PlayerActivityProfileCheckupsItem[];
+  /** Cyberware/meds charge history across this player's characters (wallet rows in the cyberware category), newest first. Memos carry the week count for weekly meds bills. */
+  medsCharges: PlayerActivityProfileMedsChargesItem[];
   auditEntries: PlayerActivityProfileAuditEntriesItem[];
   activityEvents: PlayerActivityProfileActivityEventsItem[];
   walletTransactions: PlayerActivityProfileWalletTransactionsItem[];

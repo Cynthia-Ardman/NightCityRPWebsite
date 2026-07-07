@@ -12,4 +12,8 @@ export type PlayerActivityProfileCharactersItem = {
   lifeStatus?: string;
   archived?: boolean;
   claimed?: boolean;
+  /** @nullable */
+  lastCheckupAt?: Date | null;
+  /** @nullable */
+  checkupStreak?: number | null;
 };

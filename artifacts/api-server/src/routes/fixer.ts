@@ -19,6 +19,7 @@ import {
   botMissionLog,
   stores,
   ripperdocs,
+  classifyWalletCategory,
 } from "@workspace/db";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import {
@@ -263,7 +264,7 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
   const charIds = chars.map((c) => c.id);
   const charNameById = new Map(chars.map((c) => [c.id, c.name]));
 
-  const [auditRows, activityRows, walletRows, missionRows, actorRows, attendRows, storeRows, ripperRows, missionLogRows, draftRows, rejectedRequestRows] = await Promise.all([
+  const [auditRows, activityRows, walletRows, missionRows, actorRows, attendRows, storeRows, ripperRows, missionLogRows, draftRows, rejectedRequestRows, checkupRows, medsTxnRows] = await Promise.all([
     db
       .select({
         id: auditLog.id,
@@ -379,7 +380,74 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
       .where(and(eq(customRequests.requestedById, userId), eq(customRequests.status, "rejected")))
       .orderBy(desc(customRequests.createdAt))
       .limit(LIMIT),
+    // Ripperdoc checkup history for this player's characters. There's no
+    // dedicated checkups table — each visit writes an audit row (action
+    // 'checkup', target the character), same source the Ripperdoc Console uses.
+    charIds.length
+      ? db
+          .select({
+            id: auditLog.id,
+            targetId: auditLog.targetId,
+            actorName: auditLog.actorName,
+            message: auditLog.message,
+            afterJson: auditLog.afterJson,
+            createdAt: auditLog.createdAt,
+          })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.targetType, "character"),
+              inArray(auditLog.targetId, charIds.map(String)),
+              eq(auditLog.action, "checkup"),
+            ),
+          )
+          .orderBy(desc(auditLog.createdAt))
+          .limit(LIMIT)
+      : Promise.resolve(
+          [] as Array<{
+            id: number;
+            targetId: string | null;
+            actorName: string | null;
+            message: string | null;
+            afterJson: unknown;
+            createdAt: Date | null;
+          }>,
+        ),
+    // Meds / cyberware charge history for this player's characters. Category is
+    // stored on newer rows; legacy rows are classified from kind+memo (same rule
+    // the Ripperdoc Console medical record uses). Over-fetch then filter, since
+    // the category filter can't be fully expressed in SQL for legacy rows.
+    charIds.length
+      ? db
+          .select({
+            id: walletTransactions.id,
+            characterId: walletTransactions.characterId,
+            amount: walletTransactions.amount,
+            kind: walletTransactions.kind,
+            memo: walletTransactions.memo,
+            category: walletTransactions.category,
+            createdAt: walletTransactions.createdAt,
+          })
+          .from(walletTransactions)
+          .where(inArray(walletTransactions.characterId, charIds))
+          .orderBy(desc(walletTransactions.createdAt))
+          .limit(500)
+      : Promise.resolve(
+          [] as Array<{
+            id: number;
+            characterId: number | null;
+            amount: number;
+            kind: string;
+            memo: string | null;
+            category: string | null;
+            createdAt: Date;
+          }>,
+        ),
   ]);
+
+  const medsCharges = medsTxnRows
+    .filter((r) => (r.category ?? classifyWalletCategory(r.kind, r.memo)) === "cyberware")
+    .slice(0, LIMIT);
 
   // Resolve counterparty venue names for wallet transactions that reference a
   // store/ripperdoc the player interacted with (the counterparty may be a venue
@@ -417,7 +485,39 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
       roles: u.roles,
       lastSeenAt: u.lastSeenAt ? u.lastSeenAt.toISOString() : null,
     },
-    characters: chars.map((c) => ({ id: c.id, name: c.name, lifeStatus: c.lifeStatus, archived: c.archived, claimed: c.claimed })),
+    characters: chars.map((c) => ({
+      id: c.id,
+      name: c.name,
+      lifeStatus: c.lifeStatus,
+      archived: c.archived,
+      claimed: c.claimed,
+      lastCheckupAt: c.lastCheckupAt ? c.lastCheckupAt.toISOString() : null,
+      checkupStreak: c.checkupStreak,
+    })),
+    checkups: checkupRows.map((a) => {
+      const charId = a.targetId != null ? parseInt(a.targetId, 10) : NaN;
+      return {
+        id: a.id,
+        characterId: Number.isNaN(charId) ? null : charId,
+        characterName: Number.isNaN(charId) ? null : charNameById.get(charId) ?? null,
+        actorName: a.actorName,
+        message: a.message,
+        level:
+          a.afterJson && typeof a.afterJson === "object" && "cyberwareLevel" in a.afterJson
+            ? ((a.afterJson as { cyberwareLevel?: string | null }).cyberwareLevel ?? null)
+            : null,
+        createdAt: a.createdAt ? a.createdAt.toISOString() : null,
+      };
+    }),
+    medsCharges: medsCharges.map((r) => ({
+      id: r.id,
+      characterId: r.characterId,
+      characterName: r.characterId != null ? charNameById.get(r.characterId) ?? null : null,
+      amount: r.amount,
+      kind: r.kind,
+      memo: r.memo,
+      createdAt: r.createdAt.toISOString(),
+    })),
     auditEntries: auditRows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
     activityEvents: activityRows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
     walletTransactions: walletRows.map((r) => {

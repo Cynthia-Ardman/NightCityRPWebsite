@@ -10,8 +10,10 @@ import type { PlayerActivityProfileActorPaymentsItem } from './playerActivityPro
 import type { PlayerActivityProfileAttendanceClaimsItem } from './playerActivityProfileAttendanceClaimsItem';
 import type { PlayerActivityProfileAuditEntriesItem } from './playerActivityProfileAuditEntriesItem';
 import type { PlayerActivityProfileCharactersItem } from './playerActivityProfileCharactersItem';
+import type { PlayerActivityProfileCheckupsItem } from './playerActivityProfileCheckupsItem';
 import type { PlayerActivityProfileDraftsItem } from './playerActivityProfileDraftsItem';
 import type { PlayerActivityProfileHistoricalAppearances } from './playerActivityProfileHistoricalAppearances';
+import type { PlayerActivityProfileMedsChargesItem } from './playerActivityProfileMedsChargesItem';
 import type { PlayerActivityProfileMissionsItem } from './playerActivityProfileMissionsItem';
 import type { PlayerActivityProfilePlayer } from './playerActivityProfilePlayer';
 import type { PlayerActivityProfileRejectedRequestsItem } from './playerActivityProfileRejectedRequestsItem';
@@ -22,6 +24,10 @@ import type { PlayerActivityProfileWalletTransactionsItem } from './playerActivi
 export interface PlayerActivityProfile {
   player: PlayerActivityProfilePlayer;
   characters: PlayerActivityProfileCharactersItem[];
+  /** Ripperdoc checkup history across all of this player's characters, newest first (sourced from the audit log — same records the Ripperdoc Console shows). actorName is the doc/staff member who recorded the visit. */
+  checkups: PlayerActivityProfileCheckupsItem[];
+  /** Cyberware/meds charge history across this player's characters (wallet rows in the cyberware category), newest first. Memos carry the week count for weekly meds bills. */
+  medsCharges: PlayerActivityProfileMedsChargesItem[];
   auditEntries: PlayerActivityProfileAuditEntriesItem[];
   activityEvents: PlayerActivityProfileActivityEventsItem[];
   walletTransactions: PlayerActivityProfileWalletTransactionsItem[];

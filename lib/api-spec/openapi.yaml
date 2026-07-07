@@ -6712,7 +6712,7 @@ components:
 
     PlayerActivityProfile:
       type: object
-      required: [player, characters, auditEntries, activityEvents, walletTransactions, missions, actorPayments, attendanceClaims, drafts, rejectedRequests, stores, ripperdocs]
+      required: [player, characters, checkups, medsCharges, auditEntries, activityEvents, walletTransactions, missions, actorPayments, attendanceClaims, drafts, rejectedRequests, stores, ripperdocs]
       properties:
         player:
           type: object
@@ -6737,6 +6737,43 @@ components:
               lifeStatus: { type: string }
               archived: { type: boolean }
               claimed: { type: boolean }
+              lastCheckupAt: { type: [string, "null"], format: date-time }
+              checkupStreak: { type: [integer, "null"] }
+        checkups:
+          type: array
+          description: >-
+            Ripperdoc checkup history across all of this player's characters,
+            newest first (sourced from the audit log — same records the
+            Ripperdoc Console shows). actorName is the doc/staff member who
+            recorded the visit.
+          items:
+            type: object
+            required: [id]
+            properties:
+              id: { type: integer }
+              characterId: { type: [integer, "null"] }
+              characterName: { type: [string, "null"] }
+              actorName: { type: [string, "null"] }
+              message: { type: [string, "null"] }
+              level: { type: [string, "null"] }
+              createdAt: { type: [string, "null"], format: date-time }
+        medsCharges:
+          type: array
+          description: >-
+            Cyberware/meds charge history across this player's characters
+            (wallet rows in the cyberware category), newest first. Memos carry
+            the week count for weekly meds bills.
+          items:
+            type: object
+            required: [id, amount, kind, createdAt]
+            properties:
+              id: { type: integer }
+              characterId: { type: [integer, "null"] }
+              characterName: { type: [string, "null"] }
+              amount: { type: integer }
+              kind: { type: string }
+              memo: { type: [string, "null"] }
+              createdAt: { type: string, format: date-time }
         auditEntries:
           type: array
           items:
