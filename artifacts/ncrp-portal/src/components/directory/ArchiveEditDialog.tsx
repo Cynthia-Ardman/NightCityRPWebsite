@@ -331,7 +331,7 @@ export default function ArchiveEditDialog({
                 </span>
               </label>
               <p className="text-[10px] text-muted-foreground mt-1">
-                Medical-grade only, no advantages; FBCs can't use combat cyberware. Self-declared, not enforced.
+                Medical-grade only, no advantages. Self-declared, not enforced.
               </p>
             </div>
           </TabsContent>
