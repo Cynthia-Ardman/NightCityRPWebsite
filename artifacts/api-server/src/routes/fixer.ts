@@ -417,32 +417,26 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
     // stored on newer rows; legacy rows are classified from kind+memo (same rule
     // the Ripperdoc Console medical record uses). Over-fetch then filter, since
     // the category filter can't be fully expressed in SQL for legacy rows.
-    charIds.length
-      ? db
-          .select({
-            id: walletTransactions.id,
-            characterId: walletTransactions.characterId,
-            amount: walletTransactions.amount,
-            kind: walletTransactions.kind,
-            memo: walletTransactions.memo,
-            category: walletTransactions.category,
-            createdAt: walletTransactions.createdAt,
-          })
-          .from(walletTransactions)
-          .where(inArray(walletTransactions.characterId, charIds))
-          .orderBy(desc(walletTransactions.createdAt))
-          .limit(500)
-      : Promise.resolve(
-          [] as Array<{
-            id: number;
-            characterId: number | null;
-            amount: number;
-            kind: string;
-            memo: string | null;
-            category: string | null;
-            createdAt: Date;
-          }>,
-        ),
+    // Legacy (bot-era) meds charges are ACCOUNT-level rows: characterId is
+    // NULL and only userId points at the player — so match either scope.
+    db
+      .select({
+        id: walletTransactions.id,
+        characterId: walletTransactions.characterId,
+        amount: walletTransactions.amount,
+        kind: walletTransactions.kind,
+        memo: walletTransactions.memo,
+        category: walletTransactions.category,
+        createdAt: walletTransactions.createdAt,
+      })
+      .from(walletTransactions)
+      .where(
+        charIds.length
+          ? or(eq(walletTransactions.userId, userId), inArray(walletTransactions.characterId, charIds))
+          : eq(walletTransactions.userId, userId),
+      )
+      .orderBy(desc(walletTransactions.createdAt))
+      .limit(500),
   ]);
 
   const medsCharges = medsTxnRows
@@ -515,7 +509,7 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
       characterName: r.characterId != null ? charNameById.get(r.characterId) ?? null : null,
       amount: r.amount,
       kind: r.kind,
-      memo: r.memo,
+      memo: r.memo ? r.memo.replace(/^\[legacy-bal:\d+\]\s*/, "") : r.memo,
       createdAt: r.createdAt.toISOString(),
     })),
     auditEntries: auditRows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
