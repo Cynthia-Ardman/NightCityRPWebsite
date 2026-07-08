@@ -31,6 +31,7 @@ vi.mock("@workspace/api-client-react", () => ({
   // Users
   useAdminListUsers: () => ({ data: h.state.users, isLoading: h.state.usersLoading }),
   useAdminHydrateUsers: () => ({ mutate: h.mutate, isPending: false }),
+  useAdminSetCyberpsychoAccess: () => ({ mutate: h.mutate, isPending: false }),
   getAdminListUsersQueryKey: () => ["admin-users"],
   // Characters
   useAdminListCharacters: () => ({ data: h.state.chars, isLoading: h.state.charsLoading }),
