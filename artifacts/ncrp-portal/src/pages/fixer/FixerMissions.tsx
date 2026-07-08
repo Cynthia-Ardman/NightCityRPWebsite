@@ -534,7 +534,6 @@ function MissionForm({
             <Input
               type="datetime-local"
               value={v.endAt}
-              min={v.startAt || undefined}
               onChange={(e) => set("endAt", e.target.value)}
               className="rounded-none"
               data-testid="input-mission-end"

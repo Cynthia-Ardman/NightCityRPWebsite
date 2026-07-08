@@ -234,7 +234,6 @@ function ConvertToEventDialog({ mission }: { mission: MissionDetailModel }) {
                 <Input
                   type="datetime-local"
                   value={endAt}
-                  min={mission.startAt ? toLocalInputValue(mission.startAt) : undefined}
                   onChange={(e) => setEndAt(e.target.value)}
                   className="rounded-none"
                   data-testid="input-convert-end"
