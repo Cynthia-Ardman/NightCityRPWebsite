@@ -138,4 +138,5 @@
 - [EditCharacterDialog form-reset key](dialog-reset-stable-key.md) — reset effect must key on stable character.id, not the character object; amend callers rebuild a new mergedCharacter each render — see topic.
 - [Account merge wallet retry](account-merge-wallet-retry.md) — multi-leg money move must derive amount from the first leg's ledger row (by idem key), not live balance, or a rerun after partial failure strands the credit.
 - [Business-owner channel access](business-owner-channel-access.md) — store/ripperdoc OWNERS (not employees) get a per-member Discord channel overwrite while owning ≥1 business — see topic.
+- [CyberPsycho access grant](cyberpsycho-access-grant.md) — panel gated on ADMIN/FIXER OR users.cyberpsycho_access; shared /vrchat/session* stays role-only, never grant-reachable.
 - [Custom-request announce paths](custom-request-announce-paths.md) — reviewable request types must call announceRequest at their insert site; many customRequests insert paths (stores/directory/missions) skip it → no thread.

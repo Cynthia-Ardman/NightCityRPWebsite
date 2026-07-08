@@ -23,6 +23,8 @@ export interface AdminUser {
   isCsApprover?: boolean;
   isRipperdoc?: boolean;
   isStoreOwner?: boolean;
+  /** Per-user CyberPsycho control panel grant (independent of staff roles). */
+  cyberpsychoAccess?: boolean;
   characterCount?: number;
   /** @nullable */
   lastSeenAt?: Date | null;

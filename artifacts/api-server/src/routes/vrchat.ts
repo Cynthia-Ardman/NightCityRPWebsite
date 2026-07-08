@@ -1,7 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { and, desc, eq, lt, or } from "drizzle-orm";
 import { db, vrchatAgents, vrchatAgentCommands } from "@workspace/db";
-import { requireAuth, requireAnyRole } from "../middlewares/auth";
+import { requireAuth } from "../middlewares/auth";
+import { hasRole } from "../lib/discord";
+import type { NextFunction } from "express";
 import {
   requireAgent,
   mintAgentToken,
@@ -21,9 +23,32 @@ import {
 
 const router: IRouter = Router();
 
-// Staff who may operate the CyberPsycho control panel. Each staffer drives their
-// OWN agent (rows are scoped to req.user.id), so this is self-service control.
-const staffOnly = [requireAuth, requireAnyRole(["ADMIN", "FIXER"])] as const;
+// Who may operate the CyberPsycho control panel: fixers/admins always, plus any
+// user an admin has granted the per-user `cyberpsychoAccess` flag. Each operator
+// drives their OWN agent (rows are scoped to req.user.id), so this is
+// self-service control — the grant exposes no other staff surface.
+function requireCyberpsychoOperator(req: Request, res: Response, next: NextFunction): void {
+  const u = req.user!;
+  if (hasRole(u.roles, "ADMIN") || hasRole(u.roles, "FIXER") || u.cyberpsychoAccess) {
+    next();
+    return;
+  }
+  res.status(403).json({ error: "Requires one of: FIXER, ADMIN, or a CyberPsycho access grant" });
+}
+const staffOnly = [requireAuth, requireCyberpsychoOperator] as const;
+
+// The shared VRChat session (bot account login) stays a true staff surface —
+// per-user CyberPsycho grants do NOT extend to it. Only the admin dashboard
+// renders the connect card, so gate on real roles here.
+function requireStaffRole(req: Request, res: Response, next: NextFunction): void {
+  const u = req.user!;
+  if (hasRole(u.roles, "ADMIN") || hasRole(u.roles, "FIXER")) {
+    next();
+    return;
+  }
+  res.status(403).json({ error: "Requires one of: FIXER, ADMIN" });
+}
+const roleStaffOnly = [requireAuth, requireStaffRole] as const;
 
 // Absolute, public base URL the downloaded agent should POST back to. The agent
 // runs on a staffer's PC over the internet, so it needs the deployed origin +
@@ -241,13 +266,13 @@ router.post("/vrchat/instances/refresh", ...staffOnly, async (_req: Request, res
 
 // GET /vrchat/session — connection health for the staff "Connect VRChat" card.
 // Never returns cookie values.
-router.get("/vrchat/session", ...staffOnly, async (_req: Request, res: Response): Promise<void> => {
+router.get("/vrchat/session", ...roleStaffOnly, async (_req: Request, res: Response): Promise<void> => {
   res.json(await getSessionInfo());
 });
 
 // POST /vrchat/session/connect — begin a manual login. Triggers VRChat to email a
 // one-time code (or connects immediately if a remembered device/TOTP suffices).
-router.post("/vrchat/session/connect", ...staffOnly, async (_req: Request, res: Response): Promise<void> => {
+router.post("/vrchat/session/connect", ...roleStaffOnly, async (_req: Request, res: Response): Promise<void> => {
   if (!vrchatCredsConfigured()) {
     res.status(400).json({ error: "vrchat_not_configured" });
     return;
@@ -261,7 +286,7 @@ router.post("/vrchat/session/connect", ...staffOnly, async (_req: Request, res: 
 });
 
 // POST /vrchat/session/verify — finish a manual login with the emailed 6-digit code.
-router.post("/vrchat/session/verify", ...staffOnly, async (req: Request, res: Response): Promise<void> => {
+router.post("/vrchat/session/verify", ...roleStaffOnly, async (req: Request, res: Response): Promise<void> => {
   const { code } = (req.body ?? {}) as { code?: unknown };
   if (typeof code !== "string" || !code.trim()) {
     res.status(400).json({ error: "invalid_code" });

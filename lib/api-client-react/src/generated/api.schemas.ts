@@ -1152,6 +1152,8 @@ export interface Me {
   isStoreOwner: boolean;
   /** Data-derived: true when any of the user's characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role. */
   isStoreEmployee: boolean;
+  /** True when this user may open the CyberPsycho control panel: ADMIN/FIXER role, or a per-user grant flipped on by an admin. */
+  canCyberpsycho?: boolean;
   /** Data-derived: true when any of the user's characters is on staff at a ripperdoc clinic. Drives the Manage Clinics nav link for employees who hold no owner role. */
   isRipperdocEmployee: boolean;
   /** Number of times this user has logged in via Discord. Drives the first-run onboarding banner. */
@@ -4866,6 +4868,15 @@ export interface DiceRollResult {
   createdAt: string;
 }
 
+export interface CyberpsychoAccessInput {
+  enabled: boolean;
+}
+
+export interface CyberpsychoAccessResult {
+  id: string;
+  cyberpsychoAccess: boolean;
+}
+
 export interface AdminUser {
   id: string;
   discordId: string;
@@ -4882,6 +4893,8 @@ export interface AdminUser {
   isCsApprover?: boolean;
   isRipperdoc?: boolean;
   isStoreOwner?: boolean;
+  /** Per-user CyberPsycho control panel grant (independent of staff roles). */
+  cyberpsychoAccess?: boolean;
   characterCount?: number;
   /** @nullable */
   lastSeenAt?: string | null;

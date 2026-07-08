@@ -105,6 +105,15 @@ function FixerGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// CyberPsycho admits staff plus anyone holding the per-user admin grant
+// (surfaced as `canCyberpsycho` on /auth/me).
+function CyberpsychoGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useAuthMe();
+  if (isLoading) return null;
+  if (!user || !(user.isFixer || user.isAdmin || user.canCyberpsycho)) return <Redirect to="/" />;
+  return <>{children}</>;
+}
+
 // Like FixerGuard but also admits trial fixers, who are author-only: they reach
 // the Fixer hub and the mission log (to create/shepherd their own proposals) but
 // the API still gates the staff management tools (reports, pay actors, ...). Use
@@ -306,7 +315,7 @@ function AppRoutes() {
             <FixerGuard><OffMapProperties /></FixerGuard>
           </Route>
           <Route path="/fixer/cyberpsycho">
-            <FixerGuard><CyberPsycho /></FixerGuard>
+            <CyberpsychoGuard><CyberPsycho /></CyberpsychoGuard>
           </Route>
           <Route path="/items/:uuid" component={InventoryItemDetail} />
           <Route path="/settings" component={Settings} />

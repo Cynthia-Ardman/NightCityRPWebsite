@@ -100,6 +100,8 @@ import type {
   CustomRequestPatchInput,
   CustomRequestVoteInput,
   CustomRequestVoteResult,
+  CyberpsychoAccessInput,
+  CyberpsychoAccessResult,
   CyberwareInstallInput,
   CyberwareRemoveInput,
   CyberwareViolation,
@@ -15309,6 +15311,78 @@ export const useAdminSyncUserRoles = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminSyncUserRolesMutationOptions(options));
+    }
+
+export const getAdminSetCyberpsychoAccessUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/cyberpsycho-access`
+}
+
+/**
+ * @summary Grant or revoke this user's per-user CyberPsycho control panel access.
+ */
+export const adminSetCyberpsychoAccess = async (userId: string,
+    cyberpsychoAccessInput: CyberpsychoAccessInput, options?: RequestInit): Promise<CyberpsychoAccessResult> => {
+
+  return customFetch<CyberpsychoAccessResult>(getAdminSetCyberpsychoAccessUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      cyberpsychoAccessInput,)
+  }
+);}
+
+
+
+
+export const getAdminSetCyberpsychoAccessMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetCyberpsychoAccess>>, TError,{userId: string;data: BodyType<CyberpsychoAccessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSetCyberpsychoAccess>>, TError,{userId: string;data: BodyType<CyberpsychoAccessInput>}, TContext> => {
+
+const mutationKey = ['adminSetCyberpsychoAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSetCyberpsychoAccess>>, {userId: string;data: BodyType<CyberpsychoAccessInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  adminSetCyberpsychoAccess(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSetCyberpsychoAccessMutationResult = NonNullable<Awaited<ReturnType<typeof adminSetCyberpsychoAccess>>>
+    export type AdminSetCyberpsychoAccessMutationBody = BodyType<CyberpsychoAccessInput>
+    export type AdminSetCyberpsychoAccessMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Grant or revoke this user's per-user CyberPsycho control panel access.
+ */
+export const useAdminSetCyberpsychoAccess = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetCyberpsychoAccess>>, TError,{userId: string;data: BodyType<CyberpsychoAccessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSetCyberpsychoAccess>>,
+        TError,
+        {userId: string;data: BodyType<CyberpsychoAccessInput>},
+        TContext
+      > => {
+      return useMutation(getAdminSetCyberpsychoAccessMutationOptions(options));
     }
 
 export const getAdminSearchDiscordMembersUrl = (params: AdminSearchDiscordMembersParams,) => {

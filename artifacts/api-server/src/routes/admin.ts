@@ -68,6 +68,7 @@ router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
       isCsApprover: hasRole(u.roles, "CS_APPROVER"),
       isRipperdoc: hasRole(u.roles, "RIPPERDOC"),
       isStoreOwner: hasRole(u.roles, "STORE_OWNER"),
+      cyberpsychoAccess: u.cyberpsychoAccess,
       lastSeenAt: u.lastSeenAt,
       rolesSyncedAt: u.rolesSyncedAt,
     })),
@@ -194,6 +195,7 @@ router.get("/admin/users/:userId", adminOnly, async (req, res): Promise<void> =>
     isCsApprover: hasRole(u.roles, "CS_APPROVER"),
     isRipperdoc: hasRole(u.roles, "RIPPERDOC"),
     isStoreOwner: hasRole(u.roles, "STORE_OWNER"),
+    cyberpsychoAccess: u.cyberpsychoAccess,
     lastSeenAt: u.lastSeenAt,
     rolesSyncedAt: u.rolesSyncedAt,
     characters: chars,
@@ -230,6 +232,35 @@ router.post("/admin/users/hydrate", adminOnly, async (req, res): Promise<void> =
     updated++;
   }
   res.json({ scanned: targets.length, updated, missing });
+});
+
+// Grant or revoke per-user access to the CyberPsycho control panel. Fixers and
+// admins always have access via role; this flag hands the tool to specific
+// non-staff users without touching Discord roles (and role_sync can't wipe it).
+router.post("/admin/users/:userId/cyberpsycho-access", adminOnly, async (req, res): Promise<void> => {
+  const id = String(req.params.userId);
+  const enabled = (req.body ?? {}).enabled;
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({ error: "enabled must be a boolean" });
+    return;
+  }
+  const [u] = await db.select().from(users).where(eq(users.id, id));
+  if (!u) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await db.update(users).set({ cyberpsychoAccess: enabled }).where(eq(users.id, id));
+  await recordAudit({
+    req,
+    category: "admin",
+    action: enabled ? "cyberpsycho_access.grant" : "cyberpsycho_access.revoke",
+    targetType: "user",
+    targetId: id,
+    message: `${enabled ? "Granted" : "Revoked"} CyberPsycho access for ${u.username}`,
+    before: { cyberpsychoAccess: u.cyberpsychoAccess },
+    after: { cyberpsychoAccess: enabled },
+  });
+  res.json({ id, cyberpsychoAccess: enabled });
 });
 
 router.post("/admin/users/:userId/roles", adminOnly, async (req, res): Promise<void> => {

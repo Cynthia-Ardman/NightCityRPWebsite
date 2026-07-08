@@ -75,6 +75,7 @@ export const GetMeResponse = zod.object({
   "isRipperdoc": zod.boolean(),
   "isStoreOwner": zod.boolean(),
   "isStoreEmployee": zod.boolean().describe('Data-derived: true when any of the user\'s characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role.'),
+  "canCyberpsycho": zod.boolean().optional().describe('True when this user may open the CyberPsycho control panel: ADMIN\/FIXER role, or a per-user grant flipped on by an admin.'),
   "isRipperdocEmployee": zod.boolean().describe('Data-derived: true when any of the user\'s characters is on staff at a ripperdoc clinic. Drives the Manage Clinics nav link for employees who hold no owner role.'),
   "loginCount": zod.number().optional().describe('Number of times this user has logged in via Discord. Drives the first-run onboarding banner.'),
   "onboardingBannerDismissed": zod.boolean().optional().describe('True once the user has dismissed the onboarding banner; it then never re-appears.'),
@@ -8118,6 +8119,7 @@ export const AdminListUsersResponseItem = zod.object({
   "isCsApprover": zod.boolean().optional(),
   "isRipperdoc": zod.boolean().optional(),
   "isStoreOwner": zod.boolean().optional(),
+  "cyberpsychoAccess": zod.boolean().optional().describe('Per-user CyberPsycho control panel grant (independent of staff roles).'),
   "characterCount": zod.number().optional(),
   "lastSeenAt": zod.coerce.date().nullish(),
   "characters": zod.array(zod.object({
@@ -8188,6 +8190,7 @@ export const AdminGetUserResponse = zod.object({
   "isCsApprover": zod.boolean().optional(),
   "isRipperdoc": zod.boolean().optional(),
   "isStoreOwner": zod.boolean().optional(),
+  "cyberpsychoAccess": zod.boolean().optional().describe('Per-user CyberPsycho control panel grant (independent of staff roles).'),
   "characterCount": zod.number().optional(),
   "lastSeenAt": zod.coerce.date().nullish(),
   "characters": zod.array(zod.object({
@@ -8274,6 +8277,7 @@ export const AdminSyncUserRolesResponse = zod.object({
   "isCsApprover": zod.boolean().optional(),
   "isRipperdoc": zod.boolean().optional(),
   "isStoreOwner": zod.boolean().optional(),
+  "cyberpsychoAccess": zod.boolean().optional().describe('Per-user CyberPsycho control panel grant (independent of staff roles).'),
   "characterCount": zod.number().optional(),
   "lastSeenAt": zod.coerce.date().nullish(),
   "characters": zod.array(zod.object({
@@ -8323,6 +8327,23 @@ export const AdminSyncUserRolesResponse = zod.object({
   "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
   "createdAt": zod.coerce.date()
 })).optional()
+})
+
+
+/**
+ * @summary Grant or revoke this user's per-user CyberPsycho control panel access.
+ */
+export const AdminSetCyberpsychoAccessParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const AdminSetCyberpsychoAccessBody = zod.object({
+  "enabled": zod.boolean()
+})
+
+export const AdminSetCyberpsychoAccessResponse = zod.object({
+  "id": zod.string(),
+  "cyberpsychoAccess": zod.boolean()
 })
 
 

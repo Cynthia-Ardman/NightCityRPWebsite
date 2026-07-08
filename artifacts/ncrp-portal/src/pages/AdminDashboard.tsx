@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
@@ -576,6 +576,12 @@ export function UsersTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: users, isLoading } = useAdminListUsers();
+  const setCyberpsycho = useAdminSetCyberpsychoAccess({
+    mutation: {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getAdminListUsersQueryKey() }),
+      onError: () => toast({ title: "Failed to update CyberPsycho access", variant: "destructive" }),
+    },
+  });
   const hydrate = useAdminHydrateUsers({
     mutation: {
       onSuccess: (data) => {
@@ -664,6 +670,7 @@ export function UsersTab() {
                 <TableHead className="font-display text-nc-cyan">Discord User</TableHead>
                 <TableHead className="font-display text-nc-cyan">Discord ID</TableHead>
                 <TableHead className="font-display text-nc-cyan">Roles</TableHead>
+                <TableHead className="font-display text-nc-cyan">CyberPsycho</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="font-mono text-sm">
@@ -701,12 +708,27 @@ export function UsersTab() {
                       {npcDiscordIds?.has(u.discordId) && <Badge variant="outline" className="border-purple-400 text-purple-400 rounded-none text-[10px] px-1 py-0" data-testid={`badge-npc-${u.id}`}>NPC</Badge>}
                     </div>
                   </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    {u.isAdmin || u.isFixer ? (
+                      <span className="text-[10px] text-muted-foreground uppercase">via role</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={setCyberpsycho.isPending}
+                        onClick={() => setCyberpsycho.mutate({ userId: u.id, data: { enabled: !u.cyberpsychoAccess } })}
+                        className={`px-2 py-0.5 border font-display text-[10px] uppercase tracking-widest transition-colors ${u.cyberpsychoAccess ? "border-nc-magenta text-nc-magenta bg-nc-magenta/10" : "border-border text-muted-foreground hover:text-foreground"}`}
+                        data-testid={`button-cyberpsycho-access-${u.id}`}
+                      >
+                        {u.cyberpsychoAccess ? "GRANTED" : "GRANT"}
+                      </button>
+                    )}
+                  </TableCell>
                 </TableRow>
                 );
               })}
               {!users?.length && (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground h-24">NO DATA</TableCell>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground h-24">NO DATA</TableCell>
                 </TableRow>
               )}
             </TableBody>

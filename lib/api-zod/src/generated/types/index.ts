@@ -157,6 +157,8 @@ export * from './customRequestVoteResult';
 export * from './customRequestVoteResultDecided';
 export * from './customRequestVotersItem';
 export * from './customRequestVotersItemVote';
+export * from './cyberpsychoAccessInput';
+export * from './cyberpsychoAccessResult';
 export * from './cyberwareInstallInput';
 export * from './cyberwareRemoveInput';
 export * from './cyberwareViolation';

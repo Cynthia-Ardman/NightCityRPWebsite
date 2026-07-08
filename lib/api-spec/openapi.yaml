@@ -3370,6 +3370,24 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/users/{userId}/cyberpsycho-access:
+    parameters:
+      - { in: path, name: userId, required: true, schema: { type: string } }
+    post:
+      operationId: adminSetCyberpsychoAccess
+      tags: [admin]
+      summary: Grant or revoke this user's per-user CyberPsycho control panel access.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CyberpsychoAccessInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CyberpsychoAccessResult" }
   /admin/discord/members:
     get:
       operationId: adminSearchDiscordMembers
@@ -6189,6 +6207,7 @@ components:
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
         isStoreEmployee: { type: boolean, description: "Data-derived: true when any of the user's characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role." }
+        canCyberpsycho: { type: boolean, description: "True when this user may open the CyberPsycho control panel: ADMIN/FIXER role, or a per-user grant flipped on by an admin." }
         isRipperdocEmployee: { type: boolean, description: "Data-derived: true when any of the user's characters is on staff at a ripperdoc clinic. Drives the Manage Clinics nav link for employees who hold no owner role." }
         loginCount:
           type: integer
@@ -8535,6 +8554,19 @@ components:
         total: { type: integer }
         createdAt: { type: string, format: date-time }
 
+    CyberpsychoAccessInput:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+
+    CyberpsychoAccessResult:
+      type: object
+      required: [id, cyberpsychoAccess]
+      properties:
+        id: { type: string }
+        cyberpsychoAccess: { type: boolean }
+
     AdminUser:
       type: object
       required: [id, discordId, username, roles, isAdmin]
@@ -8553,6 +8585,7 @@ components:
         isCsApprover: { type: boolean }
         isRipperdoc: { type: boolean }
         isStoreOwner: { type: boolean }
+        cyberpsychoAccess: { type: boolean, description: "Per-user CyberPsycho control panel grant (independent of staff roles)." }
         characterCount: { type: integer }
         lastSeenAt: { type: ["string", "null"], format: date-time }
         characters:

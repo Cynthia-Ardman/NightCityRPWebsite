@@ -355,6 +355,10 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     // store / ripperdoc clinic. Drives the management nav links so employees
     // (who may hold no owner role) can reach the venues they work at.
     isStoreEmployee: !!storeEmp,
+    // True when this user may open the CyberPsycho control panel: staff always,
+    // or a per-user grant an admin flipped on from the user management screen.
+    canCyberpsycho:
+      hasRole(u.roles, "ADMIN") || hasRole(u.roles, "FIXER") || u.cyberpsychoAccess,
     isRipperdocEmployee: !!ripperdocEmp,
     // Staff-only lockdown state. When true, only ADMIN / FIXER / ARCHIVIST may
     // use the portal; the SPA shows a maintenance screen to everyone else.

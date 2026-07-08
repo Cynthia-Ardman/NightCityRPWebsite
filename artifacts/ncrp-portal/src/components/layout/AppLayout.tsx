@@ -307,7 +307,7 @@ function SidebarContent() {
           <NavItem href="/directory/characters" icon={Archive} label="Character Archive" tone="magenta" />
         )}
         {user && (user.isFixer || user.isAdmin) && <NavItem href="/breach" icon={Cpu} label="Breach Control" tone="magenta" />}
-        {user && (user.isFixer || user.isAdmin) && <NavItem href="/fixer/cyberpsycho" icon={Skull} label="CyberPsycho" tone="magenta" />}
+        {user && (user.isFixer || user.isAdmin || user.canCyberpsycho) && <NavItem href="/fixer/cyberpsycho" icon={Skull} label="CyberPsycho" tone="magenta" />}
         {/* Unified staff review queue (misc requests / character edits /
             new characters). Each tab self-gates by role inside the page,
             but only fixers / cs-approvers / admins have anything to do here,
