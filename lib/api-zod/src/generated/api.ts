@@ -7215,6 +7215,7 @@ export const ListMySheetsResponseItem = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional().describe('Revision stamp bumped on every save. Send it back as baseUpdatedAt on PATCH to detect stale edits.'),
   "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -7402,6 +7403,7 @@ export const GetSheetResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional().describe('Revision stamp bumped on every save. Send it back as baseUpdatedAt on PATCH to detect stale edits.'),
   "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -7527,7 +7529,8 @@ export const UpdateSheetBody = zod.object({
   "gear": zod.array(zod.string()),
   "startingEddies": zod.number().optional(),
   "notes": zod.string().nullish()
-}).optional().describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n')
+}).optional().describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
+  "baseUpdatedAt": zod.coerce.date().optional().describe('Optimistic-concurrency token: the updatedAt the client loaded the sheet with. If the sheet has been saved since, the PATCH is rejected with 409 error=stale_draft instead of overwriting the newer content.')
 })
 
 export const updateSheetResponseDataCyberwarePointsSpentMax = 6;
@@ -7548,6 +7551,7 @@ export const UpdateSheetResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional().describe('Revision stamp bumped on every save. Send it back as baseUpdatedAt on PATCH to detect stale edits.'),
   "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -7652,6 +7656,7 @@ export const SubmitDraftSheetResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional().describe('Revision stamp bumped on every save. Send it back as baseUpdatedAt on PATCH to detect stale edits.'),
   "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),
@@ -7777,6 +7782,7 @@ export const OverrideSheetResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "ownerAvatarUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional().describe('Revision stamp bumped on every save. Send it back as baseUpdatedAt on PATCH to detect stale edits.'),
   "submittedAt": zod.coerce.date().nullish().describe('When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.'),
   "data": zod.object({
   "sheetType": zod.enum(['PC', 'NPC']),

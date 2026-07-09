@@ -16,4 +16,6 @@ export interface CharacterSheetPatchInput {
   /** @nullable */
   characterId?: number | null;
   data?: CharacterSheetData;
+  /** Optimistic-concurrency token: the updatedAt the client loaded the sheet with. If the sheet has been saved since, the PATCH is rejected with 409 error=stale_draft instead of overwriting the newer content. */
+  baseUpdatedAt?: Date;
 }

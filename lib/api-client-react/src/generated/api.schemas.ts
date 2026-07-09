@@ -4300,6 +4300,8 @@ export interface CharacterSheet {
   /** @nullable */
   ownerAvatarUrl?: string | null;
   createdAt: string;
+  /** Revision stamp bumped on every save. Send it back as baseUpdatedAt on PATCH to detect stale edits. */
+  updatedAt?: string;
   /**
      * When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.
      * @nullable
@@ -4448,6 +4450,8 @@ export interface CharacterSheetPatchInput {
   /** @nullable */
   characterId?: number | null;
   data?: CharacterSheetData;
+  /** Optimistic-concurrency token: the updatedAt the client loaded the sheet with. If the sheet has been saved since, the PATCH is rejected with 409 error=stale_draft instead of overwriting the newer content. */
+  baseUpdatedAt?: string;
 }
 
 export type CharacterEditSubmissionStatus = typeof CharacterEditSubmissionStatus[keyof typeof CharacterEditSubmissionStatus];

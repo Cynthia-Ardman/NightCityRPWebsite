@@ -115,7 +115,7 @@ export default function NewSheet() {
 }
 
 interface SheetFormProps {
-  initialSheet: { id: number; name: string; status: string; data: any } | null;
+  initialSheet: { id: number; name: string; status: string; data: any; updatedAt?: string } | null;
   draftId: number | null;
 }
 
@@ -295,6 +295,15 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   // Snapshot of last persisted form state to detect dirty, and a debounce timer.
   const lastPersistedRef = useRef<string>(JSON.stringify({ fullName: init.fullName ?? "", payload: init }));
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Revision the form is based on (server updatedAt). Sent with every save so
+  // the server can reject a stale tab instead of letting it overwrite a newer
+  // draft saved from another device.
+  const baseUpdatedAtRef = useRef<string | null>(initialSheet?.updatedAt ?? null);
+  // Set when the server reports our copy is stale; blocks all further saves
+  // until the user reloads the latest version.
+  const [conflict, setConflict] = useState(false);
+  const conflictRef = useRef(false);
+  conflictRef.current = conflict;
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
   // Mirror of autoSaveStatus so the unmount cleanup (which has empty deps) can
   // read the *latest* value instead of the stale mount-time closure value.
@@ -307,13 +316,23 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   }
 
   async function saveDraft(opts?: { silent?: boolean }): Promise<number | null> {
+    // Never save over a newer draft — the user must reload the latest first.
+    if (conflictRef.current) return null;
     // Need at least a name to identify the draft on the server.
     const draftName = fullName.trim() || "(untitled draft)";
     const data = buildPayload();
     setAutoSaveStatus("saving");
     try {
       if (draftId) {
-        await updateMut.mutateAsync({ id: draftId, data: { name: draftName, data: data as any } });
+        const updated = await updateMut.mutateAsync({
+          id: draftId,
+          data: {
+            name: draftName,
+            data: data as any,
+            ...(baseUpdatedAtRef.current ? { baseUpdatedAt: baseUpdatedAtRef.current } : {}),
+          },
+        });
+        if ((updated as any)?.updatedAt) baseUpdatedAtRef.current = (updated as any).updatedAt;
         lastPersistedRef.current = JSON.stringify({ fullName: draftName, payload: data });
         invalidateLists();
         setAutoSaveStatus("saved");
@@ -331,6 +350,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         // and making it look like the page was cleared. The draft is saved server
         // side and listed under Drafts, so it stays recoverable.
         setDraftId(created.id);
+        if ((created as any)?.updatedAt) baseUpdatedAtRef.current = (created as any).updatedAt;
         lastPersistedRef.current = JSON.stringify({ fullName: draftName, payload: data });
         invalidateLists();
         setAutoSaveStatus("saved");
@@ -338,6 +358,24 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         return created.id;
       }
     } catch (e: any) {
+      // Stale-draft conflict: this tab's copy is older than what's on the
+      // server (e.g. the draft was saved from another device since this tab
+      // loaded). Stop autosaving so we can't clobber the newer version.
+      if (e?.status === 409 && e?.data?.error === "stale_draft") {
+        // Flip the ref synchronously so callers checking right after this
+        // save (e.g. onSubmit's fallback) see the conflict immediately.
+        conflictRef.current = true;
+        setConflict(true);
+        setAutoSaveStatus("error");
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        toast({
+          title: "Draft changed elsewhere",
+          description:
+            "This draft was saved from another device or tab since this page loaded. Saving here is paused — reload to get the latest version.",
+          variant: "destructive",
+        });
+        return null;
+      }
       setAutoSaveStatus("error");
       if (!opts?.silent) {
         toast({ title: "Could not save draft", description: String(e?.message ?? e), variant: "destructive" });
@@ -355,6 +393,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   );
 
   useEffect(() => {
+    if (conflict) return;
     if (payloadSig === lastPersistedRef.current) return;
     // Don't autosave a completely empty form (no name + still default scaffolding).
     if (!fullName.trim() && !draftId) {
@@ -370,7 +409,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payloadSig]);
+  }, [payloadSig, conflict]);
 
   // Flush pending autosave on unmount/navigation.
   useEffect(() => {
@@ -388,6 +427,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (conflict) return;
     if (overCap) return;
     // A sheet already in review is saved in place — never re-submitted.
     if (isInReview) {
@@ -410,6 +450,10 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     try {
       // Make sure the latest edits are persisted, then promote/submit.
       const id = await saveDraft({ silent: true });
+      // If the save failed on an EXISTING draft (error or stale conflict),
+      // stop here — falling through to the create path would submit a brand
+      // new sheet with this tab's (possibly stale) copy.
+      if (!id && (draftId || conflictRef.current)) return;
       if (id) {
         await submitDraftMut.mutateAsync({ id });
         invalidateLists();
@@ -444,7 +488,9 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
   const submitting = createMut.isPending || submitDraftMut.isPending;
   const saving = updateMut.isPending || (createMut.isPending && autoSaveStatus !== "idle");
-  const statusLabel = autoSaveStatus === "saving" || saving
+  const statusLabel = conflict
+    ? "Saving paused — draft changed elsewhere"
+    : autoSaveStatus === "saving" || saving
     ? "Saving..."
     : autoSaveStatus === "dirty"
     ? "Unsaved changes"
@@ -515,6 +561,30 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           </div>
         </CardContent>
       </Card>
+
+      {conflict && (
+        <Card className="rounded-none border-destructive bg-card/50" data-testid="card-draft-conflict">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-destructive">DRAFT CHANGED ELSEWHERE</CardTitle>
+          </CardHeader>
+          <CardContent className="font-mono text-sm space-y-3">
+            <p className="text-muted-foreground">
+              This draft was saved from another device or tab after this page loaded. Saving here is
+              paused so the newer version isn't overwritten. Reload to pick up the latest copy —
+              changes made only on this page will be discarded.
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-none"
+              onClick={() => window.location.reload()}
+              data-testid="button-reload-latest-draft"
+            >
+              RELOAD LATEST VERSION
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {initialSheet?.status === "changes_requested" && initialSheet && (
         <Card className="rounded-none border-nc-yellow bg-card/50">
@@ -916,11 +986,11 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
             DISCARD DRAFT
           </Button>
         )}
-        <Button type="button" onClick={() => saveDraft()} disabled={saving || createMut.isPending} className="rounded-none border border-nc-cyan bg-transparent text-nc-cyan hover:bg-nc-cyan/10 font-display" data-testid="button-save-draft">
+        <Button type="button" onClick={() => saveDraft()} disabled={saving || createMut.isPending || conflict} className="rounded-none border border-nc-cyan bg-transparent text-nc-cyan hover:bg-nc-cyan/10 font-display" data-testid="button-save-draft">
           {saving ? "SAVING..." : isInReview ? "SAVE CHANGES" : "SAVE DRAFT"}
         </Button>
         {!isInReview && (
-          <Button type="submit" disabled={submitting || overCap} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest" data-testid="button-submit-sheet">
+          <Button type="submit" disabled={submitting || overCap || conflict} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest" data-testid="button-submit-sheet">
             {submitting ? "TRANSMITTING..." : "SUBMIT FOR REVIEW"}
           </Button>
         )}

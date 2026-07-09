@@ -38,6 +38,8 @@ export interface CharacterSheet {
   /** @nullable */
   ownerAvatarUrl?: string | null;
   createdAt: Date;
+  /** Revision stamp bumped on every save. Send it back as baseUpdatedAt on PATCH to detect stale edits. */
+  updatedAt?: Date;
   /**
      * When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft.
      * @nullable

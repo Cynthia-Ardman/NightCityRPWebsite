@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, catalogGuns, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { postToChannel, startThreadFromMessage, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID, RIPPERDOC_ROLE_ID } from "../lib/discord";
@@ -513,7 +513,26 @@ router.patch("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(409).json({ error: "Sheet is locked (already approved/rejected)" });
     return;
   }
-  const { name, data, characterId } = req.body ?? {};
+  const { name, data, characterId, baseUpdatedAt } = req.body ?? {};
+  // Optimistic-concurrency guard: clients send the updatedAt they loaded the
+  // draft with. If the row has been saved since (e.g. a newer draft written
+  // from the phone while an old PC tab was asleep), reject instead of letting
+  // the stale tab silently overwrite the newer content.
+  if (baseUpdatedAt !== undefined) {
+    const base = new Date(String(baseUpdatedAt));
+    if (isNaN(base.getTime())) {
+      res.status(400).json({ error: "Invalid baseUpdatedAt" });
+      return;
+    }
+    if (existing.updatedAt && existing.updatedAt.getTime() !== base.getTime()) {
+      res.status(409).json({
+        error: "stale_draft",
+        message: "This draft was changed elsewhere since you loaded it. Reload to get the latest version.",
+        updatedAt: existing.updatedAt.toISOString(),
+      });
+      return;
+    }
+  }
   // NPC is a fixer/admin-gated sheet type and is exempt from the 6-CWP creation
   // cap. The cap-skip must therefore key off the *persisted* sheet type, NOT the
   // incoming payload — otherwise a non-fixer owner could PATCH a pending PC sheet
@@ -566,10 +585,39 @@ router.patch("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
       ...(typeof name === "string" && name.length ? { name } : {}),
       ...(data && typeof data === "object" ? { data } : {}),
       ...(characterId !== undefined ? { characterId } : {}),
+      updatedAt: new Date(),
     })
-    .where(and(eq(characterSheets.id, id), inArray(characterSheets.status, allowed)))
+    .where(
+      and(
+        eq(characterSheets.id, id),
+        inArray(characterSheets.status, allowed),
+        // Re-assert the revision inside the UPDATE so a concurrent save that
+        // lands between our read and this write also gets rejected. Compare at
+        // millisecond precision: the column's defaultNow() carries microseconds
+        // which the client's ISO string (ms precision) can never round-trip.
+        ...(baseUpdatedAt !== undefined
+          ? [
+              sql`date_trunc('milliseconds', ${characterSheets.updatedAt}) = date_trunc('milliseconds', ${new Date(String(baseUpdatedAt)).toISOString()}::timestamptz)`,
+            ]
+          : []),
+      ),
+    )
     .returning();
   if (!updated) {
+    if (baseUpdatedAt !== undefined) {
+      const [current] = await db
+        .select({ status: characterSheets.status, updatedAt: characterSheets.updatedAt })
+        .from(characterSheets)
+        .where(eq(characterSheets.id, id));
+      if (current && allowed.includes(current.status)) {
+        res.status(409).json({
+          error: "stale_draft",
+          message: "This draft was changed elsewhere since you loaded it. Reload to get the latest version.",
+          updatedAt: current.updatedAt?.toISOString(),
+        });
+        return;
+      }
+    }
     res.status(409).json({ error: "Sheet is locked (already approved/rejected) — refresh to see the latest." });
     return;
   }

@@ -482,6 +482,10 @@ export const characterSheets = pgTable("character_sheets", {
   // Null on drafts never yet submitted; the API falls back to the Discord
   // announce snowflake then createdAt for rows that predate this column.
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  // Revision stamp for optimistic concurrency on draft edits. Bumped on every
+  // PATCH; clients send the value they loaded (baseUpdatedAt) and a mismatch is
+  // rejected so a stale tab can't clobber a newer draft saved elsewhere.
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -8125,6 +8125,7 @@ components:
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
         ownerAvatarUrl: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, description: "Revision stamp bumped on every save. Send it back as baseUpdatedAt on PATCH to detect stale edits." }
         submittedAt: { type: ["string", "null"], format: date-time, description: "When the sheet was submitted for review. Effective value: explicit submit timestamp, else the Discord announce time, else createdAt. Null only on a never-submitted draft." }
         data: { $ref: "#/components/schemas/CharacterSheetData" }
         # Review fields — present on GET /sheets/{id} only.
@@ -8312,6 +8313,7 @@ components:
         name: { type: string, minLength: 1, maxLength: 64 }
         characterId: { type: ["integer", "null"] }
         data: { $ref: "#/components/schemas/CharacterSheetData" }
+        baseUpdatedAt: { type: string, format: date-time, description: "Optimistic-concurrency token: the updatedAt the client loaded the sheet with. If the sheet has been saved since, the PATCH is rejected with 409 error=stale_draft instead of overwriting the newer content." }
 
     CharacterEditSubmission:
       type: object

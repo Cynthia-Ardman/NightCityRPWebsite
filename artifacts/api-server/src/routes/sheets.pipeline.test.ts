@@ -584,3 +584,67 @@ describe("sheet voting — toggle (un-vote)", () => {
     expect(rows[0].vote).toBe("reject");
   });
 });
+
+describe("draft PATCH optimistic concurrency (stale tab protection)", () => {
+  it("rejects a save based on an outdated revision and accepts a fresh one", async () => {
+    const owner = await createUser();
+    const [draft] = await db
+      .insert(characterSheets)
+      .values({ ownerId: owner.id, name: "Draft V1", status: "draft", data: { sheetType: "PC" } })
+      .returning();
+
+    // Tab A loads the draft (captures updatedAt).
+    const loadedA = await request(app).get(`/api/sheets/${draft.id}`).set("x-test-user", owner.id).expect(200);
+    const revA = loadedA.body.updatedAt;
+    expect(revA).toBeTruthy();
+
+    // Tab B (phone) saves a newer version.
+    const savedB = await request(app)
+      .patch(`/api/sheets/${draft.id}`)
+      .set("x-test-user", owner.id)
+      .send({ name: "Draft V2 (phone)", data: { sheetType: "PC" }, baseUpdatedAt: revA })
+      .expect(200);
+    expect(savedB.body.name).toBe("Draft V2 (phone)");
+    expect(savedB.body.updatedAt).not.toBe(revA);
+
+    // Tab A (stale PC tab) tries to autosave the old copy — rejected.
+    const stale = await request(app)
+      .patch(`/api/sheets/${draft.id}`)
+      .set("x-test-user", owner.id)
+      .send({ name: "Old copy from PC", data: { sheetType: "PC" }, baseUpdatedAt: revA })
+      .expect(409);
+    expect(stale.body.error).toBe("stale_draft");
+
+    // Newer content untouched.
+    const [row] = await db.select().from(characterSheets).where(eq(characterSheets.id, draft.id));
+    expect(row.name).toBe("Draft V2 (phone)");
+
+    // Saving with the CURRENT revision works.
+    await request(app)
+      .patch(`/api/sheets/${draft.id}`)
+      .set("x-test-user", owner.id)
+      .send({ name: "Draft V3", data: { sheetType: "PC" }, baseUpdatedAt: savedB.body.updatedAt })
+      .expect(200);
+  });
+
+  it("rejects a malformed baseUpdatedAt and still allows saves without one", async () => {
+    const owner = await createUser();
+    const [draft] = await db
+      .insert(characterSheets)
+      .values({ ownerId: owner.id, name: "Draft", status: "draft", data: { sheetType: "PC" } })
+      .returning();
+
+    await request(app)
+      .patch(`/api/sheets/${draft.id}`)
+      .set("x-test-user", owner.id)
+      .send({ name: "X", baseUpdatedAt: "not-a-date" })
+      .expect(400);
+
+    // Legacy clients that don't send the token keep working (last-write-wins).
+    await request(app)
+      .patch(`/api/sheets/${draft.id}`)
+      .set("x-test-user", owner.id)
+      .send({ name: "No token save" })
+      .expect(200);
+  });
+});
