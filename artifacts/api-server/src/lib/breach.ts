@@ -21,7 +21,7 @@ import {
   scoreSelection,
   solvePuzzle,
 } from "@workspace/breach";
-import { hasRole, sendDirectMessage, postToChannel } from "./discord";
+import { hasRole, sendDirectMessage, postToChannel, NIGHTCITYBOT_LOGS_CHANNEL_ID } from "./discord";
 import { applyWalletDelta } from "./economy";
 import { recordInventoryEvent } from "./inventoryEvents";
 import { logger } from "./logger";
@@ -719,7 +719,7 @@ async function payReward(row: BreachPuzzle): Promise<{ paid: boolean; message: s
   return { paid: parts.length > 0, message: parts.length > 0 ? parts.join(" + ") : null };
 }
 
-// Notify the assigning staff member (DM) + the staff approval channel that a
+// Notify the assigning staff member (DM) + the bot log channel that a
 // puzzle resolved.
 async function notifyStaff(row: BreachPuzzle, success: boolean, expired: boolean): Promise<void> {
   const outcome = success ? "✅ SUCCESS" : expired ? "⌛ EXPIRED" : "❌ FAILED";
@@ -731,13 +731,10 @@ async function notifyStaff(row: BreachPuzzle, success: boolean, expired: boolean
   } catch (err) {
     logger.error({ puzzleId: row.id, err }, "breach staff DM notify failed");
   }
-  const channelId = process.env.CS_APPROVAL_CHANNEL_ID;
-  if (channelId) {
-    try {
-      await postToChannel(channelId, line);
-    } catch (err) {
-      logger.error({ puzzleId: row.id, err }, "breach staff channel notify failed");
-    }
+  try {
+    await postToChannel(NIGHTCITYBOT_LOGS_CHANNEL_ID, line);
+  } catch (err) {
+    logger.error({ puzzleId: row.id, err }, "breach staff channel notify failed");
   }
 }
 

@@ -468,6 +468,13 @@ export async function removeGuildMemberRole(
  */
 export const BUSINESS_OWNER_CHANNEL_ID = "1469857847105032376";
 
+/**
+ * #nightcitybot-logs — bot activity log channel. Automated result/outcome
+ * announcements (e.g. Breach Protocol puzzle results) post here instead of
+ * cluttering the staff approval channel.
+ */
+export const NIGHTCITYBOT_LOGS_CHANNEL_ID = "1489201665071513690";
+
 // Channel permission bitfield: VIEW_CHANNEL (1 << 10) lets the member see the
 // channel; READ_MESSAGE_HISTORY (1 << 16) lets them read past messages. Sending
 // is left to the channel's default (role/@everyone) overwrites — we only grant
