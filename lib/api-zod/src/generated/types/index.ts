@@ -556,3 +556,4 @@ export * from './walletAdjustmentInput';
 export * from './walletMoveInput';
 export * from './walletSource';
 export * from './walletTransaction';
+export * from './withdrawEventNpcSignupParams';

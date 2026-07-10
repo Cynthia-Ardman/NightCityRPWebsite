@@ -48,6 +48,8 @@ export interface EventView {
   signupCount: number;
   /** The caller's own active NPC sign-up; null if none. */
   mySignup?: EventSignupView | null;
+  /** Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged. */
+  myOccurrences?: Date[];
   /** True if caller is fixer/admin (sees Edit + roster). */
   canManage: boolean;
   /** Recurrence rule (null = single occurrence); expanded onto the calendar client-side. */

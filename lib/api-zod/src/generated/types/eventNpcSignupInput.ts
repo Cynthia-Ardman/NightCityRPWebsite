@@ -14,4 +14,9 @@ export interface EventNpcSignupInput {
   characterId?: number | null;
   /** @nullable */
   note?: string | null;
+  /**
+     * For recurring events, the concrete occurrence to sign up for. Defaults to the event's current startAt.
+     * @nullable
+     */
+  occurrenceStartAt?: Date | null;
 }

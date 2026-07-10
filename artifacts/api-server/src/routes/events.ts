@@ -273,7 +273,17 @@ router.post("/events/:id/npc-signups", requireAuth, async (req, res): Promise<vo
     }
   }
   const note = typeof b.note === "string" && b.note.trim() ? b.note.trim() : null;
-  const result = await signUpAsEventNpc({ eventId: id, userId: req.user!.id, characterId, note });
+  // Optional concrete occurrence (recurring events). Invalid dates are a 400
+  // rather than silently falling back to the base occurrence.
+  let occurrenceStartAt: Date | null = null;
+  if (b.occurrenceStartAt !== undefined && b.occurrenceStartAt !== null) {
+    occurrenceStartAt = new Date(String(b.occurrenceStartAt));
+    if (Number.isNaN(occurrenceStartAt.getTime())) {
+      res.status(400).json({ error: "occurrenceStartAt must be a valid ISO date-time" });
+      return;
+    }
+  }
+  const result = await signUpAsEventNpc({ eventId: id, userId: req.user!.id, characterId, note, occurrenceStartAt });
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
     return;
@@ -285,7 +295,18 @@ router.post("/events/:id/npc-signups", requireAuth, async (req, res): Promise<vo
 router.delete("/events/:id/npc-signups/me", requireAuth, async (req, res): Promise<void> => {
   const id = eventIdParam(req, res);
   if (id == null) return;
-  const result = await withdrawEventNpcSignup({ eventId: id, userId: req.user!.id });
+  // Optional occurrence scoping (?occurrenceStartAt=ISO). Omitted = withdraw
+  // every active signup on the event (legacy behavior).
+  let occurrenceStartAt: Date | null = null;
+  const rawOcc = req.query.occurrenceStartAt;
+  if (typeof rawOcc === "string" && rawOcc) {
+    occurrenceStartAt = new Date(rawOcc);
+    if (Number.isNaN(occurrenceStartAt.getTime())) {
+      res.status(400).json({ error: "occurrenceStartAt must be a valid ISO date-time" });
+      return;
+    }
+  }
+  const result = await withdrawEventNpcSignup({ eventId: id, userId: req.user!.id, occurrenceStartAt });
   if (!result.ok) {
     res.status(result.httpStatus).json({ error: result.error });
     return;

@@ -37,9 +37,11 @@ export function useQuickNpcSignup() {
   const missionNpc = useSignUpAsNpc({ mutation: { onSuccess, onError } });
   const eventNpc = useSignUpAsEventNpc({ mutation: { onSuccess, onError } });
 
-  const signUp = (kind: QuickNpcKind, id: number) => {
+  // occurrenceStartAt targets one concrete occurrence of a recurring event
+  // (ISO string); omitted = the event's current startAt (server default).
+  const signUp = (kind: QuickNpcKind, id: number, occurrenceStartAt?: string) => {
     if (kind === "mission") missionNpc.mutate({ id, data: { characterId: null } });
-    else eventNpc.mutate({ id, data: { characterId: null, note: null } });
+    else eventNpc.mutate({ id, data: { characterId: null, note: null, occurrenceStartAt: occurrenceStartAt ?? null } });
   };
 
   const pendingKey =

@@ -125,6 +125,10 @@ export interface EventSignupView {
   paymentError: string | null;
   paidAt: string | null;
   createdAt: string | null;
+  // For recurring events, the concrete occurrence (ISO startAt) this signup
+  // targets. Null = the event's single/base occurrence (or a legacy row from
+  // before per-occurrence scoping — treated as the event's current startAt).
+  occurrenceStartAt: string | null;
 }
 
 export interface EventView {
@@ -147,6 +151,12 @@ export interface EventView {
   vrchatSyncError: string | null;
   signupCount: number;
   mySignup: EventSignupView | null;
+  // ISO occurrence startAt instants the caller is actively signed up for
+  // (state signed_up). Legacy/null-occurrence signups map onto the event's
+  // current startAt. The calendar matches these against its expanded
+  // occurrences so a recurring event only badges the occurrence(s) actually
+  // signed up for.
+  myOccurrences: string[];
   canManage: boolean;
   // Normalised recurrence (null = single occurrence). Expanded onto the
   // calendar client-side so a weekly Discord event shows on every occurrence.
@@ -628,6 +638,7 @@ async function loadSignupViews(eventIds: number[]): Promise<Map<number, EventSig
       paymentError: eventNpcSignups.paymentError,
       paidAt: eventNpcSignups.paidAt,
       createdAt: eventNpcSignups.createdAt,
+      occurrenceStartAt: eventNpcSignups.occurrenceStartAt,
       characterId: eventNpcSignups.characterId,
       globalName: users.globalName,
       username: users.username,
@@ -654,6 +665,7 @@ async function loadSignupViews(eventIds: number[]): Promise<Map<number, EventSig
       paymentError: r.paymentError,
       paidAt: iso(r.paidAt),
       createdAt: iso(r.createdAt),
+      occurrenceStartAt: iso(r.occurrenceStartAt),
     };
     const list = byEvent.get(r.eventId) ?? [];
     list.push(view);
@@ -668,7 +680,26 @@ function toView(
   signups: EventSignupView[],
   includeSignups: boolean,
 ): EventView {
-  const mySignup = signups.find((s) => s.userId === viewer.id) ?? null;
+  // A recurring event can carry one signup per occurrence, so the viewer may
+  // have several rows. mySignup keeps its "current occurrence" meaning for the
+  // detail page: the signup targeting the event's current startAt (Discord
+  // rolls startAt forward to the next occurrence) or a legacy/null-occurrence
+  // row. myOccurrences lists every active occurrence for calendar badging.
+  const startMs = e.startAt.getTime();
+  const mine = signups.filter((s) => s.userId === viewer.id);
+  const mySignup =
+    mine.find((s) => {
+      if (s.occurrenceStartAt == null) return true;
+      const t = new Date(s.occurrenceStartAt).getTime();
+      return t === startMs;
+    }) ?? null;
+  const myOccurrences = Array.from(
+    new Set(
+      mine
+        .filter((s) => s.state === "signed_up")
+        .map((s) => s.occurrenceStartAt ?? iso(e.startAt)!),
+    ),
+  );
   return {
     id: e.id,
     title: e.title,
@@ -692,6 +723,7 @@ function toView(
     // the calendar's "needs N NPCs" count.
     signupCount: signups.filter((s) => s.state === "signed_up").length,
     mySignup,
+    myOccurrences,
     canManage: viewer.isManager,
     recurrence: e.recurrenceRule ?? null,
     ...(includeSignups && viewer.isManager ? { signups } : {}),
@@ -1458,6 +1490,10 @@ export async function signUpAsEventNpc(opts: {
   userId: string;
   characterId: number | null;
   note: string | null;
+  // Concrete occurrence being signed up for (recurring events). Defaults to
+  // the event's current startAt so a signup always targets ONE occurrence and
+  // never bleeds onto every projected future occurrence.
+  occurrenceStartAt?: Date | null;
 }): Promise<SignupResult> {
   const [event] = await db.select().from(events).where(eq(events.id, opts.eventId));
   if (!event) return { ok: false, httpStatus: 404, error: "Event not found" };
@@ -1473,26 +1509,53 @@ export async function signUpAsEventNpc(opts: {
     if (c.ownerId !== opts.userId) return { ok: false, httpStatus: 403, error: "You can only sign up with a character you own" };
     characterId = c.id;
   }
+  // Scope the signup to one concrete occurrence. Recurring events default to
+  // the current startAt (Discord rolls it forward to the next occurrence);
+  // single events store the occurrence too so withdraw/match logic is uniform.
+  const occurrenceStartAt = opts.occurrenceStartAt ?? event.startAt;
   // Idempotent: a partial unique index keeps at most one active sign-up per
-  // (event, user). onConflictDoNothing avoids a 500 on a double-submit race.
+  // (event, user, occurrence). onConflictDoNothing avoids a 500 on a
+  // double-submit race.
   await db
     .insert(eventNpcSignups)
-    .values({ eventId: opts.eventId, userId: opts.userId, characterId, note: opts.note, state: "signed_up" })
+    .values({
+      eventId: opts.eventId,
+      userId: opts.userId,
+      characterId,
+      note: opts.note,
+      state: "signed_up",
+      occurrenceStartAt,
+    })
     .onConflictDoNothing();
   return { ok: true };
 }
 
-export async function withdrawEventNpcSignup(opts: { eventId: number; userId: string }): Promise<SignupResult> {
+export async function withdrawEventNpcSignup(opts: {
+  eventId: number;
+  userId: string;
+  // When supplied, withdraw only the signup for this occurrence (legacy
+  // null-occurrence rows also match — they predate per-occurrence scoping and
+  // semantically mean "the current occurrence"). When omitted, withdraw every
+  // active signup on the event (legacy client behavior).
+  occurrenceStartAt?: Date | null;
+}): Promise<SignupResult> {
+  const conds = [
+    eq(eventNpcSignups.eventId, opts.eventId),
+    eq(eventNpcSignups.userId, opts.userId),
+    eq(eventNpcSignups.state, "signed_up"),
+  ];
+  if (opts.occurrenceStartAt != null) {
+    conds.push(
+      or(
+        isNull(eventNpcSignups.occurrenceStartAt),
+        eq(eventNpcSignups.occurrenceStartAt, opts.occurrenceStartAt),
+      )!,
+    );
+  }
   await db
     .update(eventNpcSignups)
     .set({ state: "withdrawn" })
-    .where(
-      and(
-        eq(eventNpcSignups.eventId, opts.eventId),
-        eq(eventNpcSignups.userId, opts.userId),
-        eq(eventNpcSignups.state, "signed_up"),
-      ),
-    );
+    .where(and(...conds));
   return { ok: true };
 }
 

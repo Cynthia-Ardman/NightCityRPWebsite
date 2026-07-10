@@ -117,6 +117,7 @@
 - [Availability grid locale formatting](availability-grid-locale.md) — one shared full-day grid; pin DATE format always, but clock is a per-viewer 12h/24h toggle (localStorage, default 24h); keep times in local TZ.
 - [Dossier background rendering](dossier-background-rendering.md) — column `background` + a "Background" section coexist; render the column card independent of hasSections, dedup only on exact normalized-text match.
 - Event NPCs: [ATTENDED confirm must allow fee=0](event-npc-fee-optional.md) never gate on amount>0; [lifecycle mirrors missions](event-npc-lifecycle.md) attended/no_show + pay, per-confirm-amount deviation.
+- [Event NPC per-occurrence signups](event-npc-per-occurrence.md) — recurring events expand client-side; badge via myOccurrences (legacy NULL row = current startAt), never mySignup on expanded occurrences.
 - [Sheet submitted vs created date](sheet-submitted-vs-created.md) — character_sheets.createdAt = draft creation, NOT submission; show effective `submittedAt ?? discord-snowflake ?? createdAt`; don't stamp submittedAt on reopen.
 - [Mission forum-thread creation](mission-forum-thread-creation.md) — mission thread channel is a Discord FORUM (type 15, require-tag); use POST /threads + a tag, not post-message-then-thread — see topic.
 - [Sheet import of Discord IDs](sheet-import-discord-ids.md) — 64-bit Discord IDs corrupt under numeric/XLSX parsing (>2^53); parse CSV as raw strings. SRF can't nest in an aggregate. Attendance → bot_mission_log, surfaced in Fixer Player Lookup.

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Briefcase, PartyPopper, Users, UserPlus, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { expandOccurrences } from "@/lib/eventRecurrence";
+import { expandOccurrences, myOccurrenceSet } from "@/lib/eventRecurrence";
 import { useQuickNpcSignup } from "@/lib/useQuickNpcSignup";
 
 type CalKind = "mission" | "event";
@@ -157,9 +157,10 @@ export default function DirectoryCalendar() {
       for (const e of (eventsQ.data ?? []) as EventView[]) {
         const base = new Date(e.startAt);
         if (Number.isNaN(base.getTime())) continue;
-        // Events only have NPC signups; the list returns mySignup only for an
-        // active signup, so its presence makes the viewer an NPC.
-        const isNpc = e.mySignup != null;
+        // Events only have NPC signups. Signups are scoped to a concrete
+        // occurrence (myOccurrences), so a recurring event only badges the
+        // occurrence(s) actually signed up for — not every projected one.
+        const myOccs = myOccurrenceSet(e.myOccurrences);
         const occs = expandOccurrences(base, e.recurrence ?? null, rangeStart, rangeEnd);
         for (const occ of occs) {
           out.push({
@@ -170,7 +171,7 @@ export default function DirectoryCalendar() {
             href: `/events/${e.id}`,
             subtype: EVENT_TYPE_LABEL[e.eventType] ?? "Event",
             eventType: e.eventType,
-            myStatus: isNpc ? "npc" : null,
+            myStatus: myOccs.has(occ.getTime()) ? "npc" : null,
             npcOpen: e.needsNpcs === true,
             occMs: occ.getTime(),
           });
@@ -393,7 +394,7 @@ export default function DirectoryCalendar() {
                           key={`${it.kind}-${it.id}-${it.occMs}`}
                           item={it}
                           dense={dense}
-                          onQuickSignup={() => quickNpc.signUp(it.kind, it.id)}
+                          onQuickSignup={() => quickNpc.signUp(it.kind, it.id, it.kind === "event" ? it.start.toISOString() : undefined)}
                           signingUp={quickNpc.pendingKey === `${it.kind}-${it.id}`}
                         />
                       ))}

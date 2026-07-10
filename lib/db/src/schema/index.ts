@@ -1176,6 +1176,11 @@ export const eventNpcSignups = pgTable("event_npc_signups", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   characterId: integer("character_id").references(() => characters.id, { onDelete: "set null" }),
   note: text("note"),
+  // For recurring events, the concrete occurrence this signup targets (the
+  // occurrence's startAt instant). Null = the event's single/base occurrence
+  // (also all legacy rows from before per-occurrence scoping — clients treat
+  // null as "the event's current startAt occurrence").
+  occurrenceStartAt: timestamp("occurrence_start_at", { withTimezone: true }),
   // signed_up | withdrawn | attended | no_show. An organizer later confirms
   // whether the volunteer actually attended (and pays them) or marks a no-show,
   // mirroring the mission NPC lifecycle (missionNpcSignups).
@@ -1190,8 +1195,11 @@ export const eventNpcSignups = pgTable("event_npc_signups", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({
+  // One active signup per (event, user, occurrence). coalesce folds the null
+  // (base/single occurrence) case into a sentinel so it participates in
+  // uniqueness too.
   oneActivePerUserIdx: uniqueIndex("event_npc_signups_active_idx")
-    .on(t.eventId, t.userId)
+    .on(t.eventId, t.userId, sql`coalesce(${t.occurrenceStartAt}, 'epoch'::timestamptz)`)
     .where(sql`state = 'signed_up'`),
   eventIdx: index("event_npc_signups_event_idx").on(t.eventId),
   userIdx: index("event_npc_signups_user_idx").on(t.userId),

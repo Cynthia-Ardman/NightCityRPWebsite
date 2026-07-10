@@ -5524,8 +5524,10 @@ export const ListEventsResponseItem = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "myOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
   "recurrence": zod.union([zod.object({
   "frequency": zod.number(),
@@ -5546,7 +5548,8 @@ export const ListEventsResponseItem = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
@@ -5632,8 +5635,10 @@ export const GetEventResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "myOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
   "recurrence": zod.union([zod.object({
   "frequency": zod.number(),
@@ -5654,7 +5659,8 @@ export const GetEventResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
@@ -5713,8 +5719,10 @@ export const UpdateEventResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "myOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
   "recurrence": zod.union([zod.object({
   "frequency": zod.number(),
@@ -5735,7 +5743,8 @@ export const UpdateEventResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
@@ -5762,7 +5771,8 @@ export const SignUpAsEventNpcParams = zod.object({
 
 export const SignUpAsEventNpcBody = zod.object({
   "characterId": zod.number().nullish().describe('Optionally one of your own characters to NPC as.'),
-  "note": zod.string().nullish()
+  "note": zod.string().nullish(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence to sign up for. Defaults to the event\'s current startAt.')
 })
 
 export const SignUpAsEventNpcResponse = zod.object({
@@ -5796,8 +5806,10 @@ export const SignUpAsEventNpcResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "myOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
   "recurrence": zod.union([zod.object({
   "frequency": zod.number(),
@@ -5818,7 +5830,8 @@ export const SignUpAsEventNpcResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
@@ -5829,6 +5842,10 @@ export const SignUpAsEventNpcResponse = zod.object({
  */
 export const WithdrawEventNpcSignupParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const WithdrawEventNpcSignupQueryParams = zod.object({
+  "occurrenceStartAt": zod.date().optional().describe('Withdraw only the signup for this occurrence (recurring events). Omitted = withdraw every active signup on the event.')
 })
 
 export const WithdrawEventNpcSignupResponse = zod.object({
@@ -5862,8 +5879,10 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "myOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
   "recurrence": zod.union([zod.object({
   "frequency": zod.number(),
@@ -5884,7 +5903,8 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })
@@ -5938,8 +5958,10 @@ export const ConfirmEventNpcSignupResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 }),zod.null()]).optional().describe('The caller\'s own active NPC sign-up; null if none.'),
+  "myOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged.'),
   "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Edit + roster).'),
   "recurrence": zod.union([zod.object({
   "frequency": zod.number(),
@@ -5960,7 +5982,8 @@ export const ConfirmEventNpcSignupResponse = zod.object({
   "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
   "paymentError": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date().nullable()
+  "createdAt": zod.coerce.date().nullable(),
+  "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
   "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
 })

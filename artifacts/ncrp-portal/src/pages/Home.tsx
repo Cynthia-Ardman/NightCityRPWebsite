@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
 import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper, UserPlus } from "lucide-react";
-import { expandOccurrences } from "@/lib/eventRecurrence";
+import { expandOccurrences, myOccurrenceSet } from "@/lib/eventRecurrence";
 import { useQuickNpcSignup } from "@/lib/useQuickNpcSignup";
 import { missionStatusClass, missionStatusLabel, missionTierClass, missionTierLabel } from "@/lib/missionStatus";
 import { Button } from "@/components/ui/button";
@@ -438,20 +438,24 @@ function MyEventsCard() {
     });
   }
   for (const e of (events ?? []) as EventView[]) {
-    if (e.mySignup == null) continue;
+    // Signups are scoped to concrete occurrences, so only list the
+    // occurrence(s) the viewer actually signed up for.
+    const myOccs = myOccurrenceSet(e.myOccurrences);
+    if (myOccs.size === 0) continue;
     const base = new Date(e.startAt);
     if (Number.isNaN(base.getTime())) continue;
-    const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
-    if (!occ) continue;
-    items.push({
-      kind: "event",
-      id: e.id,
-      title: e.title,
-      start: occ,
-      href: `/events/${e.id}`,
-      subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event",
-      myStatus: "npc",
-    });
+    for (const occ of expandOccurrences(base, e.recurrence ?? null, now, horizon)) {
+      if (!myOccs.has(occ.getTime())) continue;
+      items.push({
+        kind: "event",
+        id: e.id,
+        title: e.title,
+        start: occ,
+        href: `/events/${e.id}`,
+        subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event",
+        myStatus: "npc",
+      });
+    }
   }
 
   items.sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -519,7 +523,8 @@ function TodaysScheduleCard() {
   for (const e of (events ?? []) as EventView[]) {
     const base = new Date(e.startAt);
     if (Number.isNaN(base.getTime())) continue;
-    const isNpc = e.mySignup != null;
+    // Badge only the occurrence(s) the viewer actually signed up for.
+    const myOccs = myOccurrenceSet(e.myOccurrences);
     for (const occ of expandOccurrences(base, e.recurrence ?? null, dayStart, dayEnd)) {
       items.push({
         kind: "event",
@@ -528,7 +533,7 @@ function TodaysScheduleCard() {
         start: occ,
         href: `/events/${e.id}`,
         subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event",
-        myStatus: isNpc ? "npc" : null,
+        myStatus: myOccs.has(occ.getTime()) ? "npc" : null,
       });
     }
   }
@@ -763,22 +768,25 @@ function NpcSessionBanner() {
   // a later session just because the viewer already volunteered for the next
   // one; the banner is about the *next* session only. Once the viewer has
   // signed up for that soonest session, we hide the banner entirely.
-  let best: { id: number; title: string; start: Date; mySignup: EventView["mySignup"] } | null = null;
+  let best: { id: number; title: string; start: Date; signedUp: boolean } | null = null;
   for (const e of (events ?? []) as EventView[]) {
     if (e.eventType !== "session" || e.needsNpcs !== true) continue;
     const base = new Date(e.startAt);
     if (Number.isNaN(base.getTime())) continue;
     const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
     if (!occ) continue;
+    // Signed up for THIS occurrence specifically (signups are per-occurrence
+    // on recurring events).
+    const signedUp = myOccurrenceSet(e.myOccurrences).has(occ.getTime());
     if (!best || occ < best.start) {
-      best = { id: e.id, title: e.title, start: occ, mySignup: e.mySignup };
-    } else if (occ.getTime() === best.start.getTime() && e.mySignup != null) {
+      best = { id: e.id, title: e.title, start: occ, signedUp };
+    } else if (occ.getTime() === best.start.getTime() && signedUp) {
       // A single session can have duplicate rows (Discord + website). If the
       // viewer signed up on either copy, treat the session as signed up.
-      best.mySignup = e.mySignup;
+      best.signedUp = true;
     }
   }
-  if (!best || best.mySignup != null) return null;
+  if (!best || best.signedUp) return null;
   const session = best;
 
   const diffMs = session.start.getTime() - now.getTime();
@@ -819,7 +827,7 @@ function NpcSessionBanner() {
         </div>
         <Button
           disabled={signingUp}
-          onClick={() => quickNpc.signUp("event", session.id)}
+          onClick={() => quickNpc.signUp("event", session.id, session.start.toISOString())}
           className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display tracking-widest shrink-0"
           data-testid="button-npc-session-signup"
         >
@@ -859,11 +867,13 @@ function NpcsNeededCard() {
     items.push({ kind: "mission", id: m.id, title: m.title, start, href: `/missions/${m.id}`, subtype: `Tier ${m.tier}` });
   }
   for (const e of (events ?? []) as EventView[]) {
-    if (e.needsNpcs !== true || e.mySignup != null) continue;
+    if (e.needsNpcs !== true) continue;
     const base = new Date(e.startAt);
     if (Number.isNaN(base.getTime())) continue;
     const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
     if (!occ) continue;
+    // Skip only if signed up for THIS occurrence (per-occurrence signups).
+    if (myOccurrenceSet(e.myOccurrences).has(occ.getTime())) continue;
     items.push({ kind: "event", id: e.id, title: e.title, start: occ, href: `/events/${e.id}`, subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event" });
   }
 
@@ -904,7 +914,7 @@ function NpcsNeededCard() {
                     size="sm"
                     variant="outline"
                     disabled={signingUp}
-                    onClick={() => quickNpc.signUp(it.kind, it.id)}
+                    onClick={() => quickNpc.signUp(it.kind, it.id, it.kind === "event" ? it.start.toISOString() : undefined)}
                     className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest shrink-0 h-7 px-2 text-xs"
                     data-testid={`button-npc-need-${it.kind}-${it.id}`}
                   >

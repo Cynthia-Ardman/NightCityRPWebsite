@@ -5815,6 +5815,11 @@ export interface EventSignupView {
   paidAt?: string | null;
   /** @nullable */
   createdAt: string | null;
+  /**
+     * For recurring events, the concrete occurrence this signup targets. Null = the event's single/base occurrence (or a legacy row, treated as the event's current startAt).
+     * @nullable
+     */
+  occurrenceStartAt?: string | null;
 }
 
 /**
@@ -5887,6 +5892,8 @@ export interface EventView {
   signupCount: number;
   /** The caller's own active NPC sign-up; null if none. */
   mySignup?: EventSignupView | null;
+  /** Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged. */
+  myOccurrences?: string[];
   /** True if caller is fixer/admin (sees Edit + roster). */
   canManage: boolean;
   /** Recurrence rule (null = single occurrence); expanded onto the calendar client-side. */
@@ -5959,6 +5966,11 @@ export interface EventNpcSignupInput {
   characterId?: number | null;
   /** @nullable */
   note?: string | null;
+  /**
+     * For recurring events, the concrete occurrence to sign up for. Defaults to the event's current startAt.
+     * @nullable
+     */
+  occurrenceStartAt?: string | null;
 }
 
 /**
@@ -6573,6 +6585,13 @@ excludeEventId?: string;
 
 export type CancelEvent200 = {
   ok: boolean;
+};
+
+export type WithdrawEventNpcSignupParams = {
+/**
+ * Withdraw only the signup for this occurrence (recurring events). Omitted = withdraw every active signup on the event.
+ */
+occurrenceStartAt?: string;
 };
 
 export type AdminListAuditParams = {

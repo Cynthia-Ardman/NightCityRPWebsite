@@ -137,3 +137,17 @@ export function expandOccurrences(
   }
   return out;
 }
+
+/**
+ * Millisecond timestamps of the occurrences the viewer is actively signed up
+ * for (EventView.myOccurrences). Used to badge only the signed-up
+ * occurrence(s) of a recurring event, not every projected one.
+ */
+export function myOccurrenceSet(myOccurrences: string[] | undefined | null): Set<number> {
+  const out = new Set<number>();
+  for (const s of myOccurrences ?? []) {
+    const t = new Date(s).getTime();
+    if (!Number.isNaN(t)) out.add(t);
+  }
+  return out;
+}

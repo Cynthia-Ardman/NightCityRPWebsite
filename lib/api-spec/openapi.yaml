@@ -2298,6 +2298,12 @@ paths:
       operationId: withdrawEventNpcSignup
       tags: [events]
       summary: "Withdraw your own active NPC sign-up on an event."
+      parameters:
+        - in: query
+          name: occurrenceStartAt
+          required: false
+          schema: { type: string, format: date-time }
+          description: "Withdraw only the signup for this occurrence (recurring events). Omitted = withdraw every active signup on the event."
       responses:
         "200":
           description: OK
@@ -9101,6 +9107,7 @@ components:
         paymentError: { type: ["string", "null"] }
         paidAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: ["string", "null"], format: date-time }
+        occurrenceStartAt: { type: ["string", "null"], format: date-time, description: "For recurring events, the concrete occurrence this signup targets. Null = the event's single/base occurrence (or a legacy row, treated as the event's current startAt)." }
 
     EventRecurrence:
       type: object
@@ -9144,6 +9151,10 @@ components:
             - $ref: "#/components/schemas/EventSignupView"
             - type: "null"
           description: "The caller's own active NPC sign-up; null if none."
+        myOccurrences:
+          type: array
+          items: { type: string, format: date-time }
+          description: "Occurrence startAt instants the caller is actively signed up for. The calendar matches these against expanded recurring occurrences so only the signed-up occurrence is badged."
         canManage: { type: boolean, description: "True if caller is fixer/admin (sees Edit + roster)." }
         recurrence:
           oneOf:
@@ -9191,6 +9202,7 @@ components:
       properties:
         characterId: { type: ["integer", "null"], description: "Optionally one of your own characters to NPC as." }
         note: { type: ["string", "null"] }
+        occurrenceStartAt: { type: ["string", "null"], format: date-time, description: "For recurring events, the concrete occurrence to sign up for. Defaults to the event's current startAt." }
 
     MissionAssignmentInput:
       type: object

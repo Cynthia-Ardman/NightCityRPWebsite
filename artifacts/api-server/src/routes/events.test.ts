@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
+import { db, eventNpcSignups } from "@workspace/db";
 
 const app = buildTestApp();
 
@@ -105,6 +106,141 @@ describe("PATCH/DELETE /events/:id", () => {
       .set("x-test-user", admin.id)
       .send({ title: "Ghost" });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("NPC sign-ups are per-occurrence", () => {
+  async function createNpcEvent(adminId: string, overrides: Record<string, unknown> = {}) {
+    const res = await createValidEvent(adminId, { needsNpcs: true, ...overrides });
+    expect(res.status).toBe(201);
+    return res.body as { id: number; startAt: string };
+  }
+
+  async function getEvent(id: number, userId: string) {
+    const res = await request(app).get(`/api/events/${id}`).set("x-test-user", userId);
+    expect(res.status).toBe(200);
+    return res.body as {
+      startAt: string;
+      mySignup: { occurrenceStartAt?: string | null } | null;
+      myOccurrences: string[];
+    };
+  }
+
+  it("defaults a signup to the event's current startAt occurrence", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(signup.status).toBe(200);
+
+    const view = await getEvent(event.id, player.id);
+    expect(view.mySignup).not.toBeNull();
+    expect(view.myOccurrences).toEqual([view.startAt]);
+  });
+
+  it("rejects an invalid occurrenceStartAt", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+
+    const bad = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({ occurrenceStartAt: "not-a-date" });
+    expect(bad.status).toBe(400);
+
+    const badWithdraw = await request(app)
+      .delete(`/api/events/${event.id}/npc-signups/me?occurrenceStartAt=not-a-date`)
+      .set("x-test-user", player.id);
+    expect(badWithdraw.status).toBe(400);
+  });
+
+  it("scopes a future-occurrence signup so it does not badge the current occurrence", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+    const later = future(24 * 7); // e.g. next week's occurrence of a recurring event
+
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({ occurrenceStartAt: later });
+    expect(signup.status).toBe(200);
+
+    const view = await getEvent(event.id, player.id);
+    // Signed up for a LATER occurrence only — the current occurrence must not
+    // show the viewer as signed up.
+    expect(view.mySignup).toBeNull();
+    expect(view.myOccurrences).toEqual([new Date(later).toISOString()]);
+  });
+
+  it("allows one signup per occurrence and withdraws only the targeted occurrence", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+    const later = future(24 * 7);
+
+    const first = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(first.status).toBe(200);
+    const second = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({ occurrenceStartAt: later });
+    expect(second.status).toBe(200);
+
+    let view = await getEvent(event.id, player.id);
+    expect(view.myOccurrences.sort()).toEqual(
+      [view.startAt, new Date(later).toISOString()].sort(),
+    );
+
+    // Withdraw ONLY the later occurrence; the current one must survive.
+    const withdraw = await request(app)
+      .delete(`/api/events/${event.id}/npc-signups/me?occurrenceStartAt=${encodeURIComponent(later)}`)
+      .set("x-test-user", player.id);
+    expect(withdraw.status).toBe(200);
+
+    view = await getEvent(event.id, player.id);
+    expect(view.mySignup).not.toBeNull();
+    expect(view.myOccurrences).toEqual([view.startAt]);
+  });
+
+  it("treats a legacy null-occurrence row as the current occurrence and withdraws it by occurrence", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+
+    // Legacy rows predate per-occurrence scoping and have NULL occurrence.
+    await db.insert(eventNpcSignups).values({
+      eventId: event.id,
+      userId: player.id,
+      characterId: null,
+      note: null,
+      state: "signed_up",
+      occurrenceStartAt: null,
+    });
+
+    let view = await getEvent(event.id, player.id);
+    expect(view.mySignup).not.toBeNull();
+    expect(view.myOccurrences).toEqual([view.startAt]);
+
+    // Occurrence-scoped withdraw must also clear the legacy null row.
+    const withdraw = await request(app)
+      .delete(
+        `/api/events/${event.id}/npc-signups/me?occurrenceStartAt=${encodeURIComponent(view.startAt)}`,
+      )
+      .set("x-test-user", player.id);
+    expect(withdraw.status).toBe(200);
+
+    view = await getEvent(event.id, player.id);
+    expect(view.mySignup).toBeNull();
+    expect(view.myOccurrences).toEqual([]);
   });
 });
 

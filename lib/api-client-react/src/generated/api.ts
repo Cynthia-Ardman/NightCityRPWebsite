@@ -293,7 +293,8 @@ import type {
   Wallet,
   WalletAdjustmentInput,
   WalletMoveInput,
-  WalletTransaction
+  WalletTransaction,
+  WithdrawEventNpcSignupParams
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -10485,20 +10486,29 @@ export const useSignUpAsEventNpc = <TError = ErrorType<void>,
       return useMutation(getSignUpAsEventNpcMutationOptions(options));
     }
 
-export const getWithdrawEventNpcSignupUrl = (id: number,) => {
+export const getWithdrawEventNpcSignupUrl = (id: number,
+    params?: WithdrawEventNpcSignupParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/events/${id}/npc-signups/me`
+  return stringifiedParams.length > 0 ? `/api/events/${id}/npc-signups/me?${stringifiedParams}` : `/api/events/${id}/npc-signups/me`
 }
 
 /**
  * @summary Withdraw your own active NPC sign-up on an event.
  */
-export const withdrawEventNpcSignup = async (id: number, options?: RequestInit): Promise<EventView> => {
+export const withdrawEventNpcSignup = async (id: number,
+    params?: WithdrawEventNpcSignupParams, options?: RequestInit): Promise<EventView> => {
 
-  return customFetch<EventView>(getWithdrawEventNpcSignupUrl(id),
+  return customFetch<EventView>(getWithdrawEventNpcSignupUrl(id,params),
   {
     ...options,
     method: 'DELETE'
@@ -10511,8 +10521,8 @@ export const withdrawEventNpcSignup = async (id: number, options?: RequestInit):
 
 
 export const getWithdrawEventNpcSignupMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number;params?: WithdrawEventNpcSignupParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number;params?: WithdrawEventNpcSignupParams}, TContext> => {
 
 const mutationKey = ['withdrawEventNpcSignup'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -10524,10 +10534,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, {id: number;params?: WithdrawEventNpcSignupParams}> = (props) => {
+          const {id,params} = props ?? {};
 
-          return  withdrawEventNpcSignup(id,requestOptions)
+          return  withdrawEventNpcSignup(id,params,requestOptions)
         }
 
 
@@ -10545,11 +10555,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Withdraw your own active NPC sign-up on an event.
  */
 export const useWithdrawEventNpcSignup = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawEventNpcSignup>>, TError,{id: number;params?: WithdrawEventNpcSignupParams}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof withdrawEventNpcSignup>>,
         TError,
-        {id: number},
+        {id: number;params?: WithdrawEventNpcSignupParams},
         TContext
       > => {
       return useMutation(getWithdrawEventNpcSignupMutationOptions(options));

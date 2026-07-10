@@ -29,4 +29,9 @@ export interface EventSignupView {
   paidAt?: Date | null;
   /** @nullable */
   createdAt: Date | null;
+  /**
+     * For recurring events, the concrete occurrence this signup targets. Null = the event's single/base occurrence (or a legacy row, treated as the event's current startAt).
+     * @nullable
+     */
+  occurrenceStartAt?: Date | null;
 }

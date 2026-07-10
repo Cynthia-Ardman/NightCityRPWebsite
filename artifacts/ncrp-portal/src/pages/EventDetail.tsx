@@ -553,7 +553,14 @@ function NpcSignupSection({ data }: { data: EventView }) {
               variant="outline"
               size="sm"
               disabled={withdraw.isPending}
-              onClick={() => withdraw.mutate({ id: data.id })}
+              onClick={() =>
+                withdraw.mutate({
+                  id: data.id,
+                  // Withdraw only this occurrence's signup (legacy
+                  // null-occurrence rows also match server-side).
+                  params: { occurrenceStartAt: mine.occurrenceStartAt ?? data.startAt },
+                })
+              }
               className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
               data-testid="button-withdraw-npc"
             >
@@ -617,7 +624,13 @@ function NpcSignupSection({ data }: { data: EventView }) {
             signUp.mutate(
               {
                 id: data.id,
-                data: { characterId: characterId === "" ? null : Number(characterId), note: note || null },
+                // Target the event's current (next) occurrence explicitly so
+                // recurring-event signups never bleed onto other occurrences.
+                data: {
+                  characterId: characterId === "" ? null : Number(characterId),
+                  note: note || null,
+                  occurrenceStartAt: data.startAt,
+                },
               },
               {
                 onSuccess: () => {
